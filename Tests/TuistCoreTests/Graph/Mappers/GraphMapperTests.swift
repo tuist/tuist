@@ -1,8 +1,7 @@
 import Foundation
-import TSCBasic
+import Path
 import TuistCore
-import TuistCoreTesting
-import TuistGraph
+import XcodeGraph
 import XCTest
 
 @testable import TuistSupportTesting
@@ -14,11 +13,11 @@ final class AnyGraphMapperTests: TuistUnitTestCase {
         let output = Graph.test(name: "output")
         let subject = AnyGraphMapper(mapper: { graph in
             XCTAssertEqual(graph.name, input.name)
-            return (output, [])
+            return (output, [], MapperEnvironment())
         })
 
         // When
-        let (got, _) = try subject.map(graph: input)
+        let (got, _, _) = try subject.map(graph: input, environment: MapperEnvironment())
 
         // Then
         XCTAssertEqual(got.name, output.name)
@@ -32,17 +31,17 @@ final class SequentialGraphMapperTests: TuistUnitTestCase {
         let input = Graph.test(name: "0")
         let first = AnyGraphMapper(mapper: { graph in
             XCTAssertEqual(graph.name, "0")
-            return (Graph.test(name: "1"), [firstSideEffect])
+            return (Graph.test(name: "1"), [firstSideEffect], MapperEnvironment())
         })
         let secondSideEffect = SideEffectDescriptor.file(.init(path: "/second"))
         let second = AnyGraphMapper(mapper: { graph in
             XCTAssertEqual(graph.name, "1")
-            return (Graph.test(name: "2"), [secondSideEffect])
+            return (Graph.test(name: "2"), [secondSideEffect], MapperEnvironment())
         })
         let subject = SequentialGraphMapper([first, second])
 
         // When
-        let (got, sideEffects) = try await subject.map(graph: input)
+        let (got, sideEffects, _) = try await subject.map(graph: input, environment: MapperEnvironment())
 
         // Then
         XCTAssertEqual(got.name, "2")

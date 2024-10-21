@@ -1,27 +1,26 @@
 import Foundation
-import TSCBasic
+import Path
 import TuistCore
-import TuistGraph
+import XcodeGraph
 
 public final class TreeShakePrunedTargetsGraphMapper: GraphMapping {
     public init() {}
 
-    public func map(graph: Graph) throws -> (Graph, [SideEffectDescriptor]) {
+    public func map(graph: Graph, environment: MapperEnvironment) throws -> (Graph, [SideEffectDescriptor], MapperEnvironment) {
         logger.debug("Transforming graph \(graph.name): Tree-shaking nodes")
-        let sourceTargets: Set<TargetReference> = Set(graph.targets.flatMap { projectPath, targets -> [TargetReference] in
-            guard graph.projects[projectPath] != nil else { return [] }
-            return targets.compactMap { _, target -> TargetReference? in
+        let sourceTargets: Set<TargetReference> = Set(graph.projects.flatMap { projectPath, project -> [TargetReference] in
+            return project.targets.compactMap { _, target -> TargetReference? in
                 if target.prune { return nil }
                 return TargetReference(projectPath: projectPath, name: target.name)
             }
         })
 
         // If the number of source targets matches the number of targets in the graph there's nothing to be pruned.
-        if sourceTargets.count == graph.targets.flatMap(\.value.values).count { return (graph, []) }
+        if sourceTargets.count == graph.projects.values.flatMap(\.targets.values).count { return (graph, [], environment) }
 
         let projects = graph.projects.reduce(into: [AbsolutePath: Project]()) { acc, next in
             let targets = self.treeShake(
-                targets: next.value.targets,
+                targets: Array(next.value.targets.values),
                 path: next.key,
                 graph: graph,
                 sourceTargets: sourceTargets
@@ -33,7 +32,10 @@ public final class TreeShakePrunedTargetsGraphMapper: GraphMapping {
                     schemes: next.value.schemes,
                     sourceTargets: sourceTargets
                 )
-                acc[next.key] = next.value.with(targets: targets).with(schemes: schemes)
+                var project = next.value
+                project.schemes = schemes
+                project.targets = Dictionary(uniqueKeysWithValues: targets.map { ($0.name, $0) })
+                acc[next.key] = project
             }
         }
 
@@ -46,14 +48,7 @@ public final class TreeShakePrunedTargetsGraphMapper: GraphMapping {
         var graph = graph
         graph.workspace = workspace
         graph.projects = projects
-        graph.targets = sourceTargets.reduce(into: [AbsolutePath: [String: Target]]()) { acc, targetReference in
-            var targets = acc[targetReference.projectPath, default: [:]]
-            if let target = graph.targets[targetReference.projectPath, default: [:]][targetReference.name] {
-                targets[target.name] = target
-            }
-            acc[targetReference.projectPath] = targets
-        }
-        return (graph, [])
+        return (graph, [], environment)
     }
 
     fileprivate func treeShake(workspace: Workspace, projects: [Project], sourceTargets: Set<TargetReference>) -> Workspace {
@@ -72,7 +67,7 @@ public final class TreeShakePrunedTargetsGraphMapper: GraphMapping {
         sourceTargets: Set<TargetReference>
     ) -> [Target] {
         targets.compactMap { target -> Target? in
-            guard let target = graph.targets[path, default: [:]][target.name] else { return nil }
+            guard let target = graph.projects[path]?.targets[target.name] else { return nil }
             let targetReference = TargetReference(projectPath: path, name: target.name)
             guard sourceTargets.contains(targetReference) else { return nil }
             return target
@@ -96,6 +91,18 @@ public final class TreeShakePrunedTargetsGraphMapper: GraphMapping {
             let hasTestTargets = !(scheme.testAction?.targets ?? []).isEmpty
             let hasTestPlans = !(scheme.testAction?.testPlans ?? []).isEmpty
             guard hasBuildTargets || hasTestTargets || hasTestPlans else {
+                return nil
+            }
+
+            if let expandVariableFromTarget = scheme.runAction?.expandVariableFromTarget,
+               !sourceTargets.contains(expandVariableFromTarget)
+            {
+                return nil
+            }
+
+            if let expandVariableFromTarget = scheme.testAction?.expandVariableFromTarget,
+               !sourceTargets.contains(expandVariableFromTarget)
+            {
                 return nil
             }
 

@@ -1,10 +1,9 @@
 import Foundation
-import TSCBasic
+import Path
 import TuistCore
 import TuistCoreTesting
-import TuistGraph
-import TuistGraphTesting
 import TuistSupport
+import XcodeGraph
 import XcodeProj
 import XCTest
 
@@ -37,15 +36,11 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
 
         let project = Project.test(
             path: projectPath,
-            xcodeProjPath: xcodeProjPath
+            xcodeProjPath: xcodeProjPath,
+            targets: targets
         )
         let graph = Graph.test(
-            projects: [project.path: project],
-            targets: [
-                project.path: [
-                    app.name: app,
-                ],
-            ]
+            projects: [project.path: project]
         )
         let graphTraverser = GraphTraverser(graph: graph)
 
@@ -86,15 +81,11 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
 
         let project = Project.test(
             path: projectPath,
-            xcodeProjPath: xcodeProjPath
+            xcodeProjPath: xcodeProjPath,
+            targets: targets
         )
         let graph = Graph.test(
-            projects: [project.path: project],
-            targets: [
-                project.path: [
-                    app.name: app,
-                ],
-            ]
+            projects: [project.path: project]
         )
         let graphTraverser = GraphTraverser(graph: graph)
 
@@ -143,24 +134,18 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
 
         let projectA = Project.test(
             path: projectAPath,
-            xcodeProjPath: xcodeProjAPath
+            xcodeProjPath: xcodeProjAPath,
+            targets: [frameworkA]
         )
         let projectB = Project.test(
             path: projectBPath,
-            xcodeProjPath: xcodeProjBPath
+            xcodeProjPath: xcodeProjBPath,
+            targets: [frameworkB]
         )
         let graph = Graph.test(
             projects: [
                 projectA.path: projectA,
                 projectB.path: projectB,
-            ],
-            targets: [
-                projectA.path: [
-                    frameworkA.name: frameworkA,
-                ],
-                projectB.path: [
-                    frameworkB.name: frameworkB,
-                ],
             ]
         )
         let graphTraverser = GraphTraverser(graph: graph)
@@ -233,12 +218,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             targets: [target]
         )
         let graph = Graph.test(
-            projects: [project.path: project],
-            targets: [
-                project.path: [
-                    target.name: target,
-                ],
-            ]
+            projects: [project.path: project]
         )
         let graphTraverser = GraphTraverser(graph: graph)
 
@@ -293,7 +273,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             )
         )
         let project = Project.test(schemes: [schemeA, schemeB])
-        let generatedProject = generatedProject(targets: project.targets)
+        let generatedProject = generatedProject(targets: Array(project.targets.values))
         let graph = Graph.test(projects: [project.path: project])
         let graphTraverser = GraphTraverser(graph: graph)
 
@@ -339,12 +319,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             targets: [target]
         )
         let graph = Graph.test(
-            projects: [project.path: project],
-            targets: [
-                project.path: [
-                    target.name: target,
-                ],
-            ]
+            projects: [project.path: project]
         )
         let graphTraverser = GraphTraverser(graph: graph)
 
@@ -390,12 +365,6 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
 
         let graph = Graph.test(
             projects: [project.path: project],
-            targets: [
-                project.path: [
-                    target.name: target,
-                    testTarget.name: testTarget,
-                ],
-            ],
             dependencies: [
                 .target(name: testTarget.name, path: project.path): [
                     .target(name: target.name, path: project.path),
@@ -448,12 +417,6 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
 
         let graph = Graph.test(
             projects: [project.path: project],
-            targets: [
-                project.path: [
-                    target.name: target,
-                    testTarget.name: testTarget,
-                ],
-            ],
             dependencies: [
                 .target(name: testTarget.name, path: project.path): [
                     .target(name: target.name, path: project.path),
@@ -508,12 +471,6 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
 
         let graph = Graph.test(
             projects: [project.path: project],
-            targets: [
-                project.path: [
-                    app.name: app,
-                    framework.name: framework,
-                ],
-            ],
             dependencies: [
                 .target(name: app.name, path: projectPath): [
                     .target(name: framework.name, path: projectPath),
@@ -560,12 +517,6 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
 
         let graph = Graph.test(
             projects: [project.path: project],
-            targets: [
-                project.path: [
-                    app.name: app,
-                    framework.name: framework,
-                ],
-            ],
             dependencies: [
                 .target(name: app.name, path: projectPath): [
                     .target(name: framework.name, path: projectPath),
@@ -615,12 +566,6 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         let project = Project.test(path: projectPath, targets: [target, testTarget])
         let graph = Graph.test(
             projects: [project.path: project],
-            targets: [
-                project.path: [
-                    target.name: target,
-                    testTarget.name: testTarget,
-                ],
-            ],
             dependencies: [
                 .target(name: testTarget.name, path: project.path): [
                     .target(name: target.name, path: project.path),
@@ -749,12 +694,6 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         let scheme = Scheme.test(name: "AppTests", shared: true, buildAction: buildAction, testAction: testAction)
         let graph = Graph.test(
             projects: [project.path: project],
-            targets: [
-                project.path: [
-                    target.name: target,
-                    testTarget.name: testTarget,
-                ],
-            ],
             dependencies: [
                 .target(name: testTarget.name, path: project.path): [
                     .target(name: target.name, path: project.path),
@@ -798,12 +737,6 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
 
         let graph = Graph.test(
             projects: [project.path: project],
-            targets: [
-                project.path: [
-                    target.name: target,
-                    testTarget.name: testTarget,
-                ],
-            ],
             dependencies: [
                 .target(name: testTarget.name, path: project.path): [
                     .target(name: target.name, path: project.path),
@@ -844,12 +777,6 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         let project = Project.test(path: projectPath, targets: [target, testTarget])
         let graph = Graph.test(
             projects: [project.path: project],
-            targets: [
-                project.path: [
-                    target.name: target,
-                    testTarget.name: testTarget,
-                ],
-            ],
             dependencies: [
                 .target(name: testTarget.name, path: project.path): [
                     .target(name: target.name, path: project.path),
@@ -886,12 +813,6 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
 
         let graph = Graph.test(
             projects: [project.path: project],
-            targets: [
-                project.path: [
-                    target.name: target,
-                    testTarget.name: testTarget,
-                ],
-            ],
             dependencies: [
                 .target(name: testTarget.name, path: project.path): [
                     .target(name: target.name, path: project.path),
@@ -960,12 +881,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
 
         let generatedProjects = createGeneratedProjects(projects: [project])
         let graph = Graph.test(
-            projects: [project.path: project],
-            targets: [
-                project.path: [
-                    testTarget.name: testTarget,
-                ],
-            ]
+            projects: [project.path: project]
         )
         let graphTraverser = GraphTraverser(graph: graph)
 
@@ -1026,12 +942,6 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
 
         let graph = Graph.test(
             projects: [project.path: project],
-            targets: [
-                project.path: [
-                    target.name: target,
-                    testTarget.name: testTarget,
-                ],
-            ],
             dependencies: [
                 .target(name: testTarget.name, path: project.path): [
                     .target(name: target.name, path: project.path),
@@ -1116,12 +1026,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
                 path: workspacePath,
                 xcWorkspacePath: workspacePath.appending(component: "Workspace.xcworkspace")
             ),
-            projects: [project.path: project],
-            targets: [
-                project.path: [
-                    app.name: app,
-                ],
-            ]
+            projects: [project.path: project]
         )
         let graphTraverser = GraphTraverser(graph: graph)
 
@@ -1193,12 +1098,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
 
         let project = Project.test(path: projectPath, targets: [app])
         let graph = Graph.test(
-            projects: [project.path: project],
-            targets: [
-                project.path: [
-                    app.name: app,
-                ],
-            ]
+            projects: [project.path: project]
         )
         let graphTraverser = GraphTraverser(graph: graph)
 
@@ -1239,12 +1139,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         let scheme = Scheme.test(name: "Library", buildAction: buildAction, runAction: launchAction)
         let project = Project.test(path: projectPath, targets: [target])
         let graph = Graph.test(
-            projects: [project.path: project],
-            targets: [
-                project.path: [
-                    target.name: target,
-                ],
-            ]
+            projects: [project.path: project]
         )
         let graphTraverser = GraphTraverser(graph: graph)
 
@@ -1285,12 +1180,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             targets: [target]
         )
         let graph = Graph.test(
-            projects: [project.path: project],
-            targets: [
-                project.path: [
-                    target.name: target,
-                ],
-            ]
+            projects: [project.path: project]
         )
         let graphTraverser = GraphTraverser(graph: graph)
 
@@ -1350,12 +1240,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             targets: [target]
         )
         let graph = Graph.test(
-            projects: [project.path: project],
-            targets: [
-                project.path: [
-                    target.name: target,
-                ],
-            ]
+            projects: [project.path: project]
         )
         let graphTraverser = GraphTraverser(graph: graph)
 
@@ -1396,12 +1281,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             targets: [app]
         )
         let graph = Graph.test(
-            projects: [project.path: project],
-            targets: [
-                project.path: [
-                    app.name: app,
-                ],
-            ]
+            projects: [project.path: project]
         )
         let graphTraverser = GraphTraverser(graph: graph)
 
@@ -1431,12 +1311,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             targets: [app]
         )
         let graph = Graph.test(
-            projects: [project.path: project],
-            targets: [
-                project.path: [
-                    app.name: app,
-                ],
-            ]
+            projects: [project.path: project]
         )
         let graphTraverser = GraphTraverser(graph: graph)
 
@@ -1475,12 +1350,6 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
 
         let graph = Graph.test(
             projects: [project.path: project],
-            targets: [
-                project.path: [
-                    app.name: app,
-                    appExtension.name: appExtension,
-                ],
-            ],
             dependencies: [
                 .target(name: app.name, path: project.path): [
                     .target(name: appExtension.name, path: project.path),
@@ -1529,12 +1398,6 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
 
         let graph = Graph.test(
             projects: [project.path: project],
-            targets: [
-                project.path: [
-                    app.name: app,
-                    appExtension.name: appExtension,
-                ],
-            ],
             dependencies: [
                 .target(name: app.name, path: project.path): [
                     .target(name: appExtension.name, path: project.path),
@@ -1570,12 +1433,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             targets: [target]
         )
         let graph = Graph.test(
-            projects: [project.path: project],
-            targets: [
-                project.path: [
-                    target.name: target,
-                ],
-            ]
+            projects: [project.path: project]
         )
         let graphTraverser = GraphTraverser(graph: graph)
 
@@ -1635,12 +1493,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             targets: [target]
         )
         let graph = Graph.test(
-            projects: [project.path: project],
-            targets: [
-                project.path: [
-                    target.name: target,
-                ],
-            ]
+            projects: [project.path: project]
         )
         let graphTraverser = GraphTraverser(graph: graph)
 
@@ -1687,12 +1540,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             targets: [target]
         )
         let graph = Graph.test(
-            projects: [project.path: project],
-            targets: [
-                project.path: [
-                    target.name: target,
-                ],
-            ]
+            projects: [project.path: project]
         )
         let graphTraverser = GraphTraverser(graph: graph)
 
@@ -1752,12 +1600,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             targets: [target]
         )
         let graph = Graph.test(
-            projects: [project.path: project],
-            targets: [
-                project.path: [
-                    target.name: target,
-                ],
-            ]
+            projects: [project.path: project]
         )
         let graphTraverser = GraphTraverser(graph: graph)
 
@@ -1820,12 +1663,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             targets: [target]
         )
         let graph = Graph.test(
-            projects: [project.path: project],
-            targets: [
-                project.path: [
-                    target.name: target,
-                ],
-            ]
+            projects: [project.path: project]
         )
         let graphTraverser = GraphTraverser(graph: graph)
 
@@ -1858,12 +1696,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
 
         let project = Project.test(path: projectPath, targets: [target])
         let graph = Graph.test(
-            projects: [project.path: project],
-            targets: [
-                project.path: [
-                    target.name: target,
-                ],
-            ]
+            projects: [project.path: project]
         )
         let graphTraverser = GraphTraverser(graph: graph)
 
@@ -1900,12 +1733,42 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
 
         let project = Project.test(path: projectPath, targets: [target])
         let graph = Graph.test(
-            projects: [project.path: project],
-            targets: [
-                project.path: [
-                    target.name: target,
-                ],
-            ]
+            projects: [project.path: project]
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let got = try subject.schemeArchiveAction(
+            scheme: scheme,
+            graphTraverser: graphTraverser,
+            rootPath: project.path,
+            generatedProjects: createGeneratedProjects(projects: [project])
+        )
+
+        // Then
+        let result = try XCTUnwrap(got)
+        XCTAssertEqual(result.buildConfiguration, "Beta Release")
+        XCTAssertEqual(result.customArchiveName, "App [Beta]")
+        XCTAssertEqual(result.revealArchiveInOrganizer, true)
+    }
+
+    func test_schemeArchiveAction_whenNoBuildActionSpecified() throws {
+        // Given
+        let projectPath = try AbsolutePath(validating: "/Project")
+        let target = Target.test(name: "App", platform: .iOS, product: .app)
+        let archiveAction = ArchiveAction.test(
+            configurationName: "Beta Release",
+            revealArchiveInOrganizer: true,
+            customArchiveName: "App [Beta]"
+        )
+        let scheme = Scheme.test(
+            buildAction: nil,
+            archiveAction: archiveAction
+        )
+
+        let project = Project.test(path: projectPath, targets: [target])
+        let graph = Graph.test(
+            projects: [project.path: project]
         )
         let graphTraverser = GraphTraverser(graph: graph)
 
@@ -1935,14 +1798,6 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
 
         let graph = Graph.test(
             projects: [project.path: project],
-            targets: [
-                project.path: [
-                    app.name: app,
-                    framework.name: framework,
-                    unitTests.name: unitTests,
-                    uiTests.name: uiTests,
-                ],
-            ],
             dependencies: [
                 .target(name: app.name, path: project.path): [
                     .target(name: framework.name, path: project.path),
@@ -1960,7 +1815,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         // When
         let result = try subject.generateProjectSchemes(
             project: project,
-            generatedProject: generatedProject(targets: project.targets),
+            generatedProject: generatedProject(targets: Array(project.targets.values)),
             graphTraverser: graphTraverser
         )
 
@@ -1991,12 +1846,6 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
 
         let graph = Graph.test(
             projects: [project.path: project],
-            targets: [
-                project.path: [
-                    app.name: app,
-                    appExtension.name: appExtension,
-                ],
-            ],
             dependencies: [
                 .target(name: app.name, path: project.path): [
                     .target(name: appExtension.name, path: project.path),
@@ -2008,7 +1857,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         // When
         let result = try subject.generateProjectSchemes(
             project: project,
-            generatedProject: generatedProject(targets: project.targets),
+            generatedProject: generatedProject(targets: Array(project.targets.values)),
             graphTraverser: graphTraverser
         )
 
@@ -2038,11 +1887,10 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             path: project.path,
             workspace: workspace,
             projects: [project.path: project],
-            targets: [project.path: [target.name: target]],
             dependencies: [:]
         )
         let graphTraverser = GraphTraverser(graph: graph)
-        let generatedProject = generatedProject(targets: project.targets)
+        let generatedProject = generatedProject(targets: Array(project.targets.values))
 
         // When
         let result = try subject.generateWorkspaceSchemes(
@@ -2069,7 +1917,6 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         let graph = Graph.test(
             path: project.path,
             projects: [project.path: project],
-            targets: [project.path: [target.name: target]],
             dependencies: [:]
         )
         let graphTraverser = GraphTraverser(graph: graph)
@@ -2077,7 +1924,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         // When
         let result = try subject.generateProjectSchemes(
             project: project,
-            generatedProject: generatedProject(targets: project.targets),
+            generatedProject: generatedProject(targets: Array(project.targets.values)),
             graphTraverser: graphTraverser
         )
 
@@ -2094,7 +1941,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             (
                 $0.xcodeProjPath,
                 generatedProject(
-                    targets: $0.targets,
+                    targets: Array($0.targets.values),
                     projectPath: $0.xcodeProjPath.pathString
                 )
             )

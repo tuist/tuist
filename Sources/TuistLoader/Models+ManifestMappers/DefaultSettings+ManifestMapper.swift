@@ -1,16 +1,16 @@
 import Foundation
+import Path
 import ProjectDescription
-import TSCBasic
 import TuistCore
-import TuistGraph
 import TuistSupport
+import XcodeGraph
 
-extension TuistGraph.DefaultSettings {
-    /// Maps a ProjectDescription.DefaultSettings instance into a TuistGraph.DefaultSettings model.
+extension XcodeGraph.DefaultSettings {
+    /// Maps a ProjectDescription.DefaultSettings instance into a XcodeGraph.DefaultSettings model.
     /// - Parameters:
     ///   - manifest: Manifest representation of default settings.
     ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.DefaultSettings) -> TuistGraph.DefaultSettings {
+    static func from(manifest: ProjectDescription.DefaultSettings) -> XcodeGraph.DefaultSettings {
         switch manifest {
         case let .recommended(excludedKeys):
             return .recommended(excluding: excludedKeys)

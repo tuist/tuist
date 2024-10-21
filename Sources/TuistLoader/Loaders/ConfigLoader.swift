@@ -1,10 +1,13 @@
+import FileSystem
 import Foundation
+import Mockable
+import Path
 import struct ProjectDescription.Config
-import TSCBasic
 import TuistCore
-import TuistGraph
 import TuistSupport
+import XcodeGraph
 
+@Mockable
 public protocol ConfigLoading {
     /// Loads the Tuist configuration by traversing the file system till the Config manifest is found,
     /// otherwise returns the default configuration.
@@ -12,57 +15,65 @@ public protocol ConfigLoading {
     /// - Parameter path: Directory from which look up and load the Config.
     /// - Returns: Loaded Config object.
     /// - Throws: An error if the Config.swift can't be parsed.
-    func loadConfig(path: AbsolutePath) throws -> TuistGraph.Config
+    func loadConfig(path: AbsolutePath) async throws -> TuistCore.Config
 
     /// Locates the Config.swift manifest from the given directory.
-    func locateConfig(at: AbsolutePath) -> AbsolutePath?
+    func locateConfig(at: AbsolutePath) async throws -> AbsolutePath?
 }
 
 public final class ConfigLoader: ConfigLoading {
     private let manifestLoader: ManifestLoading
     private let rootDirectoryLocator: RootDirectoryLocating
-    private let fileHandler: FileHandling
-    private var cachedConfigs: [AbsolutePath: TuistGraph.Config] = [:]
+    private let fileSystem: FileSysteming
+    private var cachedConfigs: [AbsolutePath: TuistCore.Config] = [:]
 
     public init(
         manifestLoader: ManifestLoading = ManifestLoader(),
         rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator(),
-        fileHandler: FileHandling = FileHandler.shared
+        fileSystem: FileSysteming = FileSystem()
     ) {
         self.manifestLoader = manifestLoader
         self.rootDirectoryLocator = rootDirectoryLocator
-        self.fileHandler = fileHandler
+        self.fileSystem = fileSystem
     }
 
-    public func loadConfig(path: AbsolutePath) throws -> TuistGraph.Config {
+    public func loadConfig(path: AbsolutePath) async throws -> TuistCore.Config {
         if let cached = cachedConfigs[path] {
             return cached
         }
 
-        guard let configPath = locateConfig(at: path) else {
-            let config = TuistGraph.Config.default
+        guard let configPath = try await locateConfig(at: path) else {
+            let config = TuistCore.Config.default
             cachedConfigs[path] = config
             return config
         }
 
-        let manifest = try manifestLoader.loadConfig(at: configPath.parentDirectory)
-        let config = try TuistGraph.Config.from(manifest: manifest, at: configPath)
+        let manifest = try await manifestLoader.loadConfig(at: configPath.parentDirectory)
+        let rootDirectory: AbsolutePath = try await rootDirectoryLocator.locate(from: configPath)
+        let config = try await TuistCore.Config.from(
+            manifest: manifest,
+            rootDirectory: rootDirectory,
+            at: configPath
+        )
         cachedConfigs[path] = config
         return config
     }
 
-    public func locateConfig(at path: AbsolutePath) -> AbsolutePath? {
+    public func locateConfig(at path: AbsolutePath) async throws -> AbsolutePath? {
         // If the Config.swift file exists in the root Tuist/ directory, we load it from there
-        if let rootDirectoryPath = rootDirectoryLocator.locate(from: path) {
+        if let rootDirectoryPath = try await rootDirectoryLocator.locate(from: path) {
             // swiftlint:disable:next force_try
             let relativePath = try! RelativePath(validating: "\(Constants.tuistDirectoryName)/\(Manifest.config.fileName(path))")
             let configPath = rootDirectoryPath.appending(relativePath)
-            if fileHandler.exists(configPath) {
+            if try await fileSystem.exists(configPath) {
                 return configPath
             }
         }
 
         // Otherwise we try to traverse up the directories to find it
-        return fileHandler.locateDirectoryTraversingParents(from: path, path: Manifest.config.fileName(path))
+        return try await fileSystem.locateTraversingUp(
+            from: path,
+            relativePath: try RelativePath(validating: Manifest.config.fileName(path))
+        )
     }
 }

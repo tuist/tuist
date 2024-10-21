@@ -1,12 +1,13 @@
+import FileSystem
 import Foundation
+import Path
 import ProjectDescription
-import TSCBasic
 import TuistCore
-import TuistGraph
 import TuistSupport
+import XcodeGraph
 
-extension TuistGraph.CopyFileElement {
-    /// Maps a ProjectDescription.FileElement instance into a [TuistGraph.FileElement] instance.
+extension XcodeGraph.CopyFileElement {
+    /// Maps a ProjectDescription.FileElement instance into a [XcodeGraph.FileElement] instance.
     /// Glob patterns in file elements are unfolded as part of the mapping.
     /// - Parameters:
     ///   - manifest: Manifest representation of the file element.
@@ -15,9 +16,10 @@ extension TuistGraph.CopyFileElement {
         manifest: ProjectDescription.CopyFileElement,
         generatorPaths: GeneratorPaths,
         includeFiles: @escaping (AbsolutePath) -> Bool = { _ in true }
-    ) throws -> [TuistGraph.CopyFileElement] {
-        func globFiles(_ path: AbsolutePath) throws -> [AbsolutePath] {
-            if FileHandler.shared.exists(path), !FileHandler.shared.isFolder(path) { return [path] }
+    ) async throws -> [XcodeGraph.CopyFileElement] {
+        let fileSystem = FileSystem()
+        func globFiles(_ path: AbsolutePath) async throws -> [AbsolutePath] {
+            if try await fileSystem.exists(path), !FileHandler.shared.isFolder(path) { return [path] }
 
             let files = try FileHandler.shared.throwingGlob(AbsolutePath.root, glob: String(path.pathString.dropFirst()))
                 .filter(includeFiles)
@@ -34,8 +36,8 @@ extension TuistGraph.CopyFileElement {
             return files
         }
 
-        func folderReferences(_ path: AbsolutePath) -> [AbsolutePath] {
-            guard FileHandler.shared.exists(path) else {
+        func folderReferences(_ path: AbsolutePath) async throws -> [AbsolutePath] {
+            guard try await fileSystem.exists(path) else {
                 // FIXME: This should be done in a linter.
                 logger.warning("\(path.pathString) does not exist")
                 return []
@@ -51,12 +53,21 @@ extension TuistGraph.CopyFileElement {
         }
 
         switch manifest {
-        case let .glob(pattern: pattern, condition: condition):
+        case let .glob(pattern: pattern, condition: condition, codeSignOnCopy: codeSign):
             let resolvedPath = try generatorPaths.resolve(path: pattern)
-            return try globFiles(resolvedPath).map { .file(path: $0, condition: condition?.asGraphCondition) }
-        case let .folderReference(path: folderReferencePath, condition: condition):
+            return try await globFiles(resolvedPath).map { .file(
+                path: $0,
+                condition: condition?.asGraphCondition,
+                codeSignOnCopy: codeSign
+            )
+            }
+        case let .folderReference(path: folderReferencePath, condition: condition, codeSignOnCopy: codeSign):
             let resolvedPath = try generatorPaths.resolve(path: folderReferencePath)
-            return folderReferences(resolvedPath).map { .folderReference(path: $0, condition: condition?.asGraphCondition) }
+            return try await folderReferences(resolvedPath).map { .folderReference(
+                path: $0,
+                condition: condition?.asGraphCondition,
+                codeSignOnCopy: codeSign
+            ) }
         }
     }
 }

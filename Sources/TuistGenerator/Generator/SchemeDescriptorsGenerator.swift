@@ -1,9 +1,9 @@
 import Foundation
-import TSCBasic
+import Path
 import TSCUtility
 import TuistCore
-import TuistGraph
 import TuistSupport
+import XcodeGraph
 import XcodeProj
 
 /// Protocol that defines the interface of the schemes generation.
@@ -121,7 +121,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         path: AbsolutePath,
         graphTraverser: GraphTraversing,
         generatedProjects: [AbsolutePath: GeneratedProject],
-        lastUpgradeCheck: Version?
+        lastUpgradeCheck: XcodeGraph.Version?
     ) throws -> SchemeDescriptor {
         let generatedBuildAction = try schemeBuildAction(
             scheme: scheme,
@@ -752,10 +752,12 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         rootPath: AbsolutePath,
         generatedProjects: [AbsolutePath: GeneratedProject]
     ) throws -> XCScheme.ArchiveAction? {
-        guard let target = defaultTargetReference(scheme: scheme),
-              let graphTarget = graphTraverser.target(path: target.projectPath, name: target.name) else { return nil }
-
         guard let archiveAction = scheme.archiveAction else {
+            guard let target = defaultTargetReference(scheme: scheme),
+                  let graphTarget = graphTraverser.target(path: target.projectPath, name: target.name)
+            else {
+                return nil
+            }
             return defaultSchemeArchiveAction(for: graphTarget.project)
         }
 

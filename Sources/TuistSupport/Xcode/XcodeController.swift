@@ -1,51 +1,52 @@
 import Foundation
-import TSCBasic
+import Mockable
+import Path
 import TSCUtility
 
-public protocol XcodeControlling {
+@Mockable
+public protocol XcodeControlling: Sendable {
     /// Returns the selected Xcode. It uses xcode-select to determine
     /// the Xcode that is selected in the environment.
     ///
     /// - Returns: Selected Xcode.
     /// - Throws: An error if it can't be obtained.
-    func selected() throws -> Xcode?
+    func selected() async throws -> Xcode?
 
     /// Returns version of the selected Xcode. Uses `selected()` from `XcodeControlling`
     ///
     /// - Returns: `Version` of selected Xcode
     /// - Throws: An error if it can't be obtained
-    func selectedVersion() throws -> Version
+    func selectedVersion() async throws -> Version
 }
 
-public class XcodeController: XcodeControlling {
+public final class XcodeController: XcodeControlling, @unchecked Sendable {
     public init() {}
 
     /// Shared instance.
-    public static var shared: XcodeControlling = XcodeController()
+    public static var shared: XcodeControlling {
+        _shared.value
+    }
+
+    // swiftlint:disable:next identifier_name
+    static let _shared: ThreadSafe<XcodeControlling> = ThreadSafe(XcodeController())
 
     /// Cached response of `xcode-select` command
-    @Atomic
-    private var selectedXcode: Xcode?
+    private let selectedXcode: ThreadSafe<Xcode?> = ThreadSafe(nil)
 
     /// Returns the selected Xcode. It uses xcode-select to determine
     /// the Xcode that is selected in the environment.
     ///
     /// - Returns: Selected Xcode.
     /// - Throws: An error if it can't be obtained.
-    public func selected() throws -> Xcode? {
-        // Return cached value if available
-        if let cached = selectedXcode {
-            return cached
+    public func selected() async throws -> Xcode? {
+        if let selectedXcode = selectedXcode.value {
+            return selectedXcode
+        } else {
+            guard let path = try? System.shared.capture(["xcode-select", "-p"]).spm_chomp() else { return nil }
+            let value = try await Xcode.read(path: try AbsolutePath(validating: path).parentDirectory.parentDirectory)
+            selectedXcode.mutate { $0 = value }
+            return selectedXcode.value
         }
-
-        // e.g. /Applications/Xcode.app/Contents/Developer
-        guard let path = try? System.shared.capture(["xcode-select", "-p"]).spm_chomp() else {
-            return nil
-        }
-
-        let xcode = try Xcode.read(path: try AbsolutePath(validating: path).parentDirectory.parentDirectory)
-        selectedXcode = xcode
-        return xcode
     }
 
     enum XcodeVersionError: FatalError {
@@ -64,8 +65,8 @@ public class XcodeController: XcodeControlling {
         }
     }
 
-    public func selectedVersion() throws -> Version {
-        guard let xcode = try selected() else {
+    public func selectedVersion() async throws -> Version {
+        guard let xcode = try await selected() else {
             throw XcodeVersionError.noXcode
         }
 

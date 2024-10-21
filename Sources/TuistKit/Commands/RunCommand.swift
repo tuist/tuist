@@ -1,8 +1,23 @@
 import ArgumentParser
 import Foundation
-import TSCBasic
+import Path
 import TSCUtility
 import TuistSupport
+
+enum Runnable: ExpressibleByArgument, Equatable {
+    init?(argument: String) {
+        if argument.starts(with: "http://") || argument.starts(with: "https://"),
+           let previewLink = URL(string: argument)
+        {
+            self = .url(previewLink)
+        } else {
+            self = .scheme(argument)
+        }
+    }
+
+    case url(Foundation.URL)
+    case scheme(String)
+}
 
 public struct RunCommand: AsyncParsableCommand {
     public init() {}
@@ -24,10 +39,22 @@ public struct RunCommand: AsyncParsableCommand {
         )
     }
 
-    @Flag(help: "Force the generation of the project before running.")
+    @Argument(
+        help: "Runnable project scheme or a preview URL.",
+        envKey: .runScheme
+    )
+    var runnable: Runnable
+
+    @Flag(
+        help: "Force the generation of the project before running.",
+        envKey: .runGenerate
+    )
     var generate: Bool = false
 
-    @Flag(help: "When passed, it cleans the project before running.")
+    @Flag(
+        help: "When passed, it cleans the project before running.",
+        envKey: .runClean
+    )
     var clean: Bool = false
 
     @Option(
@@ -48,7 +75,8 @@ public struct RunCommand: AsyncParsableCommand {
 
     @Option(
         name: .shortAndLong,
-        help: "The OS version of the simulator."
+        help: "The OS version of the simulator.",
+        envKey: .runOS
     )
     var os: String?
 
@@ -58,24 +86,22 @@ public struct RunCommand: AsyncParsableCommand {
     )
     var rosetta: Bool = false
 
-    @Argument(help: "The scheme to be run.")
-    var scheme: String
-
     @Argument(
         parsing: .captureForPassthrough,
-        help: "The arguments to pass to the runnable target during execution."
+        help: "The arguments to pass to the runnable target during execution.",
+        envKey: .runArguments
     )
     var arguments: [String] = []
 
     public func run() async throws {
         try await RunService().run(
             path: path,
-            schemeName: scheme,
+            runnable: runnable,
             generate: generate,
             clean: clean,
             configuration: configuration,
             device: device,
-            version: os,
+            osVersion: os,
             rosetta: rosetta,
             arguments: arguments
         )

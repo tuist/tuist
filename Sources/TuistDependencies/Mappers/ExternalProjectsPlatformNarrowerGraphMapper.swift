@@ -1,6 +1,6 @@
 import Foundation
 import TuistCore
-import TuistGraph
+import XcodeGraph
 
 /**
  When Swift Packages don't declare the platforms that they support, the Swift Package Manager defaults the value
@@ -12,42 +12,34 @@ import TuistGraph
 public struct ExternalProjectsPlatformNarrowerGraphMapper: GraphMapping { // swiftlint:disable:this type_name
     public init() {}
 
-    public func map(graph: Graph) async throws -> (Graph, [TuistCore.SideEffectDescriptor]) {
+    public func map(
+        graph: Graph,
+        environment: MapperEnvironment
+    ) async throws -> (Graph, [TuistCore.SideEffectDescriptor], MapperEnvironment) {
         logger.debug("Transforming graph \(graph.name): Aligning external target platforms with locals'")
 
         // If the project has no external dependencies we skip this.
         if graph.projects.values.first(where: { $0.isExternal }) == nil {
-            return (graph, [])
+            return (graph, [], environment)
         }
 
         var graph = graph
         let externalTargetSupportedPlatforms = GraphTraverser(graph: graph).externalTargetSupportedPlatforms()
 
-        graph.targets = Dictionary(uniqueKeysWithValues: graph.targets.map { projectPath, projectTargets in
-            let project = graph.projects[projectPath]!
-            let projectTargets = Dictionary(uniqueKeysWithValues: projectTargets.map { targetName, target in
-                (
-                    targetName,
-                    mapTarget(
-                        target: target,
-                        project: project,
-                        externalTargetSupportedPlatforms: externalTargetSupportedPlatforms
-                    )
-                )
-            })
-            return (projectPath, projectTargets)
-        })
         graph.projects = Dictionary(uniqueKeysWithValues: graph.projects.map { projectPath, project in
             var project = project
-            project.targets = project.targets.map { mapTarget(
-                target: $0,
-                project: project,
-                externalTargetSupportedPlatforms: externalTargetSupportedPlatforms
-            ) }
+            project.targets = Dictionary(uniqueKeysWithValues: project.targets.map { _, target in
+                let mappedTarget = mapTarget(
+                    target: target,
+                    project: project,
+                    externalTargetSupportedPlatforms: externalTargetSupportedPlatforms
+                )
+                return (mappedTarget.name, mappedTarget)
+            })
             return (projectPath, project)
         })
 
-        return (graph, [])
+        return (graph, [], environment)
     }
 
     private func mapTarget(

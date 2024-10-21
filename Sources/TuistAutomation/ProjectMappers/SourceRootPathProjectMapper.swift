@@ -1,7 +1,7 @@
 import Foundation
-import TSCBasic
+import Path
 import TuistCore
-import TuistGraph
+import XcodeGraph
 
 /// Automation commands create their own project in temporary directory
 /// This means `SRCROOT` has a different path from the directory where `.xcodeproj` resides

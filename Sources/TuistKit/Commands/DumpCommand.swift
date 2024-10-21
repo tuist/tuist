@@ -1,11 +1,13 @@
 import ArgumentParser
 import Foundation
-import TSCBasic
+import Path
 import TuistLoader
 import TuistSupport
 
-struct DumpCommand: AsyncParsableCommand {
-    static var configuration: CommandConfiguration {
+public struct DumpCommand: AsyncParsableCommand {
+    public init() {}
+
+    public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "dump",
             abstract: "Outputs the manifest as a JSON"
@@ -17,14 +19,15 @@ struct DumpCommand: AsyncParsableCommand {
     @Option(
         name: .shortAndLong,
         help: "The path to the folder where the manifest is",
-        completion: .directory
+        completion: .directory,
+        envKey: .dumpPath
     )
     var path: String?
 
-    @Argument(help: "The manifest to be dumped")
+    @Argument(help: "The manifest to be dumped", envKey: .dumpManifest)
     var manifest: DumpableManifest = .project
 
-    func run() async throws {
+    public func run() async throws {
         try await DumpService().run(path: path, manifest: manifest)
     }
 }

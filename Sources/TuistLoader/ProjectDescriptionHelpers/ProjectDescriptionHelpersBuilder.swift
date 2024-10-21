@@ -1,6 +1,7 @@
+import FileSystem
 import Foundation
-import TSCBasic
-import TuistGraph
+import Path
+import TuistCore
 import TuistSupport
 
 /// This protocol defines the interface to compile a temporary module with the
@@ -19,8 +20,8 @@ public protocol ProjectDescriptionHelpersBuilding: AnyObject {
     func build(
         at path: AbsolutePath,
         projectDescriptionSearchPaths: ProjectDescriptionSearchPaths,
-        projectDescriptionHelperPlugins: [ProjectDescriptionHelpersPlugin]
-    ) throws -> [ProjectDescriptionHelpersModule]
+        projectDescriptionHelperPlugins: [TuistCore.ProjectDescriptionHelpersPlugin]
+    ) async throws -> [ProjectDescriptionHelpersModule]
 
     /// Builds all the plugin helpers module and returns the location to the built modules.
     ///
@@ -34,13 +35,13 @@ public protocol ProjectDescriptionHelpersBuilding: AnyObject {
         at path: AbsolutePath,
         projectDescriptionSearchPaths: ProjectDescriptionSearchPaths,
         projectDescriptionHelperPlugins: [ProjectDescriptionHelpersPlugin]
-    ) throws -> [ProjectDescriptionHelpersModule]
+    ) async throws -> [ProjectDescriptionHelpersModule]
 }
 
 public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding {
     /// A dictionary that keeps in memory the helpers (value of the dictionary) that have been built
     /// in the current process for helpers directories (key of the dictionary)
-    private var builtHelpers: [AbsolutePath: ProjectDescriptionHelpersModule] = [:]
+    private var builtHelpers: ThreadSafe<[AbsolutePath: Task<ProjectDescriptionHelpersModule, any Error>]> = ThreadSafe([:])
 
     /// Path to the cache directory.
     private let cacheDirectory: AbsolutePath
@@ -53,6 +54,7 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
 
     /// Clock for measuring build duration.
     private let clock: Clock
+    private let fileHandler: FileHandling
 
     /// The name of the default project description helpers module
     static let defaultHelpersName = "ProjectDescriptionHelpers"
@@ -67,26 +69,28 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
         projectDescriptionHelpersHasher: ProjectDescriptionHelpersHashing = ProjectDescriptionHelpersHasher(),
         cacheDirectory: AbsolutePath,
         helpersDirectoryLocator: HelpersDirectoryLocating = HelpersDirectoryLocator(),
-        clock: Clock = WallClock()
+        clock: Clock = WallClock(),
+        fileHandler: FileHandling = FileHandler.shared
     ) {
         self.projectDescriptionHelpersHasher = projectDescriptionHelpersHasher
         self.cacheDirectory = cacheDirectory
         self.helpersDirectoryLocator = helpersDirectoryLocator
         self.clock = clock
+        self.fileHandler = fileHandler
     }
 
     public func build(
         at path: AbsolutePath,
         projectDescriptionSearchPaths: ProjectDescriptionSearchPaths,
         projectDescriptionHelperPlugins: [ProjectDescriptionHelpersPlugin]
-    ) throws -> [ProjectDescriptionHelpersModule] {
-        let pluginHelpers = try buildPlugins(
+    ) async throws -> [ProjectDescriptionHelpersModule] {
+        let pluginHelpers = try await buildPlugins(
             at: path,
             projectDescriptionSearchPaths: projectDescriptionSearchPaths,
             projectDescriptionHelperPlugins: projectDescriptionHelperPlugins
         )
 
-        let defaultHelpers = try buildDefaultHelpers(
+        let defaultHelpers = try await buildDefaultHelpers(
             in: path,
             projectDescriptionSearchPaths: projectDescriptionSearchPaths,
             customProjectDescriptionHelperModules: pluginHelpers
@@ -101,22 +105,24 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
         at _: AbsolutePath,
         projectDescriptionSearchPaths: ProjectDescriptionSearchPaths,
         projectDescriptionHelperPlugins: [ProjectDescriptionHelpersPlugin]
-    ) throws -> [ProjectDescriptionHelpersModule] {
-        let pluginHelpers = try projectDescriptionHelperPlugins.map {
-            try buildHelpers(name: $0.name, in: $0.path, projectDescriptionSearchPaths: projectDescriptionSearchPaths)
+    ) async throws -> [ProjectDescriptionHelpersModule] {
+        return try await projectDescriptionHelperPlugins.concurrentMap { plugin in
+            try await self.buildHelpers(
+                name: plugin.name,
+                in: plugin.path,
+                projectDescriptionSearchPaths: projectDescriptionSearchPaths
+            )
         }
-
-        return pluginHelpers
     }
 
     private func buildDefaultHelpers(
         in path: AbsolutePath,
         projectDescriptionSearchPaths: ProjectDescriptionSearchPaths,
         customProjectDescriptionHelperModules: [ProjectDescriptionHelpersModule]
-    ) throws -> ProjectDescriptionHelpersModule? {
-        guard let tuistHelpersDirectory = helpersDirectoryLocator.locate(at: path) else { return nil }
+    ) async throws -> ProjectDescriptionHelpersModule? {
+        guard let tuistHelpersDirectory = try await helpersDirectoryLocator.locate(at: path) else { return nil }
         #if DEBUG
-            if let sourceRoot = ProcessEnv.vars["TUIST_CONFIG_SRCROOT"],
+            if let sourceRoot = ProcessInfo.processInfo.environment["TUIST_CONFIG_SRCROOT"],
                tuistHelpersDirectory.isDescendant(
                    // swiftlint:disable:next force_try
                    of: try! AbsolutePath(validating: sourceRoot).appending(component: Constants.tuistDirectoryName)
@@ -125,7 +131,7 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
                 return nil
             }
         #endif
-        return try buildHelpers(
+        return try await buildHelpers(
             name: Self.defaultHelpersName,
             in: tuistHelpersDirectory,
             projectDescriptionSearchPaths: projectDescriptionSearchPaths,
@@ -152,47 +158,43 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
         in path: AbsolutePath,
         projectDescriptionSearchPaths: ProjectDescriptionSearchPaths,
         customProjectDescriptionHelperModules: [ProjectDescriptionHelpersModule] = []
-    ) throws -> ProjectDescriptionHelpersModule {
-        if let cachedModule = builtHelpers[path] { return cachedModule }
+    ) async throws -> ProjectDescriptionHelpersModule {
+        let projectDescriptionHelpersModuleTask = try builtHelpers.mutate { cache in
+            if let cachedTask = cache[path] {
+                return cachedTask
+            }
 
-        let hash = try projectDescriptionHelpersHasher.hash(helpersDirectory: path)
-        let prefixHash = projectDescriptionHelpersHasher.prefixHash(helpersDirectory: path)
+            let hash = try projectDescriptionHelpersHasher.hash(helpersDirectory: path)
+            let moduleCacheDirectory = cacheDirectory.appending(component: hash)
+            let dylibName = "lib\(name).dylib"
+            let modulePath = moduleCacheDirectory.appending(component: dylibName)
+            let module = ProjectDescriptionHelpersModule(name: name, path: modulePath)
+            try fileHandler.createFolder(moduleCacheDirectory)
 
-        let helpersCachePath = cacheDirectory.appending(component: prefixHash)
-        let helpersModuleCachePath = helpersCachePath.appending(component: hash)
-        let dylibName = "lib\(name).dylib"
-        let modulePath = helpersModuleCachePath.appending(component: dylibName)
-        let projectDescriptionHelpersModule = ProjectDescriptionHelpersModule(name: name, path: modulePath)
+            let command = createCommand(
+                moduleName: name,
+                directory: path,
+                outputDirectory: moduleCacheDirectory,
+                projectDescriptionSearchPaths: projectDescriptionSearchPaths,
+                customProjectDescriptionHelperModules: customProjectDescriptionHelperModules
+            )
 
-        builtHelpers[path] = projectDescriptionHelpersModule
+            let buildTask = Task {
+                let timer = clock.startTimer()
+                try System.shared.runAndPrint(command, verbose: false, environment: Environment.shared.manifestLoadingVariables)
+                let duration = timer.stop()
+                let time = String(format: "%.3f", duration)
+                logger.debug("Built \(name) in (\(time)s)", metadata: .success)
 
-        if FileHandler.shared.exists(helpersModuleCachePath) {
-            return projectDescriptionHelpersModule
+                return module
+            }
+
+            cache[path] = buildTask
+
+            return buildTask
         }
 
-        // If the same helpers directory has been previously compiled
-        // we delete it before compiling the new changes.
-        if FileHandler.shared.exists(helpersCachePath) {
-            try FileHandler.shared.delete(helpersCachePath)
-        }
-
-        try FileHandler.shared.createFolder(helpersModuleCachePath)
-
-        let command = createCommand(
-            moduleName: name,
-            directory: path,
-            outputDirectory: helpersModuleCachePath,
-            projectDescriptionSearchPaths: projectDescriptionSearchPaths,
-            customProjectDescriptionHelperModules: customProjectDescriptionHelperModules
-        )
-
-        let timer = clock.startTimer()
-        try System.shared.runAndPrint(command, verbose: false, environment: Environment.shared.manifestLoadingVariables)
-        let duration = timer.stop()
-        let time = String(format: "%.3f", duration)
-        logger.debug("Built \(name) in (\(time)s)", metadata: .success)
-
-        return projectDescriptionHelpersModule
+        return try await projectDescriptionHelpersModuleTask.value
     }
 
     private func createCommand(
@@ -203,7 +205,7 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
         customProjectDescriptionHelperModules: [ProjectDescriptionHelpersModule] = []
     ) -> [String] {
         let swiftFilesGlob = "**/*.swift"
-        let files = FileHandler.shared.glob(directory, glob: swiftFilesGlob)
+        let files = fileHandler.glob(directory, glob: swiftFilesGlob)
 
         var command: [String] = [
             "/usr/bin/xcrun", "swiftc",

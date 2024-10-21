@@ -1,8 +1,9 @@
-import TSCBasic
+import FileSystem
+import Path
 import struct TSCUtility.Version
 import TuistCore
-import TuistGraph
 import TuistSupport
+import XcodeGraph
 
 public protocol TargetRunning {
     /// Runs a provided target.
@@ -18,7 +19,7 @@ public protocol TargetRunning {
     ///   - arguments: Arguments to forward to the runnable target when running.
     func runTarget(
         _ target: GraphTarget,
-        platform: TuistGraph.Platform,
+        platform: XcodeGraph.Platform,
         workspacePath: AbsolutePath,
         schemeName: String,
         configuration: String?,
@@ -63,20 +64,23 @@ public final class TargetRunner: TargetRunning {
     private let xcodeBuildController: XcodeBuildControlling
     private let xcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectoryLocating
     private let simulatorController: SimulatorControlling
+    private let fileSystem: FileSysteming
 
     public init(
         xcodeBuildController: XcodeBuildControlling = XcodeBuildController(),
         xcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectoryLocating = XcodeProjectBuildDirectoryLocator(),
-        simulatorController: SimulatorControlling = SimulatorController()
+        simulatorController: SimulatorControlling = SimulatorController(),
+        fileSystem: FileSysteming = FileSystem()
     ) {
         self.xcodeBuildController = xcodeBuildController
         self.xcodeProjectBuildDirectoryLocator = xcodeProjectBuildDirectoryLocator
         self.simulatorController = simulatorController
+        self.fileSystem = fileSystem
     }
 
     public func runTarget(
         _ target: GraphTarget,
-        platform: TuistGraph.Platform,
+        platform: XcodeGraph.Platform,
         workspacePath: AbsolutePath,
         schemeName: String,
         configuration: String?,
@@ -90,13 +94,13 @@ public final class TargetRunner: TargetRunning {
         let configuration = configuration ?? target.project.settings.defaultDebugBuildConfiguration()?.name ?? BuildConfiguration
             .debug.name
         let xcodeBuildDirectory = try xcodeProjectBuildDirectoryLocator.locate(
-            platform: platform,
+            destinationType: .simulator(platform),
             projectPath: workspacePath,
             derivedDataPath: nil,
             configuration: configuration
         )
         let runnablePath = xcodeBuildDirectory.appending(component: target.target.productNameWithExtension)
-        guard FileHandler.shared.exists(runnablePath) else {
+        guard try await fileSystem.exists(runnablePath) else {
             throw TargetRunnerError.runnableNotFound(path: runnablePath.pathString)
         }
 
@@ -153,12 +157,16 @@ public final class TargetRunner: TargetRunning {
         let settings = try await xcodeBuildController
             .showBuildSettings(.workspace(workspacePath), scheme: schemeName, configuration: configuration, derivedDataPath: nil)
         let bundleId = settings[target.target.name]?.productBundleIdentifier ?? target.target.bundleId
-        let simulator = try await simulatorController
-            .findAvailableDevice(platform: platform, version: version, minVersion: minVersion, deviceName: deviceName)
+        let simulator = try await simulatorController.askForAvailableDevice(
+            platform: platform,
+            version: version,
+            minVersion: minVersion,
+            deviceName: deviceName
+        )
 
         logger.debug("Running app \(appPath.pathString) with arguments [\(arguments.joined(separator: ", "))]")
         logger.notice("Running app \(bundleId) on \(simulator.device.name)", metadata: .section)
         try simulatorController.installApp(at: appPath, device: simulator.device)
-        try simulatorController.launchApp(bundleId: bundleId, device: simulator.device, arguments: arguments)
+        try await simulatorController.launchApp(bundleId: bundleId, device: simulator.device, arguments: arguments)
     }
 }

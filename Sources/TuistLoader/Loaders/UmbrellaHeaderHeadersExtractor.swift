@@ -1,5 +1,5 @@
 import Foundation
-import TSCBasic
+import Path
 import TuistSupport
 
 public enum UmbrellaHeaderHeadersExtractor {
@@ -16,7 +16,7 @@ public enum UmbrellaHeaderHeadersExtractor {
 
         return lines.compactMap { line in
             let stripped = line.trimmingCharacters(in: .whitespaces)
-            guard let matchingPrefix = expectedPrefixes.first(where: { line.hasPrefix($0) }) else {
+            guard let matchingPrefix = expectedPrefixes.first(where: { stripped.hasPrefix($0) }) else {
                 return nil
             }
             // also we need drop comments and spaces before comments

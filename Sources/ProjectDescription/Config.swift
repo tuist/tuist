@@ -27,9 +27,12 @@
 ///     swiftVersion: "5.9.0"
 /// )
 /// ```
-public struct Config: Codable, Equatable {
+public struct Config: Codable, Equatable, Sendable {
     /// Generation options.
     public let generationOptions: GenerationOptions
+
+    /// Install options.
+    public let installOptions: InstallOptions
 
     /// Set the versions of Xcode that the project is compatible with.
     public let compatibleXcodeVersions: CompatibleXcodeVersions
@@ -39,6 +42,12 @@ public struct Config: Codable, Equatable {
 
     /// Cloud configuration.
     public let cloud: Cloud?
+
+    /// The full project handle such as tuist-org/tuist.
+    public let fullHandle: String?
+
+    /// The base URL that points to the Tuist server.
+    public let url: String
 
     /// The Swift tools versions that will be used by Tuist to fetch external dependencies.
     /// If `nil` is passed then Tuist will use the environment’s version.
@@ -55,17 +64,24 @@ public struct Config: Codable, Equatable {
     ///   - swiftVersion: The version of Swift that will be used by Tuist.
     ///   - plugins: A list of plugins to extend Tuist.
     ///   - generationOptions: List of options to use when generating the project.
+    ///   - installOptions: List of options to use when running `tuist install`.
     public init(
         compatibleXcodeVersions: CompatibleXcodeVersions = .all,
         cloud: Cloud? = nil,
+        fullHandle: String? = nil,
+        url: String = "https://cloud.tuist.io",
         swiftVersion: Version? = nil,
         plugins: [PluginLocation] = [],
-        generationOptions: GenerationOptions = .options()
+        generationOptions: GenerationOptions = .options(),
+        installOptions: InstallOptions = .options()
     ) {
         self.compatibleXcodeVersions = compatibleXcodeVersions
         self.plugins = plugins
         self.generationOptions = generationOptions
+        self.installOptions = installOptions
         self.cloud = cloud
+        self.fullHandle = fullHandle
+        self.url = url
         self.swiftVersion = swiftVersion
         dumpIfNeeded(self)
     }

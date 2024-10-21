@@ -1,6 +1,6 @@
 import Foundation
 import ProjectDescription
-import TuistGraph
+import XcodeGraph
 
 extension IDETemplateMacros {
     static func from(
@@ -10,7 +10,7 @@ extension IDETemplateMacros {
         switch manifest {
         case let .file(path):
             let templatePath = try generatorPaths.resolve(path: path)
-            let templateContent = try String(contentsOf: templatePath.asURL)
+            let templateContent = try String(contentsOf: URL(fileURLWithPath: templatePath.pathString))
             return IDETemplateMacros(fileHeader: templateContent)
         case let .string(templateContent):
             return IDETemplateMacros(fileHeader: templateContent)

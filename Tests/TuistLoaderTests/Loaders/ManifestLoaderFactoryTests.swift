@@ -1,5 +1,6 @@
 import Foundation
-import TSCBasic
+import Mockable
+import Path
 import TuistSupport
 import XCTest
 
@@ -7,6 +8,12 @@ import XCTest
 @testable import TuistSupportTesting
 
 final class ManifestLoaderFactoryTests: TuistUnitTestCase {
+    override func setUp() {
+        super.setUp()
+
+        system.succeedCommand(["/usr/bin/xcrun", "swift", "-version"], output: "Swift Version 5.2.1")
+    }
+
     func test_create_default_cached_manifest_loader() {
         // Given
         let sut = ManifestLoaderFactory()
@@ -18,7 +25,7 @@ final class ManifestLoaderFactoryTests: TuistUnitTestCase {
 
     func test_create_non_cached_manifest_loader_when_explicitely_configured_via_enviromentvariable() {
         // Given
-        environment.tuistConfigVariables[Constants.EnvironmentVariables.cacheManifests] = "0"
+        environment.tuistVariables[Constants.EnvironmentVariables.cacheManifests] = "0"
         let sut = ManifestLoaderFactory()
         // When
         let result = sut.createManifestLoader()

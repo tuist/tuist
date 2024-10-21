@@ -4,6 +4,7 @@ let nameAttribute: Template.Attribute = .required("name")
 let platformAttribute: Template.Attribute = .optional("platform", default: "iOS")
 let projectPath = "."
 let appPath = "./\(nameAttribute)"
+let classNameAttribute: Template.Attribute = .required("class_name")
 
 let template = Template(
     description: "Default template",
@@ -21,7 +22,11 @@ let template = Template(
             templatePath: "Package.stencil"
         ),
         .file(
-            path: appPath + "/Sources/\(nameAttribute)App.swift",
+            path: projectPath + "/Tuist/Config.swift",
+            templatePath: "Config.stencil"
+        ),
+        .file(
+            path: appPath + "/Sources/\(classNameAttribute)App.swift",
             templatePath: "app.stencil"
         ),
         .file(
@@ -37,7 +42,7 @@ let template = Template(
             sourcePath: "Preview Content"
         ),
         .file(
-            path: appPath + "/Tests/\(nameAttribute)Tests.swift",
+            path: appPath + "/Tests/\(classNameAttribute)Tests.swift",
             templatePath: "AppTests.stencil"
         ),
         .file(
@@ -47,10 +52,6 @@ let template = Template(
         .file(
             path: ".mise.toml",
             templatePath: "mise.stencil"
-        ),
-        .file(
-            path: appPath + "/Resources/LaunchScreen.storyboard",
-            templatePath: "LaunchScreen+\(platformAttribute).stencil"
         ),
     ]
 )

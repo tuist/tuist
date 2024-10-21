@@ -1,20 +1,20 @@
 import Foundation
+import Path
 import ProjectDescription
-import TSCBasic
 import TuistCore
-import TuistGraph
 import TuistSupport
+import XcodeGraph
 
-extension TuistGraph.TargetScript {
-    /// Maps a ProjectDescription.TargetAction instance into a TuistGraph.TargetAction model.
+extension XcodeGraph.TargetScript {
+    /// Maps a ProjectDescription.TargetAction instance into a XcodeGraph.TargetAction model.
     /// - Parameters:
     ///   - manifest: Manifest representation of target action.
     ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.TargetScript, generatorPaths: GeneratorPaths) throws -> TuistGraph
+    static func from(manifest: ProjectDescription.TargetScript, generatorPaths: GeneratorPaths) throws -> XcodeGraph
         .TargetScript
     {
         let name = manifest.name
-        let order = TuistGraph.TargetScript.Order.from(manifest: manifest.order)
+        let order = XcodeGraph.TargetScript.Order.from(manifest: manifest.order)
         let inputPaths = try manifest.inputPaths
             .compactMap { try $0.unfold(generatorPaths: generatorPaths) }
             .flatMap { $0 }
@@ -35,7 +35,7 @@ extension TuistGraph.TargetScript {
             dependencyFile = nil
         }
 
-        let script: TuistGraph.TargetScript.Script
+        let script: XcodeGraph.TargetScript.Script
         switch manifest.script {
         case let .embedded(text):
             script = .embedded(text)
@@ -76,12 +76,12 @@ extension TuistGraph.TargetScript {
     }
 }
 
-extension TuistGraph.TargetScript.Order {
-    /// Maps a ProjectDescription.TargetAction.Order instance into a TuistGraph.TargetAction.Order model.
+extension XcodeGraph.TargetScript.Order {
+    /// Maps a ProjectDescription.TargetAction.Order instance into a XcodeGraph.TargetAction.Order model.
     /// - Parameters:
     ///   - manifest: Manifest representation of target action order.
     ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.TargetScript.Order) -> TuistGraph.TargetScript.Order {
+    static func from(manifest: ProjectDescription.TargetScript.Order) -> XcodeGraph.TargetScript.Order {
         switch manifest {
         case .pre:
             return .pre

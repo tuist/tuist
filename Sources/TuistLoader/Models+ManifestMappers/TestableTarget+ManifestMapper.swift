@@ -1,24 +1,24 @@
 import Foundation
+import Path
 import ProjectDescription
-import TSCBasic
 import TuistCore
-import TuistGraph
+import XcodeGraph
 
-extension TuistGraph.TestableTarget {
-    /// Maps a ProjectDescription.TestableTarget instance into a TuistGraph.TestableTarget instance.
+extension XcodeGraph.TestableTarget {
+    /// Maps a ProjectDescription.TestableTarget instance into a XcodeGraph.TestableTarget instance.
     /// - Parameters:
     ///   - manifest: Manifest representation of testable target model.
     ///   - generatorPaths: Generator paths.
     static func from(
         manifest: ProjectDescription.TestableTarget,
         generatorPaths: GeneratorPaths
-    ) throws -> TuistGraph.TestableTarget {
-        let target = TuistGraph.TargetReference(
+    ) throws -> XcodeGraph.TestableTarget {
+        let target = XcodeGraph.TargetReference(
             projectPath: try generatorPaths.resolveSchemeActionProjectPath(manifest.target.projectPath),
             name: manifest.target.targetName
         )
 
-        var simulatedLocation: TuistGraph.SimulatedLocation?
+        var simulatedLocation: XcodeGraph.SimulatedLocation?
 
         if let manifestLocation = manifest.simulatedLocation {
             switch (manifestLocation.identifier, manifestLocation.gpxFile) {

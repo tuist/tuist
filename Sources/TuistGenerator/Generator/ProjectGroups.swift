@@ -1,8 +1,9 @@
 import Foundation
+import Path
 import TSCBasic
 import TuistCore
-import TuistGraph
 import TuistSupport
+import XcodeGraph
 import XcodeProj
 
 enum ProjectGroupsError: FatalError, Equatable {
@@ -114,6 +115,14 @@ class ProjectGroups {
             projectGroups.append((item, projectGroup))
         }
 
+        /// Products
+        /// If the products group is the last non-empty group, it will not appear.
+        /// This appears to be an Xcode bug that is still there as of Xcode 15.3
+        /// https://developer.apple.com/forums/thread/77406
+        let productsGroup = PBXGroup(children: [], sourceTree: .group, name: "Products")
+        pbxproj.add(object: productsGroup)
+        mainGroup.children.append(productsGroup)
+
         /// SDSKs & Pre-compiled frameworks
         let frameworksGroup = PBXGroup(children: [], sourceTree: .group, name: "Frameworks")
         pbxproj.add(object: frameworksGroup)
@@ -123,11 +132,6 @@ class ProjectGroups {
         let cacheGroup = PBXGroup(children: [], sourceTree: .group, name: "Cache")
         pbxproj.add(object: cacheGroup)
         mainGroup.children.append(cacheGroup)
-
-        /// Products
-        let productsGroup = PBXGroup(children: [], sourceTree: .group, name: "Products")
-        pbxproj.add(object: productsGroup)
-        mainGroup.children.append(productsGroup)
 
         return ProjectGroups(
             main: mainGroup,
@@ -140,7 +144,7 @@ class ProjectGroups {
     }
 
     private static func extractProjectGroupNames(from project: Project) -> [String] {
-        let groups = [project.filesGroup] + project.targets.map(\.filesGroup)
+        let groups = [project.filesGroup] + project.targets.values.map(\.filesGroup)
         let groupNames: [String] = groups.compactMap {
             switch $0 {
             case let .group(name: groupName):

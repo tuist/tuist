@@ -1,9 +1,9 @@
 import Foundation
+import Path
 import ProjectDescription
-import TSCBasic
 import TuistCore
-import TuistGraph
 import TuistSupport
+import XcodeGraph
 import XCTest
 
 @testable import TuistLoader
@@ -13,10 +13,11 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
     func test_from_when_external_xcframework() throws {
         // Given
         let dependency = ProjectDescription.TargetDependency.external(name: "library")
-        let generatorPaths = GeneratorPaths(manifestDirectory: try AbsolutePath(validating: "/"))
+
+        let generatorPaths = GeneratorPaths(manifestDirectory: try AbsolutePath(validating: "/"), rootDirectory: "/")
 
         // When
-        let got = try TuistGraph.TargetDependency.from(
+        let got = try XcodeGraph.TargetDependency.from(
             manifest: dependency,
             generatorPaths: generatorPaths,
             externalDependencies: ["library": [.xcframework(path: "/path.xcframework", status: .required)]]
@@ -35,10 +36,10 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
     func test_from_when_external_project() throws {
         // Given
         let dependency = ProjectDescription.TargetDependency.external(name: "library")
-        let generatorPaths = GeneratorPaths(manifestDirectory: try AbsolutePath(validating: "/"))
+        let generatorPaths = GeneratorPaths(manifestDirectory: try AbsolutePath(validating: "/"), rootDirectory: "/")
 
         // When
-        let got = try TuistGraph.TargetDependency.from(
+        let got = try XcodeGraph.TargetDependency.from(
             manifest: dependency,
             generatorPaths: generatorPaths,
             externalDependencies: ["library": [.project(target: "Target", path: "/Project")]]
@@ -46,7 +47,7 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(got.count, 1)
-        guard case let .project(target, path, _) = got[0] else {
+        guard case let .project(target, path, _, _) = got[0] else {
             XCTFail("Dependency should be project")
             return
         }
@@ -57,10 +58,10 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
     func test_from_when_external_multiple() throws {
         // Given
         let dependency = ProjectDescription.TargetDependency.external(name: "library")
-        let generatorPaths = GeneratorPaths(manifestDirectory: try AbsolutePath(validating: "/"))
+        let generatorPaths = GeneratorPaths(manifestDirectory: try AbsolutePath(validating: "/"), rootDirectory: "/")
 
         // When
-        let got = try TuistGraph.TargetDependency.from(
+        let got = try XcodeGraph.TargetDependency.from(
             manifest: dependency,
             generatorPaths: generatorPaths,
             externalDependencies: [
@@ -80,7 +81,7 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
         XCTAssertEqual(frameworkPath, "/path.xcframework")
         XCTAssertEqual(status, .required)
 
-        guard case let .project(target, path, _) = got[1] else {
+        guard case let .project(target, path, _, _) = got[1] else {
             XCTFail("Dependency should be project")
             return
         }
@@ -91,10 +92,10 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
     func test_from_when_package_runtime() throws {
         // Given
         let dependency = ProjectDescription.TargetDependency.package(product: "RuntimePackageProduct", type: .runtime)
-        let generatorPaths = GeneratorPaths(manifestDirectory: try AbsolutePath(validating: "/"))
+        let generatorPaths = GeneratorPaths(manifestDirectory: try AbsolutePath(validating: "/"), rootDirectory: "/")
 
         // When
-        let got = try TuistGraph.TargetDependency.from(
+        let got = try XcodeGraph.TargetDependency.from(
             manifest: dependency,
             generatorPaths: generatorPaths,
             externalDependencies: [:]
@@ -113,10 +114,10 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
     func test_from_when_package_macro() throws {
         // Given
         let dependency = ProjectDescription.TargetDependency.package(product: "MacroPackageProduct", type: .macro)
-        let generatorPaths = GeneratorPaths(manifestDirectory: try AbsolutePath(validating: "/"))
+        let generatorPaths = GeneratorPaths(manifestDirectory: try AbsolutePath(validating: "/"), rootDirectory: "/")
 
         // When
-        let got = try TuistGraph.TargetDependency.from(
+        let got = try XcodeGraph.TargetDependency.from(
             manifest: dependency,
             generatorPaths: generatorPaths,
             externalDependencies: [:]
@@ -135,10 +136,10 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
     func test_from_when_package_plugin() throws {
         // Given
         let dependency = ProjectDescription.TargetDependency.package(product: "PluginPackageProduct", type: .plugin)
-        let generatorPaths = GeneratorPaths(manifestDirectory: try AbsolutePath(validating: "/"))
+        let generatorPaths = GeneratorPaths(manifestDirectory: try AbsolutePath(validating: "/"), rootDirectory: "/")
 
         // When
-        let got = try TuistGraph.TargetDependency.from(
+        let got = try XcodeGraph.TargetDependency.from(
             manifest: dependency,
             generatorPaths: generatorPaths,
             externalDependencies: [:]
@@ -157,10 +158,10 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
     func test_from_when_sdkLibrary() throws {
         // Given
         let dependency = ProjectDescription.TargetDependency.sdk(name: "c++", type: .library, status: .required)
-        let generatorPaths = GeneratorPaths(manifestDirectory: try AbsolutePath(validating: "/"))
+        let generatorPaths = GeneratorPaths(manifestDirectory: try AbsolutePath(validating: "/"), rootDirectory: "/")
 
         // When
-        let got = try TuistGraph.TargetDependency.from(
+        let got = try XcodeGraph.TargetDependency.from(
             manifest: dependency,
             generatorPaths: generatorPaths,
             externalDependencies: [:]
@@ -176,13 +177,35 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
         XCTAssertEqual(status, .required)
     }
 
+    func test_from_when_sdkSwiftLibrary() throws {
+        // Given
+        let dependency = ProjectDescription.TargetDependency.sdk(name: "Observation", type: .swiftLibrary, status: .required)
+        let generatorPaths = GeneratorPaths(manifestDirectory: try AbsolutePath(validating: "/"), rootDirectory: "/")
+
+        // When
+        let got = try XcodeGraph.TargetDependency.from(
+            manifest: dependency,
+            generatorPaths: generatorPaths,
+            externalDependencies: [:]
+        )
+
+        // Then
+        XCTAssertEqual(got.count, 1)
+        guard case let .sdk(name, status, _) = got[0] else {
+            XCTFail("Dependency should be sdk")
+            return
+        }
+        XCTAssertEqual(name, "libswiftObservation.tbd")
+        XCTAssertEqual(status, .required)
+    }
+
     func test_from_when_sdkFramework() throws {
         // Given
         let dependency = ProjectDescription.TargetDependency.sdk(name: "ARKit", type: .framework, status: .required)
-        let generatorPaths = GeneratorPaths(manifestDirectory: try AbsolutePath(validating: "/"))
+        let generatorPaths = GeneratorPaths(manifestDirectory: try AbsolutePath(validating: "/"), rootDirectory: "/")
 
         // When
-        let got = try TuistGraph.TargetDependency.from(
+        let got = try XcodeGraph.TargetDependency.from(
             manifest: dependency,
             generatorPaths: generatorPaths,
             externalDependencies: [:]

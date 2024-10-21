@@ -13,6 +13,15 @@ func releaseSettings() -> SettingsDictionary {
     baseSettings
 }
 
+func acceptanceTestsEnvironmentVariables() -> [String: EnvironmentVariable] {
+    [
+        "TUIST_CONFIG_SRCROOT": "$(SRCROOT)",
+        "TUIST_FRAMEWORK_SEARCH_PATHS": "$(FRAMEWORK_SEARCH_PATHS)",
+        "TUIST_AUTH_EMAIL": "tuistrocks@tuist.io",
+        "TUIST_AUTH_PASSWORD": "tuistrocks",
+    ]
+}
+
 func schemes() -> [Scheme] {
     var schemes: [Scheme] = [
         .scheme(
@@ -23,10 +32,7 @@ func schemes() -> [Scheme] {
             ),
             runAction: .runAction(
                 arguments: .arguments(
-                    environmentVariables: [
-                        "TUIST_CONFIG_SRCROOT": "$(SRCROOT)",
-                        "TUIST_FRAMEWORK_SEARCH_PATHS": "$(FRAMEWORK_SEARCH_PATHS)",
-                    ]
+                    environmentVariables: acceptanceTestsEnvironmentVariables()
                 )
             )
         ),
@@ -41,10 +47,7 @@ func schemes() -> [Scheme] {
             ),
             runAction: .runAction(
                 arguments: .arguments(
-                    environmentVariables: [
-                        "TUIST_CONFIG_SRCROOT": "$(SRCROOT)",
-                        "TUIST_FRAMEWORK_SEARCH_PATHS": "$(FRAMEWORK_SEARCH_PATHS)",
-                    ]
+                    environmentVariables: acceptanceTestsEnvironmentVariables()
                 )
             )
         ),
@@ -91,10 +94,7 @@ func schemes() -> [Scheme] {
             testAction: .targets([.testableTarget(target: .target($0))]),
             runAction: .runAction(
                 arguments: .arguments(
-                    environmentVariables: [
-                        "TUIST_CONFIG_SRCROOT": "$(SRCROOT)",
-                        "TUIST_FRAMEWORK_SEARCH_PATHS": "$(FRAMEWORK_SEARCH_PATHS)",
-                    ]
+                    environmentVariables: acceptanceTestsEnvironmentVariables()
                 )
             )
         )

@@ -1,10 +1,11 @@
 import Foundation
-import TSCBasic
+import Mockable
+import Path
+import struct TSCUtility.Version
 import TuistCore
 import TuistCoreTesting
-import TuistGraph
-import TuistGraphTesting
 import TuistSupport
+import XcodeGraph
 import XcodeProj
 import XCTest
 @testable import TuistGenerator
@@ -21,6 +22,10 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         pbxTarget = PBXNativeTarget(name: "Test")
         pbxproj.add(object: pbxTarget)
         subject = ConfigGenerator()
+
+        given(xcodeController)
+            .selectedVersion()
+            .willReturn(Version(15, 0, 0))
     }
 
     override func tearDown() {
@@ -30,8 +35,8 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_generateProjectConfig_whenDebug() throws {
-        try generateProjectConfig(config: .debug)
+    func test_generateProjectConfig_whenDebug() async throws {
+        try await generateProjectConfig(config: .debug)
         XCTAssertEqual(pbxproj.configurationLists.count, 1)
         let configurationList: XCConfigurationList = pbxproj.configurationLists.first!
 
@@ -41,8 +46,8 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         XCTAssertEqual(debugConfig.buildSettings["Base"] as? String, "Base")
     }
 
-    func test_generateProjectConfig_whenRelease() throws {
-        try generateProjectConfig(config: .release)
+    func test_generateProjectConfig_whenRelease() async throws {
+        try await generateProjectConfig(config: .release)
 
         XCTAssertEqual(pbxproj.configurationLists.count, 1)
         let configurationList: XCConfigurationList = pbxproj.configurationLists.first!
@@ -59,7 +64,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         XCTAssertEqual(customReleaseConfig.buildSettings["MTL_ENABLE_DEBUG_INFO"] as? String, "NO")
     }
 
-    func test_generateTargetConfig() throws {
+    func test_generateTargetConfig() async throws {
         // Given
         let commonSettings: SettingsDictionary = [
             "Base": "Base",
@@ -78,7 +83,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         ]
 
         // When
-        try generateTargetConfig()
+        try await generateTargetConfig()
 
         // Then
         let configurationList = pbxTarget.buildConfigurationList
@@ -102,7 +107,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         assert(config: customReleaseConfig, contains: releaseSettings)
     }
 
-    func test_generateTargetConfig_whenSourceRootIsEqualToXcodeprojPath() throws {
+    func test_generateTargetConfig_whenSourceRootIsEqualToXcodeprojPath() async throws {
         // Given
         let sourceRootPath = try temporaryPath()
         let project = Project.test(
@@ -116,7 +121,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        try subject.generateTargetConfig(
+        try await subject.generateTargetConfig(
             target,
             project: project,
             pbxTarget: pbxTarget,
@@ -140,9 +145,9 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         assert(config: releaseConfig, contains: expectedSettings)
     }
 
-    func test_generateTestTargetConfiguration_iOS() throws {
+    func test_generateTestTargetConfiguration_iOS() async throws {
         // Given / When
-        try generateTestTargetConfig(appName: "App")
+        try await generateTestTargetConfig(appName: "App")
 
         let configurationList = pbxTarget.buildConfigurationList
         let debugConfig = configurationList?.configuration(name: "Debug")
@@ -157,9 +162,9 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         assert(config: releaseConfig, contains: testHostSettings)
     }
 
-    func test_generateTestTargetConfiguration_macOS() throws {
+    func test_generateTestTargetConfiguration_macOS() async throws {
         // Given / When
-        try generateTestTargetConfig(appName: "App", destinations: .macOS)
+        try await generateTestTargetConfig(appName: "App", destinations: .macOS)
 
         let configurationList = pbxTarget.buildConfigurationList
         let debugConfig = configurationList?.configuration(name: "Debug")
@@ -174,9 +179,9 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         assert(config: releaseConfig, contains: testHostSettings)
     }
 
-    func test_generateTestTargetConfiguration_usesProductName() throws {
+    func test_generateTestTargetConfiguration_usesProductName() async throws {
         // Given / When
-        try generateTestTargetConfig(
+        try await generateTestTargetConfig(
             appName: "App-dash",
             productName: "App_dash"
         )
@@ -194,9 +199,9 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         assert(config: releaseConfig, contains: testHostSettings)
     }
 
-    func test_generateUITestTargetConfiguration() throws {
+    func test_generateUITestTargetConfiguration() async throws {
         // Given / When
-        try generateTestTargetConfig(appName: "App", uiTest: true)
+        try await generateTestTargetConfig(appName: "App", uiTest: true)
 
         let configurationList = pbxTarget.buildConfigurationList
         let debugConfig = configurationList?.configuration(name: "Debug")
@@ -210,9 +215,9 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         assert(config: releaseConfig, contains: testHostSettings)
     }
 
-    func test_generateUITestTargetConfiguration_usesTargetName() throws {
+    func test_generateUITestTargetConfiguration_usesTargetName() async throws {
         // Given / When
-        try generateTestTargetConfig(
+        try await generateTestTargetConfig(
             appName: "App-dash",
             productName: "App_dash",
             uiTest: true
@@ -230,7 +235,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         assert(config: releaseConfig, contains: testHostSettings)
     }
 
-    func test_generateTargetWithDeploymentTarget_whenIOS_withMacAndVisionForIPhoneSupport() throws {
+    func test_generateTargetWithDeploymentTarget_whenIOS_withMacAndVisionForIPhoneSupport() async throws {
         // Given
         let project = Project.test()
         let target = Target.test(
@@ -241,7 +246,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        try subject.generateTargetConfig(
+        try await subject.generateTargetConfig(
             target,
             project: project,
             pbxTarget: pbxTarget,
@@ -273,7 +278,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         XCTAssertNil(releaseConfig?.buildSettings["SUPPORTED_PLATFORMS"])
     }
 
-    func test_generateTargetWithDeploymentTarget_whenIOS_withoutMacAndVisionForIPhoneSupport() throws {
+    func test_generateTargetWithDeploymentTarget_whenIOS_withoutMacAndVisionForIPhoneSupport() async throws {
         // Given
         let project = Project.test()
         let target = Target.test(
@@ -284,7 +289,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        try subject.generateTargetConfig(
+        try await subject.generateTargetConfig(
             target,
             project: project,
             pbxTarget: pbxTarget,
@@ -311,7 +316,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         assert(config: releaseConfig, contains: expectedSettings)
     }
 
-    func test_generateTargetWithDeploymentTarget_whenIOS_for_framework() throws {
+    func test_generateTargetWithDeploymentTarget_whenIOS_for_framework() async throws {
         // Given
         let target = Target.test(
             destinations: [.iPhone, .iPad, .macWithiPadDesign],
@@ -323,7 +328,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        try subject.generateTargetConfig(
+        try await subject.generateTargetConfig(
             target,
             project: project,
             pbxTarget: pbxTarget,
@@ -349,7 +354,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         assert(config: releaseConfig, contains: expectedSettings)
     }
 
-    func test_generateTargetWithDeploymentTarget_whenMac() throws {
+    func test_generateTargetWithDeploymentTarget_whenMac() async throws {
         // Given
         let project = Project.test()
         let target = Target.test(destinations: [.mac], deploymentTargets: .macOS("10.14.1"))
@@ -357,7 +362,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        try subject.generateTargetConfig(
+        try await subject.generateTargetConfig(
             target,
             project: project,
             pbxTarget: pbxTarget,
@@ -381,7 +386,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         assert(config: releaseConfig, contains: expectedSettings)
     }
 
-    func test_generateTargetWithDeploymentTarget_whenCatalyst() throws {
+    func test_generateTargetWithDeploymentTarget_whenCatalyst() async throws {
         // Given
         let project = Project.test()
         let target = Target.test(
@@ -392,7 +397,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        try subject.generateTargetConfig(
+        try await subject.generateTargetConfig(
             target,
             project: project,
             pbxTarget: pbxTarget,
@@ -421,7 +426,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         assert(config: releaseConfig, contains: expectedSettings)
     }
 
-    func test_generateTargetWithDeploymentTarget_whenWatch() throws {
+    func test_generateTargetWithDeploymentTarget_whenWatch() async throws {
         // Given
         let project = Project.test()
         let target = Target.test(destinations: [.appleWatch], deploymentTargets: .watchOS("6.0"))
@@ -429,7 +434,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        try subject.generateTargetConfig(
+        try await subject.generateTargetConfig(
             target,
             project: project,
             pbxTarget: pbxTarget,
@@ -454,7 +459,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         assert(config: releaseConfig, contains: expectedSettings)
     }
 
-    func test_generateTargetWithDeploymentTarget_whenTV() throws {
+    func test_generateTargetWithDeploymentTarget_whenTV() async throws {
         // Given
         let project = Project.test()
         let target = Target.test(destinations: [.appleTv], deploymentTargets: .tvOS("14.0"))
@@ -462,7 +467,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        try subject.generateTargetConfig(
+        try await subject.generateTargetConfig(
             target,
             project: project,
             pbxTarget: pbxTarget,
@@ -487,7 +492,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         assert(config: releaseConfig, contains: expectedSettings)
     }
 
-    func test_generateTargetWithDeploymentTarget_whenVision() throws {
+    func test_generateTargetWithDeploymentTarget_whenVision() async throws {
         // Given
         let project = Project.test()
         let target = Target.test(destinations: [.appleVision], deploymentTargets: .visionOS("1.0"))
@@ -495,7 +500,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        try subject.generateTargetConfig(
+        try await subject.generateTargetConfig(
             target,
             project: project,
             pbxTarget: pbxTarget,
@@ -520,7 +525,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         assert(config: releaseConfig, contains: expectedSettings)
     }
 
-    func test_generateTargetWithDeploymentTarget_whenVisionWithiPadDesign() throws {
+    func test_generateTargetWithDeploymentTarget_whenVisionWithiPadDesign() async throws {
         // Given
         let project = Project.test()
         let target = Target.test(
@@ -531,7 +536,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        try subject.generateTargetConfig(
+        try await subject.generateTargetConfig(
             target,
             project: project,
             pbxTarget: pbxTarget,
@@ -558,7 +563,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         assert(config: releaseConfig, contains: expectedSettings)
     }
 
-    func test_generateTargetWithMultiplePlatforms() throws {
+    func test_generateTargetWithMultiplePlatforms() async throws {
         // Given
         let project = Project.test()
         let target = Target.test(destinations: [.mac, .iPad, .iPhone])
@@ -566,7 +571,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        try subject.generateTargetConfig(
+        try await subject.generateTargetConfig(
             target,
             project: project,
             pbxTarget: pbxTarget,
@@ -594,7 +599,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         assert(config: releaseConfig, contains: expectedSettings)
     }
 
-    func test_generateProjectConfig_defaultConfigurationName() throws {
+    func test_generateProjectConfig_defaultConfigurationName() async throws {
         // Given
         let settings = Settings(configurations: [
             .debug("CustomDebug"): nil,
@@ -604,7 +609,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         let project = Project.test(settings: settings)
 
         // When
-        let result = try subject.generateProjectConfig(
+        let result = try await subject.generateProjectConfig(
             project: project,
             pbxproj: pbxproj,
             fileElements: ProjectFileElements()
@@ -614,7 +619,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         XCTAssertEqual(result.defaultConfigurationName, "CustomRelease")
     }
 
-    func test_generateProjectConfig_defaultConfigurationName_whenNoReleaseConfiguration() throws {
+    func test_generateProjectConfig_defaultConfigurationName_whenNoReleaseConfiguration() async throws {
         // Given
         let settings = Settings(configurations: [
             .debug("CustomDebug"): nil,
@@ -623,7 +628,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         let project = Project.test(settings: settings)
 
         // When
-        let result = try subject.generateProjectConfig(
+        let result = try await subject.generateProjectConfig(
             project: project,
             pbxproj: pbxproj,
             fileElements: ProjectFileElements()
@@ -633,7 +638,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         XCTAssertEqual(result.defaultConfigurationName, "AnotherDebug")
     }
 
-    func test_generateTargetConfig_defaultConfigurationName() throws {
+    func test_generateTargetConfig_defaultConfigurationName() async throws {
         // Given
         let projectSettings = Settings(configurations: [
             .debug("CustomDebug"): nil,
@@ -646,7 +651,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        try subject.generateTargetConfig(
+        try await subject.generateTargetConfig(
             target,
             project: project,
             pbxTarget: pbxTarget,
@@ -662,7 +667,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         XCTAssertEqual(result?.defaultConfigurationName, "CustomRelease")
     }
 
-    func test_generateTargetConfig_defaultConfigurationName_whenNoReleaseConfiguration() throws {
+    func test_generateTargetConfig_defaultConfigurationName_whenNoReleaseConfiguration() async throws {
         // Given
         let projectSettings = Settings(configurations: [
             .debug("CustomDebug"): nil,
@@ -674,7 +679,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        try subject.generateTargetConfig(
+        try await subject.generateTargetConfig(
             target,
             project: project,
             pbxTarget: pbxTarget,
@@ -690,7 +695,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         XCTAssertEqual(result?.defaultConfigurationName, "AnotherDebug")
     }
 
-    func test_generateTargetConfigWithDuplicateValues() throws {
+    func test_generateTargetConfigWithDuplicateValues() async throws {
         // Given
         let projectSettings = Settings(configurations: [
             .debug("CustomDebug"): nil,
@@ -717,7 +722,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        try subject.generateTargetConfig(
+        try await subject.generateTargetConfig(
             target,
             project: project,
             pbxTarget: pbxTarget,
@@ -746,7 +751,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         ])
     }
 
-    func test_generateTargetConfig_addsTheLoadPluginExecutableSwiftFlag_when_tagetDependsOnMacroStaticFramework() throws {
+    func test_generateTargetConfig_addsTheLoadPluginExecutableSwiftFlag_when_tagetDependsOnMacroStaticFramework() async throws {
         // Given
         let projectSettings = Settings.default
         let app = Target.test(name: "app", platform: .iOS, product: .app)
@@ -754,13 +759,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         let macroExecutable = Target.test(name: "macro", platform: .macOS, product: .macro)
         let project = Project.test(targets: [app, macroFramework, macroExecutable])
 
-        let graph = Graph.test(path: project.path, projects: [project.path: project], targets: [
-            project.path: [
-                app.name: app,
-                macroFramework.name: macroFramework,
-                macroExecutable.name: macroExecutable,
-            ],
-        ], dependencies: [
+        let graph = Graph.test(path: project.path, projects: [project.path: project], dependencies: [
             .target(name: app.name, path: project.path): Set([.target(name: macroFramework.name, path: project.path)]),
             .target(name: macroFramework.name, path: project.path): Set([.target(
                 name: macroExecutable.name,
@@ -771,7 +770,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        try subject.generateTargetConfig(
+        try await subject.generateTargetConfig(
             app,
             project: project,
             pbxTarget: pbxTarget,
@@ -799,26 +798,21 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
     }
 
     func test_generateTargetConfig_doesntAddTheLoadPluginExecutableSwiftFlag_when_theTargetDependsOnAStaticFrameworkThatDoesntRepresentAMacro(
-    ) throws {
+    ) async throws {
         // Given
         let projectSettings = Settings.default
         let app = Target.test(name: "app", platform: .iOS, product: .app)
         let macroFramework = Target.test(name: "framework", platform: .macOS, product: .staticFramework)
         let project = Project.test(targets: [app, macroFramework])
 
-        let graph = Graph.test(path: project.path, projects: [project.path: project], targets: [
-            project.path: [
-                app.name: app,
-                macroFramework.name: macroFramework,
-            ],
-        ], dependencies: [
+        let graph = Graph.test(path: project.path, projects: [project.path: project], dependencies: [
             .target(name: app.name, path: project.path): Set([.target(name: macroFramework.name, path: project.path)]),
             .target(name: macroFramework.name, path: project.path): Set([]),
         ])
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        try subject.generateTargetConfig(
+        try await subject.generateTargetConfig(
             app,
             project: project,
             pbxTarget: pbxTarget,
@@ -839,9 +833,290 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         XCTAssertEqual(targetSettingsResult, nil)
     }
 
+    func test_generateTargetConfig_entitlementAreCorrectlyMappedToXCConfig_when_targetIsAppClipAndXCConfigIsProvided(
+    ) async throws {
+        let projectSettings = Settings.default
+        let appClip = Target.test(
+            name: "app",
+            platform: .iOS,
+            product: .appClip,
+            entitlements: .variable("$(MY_CUSTOM_VARIABLE)")
+        )
+
+        let project = Project.test(targets: [appClip])
+
+        let graph = Graph.test(path: project.path, projects: [project.path: project])
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        try await subject.generateTargetConfig(
+            appClip,
+            project: project,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            projectSettings: projectSettings,
+            fileElements: ProjectFileElements(),
+            graphTraverser: graphTraverser,
+            sourceRootPath: try AbsolutePath(validating: "/project")
+        )
+
+        // Then
+        let targetSettingsResult = try pbxTarget
+            .buildConfigurationList?
+            .buildConfigurations
+            .first { $0.name == "Debug" }?
+            .buildSettings
+            .toSettings()["CODE_SIGN_ENTITLEMENTS"]
+        XCTAssertEqual(targetSettingsResult, "$(MY_CUSTOM_VARIABLE)")
+    }
+
+    func test_generateTargetConfig_entitlementAreCorrectlyMappedToXCConfig_when_targetIsAppClipAndXCConfigIsProvidedByStringLiteral(
+    ) async throws {
+        let projectSettings = Settings.default
+        let appClip = Target.test(
+            name: "app",
+            platform: .iOS,
+            product: .appClip,
+            entitlements: "$(MY_CUSTOM_VARIABLE)"
+        )
+
+        let project = Project.test(targets: [appClip])
+
+        let graph = Graph.test(path: project.path, projects: [project.path: project])
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        try await subject.generateTargetConfig(
+            appClip,
+            project: project,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            projectSettings: projectSettings,
+            fileElements: ProjectFileElements(),
+            graphTraverser: graphTraverser,
+            sourceRootPath: try AbsolutePath(validating: "/project")
+        )
+
+        // Then
+        let targetSettingsResult = try pbxTarget
+            .buildConfigurationList?
+            .buildConfigurations
+            .first { $0.name == "Debug" }?
+            .buildSettings
+            .toSettings()["CODE_SIGN_ENTITLEMENTS"]
+        XCTAssertEqual(targetSettingsResult, "$(MY_CUSTOM_VARIABLE)")
+    }
+
+    func test_generateTargetConfig_when_mergedBinaryTypeIsAutomatic_defaultSettingsIsEssential() async throws {
+        // Given
+        let settings = Settings.test(defaultSettings: .essential)
+        let appTarget = Target.test(settings: settings, mergedBinaryType: .automatic)
+        let project = Project.test(targets: [appTarget])
+        let graph = Graph.test(path: project.path, projects: [project.path: project])
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        try await subject.generateTargetConfig(
+            appTarget,
+            project: project,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            projectSettings: .test(),
+            fileElements: ProjectFileElements(),
+            graphTraverser: graphTraverser,
+            sourceRootPath: try AbsolutePath(validating: "/project")
+        )
+
+        // Then
+        let targetSettingsResult = try pbxTarget
+            .buildConfigurationList?
+            .buildConfigurations
+            .first { $0.name == "Debug" }?
+            .buildSettings
+            .toSettings()["MERGED_BINARY_TYPE"]
+        XCTAssertEqual(targetSettingsResult, "automatic")
+    }
+
+    func test_generateTargetConfig_when_mergedBinaryTypeIsManual_defaultSettingsIsEssential() async throws {
+        // Given
+        let settings = Settings.test(defaultSettings: .essential)
+        let appTarget = Target.test(settings: settings, mergedBinaryType: .manual(mergeableDependencies: []))
+        let project = Project.test(targets: [appTarget])
+        let graph = Graph.test(path: project.path, projects: [project.path: project])
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        try await subject.generateTargetConfig(
+            appTarget,
+            project: project,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            projectSettings: .test(),
+            fileElements: ProjectFileElements(),
+            graphTraverser: graphTraverser,
+            sourceRootPath: try AbsolutePath(validating: "/project")
+        )
+
+        // Then
+        let targetSettingsResult = try pbxTarget
+            .buildConfigurationList?
+            .buildConfigurations
+            .first { $0.name == "Debug" }?
+            .buildSettings
+            .toSettings()["MERGED_BINARY_TYPE"]
+        XCTAssertEqual(targetSettingsResult, "manual")
+    }
+
+    func test_generateTargetConfig_when_mergeableIsTrue_defaultSettingsIsEssential() async throws {
+        // Given
+        let settings = Settings.test(defaultSettings: .essential)
+        let frameworkTarget = Target.test(product: .framework, settings: settings, mergeable: true)
+        let project = Project.test(targets: [frameworkTarget])
+        let graph = Graph.test(path: project.path, projects: [project.path: project])
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        try await subject.generateTargetConfig(
+            frameworkTarget,
+            project: project,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            projectSettings: .test(),
+            fileElements: ProjectFileElements(),
+            graphTraverser: graphTraverser,
+            sourceRootPath: try AbsolutePath(validating: "/project")
+        )
+
+        // Then
+        let targetSettingsResult = try pbxTarget
+            .buildConfigurationList?
+            .buildConfigurations
+            .first { $0.name == "Debug" }?
+            .buildSettings
+            .toSettings()["MERGEABLE_LIBRARY"]
+        XCTAssertEqual(targetSettingsResult, "YES")
+    }
+
+    func test_generateTargetConfig_when_defaultSettingsIsRecommendedWithExcludingTEST_HOST_then_TEST_HOSTIsNil() async throws {
+        // Given
+        let settings = Settings.test(defaultSettings: .recommended(excluding: ["TEST_HOST"]))
+        let appTarget = Target.test(name: "App", product: .app)
+        let target = Target.test(name: "Test", product: .unitTests, settings: settings)
+        let project = Project.test(name: "Project", targets: [target, appTarget])
+        let graph = Graph.test(
+            name: project.name,
+            path: project.path,
+            projects: [project.path: project],
+            dependencies: [
+                GraphDependency
+                    .target(name: target.name, path: project.path): Set([.target(name: appTarget.name, path: project.path)]),
+            ]
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        try await subject.generateTargetConfig(
+            target,
+            project: project,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            projectSettings: project.settings,
+            fileElements: .init(),
+            graphTraverser: graphTraverser,
+            sourceRootPath: try AbsolutePath(validating: "/project")
+        )
+
+        // Then
+        let targetSettingsResult = try pbxTarget
+            .buildConfigurationList?
+            .buildConfigurations
+            .first { $0.name == "Debug" }?
+            .buildSettings
+            .toSettings()["TEST_HOST"]
+        XCTAssertEqual(targetSettingsResult, nil)
+    }
+
+    func test_generateTargetConfig_when_defaultSettingsIsEssentialWithExcludingTEST_HOST_then_TEST_HOSTIsNil() async throws {
+        // Given
+        let settings = Settings.test(defaultSettings: .essential(excluding: ["TEST_HOST"]))
+        let appTarget = Target.test(name: "App", product: .app)
+        let target = Target.test(name: "Test", product: .unitTests, settings: settings)
+        let project = Project.test(name: "Project", targets: [target, appTarget])
+        let graph = Graph.test(
+            name: project.name,
+            path: project.path,
+            projects: [project.path: project],
+            dependencies: [
+                GraphDependency
+                    .target(name: target.name, path: project.path): Set([.target(name: appTarget.name, path: project.path)]),
+            ]
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        try await subject.generateTargetConfig(
+            target,
+            project: project,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            projectSettings: project.settings,
+            fileElements: .init(),
+            graphTraverser: graphTraverser,
+            sourceRootPath: try AbsolutePath(validating: "/project")
+        )
+
+        // Then
+        let targetSettingsResult = try pbxTarget
+            .buildConfigurationList?
+            .buildConfigurations
+            .first { $0.name == "Debug" }?
+            .buildSettings
+            .toSettings()["TEST_HOST"]
+        XCTAssertEqual(targetSettingsResult, nil)
+    }
+
+    func test_generateTargetConfig_when_defaultSettingsIsNoneWithExcludingTEST_HOST_then_TEST_HOSTIsNil() async throws {
+        // Given
+        let settings = Settings.test(defaultSettings: .none)
+        let appTarget = Target.test(name: "App", product: .app)
+        let target = Target.test(name: "Test", product: .unitTests, settings: settings)
+        let project = Project.test(name: "Project", targets: [target, appTarget])
+        let graph = Graph.test(
+            name: project.name,
+            path: project.path,
+            projects: [project.path: project],
+            dependencies: [
+                GraphDependency
+                    .target(name: target.name, path: project.path): Set([.target(name: appTarget.name, path: project.path)]),
+            ]
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        try await subject.generateTargetConfig(
+            target,
+            project: project,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            projectSettings: project.settings,
+            fileElements: .init(),
+            graphTraverser: graphTraverser,
+            sourceRootPath: try AbsolutePath(validating: "/project")
+        )
+
+        // Then
+        let targetSettingsResult = try pbxTarget
+            .buildConfigurationList?
+            .buildConfigurations
+            .first { $0.name == "Debug" }?
+            .buildSettings
+            .toSettings()["TEST_HOST"]
+        XCTAssertEqual(targetSettingsResult, nil)
+    }
+
     // MARK: - Helpers
 
-    private func generateProjectConfig(config _: BuildConfiguration) throws {
+    private func generateProjectConfig(config _: BuildConfiguration) async throws {
         let dir = try temporaryPath()
         let xcconfigsDir = dir.appending(component: "xcconfigs")
         try FileHandler.shared.createFolder(xcconfigsDir)
@@ -868,14 +1143,14 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
             targets: []
         )
         let fileElements = ProjectFileElements()
-        _ = try subject.generateProjectConfig(
+        _ = try await subject.generateProjectConfig(
             project: project,
             pbxproj: pbxproj,
             fileElements: fileElements
         )
     }
 
-    private func generateTargetConfig() throws {
+    private func generateTargetConfig() async throws {
         let dir = try temporaryPath()
         let xcconfigsDir = dir.appending(component: "xcconfigs")
         try FileHandler.shared.createFolder(xcconfigsDir)
@@ -919,7 +1194,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
             groups: groups,
             pbxproj: pbxproj
         )
-        _ = try subject.generateTargetConfig(
+        _ = try await subject.generateTargetConfig(
             target,
             project: project,
             pbxTarget: pbxTarget,
@@ -936,7 +1211,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         destinations: Destinations = .iOS,
         productName: String? = nil,
         uiTest: Bool = false
-    ) throws {
+    ) async throws {
         let dir = try temporaryPath()
 
         let appTarget = Target.test(
@@ -947,13 +1222,12 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         )
 
         let target = Target.test(name: "Test", destinations: destinations, product: uiTest ? .uiTests : .unitTests)
-        let project = Project.test(path: dir, name: "Project", targets: [target])
+        let project = Project.test(path: dir, name: "Project", targets: [target, appTarget])
 
         let graph = Graph.test(
             name: project.name,
             path: project.path,
             projects: [project.path: project],
-            targets: [project.path: [appTarget.name: appTarget, target.name: target]],
             dependencies: [
                 GraphDependency
                     .target(name: target.name, path: project.path): Set([.target(name: appTarget.name, path: project.path)]),
@@ -961,7 +1235,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         )
         let graphTraverser = GraphTraverser(graph: graph)
 
-        _ = try subject.generateTargetConfig(
+        _ = try await subject.generateTargetConfig(
             target,
             project: project,
             pbxTarget: pbxTarget,

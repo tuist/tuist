@@ -1,15 +1,15 @@
 import Foundation
+import Path
 import ProjectDescription
-import TSCBasic
 import TuistCore
-import TuistGraph
+import XcodeGraph
 
-extension TuistGraph.Entitlements {
-    /// Maps a ProjectDescription.Entitlements instance into a TuistGraph.Entitlements instance.
+extension XcodeGraph.Entitlements {
+    /// Maps a ProjectDescription.Entitlements instance into a XcodeGraph.Entitlements instance.
     /// - Parameters:
     ///   - manifest: Manifest representation of the Entitlements model.
     ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.Entitlements?, generatorPaths: GeneratorPaths) throws -> TuistGraph
+    static func from(manifest: ProjectDescription.Entitlements?, generatorPaths: GeneratorPaths) throws -> XcodeGraph
         .Entitlements?
     {
         switch manifest {
@@ -17,8 +17,10 @@ extension TuistGraph.Entitlements {
             return .file(path: try generatorPaths.resolve(path: infoplistPath))
         case let .dictionary(dictionary):
             return .dictionary(
-                dictionary.mapValues { TuistGraph.Plist.Value.from(manifest: $0) }
+                dictionary.mapValues { XcodeGraph.Plist.Value.from(manifest: $0) }
             )
+        case let .variable(setting):
+            return .variable(setting)
         case .none:
             return .none
         }

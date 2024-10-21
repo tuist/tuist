@@ -1,51 +1,69 @@
 import Foundation
-import TSCBasic
+import Path
+import TuistCache
 import TuistCore
 import TuistGenerator
-import TuistGraph
 import TuistLoader
 import TuistPlugin
+import TuistServer
 import TuistSupport
+import XcodeGraph
 
 final class GenerateService {
     private let opener: Opening
     private let clock: Clock
     private let timeTakenLoggerFormatter: TimeTakenLoggerFormatting
+    private let cacheStorageFactory: CacheStorageFactorying
     private let generatorFactory: GeneratorFactorying
     private let manifestLoader: ManifestLoading
     private let pluginService: PluginServicing
     private let configLoader: ConfigLoading
 
     init(
+        cacheStorageFactory: CacheStorageFactorying,
+        generatorFactory: GeneratorFactorying,
         clock: Clock = WallClock(),
         timeTakenLoggerFormatter: TimeTakenLoggerFormatting = TimeTakenLoggerFormatter(),
         manifestLoader: ManifestLoading = ManifestLoader(),
         opener: Opening = Opener(),
-        generatorFactory: GeneratorFactorying = GeneratorFactory(),
         pluginService: PluginServicing = PluginService(),
         configLoader: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader())
     ) {
+        self.generatorFactory = generatorFactory
+        self.cacheStorageFactory = cacheStorageFactory
         self.clock = clock
         self.timeTakenLoggerFormatter = timeTakenLoggerFormatter
         self.manifestLoader = manifestLoader
         self.opener = opener
-        self.generatorFactory = generatorFactory
         self.pluginService = pluginService
         self.configLoader = configLoader
     }
 
     func run(
         path: String?,
-        noOpen: Bool
+        sources: Set<String>,
+        noOpen: Bool,
+        configuration: String?,
+        ignoreBinaryCache: Bool,
+        analyticsDelegate: TrackableParametersDelegate?
     ) async throws {
         let timer = clock.startTimer()
         let path = try self.path(path)
-        let config = try configLoader.loadConfig(path: path)
-        let generator = generatorFactory.default(config: config)
-
-        let workspacePath = try await generator.generate(path: path)
+        let config = try await configLoader.loadConfig(path: path)
+        let cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
+        let generator = generatorFactory.generation(
+            config: config,
+            sources: sources,
+            configuration: configuration,
+            ignoreBinaryCache: ignoreBinaryCache,
+            cacheStorage: cacheStorage
+        )
+        let (workspacePath, _, environment) = try await generator.generateWithGraph(path: path)
+        analyticsDelegate?.cacheableTargets = environment.cacheableTargets
+        analyticsDelegate?.cacheItems = environment.targetCacheItems.values.flatMap(\.values)
+            .sorted(by: { $0.name < $1.name })
         if !noOpen {
-            try opener.open(path: workspacePath)
+            try await opener.open(path: workspacePath)
         }
         logger.notice("Project generated.", metadata: .success)
         logger.notice(timeTakenLoggerFormatter.timeTakenMessage(for: timer))

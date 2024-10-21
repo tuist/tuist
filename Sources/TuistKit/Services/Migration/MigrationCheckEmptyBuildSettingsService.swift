@@ -1,5 +1,5 @@
 import Foundation
-import TSCBasic
+import Path
 import TuistMigration
 import TuistSupport
 
@@ -16,7 +16,7 @@ class MigrationCheckEmptyBuildSettingsService {
 
     // MARK: - Internal
 
-    func run(xcodeprojPath: AbsolutePath, target: String?) throws {
-        try emptyBuildSettingsChecker.check(xcodeprojPath: xcodeprojPath, targetName: target)
+    func run(xcodeprojPath: AbsolutePath, target: String?) async throws {
+        try await emptyBuildSettingsChecker.check(xcodeprojPath: xcodeprojPath, targetName: target)
     }
 }

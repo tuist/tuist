@@ -1,8 +1,8 @@
 import Foundation
-import TSCBasic
+import Path
 import TuistCore
 import TuistCoreTesting
-import TuistGraph
+import XcodeGraph
 import XCTest
 
 @testable import TuistSupportTesting
@@ -24,7 +24,7 @@ final class TargetProjectMapperTests: XCTestCase {
         let (updatedProject, sideEffects) = try subject.map(project: project)
 
         // Then
-        XCTAssertEqual(updatedProject.targets.map(\.name), [
+        XCTAssertEqual(updatedProject.targets.values.map(\.name).sorted(), [
             "Updated_A",
             "Updated_B",
         ])
@@ -47,7 +47,7 @@ final class TargetProjectMapperTests: XCTestCase {
         let (_, sideEffects) = try subject.map(project: project)
 
         // Then
-        XCTAssertEqual(sideEffects, [
+        XCTAssertEqual(sideEffects.sorted(by: { $0.description < $1.description }), [
             .file(.init(path: try AbsolutePath(validating: "/Targets/A.swift"))),
             .file(.init(path: try AbsolutePath(validating: "/Targets/B.swift"))),
         ])
@@ -68,7 +68,7 @@ final class TargetProjectMapperTests: XCTestCase {
 }
 
 final class SequentialProjectMapperTests: XCTestCase {
-    func test_map_project() throws {
+    func test_map_project() async throws {
         // Given
         let mapper1 = ProjectMapper {
             (Project.test(name: "Update1_\($0.name)"), [])
@@ -80,14 +80,14 @@ final class SequentialProjectMapperTests: XCTestCase {
         let project = Project.test(name: "Project")
 
         // When
-        let (updatedProject, sideEffects) = try subject.map(project: project)
+        let (updatedProject, sideEffects) = try await subject.map(project: project)
 
         // Then
         XCTAssertEqual(updatedProject.name, "Update2_Update1_Project")
         XCTAssertTrue(sideEffects.isEmpty)
     }
 
-    func test_map_sideEffects() throws {
+    func test_map_sideEffects() async throws {
         // Given
         let mapper1 = ProjectMapper {
             (Project.test(name: "Update1_\($0.name)"), [
@@ -103,7 +103,7 @@ final class SequentialProjectMapperTests: XCTestCase {
         let project = Project.test(name: "Project")
 
         // When
-        let (_, sideEffects) = try subject.map(project: project)
+        let (_, sideEffects) = try await subject.map(project: project)
 
         // Then
         XCTAssertEqual(sideEffects, [

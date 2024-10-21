@@ -1,9 +1,10 @@
+import FileSystem
 import Foundation
-import TSCBasic
+import Path
 import TuistCore
-import TuistGraph
 import TuistLoader
 import TuistSupport
+import XcodeGraph
 
 protocol ProjectEditorMapping: AnyObject {
     func map(
@@ -22,7 +23,7 @@ protocol ProjectEditorMapping: AnyObject {
         resourceSynthesizers: [AbsolutePath],
         stencils: [AbsolutePath],
         projectDescriptionSearchPath: AbsolutePath
-    ) throws -> Graph
+    ) async throws -> Graph
 }
 
 // swiftlint:disable:next type_body_length
@@ -30,7 +31,10 @@ final class ProjectEditorMapper: ProjectEditorMapping {
     private let swiftPackageManagerController: SwiftPackageManagerControlling
 
     init(
-        swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController()
+        swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(
+            system: System.shared,
+            fileSystem: FileSystem()
+        )
     ) {
         self.swiftPackageManagerController = swiftPackageManagerController
     }
@@ -52,9 +56,9 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         resourceSynthesizers: [AbsolutePath],
         stencils: [AbsolutePath],
         projectDescriptionSearchPath: AbsolutePath
-    ) throws -> Graph {
+    ) async throws -> Graph {
         logger.notice("Building the editable project graph")
-        let swiftVersion = try System.shared.swiftVersion()
+        let swiftVersion = try SwiftVersionProvider.shared.swiftVersion()
 
         let pluginsProject = mapPluginsProject(
             pluginManifests: editablePluginManifests,
@@ -65,7 +69,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             tuistPath: tuistPath
         )
 
-        let manifestsProject = try mapManifestsProject(
+        let manifestsProject = try await mapManifestsProject(
             projectManifests: projectManifests,
             projectDescriptionPath: projectDescriptionSearchPath,
             swiftVersion: swiftVersion,
@@ -100,18 +104,13 @@ final class ProjectEditorMapper: ProjectEditorMapping {
 
         let graphProjects = Dictionary(uniqueKeysWithValues: projects.map { ($0.path, $0) })
 
-        let graphTargets = projects
-            .lazy
-            .map { ($0.path, $0.targets) }
-            .map { path, targets in (path, Dictionary(uniqueKeysWithValues: targets.map { ($0.name, $0) })) }
-
         let graphDependencies = projects
             .lazy
             .flatMap { project -> [(GraphDependency, Set<GraphDependency>)] in
-                let graphDependencies = project.targets.map(\.dependencies).lazy.map { dependencies in
+                let graphDependencies = project.targets.values.map(\.dependencies).lazy.map { dependencies in
                     dependencies.lazy.compactMap { dependency -> GraphDependency? in
                         switch dependency {
-                        case let .target(name, _):
+                        case let .target(name, _, _):
                             if let pluginsProject, editablePluginManifests.contains(where: { $0.name == name }) {
                                 return .target(name: name, path: pluginsProject.path)
                             } else {
@@ -123,7 +122,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
                     }
                 }
 
-                return zip(project.targets, graphDependencies).map { target, dependencies in
+                return zip(project.targets.values, graphDependencies).map { target, dependencies in
                     (GraphDependency.target(name: target.name, path: project.path), Set(dependencies))
                 }
             }
@@ -134,7 +133,6 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             workspace: workspace,
             projects: graphProjects,
             packages: [:],
-            targets: Dictionary(uniqueKeysWithValues: graphTargets),
             dependencies: Dictionary(uniqueKeysWithValues: graphDependencies),
             dependencyConditions: [:]
         )
@@ -157,7 +155,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         packageManifestPath: AbsolutePath?,
         editablePluginTargets: [String],
         pluginProjectDescriptionHelpersModule: [ProjectDescriptionHelpersModule]
-    ) throws -> Project? {
+    ) async throws -> Project? {
         guard !projectManifests.isEmpty || packageManifestPath != nil else { return nil }
 
         let projectName = "Manifests"
@@ -244,9 +242,9 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         let helperTargetDependencies = helpersTarget.map { [TargetDependency.target(name: $0.name)] } ?? []
         let helperAndPluginDependencies = helperTargetDependencies + editablePluginTargetDependencies
 
-        let packagesTarget: Target? = try {
+        let packagesTarget: Target? = try await {
             guard let packageManifestPath,
-                  let xcode = try XcodeController.shared.selected()
+                  let xcode = try await XcodeController.shared.selected()
             else { return nil }
             let packageVersion = try swiftPackageManagerController.getToolsVersion(at: packageManifestPath.parentDirectory)
 
@@ -338,6 +336,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             xcodeProjPath: destinationDirectory.appending(component: "\(projectName).xcodeproj"),
             name: projectName,
             organizationName: nil,
+            classPrefix: nil,
             defaultKnownRegions: nil,
             developmentRegion: nil,
             options: .init(
@@ -429,6 +428,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             xcodeProjPath: destinationDirectory.appending(component: "\(projectName).xcodeproj"),
             name: projectName,
             organizationName: nil,
+            classPrefix: nil,
             defaultKnownRegions: nil,
             developmentRegion: nil,
             options: .init(
@@ -464,7 +464,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         targets.reduce(into: [TargetReference: Set<TargetReference>]()) { result, target in
             let dependencyRefs = target.dependencies.lazy.compactMap { dependency -> TargetReference? in
                 switch dependency {
-                case let .target(name, _):
+                case let .target(name, _, _):
                     return TargetReference(projectPath: projectPath, name: name)
                 default:
                     return nil

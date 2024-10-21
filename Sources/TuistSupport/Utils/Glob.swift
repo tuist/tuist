@@ -7,37 +7,22 @@
 import Foundation
 
 // swiftlint:disable:next identifier_name
-public let GlobBehaviorBashV3 = Glob.Behavior(
-    supportsGlobstar: false,
-    includesFilesFromRootOfGlobstar: false,
-    includesDirectoriesInResults: true,
-    includesFilesInResultsIfTrailingSlash: false
-)
-
-// swiftlint:disable:next identifier_name
-public let GlobBehaviorBashV4 = Glob.Behavior(
+let GlobBehaviorBashV4 = Glob.Behavior(
     supportsGlobstar: true, // Matches Bash v4 with "shopt -s globstar" option
     includesFilesFromRootOfGlobstar: true,
     includesDirectoriesInResults: true,
     includesFilesInResultsIfTrailingSlash: false
 )
-// swiftlint:disable:next identifier_name
-public let GlobBehaviorGradle = Glob.Behavior(
-    supportsGlobstar: true,
-    includesFilesFromRootOfGlobstar: true,
-    includesDirectoriesInResults: false,
-    includesFilesInResultsIfTrailingSlash: true
-)
 
 /**
  Finds files on the file system using pattern matching.
  */
-public class Glob: Collection {
+final class Glob: Collection {
     /**
      * Different glob implementations have different behaviors, so the behavior of this
      * implementation is customizable.
      */
-    public struct Behavior {
+    public struct Behavior: Sendable {
         // If true then a globstar ("**") causes matching to be done recursively in subdirectories.
         // If false then "**" is treated the same as "*"
         let supportsGlobstar: Bool
@@ -66,16 +51,12 @@ public class Glob: Collection {
         }
     }
 
-    public static var defaultBehavior = GlobBehaviorBashV4
-
-    public let behavior: Behavior
+    public let behavior: Behavior = GlobBehaviorBashV4
     var paths = [String]()
     public var startIndex: Int { paths.startIndex }
     public var endIndex: Int { paths.endIndex }
 
-    public init(pattern: String, behavior: Behavior = Glob.defaultBehavior) {
-        self.behavior = behavior
-
+    public init(pattern: String) {
         var adjustedPattern = pattern
         let hasTrailingGlobstarSlash = pattern.hasSuffix("**/")
         var includeFiles = !hasTrailingGlobstarSlash
@@ -113,15 +94,37 @@ public class Glob: Collection {
     }
 
     private func expandGlobstar(pattern: String) -> [String] {
-        guard pattern.contains("**") else {
+        // Split pattern string by slash to find globstar.
+        let patternComponents = pattern.components(separatedBy: "/")
+
+        // We are only interested in the first globstar since that is where we want to separate the pattern string.
+        guard let pivot = patternComponents.firstIndex(of: "**") else {
             return [pattern]
         }
 
         var results = [String]()
-        var parts = pattern.components(separatedBy: "**")
-        let firstPart = parts.removeFirst()
-        var lastPart = parts.joined(separator: "**")
 
+        // Part before the first globstar
+        let firstPartLowerBound = 0
+        let firstPartUpperBound = pivot
+        let firstPartComponents: ArraySlice<String> = if firstPartLowerBound < firstPartUpperBound {
+            patternComponents[firstPartLowerBound ..< firstPartUpperBound]
+        } else {
+            []
+        }
+        let firstPart = firstPartComponents.joined(separator: "/")
+
+        // Part after the first globstar
+        let lastPartLowerBound = pivot + 1
+        let lastPartUpperBound = patternComponents.count
+        let lastPartComponents: ArraySlice<String> = if lastPartLowerBound < lastPartUpperBound {
+            patternComponents[lastPartLowerBound ..< lastPartUpperBound]
+        } else {
+            []
+        }
+        var lastPart = lastPartComponents.joined(separator: "/")
+
+        // Find subdirectories
         let fileManager = FileManager.default
 
         var directories = fileManager.subdirectoriesResolvingSymbolicLinks(atPath: firstPart)

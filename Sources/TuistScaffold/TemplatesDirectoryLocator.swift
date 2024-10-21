@@ -1,18 +1,21 @@
+import FileSystem
 import Foundation
-import TSCBasic
+import Mockable
+import Path
 import TuistCore
 import TuistSupport
 
+@Mockable
 public protocol TemplatesDirectoryLocating {
     /// Returns the path to the tuist built-in templates directory if it exists.
-    func locateTuistTemplates() -> AbsolutePath?
+    func locateTuistTemplates() async throws -> AbsolutePath?
 
     /// Returns the path to the user-defined templates directory if it exists.
     /// - Parameter at: Path from which we traverse the hierarchy to obtain the templates directory.
-    func locateUserTemplates(at: AbsolutePath) -> AbsolutePath?
+    func locateUserTemplates(at: AbsolutePath) async throws -> AbsolutePath?
 
     /// - Returns: All available directories with defined templates (user-defined and built-in)
-    func templateDirectories(at path: AbsolutePath) throws -> [AbsolutePath]
+    func templateDirectories(at path: AbsolutePath) async throws -> [AbsolutePath]
 
     /// - Parameter path: The path to the `Templates` directory for a plugin.
     /// - Returns: All available directories defined for the plugin at the given path
@@ -21,18 +24,23 @@ public protocol TemplatesDirectoryLocating {
 
 public final class TemplatesDirectoryLocator: TemplatesDirectoryLocating {
     private let rootDirectoryLocator: RootDirectoryLocating
+    private let fileSystem: FileSysteming
 
     /// Default constructor.
-    public init(rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator()) {
+    public init(
+        rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator(),
+        fileSystem: FileSysteming = FileSystem()
+    ) {
         self.rootDirectoryLocator = rootDirectoryLocator
+        self.fileSystem = fileSystem
     }
 
     // MARK: - TemplatesDirectoryLocating
 
-    public func locateTuistTemplates() -> AbsolutePath? {
+    public func locateTuistTemplates() async throws -> AbsolutePath? {
         #if DEBUG
             let maybeBundlePath: AbsolutePath?
-            if let sourceRoot = ProcessEnv.vars["TUIST_CONFIG_SRCROOT"] {
+            if let sourceRoot = ProcessInfo.processInfo.environment["TUIST_CONFIG_SRCROOT"] {
                 maybeBundlePath = try? AbsolutePath(validating: sourceRoot).appending(component: "Templates")
             } else {
                 // Used only for debug purposes to find templates in your tuist working directory
@@ -57,25 +65,25 @@ public final class TemplatesDirectoryLocator: TemplatesDirectoryLocating {
                    share/
                        Templates
                 */
-            bundlePath.parentDirectory.appending(try! RelativePath(validating: "share/Templates")),
+            bundlePath.parentDirectory.appending(try! RelativePath(validating: "share")),
             // swiftlint:disable:previous force_try
         ]
         let candidates = paths.map { path in
             path.appending(component: Constants.templatesDirectoryName)
         }
-        return candidates.first(where: FileHandler.shared.exists)
+        return try await candidates.concurrentFilter(fileSystem.exists).first
     }
 
-    public func locateUserTemplates(at: AbsolutePath) -> AbsolutePath? {
-        guard let customTemplatesDirectory = locate(from: at) else { return nil }
-        if !FileHandler.shared.exists(customTemplatesDirectory) { return nil }
+    public func locateUserTemplates(at: AbsolutePath) async throws -> AbsolutePath? {
+        guard let customTemplatesDirectory = try await locate(from: at) else { return nil }
+        if try await !fileSystem.exists(customTemplatesDirectory) { return nil }
         return customTemplatesDirectory
     }
 
-    public func templateDirectories(at path: AbsolutePath) throws -> [AbsolutePath] {
-        let tuistTemplatesDirectory = locateTuistTemplates()
+    public func templateDirectories(at path: AbsolutePath) async throws -> [AbsolutePath] {
+        let tuistTemplatesDirectory = try await locateTuistTemplates()
         let tuistTemplates = try tuistTemplatesDirectory.map(FileHandler.shared.contentsOfDirectory) ?? []
-        let userTemplatesDirectory = locateUserTemplates(at: path)
+        let userTemplatesDirectory = try await locateUserTemplates(at: path)
         let userTemplates = try userTemplatesDirectory.map(FileHandler.shared.contentsOfDirectory) ?? []
         return (tuistTemplates + userTemplates).filter(FileHandler.shared.isFolder)
     }
@@ -86,8 +94,8 @@ public final class TemplatesDirectoryLocator: TemplatesDirectoryLocating {
 
     // MARK: - Helpers
 
-    private func locate(from path: AbsolutePath) -> AbsolutePath? {
-        guard let rootDirectory = rootDirectoryLocator.locate(from: path) else { return nil }
+    private func locate(from path: AbsolutePath) async throws -> AbsolutePath? {
+        guard let rootDirectory = try await rootDirectoryLocator.locate(from: path) else { return nil }
         return rootDirectory.appending(components: Constants.tuistDirectoryName, Constants.templatesDirectoryName)
     }
 }

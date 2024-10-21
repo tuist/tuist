@@ -140,6 +140,11 @@ extension String {
         return sanitized
     }
 
+    /// Makes the string to be available in the `Bundle Identifier`.
+    public func toValidInBundleIdentifier() -> String {
+        return replacingOccurrences(of: "[^a-zA-Z0-9.-]", with: "-", options: .regularExpression)
+    }
+
     public func camelCaseToKebabCase() -> String {
         convertCamelCase(separator: "-")
     }
@@ -222,6 +227,21 @@ extension String {
         default:
             return true
         }
+    }
+
+    /// Encloses the current string inside quotes if it contains spaces
+    public var quotedIfContainsSpaces: String {
+        if contains(" ") {
+            return "\"\(self)\""
+        } else {
+            return self
+        }
+    }
+
+    /// Formats the current string to a Uniform Type Identifier
+    public var sanitizedModuleName: String {
+        replacingOccurrences(of: "-", with: "_")
+            .replacingOccurrences(of: "/", with: "_")
     }
 }
 

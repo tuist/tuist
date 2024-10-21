@@ -1,9 +1,9 @@
 import Foundation
 
 /// The structure defining the output schema of the Swift package.
-public struct Package: Codable, Equatable {
+public struct Package: Codable, Equatable, Sendable {
     /// The type of the Swift package.
-    public enum PackageKind: String, Codable {
+    public enum PackageKind: String, Codable, Sendable {
         case remote
         case local
     }

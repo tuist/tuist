@@ -1,29 +1,39 @@
+import FileSystem
 import Foundation
+import Path
 import ProjectDescription
-import TSCBasic
 import TuistDependencies
 import TuistLoader
 import TuistSupport
 
 final class PluginArchiveService {
     private let swiftPackageManagerController: SwiftPackageManagerControlling
+    private let packageInfoLoader: PackageInfoLoading
     private let manifestLoader: ManifestLoading
     private let fileArchiverFactory: FileArchivingFactorying
+    private let fileSystem: FileSystem
 
     init(
-        swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(),
+        swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(
+            system: System.shared,
+            fileSystem: FileSystem()
+        ),
+        packageInfoLoader: PackageInfoLoading = PackageInfoLoader(),
         manifestLoader: ManifestLoading = ManifestLoader(),
-        fileArchiverFactory: FileArchivingFactorying = FileArchivingFactory()
+        fileArchiverFactory: FileArchivingFactorying = FileArchivingFactory(),
+        fileSystem: FileSystem = FileSystem()
     ) {
         self.swiftPackageManagerController = swiftPackageManagerController
+        self.packageInfoLoader = packageInfoLoader
         self.manifestLoader = manifestLoader
         self.fileArchiverFactory = fileArchiverFactory
+        self.fileSystem = fileSystem
     }
 
-    func run(path: String?) throws {
+    func run(path: String?) async throws {
         let path = try self.path(path)
 
-        let packageInfo = try swiftPackageManagerController.loadPackageInfo(at: path)
+        let packageInfo = try await packageInfoLoader.loadPackageInfo(at: path)
         let taskProducts = packageInfo.products
             .filter {
                 switch $0.type {
@@ -42,10 +52,10 @@ final class PluginArchiveService {
             return
         }
 
-        let plugin = try manifestLoader.loadPlugin(at: path)
+        let plugin = try await manifestLoader.loadPlugin(at: path)
 
-        try FileHandler.shared.inTemporaryDirectory { temporaryDirectory in
-            try archiveProducts(
+        try await FileHandler.shared.inTemporaryDirectory { temporaryDirectory in
+            try await self.archiveProducts(
                 taskProducts: taskProducts,
                 path: path,
                 plugin: plugin,
@@ -69,11 +79,11 @@ final class PluginArchiveService {
         path: AbsolutePath,
         plugin: Plugin,
         in temporaryDirectory: AbsolutePath
-    ) throws {
+    ) async throws {
         let artifactsPath = temporaryDirectory.appending(component: "artifacts")
         for product in taskProducts {
             logger.notice("Building \(product)...")
-            try swiftPackageManagerController.buildFatReleaseBinary(
+            try await swiftPackageManagerController.buildFatReleaseBinary(
                 packagePath: path,
                 product: product,
                 buildPath: temporaryDirectory.appending(component: "build"),
@@ -85,16 +95,16 @@ final class PluginArchiveService {
                 .map(artifactsPath.appending)
         )
         let zipName = "\(plugin.name).tuist-plugin.zip"
-        let temporaryZipPath = try archiver.zip(name: zipName)
+        let temporaryZipPath = try await archiver.zip(name: zipName)
         let zipPath = path.appending(component: zipName)
-        if FileHandler.shared.exists(zipPath) {
-            try FileHandler.shared.delete(zipPath)
+        if try await fileSystem.exists(zipPath) {
+            try await fileSystem.remove(zipPath)
         }
-        try FileHandler.shared.copy(
-            from: temporaryZipPath,
+        try await fileSystem.copy(
+            temporaryZipPath,
             to: zipPath
         )
-        try archiver.delete()
+        try await archiver.delete()
 
         logger.notice(
             "Plugin was successfully archived. Create a new Github release and attach the file \(zipPath.pathString) as an artifact.",

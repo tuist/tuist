@@ -1,9 +1,9 @@
 import Foundation
-import TSCBasic
+import Path
 import TuistCore
 import TuistGenerator
-import TuistGraph
 import TuistSupportTesting
+import XcodeGraph
 import XCTest
 
 final class IDETemplateMacrosMapperTests: XCTestCase {

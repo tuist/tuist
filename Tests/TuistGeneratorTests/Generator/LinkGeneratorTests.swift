@@ -1,13 +1,13 @@
 import Foundation
-import TSCBasic
+import Mockable
+import Path
 import TuistCore
-import TuistGraph
-import TuistGraphTesting
+import TuistSupportTesting
+import XcodeGraph
 import XcodeProj
 import XCTest
-@testable import TuistCoreTesting
+
 @testable import TuistGenerator
-@testable import TuistSupportTesting
 
 final class LinkGeneratorPathTests: TuistUnitTestCase {
     func test_xcodeValue() {
@@ -79,8 +79,10 @@ final class LinkGeneratorTests: XCTestCase {
         ))
 
         let path = try AbsolutePath(validating: "/path/")
-        let graphTraverser = MockGraphTraverser()
-        graphTraverser.stubbedEmbeddableFrameworksResult = dependencies
+        let graphTraverser = MockGraphTraversing()
+        given(graphTraverser)
+            .embeddableFrameworks(path: .any, name: .any)
+            .willReturn(dependencies)
 
         // When
         try subject.generateEmbedPhase(
@@ -128,8 +130,10 @@ final class LinkGeneratorTests: XCTestCase {
         let sourceRootPath = try AbsolutePath(validating: "/")
 
         let path = try AbsolutePath(validating: "/path/")
-        let graphTraverser = MockGraphTraverser()
-        graphTraverser.stubbedEmbeddableFrameworksResult = dependencies
+        let graphTraverser = MockGraphTraversing()
+        given(graphTraverser)
+            .embeddableFrameworks(path: .any, name: .any)
+            .willReturn(dependencies)
 
         // When
         try subject.generateEmbedPhase(
@@ -181,8 +185,10 @@ final class LinkGeneratorTests: XCTestCase {
                 outputPaths: ["output/A.framework"]
             ))
             let path = try AbsolutePath(validating: "/path/")
-            let graphTraverser = MockGraphTraverser()
-            graphTraverser.stubbedEmbeddableFrameworksResult = dependencies
+            let graphTraverser = MockGraphTraversing()
+            given(graphTraverser)
+                .embeddableFrameworks(path: .any, name: .any)
+                .willReturn(dependencies)
 
             // When
             try subject.generateEmbedPhase(
@@ -225,8 +231,10 @@ final class LinkGeneratorTests: XCTestCase {
                 outputPaths: ["output/A.framework"]
             ))
             let path = try AbsolutePath(validating: "/path/")
-            let graphTraverser = MockGraphTraverser()
-            graphTraverser.stubbedEmbeddableFrameworksResult = dependencies
+            let graphTraverser = MockGraphTraversing()
+            given(graphTraverser)
+                .embeddableFrameworks(path: .any, name: .any)
+                .willReturn(dependencies)
 
             // When
             try subject.generateEmbedPhase(
@@ -257,8 +265,10 @@ final class LinkGeneratorTests: XCTestCase {
         let fileElements = ProjectFileElements()
         let sourceRootPath = try AbsolutePath(validating: "/")
         let path = try AbsolutePath(validating: "/path/")
-        let graphTraverser = MockGraphTraverser()
-        graphTraverser.stubbedEmbeddableFrameworksResult = dependencies
+        let graphTraverser = MockGraphTraversing()
+        given(graphTraverser)
+            .embeddableFrameworks(path: .any, name: .any)
+            .willReturn(dependencies)
 
         XCTAssertThrowsError(try subject.generateEmbedPhase(
             target: target,
@@ -287,8 +297,10 @@ final class LinkGeneratorTests: XCTestCase {
         let fileAbsolutePath = try AbsolutePath(validating: "/Frameworks/Test.xcframework")
         let fileElements = createFileElements(fileAbsolutePath: fileAbsolutePath)
         let path = try AbsolutePath(validating: "/path/")
-        let graphTraverser = MockGraphTraverser()
-        graphTraverser.stubbedEmbeddableFrameworksResult = dependencies
+        let graphTraverser = MockGraphTraversing()
+        given(graphTraverser)
+            .embeddableFrameworks(path: .any, name: .any)
+            .willReturn(dependencies)
 
         // When
         try subject.generateEmbedPhase(
@@ -322,8 +334,10 @@ final class LinkGeneratorTests: XCTestCase {
         xcodeprojElements.config.buildSettings["LD_RUNPATH_SEARCH_PATHS"] = "my/custom/path"
         let target = Target.test()
         let path = try AbsolutePath(validating: "/path/")
-        let graphTraverser = MockGraphTraverser()
-        graphTraverser.stubbedRunPathSearchPathsResult = Set(paths)
+        let graphTraverser = MockGraphTraversing()
+        given(graphTraverser)
+            .runPathSearchPaths(path: .any, name: .any)
+            .willReturn(Set(paths))
 
         // When
         try subject.setupRunPathSearchPaths(
@@ -362,8 +376,10 @@ final class LinkGeneratorTests: XCTestCase {
         xcodeprojElements.config.buildSettings["FRAMEWORK_SEARCH_PATHS"] = "my/custom/path"
         let target = Target.test()
         let path = try AbsolutePath(validating: "/path/")
-        let graphTraverser = MockGraphTraverser()
-        graphTraverser.stubbedSearchablePathDependenciesResult = Set(dependencies)
+        let graphTraverser = MockGraphTraversing()
+        given(graphTraverser)
+            .searchablePathDependencies(path: .any, name: .any)
+            .willReturn(Set(dependencies))
         // When
         try subject.setupFrameworkSearchPath(
             target: target,
@@ -403,8 +419,10 @@ final class LinkGeneratorTests: XCTestCase {
         let sourceRootPath = try AbsolutePath(validating: "/")
         let target = Target.test()
         let path = try AbsolutePath(validating: "/path/")
-        let graphTraverser = MockGraphTraverser()
-        graphTraverser.stubbedLibrariesPublicHeadersFoldersResult = Set(headersFolders)
+        let graphTraverser = MockGraphTraversing()
+        given(graphTraverser)
+            .librariesPublicHeadersFolders(path: .any, name: .any)
+            .willReturn(Set(headersFolders))
 
         try subject.setupHeadersSearchPath(
             target: target,
@@ -429,8 +447,10 @@ final class LinkGeneratorTests: XCTestCase {
         xcodeprojElements.config.buildSettings["HEADER_SEARCH_PATHS"] = "my/custom/path"
         let target = Target.test()
         let path = try AbsolutePath(validating: "/path/")
-        let graphTraverser = MockGraphTraverser()
-        graphTraverser.stubbedLibrariesPublicHeadersFoldersResult = Set(searchPaths)
+        let graphTraverser = MockGraphTraversing()
+        given(graphTraverser)
+            .librariesPublicHeadersFolders(path: .any, name: .any)
+            .willReturn(Set(searchPaths))
 
         // When
         try subject.setupHeadersSearchPath(
@@ -462,8 +482,10 @@ final class LinkGeneratorTests: XCTestCase {
         let xcodeprojElements = createXcodeprojElements()
         let target = Target.test()
         let path = try AbsolutePath(validating: "/path/")
-        let graphTraverser = MockGraphTraverser()
-        graphTraverser.stubbedLibrariesPublicHeadersFoldersResult = Set(searchPaths)
+        let graphTraverser = MockGraphTraversing()
+        given(graphTraverser)
+            .librariesPublicHeadersFolders(path: .any, name: .any)
+            .willReturn(Set(searchPaths))
 
         // When
         try subject.setupHeadersSearchPath(
@@ -491,8 +513,10 @@ final class LinkGeneratorTests: XCTestCase {
         let sourceRootPath = try AbsolutePath(validating: "/")
         let target = Target.test()
         let path = try AbsolutePath(validating: "/path/")
-        let graphTraverser = MockGraphTraverser()
-        graphTraverser.stubbedLibrariesPublicHeadersFoldersResult = Set(headersFolders)
+        let graphTraverser = MockGraphTraversing()
+        given(graphTraverser)
+            .librariesPublicHeadersFolders(path: .any, name: .any)
+            .willReturn(Set(headersFolders))
 
         XCTAssertThrowsError(try subject.setupHeadersSearchPath(
             target: target,
@@ -515,8 +539,10 @@ final class LinkGeneratorTests: XCTestCase {
         let xcodeprojElements = createXcodeprojElements()
         let target = Target.test()
         let path = try AbsolutePath(validating: "/path/")
-        let graphTraverser = MockGraphTraverser()
-        graphTraverser.stubbedLibrariesSearchPathsResult = Set(searchPaths)
+        let graphTraverser = MockGraphTraversing()
+        given(graphTraverser)
+            .librariesSearchPaths(path: .any, name: .any)
+            .willReturn(Set(searchPaths))
 
         // When
         try subject.setupLibrarySearchPaths(
@@ -540,8 +566,10 @@ final class LinkGeneratorTests: XCTestCase {
         let xcodeprojElements = createXcodeprojElements()
         let target = Target.test()
         let path = try AbsolutePath(validating: "/path/")
-        let graphTraverser = MockGraphTraverser()
-        graphTraverser.stubbedLibrariesSearchPathsResult = Set(searchPaths)
+        let graphTraverser = MockGraphTraversing()
+        given(graphTraverser)
+            .librariesSearchPaths(path: .any, name: .any)
+            .willReturn(Set(searchPaths))
 
         // When
         try subject.setupLibrarySearchPaths(
@@ -567,8 +595,10 @@ final class LinkGeneratorTests: XCTestCase {
         let xcodeprojElements = createXcodeprojElements()
         let target = Target.test()
         let path = try AbsolutePath(validating: "/path/")
-        let graphTraverser = MockGraphTraverser()
-        graphTraverser.stubbedLibrariesSwiftIncludePathsResult = Set(searchPaths)
+        let graphTraverser = MockGraphTraversing()
+        given(graphTraverser)
+            .librariesSwiftIncludePaths(path: .any, name: .any)
+            .willReturn(Set(searchPaths))
 
         // When
         try subject.setupSwiftIncludePaths(
@@ -592,8 +622,10 @@ final class LinkGeneratorTests: XCTestCase {
         let xcodeprojElements = createXcodeprojElements()
         let target = Target.test()
         let path = try AbsolutePath(validating: "/path/")
-        let graphTraverser = MockGraphTraverser()
-        graphTraverser.stubbedLibrariesSwiftIncludePathsResult = Set(searchPaths)
+        let graphTraverser = MockGraphTraversing()
+        given(graphTraverser)
+            .librariesSwiftIncludePaths(path: .any, name: .any)
+            .willReturn(Set(searchPaths))
 
         // When
         try subject.setupSwiftIncludePaths(
@@ -626,8 +658,10 @@ final class LinkGeneratorTests: XCTestCase {
         fileElements.products["Test"] = wakaFile
         fileElements.elements[try AbsolutePath(validating: "/test.framework")] = testFile
         let path = try AbsolutePath(validating: "/path/")
-        let graphTraverser = MockGraphTraverser()
-        graphTraverser.stubbedLinkableDependenciesResult = dependencies
+        let graphTraverser = MockGraphTraversing()
+        given(graphTraverser)
+            .linkableDependencies(path: .any, name: .any)
+            .willReturn(dependencies)
 
         try subject.generateLinkingPhase(
             target: target,
@@ -647,6 +681,83 @@ final class LinkGeneratorTests: XCTestCase {
         XCTAssertEqual(wakaBuildFile?.file, wakaFile)
     }
 
+    func test_generateLinkingPhase_requiredProduct() throws {
+        var dependencies: Set<GraphDependencyReference> = []
+        dependencies.insert(GraphDependencyReference.testFramework(path: "/test.framework"))
+        dependencies.insert(GraphDependencyReference.product(
+            target: "Test",
+            productName: "Test.framework",
+            status: .required
+        ))
+        let pbxproj = PBXProj()
+        let (pbxTarget, target) = createTargets(product: .framework)
+        let fileElements = ProjectFileElements()
+        let testFile = PBXFileReference()
+        pbxproj.add(object: testFile)
+        let wakaFile = PBXFileReference()
+        pbxproj.add(object: wakaFile)
+        fileElements.products["Test"] = wakaFile
+        fileElements.elements[try AbsolutePath(validating: "/test.framework")] = testFile
+        let path = try AbsolutePath(validating: "/path/")
+        let graphTraverser = MockGraphTraversing()
+        given(graphTraverser)
+            .linkableDependencies(path: .any, name: .any)
+            .willReturn(dependencies)
+
+        try subject.generateLinkingPhase(
+            target: target,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            fileElements: fileElements,
+            path: path,
+            graphTraverser: graphTraverser
+        )
+
+        let buildPhase = try pbxTarget.frameworksBuildPhase()
+
+        let testBuildFile: PBXBuildFile? = buildPhase?.files?.first
+        XCTAssertNil(testBuildFile?.settings?["ATTRIBUTES"])
+    }
+
+    func test_generateLinkingPhase_optionalProduct() throws {
+        var dependencies: Set<GraphDependencyReference> = []
+        dependencies.insert(GraphDependencyReference.testFramework(path: "/test.framework"))
+        dependencies.insert(GraphDependencyReference.product(
+            target: "Test",
+            productName: "Test.framework",
+            status: .optional
+        ))
+        let pbxproj = PBXProj()
+        let (pbxTarget, target) = createTargets(product: .framework)
+        let fileElements = ProjectFileElements()
+        let testFile = PBXFileReference()
+        pbxproj.add(object: testFile)
+        let wakaFile = PBXFileReference()
+        pbxproj.add(object: wakaFile)
+        fileElements.products["Test"] = wakaFile
+        fileElements.elements[try AbsolutePath(validating: "/test.framework")] = testFile
+        let path = try AbsolutePath(validating: "/path/")
+        let graphTraverser = MockGraphTraversing()
+        given(graphTraverser)
+            .linkableDependencies(path: .any, name: .any)
+            .willReturn(dependencies)
+
+        try subject.generateLinkingPhase(
+            target: target,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            fileElements: fileElements,
+            path: path,
+            graphTraverser: graphTraverser
+        )
+
+        let buildPhase = try pbxTarget.frameworksBuildPhase()
+
+        let testBuildFile: PBXBuildFile? = buildPhase?.files?.first
+        let attributes: [String]? = testBuildFile?.settings?["ATTRIBUTES"] as? [String]
+        XCTAssertEqual(attributes, ["Weak"])
+    }
+
     func test_generateLinkingPhase_optionalFramework() throws {
         var dependencies: Set<GraphDependencyReference> = []
         dependencies.insert(GraphDependencyReference.testFramework(path: "/test.framework", status: .optional))
@@ -664,8 +775,10 @@ final class LinkGeneratorTests: XCTestCase {
         fileElements.products["Test"] = wakaFile
         fileElements.elements[try AbsolutePath(validating: "/test.framework")] = testFile
         let path = try AbsolutePath(validating: "/path/")
-        let graphTraverser = MockGraphTraverser()
-        graphTraverser.stubbedLinkableDependenciesResult = dependencies
+        let graphTraverser = MockGraphTraversing()
+        given(graphTraverser)
+            .linkableDependencies(path: .any, name: .any)
+            .willReturn(dependencies)
 
         try subject.generateLinkingPhase(
             target: target,
@@ -690,8 +803,10 @@ final class LinkGeneratorTests: XCTestCase {
         let (pbxTarget, target) = createTargets(product: .framework)
         let fileElements = ProjectFileElements()
         let path = try AbsolutePath(validating: "/path/")
-        let graphTraverser = MockGraphTraverser()
-        graphTraverser.stubbedLinkableDependenciesResult = dependencies
+        let graphTraverser = MockGraphTraversing()
+        given(graphTraverser)
+            .linkableDependencies(path: .any, name: .any)
+            .willReturn(dependencies)
 
         XCTAssertThrowsError(try subject.generateLinkingPhase(
             target: target,
@@ -718,8 +833,10 @@ final class LinkGeneratorTests: XCTestCase {
         let (pbxTarget, target) = createTargets(product: .framework)
         let fileElements = ProjectFileElements()
         let path = try AbsolutePath(validating: "/path/")
-        let graphTraverser = MockGraphTraverser()
-        graphTraverser.stubbedLinkableDependenciesResult = dependencies
+        let graphTraverser = MockGraphTraversing()
+        given(graphTraverser)
+            .linkableDependencies(path: .any, name: .any)
+            .willReturn(dependencies)
 
         XCTAssertThrowsError(try subject.generateLinkingPhase(
             target: target,
@@ -754,8 +871,10 @@ final class LinkGeneratorTests: XCTestCase {
         fileElements.compiled["/Strong/Foo.framework"] = requiredFile
         fileElements.compiled["/Weak/Bar.framework"] = optionalFile
         let path = try AbsolutePath(validating: "/path/")
-        let graphTraverser = MockGraphTraverser()
-        graphTraverser.stubbedLinkableDependenciesResult = dependencies
+        let graphTraverser = MockGraphTraversing()
+        given(graphTraverser)
+            .linkableDependencies(path: .any, name: .any)
+            .willReturn(dependencies)
 
         // When
         try subject.generateLinkingPhase(
@@ -789,8 +908,10 @@ final class LinkGeneratorTests: XCTestCase {
             .insert(GraphDependencyReference.testProduct(target: "StaticDependency", productName: "libStaticDependency.a"))
         let staticDependency = Target.test(name: "StaticDependency", product: .staticLibrary)
         let target = Target.test()
-        let graphTraverser = MockGraphTraverser()
-        graphTraverser.stubbedCopyProductDependenciesResult = dependencies
+        let graphTraverser = MockGraphTraversing()
+        given(graphTraverser)
+            .copyProductDependencies(path: .any, name: .any)
+            .willReturn(dependencies)
         let fileElements = createProjectFileElements(for: [staticDependency])
         let xcodeProjElements = createXcodeprojElements()
 
@@ -830,14 +951,9 @@ final class LinkGeneratorTests: XCTestCase {
             path: path.appending(components: "XCFrameworks", "StaticLibraryB.xcframework"),
             linking: .static
         )
-
+        let project = Project.test(path: path, targets: [target])
         let graph = Graph.test(
-            projects: [path: .test(path: path)],
-            targets: [
-                path: [
-                    target.name: target,
-                ],
-            ],
+            projects: [path: project],
             dependencies: [
                 .target(name: target.name, path: path): [
                     xcframeworkA,
@@ -889,14 +1005,9 @@ final class LinkGeneratorTests: XCTestCase {
         let path = try AbsolutePath(validating: "/path/")
         let staticDependency = Target.test(name: "StaticDependency", product: .staticLibrary)
         let target = Target.test(name: "Dynamic", product: .framework)
+        let project = Project.test(path: path, targets: [target, staticDependency])
         let graph = Graph.test(
-            projects: [path: .test(path: path)],
-            targets: [
-                path: [
-                    target.name: target,
-                    staticDependency.name: staticDependency,
-                ],
-            ],
+            projects: [path: project],
             dependencies: [
                 .target(name: target.name, path: path): [
                     .target(name: staticDependency.name, path: path),
@@ -931,14 +1042,9 @@ final class LinkGeneratorTests: XCTestCase {
         let path = try AbsolutePath(validating: "/path/")
         let resourceBundle = Target.test(name: "ResourceBundle", product: .bundle)
         let target = Target.test(name: "Target", product: .app)
+        let project = Project.test(path: path, targets: [target, resourceBundle])
         let graph = Graph.test(
-            projects: [path: .test(path: path)],
-            targets: [
-                path: [
-                    target.name: target,
-                    resourceBundle.name: resourceBundle,
-                ],
-            ],
+            projects: [path: project],
             dependencies: [
                 .target(name: target.name, path: path): [
                     .target(name: resourceBundle.name, path: path),

@@ -1,6 +1,5 @@
 import Foundation
 import TuistCore
-import TuistGraph
 import TuistSupport
 @testable import TuistGenerator
 
@@ -11,7 +10,7 @@ public class MockGraphLinter: GraphLinting {
     var invokedLintParametersList = [(graphTraverser: GraphTraversing, config: Config)]()
     var stubbedLintResult: [LintingIssue]! = []
 
-    public func lint(graphTraverser: GraphTraversing, config: Config) -> [LintingIssue] {
+    public func lint(graphTraverser: GraphTraversing, config: Config) async throws -> [LintingIssue] {
         invokedLint = true
         invokedLintCount += 1
         invokedLintParameters = (graphTraverser, config)

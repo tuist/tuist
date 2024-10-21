@@ -1,6 +1,6 @@
 import Foundation
-import TSCBasic
-import TuistGraph
+import Path
+import XcodeGraph
 import XCTest
 @testable import TuistCore
 @testable import TuistCoreTesting
@@ -27,18 +27,16 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
 
         let graph = Graph.test(
             path: project.path,
-            projects: [project.path: project],
-            targets: [project.path: [target.name: target]]
+            projects: [project.path: project]
         )
 
         let expectedGraph = Graph.test(
             path: project.path,
-            projects: [:],
-            targets: [:]
+            projects: [:]
         )
 
         // When
-        let (gotGraph, gotSideEffects) = try subject.map(graph: graph)
+        let (gotGraph, gotSideEffects, _) = try subject.map(graph: graph, environment: MapperEnvironment())
 
         // Then
         XCTAssertEmpty(gotSideEffects)
@@ -57,19 +55,18 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
         let graph = Graph.test(
             path: project.path,
             projects: [project.path: project],
-            targets: [project.path: [firstTarget.name: firstTarget, secondTarget.name: secondTarget]],
             dependencies: [:]
         )
 
         // When
-        let (gotGraph, gotValueSideEffects) = try subject.map(graph: graph)
+        let (gotGraph, gotValueSideEffects, _) = try subject.map(graph: graph, environment: MapperEnvironment())
 
         // Then
         XCTAssertEmpty(gotValueSideEffects)
         XCTAssertEqual(gotGraph.projects.count, 1)
-        let valueTargets = gotGraph.targets.flatMap(\.value)
+        let valueTargets = gotGraph.projects.values.flatMap(\.targets.values).sorted()
         XCTAssertEqual(valueTargets.count, 1)
-        XCTAssertEqual(valueTargets.first?.value, firstTarget)
+        XCTAssertEqual(valueTargets.first, firstTarget)
     }
 
     func test_map_removes_project_schemes_with_whose_all_targets_have_been_removed() throws {
@@ -85,12 +82,67 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
         let graph = Graph.test(
             path: project.path,
             projects: [project.path: project],
-            targets: [project.path: [prunedTarget.name: prunedTarget, keptTarget.name: keptTarget]],
             dependencies: [:]
         )
 
         // When
-        let (gotGraph, gotSideEffects) = try subject.map(graph: graph)
+        let (gotGraph, gotSideEffects, _) = try subject.map(graph: graph, environment: MapperEnvironment())
+
+        // Then
+        XCTAssertEmpty(gotSideEffects)
+        XCTAssertNotEmpty(gotGraph.projects)
+        XCTAssertEmpty(gotGraph.projects.values.flatMap(\.schemes))
+    }
+
+    func test_map_removes_project_schemes_with_whose_run_action_expand_variable_from_target_has_been_removed() throws {
+        // Given
+        let path = try AbsolutePath(validating: "/project")
+        let prunedTarget = Target.test(name: "first", prune: true)
+        let keptTarget = Target.test(name: "second", prune: false)
+        let schemes: [Scheme] = [
+            .test(
+                buildAction: .test(targets: [.init(projectPath: path, name: keptTarget.name)]),
+                runAction: .test(expandVariableFromTarget: .init(projectPath: path, name: prunedTarget.name))
+            ),
+        ]
+        let project = Project.test(path: path, targets: [prunedTarget, keptTarget], schemes: schemes)
+
+        let graph = Graph.test(
+            path: project.path,
+            projects: [project.path: project],
+            dependencies: [:]
+        )
+
+        // When
+        let (gotGraph, gotSideEffects, _) = try subject.map(graph: graph, environment: MapperEnvironment())
+
+        // Then
+        XCTAssertEmpty(gotSideEffects)
+        XCTAssertNotEmpty(gotGraph.projects)
+        XCTAssertEmpty(gotGraph.projects.values.flatMap(\.schemes))
+    }
+
+    func test_map_removes_project_schemes_with_whose_test_action_expand_variable_from_target_has_been_removed() throws {
+        // Given
+        let path = try AbsolutePath(validating: "/project")
+        let prunedTarget = Target.test(name: "first", prune: true)
+        let keptTarget = Target.test(name: "second", prune: false)
+        let schemes: [Scheme] = [
+            .test(
+                buildAction: .test(targets: [.init(projectPath: path, name: keptTarget.name)]),
+                testAction: .test(expandVariableFromTarget: .init(projectPath: path, name: prunedTarget.name))
+            ),
+        ]
+        let project = Project.test(path: path, targets: [prunedTarget, keptTarget], schemes: schemes)
+
+        let graph = Graph.test(
+            path: project.path,
+            projects: [project.path: project],
+            dependencies: [:]
+        )
+
+        // When
+        let (gotGraph, gotSideEffects, _) = try subject.map(graph: graph, environment: MapperEnvironment())
 
         // Then
         XCTAssertEmpty(gotSideEffects)
@@ -113,12 +165,11 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
         let graph = Graph.test(
             path: project.path,
             projects: [project.path: project],
-            targets: [project.path: [prunedTarget.name: prunedTarget, keptTarget.name: keptTarget]],
             dependencies: [:]
         )
 
         // When
-        let (gotGraph, gotSideEffects) = try subject.map(graph: graph)
+        let (gotGraph, gotSideEffects, _) = try subject.map(graph: graph, environment: MapperEnvironment())
 
         // Then
         XCTAssertEmpty(gotSideEffects)
@@ -153,12 +204,11 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
             path: project.path,
             workspace: workspace,
             projects: [project.path: project],
-            targets: [project.path: [target.name: target]],
             dependencies: [:]
         )
 
         // When
-        let (gotGraph, _) = try subject.map(graph: graph)
+        let (gotGraph, _, _) = try subject.map(graph: graph, environment: MapperEnvironment())
 
         // Then
         XCTAssertFalse(gotGraph.workspace.projects.contains(removedProjectPath))
@@ -183,12 +233,11 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
             path: project.path,
             workspace: workspace,
             projects: [project.path: project],
-            targets: [project.path: [target.name: target]],
             dependencies: [:]
         )
 
         // When
-        let (gotGraph, _) = try subject.map(graph: graph)
+        let (gotGraph, _, _) = try subject.map(graph: graph, environment: MapperEnvironment())
 
         // Then
         XCTAssertEmpty(gotGraph.workspace.schemes)
@@ -214,8 +263,7 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
         let project = Project.test(path: path, targets: targets, schemes: [scheme])
         let graph = Graph.test(
             path: project.path,
-            projects: [project.path: project],
-            targets: [project.path: Dictionary(uniqueKeysWithValues: targets.map { ($0.name, $0) })]
+            projects: [project.path: project]
         )
 
         let unprunedTargets = targets.filter { !$0.prune }
@@ -231,12 +279,11 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
         let expectedProject = Project.test(path: path, targets: unprunedTargets, schemes: [schemeWithUnprunedTargets])
         let expectedGraph = Graph.test(
             path: expectedProject.path,
-            projects: [expectedProject.path: expectedProject],
-            targets: [expectedProject.path: Dictionary(uniqueKeysWithValues: unprunedTargets.map { ($0.name, $0) })]
+            projects: [expectedProject.path: expectedProject]
         )
 
         // When
-        let (gotGraph, _) = try subject.map(graph: graph)
+        let (gotGraph, _, _) = try subject.map(graph: graph, environment: MapperEnvironment())
 
         // Then
         XCTAssertEqual(gotGraph, expectedGraph)
@@ -253,19 +300,13 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
         let graph = Graph.test(
             path: project.path,
             projects: [project.path: project],
-            targets: [project.path: [
-                firstTarget.name: firstTarget,
-                secondTarget.name: secondTarget,
-                thirdTarget.name: thirdTarget,
-                prunedTarget.name: prunedTarget,
-            ]],
             dependencies: [:]
         )
 
         let expectedProject = Project.test(targets: [firstTarget, secondTarget, thirdTarget])
 
         // When
-        let (gotGraph, _) = try subject.map(graph: graph)
+        let (gotGraph, _, _) = try subject.map(graph: graph, environment: MapperEnvironment())
 
         // Then
         XCTAssertEqual(gotGraph.projects.first?.value, expectedProject)

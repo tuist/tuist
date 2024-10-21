@@ -1,7 +1,7 @@
 import Foundation
 
 /// A target of a project.
-public struct Target: Codable, Equatable {
+public struct Target: Codable, Equatable, Sendable {
     /// The name of the target. Also, the product name if not specified with ``productName``.
     public var name: String
 
@@ -70,6 +70,9 @@ public struct Target: Codable, Equatable {
     /// Specifies whether if the target can be merged as part of another binary or not
     public var mergeable: Bool
 
+    /// The target's tags associated with on demand resources
+    public var onDemandResourcesTags: OnDemandResourcesTags?
+
     public static func target(
         name: String,
         destinations: Destinations,
@@ -92,7 +95,8 @@ public struct Target: Codable, Equatable {
         additionalFiles: [FileElement] = [],
         buildRules: [BuildRule] = [],
         mergedBinaryType: MergedBinaryType = .disabled,
-        mergeable: Bool = false
+        mergeable: Bool = false,
+        onDemandResourcesTags: OnDemandResourcesTags? = nil
     ) -> Self {
         self.init(
             name: name,
@@ -116,7 +120,8 @@ public struct Target: Codable, Equatable {
             additionalFiles: additionalFiles,
             buildRules: buildRules,
             mergedBinaryType: mergedBinaryType,
-            mergeable: mergeable
+            mergeable: mergeable,
+            onDemandResourcesTags: onDemandResourcesTags
         )
     }
 }

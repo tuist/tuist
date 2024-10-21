@@ -1,8 +1,8 @@
 import Foundation
-import TSCBasic
+import Path
 import TuistCore
-import TuistGraph
 import TuistSupport
+import XcodeGraph
 import XcodeProj
 
 enum BuildPhaseGenerationError: FatalError, Equatable {
@@ -410,8 +410,20 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                     throw BuildPhaseGenerationError.missingFileReference(filePath)
                 }
 
+                var settings: [String: Any]?
+
+                /// File ATTRIBUTES
+                /// example: `settings = {ATTRIBUTES = (Codesign, )`}
+                if file.codeSignOnCopy {
+                    var settingsCopy = settings ?? [:]
+                    var attributes = settingsCopy["ATTRIBUTES"] as? [String] ?? []
+                    attributes.append("CodeSignOnCopy")
+                    settingsCopy["ATTRIBUTES"] = attributes
+                    settings = settingsCopy
+                }
+
                 if buildFilesCache.contains(filePath) == false {
-                    let pbxBuildFile = PBXBuildFile(file: fileReference)
+                    let pbxBuildFile = PBXBuildFile(file: fileReference, settings: settings)
                     pbxBuildFile.applyPlatformFilters(file.condition?.platformFilters)
                     pbxBuildFiles.append(pbxBuildFile)
                     buildFilesCache.insert(filePath)
@@ -433,7 +445,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
 
         let executableNames = directSwiftMacroExecutables.compactMap {
             switch $0 {
-            case let .product(_, productName, _):
+            case let .product(_, productName, _, _):
                 return productName
             default:
                 return nil
@@ -561,7 +573,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                 let buildFile = PBXBuildFile(file: fileElements.file(path: path))
                 buildFile.applyCondition(condition, applicableTo: target)
                 return buildFile
-            case let .product(target: targetName, _, condition: condition):
+            case let .product(target: targetName, _, _, condition: condition):
                 let buildFile = PBXBuildFile(file: fileElements.product(target: targetName))
                 buildFile.applyCondition(condition, applicableTo: target)
                 return buildFile

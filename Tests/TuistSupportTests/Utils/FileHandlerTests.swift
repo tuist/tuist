@@ -1,5 +1,5 @@
 import Foundation
-import TSCBasic
+import Path
 import XCTest
 @testable import TuistSupport
 @testable import TuistSupportTesting
@@ -43,13 +43,13 @@ final class FileHandlerTests: TuistUnitTestCase {
         let temporaryPath = try temporaryPath()
         let tempFile = temporaryPath.appending(component: "Temporary")
         let destFile = temporaryPath.appending(component: "Destination")
-        try "content".write(to: tempFile.asURL, atomically: true, encoding: .utf8)
+        try "content".write(to: URL(fileURLWithPath: tempFile.pathString), atomically: true, encoding: .utf8)
 
         // When
         try subject.replace(destFile, with: tempFile)
 
         // Then
-        let content = try String(contentsOf: destFile.asURL)
+        let content = try String(contentsOf: URL(fileURLWithPath: destFile.pathString))
         XCTAssertEqual(content, "content")
     }
 
@@ -87,25 +87,6 @@ final class FileHandlerTests: TuistUnitTestCase {
         XCTAssertEqual(result, "X0vsGS0PGIT9z0l1s3Bn3A==")
     }
 
-    func test_changeExtension() throws {
-        // Given
-        let temporaryDirectory = try temporaryPath()
-        let testZippedFrameworkPath = temporaryDirectory.appending(component: "uUI.xcframework.zip")
-        try FileHandler.shared.copy(
-            from: fixturePath(path: try RelativePath(validating: "uUI.xcframework.zip")),
-            to: testZippedFrameworkPath
-        )
-
-        // When
-        let result = try subject.changeExtension(path: testZippedFrameworkPath, to: "txt")
-
-        // Then
-        XCTAssertEqual(result.pathString.dropLast(4), testZippedFrameworkPath.pathString.dropLast(4))
-        XCTAssertEqual(result.basenameWithoutExt, testZippedFrameworkPath.basenameWithoutExt)
-        XCTAssertEqual(result.basename, "\(testZippedFrameworkPath.basenameWithoutExt).txt")
-        _ = try subject.changeExtension(path: result, to: "zip")
-    }
-
     func test_readPlistFile_throwsAnError_when_invalidPlist() throws {
         // Given
         let temporaryDirectory = try temporaryPath()
@@ -135,7 +116,7 @@ final class FileHandlerTests: TuistUnitTestCase {
             create: true
         ).path)
         let rootTempPath = tempPath.parentDirectory
-        try fileManager.removeItem(at: tempPath.asURL)
+        try fileManager.removeItem(at: URL(fileURLWithPath: tempPath.pathString))
         let content = try fileManager.contentsOfDirectory(atPath: rootTempPath.pathString)
         return content.count
     }

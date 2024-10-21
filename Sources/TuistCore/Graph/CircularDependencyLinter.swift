@@ -1,6 +1,6 @@
 import Foundation
-import TSCBasic
-import TuistGraph
+import Path
+import XcodeGraph
 
 // MARK: - CircularDependencyLinting
 
@@ -40,7 +40,7 @@ public class CircularDependencyLinter: CircularDependencyLinting {
         }
         cache.add(project: project)
 
-        for target in project.targets {
+        for target in project.targets.values.sorted() {
             try lintTarget(
                 path: path,
                 name: target.name,
@@ -91,7 +91,7 @@ public class CircularDependencyLinter: CircularDependencyLinting {
         cycleDetector: GraphCircularDetector
     ) throws {
         switch dependency {
-        case let .target(toTarget, _):
+        case let .target(toTarget, _, _):
             // A target within the same project.
             let circularFrom = GraphCircularDetectorNode(path: path, name: fromTarget)
             let circularTo = GraphCircularDetectorNode(path: path, name: toTarget)
@@ -102,7 +102,7 @@ public class CircularDependencyLinter: CircularDependencyLinting {
                 cache: cache,
                 cycleDetector: cycleDetector
             )
-        case let .project(toTarget, projectPath, _):
+        case let .project(toTarget, projectPath, _, _):
             // A target from another project
             let circularFrom = GraphCircularDetectorNode(path: path, name: fromTarget)
             let circularTo = GraphCircularDetectorNode(path: projectPath, name: toTarget)

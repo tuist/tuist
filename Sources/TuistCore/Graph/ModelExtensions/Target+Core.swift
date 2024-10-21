@@ -1,7 +1,7 @@
 import Foundation
-import TSCBasic
-import TuistGraph
+import Path
 import TuistSupport
+import XcodeGraph
 
 public enum TargetError: FatalError, Equatable {
     case invalidSourcesGlob(targetName: String, invalidGlobs: [InvalidGlob])
@@ -75,8 +75,8 @@ extension Target {
     /// This method unfolds the source file globs subtracting the paths that are excluded and ignoring
     /// the files that don't have a supported source extension.
     /// - Parameter sources: List of source file glob to be unfolded.
-    public static func sources(targetName: String, sources: [SourceFileGlob]) throws -> [TuistGraph.SourceFile] {
-        var sourceFiles: [AbsolutePath: TuistGraph.SourceFile] = [:]
+    public static func sources(targetName: String, sources: [SourceFileGlob]) throws -> [XcodeGraph.SourceFile] {
+        var sourceFiles: [AbsolutePath: XcodeGraph.SourceFile] = [:]
         var invalidGlobs: [InvalidGlob] = []
 
         for source in sources {
@@ -106,8 +106,18 @@ extension Target {
                 .subtracting(excluded)
                 .filter { path in
                     guard let `extension` = path.extension else { return false }
-                    return Target.validSourceExtensions
+
+                    let hasValidSourceExtensions = Target.validSourceExtensions
                         .contains(where: { $0.caseInsensitiveCompare(`extension`) == .orderedSame })
+
+                    if hasValidSourceExtensions {
+                        // Addition check to prevent folders with name like `Foo.Swift` to be considered as source files.
+                        return !FileHandler.shared.isFolder(path)
+                    } else {
+                        // There are extensions should be considered as source files even if they are folders.
+                        return Target.validSourceCompatibleFolderExtensions
+                            .contains(where: { $0.caseInsensitiveCompare(`extension`) == .orderedSame })
+                    }
                 }
                 .forEach { sourceFiles[$0] = SourceFile(
                     path: $0,

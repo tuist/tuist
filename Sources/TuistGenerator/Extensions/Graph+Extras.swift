@@ -1,9 +1,10 @@
 import Foundation
+import Path
 import TSCBasic
 import TuistCore
-import TuistGraph
+import XcodeGraph
 
-extension TuistGraph.Graph {
+extension XcodeGraph.Graph {
     /// Filters the project graph
     /// - Parameters:
     /// - Returns: Filtered graph targets and dependencies
@@ -59,9 +60,9 @@ extension TuistGraph.Graph {
 }
 
 extension GraphDependency {
-    fileprivate func isExternal(_ projects: [AbsolutePath: TuistGraph.Project]) -> Bool {
+    fileprivate func isExternal(_ projects: [Path.AbsolutePath: XcodeGraph.Project]) -> Bool {
         switch self {
-        case let .target(_, path):
+        case let .target(_, path, _):
             return projects[path]?.isExternal ?? false
         case .framework, .xcframework, .library, .bundle, .packageProduct, .sdk, .macro:
             return true

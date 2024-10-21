@@ -1,10 +1,9 @@
 import Foundation
-import TSCBasic
+import Path
 import TuistCore
 import TuistCoreTesting
-import TuistGraph
-import TuistGraphTesting
 import TuistSupport
+import XcodeGraph
 import XCTest
 @testable import TuistGenerator
 
@@ -39,20 +38,7 @@ final class ProjectLinterTests: XCTestCase {
         super.tearDown()
     }
 
-    func test_validate_when_there_are_duplicated_targets() throws {
-        let target = Target.test(name: "A")
-        let project = Project.test(targets: [target, target])
-        let got = subject.lint(project)
-        XCTAssertTrue(
-            got
-                .contains(LintingIssue(
-                    reason: "Targets A from project at \(project.path.pathString) have duplicates.",
-                    severity: .error
-                ))
-        )
-    }
-
-    func test_lint_valid_watchTargetBundleIdentifiers() throws {
+    func test_lint_valid_watchTargetBundleIdentifiers() async throws {
         // Given
         let app = Target.test(name: "App", product: .app, bundleId: "app")
         let watchApp = Target.test(name: "WatchApp", product: .watch2App, bundleId: "app.watchapp")
@@ -64,7 +50,7 @@ final class ProjectLinterTests: XCTestCase {
         let project = Project.test(targets: [app, watchApp, watchExtension])
 
         // When
-        let got = subject.lint(project)
+        let got = try await subject.lint(project)
 
         // Then
         XCTAssertTrue(got.isEmpty)

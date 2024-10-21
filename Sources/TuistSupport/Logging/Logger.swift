@@ -4,10 +4,16 @@ import class Foundation.ProcessInfo
 let logger = Logger(label: "io.tuist.support")
 
 public struct LoggingConfig {
+    public init(loggerType: LoggerType, verbose: Bool) {
+        self.loggerType = loggerType
+        self.verbose = verbose
+    }
+
     public enum LoggerType {
         case console
         case detailed
         case osLog
+        case json
     }
 
     public var loggerType: LoggerType
@@ -45,6 +51,8 @@ public enum LogOutput {
             handler = DetailedLogHandler.self
         case .console:
             handler = StandardLogHandler.self
+        case .json:
+            handler = JSONLogHandler.self
         }
 
         if config.verbose {
@@ -76,5 +84,11 @@ extension StandardLogHandler: VerboseLogHandler {
 extension OSLogHandler: VerboseLogHandler {
     public static func verbose(label: String) -> LogHandler {
         OSLogHandler(label: label, logLevel: .debug)
+    }
+}
+
+extension JSONLogHandler: VerboseLogHandler {
+    public static func verbose(label: String) -> LogHandler {
+        StandardLogHandler(label: label, logLevel: .debug)
     }
 }

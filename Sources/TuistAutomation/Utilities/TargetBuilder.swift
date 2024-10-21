@@ -1,8 +1,9 @@
-import TSCBasic
+import FileSystem
+import Path
 import TSCUtility
 import TuistCore
-import TuistGraph
 import TuistSupport
+import XcodeGraph
 
 public protocol TargetBuilding {
     /// Builds a provided target.
@@ -18,9 +19,10 @@ public protocol TargetBuilding {
     ///   - device: An optional device specifier to use when building the scheme.
     ///   - osVersion: An optional OS number to use when building the scheme.
     ///   - graphTraverser: The Graph traverser.
+    ///   - passthroughXcodeBuildArguments: The passthrough xcodebuild arguments to pass to xcodebuild
     func buildTarget(
         _ target: GraphTarget,
-        platform: TuistGraph.Platform,
+        platform: XcodeGraph.Platform,
         workspacePath: AbsolutePath,
         scheme: Scheme,
         clean: Bool,
@@ -28,9 +30,10 @@ public protocol TargetBuilding {
         buildOutputPath: AbsolutePath?,
         derivedDataPath: AbsolutePath?,
         device: String?,
-        osVersion: Version?,
+        osVersion: XcodeGraph.Version?,
         rosetta: Bool,
-        graphTraverser: GraphTraversing
+        graphTraverser: GraphTraversing,
+        passthroughXcodeBuildArguments: [String]
     ) async throws
 }
 
@@ -62,22 +65,24 @@ public final class TargetBuilder: TargetBuilding {
     private let xcodeBuildController: XcodeBuildControlling
     private let xcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectoryLocating
     private let simulatorController: SimulatorControlling
-
+    private let fileSystem: FileSystem
     public init(
         buildGraphInspector: BuildGraphInspecting = BuildGraphInspector(),
         xcodeBuildController: XcodeBuildControlling = XcodeBuildController(),
         xcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectoryLocating = XcodeProjectBuildDirectoryLocator(),
-        simulatorController: SimulatorControlling = SimulatorController()
+        simulatorController: SimulatorControlling = SimulatorController(),
+        fileSystem: FileSystem = FileSystem()
     ) {
         self.buildGraphInspector = buildGraphInspector
         self.xcodeBuildController = xcodeBuildController
         self.xcodeProjectBuildDirectoryLocator = xcodeProjectBuildDirectoryLocator
         self.simulatorController = simulatorController
+        self.fileSystem = fileSystem
     }
 
     public func buildTarget(
         _ target: GraphTarget,
-        platform: TuistGraph.Platform,
+        platform: XcodeGraph.Platform,
         workspacePath: AbsolutePath,
         scheme: Scheme,
         clean: Bool,
@@ -85,9 +90,10 @@ public final class TargetBuilder: TargetBuilding {
         buildOutputPath: AbsolutePath?,
         derivedDataPath: AbsolutePath?,
         device: String?,
-        osVersion: Version?,
+        osVersion: XcodeGraph.Version?,
         rosetta: Bool,
-        graphTraverser: GraphTraversing
+        graphTraverser: GraphTraversing,
+        passthroughXcodeBuildArguments: [String]
     ) async throws {
         logger.log(level: .notice, "Building scheme \(scheme.name)", metadata: .section)
 
@@ -102,7 +108,7 @@ public final class TargetBuilder: TargetBuilding {
             for: target.target,
             on: platform,
             scheme: scheme,
-            version: osVersion,
+            version: osVersion.map { try .init(versionString: $0.description) },
             deviceName: device,
             graphTraverser: graphTraverser,
             simulatorController: simulatorController
@@ -116,14 +122,14 @@ public final class TargetBuilder: TargetBuilding {
                 rosetta: rosetta,
                 derivedDataPath: derivedDataPath,
                 clean: clean,
-                arguments: buildArguments
+                arguments: buildArguments,
+                passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
             )
-            .printFormattedOutput()
 
         if let buildOutputPath {
             let configuration = configuration ?? target.project.settings.defaultDebugBuildConfiguration()?
                 .name ?? BuildConfiguration.debug.name
-            try copyBuildProducts(
+            try await copyBuildProducts(
                 to: buildOutputPath,
                 projectPath: workspacePath,
                 derivedDataPath: derivedDataPath,
@@ -137,34 +143,32 @@ public final class TargetBuilder: TargetBuilding {
         to outputPath: AbsolutePath,
         projectPath: AbsolutePath,
         derivedDataPath: AbsolutePath?,
-        platform: TuistGraph.Platform,
+        platform: XcodeGraph.Platform,
         configuration: String
-    ) throws {
+    ) async throws {
         let xcodeSchemeBuildPath = try xcodeProjectBuildDirectoryLocator.locate(
-            platform: platform,
+            destinationType: .simulator(platform),
             projectPath: projectPath,
             derivedDataPath: derivedDataPath,
             configuration: configuration
         )
-        guard FileHandler.shared.exists(xcodeSchemeBuildPath) else {
+        guard try await fileSystem.exists(xcodeSchemeBuildPath) else {
             throw TargetBuilderError.buildProductsNotFound(path: xcodeSchemeBuildPath.pathString)
         }
 
         let buildOutputPath = outputPath.appending(component: xcodeSchemeBuildPath.basename)
-        if !FileHandler.shared.exists(buildOutputPath) {
+        if try await !fileSystem.exists(buildOutputPath) {
             try FileHandler.shared.createFolder(buildOutputPath)
         }
         logger.log(level: .notice, "Copying build products to \(buildOutputPath.pathString)", metadata: .subsection)
 
-        try FileHandler.shared
-            .contentsOfDirectory(xcodeSchemeBuildPath)
-            .forEach { product in
-                let productOutputPath = buildOutputPath.appending(component: product.basename)
-                if FileHandler.shared.exists(productOutputPath) {
-                    try FileHandler.shared.delete(productOutputPath)
-                }
-
-                try FileHandler.shared.copy(from: product, to: productOutputPath)
+        for product in try FileHandler.shared.contentsOfDirectory(xcodeSchemeBuildPath) {
+            let productOutputPath = buildOutputPath.appending(component: product.basename)
+            if try await fileSystem.exists(productOutputPath) {
+                try await fileSystem.remove(productOutputPath)
             }
+
+            try await fileSystem.copy(product, to: productOutputPath)
+        }
     }
 }

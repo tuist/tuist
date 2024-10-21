@@ -1,8 +1,7 @@
 import Foundation
 import TuistCore
-import TuistGraph
-import TuistGraphTesting
 import TuistSupport
+import XcodeGraph
 @testable import TuistGenerator
 
 class MockSettingsLinter: SettingsLinting {

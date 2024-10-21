@@ -1,19 +1,22 @@
+import FileSystem
 import Foundation
+import Mockable
+import Path
 import ProjectDescription
-import TSCBasic
 import TuistCore
 import TuistDependencies
 import TuistGenerator
-import TuistGraph
 import TuistLoader
 import TuistPlugin
 import TuistSupport
+import XcodeGraph
 
+@Mockable
 public protocol Generating {
     @discardableResult
     func load(path: AbsolutePath) async throws -> Graph
     func generate(path: AbsolutePath) async throws -> AbsolutePath
-    func generateWithGraph(path: AbsolutePath) async throws -> (AbsolutePath, Graph)
+    func generateWithGraph(path: AbsolutePath) async throws -> (AbsolutePath, Graph, MapperEnvironment)
 }
 
 public class Generator: Generating {
@@ -36,33 +39,33 @@ public class Generator: Generating {
         configLoader = ConfigLoader(
             manifestLoader: manifestLoader,
             rootDirectoryLocator: RootDirectoryLocator(),
-            fileHandler: FileHandler.shared
+            fileSystem: FileSystem()
         )
         self.manifestGraphLoader = manifestGraphLoader
     }
 
     public func generate(path: AbsolutePath) async throws -> AbsolutePath {
-        let (generatedPath, _) = try await generateWithGraph(path: path)
+        let (generatedPath, _, _) = try await generateWithGraph(path: path)
         return generatedPath
     }
 
-    public func generateWithGraph(path: AbsolutePath) async throws -> (AbsolutePath, Graph) {
-        let (graph, sideEffects) = try await load(path: path)
+    public func generateWithGraph(path: AbsolutePath) async throws -> (AbsolutePath, Graph, MapperEnvironment) {
+        let (graph, sideEffects, environment) = try await load(path: path)
 
         // Load
         let graphTraverser = GraphTraverser(graph: graph)
 
         // Lint
-        try lint(graphTraverser: graphTraverser)
+        try await lint(graphTraverser: graphTraverser)
 
         // Generate
-        let workspaceDescriptor = try generator.generateWorkspace(graphTraverser: graphTraverser)
+        let workspaceDescriptor = try await generator.generateWorkspace(graphTraverser: graphTraverser)
 
         // Write
-        try writer.write(workspace: workspaceDescriptor)
+        try await writer.write(workspace: workspaceDescriptor)
 
         // Mapper side effects
-        try sideEffectDescriptorExecutor.execute(sideEffects: sideEffects)
+        try await sideEffectDescriptorExecutor.execute(sideEffects: sideEffects)
 
         // Post Generate Actions
         try await postGenerationActions(
@@ -72,37 +75,37 @@ public class Generator: Generating {
 
         printAndFlushPendingLintWarnings()
 
-        return (workspaceDescriptor.xcworkspacePath, graph)
+        return (workspaceDescriptor.xcworkspacePath, graph, environment)
     }
 
     public func load(path: AbsolutePath) async throws -> Graph {
         try await load(path: path).0
     }
 
-    func load(path: AbsolutePath) async throws -> (Graph, [SideEffectDescriptor]) {
+    func load(path: AbsolutePath) async throws -> (Graph, [SideEffectDescriptor], MapperEnvironment) {
         logger.notice("Loading and constructing the graph", metadata: .section)
         logger.notice("It might take a while if the cache is empty")
 
-        let (graph, sideEffectDescriptors, issues) = try await manifestGraphLoader.load(path: path)
+        let (graph, sideEffectDescriptors, environment, issues) = try await manifestGraphLoader.load(path: path)
 
         lintingIssues.append(contentsOf: issues)
-        return (graph, sideEffectDescriptors)
+        return (graph, sideEffectDescriptors, environment)
     }
 
-    private func lint(graphTraverser: GraphTraversing) throws {
-        let config = try configLoader.loadConfig(path: graphTraverser.path)
+    private func lint(graphTraverser: GraphTraversing) async throws {
+        let config = try await configLoader.loadConfig(path: graphTraverser.path)
 
-        let environmentIssues = try environmentLinter.lint(config: config)
+        let environmentIssues = try await environmentLinter.lint(config: config)
         try environmentIssues.printAndThrowErrorsIfNeeded()
         lintingIssues.append(contentsOf: environmentIssues)
 
-        let graphIssues = graphLinter.lint(graphTraverser: graphTraverser, config: config)
+        let graphIssues = try await graphLinter.lint(graphTraverser: graphTraverser, config: config)
         try graphIssues.printAndThrowErrorsIfNeeded()
         lintingIssues.append(contentsOf: graphIssues)
     }
 
     private func postGenerationActions(graphTraverser: GraphTraversing, workspaceName: String) async throws {
-        let config = try configLoader.loadConfig(path: graphTraverser.path)
+        let config = try await configLoader.loadConfig(path: graphTraverser.path)
 
         try await swiftPackageManagerInteractor.install(
             graphTraverser: graphTraverser,

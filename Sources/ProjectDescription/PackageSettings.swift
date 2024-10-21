@@ -25,7 +25,7 @@ import Foundation
 ///     ]
 /// )
 /// ```
-public struct PackageSettings: Codable, Equatable {
+public struct PackageSettings: Codable, Equatable, Sendable {
     /// The custom `Product` type to be used for SPM targets.
     public var productTypes: [String: Product]
 

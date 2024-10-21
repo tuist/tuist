@@ -1,20 +1,24 @@
 import Foundation
+import Path
 import ProjectDescription
-import TSCBasic
 import TuistCore
-import TuistGraph
 import TuistSupport
+import XcodeGraph
 import XCTest
 
 @testable import TuistLoader
 @testable import TuistSupportTesting
 
 final class CopyFileElementManifestMapperTests: TuistUnitTestCase {
-    func test_from_outputs_a_warning_when_the_paths_point_to_directories() throws {
+    func test_from_outputs_a_warning_when_the_paths_point_to_directories() async throws {
         // Given
         let temporaryPath = try temporaryPath()
-        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
-        try createFiles([
+        let rootDirectory = temporaryPath
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: rootDirectory
+        )
+        try await createFiles([
             "Documentation/README.md",
             "Documentation/USAGE.md",
         ])
@@ -22,7 +26,7 @@ final class CopyFileElementManifestMapperTests: TuistUnitTestCase {
         let manifest = ProjectDescription.CopyFileElement.glob(pattern: "Documentation")
 
         // When
-        let model = try TuistGraph.CopyFileElement.from(
+        let model = try await XcodeGraph.CopyFileElement.from(
             manifest: manifest,
             generatorPaths: generatorPaths,
             includeFiles: { !FileHandler.shared.isFolder($0) }
@@ -36,42 +40,54 @@ final class CopyFileElementManifestMapperTests: TuistUnitTestCase {
         XCTAssertEqual(model, [])
     }
 
-    func test_from_outputs_a_warning_when_the_folder_reference_is_invalid() throws {
+    func test_from_outputs_a_warning_when_the_folder_reference_is_invalid() async throws {
         // Given
         let temporaryPath = try temporaryPath()
-        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
-        try createFiles([
+        let rootDirectory = temporaryPath
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: rootDirectory
+        )
+        try await createFiles([
             "README.md",
         ])
 
         let manifest = ProjectDescription.CopyFileElement.folderReference(path: "README.md")
 
         // When
-        let model = try TuistGraph.CopyFileElement.from(manifest: manifest, generatorPaths: generatorPaths)
+        let model = try await XcodeGraph.CopyFileElement.from(manifest: manifest, generatorPaths: generatorPaths)
 
         // Then
         XCTAssertPrinterOutputContains("README.md is not a directory - folder reference paths need to point to directories")
         XCTAssertEqual(model, [])
     }
 
-    func test_copyFileElement_warning_withMissingFolderReference() throws {
+    func test_copyFileElement_warning_withMissingFolderReference() async throws {
         // Given
         let temporaryPath = try temporaryPath()
-        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
+        let rootDirectory = temporaryPath
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: rootDirectory
+        )
         let manifest = ProjectDescription.CopyFileElement.folderReference(path: "Documentation")
 
         // When
-        let model = try TuistGraph.CopyFileElement.from(manifest: manifest, generatorPaths: generatorPaths)
+        let model = try await XcodeGraph.CopyFileElement.from(manifest: manifest, generatorPaths: generatorPaths)
 
         // Then
         XCTAssertPrinterOutputContains("Documentation does not exist")
         XCTAssertEqual(model, [])
     }
 
-    func test_throws_when_the_glob_is_invalid() throws {
+    func test_throws_when_the_glob_is_invalid() async throws {
         // Given
         let temporaryPath = try temporaryPath()
-        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
+        let rootDirectory = temporaryPath
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: rootDirectory
+        )
         let manifest = ProjectDescription.CopyFileElement.glob(pattern: "invalid/path/**/*")
         let invalidGlob = InvalidGlob(
             pattern: temporaryPath.appending(try RelativePath(validating: "invalid/path/**/*")).pathString,
@@ -80,6 +96,9 @@ final class CopyFileElementManifestMapperTests: TuistUnitTestCase {
         let error = GlobError.nonExistentDirectory(invalidGlob)
 
         // Then
-        XCTAssertThrowsSpecific(try TuistGraph.CopyFileElement.from(manifest: manifest, generatorPaths: generatorPaths), error)
+        await XCTAssertThrowsSpecific(
+            try await XcodeGraph.CopyFileElement.from(manifest: manifest, generatorPaths: generatorPaths),
+            error
+        )
     }
 }

@@ -1,5 +1,5 @@
-import TSCBasic
-import TuistGraph
+import Path
+import XcodeGraph
 import XCTest
 @testable import TuistCore
 @testable import TuistSupportTesting
@@ -44,6 +44,22 @@ final class SystemFrameworkMetadataProviderTests: XCTestCase {
         XCTAssertEqual(metadata, SystemFrameworkMetadata(
             name: sdkName,
             path: "/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk/usr/lib/libc++.tbd",
+            status: .required,
+            source: .system
+        ))
+    }
+
+    func test_loadMetadata_swiftLibrary() throws {
+        // Given
+        let sdkName = "libswiftObservation.tbd"
+
+        // When
+        let metadata = try subject.loadMetadata(sdkName: sdkName, status: .required, platform: .iOS, source: .system)
+
+        // Then
+        XCTAssertEqual(metadata, SystemFrameworkMetadata(
+            name: sdkName,
+            path: "/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk/usr/lib/swift/libswiftObservation.tbd",
             status: .required,
             source: .system
         ))

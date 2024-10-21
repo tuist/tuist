@@ -1,150 +1,20 @@
 import { defineConfig } from "vitepress";
-import projectDescriptionTypesDataLoader from "../docs/reference/project-description/types.data";
-import examplesDataLoader from "../docs/reference/examples/examples.data";
 import * as path from "node:path";
 import * as fs from "node:fs/promises";
+import {
+  guidesSidebar,
+  contributorsSidebar,
+  referencesSidebar,
+  serverSidebar,
+} from "./sidebars.mjs";
+import { loadData as loadCLIData } from "./data/cli";
 
-const projectDescriptionTypesData = projectDescriptionTypesDataLoader.load();
+import { server04Icon, bookOpen01Icon, codeBrowserIcon } from "./icons.mjs";
 
-const projectDescriptionSidebar = {
-  text: "Project Description",
-  items: [],
-};
+import { fileURLToPath } from "node:url";
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const paths = path.join(__dirname, "../../paths.txt");
 
-function capitalize(text) {
-  return text.charAt(0).toUpperCase() + text.slice(1).toLowerCase();
-}
-
-["structs", "enums", "extensions", "typealiases"].forEach((category) => {
-  if (projectDescriptionTypesData.find((item) => item.category === category)) {
-    projectDescriptionSidebar.items.push({
-      text: capitalize(category),
-      collapsed: true,
-      items: projectDescriptionTypesData
-        .filter((item) => item.category === category)
-        .map((item) => ({
-          text: item.title,
-          link: `/reference/project-description/${item.name}`,
-        })),
-    });
-  }
-});
-
-const guideSidebar = [
-  {
-    text: "Introduction",
-    items: [
-      {
-        text: "What is Tuist?",
-        link: "/",
-      },
-      {
-        text: "The cost of convenience",
-        link: "/guide/introduction/cost-of-convenience",
-      },
-      {
-        text: "Installation",
-        link: "/guide/introduction/installation",
-      },
-      {
-        text: "Adopting Tuist",
-        collapsed: true,
-        items: [
-          {
-            text: "Create a project",
-            link: "/guide/introduction/adopting-tuist/new-project",
-          },
-          {
-            text: "Use it with a Swift Package",
-            link: "/guide/introduction/adopting-tuist/swift-package",
-          },
-          {
-            text: "Migrate from .xcodeproj",
-            link: "/guide/introduction/adopting-tuist/migrate-from-xcodeproj",
-          },
-          {
-            text: "Migrate local Swift Packages",
-            link: "/guide/introduction/adopting-tuist/migrate-local-swift-packages",
-          },
-          {
-            text: "Migrate from XcodeGen",
-            link: "/guide/introduction/adopting-tuist/migrate-from-xcodegen",
-          },
-          {
-            text: "Migrate from Bazel",
-            link: "/guide/introduction/adopting-tuist/migrate-from-bazel",
-          },
-        ],
-      },
-      {
-        text: "From v3 to v4",
-        link: "/guide/introduction/from-v3-to-v4",
-      },
-    ],
-  },
-  {
-    text: "Project",
-    items: [
-      {
-        text: "Manifests",
-        link: "/guide/project/manifests",
-      },
-      {
-        text: "Directory structure",
-        link: "/guide/project/directory-structure",
-      },
-      { text: "Editing", link: "/guide/project/editing" },
-      { text: "Dependencies", link: "/guide/project/dependencies" },
-      { text: "Code sharing", link: "/guide/project/code-sharing" },
-      {
-        text: "Synthesized files",
-        link: "/guide/project/synthesized-files",
-      },
-      {
-        text: "Dynamic configuration",
-        link: "/guide/project/dynamic-configuration",
-      },
-      {
-        text: "Templates",
-        link: "/guide/project/templates",
-      },
-      {
-        text: "Plugins",
-        link: "/guide/project/plugins",
-      },
-    ],
-  },
-  {
-    text: "Automation",
-    items: [
-      { text: "Generate", link: "/guide/automation/generate" },
-      { text: "Build", link: "/guide/automation/build" },
-      { text: "Test", link: "/guide/automation/test" },
-      { text: "Run", link: "/guide/automation/run" },
-      { text: "Graph", link: "/guide/automation/graph" },
-      { text: "Clean", link: "/guide/automation/clean" },
-    ],
-  },
-  {
-    text: "Scale",
-    items: [
-      // {
-      //   text: "Xcode",
-      //   link: "/guide/scale/xcode",
-      // },
-      {
-        text: "µFeatures architecture",
-        link: "/guide/scale/ufeatures-architecture",
-      },
-      {
-        text: "Tuist Cloud",
-        link: "/cloud/what-is-cloud",
-      },
-    ],
-  },
-];
-
-// https://vitepress.dev/reference/site-config
 export default defineConfig({
   title: "Tuist",
   titleTemplate: ":title | Tuist",
@@ -152,18 +22,190 @@ export default defineConfig({
   srcDir: "docs",
   lastUpdated: true,
   locales: {
-    root: {
+    en: {
       label: "English",
-      lange: "en",
+      lang: "en",
+      themeConfig: {
+        nav: [
+          {
+            text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Guides ${bookOpen01Icon()}</span>`,
+            link: "/en/",
+          },
+          {
+            text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">CLI ${codeBrowserIcon()}</span>`,
+            link: "/en/cli/auth",
+          },
+          {
+            text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Server ${server04Icon()}</span>`,
+            link: "/en/server/introduction/why-a-server",
+          },
+          {
+            text: "Resources",
+            items: [
+              {
+                text: "References",
+                link: "/en/references/project-description/structs/project",
+              },
+              { text: "Contributors", link: "/en/contributors/get-started" },
+              {
+                text: "Changelog",
+                link: "https://github.com/tuist/tuist/releases",
+              },
+            ],
+          },
+        ],
+        sidebar: {
+          "/en/contributors": contributorsSidebar("en"),
+          "/en/guides/": guidesSidebar("en"),
+          "/en/server/": serverSidebar("en"),
+          "/en/": guidesSidebar("en"),
+          "/en/cli/": await loadCLIData("en"),
+          "/en/references/": await referencesSidebar("en"),
+        },
+      },
+    },
+    ko: {
+      label: "Korean",
+      lang: "ko",
+      themeConfig: {
+        nav: [
+          {
+            text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Guides ${bookOpen01Icon()}</span>`,
+            link: "/ko/",
+          },
+          {
+            text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">CLI ${codeBrowserIcon()}</span>`,
+            link: "/ko/cli/auth",
+          },
+          {
+            text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Server ${server04Icon()}</span>`,
+            link: "/ko/server/introduction/why-a-server",
+          },
+          {
+            text: "Resources",
+            items: [
+              {
+                text: "References",
+                link: "/ko/references/project-description/structs/project",
+              },
+              { text: "Contributors", link: "/ko/contributors/get-started" },
+              {
+                text: "Changelog",
+                link: "https://github.com/tuist/tuist/releases",
+              },
+            ],
+          },
+        ],
+        sidebar: {
+          "/ko/contributors": contributorsSidebar("ko"),
+          "/ko/guides/": guidesSidebar("ko"),
+          "/ko/server/": serverSidebar("ko"),
+          "/ko/": guidesSidebar("ko"),
+          "/ko/cli/": await loadCLIData("ko"),
+          "/ko/references/": await referencesSidebar("ko"),
+        },
+      },
+    },
+    ja: {
+      label: "Japanese",
+      lang: "ja",
+      themeConfig: {
+        nav: [
+          {
+            text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Guides ${bookOpen01Icon()}</span>`,
+            link: "/ja/",
+          },
+          {
+            text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">CLI ${codeBrowserIcon()}</span>`,
+            link: "/ja/cli/auth",
+          },
+          {
+            text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Server ${server04Icon()}</span>`,
+            link: "/ja/server/introduction/why-a-server",
+          },
+          {
+            text: "Resources",
+            items: [
+              {
+                text: "References",
+                link: "/ja/references/project-description/structs/project",
+              },
+              { text: "Contributors", link: "/ja/contributors/get-started" },
+              {
+                text: "Changelog",
+                link: "https://github.com/tuist/tuist/releases",
+              },
+            ],
+          },
+        ],
+        sidebar: {
+          "/ja/contributors": contributorsSidebar("ja"),
+          "/ja/guides/": guidesSidebar("ja"),
+          "/ja/server/": serverSidebar("ja"),
+          "/ja/": guidesSidebar("ja"),
+          "/ja/cli/": await loadCLIData("ja"),
+          "/ja/references/": await referencesSidebar("ja"),
+        },
+      },
+    },
+    ru: {
+      label: "Russian",
+      lang: "ru",
+      themeConfig: {
+        nav: [
+          {
+            text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Guides ${bookOpen01Icon()}</span>`,
+            link: "/ru/",
+          },
+          {
+            text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">CLI ${codeBrowserIcon()}</span>`,
+            link: "/ru/cli/auth",
+          },
+          {
+            text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Server ${server04Icon()}</span>`,
+            link: "/ru/server/introduction/why-a-server",
+          },
+          {
+            text: "Resources",
+            items: [
+              {
+                text: "References",
+                link: "/ru/references/project-description/structs/project",
+              },
+              { text: "Contributors", link: "/ru/contributors/get-started" },
+              {
+                text: "Changelog",
+                link: "https://github.com/tuist/tuist/releases",
+              },
+            ],
+          },
+        ],
+        sidebar: {
+          "/ru/contributors": contributorsSidebar("ru"),
+          "/ru/guides/": guidesSidebar("ru"),
+          "/ru/server/": serverSidebar("ru"),
+          "/ru/": guidesSidebar("ru"),
+          "/ru/cli/": await loadCLIData("ru"),
+          "/ru/references/": await referencesSidebar("ru"),
+        },
+      },
     },
   },
+  cleanUrls: true,
   head: [
     [
       "script",
       {},
       `
-    !function(t,e){var o,n,p,r;e.__SV||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}(p=t.createElement("script")).type="text/javascript",p.async=!0,p.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r);var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],u.toString=function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e},u.people.toString=function(){return u.toString(1)+".people (stub)"},o="capture identify alias people.set people.set_once set_config register register_once unregister opt_out_capturing has_opted_out_capturing opt_in_capturing reset isFeatureEnabled onFeatureFlags getFeatureFlag getFeatureFlagPayload reloadFeatureFlags group updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures getActiveMatchingSurveys getSurveys onSessionId".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
-    posthog.init('phc_pNR89Xu2WWDZdXReTnuePI7XO2Ktb2orTpzVWxHlBxq',{api_host:'https://eu.i.posthog.com'})
+      !function(t,e){var o,n,p,r;e.__SV||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}(p=t.createElement("script")).type="text/javascript",p.async=!0,p.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r);var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],u.toString=function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e},u.people.toString=function(){return u.toString(1)+".people (stub)"},o="capture identify alias people.set people.set_once set_config register register_once unregister opt_out_capturing has_opted_out_capturing opt_in_capturing reset isFeatureEnabled onFeatureFlags getFeatureFlag getFeatureFlagPayload reloadFeatureFlags group updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures getActiveMatchingSurveys getSurveys onSessionId".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
+      posthog.init('phc_stva6NJi8LG6EmR6RA6uQcRdrmfTQcAVLoO3vGgWmNZ',{api_host:'https://eu.i.posthog.com'})
+    `,
+    ],
+    [
+      "script",
+      {},
+      `
+      !function(t){if(window.ko)return;window.ko=[],["identify","track","removeListeners","open","on","off","qualify","ready"].forEach(function(t){ko[t]=function(){var n=[].slice.call(arguments);return n.unshift(t),ko.push(n),ko}});var n=document.createElement("script");n.async=!0,n.setAttribute("src","https://cdn.getkoala.com/v1/pk_3f80a3529ec2914b714a3f740d10b12642b9/sdk.js"),(document.body || document.head).appendChild(n)}();
     `,
     ],
   ],
@@ -172,7 +214,7 @@ export default defineConfig({
   },
   async buildEnd({ outDir }) {
     const redirectsPath = path.join(outDir, "_redirects");
-    const redirects = `    
+    const redirects = `
 /documentation/tuist/installation /guide/introduction/installation 301
 /documentation/tuist/project-structure /guide/project/directory-structure 301
 /documentation/tuist/command-line-interface /guide/automation/generate 301
@@ -201,7 +243,47 @@ export default defineConfig({
 /documentation/tuist/code-reviews /contributors/code-reviews 301
 /documentation/tuist/reporting-bugs /contributors/issue-reporting 301
 /documentation/tuist/championing-projects /contributors/get-started 301
+/guide/scale/ufeatures-architecture.html /guide/scale/tma-architecture.html 301
+/guide/scale/ufeatures-architecture /guide/scale/tma-architecture 301
+/guide/introduction/cost-of-convenience /guides/develop/projects/cost-of-convenience 301
+/guide/introduction/installation /guides/quick-start/install-tuist 301
+/guide/introduction/adopting-tuist/new-project /guides/start/new-project 301
+/guide/introduction/adopting-tuist/swift-package /guides/start/swift-package 301
+/guide/introduction/adopting-tuist/migrate-from-xcodeproj /guides/start/migrate/xcode-project 301
+/guide/introduction/adopting-tuist/migrate-local-swift-packages /guides/start/migrate/swift-package 301
+/guide/introduction/adopting-tuist/migrate-from-xcodegen /guides/start/migrate/xcodegen-project 301
+/guide/introduction/adopting-tuist/migrate-from-bazel /guides/start/migrate/bazel-project 301
+/guide/introduction/from-v3-to-v4 /references/migrations/from-v3-to-v4 301
+/guide/project/manifests /guides/develop/projects/manifests 301
+/guide/project/directory-structure /guides/develop/projects/directory-structure 301
+/guide/project/editing /guides/develop/projects/editing 301
+/guide/project/dependencies /guides/develop/projects/dependencies 301
+/guide/project/code-sharing /guides/develop/projects/code-sharing 301
+/guide/project/synthesized-files /guides/develop/projects/synthesized-files 301
+/guide/project/dynamic-configuration /guides/develop/projects/dynamic-configuration 301
+/guide/project/templates /guides/develop/projects/templates 301
+/guide/project/plugins /guides/develop/projects/plugins 301
+/guide/automation/generate / 301
+/guide/automation/build /guides/develop/build 301
+/guide/automation/test /guides/develop/test 301
+/guide/automation/run / 301
+/guide/automation/graph / 301
+/guide/automation/clean / 301
+/guide/scale/tma-architecture /guides/develop/projects/tma-architecture 301
+/cloud/what-is-cloud / 301
+/cloud/get-started / 301
+/cloud/binary-caching /guides/develop/build/cache 301
+/cloud/selective-testing /guides/develop/test/smart-runner 301
+/cloud/hashing /guides/develop/projects/hashing 301
+/cloud/on-premise /guides/dashboard/on-premise/install 301
+/cloud/on-premise/metrics /guides/dashboard/on-premise/metrics 301
+/reference/project-description/* /references/project-description/:splat 301
+/reference/examples/* /references/examples/:splat 301
+/guides/develop/workflows /guides/develop/continuous-integration/workflows 301
+/guides/dashboard/on-premise/install /server/on-premise/install 301
+/guides/dashboard/on-premise/metrics /server/on-premise/metrics 301
 /documentation/tuist/* / 301
+${await fs.readFile(path.join(import.meta.dirname, "locale-redirects.txt"), { encoding: "utf-8" })}
     `;
     fs.writeFile(redirectsPath, redirects);
   },
@@ -210,100 +292,8 @@ export default defineConfig({
     search: {
       provider: "local",
     },
-    nav: [
-      { text: "Guide", link: "/" },
-      { text: "Reference", link: "/reference/project-description/project" },
-      { text: "Tuist Cloud", link: "/cloud/what-is-cloud" },
-      { text: "Contributors", link: "/contributors/get-started" },
-      { text: "Changelog", link: "https://github.com/tuist/tuist/releases" },
-    ],
     editLink: {
       pattern: "https://github.com/tuist/tuist/edit/main/docs/docs/:path",
-    },
-    sidebar: {
-      "/contributors": [
-        {
-          text: "Contributors",
-          items: [
-            {
-              text: "Get started",
-              link: "/contributors/get-started",
-            },
-            {
-              text: "Issue reporting",
-              link: "/contributors/issue-reporting",
-            },
-            {
-              text: "Code reviews",
-              link: "/contributors/code-reviews",
-            },
-            {
-              text: "Principles",
-              link: "/contributors/principles",
-            },
-          ],
-        },
-      ],
-      "/cloud": [
-        {
-          text: "Tuist Cloud",
-          items: [
-            {
-              text: "What is Tuist Cloud?",
-              link: "/cloud/what-is-cloud",
-            },
-            {
-              text: "Get started",
-              link: "/cloud/get-started",
-            },
-            {
-              text: "Binary caching",
-              link: "/cloud/binary-caching",
-            },
-            {
-              text: "Selective testing",
-              link: "/cloud/selective-testing",
-            },
-            {
-              text: "Hashing",
-              link: "/cloud/hashing",
-            },
-            {
-              text: "On-premise",
-              link: "/cloud/on-premise",
-            },
-          ],
-        },
-      ],
-      "/guide/": guideSidebar,
-      "/": guideSidebar,
-      "/reference/": [
-        {
-          text: "Reference",
-          items: [
-            // TODO
-            // {
-            //   text: "CLI",
-            //   items: cliDataLoader.load().map((item) => {
-            //     return {
-            //       text: item.title,
-            //       link: `/reference/cli/${item.command}`,
-            //     };
-            //   }),
-            // },
-            projectDescriptionSidebar,
-            {
-              text: "Examples",
-              items: examplesDataLoader.load().map((item) => {
-                return {
-                  text: item.title,
-                  link: `/reference/examples/${item.name}`,
-                };
-              }),
-            },
-          ],
-        },
-      ],
     },
     socialLinks: [
       { icon: "github", link: "https://github.com/tuist/tuist" },

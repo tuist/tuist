@@ -1,5 +1,5 @@
 import Foundation
-import TSCBasic
+import Path
 import XCTest
 
 @testable import TuistSupport
@@ -78,6 +78,7 @@ final class AbsolutePathExtrasTests: TuistUnitTestCase {
         XCTAssertFalse(try AbsolutePath(validating: "/test/directory.docc").isInOpaqueDirectory)
         XCTAssertFalse(try AbsolutePath(validating: "/test/directory.playground").isInOpaqueDirectory)
         XCTAssertFalse(try AbsolutePath(validating: "/test/directory.bundle").isInOpaqueDirectory)
+        XCTAssertFalse(try AbsolutePath(validating: "/test/directory.xcmappingmodel").isInOpaqueDirectory)
 
         XCTAssertFalse(try AbsolutePath(validating: "/").isInOpaqueDirectory)
         XCTAssertFalse(try AbsolutePath(validating: "/test/directory.notopaque/file.notopaque").isInOpaqueDirectory)
@@ -91,5 +92,6 @@ final class AbsolutePathExtrasTests: TuistUnitTestCase {
         XCTAssertTrue(try AbsolutePath(validating: "/test/directory.xcdatamodeld/file.png").isInOpaqueDirectory)
         XCTAssertTrue(try AbsolutePath(validating: "/test/directory.docc/file.png").isInOpaqueDirectory)
         XCTAssertTrue(try AbsolutePath(validating: "/test/directory.playground/file.png").isInOpaqueDirectory)
+        XCTAssertTrue(try AbsolutePath(validating: "/test/directory.xcmappingmodel/file.png").isInOpaqueDirectory)
     }
 }

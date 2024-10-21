@@ -1,10 +1,11 @@
 import Foundation
-import TSCBasic
+import Path
+import TuistCore
 import TuistGenerator
-import TuistGraph
 import TuistLoader
 import TuistPlugin
 import TuistSupport
+import XcodeGraph
 
 enum EditServiceError: FatalError {
     case xcodeNotSelected
@@ -29,22 +30,20 @@ final class EditService {
     private let opener: Opening
     private let configLoader: ConfigLoading
     private let pluginService: PluginServicing
-    private let signalHandler: SignalHandling
-
-    private static var temporaryDirectory: AbsolutePath?
+    private let cacheDirectoriesProvider: CacheDirectoriesProviding
 
     init(
         projectEditor: ProjectEditing = ProjectEditor(),
         opener: Opening = Opener(),
         configLoader: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader()),
         pluginService: PluginServicing = PluginService(),
-        signalHandler: SignalHandling = SignalHandler()
+        cacheDirectoriesProvider: CacheDirectoriesProviding = CacheDirectoriesProvider()
     ) {
         self.projectEditor = projectEditor
         self.opener = opener
         self.configLoader = configLoader
         self.pluginService = pluginService
-        self.signalHandler = signalHandler
+        self.cacheDirectoriesProvider = cacheDirectoriesProvider
     }
 
     func run(
@@ -56,29 +55,24 @@ final class EditService {
         let plugins = await loadPlugins(at: path)
 
         if !permanent {
-            try withTemporaryDirectory(removeTreeOnDeinit: true) { generationDirectory in
-                EditService.temporaryDirectory = generationDirectory
+            let cacheDirectory = try cacheDirectoriesProvider.cacheDirectory(for: .editProjects)
+            let cachedManifestDirectory = cacheDirectory.appending(component: path.pathString.md5)
 
-                signalHandler.trap { _ in
-                    try? EditService.temporaryDirectory.map(FileHandler.shared.delete)
-                    exit(0)
-                }
-
-                guard let selectedXcode = try XcodeController.shared.selected() else {
-                    throw EditServiceError.xcodeNotSelected
-                }
-
-                let workspacePath = try projectEditor.edit(
-                    at: path,
-                    in: generationDirectory,
-                    onlyCurrentDirectory: onlyCurrentDirectory,
-                    plugins: plugins
-                )
-                logger.pretty("Opening Xcode to edit the project. Press \(.keystroke("CTRL + C")) once you are done editing")
-                try opener.open(path: workspacePath, application: selectedXcode.path, wait: true)
+            guard let selectedXcode = try await XcodeController.shared.selected() else {
+                throw EditServiceError.xcodeNotSelected
             }
+
+            let workspacePath = try await projectEditor.edit(
+                at: path,
+                in: cachedManifestDirectory,
+                onlyCurrentDirectory: onlyCurrentDirectory,
+                plugins: plugins
+            )
+            logger.notice("Opening Xcode to edit the project.", metadata: .pretty)
+            try opener.open(path: workspacePath, application: selectedXcode.path, wait: false)
+
         } else {
-            let workspacePath = try projectEditor.edit(
+            let workspacePath = try await projectEditor.edit(
                 at: path,
                 in: path,
                 onlyCurrentDirectory: onlyCurrentDirectory,
@@ -99,7 +93,7 @@ final class EditService {
     }
 
     private func loadPlugins(at path: AbsolutePath) async -> Plugins {
-        guard let config = try? configLoader.loadConfig(path: path) else {
+        guard let config = try? await configLoader.loadConfig(path: path) else {
             logger.warning("Unable to load Config.swift, fix any compiler errors and re-run for plugins to be loaded.")
             return .none
         }

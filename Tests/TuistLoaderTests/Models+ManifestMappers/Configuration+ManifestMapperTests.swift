@@ -1,9 +1,9 @@
 import Foundation
+import Path
 import ProjectDescription
-import TSCBasic
 import TuistCore
-import TuistGraph
 import TuistSupport
+import XcodeGraph
 import XCTest
 
 @testable import TuistLoader
@@ -13,10 +13,14 @@ final class ConfigurationManifestMapperTests: TuistUnitTestCase {
     func test_from_returns_nil_when_manifest_is_nil() throws {
         // Given
         let temporaryPath = try temporaryPath()
-        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
+        let rootDirectory = temporaryPath
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: rootDirectory
+        )
 
         // When
-        let got = try TuistGraph.Configuration.from(manifest: nil, generatorPaths: generatorPaths)
+        let got = try XcodeGraph.Configuration.from(manifest: nil, generatorPaths: generatorPaths)
 
         // Then
         XCTAssertNil(got)
@@ -27,7 +31,11 @@ final class ConfigurationManifestMapperTests: TuistUnitTestCase {
         let temporaryPath = try temporaryPath()
         let xcconfigPath = temporaryPath.appending(component: "Config.xcconfig")
         let settings: [String: ProjectDescription.SettingValue] = ["A": "B"]
-        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
+        let rootDirectory = temporaryPath
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: rootDirectory
+        )
         let manifest: ProjectDescription.Configuration = .debug(
             name: .debug,
             settings: settings,
@@ -35,7 +43,7 @@ final class ConfigurationManifestMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let got = try TuistGraph.Configuration.from(
+        let got = try XcodeGraph.Configuration.from(
             manifest: manifest,
             generatorPaths: generatorPaths
         )
@@ -46,7 +54,7 @@ final class ConfigurationManifestMapperTests: TuistUnitTestCase {
             return
         }
 
-        guard case let TuistGraph.SettingValue.string(aString) = aSetting else {
+        guard case let XcodeGraph.SettingValue.string(aString) = aSetting else {
             XCTFail("Expected A to be a string")
             return
         }

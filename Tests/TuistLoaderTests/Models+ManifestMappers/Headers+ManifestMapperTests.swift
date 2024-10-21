@@ -1,20 +1,24 @@
 import Foundation
+import Path
 import ProjectDescription
-import TSCBasic
 import TuistCore
-import TuistGraph
 import TuistSupport
+import XcodeGraph
 import XCTest
 
 @testable import TuistLoader
 @testable import TuistSupportTesting
 
 final class HeadersManifestMapperTests: TuistUnitTestCase {
-    func test_from() throws {
+    func test_from() async throws {
         // Given
         let temporaryPath = try temporaryPath()
-        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
-        try createFiles([
+        let rootDirectory = temporaryPath
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: rootDirectory
+        )
+        try await createFiles([
             "Sources/public/A1.h",
             "Sources/public/A1.m",
             "Sources/public/A2.h",
@@ -38,7 +42,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let model = try TuistGraph.Headers.from(
+        let model = try XcodeGraph.Headers.from(
             manifest: manifest,
             generatorPaths: generatorPaths,
             productName: "ModuleA"
@@ -61,11 +65,15 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         ].map { temporaryPath.appending(try RelativePath(validating: $0)) })
     }
 
-    func test_from_when_array() throws {
+    func test_from_when_array() async throws {
         // Given
         let temporaryPath = try temporaryPath()
-        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
-        try createFiles([
+        let rootDirectory = temporaryPath
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: rootDirectory
+        )
+        try await createFiles([
             "Sources/public/A/A1.h",
             "Sources/public/A/A1.m",
             "Sources/public/B/B1.h",
@@ -89,7 +97,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let model = try TuistGraph.Headers.from(
+        let model = try XcodeGraph.Headers.from(
             manifest: manifest,
             generatorPaths: generatorPaths,
             productName: "ModuleA"
@@ -112,11 +120,15 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         ].map { temporaryPath.appending(try RelativePath(validating: $0)) })
     }
 
-    func test_from_when_array_and_string() throws {
+    func test_from_when_array_and_string() async throws {
         // Given
         let temporaryPath = try temporaryPath()
-        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
-        try createFiles([
+        let rootDirectory = temporaryPath
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: rootDirectory
+        )
+        try await createFiles([
             "Sources/public/A/A1.h",
             "Sources/public/A/A1.m",
 
@@ -132,7 +144,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let model = try TuistGraph.Headers.from(
+        let model = try XcodeGraph.Headers.from(
             manifest: manifest,
             generatorPaths: generatorPaths,
             productName: "ModuleA"
@@ -149,11 +161,15 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         ].map { temporaryPath.appending(try RelativePath(validating: $0)) })
     }
 
-    func test_from_and_excluding() throws {
+    func test_from_and_excluding() async throws {
         // Given
         let temporaryPath = try temporaryPath()
-        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
-        try createFiles([
+        let rootDirectory = temporaryPath
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: rootDirectory
+        )
+        try await createFiles([
             "Sources/public/A1.h",
             "Sources/public/A1.m",
             "Sources/public/A2.h",
@@ -177,7 +193,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let model = try TuistGraph.Headers.from(
+        let model = try XcodeGraph.Headers.from(
             manifest: manifest,
             generatorPaths: generatorPaths,
             productName: "ModuleA"
@@ -198,11 +214,15 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         ].map { temporaryPath.appending(try RelativePath(validating: $0)) })
     }
 
-    func test_from_and_excluding_same_folder() throws {
+    func test_from_and_excluding_same_folder() async throws {
         // Given
         let temporaryPath = try temporaryPath()
-        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
-        try createFiles([
+        let rootDirectory = temporaryPath
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: rootDirectory
+        )
+        try await createFiles([
             "Sources/A1.h",
             "Sources/A1.m",
             "Sources/A2.h",
@@ -221,7 +241,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let model = try TuistGraph.Headers.from(
+        let model = try XcodeGraph.Headers.from(
             manifest: manifest,
             generatorPaths: generatorPaths,
             productName: "ModuleA"
@@ -241,11 +261,15 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         ].sorted().map { temporaryPath.appending(try RelativePath(validating: $0)) })
     }
 
-    func test_from_and_excluding_in_nested_folder() throws {
+    func test_from_and_excluding_in_nested_folder() async throws {
         // Given
         let temporaryPath = try temporaryPath()
-        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
-        try createFiles([
+        let rootDirectory = temporaryPath
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: rootDirectory
+        )
+        try await createFiles([
             "Sources/group/A1.h",
             "Sources/group/A1.m",
             "Sources/group/A2.h",
@@ -264,7 +288,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let model = try TuistGraph.Headers.from(
+        let model = try XcodeGraph.Headers.from(
             manifest: manifest,
             generatorPaths: generatorPaths,
             productName: "ModuleA"
@@ -284,11 +308,15 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         ].sorted().map { temporaryPath.appending(try RelativePath(validating: $0)) })
     }
 
-    func test_exclusionRule_projectExcludesPrivateAndPublic() throws {
+    func test_exclusionRule_projectExcludesPrivateAndPublic() async throws {
         // Given
         let temporaryPath = try temporaryPath()
-        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
-        try createFiles([
+        let rootDirectory = temporaryPath
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: rootDirectory
+        )
+        try await createFiles([
             "Sources/group/A1.h",
             "Sources/group/A1.m",
             "Sources/group/A1+Project.h",
@@ -320,7 +348,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let model = try TuistGraph.Headers.from(
+        let model = try XcodeGraph.Headers.from(
             manifest: manifest,
             generatorPaths: generatorPaths,
             productName: "ModuleA"
@@ -343,11 +371,15 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         ].sorted().map { temporaryPath.appending(try RelativePath(validating: $0)) })
     }
 
-    func test_exclusionRule_publicExcludesPrivateAndProject() throws {
+    func test_exclusionRule_publicExcludesPrivateAndProject() async throws {
         // Given
         let temporaryPath = try temporaryPath()
-        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
-        try createFiles([
+        let rootDirectory = temporaryPath
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: rootDirectory
+        )
+        try await createFiles([
             "Sources/group/A1.h",
             "Sources/group/A1.m",
             "Sources/group/A1+Project.h",
@@ -373,7 +405,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let model = try TuistGraph.Headers.from(
+        let model = try XcodeGraph.Headers.from(
             manifest: manifest,
             generatorPaths: generatorPaths,
             productName: "ModuleA"
@@ -396,10 +428,14 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         ].sorted().map { temporaryPath.appending(try RelativePath(validating: $0)) })
     }
 
-    func test_load_from_umbrella() throws {
+    func test_load_from_umbrella() async throws {
         // Given
         let temporaryPath = try temporaryPath()
-        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
+        let rootDirectory = temporaryPath
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: rootDirectory
+        )
 
         let umbrellaContent = """
         #import <Foundation/Foundation.h>
@@ -413,14 +449,14 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         // In this header, you should import all the public headers of your framework using statements like #import <TuistTestModule/PublicHeader.h>
 
         #import <TuistTestModule/A1.h>
-        #import <TuistTestModule/A2.h>
+          #import <TuistTestModule/A2.h> // to test spaces prefix
         #import "A3.h" // to test modules with legacy format
         #import <TuistTestModule/A2+Protected.h> // to test modules, where some protected files became public
         #import <UIKit/A4+Private.h> // to test incorrect module
         """
         let umbrellaPath = temporaryPath.appending(try RelativePath(validating: "Sources/Umbrella.h"))
 
-        try createFiles([
+        try await createFiles([
             "Sources/group/A1.h",
             "Sources/group/A2.h",
             "Sources/group/A3.h",
@@ -436,7 +472,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let model = try TuistGraph.Headers.from(
+        let model = try XcodeGraph.Headers.from(
             manifest: manifest,
             generatorPaths: generatorPaths,
             productName: "TuistTestModule"
@@ -459,10 +495,14 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         ].sorted().map { temporaryPath.appending(try RelativePath(validating: $0)) })
     }
 
-    func test_load_from_umbrella_withExcluding() throws {
+    func test_load_from_umbrella_withExcluding() async throws {
         // Given
         let temporaryPath = try temporaryPath()
-        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
+        let rootDirectory = temporaryPath
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: rootDirectory
+        )
 
         let umbrellaContent = """
         #import <Foundation/Foundation.h>
@@ -476,12 +516,12 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         // In this header, you should import all the public headers of your framework using statements like #import <TuistTestModule/PublicHeader.h>
 
         #import <TuistTestModule/A1.h>
-        #import <TuistTestModule/A2.h>
+          #import <TuistTestModule/A2.h> // to test spaces prefix
         #import "A3.h" // to test modules with legacy format
         """
         let umbrellaPath = temporaryPath.appending(try RelativePath(validating: "Sources/Umbrella.h"))
 
-        try createFiles([
+        try await createFiles([
             "Sources/group/A1.h",
             "Sources/group/A2.h",
             "Sources/group/A3.h",
@@ -503,7 +543,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let model = try TuistGraph.Headers.from(
+        let model = try XcodeGraph.Headers.from(
             manifest: manifest,
             generatorPaths: generatorPaths,
             productName: "TuistTestModule"
@@ -526,10 +566,14 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         ].sorted().map { temporaryPath.appending(try RelativePath(validating: $0)) })
     }
 
-    func test_load_from_umbrella_withExcluding_withOutProject() throws {
+    func test_load_from_umbrella_withExcluding_withOutProject() async throws {
         // Given
         let temporaryPath = try temporaryPath()
-        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
+        let rootDirectory = temporaryPath
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: rootDirectory
+        )
 
         let umbrellaContent = """
         #import <Foundation/Foundation.h>
@@ -543,12 +587,12 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         // In this header, you should import all the public headers of your framework using statements like #import <TuistTestModule/PublicHeader.h>
 
         #import <TuistTestModule/A1.h>
-        #import <TuistTestModule/A2.h>
+          #import <TuistTestModule/A2.h> // to test spaces prefix
         #import "A3.h" // to test modules with legacy format
         """
         let umbrellaPath = temporaryPath.appending(try RelativePath(validating: "Sources/Umbrella.h"))
 
-        try createFiles([
+        try await createFiles([
             "Sources/group/A1.h",
             "Sources/group/A2.h",
             "Sources/group/A3.h",
@@ -570,7 +614,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let model = try TuistGraph.Headers.from(
+        let model = try XcodeGraph.Headers.from(
             manifest: manifest,
             generatorPaths: generatorPaths,
             productName: "TuistTestModule"

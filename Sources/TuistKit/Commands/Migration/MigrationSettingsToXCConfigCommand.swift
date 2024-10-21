@@ -1,9 +1,9 @@
 import ArgumentParser
 import Foundation
-import TSCBasic
+import Path
 import TuistSupport
 
-struct MigrationSettingsToXCConfigCommand: ParsableCommand {
+struct MigrationSettingsToXCConfigCommand: AsyncParsableCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "settings-to-xcconfig",
@@ -15,26 +15,29 @@ struct MigrationSettingsToXCConfigCommand: ParsableCommand {
     @Option(
         name: [.customShort("p"), .long],
         help: "The path to the Xcode project",
-        completion: .directory
+        completion: .directory,
+        envKey: .migrationSettingsToXcconfigXcodeprojPath
     )
     var xcodeprojPath: String
 
     @Option(
         name: [.customShort("x"), .long],
         help: "The path to the .xcconfig file where build settings will be extracted.",
-        completion: .directory
+        completion: .directory,
+        envKey: .migrationSettingsToXcconfigXcconfigPath
     )
     var xcconfigPath: String
 
     @Option(
         name: .shortAndLong,
         help: "The name of the target whose build settings will be extracted. When not passed, it extracts the build settings of the project.",
-        completion: .default
+        completion: .default,
+        envKey: .migrationSettingsToXcconfigTarget
     )
     var target: String?
 
-    func run() throws {
-        try MigrationSettingsToXCConfigService().run(
+    func run() async throws {
+        try await MigrationSettingsToXCConfigService().run(
             xcodeprojPath: xcodeprojPath,
             xcconfigPath: xcconfigPath,
             target: target

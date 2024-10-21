@@ -1,10 +1,9 @@
 import Foundation
-import TSCBasic
+import Path
 import TuistCore
 import TuistCoreTesting
-import TuistGraph
-import TuistGraphTesting
 import TuistSupport
+import XcodeGraph
 import XcodeProj
 import XCTest
 @testable import TuistGenerator
@@ -25,7 +24,7 @@ final class WorkspaceGeneratorIntegrationTests: TuistTestCase {
 
     // MARK: - Tests
 
-    func test_generate_stressTest() throws {
+    func test_generate_stressTest() async throws {
         // Given
         let temporaryPath = try temporaryPath()
         let projects: [AbsolutePath: Project] = (0 ..< 20).reduce(into: [:]) { acc, index in
@@ -49,7 +48,7 @@ final class WorkspaceGeneratorIntegrationTests: TuistTestCase {
 
         // When / Then
         for _ in 0 ..< 50 {
-            _ = try subject.generate(graphTraverser: graphTraverser)
+            _ = try await subject.generate(graphTraverser: graphTraverser)
         }
     }
 }

@@ -1,9 +1,8 @@
 import Foundation
-import TSCBasic
+import Path
 import TuistCore
 import TuistCoreTesting
-import TuistGraph
-import TuistGraphTesting
+import XcodeGraph
 import XcodeProj
 import XCTest
 @testable import TuistGenerator
@@ -35,7 +34,7 @@ final class TargetGeneratorTests: XCTestCase {
         super.tearDown()
     }
 
-    func test_generateTarget_productName() throws {
+    func test_generateTarget_productName() async throws {
         // Given
         let target = Target.test(
             name: "MyFramework",
@@ -75,7 +74,7 @@ final class TargetGeneratorTests: XCTestCase {
         )
 
         // When
-        let generatedTarget = try subject.generateTarget(
+        let generatedTarget = try await subject.generateTarget(
             target: target,
             project: project,
             pbxproj: pbxproj,
@@ -105,7 +104,7 @@ final class TargetGeneratorTests: XCTestCase {
         XCTAssertEqual(postBuildPhase.outputFileListPaths, ["../tmp/d"])
     }
 
-    func test_generateTargetDependencies() throws {
+    func test_generateTargetDependencies() async throws {
         // Given
         let targetA = Target.test(
             name: "TargetA",
@@ -116,18 +115,12 @@ final class TargetGeneratorTests: XCTestCase {
             destinations: [.mac, .iPhone]
         )
         let targetC = Target.test(name: "TargetC")
+        let project: Project = .test(path: path, targets: [targetA, targetB, targetC])
         let nativeTargetA = createNativeTarget(for: targetA)
         let nativeTargetB = createNativeTarget(for: targetB)
         let nativeTargetC = createNativeTarget(for: targetC)
         let graph = Graph.test(
-            projects: [path: .test(path: path)],
-            targets: [
-                path: [
-                    targetA.name: targetA,
-                    targetB.name: targetB,
-                    targetC.name: targetC,
-                ],
-            ],
+            projects: [path: project],
             dependencies: [
                 .target(name: targetA.name, path: path): [
                     .target(name: targetB.name, path: path),
@@ -169,7 +162,7 @@ final class TargetGeneratorTests: XCTestCase {
         }
     }
 
-    func test_generateTarget_actions() throws {
+    func test_generateTarget_actions() async throws {
         // Given
         let graph = Graph.test()
         let graphTraverser = GraphTraverser(graph: graph)
@@ -207,7 +200,7 @@ final class TargetGeneratorTests: XCTestCase {
         )
 
         // When
-        let pbxTarget = try subject.generateTarget(
+        let pbxTarget = try await subject.generateTarget(
             target: target,
             project: project,
             pbxproj: pbxproj,

@@ -1,10 +1,11 @@
 import Foundation
+import Path
 import ProjectDescription
-import TSCBasic
-import TuistGraph
+import TuistCore
+import XcodeGraph
 
-extension TuistGraph.Project {
-    /// Maps a `ProjectDescription.Project` instance into a `TuistGraph.Project` instance.
+extension XcodeGraph.Project {
+    /// Maps a `ProjectDescription.Project` instance into a `XcodeGraph.Project` instance.
     /// Glob patterns in file elements are unfolded as part of the mapping.
     /// - Parameters:
     ///   - manifest: Manifest representation of  the file element.
@@ -17,34 +18,39 @@ extension TuistGraph.Project {
         manifest: ProjectDescription.Project,
         generatorPaths: GeneratorPaths,
         plugins: Plugins,
-        externalDependencies: [String: [TuistGraph.TargetDependency]],
+        externalDependencies: [String: [XcodeGraph.TargetDependency]],
         resourceSynthesizerPathLocator: ResourceSynthesizerPathLocating,
         isExternal: Bool
-    ) throws -> TuistGraph.Project {
+    ) async throws -> XcodeGraph.Project {
         let name = manifest.name
         let xcodeProjectName = manifest.options.xcodeProjectName ?? name
         let organizationName = manifest.organizationName
+        let classPrefix = manifest.classPrefix
         let defaultKnownRegions = manifest.options.defaultKnownRegions
         let developmentRegion = manifest.options.developmentRegion
-        let options = TuistGraph.Project.Options.from(manifest: manifest.options)
-        let settings = try manifest.settings.map { try TuistGraph.Settings.from(manifest: $0, generatorPaths: generatorPaths) }
+        let options = XcodeGraph.Project.Options.from(manifest: manifest.options)
+        let settings = try manifest.settings.map { try XcodeGraph.Settings.from(manifest: $0, generatorPaths: generatorPaths) }
 
-        let targets = try manifest.targets.map {
-            try TuistGraph.Target.from(
+        let targets = try await manifest.targets.concurrentMap {
+            try await XcodeGraph.Target.from(
                 manifest: $0,
                 generatorPaths: generatorPaths,
                 externalDependencies: externalDependencies
             )
         }
 
-        let schemes = try manifest.schemes.map { try TuistGraph.Scheme.from(manifest: $0, generatorPaths: generatorPaths) }
-        let additionalFiles = try manifest.additionalFiles
-            .flatMap { try TuistGraph.FileElement.from(manifest: $0, generatorPaths: generatorPaths) }
-        let packages = try manifest.packages.map { try TuistGraph.Package.from(manifest: $0, generatorPaths: generatorPaths) }
+        let schemes = try await manifest.schemes.concurrentMap { try await XcodeGraph.Scheme.from(
+            manifest: $0,
+            generatorPaths: generatorPaths
+        ) }
+        let additionalFiles = try await manifest.additionalFiles
+            .concurrentMap { try await XcodeGraph.FileElement.from(manifest: $0, generatorPaths: generatorPaths) }
+            .flatMap { $0 }
+        let packages = try manifest.packages.map { try XcodeGraph.Package.from(manifest: $0, generatorPaths: generatorPaths) }
         let ideTemplateMacros = try manifest.fileHeaderTemplate
             .map { try IDETemplateMacros.from(manifest: $0, generatorPaths: generatorPaths) }
-        let resourceSynthesizers = try manifest.resourceSynthesizers.map {
-            try TuistGraph.ResourceSynthesizer.from(
+        let resourceSynthesizers = try await manifest.resourceSynthesizers.concurrentMap {
+            try await XcodeGraph.ResourceSynthesizer.from(
                 manifest: $0,
                 generatorPaths: generatorPaths,
                 plugins: plugins,
@@ -57,6 +63,7 @@ extension TuistGraph.Project {
             xcodeProjPath: generatorPaths.manifestDirectory.appending(component: "\(xcodeProjectName).xcodeproj"),
             name: name,
             organizationName: organizationName,
+            classPrefix: classPrefix,
             defaultKnownRegions: defaultKnownRegions,
             developmentRegion: developmentRegion,
             options: options,

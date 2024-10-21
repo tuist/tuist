@@ -1,5 +1,5 @@
 import TuistCore
-import TuistGraph
+import XcodeGraph
 
 /// This mapper takes the `Project` `disableShowEnvironmentVarsInScriptPhases` option and pushes it down into all of the `Target`s
 /// shell script `TargetAction`s
@@ -13,7 +13,7 @@ public final class TargetActionDisableShowEnvVarsProjectMapper: ProjectMapping {
             )
 
         var project = project
-        project.targets = project.targets.map { target in
+        project.targets = project.targets.mapValues { target in
             var mappedTarget = target
             mappedTarget.scripts = mappedTarget.scripts.map {
                 var script = $0

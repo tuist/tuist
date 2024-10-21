@@ -1,11 +1,11 @@
 import Foundation
-import TSCBasic
-import TuistGraph
+import Path
+import XcodeGraph
 
 extension TestPlan {
     init(path: AbsolutePath, isDefault: Bool, generatorPaths: GeneratorPaths) throws {
         let jsonDecoder = JSONDecoder()
-        let testPlanData = try Data(contentsOf: path.asURL)
+        let testPlanData = try Data(contentsOf: URL(fileURLWithPath: path.pathString))
         let xcTestPlan = try jsonDecoder.decode(XCTestPlan.self, from: testPlanData)
 
         try self.init(

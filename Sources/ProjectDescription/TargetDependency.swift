@@ -1,36 +1,42 @@
 import Foundation
 
-/// Dependency status used by `.framework` and `.xcframework` target
-/// dependencies
-public enum FrameworkStatus: String, Codable, Hashable {
+/// Dependency status used by dependencies
+public enum LinkingStatus: String, Codable, Hashable, Sendable {
     /// Required dependency
     case required
 
     /// Optional dependency (weakly linked)
     case optional
+
+    /// Skip linking
+    case none
 }
 
-/// Dependency status used by `.sdk` target dependencies
-public enum SDKStatus: String, Codable, Hashable {
-    /// Required dependency
-    case required
+@available(*, deprecated, renamed: "LinkingStatus")
+typealias FrameworkStatus = LinkingStatus
 
-    /// Optional dependency (weakly linked)
-    case optional
-}
+@available(*, deprecated, renamed: "LinkingStatus")
+typealias SDKStatus = LinkingStatus
 
 /// Dependency type used by `.sdk` target dependencies
-public enum SDKType: String, Codable, Hashable {
+public enum SDKType: String, Codable, Hashable, Sendable {
     /// Library SDK dependency
+    /// Libraries are located in:
+    /// `{path-to-xcode}.app/Contents/Developer/Platforms/{platform}.platform/Developer/SDKs/{runtime}.sdk/usr/lib`
     case library
+
+    /// Swift library SDK dependency
+    /// Swift libraries are located in:
+    /// `{path-to-xcode}.app/Contents/Developer/Platforms/{platform}.platform/Developer/SDKs/{runtime}.sdk/usr/lib/swift`
+    case swiftLibrary
 
     /// Framework SDK dependency
     case framework
 }
 
 /// A target dependency.
-public enum TargetDependency: Codable, Hashable {
-    public enum PackageType: Codable, Hashable {
+public enum TargetDependency: Codable, Hashable, Sendable {
+    public enum PackageType: Codable, Hashable, Sendable {
         /// A runtime package type represents a standard package whose sources are linked at runtime.
         /// For example importing the framework and consuming from dependent targets.
         case runtime
@@ -47,16 +53,18 @@ public enum TargetDependency: Codable, Hashable {
     ///
     /// - Parameters:
     ///   - name: Name of the target to depend on
+    ///   - status: The dependency status (optional dependencies are weakly linked)
     ///   - condition: condition under which to use this dependency, `nil` if this should always be used
-    case target(name: String, condition: PlatformCondition? = nil)
+    case target(name: String, status: LinkingStatus = .required, condition: PlatformCondition? = nil)
 
     /// Dependency on a target within another project
     ///
     /// - Parameters:
     ///   - target: Name of the target to depend on
     ///   - path: Relative path to the other project directory
+    ///   - status: The dependency status (optional dependencies are weakly linked)
     ///   - condition: condition under which to use this dependency, `nil` if this should always be used
-    case project(target: String, path: Path, condition: PlatformCondition? = nil)
+    case project(target: String, path: Path, status: LinkingStatus = .required, condition: PlatformCondition? = nil)
 
     /// Dependency on a prebuilt framework
     ///
@@ -64,7 +72,7 @@ public enum TargetDependency: Codable, Hashable {
     ///   - path: Relative path to the prebuilt framework
     ///   - status: The dependency status (optional dependencies are weakly linked)
     ///   - condition: condition under which to use this dependency, `nil` if this should always be used
-    case framework(path: Path, status: FrameworkStatus = .required, condition: PlatformCondition? = nil)
+    case framework(path: Path, status: LinkingStatus = .required, condition: PlatformCondition? = nil)
 
     /// Dependency on prebuilt library
     ///
@@ -94,7 +102,7 @@ public enum TargetDependency: Codable, Hashable {
     ///   - type: The dependency type
     ///   - status: The dependency status (optional dependencies are weakly linked)
     ///   - condition: condition under which to use this dependency, `nil` if this should always be used
-    case sdk(name: String, type: SDKType, status: SDKStatus, condition: PlatformCondition? = nil)
+    case sdk(name: String, type: SDKType, status: LinkingStatus, condition: PlatformCondition? = nil)
 
     /// Dependency on a xcframework
     ///
@@ -102,7 +110,7 @@ public enum TargetDependency: Codable, Hashable {
     ///   - path: Relative path to the xcframework
     ///   - status: The dependency status (optional dependencies are weakly linked)
     ///   - condition: condition under which to use this dependency, `nil` if this should always be used
-    case xcframework(path: Path, status: FrameworkStatus = .required, condition: PlatformCondition? = nil)
+    case xcframework(path: Path, status: LinkingStatus = .required, condition: PlatformCondition? = nil)
 
     /// Dependency on XCTest.
     case xctest

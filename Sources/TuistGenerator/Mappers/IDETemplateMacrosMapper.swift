@@ -1,7 +1,7 @@
 import Foundation
-import TSCBasic
+import Path
 import TuistCore
-import TuistGraph
+import XcodeGraph
 
 public final class IDETemplateMacrosMapper: ProjectMapping, WorkspaceMapping {
     public init() {}

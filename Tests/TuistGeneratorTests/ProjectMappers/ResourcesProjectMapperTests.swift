@@ -1,14 +1,13 @@
 import Foundation
-import TSCBasic
+import Mockable
+import Path
 import TuistCore
-import TuistGraph
-import TuistGraphTesting
+import TuistSupport
+import TuistSupportTesting
+import XcodeGraph
 import XCTest
 
-@testable import TuistCoreTesting
 @testable import TuistGenerator
-@testable import TuistSupport
-@testable import TuistSupportTesting
 
 // Bundle name is irrelevant if the target supports resources.
 private let irrelevantBundleName = ""
@@ -16,12 +15,16 @@ private let irrelevantBundleName = ""
 final class ResourcesProjectMapperTests: TuistUnitTestCase {
     var project: Project!
     var subject: ResourcesProjectMapper!
-    var contentHasher: MockContentHasher!
+    var contentHasher: MockContentHashing!
 
     override func setUp() {
         super.setUp()
-        contentHasher = MockContentHasher()
+        contentHasher = .init()
         subject = ResourcesProjectMapper(contentHasher: contentHasher)
+
+        given(contentHasher)
+            .hash(Parameter<Data>.any)
+            .willProduce { String(data: $0, encoding: .utf8)! }
     }
 
     override func tearDown() {
@@ -57,7 +60,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
 
         // Then: Targets
         XCTAssertEqual(gotProject.targets.count, 2)
-        let gotTarget = try XCTUnwrap(gotProject.targets.first)
+        let gotTarget = try XCTUnwrap(gotProject.targets.values.sorted().last)
         XCTAssertEqual(gotTarget.name, target.name)
         XCTAssertEqual(gotTarget.product, target.product)
         XCTAssertEqual(gotTarget.resources.resources.count, 0)
@@ -70,7 +73,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
             TargetDependency.target(name: "\(project.name)_\(target.name)", condition: .when([.ios]))
         )
 
-        let resourcesTarget = try XCTUnwrap(gotProject.targets.last)
+        let resourcesTarget = try XCTUnwrap(gotProject.targets.values.sorted().first)
         XCTAssertEqual(resourcesTarget.name, "\(project.name)_\(target.name)")
         XCTAssertEqual(resourcesTarget.product, .bundle)
         XCTAssertEqual(resourcesTarget.destinations, target.destinations)
@@ -79,8 +82,23 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         XCTAssertEqual(resourcesTarget.filesGroup, target.filesGroup)
         XCTAssertEqual(resourcesTarget.resources.resources, resources)
         XCTAssertEqual(resourcesTarget.settings?.base, [
+            "SKIP_INSTALL": "YES",
             "CODE_SIGNING_ALLOWED": "NO",
         ])
+    }
+
+    func test_map_when_an_external_objc_target_that_has_resources_and_supports_them() throws {
+        // Given
+        let resources: [ResourceFileElement] = [.file(path: "/image.png")]
+        let target = Target.test(product: .framework, sources: ["/Absolute/File.m"], resources: .init(resources))
+        project = Project.test(targets: [target], isExternal: true)
+
+        // Got
+        let (gotProject, gotSideEffects) = try subject.map(project: project)
+
+        // Then
+        XCTAssertEmpty(gotSideEffects)
+        XCTAssertEqual(project, gotProject)
     }
 
     func testMap_whenDisableBundleAccessorsIsTrue_doesNotGenerateAccessors() throws {
@@ -117,7 +135,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         XCTAssertEqual(gotSideEffects, [])
         XCTAssertEqual(gotProject.targets.count, 2)
 
-        let gotTarget = try XCTUnwrap(gotProject.targets.first)
+        let gotTarget = try XCTUnwrap(gotProject.targets.values.sorted().last)
         XCTAssertEqual(gotTarget.name, target.name)
         XCTAssertEqual(gotTarget.product, target.product)
         XCTAssertEqual(gotTarget.resources.resources.count, 0)
@@ -128,7 +146,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
             TargetDependency.target(name: "\(project.name)_\(target.name)", condition: .when([.ios]))
         )
 
-        let resourcesTarget = try XCTUnwrap(gotProject.targets.last)
+        let resourcesTarget = try XCTUnwrap(gotProject.targets.values.sorted().first)
         XCTAssertEqual(resourcesTarget.name, "\(project.name)_\(target.name)")
         XCTAssertEqual(resourcesTarget.product, .bundle)
         XCTAssertEqual(resourcesTarget.destinations, target.destinations)
@@ -167,7 +185,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
 
         // Then: Targets
         XCTAssertEqual(gotProject.targets.count, 2)
-        let gotTarget = try XCTUnwrap(gotProject.targets.first)
+        let gotTarget = try XCTUnwrap(gotProject.targets.values.sorted().last)
         XCTAssertEqual(gotTarget.name, target.name)
         XCTAssertEqual(gotTarget.product, target.product)
         XCTAssertEqual(gotTarget.resources.resources.count, 0)
@@ -180,7 +198,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
             TargetDependency.target(name: "\(project.name)_\(target.name)", condition: .when([.ios]))
         )
 
-        let resourcesTarget = try XCTUnwrap(gotProject.targets.last)
+        let resourcesTarget = try XCTUnwrap(gotProject.targets.values.sorted().first)
         XCTAssertEqual(resourcesTarget.name, "\(project.name)_\(target.name)")
         XCTAssertEqual(resourcesTarget.product, .bundle)
         XCTAssertEqual(resourcesTarget.destinations, target.destinations)
@@ -217,7 +235,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
 
         // Then: Targets
         XCTAssertEqual(gotProject.targets.count, 1)
-        let gotTarget = try XCTUnwrap(gotProject.targets.first)
+        let gotTarget = try XCTUnwrap(gotProject.targets.values.sorted().first)
         XCTAssertEqual(gotTarget.name, target.name)
         XCTAssertEqual(gotTarget.product, target.product)
         XCTAssertEqual(gotTarget.resources.resources, resources)
@@ -255,7 +273,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
 
         // Then: Targets
         XCTAssertEqual(gotProject.targets.count, 1)
-        let gotTarget = try XCTUnwrap(gotProject.targets.first)
+        let gotTarget = try XCTUnwrap(gotProject.targets.values.sorted().first)
         XCTAssertEqual(gotTarget.name, target.name)
         XCTAssertEqual(gotTarget.product, target.product)
         XCTAssertEqual(gotTarget.coreDataModels, coreDataModels)
@@ -275,7 +293,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         let (gotProject, gotSideEffects) = try subject.map(project: project)
 
         // Then
-        XCTAssertEqual(gotProject.targets, [target])
+        XCTAssertEqual(Array(gotProject.targets.values), [target])
         XCTAssertEmpty(gotSideEffects)
     }
 
@@ -292,7 +310,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         let (gotProject, gotSideEffects) = try subject.map(project: project)
 
         // Then
-        XCTAssertEqual(gotProject.targets, [target])
+        XCTAssertEqual(Array(gotProject.targets.values), [target])
         XCTAssertEmpty(gotSideEffects)
     }
 
@@ -338,7 +356,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         let (gotProject, gotSideEffects) = try subject.map(project: project)
 
         // Then
-        XCTAssertEqual(gotProject.targets, [target])
+        XCTAssertEqual(Array(gotProject.targets.values), [target])
         XCTAssertEmpty(gotSideEffects)
     }
 
@@ -353,7 +371,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         let (gotProject, gotSideEffects) = try subject.map(project: project)
 
         // Then
-        XCTAssertEqual(gotProject.targets, [target])
+        XCTAssertEqual(Array(gotProject.targets.values), [target])
         XCTAssertEmpty(gotSideEffects)
     }
 
@@ -396,7 +414,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         let (gotProject, gotSideEffects) = try subject.map(project: project)
 
         // Then
-        let gotTarget = try XCTUnwrap(gotProject.targets.first)
+        let gotTarget = try XCTUnwrap(gotProject.targets.values.sorted().last)
         verifyObjcBundleAccessor(
             for: target,
             gotTarget: gotTarget,
@@ -415,12 +433,13 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         let (gotProject, gotSideEffects) = try subject.map(project: project)
 
         // Then
-        let gotTarget = try XCTUnwrap(gotProject.targets.first)
-        verifyObjcBundleAccessor(
-            for: target,
-            gotTarget: gotTarget,
-            gotSideEffects: gotSideEffects
+        let gotTarget = try XCTUnwrap(gotProject.targets.values.sorted().last)
+        XCTAssertEqual(
+            gotTarget.settings?.base["GCC_PREFIX_HEADER"],
+            nil
         )
+        XCTAssertEqual(gotTarget.sources.count, 1)
+        XCTAssertEqual(gotSideEffects.count, 0)
     }
 
     func test_map_when_project_name_has_dashes_in_it_bundle_name_include_dash_for_project_name_and_underscore_for_target_name(
@@ -428,7 +447,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         // Given
         let projectName = "sdk-with-dash"
         let targetName = "target-with-dash"
-        let expectedBundleName = "\(projectName)_\(targetName.replacingOccurrences(of: "-", with: "_"))"
+        let expectedBundleName = "sdk-with-dash_target_with_dash"
         let sources: [SourceFile] = ["/ViewController.m", "/ViewController2.swift"]
         let resources: [ResourceFileElement] = [.file(path: "/AbsolutePath/Project/Resources/image.png")]
         let target = Target.test(name: targetName, product: .staticLibrary, sources: sources, resources: .init(resources))
@@ -436,10 +455,12 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
 
         // Got
         let (gotProject, _) = try subject.map(project: project)
-        let bundleTarget = try XCTUnwrap(gotProject.targets.first(where: { $0.product == .bundle }))
+        let bundleTarget = try XCTUnwrap(gotProject.targets.values.sorted().first(where: { $0.product == .bundle }))
 
         // Then
         XCTAssertEqual(expectedBundleName, bundleTarget.name)
+        XCTAssertEqual(expectedBundleName, bundleTarget.productName)
+        XCTAssertEqual(2, gotProject.targets.count) // One code target, one bundle target
     }
 
     // MARK: - Verifiers

@@ -1,6 +1,6 @@
 import TuistCore
 import TuistGenerator
-import TuistGraph
+import XcodeGraph
 import XCTest
 
 @testable import TuistSupportTesting
@@ -70,21 +70,12 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let (gotGraph, gotSideEffects) = try subject.map(
+        let (gotGraph, gotSideEffects, _) = try subject.map(
             graph: .test(
                 workspace: workspace,
                 projects: [
                     projectAPath: projectA,
                     projectBPath: projectB,
-                ],
-                targets: [
-                    projectAPath: [
-                        targetA.name: targetA,
-                    ],
-                    projectBPath: [
-                        targetB1.name: targetB1,
-                        targetB2.name: targetB2,
-                    ],
                 ],
                 dependencies: [
                     .target(name: targetA.name, path: projectAPath): [
@@ -94,7 +85,8 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
                         .target(name: targetB2.name, path: projectBPath),
                     ],
                 ]
-            )
+            ),
+            environment: MapperEnvironment()
         )
 
         // Then
@@ -114,7 +106,6 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
                     "-fmodule-map-file=$(SRCROOT)/../B/B2/B2.module",
                 ]),
                 "HEADER_SEARCH_PATHS": .array(["$(inherited)", "$(SRCROOT)/../B/B1/include", "$(SRCROOT)/../B/B2/include"]),
-                "OTHER_LDFLAGS": .array(["$(inherited)", "-ObjC"]),
             ]),
             dependencies: [
                 .project(target: "B1", path: projectBPath),
@@ -134,7 +125,6 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
                 "OTHER_CFLAGS": .array(["$(inherited)", "-fmodule-map-file=$(SRCROOT)/B2/B2.module"]),
                 "OTHER_SWIFT_FLAGS": .array(["$(inherited)", "-Xcc", "-fmodule-map-file=$(SRCROOT)/B2/B2.module"]),
                 "HEADER_SEARCH_PATHS": .array(["$(SRCROOT)/B1/include", "$(SRCROOT)/B2/include"]),
-                "OTHER_LDFLAGS": .array(["$(inherited)", "-ObjC"]),
             ]),
             dependencies: [
                 .target(name: "B2"),
@@ -163,15 +153,6 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
                 projects: [
                     projectAPath: mappedProjectA,
                     projectBPath: mappedProjectB,
-                ],
-                targets: [
-                    projectAPath: [
-                        mappedTargetA.name: mappedTargetA,
-                    ],
-                    projectBPath: [
-                        mappedTargetB1.name: mappedTargetB1,
-                        mappedTargetB2.name: mappedTargetB2,
-                    ],
                 ],
                 dependencies: [
                     .target(name: targetA.name, path: projectAPath): [
@@ -224,27 +205,20 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let (gotGraph, gotSideEffects) = try subject.map(
+        let (gotGraph, gotSideEffects, _) = try subject.map(
             graph: .test(
                 workspace: workspace,
                 projects: [
                     projectAPath: projectA,
                     projectBPath: projectB,
                 ],
-                targets: [
-                    projectAPath: [
-                        targetA.name: targetA,
-                    ],
-                    projectBPath: [
-                        targetB.name: targetB,
-                    ],
-                ],
                 dependencies: [
                     .target(name: targetA.name, path: projectAPath): [
                         .target(name: targetB.name, path: projectBPath),
                     ],
                 ]
-            )
+            ),
+            environment: MapperEnvironment()
         )
 
         // Then
@@ -262,7 +236,6 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
                         "-fmodule-map-file=$(SRCROOT)/../B/B/B.module",
                     ]),
                     "HEADER_SEARCH_PATHS": .array(["$(inherited)", "$(SRCROOT)/../B/B/include"]),
-                    "OTHER_LDFLAGS": .array(["$(inherited)", "-ObjC"]),
                 ],
                 configurations: [:],
                 defaultSettings: .recommended
@@ -301,14 +274,6 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
                 projects: [
                     projectAPath: mappedProjectA,
                     projectBPath: mappedProjectB,
-                ],
-                targets: [
-                    projectAPath: [
-                        mappedTargetA.name: mappedTargetA,
-                    ],
-                    projectBPath: [
-                        mappedTargetB.name: mappedTargetB,
-                    ],
                 ],
                 dependencies: [
                     .target(name: projectA.name, path: projectAPath): [

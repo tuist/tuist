@@ -1,6 +1,5 @@
-import Combine
-import CombineExt
 import Foundation
+import Path
 import TSCBasic
 
 extension ProcessResult {
@@ -68,18 +67,12 @@ public enum SystemError: FatalError, Equatable {
 // swiftlint:disable:next type_body_length
 public final class System: Systeming {
     /// Shared system instance.
-    public static var shared: Systeming = System()
+    public static var shared: Systeming {
+        _shared.value
+    }
 
-    // swiftlint:disable force_try
-
-    /// Regex expression used to get the Swift version (for example, 5.9) from the output of the 'swift --version' command.
-    private static var swiftVersionRegex = try! NSRegularExpression(pattern: "Apple Swift version\\s(.+)\\s\\(.+\\)", options: [])
-
-    /// Regex expression used to get the Swiftlang version (for example, 5.7.0.127.4) from the output of the 'swift --version'
-    /// command.
-    private static var swiftlangVersion = try! NSRegularExpression(pattern: "swiftlang-(.+)\\sclang", options: [])
-
-    // swiftlint:enable force_try
+    // swiftlint:disable:next identifier_name
+    static let _shared: ThreadSafe<Systeming> = ThreadSafe(System())
 
     /// Convenience shortcut to the environment.
     public var env: [String: String] {
@@ -129,28 +122,37 @@ public final class System: Systeming {
     }
 
     public func runAndPrint(_ arguments: [String]) throws {
-        try runAndPrint(arguments, verbose: false, environment: env)
+        try run(arguments, verbose: false, environment: env, redirection: streamToStandardOutputs)
     }
 
-    public func runAndPrint(
-        _ arguments: [String],
-        verbose: Bool,
-        environment: [String: String]
-    ) throws {
-        try runAndPrint(
-            arguments,
-            verbose: verbose,
-            environment: environment,
-            redirection: .none
-        )
+    public func runAndPrint(_ arguments: [String], verbose: Bool, environment: [String: String]) throws {
+        try run(arguments, verbose: verbose, environment: environment, redirection: streamToStandardOutputs)
+    }
+
+    private var streamToStandardOutputs: TSCBasic.Process.OutputRedirection {
+        return .stream { bytes in
+            FileHandle.standardOutput.write(Data(bytes))
+        } stderr: { bytes in
+            FileHandle.standardError.write(Data(bytes))
+        }
     }
 
     public func runAndCollectOutput(_ arguments: [String]) async throws -> SystemCollectedOutput {
-        var values = publisher(arguments)
-            .mapToString()
-            .collectOutput().values.makeAsyncIterator()
+        let process = Process(
+            arguments: arguments,
+            environment: env,
+            outputRedirection: .collect,
+            startNewProcessGroup: false
+        )
 
-        return try await values.next()!
+        try process.launch()
+
+        let result = try await process.waitUntilExit()
+
+        return SystemCollectedOutput(
+            standardOutput: try result.utf8Output(),
+            standardError: try result.utf8stderrOutput()
+        )
     }
 
     public func async(_ arguments: [String]) throws {
@@ -166,114 +168,37 @@ public final class System: Systeming {
         try process.launch()
     }
 
-    @Atomic
-    var cachedSwiftVersion: String?
-
-    @Atomic
-    var cachedSwiftlangVersion: String?
-
-    public func swiftVersion() throws -> String {
-        if let cachedSwiftVersion {
-            return cachedSwiftVersion
-        }
-        let output = try capture(["/usr/bin/xcrun", "swift", "--version"])
-        let range = NSRange(location: 0, length: output.count)
-        guard let match = System.swiftVersionRegex.firstMatch(in: output, options: [], range: range) else {
-            throw SystemError.parseSwiftVersion(output)
-        }
-        cachedSwiftVersion = NSString(string: output).substring(with: match.range(at: 1)).spm_chomp()
-        return cachedSwiftVersion!
-    }
-
-    public func swiftlangVersion() throws -> String {
-        if let cachedSwiftlangVersion {
-            return cachedSwiftlangVersion
-        }
-        let output = try capture(["/usr/bin/xcrun", "swift", "--version"])
-        let range = NSRange(location: 0, length: output.count)
-        guard let match = System.swiftlangVersion.firstMatch(in: output, options: [], range: range) else {
-            throw SystemError.parseSwiftVersion(output)
-        }
-        cachedSwiftlangVersion = NSString(string: output).substring(with: match.range(at: 1)).spm_chomp()
-        return cachedSwiftlangVersion!
-    }
-
     public func which(_ name: String) throws -> String {
         try capture(["/usr/bin/env", "which", name]).spm_chomp()
     }
 
     // MARK: Helpers
 
-    /// Converts an array of arguments into a `Foundation.Process`
-    /// - Parameters:
-    ///   - arguments: Arguments for the process, first item being the executable URL.
-    ///   - environment: Environment
-    /// - Returns: A `Foundation.Process`
-    static func process(
-        _ arguments: [String],
-        environment: [String: String]
-    ) -> Foundation.Process {
-        let executablePath = arguments.first!
-        let process = Foundation.Process()
-        process.executableURL = URL(fileURLWithPath: executablePath)
-        process.arguments = Array(arguments.dropFirst())
-        process.environment = environment
-        return process
-    }
-
-    /// Pipe the output of one Process to another
-    /// - Parameters:
-    ///   - processOne: First Process
-    ///   - processTwo: Second Process
-    /// - Returns: The pipe
-    @discardableResult
-    static func pipe(
-        _ processOne: inout Foundation.Process,
-        _ processTwo: inout Foundation.Process
-    ) -> Pipe {
-        let processPipe = Pipe()
-
-        processOne.standardOutput = processPipe
-        processTwo.standardInput = processPipe
-        return processPipe
-    }
-
-    /// PIpe the output of a process into separate output and error pipes
-    /// - Parameter process: The process to pipe
-    /// - Returns: Tuple that contains the output and error Pipe.
-    static func pipeOutput(_ process: inout Foundation.Process) -> (stdOut: Pipe, stdErr: Pipe) {
-        let stdOut = Pipe()
-        let stdErr = Pipe()
-
-        // Redirect output of Process Two
-        process.standardOutput = stdOut
-        process.standardError = stdErr
-
-        return (stdOut, stdErr)
-    }
-
     public func chmod(
         _ mode: FileMode,
-        path: AbsolutePath,
+        path: Path.AbsolutePath,
         options: Set<FileMode.Option>
     ) throws {
-        try localFileSystem.chmod(mode, path: path, options: options)
+        try localFileSystem.chmod(mode, path: .init(validating: path.pathString), options: options)
     }
 
-    private func runAndPrint(
+    public func run(
         _ arguments: [String],
-        verbose: Bool,
-        environment: [String: String],
-        redirection: TSCBasic.Process.OutputRedirection
+        verbose: Bool = false,
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        redirection: TSCBasic.Process.OutputRedirection = .none
     ) throws {
+        // We have to collect both stderr and stdout because we want to stream the output
+        // the `ProcessResult` type will not contain either unless outputRedirection is set to `.collect`
+        var stdErrData: [UInt8] = []
+
         let process = Process(
             arguments: arguments,
             environment: environment,
             outputRedirection: .stream(stdout: { bytes in
-                FileHandle.standardOutput.write(Data(bytes))
                 redirection.outputClosures?.stdoutClosure(bytes)
             }, stderr: { bytes in
-                FileHandle.standardError.write(Data(bytes))
+                stdErrData.append(contentsOf: bytes)
                 redirection.outputClosures?.stderrClosure(bytes)
             }),
             startNewProcessGroup: false,
@@ -284,140 +209,16 @@ public final class System: Systeming {
 
         try process.launch()
         let result = try process.waitUntilExit()
-        let output = try result.utf8Output()
 
-        logger.debug("\(output)")
-
-        try result.throwIfErrored()
-    }
-
-    public func publisher(
-        _ arguments: [String],
-        verbose: Bool,
-        environment: [String: String]
-    ) -> AnyPublisher<SystemEvent<Data>, Error> {
-        .create { subscriber in
-            let synchronizationQueue = DispatchQueue(label: "io.tuist.support.system")
-            var errorData: [UInt8] = []
-            let process = Process(
-                arguments: arguments,
-                environment: environment,
-                outputRedirection: .stream(stdout: { bytes in
-                    synchronizationQueue.async {
-                        subscriber.send(.standardOutput(Data(bytes)))
-                    }
-                }, stderr: { bytes in
-                    synchronizationQueue.async {
-                        errorData.append(contentsOf: bytes)
-                        subscriber.send(.standardError(Data(bytes)))
-                    }
-                }),
-                startNewProcessGroup: false,
-                loggingHandler: verbose ? { stdoutStream.send($0).send("\n").flush() } : nil
-            )
-            DispatchQueue.global().async {
-                do {
-                    try process.launch()
-                    var result = try process.waitUntilExit()
-                    result = ProcessResult(
-                        arguments: result.arguments,
-                        environment: environment,
-                        exitStatus: result.exitStatus,
-                        output: result.output,
-                        stderrOutput: result.stderrOutput.map { _ in errorData }
-                    )
-                    try result.throwIfErrored()
-                    synchronizationQueue.sync {
-                        subscriber.send(completion: .finished)
-                    }
-                } catch {
-                    synchronizationQueue.sync {
-                        subscriber.send(completion: .failure(error))
-                    }
-                }
-            }
-            return AnyCancellable {
-                if process.launched {
-                    process.signal(9) // SIGKILL
-                }
+        switch result.exitStatus {
+        case let .signalled(code):
+            let data = Data(stdErrData)
+            throw TuistSupport.SystemError.signalled(command: result.command(), code: code, standardError: data)
+        case let .terminated(code):
+            if code != 0 {
+                let data = Data(stdErrData)
+                throw TuistSupport.SystemError.terminated(command: result.command(), code: code, standardError: data)
             }
         }
-    }
-
-    // swiftlint:disable:next function_body_length
-    private func publisher(
-        _ arguments: [String],
-        environment: [String: String],
-        pipeTo secondArguments: [String]
-    ) -> AnyPublisher<SystemEvent<Data>, Error> {
-        .create { subscriber in
-            let synchronizationQueue = DispatchQueue(label: "io.tuist.support.system")
-            var errorData: [UInt8] = []
-            var processOne = System.process(arguments, environment: environment)
-            var processTwo = System.process(secondArguments, environment: environment)
-
-            System.pipe(&processOne, &processTwo)
-
-            let pipes = System.pipeOutput(&processTwo)
-
-            pipes.stdOut.fileHandleForReading.readabilityHandler = { fileHandle in
-                synchronizationQueue.async {
-                    let data: Data = fileHandle.availableData
-                    if !data.isEmpty {
-                        subscriber.send(.standardOutput(Data(data)))
-                    }
-                }
-            }
-
-            pipes.stdErr.fileHandleForReading.readabilityHandler = { fileHandle in
-                synchronizationQueue.async {
-                    let data: Data = fileHandle.availableData
-                    errorData.append(contentsOf: data)
-                    if !data.isEmpty {
-                        subscriber.send(.standardError(Data(data)))
-                    }
-                }
-            }
-
-            DispatchQueue.global().async {
-                do {
-                    try processOne.run()
-                    try processTwo.run()
-                    processOne.waitUntilExit()
-
-                    let exitStatus = ProcessResult.ExitStatus.terminated(code: processOne.terminationStatus)
-                    let result = ProcessResult(
-                        arguments: arguments,
-                        environment: environment,
-                        exitStatus: exitStatus,
-                        output: .success([]),
-                        stderrOutput: .success(errorData)
-                    )
-                    try result.throwIfErrored()
-                    synchronizationQueue.sync {
-                        subscriber.send(completion: .finished)
-                    }
-                } catch {
-                    synchronizationQueue.sync {
-                        subscriber.send(completion: .failure(error))
-                    }
-                }
-            }
-            return AnyCancellable {
-                pipes.stdOut.fileHandleForReading.readabilityHandler = nil
-                pipes.stdErr.fileHandleForReading.readabilityHandler = nil
-                if processOne.isRunning {
-                    processOne.terminate()
-                }
-            }
-        }
-    }
-
-    public func publisher(_ arguments: [String]) -> AnyPublisher<SystemEvent<Data>, Error> {
-        publisher(arguments, verbose: false, environment: env)
-    }
-
-    public func publisher(_ arguments: [String], pipeTo secondArguments: [String]) -> AnyPublisher<SystemEvent<Data>, Error> {
-        publisher(arguments, environment: env, pipeTo: secondArguments)
     }
 }

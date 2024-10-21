@@ -1,7 +1,7 @@
 import Foundation
 import TuistCore
-import TuistGraph
 import TuistSupport
+import XcodeGraph
 import XcodeProj
 
 /// Protocol that defines the interface of the workspace settings generation.

@@ -1,6 +1,6 @@
 import Foundation
-import TSCBasic
-import TuistGraph
+import Path
+import TuistCore
 @testable import TuistLoader
 
 public final class MockResourceSynthesizerPathLocator: ResourceSynthesizerPathLocating {
@@ -24,7 +24,7 @@ public final class MockResourceSynthesizerPathLocator: ResourceSynthesizerPathLo
     }
 
     public var locateStub: ((AbsolutePath) -> AbsolutePath?)?
-    public func locate(at: TSCBasic.AbsolutePath) -> TSCBasic.AbsolutePath? {
+    public func locate(at: Path.AbsolutePath) -> Path.AbsolutePath? {
         locateStub?(at)
     }
 }

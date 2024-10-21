@@ -1,10 +1,10 @@
-import TSCBasic
+import Path
 import TuistCore
-import TuistGraph
 import TuistLoader
 import TuistPlugin
 import TuistScaffold
 import TuistSupport
+import XcodeGraph
 
 enum ScaffoldServiceError: FatalError, Equatable {
     var type: ErrorType {
@@ -60,13 +60,13 @@ final class ScaffoldService {
     ) async throws -> (required: [String], optional: [String]) {
         let path = try self.path(path)
         let plugins = try await loadPlugins(at: path)
-        let templateDirectories = try locateTemplateDirectories(at: path, plugins: plugins)
+        let templateDirectories = try await locateTemplateDirectories(at: path, plugins: plugins)
         let templateDirectory = try templateDirectory(
             templateDirectories: templateDirectories,
             template: templateName
         )
 
-        let template = try templateLoader.loadTemplate(at: templateDirectory, plugins: plugins)
+        let template = try await templateLoader.loadTemplate(at: templateDirectory, plugins: plugins)
 
         return template.attributes.reduce(into: (required: [], optional: [])) { currentValue, attribute in
             switch attribute {
@@ -86,13 +86,13 @@ final class ScaffoldService {
     ) async throws {
         let path = try self.path(path)
         let plugins = try await loadPlugins(at: path)
-        let templateDirectories = try locateTemplateDirectories(at: path, plugins: plugins)
+        let templateDirectories = try await locateTemplateDirectories(at: path, plugins: plugins)
 
         let templateDirectory = try templateDirectory(
             templateDirectories: templateDirectories,
             template: templateName
         )
-        let template = try templateLoader.loadTemplate(at: templateDirectory, plugins: plugins)
+        let template = try await templateLoader.loadTemplate(at: templateDirectory, plugins: plugins)
 
         let parsedAttributes = try parseAttributes(
             requiredTemplateOptions: requiredTemplateOptions,
@@ -100,7 +100,7 @@ final class ScaffoldService {
             template: template
         )
 
-        try templateGenerator.generate(
+        try await templateGenerator.generate(
             template: template,
             to: path,
             attributes: parsedAttributes
@@ -120,7 +120,7 @@ final class ScaffoldService {
     }
 
     private func loadPlugins(at path: AbsolutePath) async throws -> Plugins {
-        let config = try configLoader.loadConfig(path: path)
+        let config = try await configLoader.loadConfig(path: path)
         return try await pluginService.loadPlugins(using: config)
     }
 
@@ -131,7 +131,7 @@ final class ScaffoldService {
         requiredTemplateOptions: [String: String],
         optionalTemplateOptions: [String: String?],
         template: Template
-    ) throws -> [String: TuistGraph.Template.Attribute.Value] {
+    ) throws -> [String: Template.Attribute.Value] {
         try template.attributes.reduce(into: [:]) { attributesDictionary, attribute in
             switch attribute {
             case let .required(name):
@@ -156,8 +156,8 @@ final class ScaffoldService {
     private func locateTemplateDirectories(
         at path: AbsolutePath,
         plugins: Plugins
-    ) throws -> [AbsolutePath] {
-        let templateRelativeDirectories = try templatesDirectoryLocator.templateDirectories(at: path)
+    ) async throws -> [AbsolutePath] {
+        let templateRelativeDirectories = try await templatesDirectoryLocator.templateDirectories(at: path)
         let templatePluginDirectories = plugins.templateDirectories
         return templateRelativeDirectories + templatePluginDirectories
     }

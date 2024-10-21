@@ -1,6 +1,6 @@
 import Darwin
 import Foundation
-import TSCBasic
+import Path
 import UniformTypeIdentifiers
 
 let systemGlob = Darwin.glob
@@ -93,6 +93,7 @@ extension AbsolutePath {
             "playground",
             "bundle",
             "mlmodelc",
+            "xcmappingmodel",
         ]
         .contains(self.extension ?? "")
     }

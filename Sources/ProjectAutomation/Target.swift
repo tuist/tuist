@@ -1,7 +1,7 @@
 import Foundation
 
 /// The structure defining the output schema of a target.
-public struct Target: Codable, Equatable {
+public struct Target: Codable, Equatable, Sendable {
     /// The name of the target.
     public let name: String
 

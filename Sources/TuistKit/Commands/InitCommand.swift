@@ -1,18 +1,18 @@
 import AnyCodable
 import ArgumentParser
 import Foundation
-import TSCBasic
+import Path
 import TuistCore
 import TuistGenerator
-import TuistGraph
 import TuistLoader
 import TuistScaffold
 import TuistSupport
+import XcodeGraph
 
-private typealias Platform = TuistGraph.Platform
-private typealias Product = TuistGraph.Product
+private typealias Platform = XcodeGraph.Platform
+private typealias Product = XcodeGraph.Product
 
-public struct InitCommand: ParsableCommand, HasTrackableParameters {
+public struct InitCommand: AsyncParsableCommand, HasTrackableParameters {
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "init",
@@ -21,29 +21,34 @@ public struct InitCommand: ParsableCommand, HasTrackableParameters {
     }
 
     public static var analyticsDelegate: TrackableParametersDelegate?
+    public var runId = UUID().uuidString
 
     @Option(
-        help: "The platform (ios, tvos, visionos, watchos or macos) the product will be for (Default: ios)",
-        completion: .list(["ios", "tvos", "macos", "visionos", "watchos"])
+        help: "The platform (iOS, tvOS, visionOS, watchOS or macOS) the product will be for (Default: iOS)",
+        completion: .list(["iOS", "tvOS", "macOS", "visionOS", "watchOS"]),
+        envKey: .initPlatform
     )
     var platform: String?
 
     @Option(
         name: .shortAndLong,
         help: "The path to the folder where the project will be generated. (Default: Current directory)",
-        completion: .directory
+        completion: .directory,
+        envKey: .initPath
     )
     var path: String?
 
     @Option(
         name: .shortAndLong,
-        help: "The name of the project. (Default: Name of the current directory)"
+        help: "The name of the project. (Default: Name of the current directory)",
+        envKey: .initName
     )
     var name: String?
 
     @Option(
         name: .shortAndLong,
-        help: "The name of the template to use (you can list available templates with tuist scaffold list)"
+        help: "The name of the template to use (you can list available templates with tuist scaffold list)",
+        envKey: .initTemplate
     )
     var template: String?
 
@@ -73,13 +78,13 @@ public struct InitCommand: ParsableCommand, HasTrackableParameters {
         }
     }
 
-    public func run() throws {
+    public func run() async throws {
         InitCommand.analyticsDelegate?.addParameters(
             [
                 "platform": AnyCodable(platform ?? "unknown"),
             ]
         )
-        try InitService().run(
+        try await InitService().run(
             name: name,
             platform: platform,
             path: path,
@@ -97,7 +102,7 @@ extension InitCommand {
     static var optionalTemplateOptions: [(name: String, option: Option<String?>)] = []
 
     /// We do not know template's option in advance -> we need to dynamically add them
-    static func preprocess(_ arguments: [String]? = nil) throws {
+    static func preprocess(_ arguments: [String]? = nil) async throws {
         guard let arguments,
               arguments.contains("--template") ||
               arguments.contains("-t")
@@ -120,7 +125,7 @@ extension InitCommand {
               templateName != "default"
         else { return }
 
-        let (required, optional) = try InitService().loadTemplateOptions(
+        let (required, optional) = try await InitService().loadTemplateOptions(
             templateName: templateName,
             path: command.path
         )

@@ -1,9 +1,9 @@
 import Foundation
 import ProjectDescription
-import TuistGraph
+import XcodeGraph
 
-extension TuistGraph.ScreenCaptureFormat {
-    static func from(manifest: ProjectDescription.ScreenCaptureFormat) -> TuistGraph.ScreenCaptureFormat {
+extension XcodeGraph.ScreenCaptureFormat {
+    static func from(manifest: ProjectDescription.ScreenCaptureFormat) -> XcodeGraph.ScreenCaptureFormat {
         switch manifest {
         case .screenshots:
             return .screenshots

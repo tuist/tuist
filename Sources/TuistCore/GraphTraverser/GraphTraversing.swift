@@ -1,7 +1,9 @@
 import Foundation
-import TSCBasic
-import TuistGraph
+import Mockable
+import Path
+import XcodeGraph
 
+@Mockable
 public protocol GraphTraversing {
     /// Graph name
     var name: String { get }
@@ -22,7 +24,7 @@ public protocol GraphTraversing {
     var projects: [AbsolutePath: Project] { get }
 
     /// Returns all the targets of the graph.
-    var targets: [AbsolutePath: [String: Target]] { get }
+    func targets() -> [AbsolutePath: [String: Target]]
 
     /// Dependencies.
     var dependencies: [GraphDependency: Set<GraphDependency>] { get }
@@ -73,6 +75,9 @@ public protocol GraphTraversing {
 
     /// - Returns: All direct and transitive target dependencies
     func allTargetDependencies(path: AbsolutePath, name: String) -> Set<GraphTarget>
+
+    /// - Returns: All direct and transitive target dependencies, traversing from the passed targets
+    func allTargetDependencies(traversingFromTargets: [GraphTarget]) -> Set<GraphTarget>
 
     /// Given a project directory and target name, it returns **all**l its direct target dependencies present in the same project.
     /// If you want only direct target dependencies present in the same project as the target, use `directLocalTargetDependencies`
@@ -268,6 +273,15 @@ public protocol GraphTraversing {
     ///   - path: Path to the directory that contains the project.
     ///   - name: Target name.
     func allSwiftPluginExecutables(path: AbsolutePath, name: String) -> Set<String>
+
+    /// Given a target's project path and name, it returns all XCFramework dependencies that linked by a dynamic XCFramework.
+    /// - Parameters:
+    ///   - path: Project path.
+    ///   - name: Target name.
+    func staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies(
+        path: AbsolutePath,
+        name: String
+    ) -> Set<GraphDependency>
 }
 
 extension GraphTraversing {

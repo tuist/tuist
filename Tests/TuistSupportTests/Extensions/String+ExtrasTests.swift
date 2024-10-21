@@ -1,5 +1,5 @@
 import Foundation
-import TSCBasic
+import Path
 import TSCUtility
 import XCTest
 
@@ -71,6 +71,50 @@ final class StringExtrasTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(got, "ValidClassName")
+    }
+
+    func test_to_valid_in_bundle_identifier_when_string_is_already_valid() {
+        // Given
+        let subject = "TestBundleIdentifier.tuist"
+
+        // When
+        let got = subject.toValidInBundleIdentifier()
+
+        // Then
+        XCTAssertEqual(got, "TestBundleIdentifier.tuist")
+    }
+
+    func test_to_valid_in_bundle_identifier_when_string_contains_under_bars() {
+        // Given
+        let subject = "_test_bundle_identifier_"
+
+        // When
+        let got = subject.toValidInBundleIdentifier()
+
+        // Then
+        XCTAssertEqual(got, "-test-bundle-identifier-")
+    }
+
+    func test_to_valid_in_bundle_identifier_when_string_contains_special_characters() {
+        // Given
+        let subject = "$test+bundle@identifier"
+
+        // When
+        let got = subject.toValidInBundleIdentifier()
+
+        // Then
+        XCTAssertEqual(got, "-test-bundle-identifier")
+    }
+
+    func test_to_valid_in_bundle_identifier_when_string_contains_white_spaces() {
+        // Given
+        let subject = "test  bundle  identifier"
+
+        // When
+        let got = subject.toValidInBundleIdentifier()
+
+        // Then
+        XCTAssertEqual(got, "test--bundle--identifier")
     }
 
     func test_string_doesnt_match_GitURL_regex() {

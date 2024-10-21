@@ -1,63 +1,141 @@
 import AnyCodable
 import ArgumentParser
 import Foundation
+import Path
+import TuistAnalytics
 import TuistAsyncQueue
+import TuistCache
+import TuistCore
 import TuistSupport
+
+public struct SelectiveTestsAnalytics: Equatable {
+    let testTargets: [String]
+    let localTestTargetHits: [String]
+    let remoteTestTargetHits: [String]
+}
 
 /// `TrackableCommandInfo` contains the information to report the execution of a command
 public struct TrackableCommandInfo {
+    let runId: String
     let name: String
     let subcommand: String?
     let parameters: [String: AnyCodable]
     let commandArguments: [String]
     let durationInMs: Int
+    let status: CommandEvent.Status
+    let targetHashes: [CommandEventGraphTarget: String]?
+    let graphPath: AbsolutePath?
+    let cacheableTargets: [String]
+    let cacheItems: [CacheItem]
+    let selectiveTestsAnalytics: SelectiveTestsAnalytics?
 }
 
 /// A `TrackableCommand` wraps a `ParsableCommand` and reports its execution to an analytics provider
 public class TrackableCommand: TrackableParametersDelegate {
+    public var targetHashes: [CommandEventGraphTarget: String]?
+    public var graphPath: AbsolutePath?
+    public var cacheableTargets: [String] = []
+    public var cacheItems: [CacheItem] = []
+    public var selectiveTestsAnalytics: SelectiveTestsAnalytics?
+
     private var command: ParsableCommand
     private let clock: Clock
     private var trackedParameters: [String: AnyCodable] = [:]
     private let commandArguments: [String]
     private let commandEventFactory: CommandEventFactory
     private let asyncQueue: AsyncQueuing
+    private let fileHandler: FileHandling
 
     public init(
         command: ParsableCommand,
         commandArguments: [String],
         clock: Clock = WallClock(),
         commandEventFactory: CommandEventFactory = CommandEventFactory(),
-        asyncQueue: AsyncQueuing = AsyncQueue.sharedInstance
+        asyncQueue: AsyncQueuing = AsyncQueue.sharedInstance,
+        fileHandler: FileHandling = FileHandler.shared
     ) {
         self.command = command
         self.commandArguments = commandArguments
         self.clock = clock
         self.commandEventFactory = commandEventFactory
         self.asyncQueue = asyncQueue
+        self.fileHandler = fileHandler
     }
 
-    public func run() async throws {
+    public func run(
+        analyticsEnabled: Bool
+    ) async throws {
+        let runId: String
         let timer = clock.startTimer()
-        if let command = command as? HasTrackableParameters {
+        if let command = command as? HasTrackableParameters & ParsableCommand {
             type(of: command).analyticsDelegate = self
-        }
-        if var asyncCommand = command as? AsyncParsableCommand {
-            try await asyncCommand.run()
+            runId = command.runId
+            self.command = command
         } else {
-            try command.run()
+            runId = UUID().uuidString
         }
+        let pathIndex = commandArguments.firstIndex(of: "--path")
+        let path: AbsolutePath
+        if let pathIndex, commandArguments.endIndex > pathIndex + 1 {
+            path = try AbsolutePath(validating: commandArguments[pathIndex + 1], relativeTo: fileHandler.currentPath)
+        } else {
+            path = fileHandler.currentPath
+        }
+        do {
+            if var asyncCommand = command as? AsyncParsableCommand {
+                try await asyncCommand.run()
+            } else {
+                try command.run()
+            }
+            if analyticsEnabled {
+                try dispatchCommandEvent(
+                    timer: timer,
+                    status: .success,
+                    runId: runId,
+                    path: path
+                )
+            }
+        } catch {
+            if analyticsEnabled {
+                try dispatchCommandEvent(
+                    timer: timer,
+                    status: .failure("\(error)"),
+                    runId: runId,
+                    path: path
+                )
+            }
+            throw error
+        }
+    }
+
+    private func dispatchCommandEvent(
+        timer: any ClockTimer,
+        status: CommandEvent.Status,
+        runId: String,
+        path: AbsolutePath
+    ) throws {
         let durationInSeconds = timer.stop()
         let durationInMs = Int(durationInSeconds * 1000)
         let configuration = type(of: command).configuration
         let (name, subcommand) = extractCommandName(from: configuration)
         let info = TrackableCommandInfo(
+            runId: runId,
             name: name,
             subcommand: subcommand,
             parameters: trackedParameters,
             commandArguments: commandArguments,
-            durationInMs: durationInMs
+            durationInMs: durationInMs,
+            status: status,
+            targetHashes: targetHashes,
+            graphPath: graphPath,
+            cacheableTargets: cacheableTargets,
+            cacheItems: cacheItems,
+            selectiveTestsAnalytics: selectiveTestsAnalytics
         )
-        let commandEvent = commandEventFactory.make(from: info)
+        let commandEvent = try commandEventFactory.make(
+            from: info,
+            path: path
+        )
         try asyncQueue.dispatch(event: commandEvent)
         asyncQueue.waitIfCI()
     }

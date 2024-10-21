@@ -1,7 +1,7 @@
 import Foundation
 
 /// Options for source file code generation.
-public enum FileCodeGen: String, Codable, Equatable {
+public enum FileCodeGen: String, Codable, Equatable, Sendable {
     /// Public codegen
     case `public`
     /// Private codegen

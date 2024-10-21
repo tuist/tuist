@@ -1,9 +1,9 @@
-import TSCBasic
+import Path
 import TuistCore
-import TuistGraph
 import TuistLoader
 import TuistScaffold
 import TuistSupport
+import XcodeGraph
 
 enum InitServiceError: FatalError, Equatable {
     case ungettableProjectName(AbsolutePath)
@@ -44,35 +44,32 @@ class InitService {
     private let templatesDirectoryLocator: TemplatesDirectoryLocating
     private let templateGenerator: TemplateGenerating
     private let templateGitLoader: TemplateGitLoading
-    private let tuistVersionLoader: TuistVersionLoading
 
     init(
         templateLoader: TemplateLoading = TemplateLoader(),
         templatesDirectoryLocator: TemplatesDirectoryLocating = TemplatesDirectoryLocator(),
         templateGenerator: TemplateGenerating = TemplateGenerator(),
-        templateGitLoader: TemplateGitLoading = TemplateGitLoader(),
-        tuistVersionLoader: TuistVersionLoading = TuistVersionLoader()
+        templateGitLoader: TemplateGitLoading = TemplateGitLoader()
     ) {
         self.templateLoader = templateLoader
         self.templatesDirectoryLocator = templatesDirectoryLocator
         self.templateGenerator = templateGenerator
         self.templateGitLoader = templateGitLoader
-        self.tuistVersionLoader = tuistVersionLoader
     }
 
     func loadTemplateOptions(
         templateName: String,
         path: String?
-    ) throws -> (
+    ) async throws -> (
         required: [String],
         optional: [String]
     ) {
         let path = try self.path(path)
-        let directories = try templatesDirectoryLocator.templateDirectories(at: path)
+        let directories = try await templatesDirectoryLocator.templateDirectories(at: path)
         var attributes: [Template.Attribute] = []
 
         if templateName.isGitURL {
-            try templateGitLoader.loadTemplate(from: templateName) { template in
+            try await templateGitLoader.loadTemplate(from: templateName) { template in
                 attributes = template.attributes
             }
         } else {
@@ -81,7 +78,7 @@ class InitService {
                 template: templateName
             )
 
-            let template = try templateLoader.loadTemplate(at: templateDirectory, plugins: .none)
+            let template = try await templateLoader.loadTemplate(at: templateDirectory, plugins: .none)
             attributes = template.attributes
         }
 
@@ -108,47 +105,46 @@ class InitService {
         templateName: String?,
         requiredTemplateOptions: [String: String],
         optionalTemplateOptions: [String: String?]
-    ) throws {
+    ) async throws {
         let platform = try self.platform(platform)
         let path = try self.path(path)
         let name = try self.name(name, path: path)
         let templateName = templateName ?? "default"
-        let tuistVersion = try tuistVersionLoader.getVersion()
         try verifyDirectoryIsEmpty(path: path)
 
         if templateName.isGitURL {
-            try templateGitLoader.loadTemplate(from: templateName, closure: { template in
-                let parsedAttributes = try parseAttributes(
+            try await templateGitLoader.loadTemplate(from: templateName, closure: { template in
+                let parsedAttributes = try self.parseAttributes(
                     name: name,
                     platform: platform,
-                    tuistVersion: tuistVersion,
+                    tuistVersion: Constants.version,
                     requiredTemplateOptions: requiredTemplateOptions,
                     optionalTemplateOptions: optionalTemplateOptions,
                     template: template
                 )
 
-                try templateGenerator.generate(
+                try await self.templateGenerator.generate(
                     template: template,
                     to: path,
                     attributes: parsedAttributes
                 )
             })
         } else {
-            let directories = try templatesDirectoryLocator.templateDirectories(at: path)
+            let directories = try await templatesDirectoryLocator.templateDirectories(at: path)
             guard let templateDirectory = directories.first(where: { $0.basename == templateName })
             else { throw InitServiceError.templateNotFound(templateName) }
 
-            let template = try templateLoader.loadTemplate(at: templateDirectory, plugins: .none)
+            let template = try await templateLoader.loadTemplate(at: templateDirectory, plugins: .none)
             let parsedAttributes = try parseAttributes(
                 name: name,
                 platform: platform,
-                tuistVersion: tuistVersion,
+                tuistVersion: Constants.version,
                 requiredTemplateOptions: requiredTemplateOptions,
                 optionalTemplateOptions: optionalTemplateOptions,
                 template: template
             )
 
-            try templateGenerator.generate(
+            try await templateGenerator.generate(
                 template: template,
                 to: path,
                 attributes: parsedAttributes
@@ -187,11 +183,13 @@ class InitService {
         requiredTemplateOptions: [String: String],
         optionalTemplateOptions: [String: String?],
         template: Template
-    ) throws -> [String: TuistGraph.Template.Attribute.Value] {
-        let defaultAttributes: [String: TuistGraph.Template.Attribute.Value] = [
+    ) throws -> [String: Template.Attribute.Value] {
+        let defaultAttributes: [String: Template.Attribute.Value] = [
             "name": .string(name),
             "platform": .string(platform.caseValue),
             "tuist_version": .string(tuistVersion),
+            "class_name": .string(name.toValidSwiftIdentifier()),
+            "bundle_identifier": .string(name.toValidInBundleIdentifier()),
         ]
         return try template.attributes.reduce(into: defaultAttributes) { attributesDictionary, attribute in
             if defaultAttributes.keys.contains(attribute.name) { return }
@@ -224,16 +222,15 @@ class InitService {
         return templateDirectory
     }
 
+    /// Returns name to use. If `name` is nil, returns a directory name executed `init` command.
     private func name(_ name: String?, path: AbsolutePath) throws -> String {
-        let initName: String
         if let name {
-            initName = name
-        } else if let name = path.components.last {
-            initName = name
+            return name
+        } else if let directoryName = path.components.last {
+            return directoryName
         } else {
             throw InitServiceError.ungettableProjectName(AbsolutePath.current)
         }
-        return initName.camelized.uppercasingFirst
     }
 
     private func path(_ path: String?) throws -> AbsolutePath {

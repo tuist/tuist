@@ -1,28 +1,32 @@
 import Foundation
-import TSCBasic
+import Mockable
+import Path
 import TuistCore
 import TuistCoreTesting
-import TuistGraph
-import TuistGraphTesting
+import XcodeGraph
 import XcodeProj
 import XCTest
 @testable import TuistGenerator
 @testable import TuistSupportTesting
 
 final class ProjectFileElementsTests: TuistUnitTestCase {
-    var subject: ProjectFileElements!
-    var groups: ProjectGroups!
-    var pbxproj: PBXProj!
-    var cacheDirectoriesProvider: MockCacheDirectoriesProvider!
+    private var subject: ProjectFileElements!
+    private var groups: ProjectGroups!
+    private var pbxproj: PBXProj!
+    private var cacheDirectoriesProvider: MockCacheDirectoriesProviding!
 
     override func setUpWithError() throws {
         super.setUp()
-        cacheDirectoriesProvider = try MockCacheDirectoriesProvider()
+        cacheDirectoriesProvider = .init()
         pbxproj = PBXProj()
         groups = ProjectGroups.generate(
             project: .test(path: "/path", sourceRootPath: "/path", xcodeProjPath: "/path/Project.xcodeproj"),
             pbxproj: pbxproj
         )
+
+        given(cacheDirectoriesProvider)
+            .cacheDirectory()
+            .willReturn(try! temporaryPath())
 
         subject = ProjectFileElements(cacheDirectoriesProvider: cacheDirectoriesProvider)
     }
@@ -229,10 +233,10 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         ])
     }
 
-    func test_addElement_lproj_multiple_files() throws {
+    func test_addElement_lproj_multiple_files() async throws {
         // Given
         let temporaryPath = try temporaryPath()
-        let resources = try createFiles([
+        let resources = try await createFiles([
             "resources/en.lproj/App.strings",
             "resources/en.lproj/App.stringsdict",
             "resources/en.lproj/Extension.strings",
@@ -277,10 +281,10 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         ])
     }
 
-    func test_addElement_lproj_variant_groups() throws {
+    func test_addElement_lproj_variant_groups() async throws {
         // Given
         let temporaryPath = try temporaryPath()
-        let resources = try createFiles([
+        let resources = try await createFiles([
             "resources/Base.lproj/Controller.xib",
             "resources/Base.lproj/Intents.intentdefinition",
             "resources/Base.lproj/Storyboard.storyboard",
@@ -331,10 +335,10 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         ])
     }
 
-    func test_addElement_lproj_knownRegions() throws {
+    func test_addElement_lproj_knownRegions() async throws {
         // Given
         let temporaryPath = try temporaryPath()
-        let resources = try createFiles([
+        let resources = try await createFiles([
             "resources/en.lproj/App.strings",
             "resources/en.lproj/Extension.strings",
             "resources/fr.lproj/App.strings",
@@ -779,7 +783,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj)
 
         let sdkPath = try temporaryPath().appending(component: "ARKit.framework")
-        let sdkStatus: SDKStatus = .required
+        let sdkStatus: LinkingStatus = .required
         let sdkSource: SDKSource = .developer
         let sdkDependency = GraphDependencyReference.sdk(
             path: sdkPath,
@@ -819,7 +823,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         )
         let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj)
 
-        let frameworkPath = try cacheDirectoriesProvider.cacheDirectory().appending(component: "Test.framework")
+        let frameworkPath = cacheDirectoriesProvider.cacheDirectory().appending(component: "Test.framework")
         let binaryPath = frameworkPath.appending(component: "Test")
 
         let frameworkDependency = GraphDependencyReference.framework(
@@ -866,7 +870,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         )
         let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj)
 
-        let frameworkPath = try cacheDirectoriesProvider.cacheDirectory().appending(component: "Test.framework")
+        let frameworkPath = cacheDirectoriesProvider.cacheDirectory().appending(component: "Test.framework")
         let binaryPath = frameworkPath.appending(component: "Test")
 
         let frameworkDependency = GraphDependencyReference.framework(
@@ -881,7 +885,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         )
 
         let sdkPath = try temporaryPath().appending(component: "ARKit.framework")
-        let sdkStatus: SDKStatus = .required
+        let sdkStatus: LinkingStatus = .required
         let sdkSource: SDKSource = .developer
         let sdkDependency = GraphDependencyReference.sdk(
             path: sdkPath,
@@ -945,11 +949,6 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
             packages: [
                 project.path: [
                     "A": .remote(url: "url", requirement: .branch("master")),
-                ],
-            ],
-            targets: [
-                graphTarget.path: [
-                    graphTarget.target.name: graphTarget.target,
                 ],
             ],
             dependencies: [

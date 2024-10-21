@@ -1,7 +1,7 @@
+import FileSystem
 import Foundation
-import TSCBasic
+import Path
 import TuistCore
-import TuistGraph
 import TuistSupport
 import XCTest
 
@@ -9,24 +9,27 @@ import XCTest
 @testable import TuistSupportTesting
 
 final class ProjectDescriptionHelpersBuilderIntegrationTests: TuistTestCase {
-    var subject: ProjectDescriptionHelpersBuilder!
-    var resourceLocator: ResourceLocator!
-    var helpersDirectoryLocator: HelpersDirectoryLocating!
+    private var subject: ProjectDescriptionHelpersBuilder!
+    private var resourceLocator: ResourceLocator!
+    private var helpersDirectoryLocator: HelpersDirectoryLocating!
+    private var fileSystem: FileSysteming!
 
     override func setUp() {
         super.setUp()
         resourceLocator = ResourceLocator()
         helpersDirectoryLocator = HelpersDirectoryLocator(rootDirectoryLocator: RootDirectoryLocator())
+        fileSystem = FileSystem()
     }
 
     override func tearDown() {
         subject = nil
         resourceLocator = nil
         helpersDirectoryLocator = nil
+        fileSystem = nil
         super.tearDown()
     }
 
-    func test_build_when_the_helpers_is_a_dylib() throws {
+    func test_build_when_the_helpers_is_a_dylib() async throws {
         // Given
         let path = try temporaryPath()
         subject = ProjectDescriptionHelpersBuilder(
@@ -42,24 +45,29 @@ final class ProjectDescriptionHelpersBuilderIntegrationTests: TuistTestCase {
             path: helpersPath.appending(component: "Helper.swift"),
             atomically: true
         )
-        let projectDescriptionPath = try resourceLocator.projectDescription()
+        let projectDescriptionPath = try await resourceLocator.projectDescription()
         let searchPaths = ProjectDescriptionSearchPaths.paths(for: projectDescriptionPath)
 
         // When
-        let paths = try (0 ..< 3).map { _ in
-            try subject.build(at: path, projectDescriptionSearchPaths: searchPaths, projectDescriptionHelperPlugins: [])
+        let paths = try await Array(0 ..< 3).concurrentMap { _ in
+            try await self.subject.build(
+                at: path,
+                projectDescriptionSearchPaths: searchPaths,
+                projectDescriptionHelperPlugins: []
+            )
         }
 
         // Then
         XCTAssertEqual(Set(paths).count, 1)
-        XCTAssertNotNil(FileHandler.shared.glob(path, glob: "*/*/ProjectDescriptionHelpers.swiftmodule").first)
-        XCTAssertNotNil(FileHandler.shared.glob(path, glob: "*/*/libProjectDescriptionHelpers.dylib").first)
-        XCTAssertNotNil(FileHandler.shared.glob(path, glob: "*/*/ProjectDescriptionHelpers.swiftdoc").first)
+        XCTAssertNotNil(FileHandler.shared.glob(path, glob: "*/ProjectDescriptionHelpers.swiftmodule").first)
+        XCTAssertNotNil(FileHandler.shared.glob(path, glob: "*/libProjectDescriptionHelpers.dylib").first)
+        XCTAssertNotNil(FileHandler.shared.glob(path, glob: "*/ProjectDescriptionHelpers.swiftdoc").first)
         let helpersModule = try XCTUnwrap(paths.first?.first)
-        XCTAssertTrue(FileHandler.shared.exists(helpersModule.path))
+        let exists = try await fileSystem.exists(helpersModule.path)
+        XCTAssertTrue(exists)
     }
 
-    func test_build_when_the_helpers_is_a_plugin() throws {
+    func test_build_when_the_helpers_is_a_plugin() async throws {
         // Given
         let path = try temporaryPath()
         subject = ProjectDescriptionHelpersBuilder(cacheDirectory: path, helpersDirectoryLocator: helpersDirectoryLocator)
@@ -72,22 +80,27 @@ final class ProjectDescriptionHelpersBuilderIntegrationTests: TuistTestCase {
             path: helpersPluginPath.appending(component: "Helper.swift"),
             atomically: true
         )
-        let projectDescriptionPath = try resourceLocator.projectDescription()
+        let projectDescriptionPath = try await resourceLocator.projectDescription()
         let searchPaths = ProjectDescriptionSearchPaths.paths(for: projectDescriptionPath)
         let plugins = [ProjectDescriptionHelpersPlugin(name: "Plugin", path: helpersPluginPath, location: .local)]
 
         // When
-        let paths = try (0 ..< 3).map { _ in
-            try subject.build(at: path, projectDescriptionSearchPaths: searchPaths, projectDescriptionHelperPlugins: plugins)
+        let paths = try await Array(0 ..< 3).concurrentMap { _ in
+            try await self.subject.build(
+                at: path,
+                projectDescriptionSearchPaths: searchPaths,
+                projectDescriptionHelperPlugins: plugins
+            )
         }
 
         // Then
         XCTAssertEqual(Set(paths).count, 1)
-        XCTAssertNotNil(FileHandler.shared.glob(path, glob: "*/*/Plugin.swiftsourceinfo").first)
-        XCTAssertNotNil(FileHandler.shared.glob(path, glob: "*/*/Plugin.swiftmodule").first)
-        XCTAssertNotNil(FileHandler.shared.glob(path, glob: "*/*/libPlugin.dylib").first)
-        XCTAssertNotNil(FileHandler.shared.glob(path, glob: "*/*/Plugin.swiftdoc").first)
+        XCTAssertNotNil(FileHandler.shared.glob(path, glob: "*/Plugin.swiftsourceinfo").first)
+        XCTAssertNotNil(FileHandler.shared.glob(path, glob: "*/Plugin.swiftmodule").first)
+        XCTAssertNotNil(FileHandler.shared.glob(path, glob: "*/libPlugin.dylib").first)
+        XCTAssertNotNil(FileHandler.shared.glob(path, glob: "*/Plugin.swiftdoc").first)
         let helpersModule = try XCTUnwrap(paths.first?.first)
-        XCTAssertTrue(FileHandler.shared.exists(helpersModule.path))
+        let exists = try await fileSystem.exists(helpersModule.path)
+        XCTAssertTrue(exists)
     }
 }

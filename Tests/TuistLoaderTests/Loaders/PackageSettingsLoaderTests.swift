@@ -1,12 +1,11 @@
 import Foundation
-import MockableTest
-import TSCBasic
+import Mockable
+import Path
 import TSCUtility
 import TuistCore
 import TuistCoreTesting
-import TuistGraph
-import TuistGraphTesting
 import TuistSupport
+import XcodeGraph
 import XCTest
 
 @testable import ProjectDescription
@@ -15,22 +14,29 @@ import XCTest
 @testable import TuistSupportTesting
 
 final class PackageSettingsLoaderTests: TuistUnitTestCase {
-    private var manifestLoader: MockManifestLoader!
+    private var manifestLoader: MockManifestLoading!
     private var swiftPackageManagerController: MockSwiftPackageManagerController!
     private var manifestFilesLocator: MockManifestFilesLocating!
+    private var rootDirectoryLocator: MockRootDirectoryLocating!
     private var subject: PackageSettingsLoader!
 
-    override func setUp() {
+    override func setUpWithError() throws {
         super.setUp()
 
-        manifestLoader = MockManifestLoader()
+        manifestLoader = .init()
         swiftPackageManagerController = MockSwiftPackageManagerController()
         manifestFilesLocator = MockManifestFilesLocating()
+        rootDirectoryLocator = MockRootDirectoryLocating()
+
+        given(rootDirectoryLocator)
+            .locate(from: .any)
+            .willReturn(try temporaryPath())
+
         subject = PackageSettingsLoader(
             manifestLoader: manifestLoader,
             swiftPackageManagerController: swiftPackageManagerController,
-            fileHandler: fileHandler,
-            manifestFilesLocator: manifestFilesLocator
+            manifestFilesLocator: manifestFilesLocator,
+            rootDirectoryLocator: rootDirectoryLocator
         )
     }
 
@@ -38,11 +44,12 @@ final class PackageSettingsLoaderTests: TuistUnitTestCase {
         subject = nil
         manifestLoader = nil
         swiftPackageManagerController = nil
+        rootDirectoryLocator = nil
 
         super.tearDown()
     }
 
-    func test_loadPackageSettings() throws {
+    func test_loadPackageSettings() async throws {
         // Given
         let temporaryPath = try temporaryPath()
         let plugins = Plugins.test()
@@ -50,30 +57,40 @@ final class PackageSettingsLoaderTests: TuistUnitTestCase {
             .locatePackageManifest(at: .any)
             .willReturn(temporaryPath)
 
+        given(manifestLoader)
+            .register(plugins: .any)
+            .willReturn(())
+
+        given(manifestLoader)
+            .loadPackageSettings(at: .any)
+            .willReturn(.test())
+
         swiftPackageManagerController.getToolsVersionStub = { _ in
             TSCUtility.Version("5.4.9")
         }
 
         // When
-        let got = try subject.loadPackageSettings(at: temporaryPath, with: plugins)
+        let got = try await subject.loadPackageSettings(at: temporaryPath, with: plugins)
 
         // Then
-        let expected: TuistGraph.PackageSettings = .init(
+        let expected: TuistCore.PackageSettings = .init(
             productTypes: [:],
             productDestinations: [:],
-            baseSettings: TuistGraph.Settings(
+            baseSettings: XcodeGraph.Settings(
                 base: [:],
                 baseDebug: [:],
                 configurations: [
-                    .release: TuistGraph.Configuration(settings: [:], xcconfig: nil),
-                    .debug: TuistGraph.Configuration(settings: [:], xcconfig: nil),
+                    .release: XcodeGraph.Configuration(settings: [:], xcconfig: nil),
+                    .debug: XcodeGraph.Configuration(settings: [:], xcconfig: nil),
                 ],
                 defaultSettings: .recommended
             ),
             targetSettings: [:],
-            swiftToolsVersion: TSCUtility.Version("5.4.9")
+            swiftToolsVersion: Version(stringLiteral: "5.4.9")
         )
-        XCTAssertEqual(manifestLoader.registerPluginsCount, 1)
+        verify(manifestLoader)
+            .register(plugins: .any)
+            .called(1)
         XCTAssertEqual(got, expected)
     }
 }

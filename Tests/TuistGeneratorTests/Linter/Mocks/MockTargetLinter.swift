@@ -1,12 +1,11 @@
 import Foundation
 import TuistCore
-import TuistGraph
-import TuistGraphTesting
 import TuistSupport
+import XcodeGraph
 @testable import TuistGenerator
 
 class MockTargetLinter: TargetLinting {
-    func lint(target _: Target) -> [LintingIssue] {
+    func lint(target _: Target, options _: Project.Options) -> [LintingIssue] {
         []
     }
 }

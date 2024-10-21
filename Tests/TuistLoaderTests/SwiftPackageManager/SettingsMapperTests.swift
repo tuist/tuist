@@ -1,9 +1,9 @@
+import Path
 import ProjectDescription
-import TSCBasic
 import TSCUtility
 import TuistCore
-import TuistGraph
 import TuistSupport
+import XcodeGraph
 import XCTest
 
 @testable import TuistLoader
@@ -144,6 +144,7 @@ final class SettingsMapperTests: XCTestCase {
             .init(tool: .swift, name: .unsafeFlags, condition: nil, value: ["ArbitraryFlag"]),
             .init(tool: .swift, name: .enableUpcomingFeature, condition: nil, value: ["NewFeature"]),
             .init(tool: .swift, name: .enableExperimentalFeature, condition: nil, value: ["Experimental"]),
+            .init(tool: .swift, name: .swiftLanguageMode, condition: nil, value: ["5"]),
         ]
 
         let mapper = SettingsMapper(
@@ -161,6 +162,7 @@ final class SettingsMapperTests: XCTestCase {
                 "ArbitraryFlag",
                 "-enable-upcoming-feature \"NewFeature\"",
                 "-enable-experimental-feature \"Experimental\"",
+                "-swift-version 5",
             ])
         )
     }
@@ -211,14 +213,14 @@ final class SettingsMapperTests: XCTestCase {
             .string("$(inherited) SWIFT_PACKAGE Define1")
         )
 
-        let iosPlatformSettings = try mapper.settingsDictionary(for: .ios)
+        let iosPlatformSettings = try mapper.settingsDictionary(for: .iOS)
 
         XCTAssertEqual(
             iosPlatformSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS"],
             .string("$(inherited) SWIFT_PACKAGE Define1 Define2")
         )
 
-        let combinedSettings = try mapper.settingsForPlatforms([.ios, .macos, .tvos])
+        let combinedSettings = try mapper.mapSettings()
 
         XCTAssertEqual(
             combinedSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS[sdk=iphoneos*]"],
@@ -245,11 +247,60 @@ final class SettingsMapperTests: XCTestCase {
             .string("$(inherited) SWIFT_PACKAGE Define1")
         )
     }
+
+    func test_set_maccatalyst() throws {
+        let settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting] = [
+            .init(tool: .swift, name: .define, condition: nil, value: ["Define1"]),
+            .init(
+                tool: .swift,
+                name: .define,
+                condition: PackageInfo.PackageConditionDescription(platformNames: ["maccatalyst"], config: nil),
+                value: ["Define2"]
+            ),
+        ]
+
+        let mapper = SettingsMapper(
+            headerSearchPaths: [],
+            mainRelativePath: try RelativePath(validating: "path"),
+            settings: settings
+        )
+
+        let allPlatformSettings = try mapper.settingsDictionary()
+
+        XCTAssertEqual(
+            allPlatformSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS"],
+            .string("$(inherited) SWIFT_PACKAGE Define1")
+        )
+
+        let iosPlatformSettings = try mapper.settingsDictionary(for: .iOS)
+
+        XCTAssertEqual(
+            iosPlatformSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS"],
+            .string("$(inherited) SWIFT_PACKAGE Define1 Define2")
+        )
+
+        let combinedSettings = try mapper.mapSettings()
+
+        XCTAssertEqual(
+            combinedSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS[sdk=iphoneos*]"],
+            .string("$(inherited) SWIFT_PACKAGE Define1 Define2")
+        )
+
+        XCTAssertEqual(
+            combinedSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS[sdk=iphonesimulator*]"],
+            .string("$(inherited) SWIFT_PACKAGE Define1 Define2")
+        )
+
+        XCTAssertEqual(
+            combinedSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS"],
+            .string("$(inherited) SWIFT_PACKAGE Define1")
+        )
+    }
 }
 
 // OTHER_LDFLAGS
 
-extension TuistGraph.SettingsDictionary {
+extension XcodeGraph.SettingsDictionary {
     func stringValueFor(_ key: String) throws -> String {
         try XCTUnwrap(self[key]?.stringValue)
     }
@@ -259,7 +310,7 @@ extension TuistGraph.SettingsDictionary {
     }
 }
 
-extension TuistGraph.SettingValue {
+extension XcodeGraph.SettingValue {
     var stringValue: String? {
         if case let .string(string) = self {
             return string
@@ -278,11 +329,9 @@ extension TuistGraph.SettingValue {
 }
 
 extension PackageInfo.Platform {
-    static var ios = PackageInfo.Platform(platformName: "ios", version: "11.0", options: [])
-    static var macos = PackageInfo.Platform(platformName: "macos", version: "11.0", options: [])
-    static var watchos = PackageInfo.Platform(platformName: "watchos", version: "11.0", options: [])
-    static var tvos = PackageInfo.Platform(platformName: "tvos", version: "11.0", options: [])
-    static var visionos = PackageInfo.Platform(platformName: "visionos", version: "11.0", options: [])
-    static var linux = PackageInfo.Platform(platformName: "linux", version: "11.0", options: [])
-    static var windows = PackageInfo.Platform(platformName: "windows", version: "11.0", options: [])
+    static var ios = PackageInfo.Platform(platformName: "ios", version: "12.0", options: [])
+    static var macos = PackageInfo.Platform(platformName: "macos", version: "10.13", options: [])
+    static var watchos = PackageInfo.Platform(platformName: "watchos", version: "4.0", options: [])
+    static var tvos = PackageInfo.Platform(platformName: "tvos", version: "12.0", options: [])
+    static var visionos = PackageInfo.Platform(platformName: "visionos", version: "1.0", options: [])
 }

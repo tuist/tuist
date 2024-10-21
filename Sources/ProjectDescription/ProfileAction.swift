@@ -3,7 +3,7 @@ import Foundation
 /// An action that profiles the built products.
 ///
 /// It's initialized with the `.profileAction` static method
-public struct ProfileAction: Equatable, Codable {
+public struct ProfileAction: Equatable, Codable, Sendable {
     /// Indicates the build configuration the product should be profiled with.
     public var configuration: ConfigurationName
 

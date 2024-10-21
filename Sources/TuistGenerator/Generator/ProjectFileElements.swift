@@ -1,8 +1,8 @@
 import Foundation
-import TSCBasic
+import Path
 import TuistCore
-import TuistGraph
 import TuistSupport
+import XcodeGraph
 import XcodeProj
 
 public struct GroupFileElement: Hashable {
@@ -60,7 +60,7 @@ class ProjectFileElements {
     ) throws {
         var files = Set<GroupFileElement>()
 
-        for target in project.targets {
+        for target in project.targets.values.sorted() {
             try files.formUnion(targetFiles(target: target))
         }
         let projectFileElements = projectFiles(project: project)
@@ -79,7 +79,7 @@ class ProjectFileElements {
         )
 
         // Products
-        let directProducts = project.targets.map {
+        let directProducts = project.targets.values.map {
             GraphDependencyReference.product(target: $0.name, productName: $0.productNameWithExtension, condition: nil)
         }
 
@@ -219,7 +219,7 @@ class ProjectFileElements {
                     group: filesGroup,
                     sourceRootPath: sourceRootPath
                 )
-            case let .xcframework(path, _, _, _, _, _):
+            case let .xcframework(path, _, _, _):
                 try generatePrecompiledDependency(
                     path,
                     groups: groups,
@@ -257,7 +257,7 @@ class ProjectFileElements {
                     toGroup: groups.frameworks,
                     pbxproj: pbxproj
                 )
-            case let .product(target: target, productName: productName, _):
+            case let .product(target: target, productName: productName, _, _):
                 try generateProduct(
                     targetName: target,
                     productName: productName,
@@ -276,7 +276,7 @@ class ProjectFileElements {
         sourceRootPath: AbsolutePath
     ) throws {
         // Pre-compiled artifact from the cache
-        let cacheDirectory = try cacheDirectoriesProvider.cacheDirectory()
+        let cacheDirectory = cacheDirectoriesProvider.cacheDirectory()
         if path.pathString.contains(cacheDirectory.pathString) {
             guard compiled[path] == nil else {
                 return

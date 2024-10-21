@@ -1,8 +1,8 @@
 import Foundation
-import TSCBasic
+import Path
 import TuistCore
-import TuistGraph
 import TuistSupport
+import XcodeGraph
 
 /// A project mapper that adds support for defining resources in targets that don't support it
 public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this type_body_length
@@ -18,15 +18,18 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         logger.debug("Transforming project \(project.name): Generating bundles for libraries'")
 
         var sideEffects: [SideEffectDescriptor] = []
-        var targets: [Target] = []
+        var targets: [String: Target] = [:]
 
-        for target in project.targets {
+        for target in project.targets.values {
             let (mappedTargets, targetSideEffects) = try mapTarget(target, project: project)
-            targets.append(contentsOf: mappedTargets)
+            mappedTargets.forEach { targets[$0.name] = $0 }
             sideEffects.append(contentsOf: targetSideEffects)
         }
 
-        return (project.with(targets: targets), sideEffects)
+        var project = project
+        project.targets = targets
+
+        return (project, sideEffects)
     }
 
     // swiftlint:disable:next function_body_length
@@ -36,7 +39,8 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         var additionalTargets: [Target] = []
         var sideEffects: [SideEffectDescriptor] = []
 
-        let bundleName = "\(project.name)_\(target.name.replacingOccurrences(of: "-", with: "_"))"
+        let sanitizedTargetName = target.name.sanitizedModuleName
+        let bundleName = "\(project.name)_\(sanitizedTargetName)"
         var modifiedTarget = target
 
         if !target.supportsResources {
@@ -44,13 +48,14 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
                 name: bundleName,
                 destinations: target.destinations,
                 product: .bundle,
-                productName: nil,
+                productName: bundleName,
                 bundleId: "\(target.bundleId).resources",
                 deploymentTargets: target.deploymentTargets,
                 infoPlist: .extendingDefault(with: [:]),
                 settings: Settings(
                     base: [
                         "CODE_SIGNING_ALLOWED": "NO",
+                        "SKIP_INSTALL": "YES",
                     ],
                     configurations: [:]
                 ),
@@ -61,7 +66,11 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
             )
             modifiedTarget.resources.resources = []
             modifiedTarget.copyFiles = []
-            modifiedTarget.dependencies.append(.target(name: bundleName, condition: .when(target.dependencyPlatformFilters)))
+            modifiedTarget.dependencies.append(.target(
+                name: bundleName,
+                status: .required,
+                condition: .when(target.dependencyPlatformFilters)
+            ))
             additionalTargets.append(resourcesTarget)
         }
 
@@ -77,9 +86,11 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
             sideEffects.append(sideEffect)
         }
 
-        if target.supportsSources,
+        if project.isExternal,
+           target.supportsSources,
            target.sources.containsObjcFiles,
-           target.resources.containsBundleAccessedResources
+           target.resources.containsBundleAccessedResources,
+           !target.supportsResources
         {
             let (headerFilePath, headerData) = synthesizedObjcHeaderFile(bundleName: bundleName, target: target, project: project)
 

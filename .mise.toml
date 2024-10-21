@@ -1,39 +1,19 @@
 [tools]
-tuist = "4.11.0"
+tuist = "4.30.0"
 swiftlint = "0.54.0"
 swiftformat = "0.53.3"
 pnpm = "8.15.6"
 node = "20.12.0"
-sourcedocs = "2.0.1"
+sourcedocs = "2.0.2"
+create-dmg = "1.2.2"
+"git-cliff" = "2.4.0"
+"spm:apple/swift-openapi-generator" = "1.3.1"
 
 [plugins]
-python = 'https://github.com/asdf-community/asdf-tuist'
-sourcedocs = "https://github.com/tuist/asdf-sourcedocs.git"
+sourcedocs = "https://github.com/tuist/asdf-sourcedocs#fix/xcode-16"
+create-dmg = "https://github.com/tuist/asdf-create-dmg.git"
 
-[tasks."tuist:edit"]
-description = "Edit the project using Tuist"
-run = "./make/tasks/tuist/edit.sh"
-
-[tasks."tuist:generate"]
-description = "Generate the project using Tuist"
-run = "./make/tasks/tuist/generate.sh"
-
-[tasks."tuist:build"]
-description = "Build the project using Tuist"
-run = "./make/tasks/tuist/build.sh"
-
-[tasks."tuist:test"]
-description = "Test the project using Tuist"
-run = "./make/tasks/tuist/test.sh"
-
-[tasks."tuist:run"]
-description = "Run the project using Tuist"
-run = "./make/tasks/tuist/run.sh"
-
-[tasks."lint"]
-description = "Lint the workspace"
-run = "./make/tasks/workspace/lint.sh"
-
-[tasks."lint:fix"]
-description = "Lint the workspace fixing the issues"
-run = "./make/tasks/workspace/lint-fix.sh"
+[settings]
+jobs = 6
+http_timeout = "60"
+experimental = true

@@ -1,9 +1,9 @@
 import Foundation
-import TSCBasic
+import Path
 import TuistCore
 import TuistDependencies
 import TuistGenerator
-import TuistGraph
+import XcodeGraph
 
 /// The GraphMapperFactorying describes the interface of a factory of graph mappers.
 /// Methods in the interface map with workflows exposed to the user.
@@ -12,7 +12,6 @@ protocol GraphMapperFactorying {
     /// - Returns: A graph mapper.
     func automation(
         config: Config,
-        testsCacheDirectory: AbsolutePath,
         testPlan: String?,
         includedTargets: Set<String>,
         excludedTargets: Set<String>
@@ -30,7 +29,6 @@ public final class GraphMapperFactory: GraphMapperFactorying {
 
     public func automation(
         config: Config,
-        testsCacheDirectory _: AbsolutePath,
         testPlan: String?,
         includedTargets: Set<String>,
         excludedTargets: Set<String>
@@ -61,6 +59,7 @@ public final class GraphMapperFactory: GraphMapperFactorying {
             mappers.append(ExplicitDependencyGraphMapper())
         }
         mappers.append(TreeShakePrunedTargetsGraphMapper())
+        mappers.append(StaticXCFrameworkModuleMapGraphMapper())
         return mappers
     }
 }

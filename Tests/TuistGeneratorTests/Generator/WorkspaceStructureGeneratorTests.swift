@@ -1,9 +1,8 @@
-import TSCBasic
+import Path
 import TuistCore
 import TuistCoreTesting
-import TuistGraph
-import TuistGraphTesting
 import TuistSupport
+import XcodeGraph
 import XCTest
 @testable import TuistGenerator
 @testable import TuistSupportTesting
@@ -389,7 +388,12 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
 
         func inTemporaryDirectory(_: @escaping (AbsolutePath) async throws -> Void) async throws {}
 
-        func files(in _: AbsolutePath, nameFilter _: Set<String>?, extensionFilter _: Set<String>?) -> Set<AbsolutePath> {
+        func files(
+            in _: AbsolutePath,
+            filter _: ((URL) -> Bool)?,
+            nameFilter _: Set<String>?,
+            extensionFilter _: Set<String>?
+        ) -> Set<AbsolutePath> {
             []
         }
 
@@ -399,10 +403,6 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
 
         func throwingGlob(_: AbsolutePath, glob _: String) throws -> [AbsolutePath] {
             []
-        }
-
-        func resolveSymlinks(_ path: AbsolutePath) -> AbsolutePath {
-            path
         }
 
         func fileAttributes(at _: AbsolutePath) throws -> [FileAttributeKey: Any] {
@@ -465,10 +465,6 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
 
         func fileSize(path _: AbsolutePath) throws -> UInt64 {
             0
-        }
-
-        func changeExtension(path: AbsolutePath, to newExtension: String) throws -> AbsolutePath {
-            path.removingLastComponent().appending(component: "\(path.basenameWithoutExt).\(newExtension)")
         }
 
         func zipItem(at _: AbsolutePath, to _: AbsolutePath) throws {}

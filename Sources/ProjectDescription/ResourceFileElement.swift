@@ -7,7 +7,7 @@ import Foundation
 ///
 /// Note: For convenience, an element can be represented as a string literal
 ///       `"some/pattern/**"` is the equivalent of `ResourceFileElement.glob(pattern: "some/pattern/**")`
-public enum ResourceFileElement: Codable, Equatable {
+public enum ResourceFileElement: Codable, Equatable, Sendable, Hashable {
     /// A glob pattern of files to include and ODR tags
     case glob(pattern: Path, excluding: [Path] = [], tags: [String] = [], inclusionCondition: PlatformCondition? = nil)
 

@@ -1,6 +1,6 @@
 import Foundation
-import TuistGraph
 import TuistSupport
+import XcodeGraph
 
 /// Cache designed to store `PlatformCondition.CombinationResult` for `GraphTraverser`
 final class ConditionCache {

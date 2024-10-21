@@ -1,9 +1,9 @@
 import Foundation
+import Path
 import ProjectDescription
-import TSCBasic
 import TuistCore
-import TuistGraph
 import TuistSupport
+import XcodeGraph
 import XCTest
 
 @testable import TuistLoader
@@ -13,7 +13,11 @@ final class TargetScriptManifestMapperTests: TuistUnitTestCase {
     func test_from() throws {
         // Given
         let temporaryPath = try temporaryPath()
-        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
+        let rootDirectory = temporaryPath
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: rootDirectory
+        )
         let manifest = ProjectDescription.TargetScript.test(
             name: "MyScript",
             tool: "my_tool",
@@ -21,7 +25,7 @@ final class TargetScriptManifestMapperTests: TuistUnitTestCase {
             arguments: ["arg1", "arg2"]
         )
         // When
-        let model = try TuistGraph.TargetScript.from(manifest: manifest, generatorPaths: generatorPaths)
+        let model = try XcodeGraph.TargetScript.from(manifest: manifest, generatorPaths: generatorPaths)
 
         // Then
         XCTAssertEqual(model.name, "MyScript")
@@ -29,11 +33,15 @@ final class TargetScriptManifestMapperTests: TuistUnitTestCase {
         XCTAssertEqual(model.order, .pre)
     }
 
-    func test_doesntGlob_whenVariable() throws {
+    func test_doesntGlob_whenVariable() async throws {
         // Given
         let temporaryPath = try temporaryPath()
-        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
-        try createFiles([
+        let rootDirectory = temporaryPath
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: rootDirectory
+        )
+        try await createFiles([
             "foo/bar/a.swift",
             "foo/bar/b.swift",
             "foo/bar/aTests.swift",
@@ -57,7 +65,7 @@ final class TargetScriptManifestMapperTests: TuistUnitTestCase {
             outputFileListPaths: ["$(SRCROOT)/foo/bar/**/*.swift"]
         )
         // When
-        let model = try TuistGraph.TargetScript.from(manifest: manifest, generatorPaths: generatorPaths)
+        let model = try XcodeGraph.TargetScript.from(manifest: manifest, generatorPaths: generatorPaths)
 
         // Then
         let relativeSources = try model.inputPaths.map { try AbsolutePath(validating: $0).relative(to: temporaryPath).pathString }
@@ -90,11 +98,15 @@ final class TargetScriptManifestMapperTests: TuistUnitTestCase {
         )
     }
 
-    func test_glob_whenExcluding() throws {
+    func test_glob_whenExcluding() async throws {
         // Given
         let temporaryPath = try temporaryPath()
-        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
-        try createFiles([
+        let rootDirectory = temporaryPath
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: rootDirectory
+        )
+        try await createFiles([
             "foo/bar/a.swift",
             "foo/bar/b.swift",
             "foo/bar/aTests.swift",
@@ -123,7 +135,7 @@ final class TargetScriptManifestMapperTests: TuistUnitTestCase {
             outputFileListPaths: ["$(SRCROOT)/foo/bar/**/*.swift"]
         )
         // When
-        let model = try TuistGraph.TargetScript.from(manifest: manifest, generatorPaths: generatorPaths)
+        let model = try XcodeGraph.TargetScript.from(manifest: manifest, generatorPaths: generatorPaths)
 
         // Then
         let relativeSources = try model.inputPaths.map { try AbsolutePath(validating: $0).relative(to: temporaryPath).pathString }

@@ -1,11 +1,13 @@
+import FileSystem
 import Foundation
-import TSCBasic
+import Mockable
+import Path
 import TuistCore
 import TuistGenerator
-import TuistGraph
 import TuistLoader
 import TuistScaffold
 import TuistSupport
+import XcodeGraph
 
 enum ProjectEditorError: FatalError, Equatable {
     /// This error is thrown when we try to edit in a project in a directory that has no editable files.
@@ -25,6 +27,7 @@ enum ProjectEditorError: FatalError, Equatable {
     }
 }
 
+@Mockable
 protocol ProjectEditing: AnyObject {
     /// Generates an Xcode project to edit the Project defined in the given directory.
     /// - Parameters:
@@ -38,7 +41,7 @@ protocol ProjectEditing: AnyObject {
         in destinationDirectory: AbsolutePath,
         onlyCurrentDirectory: Bool,
         plugins: Plugins
-    ) throws -> AbsolutePath
+    ) async throws -> AbsolutePath
 }
 
 final class ProjectEditor: ProjectEditing {
@@ -66,7 +69,7 @@ final class ProjectEditor: ProjectEditing {
     /// Utility to locate the stencil directory
     let stencilDirectoryLocator: StencilPathLocating
 
-    private let cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring
+    private let cacheDirectoriesProvider: CacheDirectoriesProviding
     private let projectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactoring
 
     /// Xcode Project writer
@@ -81,7 +84,7 @@ final class ProjectEditor: ProjectEditing {
         writer: XcodeProjWriting = XcodeProjWriter(),
         templatesDirectoryLocator: TemplatesDirectoryLocating = TemplatesDirectoryLocator(),
         resourceSynthesizersDirectoryLocator: ResourceSynthesizerPathLocating = ResourceSynthesizerPathLocator(),
-        cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring = CacheDirectoriesProviderFactory(),
+        cacheDirectoriesProvider: CacheDirectoriesProviding = CacheDirectoriesProvider(),
         stencilDirectoryLocator: StencilPathLocating = StencilPathLocator(),
         projectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactoring =
             ProjectDescriptionHelpersBuilderFactory()
@@ -94,7 +97,7 @@ final class ProjectEditor: ProjectEditing {
         self.writer = writer
         self.templatesDirectoryLocator = templatesDirectoryLocator
         self.resourceSynthesizersDirectoryLocator = resourceSynthesizersDirectoryLocator
-        self.cacheDirectoryProviderFactory = cacheDirectoryProviderFactory
+        self.cacheDirectoriesProvider = cacheDirectoriesProvider
         self.stencilDirectoryLocator = stencilDirectoryLocator
         self.projectDescriptionHelpersBuilderFactory = projectDescriptionHelpersBuilderFactory
     }
@@ -105,7 +108,7 @@ final class ProjectEditor: ProjectEditing {
         in destinationDirectory: AbsolutePath,
         onlyCurrentDirectory: Bool,
         plugins: Plugins
-    ) throws -> AbsolutePath {
+    ) async throws -> AbsolutePath {
         let tuistIgnoreContent = (try? FileHandler.shared.readTextFile(editingPath.appending(component: ".tuistignore"))) ?? ""
         let tuistIgnoreEntries = try tuistIgnoreContent
             .split(separator: "\n")
@@ -124,49 +127,48 @@ final class ProjectEditor: ProjectEditing {
             "**/\(Constants.SwiftPackageManager.packageBuildDirectoryName)/**",
         ] + tuistIgnoreEntries
 
-        let projectDescriptionPath = try resourceLocator.projectDescription()
-        let projectManifests = manifestFilesLocator.locateProjectManifests(
+        let projectDescriptionPath = try await resourceLocator.projectDescription()
+        let projectManifests = try await manifestFilesLocator.locateProjectManifests(
             at: editingPath,
             excluding: pathsToExclude,
             onlyCurrentDirectory: onlyCurrentDirectory
         )
-        let configPath = manifestFilesLocator.locateConfig(at: editingPath)
-        let cacheDirectory = try cacheDirectoryProviderFactory.cacheDirectories()
+        let configPath = try await manifestFilesLocator.locateConfig(at: editingPath)
         let projectDescriptionHelpersBuilder = projectDescriptionHelpersBuilderFactory.projectDescriptionHelpersBuilder(
-            cacheDirectory: try cacheDirectory.tuistCacheDirectory(for: .projectDescriptionHelpers)
+            cacheDirectory: try cacheDirectoriesProvider.cacheDirectory(for: .projectDescriptionHelpers)
         )
-        let packageManifestPath = manifestFilesLocator.locatePackageManifest(at: editingPath)
+        let packageManifestPath = try await manifestFilesLocator.locatePackageManifest(at: editingPath)
 
-        let helpers = helpersDirectoryLocator.locate(at: editingPath).map {
+        let helpers = try await helpersDirectoryLocator.locate(at: editingPath).map {
             [
                 FileHandler.shared.glob($0, glob: "**/*.swift"),
                 FileHandler.shared.glob($0, glob: "**/*.docc"),
             ].flatMap { $0 }
         } ?? []
 
-        let templateSources = templatesDirectoryLocator.locateUserTemplates(at: editingPath).map {
+        let templateSources = try await templatesDirectoryLocator.locateUserTemplates(at: editingPath).map {
             FileHandler.shared.glob($0, glob: "**/*.swift")
         } ?? []
 
-        let templateResources = templatesDirectoryLocator.locateUserTemplates(at: editingPath).map {
+        let templateResources = try await templatesDirectoryLocator.locateUserTemplates(at: editingPath).map {
             FileHandler.shared.glob($0, glob: "**/*.stencil")
         } ?? []
 
-        let resourceSynthesizers = resourceSynthesizersDirectoryLocator.locate(at: editingPath).map {
+        let resourceSynthesizers = try await resourceSynthesizersDirectoryLocator.locate(at: editingPath).map {
             FileHandler.shared.glob($0, glob: "**/*.stencil")
         } ?? []
 
-        let stencils = stencilDirectoryLocator.locate(at: editingPath).map {
+        let stencils = try await stencilDirectoryLocator.locate(at: editingPath).map {
             FileHandler.shared.glob($0, glob: "**/*.stencil")
         } ?? []
 
-        let editablePluginManifests = locateEditablePluginManifests(
+        let editablePluginManifests = try await locateEditablePluginManifests(
             at: editingPath,
             excluding: pathsToExclude,
             plugins: plugins,
             onlyCurrentDirectory: onlyCurrentDirectory
         )
-        let builtPluginHelperModules = try buildRemotePluginModules(
+        let builtPluginHelperModules = try await buildRemotePluginModules(
             in: editingPath,
             projectDescriptionPath: projectDescriptionPath,
             plugins: plugins,
@@ -184,7 +186,7 @@ final class ProjectEditor: ProjectEditing {
         let tuistPath = try AbsolutePath(validating: TuistCommand.processArguments()!.first!)
         let workspaceName = "Manifests"
 
-        let graph = try projectEditorMapper.map(
+        let graph = try await projectEditorMapper.map(
             name: workspaceName,
             tuistPath: tuistPath,
             sourceRootPath: editingPath,
@@ -203,8 +205,8 @@ final class ProjectEditor: ProjectEditing {
         )
 
         let graphTraverser = GraphTraverser(graph: graph)
-        let descriptor = try generator.generateWorkspace(graphTraverser: graphTraverser)
-        try writer.write(workspace: descriptor)
+        let descriptor = try await generator.generateWorkspace(graphTraverser: graphTraverser)
+        try await writer.write(workspace: descriptor)
         return descriptor.xcworkspacePath
     }
 
@@ -214,17 +216,27 @@ final class ProjectEditor: ProjectEditing {
         excluding: [String],
         plugins: Plugins,
         onlyCurrentDirectory: Bool
-    ) -> [EditablePluginManifest] {
+    ) async throws -> [EditablePluginManifest] {
         let loadedEditablePluginManifests = plugins.projectDescriptionHelpers
             .filter { $0.location == .local }
-            .map { EditablePluginManifest(name: $0.name, path: $0.path.parentDirectory) }
+            .map {
+                EditablePluginManifest(
+                    name: $0.name,
+                    path: $0.path.parentDirectory
+                )
+            }
 
-        let localEditablePluginManifests = manifestFilesLocator.locatePluginManifests(
+        let localEditablePluginManifests = try await manifestFilesLocator.locatePluginManifests(
             at: path,
             excluding: excluding,
             onlyCurrentDirectory: onlyCurrentDirectory
         )
-        .map { EditablePluginManifest(name: $0.parentDirectory.basename, path: $0.parentDirectory) }
+        .map {
+            EditablePluginManifest(
+                name: $0.parentDirectory.basename,
+                path: $0.parentDirectory
+            )
+        }
 
         return Array(Set(loadedEditablePluginManifests + localEditablePluginManifests))
     }
@@ -235,9 +247,9 @@ final class ProjectEditor: ProjectEditing {
         projectDescriptionPath: AbsolutePath,
         plugins: Plugins,
         projectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding
-    ) throws -> [ProjectDescriptionHelpersModule] {
+    ) async throws -> [ProjectDescriptionHelpersModule] {
         let loadedPluginHelpers = plugins.projectDescriptionHelpers.filter { $0.location == .remote }
-        return try projectDescriptionHelpersBuilder.buildPlugins(
+        return try await projectDescriptionHelpersBuilder.buildPlugins(
             at: path,
             projectDescriptionSearchPaths: ProjectDescriptionSearchPaths.paths(for: projectDescriptionPath),
             projectDescriptionHelperPlugins: loadedPluginHelpers

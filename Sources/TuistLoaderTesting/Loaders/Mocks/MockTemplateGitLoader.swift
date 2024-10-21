@@ -1,12 +1,14 @@
 import Foundation
-import TSCBasic
-import TuistGraph
+import Path
+import TuistCore
 import TuistLoader
 
 public final class MockTemplateGitLoader: TemplateGitLoading {
+    public init() {}
+
     public var loadTemplateStub: ((String) throws -> Template)?
-    public func loadTemplate(from templateURL: String, closure: (Template) throws -> Void) throws {
+    public func loadTemplate(from templateURL: String, closure: @escaping (Template) async throws -> Void) async throws {
         let template = try loadTemplateStub?(templateURL) ?? Template(description: "", attributes: [], items: [])
-        try closure(template)
+        try await closure(template)
     }
 }

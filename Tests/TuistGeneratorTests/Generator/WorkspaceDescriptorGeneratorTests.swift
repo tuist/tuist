@@ -1,10 +1,11 @@
 import Foundation
-import TSCBasic
+import Mockable
+import Path
+import struct TSCUtility.Version
 import TuistCore
 import TuistCoreTesting
-import TuistGraph
-import TuistGraphTesting
 import TuistSupport
+import XcodeGraph
 import XcodeProj
 import XCTest
 @testable import TuistGenerator
@@ -15,7 +16,15 @@ final class WorkspaceDescriptorGeneratorTests: TuistUnitTestCase {
 
     override func setUp() {
         super.setUp()
-        system.swiftVersionStub = { "5.2" }
+
+        given(swiftVersionProvider)
+            .swiftVersion()
+            .willReturn("5.2")
+
+        given(xcodeController)
+            .selectedVersion()
+            .willReturn(Version(15, 0, 0))
+
         subject = WorkspaceDescriptorGenerator(config: .init(projectGenerationContext: .serial))
     }
 
@@ -26,10 +35,10 @@ final class WorkspaceDescriptorGeneratorTests: TuistUnitTestCase {
 
     // MARK: - Tests
 
-    func test_generate_workspaceStructure() throws {
+    func test_generate_workspaceStructure() async throws {
         // Given
         let temporaryPath = try temporaryPath()
-        try createFiles([
+        try await createFiles([
             "README.md",
             "Documentation/README.md",
             "Website/index.html",
@@ -53,7 +62,7 @@ final class WorkspaceDescriptorGeneratorTests: TuistUnitTestCase {
 
         // When
         let graphTraverser = GraphTraverser(graph: graph)
-        let result = try subject.generate(graphTraverser: graphTraverser)
+        let result = try await subject.generate(graphTraverser: graphTraverser)
 
         // Then
         let xcworkspace = result.xcworkspace
@@ -66,7 +75,7 @@ final class WorkspaceDescriptorGeneratorTests: TuistUnitTestCase {
         ])
     }
 
-    func test_generate_workspaceStructure_noWorkspaceData() throws {
+    func test_generate_workspaceStructure_noWorkspaceData() async throws {
         // Given
         let name = "test"
         let temporaryPath = try temporaryPath()
@@ -79,12 +88,14 @@ final class WorkspaceDescriptorGeneratorTests: TuistUnitTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        XCTAssertNoThrow(
-            try subject.generate(graphTraverser: graphTraverser)
-        )
+        do {
+            _ = try await subject.generate(graphTraverser: graphTraverser)
+        } catch {
+            XCTFail("Should not throw")
+        }
     }
 
-    func test_generate_workspaceStructureWithProjects() throws {
+    func test_generate_workspaceStructureWithProjects() async throws {
         // Given
         let temporaryPath = try temporaryPath()
         let target = anyTarget()
@@ -104,17 +115,12 @@ final class WorkspaceDescriptorGeneratorTests: TuistUnitTestCase {
 
         let graph = Graph.test(
             workspace: workspace,
-            projects: [project.path: project],
-            targets: [
-                project.path: [
-                    target.name: target,
-                ],
-            ]
+            projects: [project.path: project]
         )
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let result = try subject.generate(graphTraverser: graphTraverser)
+        let result = try await subject.generate(graphTraverser: graphTraverser)
 
         // Then
         let xcworkspace = result.xcworkspace
@@ -123,7 +129,7 @@ final class WorkspaceDescriptorGeneratorTests: TuistUnitTestCase {
         ])
     }
 
-    func test_generateWorkspaceStructure_withSettingsDescriptorDisablingSchemaGeneration() throws {
+    func test_generateWorkspaceStructure_withSettingsDescriptorDisablingSchemaGeneration() async throws {
         // Given
         let temporaryPath = try temporaryPath()
 
@@ -137,13 +143,13 @@ final class WorkspaceDescriptorGeneratorTests: TuistUnitTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let result = try subject.generate(graphTraverser: graphTraverser)
+        let result = try await subject.generate(graphTraverser: graphTraverser)
 
         // Then
         XCTAssertEqual(result.workspaceSettingsDescriptor, WorkspaceSettingsDescriptor(enableAutomaticXcodeSchemes: false))
     }
 
-    func test_generateWorkspaceStructure_withSettingsDescriptorEnablingSchemaGeneration() throws {
+    func test_generateWorkspaceStructure_withSettingsDescriptorEnablingSchemaGeneration() async throws {
         // Given
         let temporaryPath = try temporaryPath()
 
@@ -157,13 +163,13 @@ final class WorkspaceDescriptorGeneratorTests: TuistUnitTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let result = try subject.generate(graphTraverser: graphTraverser)
+        let result = try await subject.generate(graphTraverser: graphTraverser)
 
         // Then
         XCTAssertEqual(result.workspaceSettingsDescriptor, WorkspaceSettingsDescriptor(enableAutomaticXcodeSchemes: true))
     }
 
-    func test_generateWorkspaceStructure_withSettingsDescriptorDefaultSchemaGeneration() throws {
+    func test_generateWorkspaceStructure_withSettingsDescriptorDefaultSchemaGeneration() async throws {
         // Given
         let temporaryPath = try temporaryPath()
 
@@ -177,7 +183,7 @@ final class WorkspaceDescriptorGeneratorTests: TuistUnitTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let result = try subject.generate(graphTraverser: graphTraverser)
+        let result = try await subject.generate(graphTraverser: graphTraverser)
 
         // Then
         XCTAssertNil(result.workspaceSettingsDescriptor)

@@ -1,12 +1,12 @@
 import Foundation
 import ProjectDescription
-import TuistGraph
+import XcodeGraph
 
-extension TuistGraph.BuildRule.CompilerSpec {
+extension XcodeGraph.BuildRule.CompilerSpec {
     // swiftlint:disable function_body_length
     static func from(
         manifest: ProjectDescription.BuildRule.CompilerSpec
-    ) -> TuistGraph.BuildRule.CompilerSpec {
+    ) -> XcodeGraph.BuildRule.CompilerSpec {
         switch manifest {
         case .appIntentsMetadataExtractor:
             return .appIntentsMetadataExtractor

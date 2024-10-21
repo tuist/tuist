@@ -1,8 +1,8 @@
 import ArgumentParser
 import Foundation
-import TSCBasic
+import Path
 
-struct PluginArchiveCommannd: ParsableCommand {
+struct PluginArchiveCommand: AsyncParsableCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "archive",
@@ -13,12 +13,13 @@ struct PluginArchiveCommannd: ParsableCommand {
     @Option(
         name: .shortAndLong,
         help: "The path to the directory that contains the definition of the plugin.",
-        completion: .directory
+        completion: .directory,
+        envKey: .pluginArchivePath
     )
     var path: String?
 
-    func run() throws {
-        try PluginArchiveService().run(
+    func run() async throws {
+        try await PluginArchiveService().run(
             path: path
         )
     }

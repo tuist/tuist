@@ -1,12 +1,12 @@
 import Foundation
+import Path
 import ProjectDescription
-import TSCBasic
 import TuistCore
-import TuistGraph
+import XcodeGraph
 
-extension TuistGraph.SchemeDiagnosticsOptions {
-    static func from(manifest: ProjectDescription.SchemeDiagnosticsOptions) -> TuistGraph.SchemeDiagnosticsOptions {
-        return TuistGraph.SchemeDiagnosticsOptions(
+extension XcodeGraph.SchemeDiagnosticsOptions {
+    static func from(manifest: ProjectDescription.SchemeDiagnosticsOptions) -> XcodeGraph.SchemeDiagnosticsOptions {
+        return XcodeGraph.SchemeDiagnosticsOptions(
             addressSanitizerEnabled: manifest.addressSanitizerEnabled,
             detectStackUseAfterReturnEnabled: manifest.detectStackUseAfterReturnEnabled,
             threadSanitizerEnabled: manifest.threadSanitizerEnabled,

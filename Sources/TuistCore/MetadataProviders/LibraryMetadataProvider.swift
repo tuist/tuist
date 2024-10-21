@@ -1,7 +1,8 @@
+import FileSystem
 import Foundation
-import TSCBasic
-import TuistGraph
+import Path
 import TuistSupport
+import XcodeGraph
 
 // MARK: - Provider Errors
 
@@ -40,30 +41,33 @@ public protocol LibraryMetadataProviding: PrecompiledMetadataProviding {
         at path: AbsolutePath,
         publicHeaders: AbsolutePath,
         swiftModuleMap: AbsolutePath?
-    ) throws -> LibraryMetadata
+    ) async throws -> LibraryMetadata
 }
 
 // MARK: - Default Implementation
 
 public final class LibraryMetadataProvider: PrecompiledMetadataProvider, LibraryMetadataProviding {
-    override public init() {
-        super.init()
+    private let fileSystem: FileSysteming
+
+    init(
+        fileSystem: FileSysteming = FileSystem()
+    ) {
+        self.fileSystem = fileSystem
     }
 
     public func loadMetadata(
         at path: AbsolutePath,
         publicHeaders: AbsolutePath,
         swiftModuleMap: AbsolutePath?
-    ) throws -> LibraryMetadata {
-        let fileHandler = FileHandler.shared
-        guard fileHandler.exists(path) else {
+    ) async throws -> LibraryMetadata {
+        guard try await fileSystem.exists(path) else {
             throw LibraryMetadataProviderError.libraryNotFound(path)
         }
-        guard fileHandler.exists(publicHeaders) else {
+        guard try await fileSystem.exists(publicHeaders) else {
             throw LibraryMetadataProviderError.publicHeadersNotFound(libraryPath: path, headersPath: publicHeaders)
         }
         if let swiftModuleMap {
-            guard fileHandler.exists(swiftModuleMap) else {
+            guard try await fileSystem.exists(swiftModuleMap) else {
                 throw LibraryMetadataProviderError.swiftModuleMapNotFound(libraryPath: path, moduleMapPath: swiftModuleMap)
             }
         }

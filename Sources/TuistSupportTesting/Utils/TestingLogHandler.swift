@@ -2,7 +2,7 @@ import Foundation
 import TuistSupport
 
 public struct TestingLogHandler: LogHandler {
-    static var collected: [Logger.Level: [String]] {
+    public static var collected: [Logger.Level: [String]] {
         collectionQueue.sync {
             collectedLogs
         }

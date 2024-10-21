@@ -1,7 +1,8 @@
 import Foundation
-import TuistGraph
+import TuistCore
 import TuistSupport
 import TuistSupportTesting
+import XcodeGraph
 import XCTest
 @testable import TuistGenerator
 
@@ -68,15 +69,6 @@ final class ExplicitDependencyGraphMapperTests: TuistUnitTestCase {
                     isExternal: true
                 ),
             ],
-            targets: [
-                projectAPath: [
-                    "FrameworkA": frameworkA,
-                    "DynamicLibraryB": dynamicLibraryB,
-                ],
-                externalProjectBPath: [
-                    "ExternalFrameworkC": externalFrameworkC,
-                ],
-            ],
             dependencies: [
                 .target(name: "FrameworkA", path: projectAPath): [
                     .target(name: "DynamicLibraryB", path: projectAPath),
@@ -86,7 +78,7 @@ final class ExplicitDependencyGraphMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let got = try await subject.map(graph: graph)
+        let got = try await subject.map(graph: graph, environment: MapperEnvironment())
         let copyScript = """
         if [[ -d "$FILE" && ! -d "$DESTINATION_FILE" ]]; then
             ln -s "$FILE" "$DESTINATION_FILE"
@@ -98,8 +90,10 @@ final class ExplicitDependencyGraphMapperTests: TuistUnitTestCase {
         """
 
         // Then
+        let gotAProject = try XCTUnwrap(got.0.projects[projectAPath])
+        let gotATargets = Array(gotAProject.targets.values).sorted()
         XCTAssertEqual(
-            got.0.projects[projectAPath]?.targets[0],
+            gotATargets[0],
             .test(
                 name: "App",
                 product: .app,
@@ -108,7 +102,7 @@ final class ExplicitDependencyGraphMapperTests: TuistUnitTestCase {
                 ]
             )
         )
-        let gotFrameworkA = try XCTUnwrap(got.0.projects[projectAPath]?.targets[1])
+        let gotFrameworkA = try XCTUnwrap(gotATargets[2])
         XCTAssertEqual(
             gotFrameworkA.name,
             "FrameworkA"
@@ -169,8 +163,9 @@ final class ExplicitDependencyGraphMapperTests: TuistUnitTestCase {
                 .project(target: "ExternalFrameworkC", path: externalProjectBPath),
             ]
         )
+
         XCTAssertEqual(
-            got.0.projects[projectAPath]?.targets[2],
+            gotATargets[1],
             .test(
                 name: "DynamicLibraryB",
                 product: .dynamicLibrary,
@@ -206,8 +201,10 @@ final class ExplicitDependencyGraphMapperTests: TuistUnitTestCase {
                 ]
             )
         )
+        let gotExternalBProject = try XCTUnwrap(got.0.projects[externalProjectBPath])
+        let gotExternalBTargets = Array(gotExternalBProject.targets.values)
         XCTAssertEqual(
-            got.0.projects[externalProjectBPath]?.targets,
+            gotExternalBTargets,
             [
                 .test(
                     name: "ExternalFrameworkC",
@@ -281,14 +278,6 @@ final class ExplicitDependencyGraphMapperTests: TuistUnitTestCase {
                     isExternal: true
                 ),
             ],
-            targets: [
-                projectAPath: [
-                    "FrameworkA": frameworkA,
-                ],
-                externalProjectBPath: [
-                    "ExternalFrameworkB": externalFrameworkB,
-                ],
-            ],
             dependencies: [
                 .target(name: "FrameworkA", path: projectAPath): [
                     .target(name: "ExternalFrameworkB", path: externalProjectBPath),
@@ -297,10 +286,12 @@ final class ExplicitDependencyGraphMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let got = try await subject.map(graph: graph)
+        let got = try await subject.map(graph: graph, environment: MapperEnvironment())
 
         // Then
-        let gotFrameworkA = try XCTUnwrap(got.0.projects[projectAPath]?.targets[0])
+        let gotAProject = try XCTUnwrap(got.0.projects[projectAPath])
+        let gotATargets = Array(gotAProject.targets.values).sorted()
+        let gotFrameworkA = try XCTUnwrap(gotATargets[0])
         XCTAssertEqual(
             gotFrameworkA.name,
             "FrameworkA"

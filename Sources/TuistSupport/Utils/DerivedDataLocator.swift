@@ -1,6 +1,6 @@
 import CryptoKit
 import Foundation
-import TSCBasic
+import Path
 
 public protocol DerivedDataLocating {
     func locate(
@@ -9,13 +9,17 @@ public protocol DerivedDataLocating {
 }
 
 public final class DerivedDataLocator: DerivedDataLocating {
-    public init() {}
+    private let devEnvironment: DeveloperEnvironmenting
+
+    public init(devEnvironment: DeveloperEnvironmenting = DeveloperEnvironment.shared) {
+        self.devEnvironment = devEnvironment
+    }
 
     public func locate(
         for projectPath: AbsolutePath
     ) throws -> AbsolutePath {
         let hash = try XcodeProjectPathHasher.hashString(for: projectPath.pathString)
-        return DeveloperEnvironment.shared.derivedDataDirectory
+        return devEnvironment.derivedDataDirectory
             .appending(component: "\(projectPath.basenameWithoutExt)-\(hash)")
     }
 }

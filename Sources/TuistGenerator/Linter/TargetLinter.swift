@@ -1,10 +1,11 @@
+import FileSystem
 import Foundation
 import TuistCore
-import TuistGraph
 import TuistSupport
+import XcodeGraph
 
 protocol TargetLinting: AnyObject {
-    func lint(target: Target) -> [LintingIssue]
+    func lint(target: Target, options: Project.Options) async throws -> [LintingIssue]
 }
 
 class TargetLinter: TargetLinting {
@@ -12,37 +13,41 @@ class TargetLinter: TargetLinting {
 
     private let settingsLinter: SettingsLinting
     private let targetScriptLinter: TargetScriptLinting
+    private let fileSystem: FileSysteming
 
     // MARK: - Init
 
     init(
         settingsLinter: SettingsLinting = SettingsLinter(),
-        targetScriptLinter: TargetScriptLinting = TargetScriptLinter()
+        targetScriptLinter: TargetScriptLinting = TargetScriptLinter(),
+        fileSystem: FileSysteming = FileSystem()
     ) {
         self.settingsLinter = settingsLinter
         self.targetScriptLinter = targetScriptLinter
+        self.fileSystem = fileSystem
     }
 
     // MARK: - TargetLinting
 
-    func lint(target: Target) -> [LintingIssue] {
+    func lint(target: Target, options: Project.Options) async throws -> [LintingIssue] {
         var issues: [LintingIssue] = []
         issues.append(contentsOf: lintProductName(target: target))
         issues.append(contentsOf: lintProductNameBuildSettings(target: target))
         issues.append(contentsOf: lintValidPlatformProductCombinations(target: target))
         issues.append(contentsOf: lintBundleIdentifier(target: target))
         issues.append(contentsOf: lintHasSourceFiles(target: target))
-        issues.append(contentsOf: lintCopiedFiles(target: target))
-        issues.append(contentsOf: lintLibraryHasNoResources(target: target))
+        try await issues.append(contentsOf: lintCopiedFiles(target: target))
+        issues.append(contentsOf: lintLibraryHasNoResources(target: target, options: options))
         issues.append(contentsOf: lintDeploymentTarget(target: target))
-        issues.append(contentsOf: settingsLinter.lint(target: target))
+        try await issues.append(contentsOf: settingsLinter.lint(target: target))
         issues.append(contentsOf: lintDuplicateDependency(target: target))
         issues.append(contentsOf: lintValidSourceFileCodeGenAttributes(target: target))
-        issues.append(contentsOf: validateCoreDataModelsExist(target: target))
-        issues.append(contentsOf: validateCoreDataModelVersionsExist(target: target))
+        try await issues.append(contentsOf: validateCoreDataModelsExist(target: target))
+        try await issues.append(contentsOf: validateCoreDataModelVersionsExist(target: target))
         issues.append(contentsOf: lintMergeableLibrariesOnlyAppliesToDynamicTargets(target: target))
+        issues.append(contentsOf: lintOnDemandResourcesTags(target: target))
         for script in target.scripts {
-            issues.append(contentsOf: targetScriptLinter.lint(script))
+            issues.append(contentsOf: try await targetScriptLinter.lint(script))
         }
         return issues
     }
@@ -61,7 +66,7 @@ class TargetLinter: TargetLinting {
         bundleIdentifier = bundleIdentifier.replacingOccurrences(of: "\\$\\(.+\\)", with: "", options: .regularExpression)
 
         var allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
-        allowed.formUnion(CharacterSet(charactersIn: "-."))
+        allowed.formUnion(CharacterSet(charactersIn: "-./"))
 
         if !bundleIdentifier.unicodeScalars.allSatisfy({ allowed.contains($0) }) {
             let reason =
@@ -75,14 +80,14 @@ class TargetLinter: TargetLinting {
     private func lintProductName(target: Target) -> [LintingIssue] {
         var allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_")
 
-        let allowsDot = target.product == .app || target.product == .commandLineTool
-        if allowsDot {
-            allowed.formUnion(CharacterSet(charactersIn: "."))
+        let allowsExtraCharacters = target.product != .framework && target.product != .staticFramework
+        if allowsExtraCharacters {
+            allowed.formUnion(CharacterSet(charactersIn: ".-"))
         }
 
         if target.productName.unicodeScalars.allSatisfy(allowed.contains) == false {
             let reason =
-                "Invalid product name '\(target.productName)'. This string must contain only alphanumeric (A-Z,a-z,0-9)\(allowsDot ? ", period (.)" : ""), and underscore (_) characters."
+                "Invalid product name '\(target.productName)'. This string must contain only alphanumeric (A-Z,a-z,0-9)\(allowsExtraCharacters ? ", period (.), hyphen (-)" : ""), and underscore (_) characters."
 
             return [LintingIssue(reason: reason, severity: .warning)]
         }
@@ -145,7 +150,7 @@ class TargetLinter: TargetLinting {
         return []
     }
 
-    private func lintCopiedFiles(target: Target) -> [LintingIssue] {
+    private func lintCopiedFiles(target: Target) async throws -> [LintingIssue] {
         var issues: [LintingIssue] = []
 
         let files = target.resources.resources.map(\.path)
@@ -161,15 +166,15 @@ class TargetLinter: TargetLinting {
             return LintingIssue(reason: reason, severity: .warning)
         })
 
-        issues.append(contentsOf: lintInfoplistExists(target: target))
-        issues.append(contentsOf: lintEntitlementsExist(target: target))
+        try await issues.append(contentsOf: lintInfoplistExists(target: target))
+        try await issues.append(contentsOf: lintEntitlementsExist(target: target))
         return issues
     }
 
-    private func validateCoreDataModelsExist(target: Target) -> [LintingIssue] {
-        target.coreDataModels.map(\.path)
-            .compactMap { path in
-                if !FileHandler.shared.exists(path) {
+    private func validateCoreDataModelsExist(target: Target) async throws -> [LintingIssue] {
+        try await target.coreDataModels.map(\.path)
+            .concurrentCompactMap { path in
+                if try await !self.fileSystem.exists(path) {
                     let reason = "The Core Data model at path \(path.pathString) does not exist"
                     return LintingIssue(reason: reason, severity: .error)
                 } else {
@@ -178,12 +183,12 @@ class TargetLinter: TargetLinting {
             }
     }
 
-    private func validateCoreDataModelVersionsExist(target: Target) -> [LintingIssue] {
-        target.coreDataModels.compactMap { coreDataModel -> LintingIssue? in
+    private func validateCoreDataModelVersionsExist(target: Target) async throws -> [LintingIssue] {
+        try await target.coreDataModels.concurrentCompactMap { coreDataModel async throws -> LintingIssue? in
             let versionFileName = "\(coreDataModel.currentVersion).xcdatamodel"
             let versionPath = coreDataModel.path.appending(component: versionFileName)
 
-            if !FileHandler.shared.exists(versionPath) {
+            if try await !self.fileSystem.exists(versionPath) {
                 let reason =
                     "The default version of the Core Data model at path \(coreDataModel.path.pathString), \(coreDataModel.currentVersion), does not exist. There should be a file at \(versionPath.pathString)"
                 return LintingIssue(reason: reason, severity: .error)
@@ -192,11 +197,11 @@ class TargetLinter: TargetLinting {
         }
     }
 
-    private func lintInfoplistExists(target: Target) -> [LintingIssue] {
+    private func lintInfoplistExists(target: Target) async throws -> [LintingIssue] {
         var issues: [LintingIssue] = []
         if let infoPlist = target.infoPlist,
            case let InfoPlist.file(path: path) = infoPlist,
-           !FileHandler.shared.exists(path)
+           try await !fileSystem.exists(path)
         {
             issues
                 .append(LintingIssue(reason: "Info.plist file not found at path \(infoPlist.path!.pathString)", severity: .error))
@@ -204,11 +209,11 @@ class TargetLinter: TargetLinting {
         return issues
     }
 
-    private func lintEntitlementsExist(target: Target) -> [LintingIssue] {
+    private func lintEntitlementsExist(target: Target) async throws -> [LintingIssue] {
         var issues: [LintingIssue] = []
         if let entitlements = target.entitlements,
            case let Entitlements.file(path: path) = entitlements,
-           !FileHandler.shared.exists(path)
+           try await !fileSystem.exists(path)
         {
             issues
                 .append(LintingIssue(
@@ -219,15 +224,15 @@ class TargetLinter: TargetLinting {
         return issues
     }
 
-    private func lintLibraryHasNoResources(target: Target) -> [LintingIssue] {
+    private func lintLibraryHasNoResources(target: Target, options: Project.Options) -> [LintingIssue] {
         if target.supportsResources {
             return []
         }
 
-        if target.resources.resources.isEmpty == false {
+        if target.resources.resources.isEmpty == false, options.disableBundleAccessors {
             return [
                 LintingIssue(
-                    reason: "Target \(target.name) cannot contain resources. \(target.product) targets do not support resources",
+                    reason: "Target \(target.name) cannot contain resources. For \(target.product) targets to support resources, 'Bundle Accessors' feature should be enabled.",
                     severity: .error
                 ),
             ]
@@ -323,6 +328,19 @@ class TargetLinter: TargetLinting {
         }
         return []
     }
+
+    private func lintOnDemandResourcesTags(target: Target) -> [LintingIssue] {
+        guard let onDemandResourcesTags = target.onDemandResourcesTags else { return [] }
+        guard let initialInstall = onDemandResourcesTags.initialInstall else { return [] }
+        guard let prefetchOrder = onDemandResourcesTags.prefetchOrder else { return [] }
+        let intersection = Set(initialInstall).intersection(Set(prefetchOrder))
+        return intersection.map { tag in
+            LintingIssue(
+                reason: "Prefetched Order Tag \"\(tag)\" is already assigned to Initial Install Tags category for the target \(target.name) and will be ignored by Xcode",
+                severity: .warning
+            )
+        }
+    }
 }
 
 extension TargetDependency {
@@ -349,9 +367,9 @@ extension TargetDependency {
 
     fileprivate var name: String {
         switch self {
-        case let .target(name, _):
+        case let .target(name, _, _):
             return name
-        case let .project(target, _, _):
+        case let .project(target, _, _, _):
             return target
         case let .framework(path, _, _):
             return path.basename

@@ -1,10 +1,9 @@
 import Foundation
-import TSCBasic
+import Path
 import TuistCoreTesting
 import TuistGenerator
-import TuistGraph
-import TuistGraphTesting
 import TuistSupport
+import XcodeGraph
 import XCTest
 
 @testable import TuistCore
@@ -38,7 +37,7 @@ final class UpdateWorkspaceProjectsGraphMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let (gotGraph, gotSideEffects) = try subject.map(graph: graph)
+        let (gotGraph, gotSideEffects, _) = try subject.map(graph: graph, environment: MapperEnvironment())
 
         // Then
         XCTAssertEmpty(gotSideEffects)

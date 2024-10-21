@@ -1,8 +1,8 @@
 import Foundation
-import TSCBasic
+import Path
 import TuistCore
-import TuistGraph
 import TuistSupport
+import XcodeGraph
 
 /// Mapper that maps the `MODULE_MAP` build setting to the `-fmodule-map-file` compiler flags.
 /// It is required to avoid embedding the module map into the frameworks during cache operations, which would make the framework
@@ -10,7 +10,6 @@ import TuistSupport
 public final class ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_body_length
     private static let modulemapFileSetting = "MODULEMAP_FILE"
     private static let otherCFlagsSetting = "OTHER_CFLAGS"
-    private static let otherLinkerFlagsSetting = "OTHER_LDFLAGS"
     private static let otherSwiftFlagsSetting = "OTHER_SWIFT_FLAGS"
     private static let headerSearchPaths = "HEADER_SEARCH_PATHS"
 
@@ -27,7 +26,7 @@ public final class ModuleMapMapper: GraphMapping { // swiftlint:disable:this typ
     public init() {}
 
     // swiftlint:disable function_body_length
-    public func map(graph: Graph) throws -> (Graph, [SideEffectDescriptor]) {
+    public func map(graph: Graph, environment: MapperEnvironment) throws -> (Graph, [SideEffectDescriptor], MapperEnvironment) {
         logger
             .debug(
                 "Transforming graph \(graph.name): Mapping MODULE_MAP build setting to -fmodule-map-file compiler flag"
@@ -47,12 +46,13 @@ public final class ModuleMapMapper: GraphMapping { // swiftlint:disable:this typ
 
         graph.projects = Dictionary(uniqueKeysWithValues: graph.projects.map { projectPath, project in
             var project = project
-            project.targets = project.targets.map { target in
+            project.targets = Dictionary(uniqueKeysWithValues: project.targets.map { targetName, target in
                 var target = target
                 let targetID = TargetID(projectPath: project.path, targetName: target.name)
                 var mappedSettingsDictionary = target.settings?.base ?? [:]
                 let hasModuleMap = mappedSettingsDictionary[Self.modulemapFileSetting] != nil
-                guard hasModuleMap || !(targetToDependenciesMetadata[targetID]?.isEmpty ?? true) else { return target }
+                guard hasModuleMap || !(targetToDependenciesMetadata[targetID]?.isEmpty ?? true)
+                else { return (targetName, target) }
 
                 if hasModuleMap {
                     mappedSettingsDictionary[Self.modulemapFileSetting] = nil
@@ -82,14 +82,6 @@ public final class ModuleMapMapper: GraphMapping { // swiftlint:disable:this typ
                     mappedSettingsDictionary[Self.headerSearchPaths] = updatedHeaderSearchPaths
                 }
 
-                if let updatedOtherLinkerFlags = Self.updatedOtherLinkerFlags(
-                    targetID: targetID,
-                    oldOtherLinkerFlags: mappedSettingsDictionary[Self.otherLinkerFlagsSetting],
-                    targetToDependenciesMetadata: targetToDependenciesMetadata
-                ) {
-                    mappedSettingsDictionary[Self.otherLinkerFlagsSetting] = updatedOtherLinkerFlags
-                }
-
                 let targetSettings = target.settings ?? Settings(
                     base: [:],
                     configurations: [:],
@@ -97,14 +89,12 @@ public final class ModuleMapMapper: GraphMapping { // swiftlint:disable:this typ
                 )
                 target.settings = targetSettings.with(base: mappedSettingsDictionary)
 
-                graph.targets[project.path]?[target.name] = target
-
-                return target
-            }
+                return (target.name, target)
+            })
 
             return (projectPath, project)
         })
-        return (graph, [])
+        return (graph, [], environment)
     } // swiftlint:enable function_body_length
 
     private static func makeProjectsByPathWithTargetsByName(workspace: WorkspaceWithProjects)
@@ -114,7 +104,7 @@ public final class ModuleMapMapper: GraphMapping { // swiftlint:disable:this typ
         var targetsByName = [String: Target]()
         for project in workspace.projects {
             projectsByPath[project.path] = project
-            for target in project.targets {
+            for target in project.targets.values {
                 targetsByName[target.name] = target
             }
         }
@@ -276,29 +266,5 @@ public final class ModuleMapMapper: GraphMapping { // swiftlint:disable:this typ
         }
 
         return .array(mappedOtherCFlags)
-    }
-
-    private static func updatedOtherLinkerFlags(
-        targetID: TargetID,
-        oldOtherLinkerFlags: SettingsDictionary.Value?,
-        targetToDependenciesMetadata: [TargetID: Set<DependencyMetadata>]
-    ) -> SettingsDictionary.Value? {
-        guard let dependenciesModuleMaps = targetToDependenciesMetadata[targetID]?.compactMap(\.moduleMapPath),
-              !dependenciesModuleMaps.isEmpty
-        else { return nil }
-
-        var mappedOtherLinkerFlags: [String]
-        switch oldOtherLinkerFlags ?? .array(["$(inherited)"]) {
-        case let .array(values):
-            mappedOtherLinkerFlags = values
-        case let .string(value):
-            mappedOtherLinkerFlags = value.split(separator: " ").map(String.init)
-        }
-
-        if !mappedOtherLinkerFlags.contains("-ObjC") {
-            mappedOtherLinkerFlags.append("-ObjC")
-        }
-
-        return .array(mappedOtherLinkerFlags)
     }
 }

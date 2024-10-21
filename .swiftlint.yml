@@ -22,3 +22,5 @@ type_name:
   min_length:
     error: 1
     warning: 1
+excluded: 
+  - Sources/TuistServer/OpenAPI

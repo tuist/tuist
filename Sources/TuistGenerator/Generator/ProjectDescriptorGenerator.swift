@@ -1,8 +1,8 @@
 import Foundation
-import TSCBasic
+import Path
 import TuistCore
-import TuistGraph
 import TuistSupport
+import XcodeGraph
 import XcodeProj
 
 protocol ProjectDescriptorGenerating: AnyObject {
@@ -11,7 +11,7 @@ protocol ProjectDescriptorGenerating: AnyObject {
     ///   - project: Project to be generated.
     ///   - graphTraverser: Graph traverser.
     /// - Returns: Generated project descriptor
-    func generate(project: Project, graphTraverser: GraphTraversing) throws -> ProjectDescriptor
+    func generate(project: Project, graphTraverser: GraphTraversing) async throws -> ProjectDescriptor
 }
 
 final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
@@ -54,6 +54,9 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
     /// Generator for the project schemes.
     let schemeDescriptorsGenerator: SchemeDescriptorsGenerating
 
+    /// Fetcher for the project known asset tags associated with on-demand resources.
+    let knownAssetTagsFetcher: KnownAssetTagsFetching
+
     // MARK: - Init
 
     /// Initializes the project generator with its attributes.
@@ -62,14 +65,17 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
     ///   - targetGenerator: Generator for the project targets.
     ///   - configGenerator: Generator for the project configuration.
     ///   - schemeDescriptorsGenerator: Generator for the project schemes.
+    ///   - knownAssetTagsFetcher: Fetcher for the project known asset tags associated with on-demand resources.
     init(
         targetGenerator: TargetGenerating = TargetGenerator(),
         configGenerator: ConfigGenerating = ConfigGenerator(),
-        schemeDescriptorsGenerator: SchemeDescriptorsGenerating = SchemeDescriptorsGenerator()
+        schemeDescriptorsGenerator: SchemeDescriptorsGenerating = SchemeDescriptorsGenerator(),
+        knownAssetTagsFetcher: KnownAssetTagsFetching = KnownAssetTagsFetcher()
     ) {
         self.targetGenerator = targetGenerator
         self.configGenerator = configGenerator
         self.schemeDescriptorsGenerator = schemeDescriptorsGenerator
+        self.knownAssetTagsFetcher = knownAssetTagsFetcher
     }
 
     // MARK: - ProjectGenerating
@@ -78,7 +84,7 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
     func generate(
         project: Project,
         graphTraverser: GraphTraversing
-    ) throws -> ProjectDescriptor {
+    ) async throws -> ProjectDescriptor {
         logger.notice("Generating project \(project.name)")
 
         let selfRef = XCWorkspaceDataFileRef(location: .current(""))
@@ -99,7 +105,7 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
             groups: groups,
             pbxproj: pbxproj
         )
-        let configurationList = try configGenerator.generateProjectConfig(
+        let configurationList = try await configGenerator.generateProjectConfig(
             project: project,
             pbxproj: pbxproj,
             fileElements: fileElements
@@ -112,7 +118,7 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
             pbxproj: pbxproj
         )
 
-        let nativeTargets = try generateTargets(
+        let nativeTargets = try await generateTargets(
             project: project,
             pbxproj: pbxproj,
             pbxProject: pbxProject,
@@ -196,10 +202,10 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
         pbxProject: PBXProject,
         fileElements: ProjectFileElements,
         graphTraverser: GraphTraversing
-    ) throws -> [String: PBXNativeTarget] {
+    ) async throws -> [String: PBXNativeTarget] {
         var nativeTargets: [String: PBXNativeTarget] = [:]
-        for target in project.targets {
-            let nativeTarget = try targetGenerator.generateTarget(
+        for target in project.targets.values.sorted() {
+            let nativeTarget = try await targetGenerator.generateTarget(
                 target: target,
                 project: project,
                 pbxproj: pbxproj,
@@ -215,7 +221,7 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
         /// Target dependencies
         try targetGenerator.generateTargetDependencies(
             path: project.path,
-            targets: project.targets,
+            targets: Array(project.targets.values),
             nativeTargets: nativeTargets,
             graphTraverser: graphTraverser
         )
@@ -295,12 +301,9 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
     private func generateAttributes(project: Project) -> [String: Any] {
         var attributes: [String: Any] = [:]
 
-        /// ODR tags
-        let tags = project.targets.map { $0.resources.resources.map(\.tags).flatMap { $0 } }.flatMap { $0 }
-        let uniqueTags = Set(tags).sorted()
-
-        if !uniqueTags.isEmpty {
-            attributes["KnownAssetTags"] = uniqueTags
+        // On Demand Resources tags
+        if let knownAssetTags = try? knownAssetTagsFetcher.fetch(project: project), !knownAssetTags.isEmpty {
+            attributes["KnownAssetTags"] = knownAssetTags
         }
 
         // BuildIndependentTargetsInParallel
@@ -309,6 +312,11 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
         /// Organization name
         if let organizationName = project.organizationName {
             attributes["ORGANIZATIONNAME"] = organizationName
+        }
+
+        /// Class prefix
+        if let classPrefix = project.classPrefix {
+            attributes["CLASSPREFIX"] = classPrefix
         }
 
         /// Last upgrade check

@@ -1,8 +1,9 @@
+import FileSystem
 import Foundation
-import TSCBasic
+import Path
 import TuistCore
-import TuistGraph
 import TuistSupport
+import XcodeGraph
 
 /// Swift Package Manager Interactor
 ///
@@ -27,9 +28,14 @@ public protocol SwiftPackageManagerInteracting {
 }
 
 public class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting {
-    private let fileHandler: FileHandling
-    public init(fileHandler: FileHandling = FileHandler.shared) {
-        self.fileHandler = fileHandler
+    private let fileSystem: FileSysteming
+    private let system: Systeming
+    public init(
+        fileSystem: FileSysteming = FileSystem(),
+        system: Systeming = System.shared
+    ) {
+        self.fileSystem = fileSystem
+        self.system = system
     }
 
     public func install(graphTraverser: GraphTraversing, workspaceName: String, config: Config = .default) async throws {
@@ -48,7 +54,7 @@ public class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting {
         graphTraverser: GraphTraversing
     ) async throws {
         guard !config.generationOptions.disablePackageVersionLocking,
-              graphTraverser.hasRemotePackages
+              graphTraverser.hasPackages
         else {
             return
         }
@@ -58,12 +64,11 @@ public class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting {
             .appending(try RelativePath(validating: "\(workspaceName)/xcshareddata/swiftpm"))
         let workspacePackageResolvedPath = workspacePackageResolvedFolderPath.appending(component: "Package.resolved")
 
-        if fileHandler.exists(rootPackageResolvedPath) {
-            try fileHandler.createFolder(workspacePackageResolvedFolderPath)
-            if fileHandler.exists(workspacePackageResolvedPath) {
-                try fileHandler.delete(workspacePackageResolvedPath)
+        if try await fileSystem.exists(rootPackageResolvedPath), try await !fileSystem.exists(workspacePackageResolvedPath) {
+            if try await !fileSystem.exists(workspacePackageResolvedPath.parentDirectory) {
+                try await fileSystem.makeDirectory(at: workspacePackageResolvedPath.parentDirectory)
             }
-            try fileHandler.copy(from: rootPackageResolvedPath, to: workspacePackageResolvedPath)
+            try await fileSystem.createSymbolicLink(from: workspacePackageResolvedPath, to: rootPackageResolvedPath)
         }
 
         let workspacePath = path.appending(component: workspaceName)
@@ -85,20 +90,24 @@ public class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting {
 
         arguments.append(contentsOf: ["-workspace", workspacePath.pathString, "-list"])
 
-        let events = System.shared.publisher(arguments).mapToString().values
-        for try await event in events {
-            switch event {
-            case let .standardError(error):
-                logger.error("\(error)")
-            case let .standardOutput(output):
+        try system.run(
+            arguments,
+            verbose: false,
+            environment: System.shared.env,
+            redirection: .stream(stdout: { bytes in
+                let output = String(decoding: bytes, as: Unicode.UTF8.self)
                 logger.debug("\(output)")
+            }, stderr: { bytes in
+                let error = String(decoding: bytes, as: Unicode.UTF8.self)
+                logger.error("\(error)")
+            })
+        )
+
+        if try await !fileSystem.exists(rootPackageResolvedPath), try await fileSystem.exists(workspacePackageResolvedPath) {
+            try await fileSystem.copy(workspacePackageResolvedPath, to: rootPackageResolvedPath)
+            if try await !fileSystem.exists(workspacePackageResolvedPath) {
+                try await fileSystem.createSymbolicLink(from: workspacePackageResolvedPath, to: rootPackageResolvedPath)
             }
         }
-
-        if fileHandler.exists(rootPackageResolvedPath) {
-            try fileHandler.delete(rootPackageResolvedPath)
-        }
-
-        try fileHandler.linkFile(atPath: workspacePackageResolvedPath, toPath: rootPackageResolvedPath)
     }
 }

@@ -1,5 +1,5 @@
 import Foundation
-import TSCBasic
+import Path
 import TuistSupport
 import XCTest
 
@@ -78,6 +78,22 @@ extension XCTestCase {
         XCTAssertTrue(standardOutput.contains(pattern), message, file: file, line: line)
     }
 
+    public func XCTAssertStandardOutputNotContains(_ pattern: String, file: StaticString = #file, line: UInt = #line) {
+        let standardOutput = TestingLogHandler.collected[.info, <=]
+
+        let message = """
+        The standard output:
+        ===========
+        \(standardOutput)
+
+        Contains the not expected:
+        ===========
+        \(pattern)
+        """
+
+        XCTAssertFalse(standardOutput.contains(pattern), message, file: file, line: line)
+    }
+
     public func XCTAssertStandardError(pattern: String, file: StaticString = #file, line: UInt = #line) {
         let standardError = TestingLogHandler.collected[.error, ==]
 
@@ -123,6 +139,24 @@ extension XCTestCase {
     }
 
     public func XCTAssertThrowsSpecific<Error: Swift.Error & Equatable>(
+        _ closure: () async throws -> some Any,
+        _ error: Error,
+        file: StaticString = #file,
+        line: UInt = #line
+    ) async {
+        do {
+            _ = try await closure()
+        } catch let closureError as Error {
+            XCTAssertEqual(closureError, error, file: file, line: line)
+            return
+        } catch let closureError {
+            XCTFail("\(error) is not equal to: \(closureError)", file: file, line: line)
+            return
+        }
+        XCTFail("No error was thrown", file: file, line: line)
+    }
+
+    public func XCTAssertThrowsSpecific<Error: Swift.Error & Equatable>(
         _ closure: @autoclosure () async throws -> some Any,
         _ error: Error,
         file: StaticString = #file,
@@ -138,6 +172,19 @@ extension XCTestCase {
             return
         }
         XCTFail("No error was thrown", file: file, line: line)
+    }
+
+    public func XCTAssertThrows(
+        _ closure: @autoclosure () async throws -> some Any,
+        file: StaticString = #file,
+        line: UInt = #line
+    ) async {
+        do {
+            _ = try await closure()
+            XCTFail("No error was thrown", file: file, line: line)
+        } catch {
+            // Succeeded
+        }
     }
 
     public func XCTAssertCodableEqualToJson<C: Codable>(
@@ -269,77 +316,6 @@ extension XCTestCase {
             throw XCTUnwrapError.nilValueDetected
         }
         return element
-    }
-
-    // MARK: - HTTPResource
-
-    public func XCTAssertHTTPResourceMethod(
-        _ resource: HTTPResource<some Any, some Error>,
-        _ method: String,
-        file: StaticString = #file,
-        line: UInt = #line
-    ) {
-        let request = resource.request()
-        XCTAssertEqual(
-            request.httpMethod!,
-            method,
-            "Expected the HTTP request method \(method) but got \(request.httpMethod!)",
-            file: file,
-            line: line
-        )
-    }
-
-    public func XCTAssertHTTPResourceContainsHeader(
-        _ resource: HTTPResource<some Any, some Error>,
-        header: String,
-        value: String,
-        file: StaticString = #file,
-        line: UInt = #line
-    ) {
-        let request = resource.request()
-        let headers = request.allHTTPHeaderFields ?? [:]
-        guard let headerValue = headers[header] else {
-            XCTFail("The request doesn't contain the header \(header)", file: file, line: line)
-            return
-        }
-        XCTAssertEqual(
-            headerValue,
-            value,
-            "Expected header \(header) to have value \(value) but got \(headerValue)",
-            file: file,
-            line: line
-        )
-    }
-
-    public func XCTAssertHTTPResourcePath(
-        _ resource: HTTPResource<some Any, some Error>,
-        path: String,
-        file: StaticString = #file,
-        line: UInt = #line
-    ) {
-        let request = resource.request()
-        let url = request.url!
-        let components = URLComponents(string: url.absoluteString)!
-        let requestPath = components.path
-        XCTAssertEqual(requestPath, path, "Expected the path \(path) but got \(requestPath)", file: file, line: line)
-    }
-
-    public func XCTAssertHTTPResourceURL(
-        _ resource: HTTPResource<some Any, some Error>,
-        url: URL,
-        file: StaticString = #file,
-        line: UInt = #line
-    ) {
-        let request = resource.request()
-        let requestUrl = request.url!
-        let components = URLComponents(string: requestUrl.absoluteString)!
-        XCTAssertEqual(
-            components.url!,
-            url,
-            "Expected the URL \(url.absoluteString) but got \(components.url!)",
-            file: file,
-            line: line
-        )
     }
 
     @discardableResult public func XCTAssertContainsElementOfType<T>(
