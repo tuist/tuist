@@ -1,6 +1,6 @@
 ---
 title: Get started
-titleTemplate: :title - Contribute to Tuist
+titleTemplate: :title - Tuist에 기여하기
 description: Get started contributing to Tuist by following this guide.
 ---
 
