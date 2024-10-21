@@ -25,7 +25,6 @@ xcodegen generate
 ```bash [Tuist]
 tuist generate
 ```
-
 :::
 
 The difference lays in the editing experience. With Tuist, you can run the `tuist edit` command, which generates an Xcode project on the fly that you can open and start working on. This is particularly useful when you want to make quick changes to your project.
@@ -48,7 +47,6 @@ XcodeGen's `project.yaml` description file becomes `Project.swift`. Moreover, yo
   Project.swift
   Workspace.swift
 ```
-
 :::
 
 > [!TIP] XCODE'S LANGUAGE
@@ -56,10 +54,9 @@ XcodeGen's `project.yaml` description file becomes `Project.swift`. Moreover, yo
 
 ## Spec templates
 
-One of the disadvantages of YAML as a language for project configuration is that it doesn't support reusability across YAML files out of the box. This is a common need when describing projects, which XcodeGen had to solve with their own propietary solution named _"templates"_. With Tuist's re-usability is built into the language itself, Swift, and through a Swift module named [project description helpers](/en/guides/develop/projects/code-sharing), which allow reusing code across all your manifest files.
+One of the disadvantages of YAML as a language for project configuration is that it doesn't support reusability across YAML files out of the box. This is a common need when describing projects, which XcodeGen had to solve with their own propietary solution named *"templates"*. With Tuist's re-usability is built into the language itself, Swift, and through a Swift module named [project description helpers](/ko/guides/develop/projects/code-sharing), which allow reusing code across all your manifest files.
 
 ::: code-group
-
 ```swift [Tuist/ProjectDescriptionHelpers/Target+Features.swift]
 import ProjectDescription
 
@@ -72,7 +69,6 @@ extension Target {
   }
 }
 ```
-
 ```swift [Project.swift]
 import ProjectDescription
 import ProjectDescriptionHelpers // [!code highlight]

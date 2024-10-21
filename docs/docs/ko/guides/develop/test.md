@@ -1,6 +1,6 @@
 ---
 title: tuist test
-titleTemplate: :title | Develop | Tuist
+titleTemplate: ":title | Develop | Tuist"
 description: Learn how to run tests efficiently with Tuist.
 ---
 
@@ -21,11 +21,9 @@ You might wonder what's the value of using [`tuist test`](/ko/cli/test) over gen
 To run the tests of a project, you can use the `tuist test` command. This command will generate the project if needed, and then run the tests using the platform-specific build tool. We support the use of the `--` terminator to forward all subsequent arguments directly to the build tool.
 
 ::: code-group
-
 ```bash [Running scheme tests]
 tuist test MyScheme
 ```
-
 ```bash [Running all tests without binary cache]
 tuist test --no-binary-cache
 ```
@@ -33,7 +31,6 @@ tuist test --no-binary-cache
 ```bash [Running all tests without selective testing]
 tuist test --no-selective-testing
 ```
-
 :::
 
 ## Pull/merge request comments

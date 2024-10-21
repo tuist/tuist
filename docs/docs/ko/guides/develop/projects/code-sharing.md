@@ -1,6 +1,6 @@
 ---
 title: Code sharing
-titleTemplate: :title | Projects | Tuist
+titleTemplate: ":title | Projects | Tuist"
 description: Learn how to share code across manifest files to reduce duplications and ensure consistency
 ---
 
@@ -31,7 +31,6 @@ import ProjectDescriptionHelpers
 ```
 
 `ProjectDescriptionHelpers` are available in the following manifests:
-
 - `Project.swift`
 - `Package.swift` (only behind the `#TUIST` compiler flag)
 - `Workspace.swift`
@@ -41,7 +40,6 @@ import ProjectDescriptionHelpers
 The snippets below contain an example of how we extend the `Project` model to add static constructors and how we use them from a `Project.swift` file:
 
 ::: code-group
-
 ```swift [Tuist/Project+Templates.swift]
 import ProjectDescription
 
@@ -82,7 +80,6 @@ import ProjectDescriptionHelpers
 
 let project = Project.featureFramework(name: "MyFeature")
 ```
-
 :::
 
 > [!TIP] A TOOL TO ESTABLISH CONVENTIONS

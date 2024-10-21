@@ -1,6 +1,6 @@
 ---
 title: Continuous Integration (CI)
-titleTemplate: :title | Develop | Tuist
+titleTemplate: ":title | Develop | Tuist"
 description: Learn how to use Tuist in your CI workflows.
 ---
 
@@ -26,22 +26,18 @@ mise install # Installs the version from .mise.toml
 # Runs the version of Tuist indicated in the .mise.toml file
 mise x tuist generate
 ```
-
 ```bash [Homebrew]
 #!/bin/sh
 brew install --formula tuist@x.y.z
 
 tuist generate
 ```
-
 :::
-
 ### Codemagic
 
 In [Codemagic](https://codemagic.io), you can add an additional step to your workflow to install Tuist:
 
 ::: code-group
-
 ```yaml [Mise]
 workflows:
   lint:
@@ -57,7 +53,6 @@ workflows:
       - name: Build
         script: mise x tuist build
 ```
-
 ```yaml [Homebrew]
 workflows:
   lint:
@@ -72,15 +67,13 @@ workflows:
       - name: Build
         script: tuist build
 ```
-
 :::
 
 ### GitHub Actions
 
-On [GitHub Actions](https://docs.github.com/en/actions) you can an additional step to install Tuist, and in the case of managing the installation of Mise, you can use the [mise-action](https://github.com/jdx/mise-action), which abstracts the installation of Mise and Tuist:
+On [GitHub Actions](https://docs.github.com/actions) you can an additional step to install Tuist, and in the case of managing the installation of Mise, you can use the [mise-action](https://github.com/jdx/mise-action), which abstracts the installation of Mise and Tuist:
 
 ::: code-group
-
 ```yaml [Mise]
 name: Build Application
 on:
@@ -98,7 +91,6 @@ jobs:
       - uses: jdx/mise-action@v2
       - run: tuist build
 ```
-
 ```yaml [Homebrew]
 name: test
 on:
@@ -116,16 +108,15 @@ jobs:
       - run: brew install --formula tuist@x.y.z
       - run: tuist build
 ```
-
 :::
 
-:::tip
+::: tip
 We recommend using `mise use --pin` in your Tuist projects to pin the version of Tuist across environments. The command will create a `.tool-versions` file containing the version of Tuist.
 :::
 
 ## Authentication
 
-When using server-side features such as [cache](/en/guides/develop/build/cache), you'll need a way to authenticate requests going from your CI workflows to the server. For that, you can generate a project-scoped token by running the following command:
+When using server-side features such as [cache](/ko/guides/develop/build/cache), you'll need a way to authenticate requests going from your CI workflows to the server. For that, you can generate a project-scoped token by running the following command:
 
 ```bash
 tuist project tokens create my-handle/MyApp

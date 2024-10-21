@@ -5,19 +5,18 @@ description: Tuist를 설치하는 방법을 알아보세요.
 
 # Install Tuist
 
-Tuist CLI는 실행 가능한 동적 프레임워크와 일련의 리소스(예: 템플릿)로 구성되어 있습니다. [소스에서](https://github.com/tuist/tuist) 수동으로 Tuist를 빌드할 수도 있지만, **올바른 설치를 위해 다음 설치 방법 중 하나를 사용하는 것이 좋습니다.**
+Tuist CLI는 실행 가능한 동적 프레임워크와 일련의 리소스(예: 템플릿)로 구성되어 있습니다. [소스에서](https://github.com/tuist/tuist) 수동으로 Tuist를 빌드할 수도 있지만, **올바른 설치를 위해 다음 설치 방법 중 하나를 사용하는 것이 좋습니다.**
 
 ### 권장: [Mise](https://github.com/jdx/mise)
 
-Tuist의 버전을 체계적으로 관리하고 활성화하기 위한 도구로 [Mise](https://github.com/jdx/mise)가 기본으로 사용됩니다.
-Mise가 시스템에 아직 설치되어 있지 않은 경우 다음 [설치 방법](https://mise.jdx.dev/getting-started.html) 중 하나를 사용할 수 있습니다.
-그리고 터미널에서 Tuist 프로젝트 디렉터리를 선택할 때 올바른 버전이 활성화되도록, Shell에 제안된 명령어를 추가하는 것을 잊지 마세요.
+Tuist의 버전을 체계적으로 관리하고 활성화하기 위한 도구로 [Mise](https://github.com/jdx/mise)가 기본으로 사용됩니다. Mise가 시스템에 아직 설치되어 있지 않은 경우 다음 [설치 방법](https://mise.jdx.dev/getting-started.html) 중 하나를 사용할 수 있습니다. 그리고 터미널에서 Tuist 프로젝트 디렉터리를 선택할 때 올바른 버전이 활성화되도록, Shell에 제안된 명령어를 추가하는 것을 잊지 마세요.
 
-:::info
+::: info
 Mise는 디렉토리별로 버전을 관리하고 활성화 하여 각 환경에서 동일한 버전의 Tuist를 일관되게 사용할 수 있도록 하기 때문에 [HomeBrew](https://brew.sh)와 같은 대안보다 권장됩니다.
 :::
 
 설치가 완료되면, 다음 명령어 중 하나를 통해 Tuist를 설치할 수 있습니다.
+
 
 ```bash
 mise install tuist # .tool-versions/.mise.toml에 지정된 현재 버전을 설치합니다.
@@ -48,8 +47,8 @@ brew install --formula tuist@x.y.z
 
 Tuist를 **시스템 전체**(global installation)에 설치했다면, Bash와 Zsh의 명령어 및 옵션 자동 완성을 사용할 수 있도록 shell completions을 설치할 수 있습니다.
 
-:::warning Global installation란?
-Global installation는 Shell의 `$PATH` 환경 변수에 포함된 설치를 말합니다. 즉, 터미널의 모든 디렉토리에서 `tuist`를 실행할 수 있습니다.이것은 Homebrew의 기본 설치 방법입니다. This is the default installation method for Homebrew.
+::: warning Global installation란?
+Global installation는 Shell의 `$PATH` 환경 변수에 포함된 설치를 말합니다. 즉, 터미널의 모든 디렉토리에서 `tuist`를 실행할 수 있습니다.이것은 Homebrew의 기본 설치 방법입니다.
 :::
 
 #### Zsh
@@ -60,7 +59,7 @@ Global installation는 Shell의 `$PATH` 환경 변수에 포함된 설치를 말
 tuist --generate-completion-script > ~/.oh-my-zsh/completions/_tuist
 ```
 
-`oh-my-zsh`가 없는 경우 함수 경로에 완성 스크립트 경로를 추가하고, 완성 스크립트 자동 로딩을 설정해야 합니다. 먼저 `~/.zshrc`에 다음 줄을 추가합니다
+`oh-my-zsh`가 없는 경우 함수 경로에 완성 스크립트 경로를 추가하고, 완성 스크립트 자동 로딩을 설정해야 합니다. 먼저 `~/.zshrc`에 다음 줄을 추가합니다
 
 ```bash
 fpath=(~/.zsh/completion $fpath)

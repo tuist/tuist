@@ -1,12 +1,12 @@
 ---
 title: The cost of convenience
-titleTemplate: :title | Projects | Tuist
+titleTemplate: ":title | Projects | Tuist"
 description: Learn about the cost of convenience in Xcode and how Tuist helps you prevent the issues that come with it.
 ---
 
 # The cost of convenience
 
-Designing a code editor that the spectrum **from small to large-scale projects can use** is a challenging task.
+Designing a code editor that the spectrum **from small to large-scale projects can use** is a challenging task. 
 Many tools approach the problem by layering their solution and providing extensibility. The bottom-most layer is very low-level and close to the underlying build system, and the top-most layer is a high-level abstraction that's convenient to use but less flexible.
 By doing so, they make the simple things easy, and everything else possible.
 
@@ -51,7 +51,7 @@ Because all the products of a project go into the same directory,
 which is visible by default from other targets to link against,
 **you might end up with targets that implicitly depend on each other.**
 While this might not be a problem when having just a few targets,
-it might manifest as failing builds that are hard to debug when the project grows.
+it might manifest as failing builds that are hard to debug when the project grows. 
 
 The consequence of this design decision is that many projects acidentally compile with a graph that is not well-defined.
 
@@ -82,7 +82,7 @@ Some editor features like SwiftUI Previews or Swift Macros require the compilati
 
 ### Mergeable libraries
 
-Dynamic frameworks, while more flexible and easier to work with, have a negative impact in the launch time of apps. On the other side, static libraries are faster to launch, but impact the compilation time and are a bit harder to work with, specially in complex graph scenarios. _Wouldn't it be great if you could change between one or the other depending on the configuration?_ That's what Apple must have thought when they decided to work on mergeable libraries. But once again, they moved more build-time inference to the build-time. If reasoning about a dependency graph, imagine having to do so when the static or dynamic nature of the target will be resolved at build-time based on some build settings in some targets. Good luck making that work reliably while ensuring features like SwiftUI previews don't break.
+Dynamic frameworks, while more flexible and easier to work with, have a negative impact in the launch time of apps. On the other side, static libraries are faster to launch, but impact the compilation time and are a bit harder to work with, specially in complex graph scenarios. *Wouldn't it be great if you could change between one or the other depending on the configuration?* That's what Apple must have thought when they decided to work on mergeable libraries. But once again, they moved more build-time inference to the build-time. If reasoning about a dependency graph, imagine having to do so when the static or dynamic nature of the target will be resolved at build-time based on some build settings in some targets. Good luck making that work reliably while ensuring features like SwiftUI previews don't break.
 
 **Many users come to Tuist wanting to use mergeable libraries and our answer is always the same. You don't need to.** You can control the static or dynamic nature of your targets at generation-time leading to a project whose graph is known ahead of compilation. No variables need to be resolved at build-time.
 
@@ -106,7 +106,7 @@ Going back to first principles and rethinking the design of the tools might lead
 
 Apple finds itself in a bit of a chicken-and-egg problem.
 Convenience is what helps developers get started quickly and build more apps for their ecosystem.
-But their decisions to make the experience convenience at that scale,
+But their decisions to make the experience convenience at that scale, 
 is making it hard for them to ensure some of the Xcode features work reliably.
 
 Because the future is unknown,

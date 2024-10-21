@@ -19,21 +19,18 @@ cd MyApp
 Once the directory is created and you're inside it, run the following command:
 
 ::: code-group
-
 ```bash [iOS project]
 tuist init --platform ios
 ```
-
 ```bash [macOS project]
 tuist init --platform macos
 ```
-
 :::
 
-The command will initialize the project in the current directory. You can then [edit the project](/en/guides/develop/projects/editing) running `tuist edit`, and Xcode will open a project where you can edit the project. One of the files that are generated is the `Project.swift`, which contains the definition of your project. If you are familiar with the Swift Package Manager, think of it as the `Package.swift` but with the lingo of Xcode projects.
+The command will initialize the project in the current directory. You can then [edit the project](/ko/guides/develop/projects/editing) running `tuist edit`, and Xcode will open a project where you can edit the project. One of the files that are generated is the `Project.swift`, which contains the definition of your project. If you are familiar with the Swift Package Manager, think of it as the `Package.swift` but with the lingo of Xcode projects.
+
 
 ::: code-group
-
 ```swift [Project.swift]
 import ProjectDescription
 
@@ -70,7 +67,6 @@ let project = Project(
     ]
 )
 ```
-
 :::
 
 > [!NOTE]
@@ -88,7 +84,6 @@ cd MyFramework
 Then create a `Tuist/Config.swift` file, which will configure Tuist and is used by Tuist to determine the root directory of the project, and a `Project.swift`, where your project will be declared:
 
 ::: code-group
-
 ```swift [Project.swift]
 import ProjectDescription
 
@@ -106,13 +101,11 @@ let project = Project(
     ]
 )
 ```
-
 ```swift [Tuist/Config.swift]
 import ProjectDescription
 
 let config = Config()
 ```
-
 :::
 
 > [!IMPORTANT]
