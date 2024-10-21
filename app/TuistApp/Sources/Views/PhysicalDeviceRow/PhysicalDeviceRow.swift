@@ -45,9 +45,20 @@ struct PhysicalDeviceRow: View {
             VStack(alignment: .leading) {
                 Text(device.name)
                     .font(.title3)
-                Text(device.osVersion)
+                device.osVersion.map { Text($0) }
             }
             Spacer()
+
+            Group {
+                switch device.transportType {
+                case .wifi:
+                    Image(systemName: "network")
+                case .usb, .none:
+                    EmptyView()
+                }
+            }
+            .font(.title3)
+            .foregroundStyle(.secondary)
         }
         .menuItemStyle()
         .onTapGesture {

@@ -8,17 +8,20 @@ import XcodeGraph
 
 enum DeviceControllerError: FatalError {
     case applicationVerificationFailed
+    case fetchingDevicesFailed
 
     var description: String {
         switch self {
         case .applicationVerificationFailed:
             "The app could not be installed because the verification failed. Make sure that your device is registered in your Apple Developer account."
+        case .fetchingDevicesFailed:
+            "Fetching the list of devices failed."
         }
     }
 
     var type: ErrorType {
         switch self {
-        case .applicationVerificationFailed:
+        case .applicationVerificationFailed, .fetchingDevicesFailed:
             .abort
         }
     }
@@ -62,10 +65,15 @@ public final class DeviceController: DeviceControlling {
             )
             .concatenatedString()
 
-            let deviceList = try JSONDecoder().decode(
-                DeviceList.self,
-                from: try await fileSystem.readFile(at: devicesListOutputPath)
-            )
+            let deviceList: DeviceList
+            do {
+                deviceList = try JSONDecoder().decode(
+                    DeviceList.self,
+                    from: try await fileSystem.readFile(at: devicesListOutputPath)
+                )
+            } catch {
+                throw DeviceControllerError.fetchingDevicesFailed
+            }
 
             return deviceList.result.devices
                 .map(PhysicalDevice.init)
@@ -126,12 +134,25 @@ private struct DeviceList: Codable {
             let identifier: String
 
             struct ConnectionProperties: Codable {
-                let transportType: String?
+                enum TransportType: String, Codable {
+                    case localNetwork
+                    case wired
+                }
+
+                enum TunnelState: String, Codable {
+                    case connecting
+                    case connected
+                    case disconnected
+                    case unavailable
+                }
+
+                let transportType: TransportType?
+                let tunnelState: TunnelState?
             }
 
             struct DeviceProperties: Codable {
                 let name: String
-                let osVersionNumber: String
+                let osVersionNumber: String?
             }
 
             struct HardwareProperties: Codable {
@@ -158,11 +179,24 @@ extension PhysicalDevice {
         case .watchOS: .watchOS
         }
 
+        let transportType: PhysicalDevice.TransportType? = switch device.connectionProperties.transportType {
+        case .localNetwork: .wifi
+        case .wired: .usb
+        case .none: .none
+        }
+
+        let connectionState: PhysicalDevice.ConnectionState = switch device.connectionProperties.tunnelState {
+        case .connected: .connected
+        case .connecting, .disconnected, .unavailable, .none: .disconnected
+        }
+
         self.init(
             id: device.hardwareProperties.udid,
             name: device.deviceProperties.name,
             platform: platform,
-            osVersion: device.deviceProperties.osVersionNumber
+            osVersion: device.deviceProperties.osVersionNumber,
+            transportType: transportType,
+            connectionState: connectionState
         )
     }
 }
