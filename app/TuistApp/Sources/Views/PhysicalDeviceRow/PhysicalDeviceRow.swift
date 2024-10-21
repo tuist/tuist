@@ -53,7 +53,7 @@ struct PhysicalDeviceRow: View {
                 switch device.transportType {
                 case .wifi:
                     Image(systemName: "network")
-                case .usb, .unknown:
+                case .usb, .none:
                     EmptyView()
                 }
             }

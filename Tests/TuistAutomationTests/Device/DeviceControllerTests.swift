@@ -682,7 +682,7 @@ final class DeviceControllerTests: TuistUnitTestCase {
             },
             "identifier" : "890F8E81-A295-89D1-AF02-9F890A89089E",
             "tags" : [
-    
+
             ],
             "visibilityClass" : "default"
           }

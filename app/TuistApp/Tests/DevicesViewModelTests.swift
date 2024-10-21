@@ -75,7 +75,7 @@ final class DevicesViewModelTests: TuistUnitTestCase {
 
         given(appStorage)
             .get(.any as Parameter<SelectedDeviceKey.Type>)
-            .willReturn(.simulator(iPhone15))
+            .willReturn(.simulator(id: iPhone15.id))
 
         given(appStorage)
             .set(.any as Parameter<SelectedDeviceKey.Type>, value: .any)
@@ -110,6 +110,7 @@ final class DevicesViewModelTests: TuistUnitTestCase {
         Matcher.register(SimulatorDeviceAndRuntime?.self)
         Matcher.register([SimulatorDeviceAndRuntime].self)
         Matcher.register(SelectedDevice?.self)
+        Matcher.register(ReducedDevice?.self)
     }
 
     override func tearDown() {
@@ -220,7 +221,7 @@ final class DevicesViewModelTests: TuistUnitTestCase {
 
         given(appStorage)
             .get(.any as Parameter<SelectedDeviceKey.Type>)
-            .willReturn(.simulator(appleTV))
+            .willReturn(.simulator(id: appleTV.id))
 
         // When
         try await subject.onAppear()
@@ -258,7 +259,7 @@ final class DevicesViewModelTests: TuistUnitTestCase {
 
         let watchS9 = PhysicalDevice.test(
             name: "Watch S9",
-            transportType: .unknown,
+            transportType: nil,
             connectionState: .disconnected
         )
 
@@ -286,7 +287,7 @@ final class DevicesViewModelTests: TuistUnitTestCase {
         verify(appStorage)
             .set(
                 .any as Parameter<SelectedDeviceKey.Type>,
-                value: .value(.simulator(iPhone15Pro))
+                value: .value(.simulator(id: iPhone15Pro.id))
             )
             .called(1)
     }
@@ -311,7 +312,7 @@ final class DevicesViewModelTests: TuistUnitTestCase {
         verify(appStorage)
             .set(
                 .any as Parameter<SelectedDeviceKey.Type>,
-                value: .value(.device(myiPhone))
+                value: .value(.device(id: myiPhone.id))
             )
             .called(1)
     }

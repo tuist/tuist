@@ -28,7 +28,7 @@ public struct PhysicalDevice: Codable, Equatable, Identifiable {
             name: String = "My iPhone",
             platform: Platform = .iOS,
             osVersion: String? = "17.4.1",
-            transportType: TransportType = .wifi,
+            transportType: TransportType? = .wifi,
             connectionState: ConnectionState = .connected
         ) -> Self {
             .init(

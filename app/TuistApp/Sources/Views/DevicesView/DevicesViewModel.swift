@@ -56,12 +56,23 @@ struct PinnedSimulatorsKey: AppStorageKey {
 
 struct SelectedDeviceKey: AppStorageKey {
     static let key = "selectedSimulator"
-    static let defaultValue: SelectedDevice? = nil
+    static let defaultValue: ReducedDevice? = nil
 }
 
 enum SelectedDevice: Codable, Equatable {
     case simulator(SimulatorDeviceAndRuntime)
     case device(PhysicalDevice)
+}
+
+enum ReducedDevice: Codable, Equatable {
+    case simulator(id: String)
+    case device(id: String)
+
+    var id: String {
+        switch self {
+        case let .simulator(id), let .device(id): id
+        }
+    }
 }
 
 @Observable
@@ -113,12 +124,12 @@ final class DevicesViewModel: Sendable {
 
     func selectSimulator(_ simulator: SimulatorDeviceAndRuntime) {
         selectedDevice = .simulator(simulator)
-        try? appStorage.set(SelectedDeviceKey.self, value: selectedDevice)
+        try? appStorage.set(SelectedDeviceKey.self, value: .simulator(id: simulator.id))
     }
 
     func selectPhysicalDevice(_ device: PhysicalDevice) {
         selectedDevice = .device(device)
-        try? appStorage.set(SelectedDeviceKey.self, value: selectedDevice)
+        try? appStorage.set(SelectedDeviceKey.self, value: .device(id: device.id))
     }
 
     func simulatorPinned(_ simulator: SimulatorDeviceAndRuntime, pinned: Bool) {
@@ -151,18 +162,27 @@ final class DevicesViewModel: Sendable {
         let simulators = try await simulatorController.devicesAndRuntimes()
             .sorted()
 
-        if let selectedDevice = try appStorage.get(SelectedDeviceKey.self) {
-            self.selectedDevice = selectedDevice
-        } else {
-            selectedDevice = simulators.first(where: { !$0.device.isShutdown }).map { .simulator($0) }
-        }
-
         pinnedSimulators = try appStorage.get(PinnedSimulatorsKey.self)
 
         unpinnedSimulators = Set(simulators)
             .subtracting(Set(pinnedSimulators))
             .map { $0 }
             .sorted()
+
+        func getSelectedDevice(reduced device: ReducedDevice) -> SelectedDevice? {
+            switch device {
+            case let .simulator(id):
+                simulators.first(where: { $0.id == id }).map { .simulator($0) }
+            case let .device(id):
+                devices.first(where: { $0.id == id }).map { .device($0) }
+            }
+        }
+
+        if let selectedDevice = (try? appStorage.get(SelectedDeviceKey.self)).map(getSelectedDevice(reduced:)) {
+            self.selectedDevice = selectedDevice
+        } else {
+            selectedDevice = simulators.first(where: { !$0.device.isShutdown }).map { .simulator($0) }
+        }
     }
 
     func onChangeOfURL(_ url: URL?) async throws {
