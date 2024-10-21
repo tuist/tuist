@@ -140,6 +140,7 @@ private struct DeviceList: Codable {
                 }
 
                 enum TunnelState: String, Codable {
+                    case connecting
                     case connected
                     case disconnected
                     case unavailable
@@ -186,7 +187,7 @@ extension PhysicalDevice {
 
         let connectionState: PhysicalDevice.ConnectionState = switch device.connectionProperties.tunnelState {
         case .connected: .connected
-        case .disconnected, .unavailable, .none: .disconnected
+        case .connecting, .disconnected, .unavailable, .none: .disconnected
         }
 
         self.init(

@@ -110,7 +110,6 @@ final class DevicesViewModelTests: TuistUnitTestCase {
         Matcher.register(SimulatorDeviceAndRuntime?.self)
         Matcher.register([SimulatorDeviceAndRuntime].self)
         Matcher.register(SelectedDevice?.self)
-        Matcher.register(ReducedDevice?.self)
     }
 
     override func tearDown() {
