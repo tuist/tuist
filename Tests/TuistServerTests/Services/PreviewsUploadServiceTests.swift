@@ -15,6 +15,7 @@ final class PreviewsUploadServiceTests: TuistUnitTestCase {
     private var multipartUploadGenerateURLPreviewsService: MockMultipartUploadGenerateURLPreviewsServicing!
     private var multipartUploadArtifactService: MockMultipartUploadArtifactServicing!
     private var multipartUploadCompletePreviewsService: MockMultipartUploadCompletePreviewsServicing!
+    private var multipartUploadCapturedGenerateUploadURLCallback: ((MultipartUploadArtifactPart) async throws -> String)!
 
     private let serverURL: URL = .test()
     private let shareURL: URL = .test()
@@ -58,9 +59,23 @@ final class PreviewsUploadServiceTests: TuistUnitTestCase {
         given(multipartUploadArtifactService)
             .multipartUploadArtifact(
                 artifactPath: .any,
-                generateUploadURL: .any
+                generateUploadURL: .matching { callback in
+                    self.multipartUploadCapturedGenerateUploadURLCallback = callback
+                    return true
+                }
             )
             .willReturn([(etag: "etag", partNumber: 1)])
+
+        given(multipartUploadGenerateURLPreviewsService)
+            .uploadPreviews(
+                .value("preview-id"),
+                partNumber: .value(1),
+                uploadId: .value("upload-id"),
+                fullHandle: .value("tuist/tuist"),
+                serverURL: .value(serverURL),
+                contentLength: .value(20)
+            )
+            .willReturn("https://tuist.dev/upload-url")
     }
 
     override func tearDown() {
@@ -117,6 +132,11 @@ final class PreviewsUploadServiceTests: TuistUnitTestCase {
                 url: shareURL
             )
         )
+        let gotMultipartUploadURL = try await multipartUploadCapturedGenerateUploadURLCallback(MultipartUploadArtifactPart(
+            number: 1,
+            contentLength: 20
+        ))
+        XCTAssertEqual(gotMultipartUploadURL, "https://tuist.dev/upload-url")
     }
 
     func test_upload_ipa() async throws {
@@ -157,5 +177,10 @@ final class PreviewsUploadServiceTests: TuistUnitTestCase {
                 url: shareURL
             )
         )
+        let gotMultipartUploadURL = try await multipartUploadCapturedGenerateUploadURLCallback(MultipartUploadArtifactPart(
+            number: 1,
+            contentLength: 20
+        ))
+        XCTAssertEqual(gotMultipartUploadURL, "https://tuist.dev/upload-url")
     }
 }

@@ -20,32 +20,20 @@ struct MenuBarView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Tuist")
-                .font(.title3)
-                .bold()
-                .background(Color.clear)
-                .padding([.leading, .trailing], 8)
-
-            Divider()
-                .padding([.leading, .trailing], 8)
-
             simulatorsView
 
             Divider()
-                .padding([.leading, .trailing], 8)
 
             Button("Check for updates", action: viewModel.checkForUpdates)
                 .disabled(!viewModel.canCheckForUpdates)
                 .menuItemStyle()
-                .padding([.leading, .trailing], 8)
 
             Button("Quit Tuist") {
                 NSApplication.shared.terminate(nil)
             }
             .menuItemStyle()
-            .padding([.leading, .trailing], 8)
         }
-        .padding([.top, .bottom], 8)
+        .padding(8)
         .environmentObject(errorHandling)
     }
 }
