@@ -146,7 +146,7 @@ private struct DeviceList: Codable {
                 }
 
                 let transportType: TransportType?
-                let tunnelState: TunnelState
+                let tunnelState: TunnelState?
             }
 
             struct DeviceProperties: Codable {
@@ -186,7 +186,7 @@ extension PhysicalDevice {
 
         let connectionState: PhysicalDevice.ConnectionState = switch device.connectionProperties.tunnelState {
         case .connected: .connected
-        case .disconnected, .unavailable: .disconnected
+        case .disconnected, .unavailable, .none: .disconnected
         }
 
         self.init(
