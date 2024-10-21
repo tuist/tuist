@@ -23,6 +23,7 @@ final class TestAcceptanceTests: TuistAcceptanceTestCase {
 
     func test_with_framework_with_spm_bundle() async throws {
         try await setUpFixture(.frameworkWithSPMBundle)
+        try await run(InstallCommand.self)
         try await run(TestCommand.self)
     }
 
