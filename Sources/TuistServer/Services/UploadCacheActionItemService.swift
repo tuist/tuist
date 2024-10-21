@@ -88,7 +88,7 @@ public final class UploadCacheActionItemService: UploadCacheActionItemServicing 
             case let .json(cacheActionItem):
                 return ServerCacheActionItem(cacheActionItem)
             }
-        case let .paymentRequired(paymentRequiredResponse):
+        case let .code402(paymentRequiredResponse):
             switch paymentRequiredResponse.body {
             case let .json(error):
                 throw UploadCacheActionItemServiceError.paymentRequired(error.message)

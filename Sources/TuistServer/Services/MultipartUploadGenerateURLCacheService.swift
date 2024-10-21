@@ -69,7 +69,7 @@ public final class MultipartUploadGenerateURLCacheService: MultipartUploadGenera
             case let .json(cacheArtifact):
                 return cacheArtifact.data.url
             }
-        case let .paymentRequired(paymentRequiredResponse):
+        case let .code402(paymentRequiredResponse):
             switch paymentRequiredResponse.body {
             case let .json(error):
                 throw MultipartUploadGenerateURLCacheServiceError.paymentRequired(error.message)

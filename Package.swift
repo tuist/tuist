@@ -469,10 +469,10 @@ let package = Package(
         .package(url: "https://github.com/krzysztofzablocki/Difference.git", from: "1.0.2"),
         .package(url: "https://github.com/Kolos65/Mockable.git", exact: "0.0.11"),
         .package(
-            url: "https://github.com/tuist/swift-openapi-runtime", branch: "swift-tools-version"
+            url: "https://github.com/apple/swift-openapi-runtime", .upToNextMajor(from: "1.5.0")
         ),
         .package(
-            url: "https://github.com/tuist/swift-openapi-urlsession", branch: "swift-tools-version"
+            url: "https://github.com/apple/swift-openapi-urlsession", .upToNextMajor(from: "1.0.2")
         ),
         .package(url: "https://github.com/tuist/Path", .upToNextMajor(from: "0.3.0")),
         .package(

@@ -1,4 +1,5 @@
 import Foundation
+import HTTPTypes
 import OpenAPIRuntime
 import TuistSupport
 
@@ -49,11 +50,12 @@ struct ServerClientAuthenticationMiddleware: ClientMiddleware {
     }
 
     func intercept(
-        _ request: Request,
+        _ request: HTTPRequest,
+        body: HTTPBody?,
         baseURL: URL,
         operationID _: String,
-        next: (Request, URL) async throws -> Response
-    ) async throws -> Response {
+        next: (HTTPRequest, HTTPBody?, URL) async throws -> (HTTPResponse, HTTPBody?)
+    ) async throws -> (HTTPResponse, HTTPBody?) {
         var request = request
         guard let token = try await serverAuthenticationController.authenticationToken(serverURL: baseURL)
         else {
@@ -103,8 +105,8 @@ struct ServerClientAuthenticationMiddleware: ClientMiddleware {
         }
 
         request.headerFields.append(.init(
-            name: "Authorization", value: "Bearer \(tokenValue)"
+            name: .authorization, value: "Bearer \(tokenValue)"
         ))
-        return try await next(request, baseURL)
+        return try await next(request, body, baseURL)
     }
 }
