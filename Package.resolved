@@ -1,4 +1,5 @@
 {
+  "originHash" : "824a24591152b9b0834e71125c37ab3b70bf7e6e5f2683933a8db7786757bff3",
   "pins" : [
     {
       "identity" : "aexml",
@@ -219,10 +220,10 @@
     {
       "identity" : "xcodeproj",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/tuist/XcodeProj",
+      "location" : "https://github.com/kelvinharron/XcodeProj",
       "state" : {
-        "revision" : "75e787fb3eb5a8397c3d06d5a71e667ac2d20ac1",
-        "version" : "8.19.0"
+        "branch" : "add-swifttesting-parallelizable-handling",
+        "revision" : "0090f0f2e2cd3f29d38bfa075853ceea338a174d"
       }
     },
     {
@@ -253,5 +254,5 @@
       }
     }
   ],
-  "version" : 2
+  "version" : 3
 }
