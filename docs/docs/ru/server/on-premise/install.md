@@ -26,7 +26,7 @@ This section outlines the requirements for hosting the Tuist server on your infr
 
 ### Running Docker-virtualized images
 
-We distribute the server as a [Docker](https://www.docker.com/) image via [GitHub’s Container Registry](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry).
+We distribute the server as a [Docker](https://www.docker.com/) image via [GitHub’s Container Registry](https://docs.github.com/ru/packages/working-with-a-github-packages-registry/working-with-the-container-registry).
 
 To run it, your infrastructure must support running Docker images. Note that most infrastructure providers support it because it’s become the standard container for distributing and running software in production environments.
 
@@ -92,7 +92,7 @@ We facilitate authentication through [identity providers (IdP)](https://en.wikip
 
 #### GitHub
 
-We recommend authenticating using a [GitHub App](https://docs.github.com/en/apps/creating-github-apps/about-creating-github-apps/about-creating-github-apps) but you can also use the [OAuth App](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/creating-an-oauth-app). Make sure to include all essential environment variables specified by GitHub in the server environment. Absent variables will cause Tuist to overlook the GitHub authentication. To properly set up the GitHub app:
+We recommend authenticating using a [GitHub App](https://docs.github.com/ru/apps/creating-github-apps/about-creating-github-apps/about-creating-github-apps) but you can also use the [OAuth App](https://docs.github.com/ru/apps/oauth-apps/building-oauth-apps/creating-an-oauth-app). Make sure to include all essential environment variables specified by GitHub in the server environment. Absent variables will cause Tuist to overlook the GitHub authentication. To properly set up the GitHub app:
 
 - In the GitHub app's general settings:
   - Copy the `Client ID` and set it as `TUIST_GITHUB_APP_CLIENT_ID`
@@ -116,7 +116,7 @@ You can set up authentication with Google using [OAuth 2](https://developers.goo
 
 #### Okta
 
-You can enable authentication with Okta through the [OAuth 2.0](https://oauth.net/2/) protocol. You'll have to [create an app](https://developer.okta.com/docs/en/guides/implement-oauth-for-okta/main/#create-an-oauth-2-0-app-in-okta) on Okta with the following configuration:
+You can enable authentication with Okta through the [OAuth 2.0](https://oauth.net/2/) protocol. You'll have to [create an app](https://developer.okta.com/docs/ru/guides/implement-oauth-for-okta/main/#create-an-oauth-2-0-app-in-okta) on Okta with the following configuration:
 
 - **App integration name:** `Tuist`
 - **Grant type:** Enable _Authorization Code_ for _Client acting on behalf of a user_
@@ -160,11 +160,11 @@ For Google Cloud Storage, follow [these docs](https://cloud.google.com/storage/d
 
 ### Git platform configuration
 
-Tuist can [integrate with Git platforms](/en/server/introduction/integrations#git-platforms) to provide extra features such as automatically posting comments in your pull requests.
+Tuist can [integrate with Git platforms](/ru/server/introduction/integrations#git-platforms) to provide extra features such as automatically posting comments in your pull requests.
 
 #### GitHub
 
-You will need to [create a GitHub app](https://docs.github.com/en/apps/creating-github-apps/about-creating-github-apps/about-creating-github-apps). You can reuse the one you created for authentication, unless you created an OAuth GitHub app. In the `Permissions and events`'s `Repository permissions` section, you will need to additionally set the `Pull requests` permission to `Read and write`.
+You will need to [create a GitHub app](https://docs.github.com/ru/apps/creating-github-apps/about-creating-github-apps/about-creating-github-apps). You can reuse the one you created for authentication, unless you created an OAuth GitHub app. In the `Permissions and events`'s `Repository permissions` section, you will need to additionally set the `Pull requests` permission to `Read and write`.
 
 On top of the `TUIST_GITHUB_APP_CLIENT_ID` and `TUIST_GITHUB_APP_CLIENT_SECRET`, you will need the following environment variables:
 
@@ -306,7 +306,7 @@ services:
       - "8080"
       - "443:443"
     environment:
-      # Base Tuist Env - https://docs.tuist.io/en/guides/dashboard/on-premise/install#base-environment-configuration
+      # Base Tuist Env - https://docs.tuist.io/ru/guides/dashboard/on-premise/install#base-environment-configuration
       TUIST_USE_SSL_FOR_DATABASE: "0"
       TUIST_LICENSE:  # ...
       DATABASE_URL: postgres://postgres:postgres@db:5432/postgres?sslmode=disable
@@ -315,11 +315,11 @@ services:
       WEB_CONCURRENCY: 80
 
       # Auth - one method
-      # GitHub Auth - https://docs.tuist.io/en/guides/dashboard/on-premise/install#github
+      # GitHub Auth - https://docs.tuist.io/ru/guides/dashboard/on-premise/install#github
       TUIST_GITHUB_OAUTH_ID:
       TUIST_GITHUB_APP_CLIENT_SECRET:
 
-      # Okta Auth - https://docs.tuist.io/en/guides/dashboard/on-premise/install#okta
+      # Okta Auth - https://docs.tuist.io/ru/guides/dashboard/on-premise/install#okta
       TUIST_OKTA_SITE:
       TUIST_OKTA_CLIENT_ID:
       TUIST_OKTA_CLIENT_SECRET:
