@@ -146,14 +146,8 @@ final class DevicesViewModel: Sendable {
     func refreshDevices() async throws {
         isRefreshing = true
 
-        do {
-            try await onAppear()
-        } catch {
-            isRefreshing = false
-            throw error
-        }
-
-        isRefreshing = false
+       defer { isRefreshing = false }
+       try await onAppear()
     }
 
     func onAppear() async throws {
