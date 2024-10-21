@@ -1,6 +1,6 @@
 ---
 title: Principles
-titleTemplate: :title - Tuist に貢献する
+titleTemplate: :title - Contribute to Tuist
 description: This document describes the principles that guide the development of Tuist.
 ---
 

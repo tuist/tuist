@@ -1,6 +1,6 @@
 ---
 title: Get started
-titleTemplate: :title - Tuist に貢献する
+titleTemplate: :title - Contribute to Tuist
 description: Get started contributing to Tuist by following this guide.
 ---
 
