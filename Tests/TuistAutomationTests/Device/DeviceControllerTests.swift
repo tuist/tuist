@@ -82,6 +82,14 @@ final class DeviceControllerTests: TuistUnitTestCase {
                     transportType: .wifi,
                     connectionState: .disconnected
                 ),
+                PhysicalDevice(
+                    id: "00008120-A9123890F89EA35B",
+                    name: "My Watch S8",
+                    platform: .watchOS,
+                    osVersion: "11.0.1",
+                    transportType: nil,
+                    connectionState: .disconnected
+                ),
             ],
             got
         )
@@ -625,6 +633,56 @@ final class DeviceControllerTests: TuistUnitTestCase {
             "identifier" : "497621AE-9F6E-0515-BF34-974F61E542E6",
             "tags" : [
 
+            ],
+            "visibilityClass" : "default"
+          },
+          {
+            "capabilities" : [
+              {
+                "featureIdentifier" : "com.apple.coredevice.feature.unpairdevice",
+                "name" : "Unpair Device"
+              }
+            ],
+            "connectionProperties" : {
+              "authenticationType" : "manualPairing",
+              "isMobileDeviceOnly" : false,
+              "lastConnectionDate" : "2024-10-12T14:40:44.703Z",
+              "pairingState" : "paired",
+              "potentialHostnames" : [
+                "00008120-A9123890F89EA35B.coredevice.local",
+                "890F8E81-A295-89D1-AF02-9F890A89089E.coredevice.local"
+              ],
+              "tunnelState" : "unavailable"
+            },
+            "deviceProperties" : {
+              "ddiServicesAvailable" : false,
+              "developerModeStatus" : "disabled",
+              "hasInternalOSBuild" : false,
+              "name" : "My Watch S8",
+              "osBuildUpdate" : "22R361",
+              "osVersionNumber" : "11.0.1"
+            },
+            "hardwareProperties" : {
+              "cpuType" : {
+                "name" : "arm64_32",
+                "subType" : 1,
+                "type" : 33554444
+              },
+              "deviceType" : "appleWatch",
+              "ecid" : 17129084317543758948,
+              "hardwareModel" : "N197bAP",
+              "isProductionFused" : true,
+              "marketingName" : "Apple Watch Series 8",
+              "platform" : "watchOS",
+              "productType" : "Watch6,15",
+              "reality" : "physical",
+              "serialNumber" : "K29F36127F",
+              "thinningProductType" : "Watch6,15",
+              "udid" : "00008120-A9123890F89EA35B"
+            },
+            "identifier" : "890F8E81-A295-89D1-AF02-9F890A89089E",
+            "tags" : [
+    
             ],
             "visibilityClass" : "default"
           }

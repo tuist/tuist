@@ -6,7 +6,6 @@ public struct PhysicalDevice: Codable, Equatable, Identifiable {
     public enum TransportType: String, Codable {
         case wifi
         case usb
-        case unknown
     }
 
     public enum ConnectionState: String, Codable {
@@ -18,7 +17,7 @@ public struct PhysicalDevice: Codable, Equatable, Identifiable {
     public let name: String
     public let platform: Platform
     public let osVersion: String?
-    public let transportType: TransportType
+    public let transportType: TransportType?
     public let connectionState: ConnectionState
 }
 

@@ -178,10 +178,10 @@ extension PhysicalDevice {
         case .watchOS: .watchOS
         }
 
-        let transportType: PhysicalDevice.TransportType = switch device.connectionProperties.transportType {
+        let transportType: PhysicalDevice.TransportType? = switch device.connectionProperties.transportType {
         case .localNetwork: .wifi
         case .wired: .usb
-        case .none: .unknown
+        case .none: .none
         }
 
         let connectionState: PhysicalDevice.ConnectionState = switch device.connectionProperties.tunnelState {
