@@ -305,6 +305,7 @@ let targets: [Target] = [
             "FileSystem",
             pathDependency,
             .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
+            "HTTPTypes",
             .product(name: "OpenAPIURLSession", package: "swift-openapi-urlsession"),
         ],
         exclude: ["OpenAPI/server.yml"],
