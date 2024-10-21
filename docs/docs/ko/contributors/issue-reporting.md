@@ -1,6 +1,6 @@
 ---
 title: Issue reporting
-titleTemplate: :title - Contribute to Tuist
+titleTemplate: :title - Tuist에 기여하기
 description: Learn how to contribute to Tuist by reporting bugs
 ---
 
