@@ -1,10 +1,10 @@
 ---
-title: Issue reporting
+title: Issue報告
 titleTemplate: :title - Tuist に貢献する
 description: Learn how to contribute to Tuist by reporting bugs
 ---
 
-# Issue reporting
+# Issue報告
 
 As user of Tuist, you might come across bugs or unexpected behaviors.
 If you do, we encourage you to report them so that we can fix them.
