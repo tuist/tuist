@@ -227,17 +227,7 @@ defmodule TuistWeb.API.PreviewsController do
          required: [:multipart_upload_parts, :preview_id]
        }},
     responses: %{
-      ok:
-        {"The upload has been completed", "application/json",
-         %Schema{
-           title: "PreviewUploadCompletion",
-           description: "The preview multipart upload has been completed",
-           type: :object,
-           properties: %{
-             url: %Schema{type: :string, description: "The URL to download the preview"}
-           },
-           required: [:url]
-         }},
+      ok: {"The upload has been completed", "application/json", TuistWeb.API.Schemas.Preview},
       unauthorized:
         {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden:
@@ -277,7 +267,12 @@ defmodule TuistWeb.API.PreviewsController do
 
     conn
     |> put_status(:ok)
-    |> json(%{url: url(~p"/#{account_handle}/#{project_handle}/previews/#{preview_id}")})
+    |> json(%{
+      id: preview_id,
+      url: url(~p"/#{account_handle}/#{project_handle}/previews/#{preview_id}"),
+      qr_code_url:
+        url(~p"/#{account_handle}/#{project_handle}/previews/#{preview_id}/qr-code.svg")
+    })
   end
 
   operation(:download,

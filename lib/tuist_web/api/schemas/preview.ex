@@ -1,0 +1,23 @@
+defmodule TuistWeb.API.Schemas.Preview do
+  @moduledoc """
+  The schema for the Tuist Preview response.
+  """
+  require OpenApiSpex
+  alias OpenApiSpex.Schema
+
+  OpenApiSpex.schema(%{
+    type: :object,
+    required: [:id, :url, :qr_code_url],
+    properties: %{
+      id: %Schema{
+        type: :string,
+        description: "Unique identifier of the preview."
+      },
+      url: %Schema{type: :string, description: "The URL to download the preview"},
+      qr_code_url: %Schema{
+        type: :string,
+        description: "The URL for the QR code image to dowload the preview"
+      }
+    }
+  })
+end

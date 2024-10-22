@@ -424,7 +424,7 @@ defmodule Tuist.VCSTest do
 
         | App | Commit | Open on device |
         | - | - | - |
-        | [App](https://tuist.io/previews/#{preview_one.id}) | #{commit_link} | <svg src="https://tuist.io/#{project.name}/previews/#{preview_one.id}/qr-code.svg" /> |
+        | [App](https://tuist.io/previews/#{preview_one.id}) | #{commit_link} | <img width=100px src="https://tuist.io/#{project.name}/previews/#{preview_one.id}/qr-code.svg" /> |
         | [WatchApp](https://tuist.io/previews/#{preview_two.id}) | #{commit_link} | |
 
         """

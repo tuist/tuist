@@ -352,7 +352,10 @@ defmodule TuistWeb.PreviewsControllerTest do
       response = json_response(conn, :ok)
 
       assert response == %{
-               "url" => url(~p"/#{account.name}/#{project.name}/previews/#{preview_id}")
+               "id" => "preview-id",
+               "url" => url(~p"/#{account.name}/#{project.name}/previews/#{preview_id}"),
+               "qr_code_url" =>
+                 url(~p"/#{account.name}/#{project.name}/previews/#{preview_id}/qr-code.svg")
              }
     end
 

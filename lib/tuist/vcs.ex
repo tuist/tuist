@@ -330,7 +330,7 @@ defmodule Tuist.VCS do
         if contains_ipas, do: " |", else: ""
 
       :ipa ->
-        " <svg src=\"#{preview_qr_code_url.(%{project: project, preview: preview})}\" /> |"
+        " <img width=100px src=\"#{preview_qr_code_url.(%{project: project, preview: preview})}\" /> |"
     end
   end
 
