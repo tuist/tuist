@@ -224,6 +224,7 @@ public enum EnvKey: String, CaseIterable {
     case shareApp = "TUIST_SHARE_APP"
     case shareConfiguration = "TUIST_SHARE_CONFIGURATION"
     case sharePlatform = "TUIST_SHARE_PLATFORM"
+    case shareJSON = "TUIST_SHARE_JSON"
     case shareDerivedDataPath = "TUIST_SHARE_DERIVED_DATA_PATH"
 }
 

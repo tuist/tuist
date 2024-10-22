@@ -106,17 +106,12 @@ public struct PreviewsUploadService: PreviewsUploadServicing {
                 }
             )
 
-            let previewURL = try await multipartUploadCompletePreviewsService.completePreviewUpload(
+            return try await multipartUploadCompletePreviewsService.completePreviewUpload(
                 previewUpload.previewId,
                 uploadId: previewUpload.uploadId,
                 parts: parts,
                 fullHandle: fullHandle,
                 serverURL: serverURL
-            )
-
-            return Preview(
-                id: previewUpload.previewId,
-                url: previewURL
             )
         }
     }
