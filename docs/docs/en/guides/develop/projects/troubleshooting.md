@@ -15,7 +15,7 @@ This seems to be [a bug in Xcode](https://github.com/syltek/playtomic-ios/pull/5
 
 ```swift
 let target = Target(
-  // Other props
+  // Other properties
   scripts: [
   .post(
       script: """
