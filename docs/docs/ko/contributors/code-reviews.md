@@ -1,5 +1,5 @@
 ---
-title: 코드 리뷰
+title: Code reviwes
 titleTemplate: :title - Tuist에 기여하기
 description: 코드 리뷰를 통해 Tuist에 어떻게 기여하는지 알아봅니다.
 ---
