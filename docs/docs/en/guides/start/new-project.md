@@ -27,7 +27,7 @@ tuist init --platform macos
 ```
 :::
 
-The command will initialize the project in the current directory. You can then [edit the project](/en/guides/develop/projects/editing) running `tuist edit`, and Xcode will open a project where you can edit the project. One of the files that are generated is the `Project.swift`, which contains the definition of your project. If you are familiar with the Swift Package Manager, think of it as the `Package.swift` but with the lingo of Xcode projects.
+The command will initialize the project in the current directory. You can then <LocalizedLink href="/guides/develop/projects/editing">edit the project</LocalizedLink> running `tuist edit`, and Xcode will open a project where you can edit the project. One of the files that are generated is the `Project.swift`, which contains the definition of your project. If you are familiar with the Swift Package Manager, think of it as the `Package.swift` but with the lingo of Xcode projects.
 
 
 ::: code-group
