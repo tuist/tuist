@@ -1,4 +1,5 @@
 import Foundation
+import HTTPTypes
 import OpenAPIRuntime
 import TuistSupport
 
@@ -35,15 +36,16 @@ struct ServerClientOutputWarningsMiddleware: ClientMiddleware {
     }
 
     func intercept(
-        _ request: Request,
+        _ request: HTTPRequest,
+        body: HTTPBody?,
         baseURL: URL,
         operationID _: String,
-        next: (Request, URL) async throws -> Response
-    ) async throws -> Response {
-        let response = try await next(request, baseURL)
-        guard let warnings = response.headerFields.first(where: { $0.name.lowercased() == "x-tuist-cloud-warnings" })?.value
+        next: (HTTPRequest, HTTPBody?, URL) async throws -> (HTTPResponse, HTTPBody?)
+    ) async throws -> (HTTPResponse, HTTPBody?) {
+        let (response, body) = try await next(request, body, baseURL)
+        guard let warnings = response.headerFields.first(where: { $0.name.canonicalName == "x-tuist-cloud-warnings" })?.value
         else {
-            return response
+            return (response, body)
         }
         guard let warningsData = warnings.data(using: .utf8), let data = Data(base64Encoded: warningsData) else {
             throw CloudClientOutputWarningsMiddlewareError.couldntConvertToData
@@ -57,6 +59,6 @@ struct ServerClientOutputWarningsMiddleware: ClientMiddleware {
 
         json.forEach { logger.warning("\($0)") }
 
-        return response
+        return (response, body)
     }
 }

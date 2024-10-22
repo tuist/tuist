@@ -75,7 +75,7 @@ final class DevicesViewModelTests: TuistUnitTestCase {
 
         given(appStorage)
             .get(.any as Parameter<SelectedDeviceKey.Type>)
-            .willReturn(.simulator(iPhone15))
+            .willReturn(.simulator(id: iPhone15.id))
 
         given(appStorage)
             .set(.any as Parameter<SelectedDeviceKey.Type>, value: .any)
@@ -220,7 +220,7 @@ final class DevicesViewModelTests: TuistUnitTestCase {
 
         given(appStorage)
             .get(.any as Parameter<SelectedDeviceKey.Type>)
-            .willReturn(.simulator(appleTV))
+            .willReturn(.simulator(id: appleTV.id))
 
         // When
         try await subject.onAppear()
@@ -229,6 +229,49 @@ final class DevicesViewModelTests: TuistUnitTestCase {
         XCTAssertEqual(subject.selectedDevice, .simulator(appleTV))
         XCTAssertEqual(subject.pinnedSimulators, [appleTV, iPhone15])
         XCTAssertEqual(subject.unpinnedSimulators, [iPhone15Pro])
+    }
+
+    func test_refreshDevices() async throws {
+        // Given
+        appStorage.reset()
+        deviceController.reset()
+
+        given(appStorage)
+            .get(.any as Parameter<PinnedSimulatorsKey.Type>)
+            .willReturn([])
+
+        given(appStorage)
+            .get(.any as Parameter<SelectedDeviceKey.Type>)
+            .willReturn(nil)
+
+        let iPhone11 = PhysicalDevice.test(
+            name: "iPhone 11",
+            transportType: .usb,
+            connectionState: .connected
+        )
+
+        let iPhone12 = PhysicalDevice.test(
+            name: "iPhone 12",
+            transportType: .wifi,
+            connectionState: .connected
+        )
+
+        let watchS9 = PhysicalDevice.test(
+            name: "Watch S9",
+            transportType: nil,
+            connectionState: .disconnected
+        )
+
+        given(deviceController)
+            .findAvailableDevices()
+            .willReturn([iPhone11, iPhone12, watchS9])
+
+        // When
+        try await subject.refreshDevices()
+
+        // Then
+        XCTAssertEqual(subject.connectedDevices, [iPhone11, iPhone12])
+        XCTAssertEqual(subject.disconnectedDevices, [watchS9])
     }
 
     func test_selectSimulator() async throws {
@@ -243,7 +286,7 @@ final class DevicesViewModelTests: TuistUnitTestCase {
         verify(appStorage)
             .set(
                 .any as Parameter<SelectedDeviceKey.Type>,
-                value: .value(.simulator(iPhone15Pro))
+                value: .value(.simulator(id: iPhone15Pro.id))
             )
             .called(1)
     }
@@ -268,7 +311,7 @@ final class DevicesViewModelTests: TuistUnitTestCase {
         verify(appStorage)
             .set(
                 .any as Parameter<SelectedDeviceKey.Type>,
-                value: .value(.device(myiPhone))
+                value: .value(.device(id: myiPhone.id))
             )
             .called(1)
     }

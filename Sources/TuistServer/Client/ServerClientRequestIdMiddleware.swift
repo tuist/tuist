@@ -1,4 +1,5 @@
 import Foundation
+import HTTPTypes
 import OpenAPIRuntime
 import TuistSupport
 
@@ -6,13 +7,15 @@ import TuistSupport
 /// and outputs it to the user.
 struct ServerClientRequestIdMiddleware: ClientMiddleware {
     func intercept(
-        _ request: Request,
+        _ request: HTTPRequest,
+        body: HTTPBody?,
         baseURL: URL,
         operationID _: String,
-        next: (Request, URL) async throws -> Response
-    ) async throws -> Response {
+        next: (HTTPRequest, HTTPBody?, URL) async throws -> (HTTPResponse, HTTPBody?)
+    ) async throws -> (HTTPResponse, HTTPBody?) {
         var request = request
-        request.headerFields.append(.init(name: "x-request-id", value: UUID().uuidString))
-        return try await next(request, baseURL)
+        guard let httpFieldName = HTTPField.Name("x-request-id") else { return try await next(request, body, baseURL) }
+        request.headerFields.append(.init(name: httpFieldName, value: UUID().uuidString))
+        return try await next(request, body, baseURL)
     }
 }

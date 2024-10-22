@@ -412,6 +412,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "FileSystem"),
                     .external(name: "OpenAPIRuntime"),
                     .external(name: "OpenAPIURLSession"),
+                    .external(name: "HTTPTypes"),
                     .external(name: "SwiftToolsSupport"),
                     .external(name: "XcodeGraph"),
                 ]
@@ -585,6 +586,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.core.targetName),
                     .external(name: "XcodeGraph"),
                     .external(name: "OpenAPIRuntime"),
+                    .external(name: "HTTPTypes"),
                     .external(name: "FileSystem"),
                     .external(name: "SwiftToolsSupport"),
                 ]

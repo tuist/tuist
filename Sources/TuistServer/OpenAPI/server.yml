@@ -34,6 +34,9 @@ components:
     ArtifactMultipartUploadPart:
       description: Represents an multipart upload's part identified by the upload id and the part number
       properties:
+        content_length:
+          description: The content length of the part.
+          type: integer
         part_number:
           description: The part number of the multipart upload.
           type: integer
@@ -1063,6 +1066,12 @@ paths:
           required: false
           schema:
             $ref: '#/components/schemas/CacheCategory'
+        - description: The size in bytes of the part that will be uploaded. It's used to generate the signed URL.
+          in: query
+          name: content_length
+          required: false
+          schema:
+            type: integer
         - description: The project identifier '{account_name}/{project_name}'.
           in: query
           name: project_id

@@ -1,3 +1,11 @@
+## What's Changed in app@0.3.2
+* fix: getting devices when a device is unavailable, improve the menu tappable area by @foyoodo in [#6864](https://github.com/tuist/tuist/pull/6864)
+
+## New Contributors
+* @foyoodo made their first contribution in [#6864](https://github.com/tuist/tuist/pull/6864)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/app@0.3.1...app@0.3.2
+
 ## What's Changed in app@0.3.1
 * chore: update Mockable to 0.0.11 by @pepicrft in [#6884](https://github.com/tuist/tuist/pull/6884)
 

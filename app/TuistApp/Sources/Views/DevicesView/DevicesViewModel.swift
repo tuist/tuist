@@ -12,7 +12,7 @@ enum SimulatorsViewModelError: FatalError, Equatable {
     case invalidDeeplink(String)
     case invalidDownloadURL(String)
     case appDownloadFailed(String)
-    case appNotFound(SelectedDevice, [Platform])
+    case appNotFound(Device, [Platform])
 
     var description: String {
         switch self {
@@ -22,10 +22,10 @@ enum SimulatorsViewModelError: FatalError, Equatable {
             return "The preview download url \(url) is invalid."
         case let .appDownloadFailed(url):
             return "The app at \(url) was not found."
-        case let .appNotFound(selectedDevice, platforms):
+        case let .appNotFound(device, platforms):
             let name: String
             let platform: String
-            switch selectedDevice {
+            switch device {
             case let .simulator(simulator):
                 name = simulator.device.name
                 platform = simulator.runtime.platform?.caseValue ?? simulator.runtime.name
@@ -55,22 +55,44 @@ struct PinnedSimulatorsKey: AppStorageKey {
 }
 
 struct SelectedDeviceKey: AppStorageKey {
-    static let key = "selectedSimulator"
+    static let key = "selectedDevice"
     static let defaultValue: SelectedDevice? = nil
 }
 
-enum SelectedDevice: Codable, Equatable {
+enum Device: Codable, Equatable {
     case simulator(SimulatorDeviceAndRuntime)
     case device(PhysicalDevice)
+}
+
+enum SelectedDevice: Codable, Equatable {
+    case simulator(id: String)
+    case device(id: String)
 }
 
 @Observable
 final class DevicesViewModel: Sendable {
     private(set) var devices: [PhysicalDevice] = []
 
+    var connectedDevices: [PhysicalDevice] {
+        devices.filter { $0.connectionState == .connected }
+    }
+
+    var disconnectedDevices: [PhysicalDevice] {
+        devices.filter { $0.connectionState == .disconnected }
+    }
+
+    private(set) var simulators: [SimulatorDeviceAndRuntime] = []
     private(set) var pinnedSimulators: [SimulatorDeviceAndRuntime] = []
-    private(set) var unpinnedSimulators: [SimulatorDeviceAndRuntime] = []
-    private(set) var selectedDevice: SelectedDevice?
+    var unpinnedSimulators: [SimulatorDeviceAndRuntime] {
+        Set(simulators)
+            .subtracting(Set(pinnedSimulators))
+            .map { $0 }
+            .sorted()
+    }
+
+    private(set) var selectedDevice: Device?
+
+    private(set) var isRefreshing: Bool = false
 
     private let deviceController: DeviceControlling
     private let simulatorController: SimulatorControlling
@@ -103,43 +125,36 @@ final class DevicesViewModel: Sendable {
 
     func selectSimulator(_ simulator: SimulatorDeviceAndRuntime) {
         selectedDevice = .simulator(simulator)
-        try? appStorage.set(SelectedDeviceKey.self, value: selectedDevice)
+        try? appStorage.set(SelectedDeviceKey.self, value: .simulator(id: simulator.id))
     }
 
     func selectPhysicalDevice(_ device: PhysicalDevice) {
         selectedDevice = .device(device)
-        try? appStorage.set(SelectedDeviceKey.self, value: selectedDevice)
+        try? appStorage.set(SelectedDeviceKey.self, value: .device(id: device.id))
     }
 
     func simulatorPinned(_ simulator: SimulatorDeviceAndRuntime, pinned: Bool) {
         if pinned {
             pinnedSimulators = (pinnedSimulators + [simulator]).sorted()
-            unpinnedSimulators = unpinnedSimulators.filter { $0.device.udid != simulator.device.udid }
         } else {
-            pinnedSimulators = pinnedSimulators.filter { $0.device.udid != simulator.device.udid }
-            unpinnedSimulators = (unpinnedSimulators + [simulator]).sorted()
+            pinnedSimulators = pinnedSimulators.filter { $0.id != simulator.id }
         }
         try? appStorage.set(PinnedSimulatorsKey.self, value: pinnedSimulators)
     }
 
+    func refreshDevices() async throws {
+        isRefreshing = true
+        defer { isRefreshing = false }
+        try await onAppear()
+    }
+
     func onAppear() async throws {
         devices = try await deviceController.findAvailableDevices()
-
-        let simulators = try await simulatorController.devicesAndRuntimes()
-            .sorted()
-
-        if let selectedDevice = try appStorage.get(SelectedDeviceKey.self) {
-            self.selectedDevice = selectedDevice
-        } else {
-            selectedDevice = simulators.first(where: { !$0.device.isShutdown }).map { .simulator($0) }
-        }
+        simulators = try await simulatorController.devicesAndRuntimes().sorted()
 
         pinnedSimulators = try appStorage.get(PinnedSimulatorsKey.self)
 
-        unpinnedSimulators = Set(simulators)
-            .subtracting(Set(pinnedSimulators))
-            .map { $0 }
-            .sorted()
+        selectedDevice = storedSelectedDevice() ?? simulators.first(where: { !$0.device.isShutdown }).map { .simulator($0) }
     }
 
     func onChangeOfURL(_ url: URL?) async throws {
@@ -220,6 +235,16 @@ final class DevicesViewModel: Sendable {
         case let .device(device):
             try await deviceController.installApp(at: app.path, device: device)
             try await deviceController.launchApp(bundleId: app.infoPlist.bundleId, device: device)
+        }
+    }
+
+    private func storedSelectedDevice() -> Device? {
+        guard let selectedDevice = try? appStorage.get(SelectedDeviceKey.self) else { return nil }
+        switch selectedDevice {
+        case let .simulator(id):
+            return simulators.first(where: { $0.id == id }).map { .simulator($0) }
+        case let .device(id):
+            return devices.first(where: { $0.id == id }).map { .device($0) }
         }
     }
 }

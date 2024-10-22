@@ -60,7 +60,7 @@ public final class CacheExistsService: CacheExistsServicing {
             return true
         case .notFound:
             return false
-        case let .paymentRequired(paymentRequiredResponse):
+        case let .code402(paymentRequiredResponse):
             switch paymentRequiredResponse.body {
             case let .json(error):
                 throw CacheExistsServiceError.paymentRequired(error.message)
