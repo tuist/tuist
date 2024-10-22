@@ -118,7 +118,7 @@ defmodule TuistWeb.UserRegistrationLive do
       {:ok, user} ->
         Accounts.deliver_user_confirmation_instructions(%{
           user: user,
-          confimration_url: &url(~p"/users/confirm/#{&1}")
+          confirmation_url: &url(~p"/users/confirm/#{&1}")
         })
 
         {:noreply,
