@@ -276,6 +276,10 @@ export function guidesSidebar(locale) {
               text: "Best practices",
               link: `/${locale}/guides/develop/projects/best-practices`,
             },
+            {
+              text: "Troubleshooting",
+              link: `/${locale}/guides/develop/projects/troubleshooting`,
+            },
           ],
         },
         {
