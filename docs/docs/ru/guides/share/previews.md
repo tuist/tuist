@@ -54,11 +54,8 @@ The links to `.ipa` previews are by default _public_. In the future, you will ha
 
 <div style="display: flex; flex-direction: column; align-items: center;">
     <img src="/public/logo.png" style="height: 100px;" />
-    <h1>Tuist</h1>
-
-
-    <a href="https://cloud.tuist.io/download" style="text-decoration: none;">Download</a>
-    <img src="/images/guides/share/menu-bar-app.png" style="width: 300px;" />
+    <h1>Tuist</h1><a href="https://cloud.tuist.io/download" style="text-decoration: none;">Download</a>
+<img src="/images/guides/share/menu-bar-app.png" style="width: 300px;" /><img src="/images/guides/share/menu-bar-app.png" style="width: 300px;" />
 </div>
 
 To make running Tuist Previews even easier, we developed a Tuist macOS menu bar app. Instead of running Previews via the Tuist CLI, you can [download](https://cloud.tuist.io/download) the macOS app. When you open a Preview link in the browser, the app will automatically launch on your currently selected device.
@@ -77,4 +74,24 @@ To make running Tuist Previews even easier, we developed a Tuist macOS menu bar 
 Testing new functionality should be a part of any code review. But having to build an app locally adds unnecessary friction, often leading to developers skipping testing functionality on their device at all. But _what if each pull request contained a link to the build that would automatically run the app on a device you selected in the Tuist macOS app?_
 
 Once your Tuist project is connected with your Git platform such as [GitHub](https://github.com), add a <LocalizedLink href="/cli/share">`tuist share MyApp`</LocalizedLink> to your CI workflow. Tuist will then post a Preview link directly in your pull requests:
-!<LocalizedLink href="/guides/share/github-app-with-preview.png">GitHub app comment with a Tuist Preview link</LocalizedLink>
+![GitHub app comment with a Tuist Preview link](/images/guides/share/github-app-with-preview.png)
+
+## Automations
+
+You can use the `--json` flag to get a JSON output from the `tuist share` command:
+
+```
+tuist share --json
+```
+
+The JSON output is useful to create custom automations, such as posting a Slack message using your CI provider.
+The JSON contains a `url` key with the full preview link and a `qrCodeURL` key with the URL to the QR code image
+to make it easier to download previews from a real device. An example of a JSON output is below:
+
+```json
+{
+  "id": 1234567890,
+  "url": "https://cloud.tuist.io/preview/1234567890",
+  "qrCodeURL": "https://cloud.tuist.io/preview/1234567890/qr-code.svg"
+}
+```
