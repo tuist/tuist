@@ -15,8 +15,8 @@ To get started with Tuist Projects, all you need is to define your project using
 Once you've defined your project, Tuist offers various workflows to manage and interact with it:
 
 - **Generate:** This is a foundational workflow. Use it to create an Xcode project that's compatible with Xcode.
-- **[Build](/en/guides/develop/build):** This workflow not only generates the Xcode project but also employs `xcodebuild` to compile it.
-- **[Test](/en/guides/develop/test):** Operating much like the build workflow, this not only generates the Xcode project but utilizes `xcodebuild` to test it.
+- **<LocalizedLink href="/guides/develop/build">Build</LocalizedLink>:** This workflow not only generates the Xcode project but also employs `xcodebuild` to compile it.
+- **<LocalizedLink href="/guides/develop/test">Test</LocalizedLink>:** Operating much like the build workflow, this not only generates the Xcode project but utilizes `xcodebuild` to test it.
 
 ## Challenges with Xcode projects
 

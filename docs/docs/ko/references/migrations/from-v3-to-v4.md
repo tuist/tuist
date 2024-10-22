@@ -22,7 +22,7 @@ curl -Ls https://uninstall.tuist.io | bash
 > If you decide to embrace the determinism that Mise brings across the board, we recommend checking out the documentation for how to use Mise in [CI environments](https://mise.jdx.dev/continuous-integration.html) and [Xcode projects](https://mise.jdx.dev/ide-integration.html#xcode).
 
 > [!NOTE] HOMEBREW IS SUPPORTED
-> Note that you can still install Tuist using Homebrew, which is a popular package manager for macOS. You can find the instructions on how to install Tuist using Homebrew in the [installation guide](/ko/guides/quick-start/install-tuist#alternative-homebrew).
+> Note that you can still install Tuist using Homebrew, which is a popular package manager for macOS. You can find the instructions on how to install Tuist using Homebrew in the <LocalizedLink href="/guides/quick-start/install-tuist#alternative-homebrew">installation guide</LocalizedLink>.
 
 ### Dropped `init` constructors from `ProjectDescription` models
 
@@ -41,7 +41,7 @@ We renamed the `tuist fetch` command to `tuist install` to align with the indust
 
 ### [Adopt `Package.swift` as the DSL for dependencies](https://github.com/tuist/tuist/pull/5862)
 
-Before Tuist 4, you could define dependencies in a `Dependencies.swift` file. This proprietary format broke the support in tools like [Dependabot](https://github.com/dependabot) or [Renovatebot](https://github.com/renovatebot/renovate) to automatically update dependencies. Moreover, it introduced unnecessary indirections for users. Therefore, we decided to embrace `Package.swift` as the only way to define dependencies in Tuist. If you were using the `Dependencies.swift` file, you'll have to move the content from your `Tuist/Dependencies.swift` to a `Package.swift` at the root, and use the `#if TUIST` directive to configure the integration. You can read more about how to integrate Swift Package dependencies [here](/ko/guides/develop/projects/dependencies#swift-packages)
+Before Tuist 4, you could define dependencies in a `Dependencies.swift` file. This proprietary format broke the support in tools like [Dependabot](https://github.com/dependabot) or [Renovatebot](https://github.com/renovatebot/renovate) to automatically update dependencies. Moreover, it introduced unnecessary indirections for users. Therefore, we decided to embrace `Package.swift` as the only way to define dependencies in Tuist. If you were using the `Dependencies.swift` file, you'll have to move the content from your `Tuist/Dependencies.swift` to a `Package.swift` at the root, and use the `#if TUIST` directive to configure the integration. You can read more about how to integrate Swift Package dependencies <LocalizedLink href="/guides/develop/projects/dependencies#swift-packages">here</LocalizedLink>
 
 ### Renamed `tuist cache warm` to `tuist cache`
 
