@@ -11,6 +11,8 @@ import {
   building07Icon,
   cloudBlank02Icon,
   server04Icon,
+  bookOpen01Icon,
+  codeBrowserIcon,
 } from "./icons.mjs";
 import { loadData as loadExamplesData } from "./data/examples";
 import { loadData as loadProjectDescriptionData } from "./data/project-description";
@@ -69,6 +71,37 @@ export async function referencesSidebar(locale) {
               link: "/references/migrations/from-v3-to-v4",
             },
           ],
+        },
+      ],
+    },
+  ];
+}
+
+export function navBar(locale) {
+  return [
+    {
+      text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Guides ${bookOpen01Icon()}</span>`,
+      link: `/${locale}/`,
+    },
+    {
+      text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">CLI ${codeBrowserIcon()}</span>`,
+      link: `/${locale}/cli/auth`,
+    },
+    {
+      text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Server ${server04Icon()}</span>`,
+      link: `/${locale}/server/introduction/why-a-server`,
+    },
+    {
+      text: "Resources",
+      items: [
+        {
+          text: "References",
+          link: `/${locale}/references/project-description/structs/project`,
+        },
+        { text: "Contributors", link: `/${locale}/contributors/get-started` },
+        {
+          text: "Changelog",
+          link: "https://github.com/tuist/tuist/releases",
         },
       ],
     },
