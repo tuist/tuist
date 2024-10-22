@@ -10,7 +10,7 @@ description: Tuistへの貢献を、コードレビューを通じて学ぶ
 
 ## 可読性
 
-そのコードは意図を明確に示していますか？ そのコードは意図を明確に示していますか？ **If you need to spend a bunch of time figuring out what the code does, the code implementation needs to be improved.** Suggest splitting the code into smaller abstractions that are easier to understand. 代替案として、そして最終手段として、レビュイーはコードの背後にある理由を説明するコメントを追加することができます。 プルリクエストの説明などの文脈がなくても、近い将来にそのコードを理解できるかどうか、自分自身に問いかけてみてください。
+そのコードは意図を明確に示していますか？ **コードの意図を理解するのに時間がかかる場合、そのコードを改善する必要があるでしょう。** コードを理解しやすいよう、より小さく抽象的なコードに分割することを提案しましょう。 代替案として、そして最終手段として、レビュイーはコードの背後にある理由を説明するコメントを追加することができます。 プルリクエストの説明などの文脈がなくても、近い将来にそのコードを理解できるかどうか、自分自身に問いかけてみてください。
 
 ## 最小単位のプルリクエスト
 
@@ -29,4 +29,4 @@ description: Tuistへの貢献を、コードレビューを通じて学ぶ
 
 ## 破壊的な変更
 
-Breaking changes are a bad user experience for users of Tuist. Contributions should avoid introducing breaking changes unless it’s strictly necessary. There are many language features that we can leverage to evolve the interface of Tuist without resorting to a breaking change. Whether a change is breaking or not might not be obvious. A method to verify whether the change is breaking is running Tuist against the fixture projects in the fixtures directory. It requires putting ourselves in the user’s shoes and imagine how the changes would impact them.
+破壊的な変更はTuistのユーザーにとって悪いユーザー体験です。 どうしても避けられない場合を除き、破壊的な変更を含む貢献は避けてください。 破壊的な変更に頼らなくとも、Tuistのインターフェイスを進化させるために活用できる言語機能はたくさんあります。 破壊的な変更であるかが分かりづらい場合があるかもしれません。 fixturesディレクトリ内のfixtureプロジェクトに対してTuistを実行することでその変更が破壊的変更であるかを確認することができます。 ユーザーの立場に立ち、変更がユーザーにとってどのような影響を与えるかを想像しましょう。
