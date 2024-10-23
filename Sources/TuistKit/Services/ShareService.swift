@@ -164,7 +164,10 @@ struct ShareService {
 
             let (graph, _, _, _) = try await manifestGraphLoader.load(path: path)
             let graphTraverser = GraphTraverser(graph: graph)
-            let appTargets = graphTraverser.targets(product: .app)
+            let shareableTargets = graphTraverser
+                .targets(product: .app)
+                .union(graphTraverser.targets(product: .appClip))
+                .union(graphTraverser.targets(product: .watch2App))
                 .map { $0 }
                 .filter {
                     if let app = apps.first {
@@ -175,7 +178,7 @@ struct ShareService {
                 }
             let appTarget: GraphTarget = try userInputReader.readValue(
                 asking: "Select the app that you want to share:",
-                values: appTargets.sorted(by: { $0.target.name < $1.target.name }),
+                values: shareableTargets.sorted(by: { $0.target.name < $1.target.name }),
                 valueDescription: \.target.name
             )
 

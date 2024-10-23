@@ -487,7 +487,6 @@ final class ShareServiceTests: TuistUnitTestCase {
             json: true
         )
 
-        // Then
         XCTAssertStandardOutput(
             pattern: """
             {
@@ -496,6 +495,88 @@ final class ShareServiceTests: TuistUnitTestCase {
               "url": "https://test.tuist.io"
             }
             """
+        )
+    }
+
+    func test_share_tuist_project_with_a_specified_appclip() async throws {
+        // Given
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(fullHandle: "tuist/tuist"))
+
+        let projectPath = try temporaryPath()
+        let appClipTarget: Target = .test(
+            name: "AppClip",
+            product: .appClip
+        )
+        let appTarget: Target = .test(name: "App")
+        let project: Project = .test(
+            targets: [
+                appClipTarget,
+                appTarget,
+            ]
+        )
+        let graphAppClipTarget = GraphTarget(path: projectPath, target: appClipTarget, project: project)
+
+        given(manifestGraphLoader)
+            .load(path: .any)
+            .willReturn(
+                (
+                    .test(
+                        projects: [
+                            projectPath: project,
+                        ]
+                    ),
+                    [],
+                    MapperEnvironment(),
+                    []
+                )
+            )
+
+        given(userInputReader)
+            .readValue(
+                asking: .any,
+                values: .any,
+                valueDescription: .any
+            )
+            .willReturn(graphAppClipTarget)
+
+        given(defaultConfigurationFetcher)
+            .fetch(configuration: .any, config: .any, graph: .any)
+            .willReturn("Debug")
+
+        let iosPath = try temporaryPath()
+        given(xcodeProjectBuildDirectoryLocator)
+            .locate(
+                destinationType: .value(.simulator(.iOS)),
+                projectPath: .any,
+                derivedDataPath: .any,
+                configuration: .any
+            )
+            .willReturn(iosPath)
+        given(xcodeProjectBuildDirectoryLocator)
+            .locate(
+                destinationType: .value(.device(.iOS)),
+                projectPath: .any,
+                derivedDataPath: .any,
+                configuration: .any
+            )
+            .willReturn(try temporaryPath().appending(component: "iphoneos"))
+        try fileHandler.touch(iosPath.appending(component: "AppClip.app"))
+
+        // When
+        try await subject.run(
+            path: nil,
+            apps: ["AppClip"],
+            configuration: nil,
+            platforms: [],
+            derivedDataPath: nil,
+            json: false
+        )
+
+        // Then
+        XCTAssertStandardOutput(
+            pattern: "AppClip uploaded – share it with others using the following link: \(shareURL.absoluteString)"
         )
     }
 

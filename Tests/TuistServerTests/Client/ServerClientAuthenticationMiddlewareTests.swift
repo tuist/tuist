@@ -78,7 +78,7 @@ final class ServerClientAuthenticationMiddlewareTests: TuistUnitTestCase {
         var gotRequest: HTTPRequest!
 
         // When
-        let (gotResponse, gotBody) = try await subject.intercept(
+        let (gotResponse, _) = try await subject.intercept(
             request,
             body: nil,
             baseURL: url,
@@ -112,7 +112,7 @@ final class ServerClientAuthenticationMiddlewareTests: TuistUnitTestCase {
         var gotRequest: HTTPRequest!
 
         // When
-        let (gotResponse, gotBody) = try await subject.intercept(
+        let (gotResponse, _) = try await subject.intercept(
             request,
             body: nil,
             baseURL: url,
@@ -159,7 +159,7 @@ final class ServerClientAuthenticationMiddlewareTests: TuistUnitTestCase {
             .willReturn(Date(timeIntervalSince1970: 0))
 
         // When
-        let (gotResponse, gotBody) = try await subject.intercept(
+        let (gotResponse, _) = try await subject.intercept(
             request,
             body: nil,
             baseURL: url,
@@ -222,7 +222,7 @@ final class ServerClientAuthenticationMiddlewareTests: TuistUnitTestCase {
             .willReturn()
 
         // When
-        let (gotResponse, gotBody) = try await subject.intercept(
+        let (gotResponse, _) = try await subject.intercept(
             request,
             body: nil,
             baseURL: url,
