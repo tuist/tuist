@@ -1,6 +1,6 @@
 ---
 title: Build
-titleTemplate: ":title | Develop | Tuist"
+titleTemplate: :title | Develop | Tuist
 description: Learn how to use Tuist to build your projects efficiently.
 ---
 
@@ -20,13 +20,17 @@ You might wonder what's the value of using `tuist build` over generating the pro
 `tuist build` generates the project if needed, and then build it using the platform-specific build tool. We support the use of the `--` terminator to forward all subsequent arguments directly to the underlying build tool. This is useful when you need to pass arguments that are not supported by `tuist build` but are supported by the underlying build tool.
 
 ::: code-group
+
 ```bash [Build a scheme]
 tuist build MyScheme
 ```
+
 ```bash [Build a specific configuration]
 tuist build MyScheme -- -configuration Debug
 ```
+
 ```bash [Build all schemes without binary cache]
 tuist build --no-binary-cache
 ```
+
 :::
