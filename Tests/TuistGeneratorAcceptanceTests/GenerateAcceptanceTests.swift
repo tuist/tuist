@@ -157,7 +157,7 @@ final class GenerateAcceptanceTestiOSAppWithFrameworkAndResources: TuistAcceptan
                 "TuistBundle+StaticFramework3.swift",
             ]
         )
-        try XCTAssertProductWithDestinationDoesNotContainHeaders(
+        try await XCTAssertProductWithDestinationDoesNotContainHeaders(
             "App.app",
             destination: "Debug-iphonesimulator"
         )
@@ -305,7 +305,7 @@ final class GenerateAcceptanceTestiOSAppWithFrameworkLinkingStaticFramework: Tui
                 resource: resource
             )
         }
-        try XCTAssertProductWithDestinationDoesNotContainHeaders("App.app", destination: "Debug-iphonesimulator")
+        try await XCTAssertProductWithDestinationDoesNotContainHeaders("App.app", destination: "Debug-iphonesimulator")
     }
 }
 
@@ -522,7 +522,7 @@ final class GenerateAcceptanceTestiOSAppWithExtensions: TuistAcceptanceTestCase 
             destination: "Debug-iphonesimulator",
             extension: "AppIntentExtension"
         )
-        try XCTAssertProductWithDestinationDoesNotContainHeaders(
+        try await XCTAssertProductWithDestinationDoesNotContainHeaders(
             "App.app",
             destination: "Debug-iphonesimulator"
         )
@@ -545,7 +545,7 @@ final class GenerateAcceptanceTestiOSAppWithExtensions: TuistAcceptanceTestCase 
 //            destination: "Debug-appletvsimulator",
 //            extension: "TopShelfExtension"
 //        )
-//        try XCTAssertProductWithDestinationDoesNotContainHeaders(
+//        try await XCTAssertProductWithDestinationDoesNotContainHeaders(
 //            "App.app",
 //            destination: "Debug-appletvsimulator"
 //        )
@@ -567,11 +567,11 @@ final class GenerateAcceptanceTestiOSAppWithWatchApp2: TuistAcceptanceTestCase {
             destination: "Debug-watchsimulator",
             extension: "WatchAppExtension"
         )
-        try XCTAssertProductWithDestinationDoesNotContainHeaders(
+        try await XCTAssertProductWithDestinationDoesNotContainHeaders(
             "App.app",
             destination: "Debug-iphonesimulator"
         )
-        try XCTAssertProductWithDestinationDoesNotContainHeaders(
+        try await XCTAssertProductWithDestinationDoesNotContainHeaders(
             "WatchApp.app",
             destination: "Debug-watchsimulator"
         )
@@ -989,9 +989,9 @@ extension TuistAcceptanceTestCase {
         for productName: String,
         destination: String,
         resource: String
-    ) throws -> AbsolutePath {
-        let productPath = try productPath(for: productName, destination: destination)
-        if let resource = FileHandler.shared.glob(productPath, glob: "**/\(resource)").first {
+    ) async throws -> AbsolutePath {
+        let productPath = try await productPath(for: productName, destination: destination)
+        if let resource = try await fileSystem.glob(directory: productPath, include: ["**/\(resource)"]).collect().first {
             return resource
         } else {
             XCTFail("Could not find resource \(resource) for product \(productName) and destination \(destination)")
@@ -1039,13 +1039,13 @@ extension TuistAcceptanceTestCase {
         file: StaticString = #file,
         line: UInt = #line
     ) async throws {
-        let productPath = try productPath(
+        let productPath = try await productPath(
             for: product,
             destination: destination
         )
 
-        guard let appClipPath = FileHandler.shared.glob(productPath, glob: "AppClips/\(appClip).app").first,
-              try await fileSystem.exists(appClipPath)
+        let appClipPath = productPath.appending(components: ["AppClips", "\(appClip).app"])
+        guard try await fileSystem.exists(appClipPath)
         else {
             XCTFail(
                 "App clip \(appClip) not found for product \(product) and destination \(destination)",
@@ -1071,13 +1071,13 @@ extension TuistAcceptanceTestCase {
         file: StaticString = #file,
         line: UInt = #line
     ) async throws {
-        let productPath = try productPath(
+        let productPath = try await productPath(
             for: product,
             destination: destination
         )
 
-        guard let extensionPath = FileHandler.shared.glob(productPath, glob: "Plugins/\(`extension`).appex").first,
-              try await fileSystem.exists(extensionPath)
+        let extensionPath = productPath.appending(components: ["Plugins", "\(`extension`).appex"])
+        guard try await fileSystem.exists(extensionPath)
         else {
             XCTFail(
                 "Extension \(`extension`) not found for product \(product) and destination \(destination)",
@@ -1095,13 +1095,13 @@ extension TuistAcceptanceTestCase {
         file: StaticString = #file,
         line: UInt = #line
     ) async throws {
-        let productPath = try productPath(
+        let productPath = try await productPath(
             for: product,
             destination: destination
         )
 
-        guard let extensionPath = FileHandler.shared.glob(productPath, glob: "Extensions/\(`extension`).appex").first,
-              try await fileSystem.exists(extensionPath)
+        let extensionPath = productPath.appending(components: ["Extensions", "\(`extension`).appex"])
+        guard try await fileSystem.exists(extensionPath)
         else {
             XCTFail(
                 "ExtensionKit \(`extension`) not found for product \(product) and destination \(destination)",
@@ -1119,7 +1119,7 @@ extension TuistAcceptanceTestCase {
         file: StaticString = #file,
         line: UInt = #line
     ) async throws {
-        let resourcePath = try resourcePath(
+        let resourcePath = try await resourcePath(
             for: product,
             destination: destination,
             resource: resource
@@ -1141,8 +1141,8 @@ extension TuistAcceptanceTestCase {
         file: StaticString = #file,
         line: UInt = #line
     ) async throws {
-        let productPath = try productPath(for: product, destination: destination)
-        if !FileHandler.shared.glob(productPath, glob: "**/\(resource)").isEmpty {
+        let productPath = try await productPath(for: product, destination: destination)
+        if try await !fileSystem.glob(directory: productPath, include: ["**/\(resource)"]).collect().isEmpty {
             XCTFail("Resource \(resource) found for product \(product) and destination \(destination)", file: file, line: line)
         }
     }
@@ -1154,7 +1154,7 @@ extension TuistAcceptanceTestCase {
         file: StaticString = #file,
         line: UInt = #line
     ) async throws {
-        let infoPlistPath = try resourcePath(
+        let infoPlistPath = try await resourcePath(
             for: product,
             destination: destination,
             resource: "Info.plist"

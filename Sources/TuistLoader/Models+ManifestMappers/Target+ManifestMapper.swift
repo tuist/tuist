@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Path
 import ProjectDescription
@@ -28,7 +29,8 @@ extension XcodeGraph.Target {
     static func from(
         manifest: ProjectDescription.Target,
         generatorPaths: GeneratorPaths,
-        externalDependencies: [String: [XcodeGraph.TargetDependency]]
+        externalDependencies: [String: [XcodeGraph.TargetDependency]],
+        fileSystem: FileSysteming
     ) async throws -> XcodeGraph.Target {
         let name = manifest.name
         let destinations = try XcodeGraph.Destination.from(destinations: manifest.destinations)
@@ -73,18 +75,37 @@ extension XcodeGraph.Target {
             try await XcodeGraph.CopyFilesAction.from(manifest: $0, generatorPaths: generatorPaths)
         }
 
-        let headers = try manifest.headers.map { try XcodeGraph.Headers.from(
-            manifest: $0,
-            generatorPaths: generatorPaths,
-            productName: manifest.productName
-        ) }
+        let headers: XcodeGraph.Headers?
+        if let manifestHeaders = manifest.headers {
+            headers = try await XcodeGraph.Headers.from(
+                manifest: manifestHeaders,
+                generatorPaths: generatorPaths,
+                productName: manifest.productName,
+                fileSystem: fileSystem
+            )
+        } else {
+            headers = nil
+        }
 
         let coreDataModels = try await manifest.coreDataModels.concurrentMap {
-            try await XcodeGraph.CoreDataModel.from(manifest: $0, generatorPaths: generatorPaths)
-        } + resourcesCoreDatas.concurrentMap { try await XcodeGraph.CoreDataModel.from(path: $0) }
+            try await XcodeGraph.CoreDataModel.from(
+                manifest: $0,
+                generatorPaths: generatorPaths,
+                fileSystem: fileSystem
+            )
+        } + resourcesCoreDatas.concurrentMap {
+            try await XcodeGraph.CoreDataModel.from(
+                path: $0,
+                fileSystem: fileSystem
+            )
+        }
 
-        let scripts = try manifest.scripts.map {
-            try XcodeGraph.TargetScript.from(manifest: $0, generatorPaths: generatorPaths)
+        let scripts = try await manifest.scripts.concurrentMap {
+            try await XcodeGraph.TargetScript.from(
+                manifest: $0,
+                generatorPaths: generatorPaths,
+                fileSystem: fileSystem
+            )
         }
 
         let environmentVariables = manifest.environmentVariables.mapValues(EnvironmentVariable.from)

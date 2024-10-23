@@ -738,6 +738,7 @@ public enum Module: String, CaseIterable {
                 [
                     .target(name: Module.support.targetName),
                     .target(name: Module.support.testingTargetName!),
+                    .external(name: "FileSystem"),
                 ]
             case .generator:
                 [

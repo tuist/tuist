@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Path
 import ProjectDescription
@@ -10,13 +11,22 @@ extension XcodeGraph.TargetScript {
     /// - Parameters:
     ///   - manifest: Manifest representation of target action.
     ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.TargetScript, generatorPaths: GeneratorPaths) throws -> XcodeGraph
+    static func from(
+        manifest: ProjectDescription.TargetScript,
+        generatorPaths: GeneratorPaths,
+        fileSystem: FileSysteming
+    ) async throws -> XcodeGraph
         .TargetScript
     {
         let name = manifest.name
         let order = XcodeGraph.TargetScript.Order.from(manifest: manifest.order)
-        let inputPaths = try manifest.inputPaths
-            .compactMap { try $0.unfold(generatorPaths: generatorPaths) }
+        let inputPaths = try await manifest.inputPaths
+            .concurrentCompactMap {
+                try await $0.unfold(
+                    generatorPaths: generatorPaths,
+                    fileSystem: fileSystem
+                )
+            }
             .flatMap { $0 }
             .map(\.pathString)
         let inputFileListPaths = try absolutePaths(for: manifest.inputFileListPaths, generatorPaths: generatorPaths)
