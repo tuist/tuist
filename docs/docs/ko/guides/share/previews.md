@@ -53,11 +53,8 @@ The links to `.ipa` previews are by default _public_. In the future, you will ha
 
 <div style="display: flex; flex-direction: column; align-items: center;">
     <img src="/public/logo.png" style="height: 100px;" />
-    <h1>Tuist</h1>
-    
-    
-    <a href="https://cloud.tuist.io/download" style="text-decoration: none;">Download</a>
-    <img src="/images/guides/share/menu-bar-app.png" style="width: 300px;" />
+    <h1>Tuist</h1><a href="https://cloud.tuist.io/download" style="text-decoration: none;">Download</a>
+<img src="/images/guides/share/menu-bar-app.png" style="width: 300px;" /><img src="/images/guides/share/menu-bar-app.png" style="width: 300px;" />
 </div>
 
 To make running Tuist Previews even easier, we developed a Tuist macOS menu bar app. Instead of running Previews via the Tuist CLI, you can [download](https://cloud.tuist.io/download) the macOS app. When you open a Preview link in the browser, the app will automatically launch on your currently selected device.
