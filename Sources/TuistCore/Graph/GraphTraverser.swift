@@ -233,8 +233,8 @@ public class GraphTraverser: GraphTraversing {
             from: .target(name: name, path: path),
             test: { dependency in
                 isDependencyResourceBundle(dependency: dependency) &&
-                (isDependencyExternal(dependency) || dependency.isPrecompiled) &&
-                canEmbedBundles(target: target)
+                    (isDependencyExternal(dependency) || dependency.isPrecompiled) &&
+                    canEmbedBundles(target: target)
             },
             skip: canDependencyEmbedBundles
         )
