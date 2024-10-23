@@ -18,6 +18,8 @@ extension ProjectDescriptor {
             name: "Test",
             buildConfigurationList: configurationList,
             compatibilityVersion: "1",
+            preferredProjectObjectVersion: nil,
+            minimizedProjectReferenceProxies: nil,
             mainGroup: mainGroup
         )
         let pbxproj = PBXProj(

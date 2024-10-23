@@ -927,7 +927,7 @@ extension ProjectDescription.ResourceFileElements {
                     }
                 }
             )
-            resourceFileElements += try await defaultResourcePaths(from: path) { candidateURL in
+            resourceFileElements += try defaultResourcePaths(from: path) { candidateURL in
                 let candidatePath = AbsolutePath(stringLiteral: candidateURL.path)
                 let candidateNotInExcludedDirectory = excludedPaths.allSatisfy { !$0.isAncestorOfOrEqual(to: candidatePath) }
                 return candidateNotInExcludedDirectory

@@ -152,7 +152,7 @@ public struct ResourceSynthesizer: Codable, Equatable, Sendable { // swiftlint:d
             templateType: templateType,
             parser: .fonts,
             parserOptions: parserOptions,
-            extensions: ["otf", "ttc", "ttf"]
+            extensions: ["otf", "ttc", "ttf", "woff"]
         )
     }
 

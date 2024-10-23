@@ -54,7 +54,7 @@ final class PreviewsUploadServiceTests: TuistUnitTestCase {
                 fullHandle: .value("tuist/tuist"),
                 serverURL: .value(serverURL)
             )
-            .willReturn(shareURL)
+            .willReturn(.test(url: shareURL))
 
         given(multipartUploadArtifactService)
             .multipartUploadArtifact(

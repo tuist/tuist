@@ -159,7 +159,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
                     "boolValue": true,
                     "doubleValue": 1.0,
                 ],
-                extensions: ["otf", "ttc", "ttf"],
+                extensions: ["otf", "ttc", "ttf", "woff"],
                 template: .defaultTemplate("Fonts")
             ),
             .init(
@@ -425,7 +425,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
             .init(
                 parser: .fonts,
                 parserOptions: [:],
-                extensions: ["otf", "ttc", "ttf"],
+                extensions: ["otf", "ttc", "ttf", "woff"],
                 template: .defaultTemplate("Fonts")
             ),
             .init(
@@ -568,7 +568,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
             .init(
                 parser: .fonts,
                 parserOptions: [:],
-                extensions: ["otf", "ttc", "ttf"],
+                extensions: ["otf", "ttc", "ttf", "woff"],
                 template: .defaultTemplate("Fonts")
             ),
         ]

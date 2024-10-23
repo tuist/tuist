@@ -49,13 +49,20 @@ public struct ShareCommand: AsyncParsableCommand, HasTrackableParameters {
     )
     var derivedDataPath: String?
 
+    @Flag(
+        help: "The output in JSON format.",
+        envKey: .shareJSON
+    )
+    var json: Bool = false
+
     public func run() async throws {
         try await ShareService().run(
             path: path,
             apps: apps,
             configuration: configuration,
             platforms: platforms,
-            derivedDataPath: derivedDataPath
+            derivedDataPath: derivedDataPath,
+            json: json
         )
     }
 }

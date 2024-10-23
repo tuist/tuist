@@ -61,6 +61,10 @@ final class ShareServiceTests: TuistUnitTestCase {
             fileArchiverFactory: fileArchiverFactory
         )
 
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(fullHandle: "tuist/tuist"))
+
         given(manifestLoader)
             .hasRootManifest(at: .any)
             .willReturn(true)
@@ -113,7 +117,8 @@ final class ShareServiceTests: TuistUnitTestCase {
                 apps: ["AppOne", "AppTwo"],
                 configuration: nil,
                 platforms: [],
-                derivedDataPath: nil
+                derivedDataPath: nil,
+                json: false
             ),
             ShareServiceError.multipleAppsSpecified(["AppOne", "AppTwo"])
         )
@@ -217,7 +222,8 @@ final class ShareServiceTests: TuistUnitTestCase {
             apps: [],
             configuration: nil,
             platforms: [],
-            derivedDataPath: nil
+            derivedDataPath: nil,
+            json: false
         )
 
         // Then
@@ -310,7 +316,8 @@ final class ShareServiceTests: TuistUnitTestCase {
                 apps: [],
                 configuration: nil,
                 platforms: [],
-                derivedDataPath: nil
+                derivedDataPath: nil,
+                json: false
             ),
             ShareServiceError.noAppsFound(app: "App", configuration: "Debug")
         )
@@ -390,7 +397,8 @@ final class ShareServiceTests: TuistUnitTestCase {
             apps: ["AppTwo"],
             configuration: nil,
             platforms: [],
-            derivedDataPath: nil
+            derivedDataPath: nil,
+            json: false
         )
 
         // Then
@@ -407,6 +415,87 @@ final class ShareServiceTests: TuistUnitTestCase {
 
         XCTAssertStandardOutput(
             pattern: "AppTwo uploaded – share it with others using the following link: \(shareURL.absoluteString)"
+        )
+    }
+
+    func test_share_tuist_project_with_a_specified_app_and_json_flag() async throws {
+        // Given
+        let projectPath = try temporaryPath()
+        let appTarget: Target = .test(
+            name: "App"
+        )
+        let project: Project = .test(
+            targets: [
+                appTarget,
+            ]
+        )
+        let graphAppTarget = GraphTarget(path: projectPath, target: appTarget, project: project)
+
+        given(manifestGraphLoader)
+            .load(path: .any)
+            .willReturn(
+                (
+                    .test(
+                        projects: [
+                            projectPath: project,
+                        ]
+                    ),
+                    [],
+                    MapperEnvironment(),
+                    []
+                )
+            )
+
+        given(userInputReader)
+            .readValue(
+                asking: .any,
+                values: .any,
+                valueDescription: .any
+            )
+            .willReturn(graphAppTarget)
+
+        given(defaultConfigurationFetcher)
+            .fetch(configuration: .any, config: .any, graph: .any)
+            .willReturn("Debug")
+
+        let iosPath = try temporaryPath()
+        given(xcodeProjectBuildDirectoryLocator)
+            .locate(
+                destinationType: .value(.simulator(.iOS)),
+                projectPath: .any,
+                derivedDataPath: .any,
+                configuration: .any
+            )
+            .willReturn(iosPath)
+        given(xcodeProjectBuildDirectoryLocator)
+            .locate(
+                destinationType: .value(.device(.iOS)),
+                projectPath: .any,
+                derivedDataPath: .any,
+                configuration: .any
+            )
+            .willReturn(try temporaryPath().appending(component: "iphoneos"))
+        try fileHandler.touch(iosPath.appending(component: "App.app"))
+
+        // When
+        try await subject.run(
+            path: nil,
+            apps: ["AppTwo"],
+            configuration: nil,
+            platforms: [],
+            derivedDataPath: nil,
+            json: true
+        )
+
+        // Then
+        XCTAssertStandardOutput(
+            pattern: """
+            {
+              "id": "preview-id",
+              "qrCodeURL": "https://cloud.tuist.io/tuist/tuist/previews/preview-id/qr-code.svg",
+              "url": "https://test.tuist.io"
+            }
+            """
         )
     }
 
@@ -429,7 +518,8 @@ final class ShareServiceTests: TuistUnitTestCase {
                 apps: [],
                 configuration: nil,
                 platforms: [],
-                derivedDataPath: nil
+                derivedDataPath: nil,
+                json: false
             ),
             ShareServiceError.appNotSpecified
         )
@@ -454,7 +544,8 @@ final class ShareServiceTests: TuistUnitTestCase {
                 apps: ["AppOne", "AppTwo"],
                 configuration: nil,
                 platforms: [],
-                derivedDataPath: nil
+                derivedDataPath: nil,
+                json: false
             ),
             ShareServiceError.multipleAppsSpecified(["AppOne", "AppTwo"])
         )
@@ -479,7 +570,8 @@ final class ShareServiceTests: TuistUnitTestCase {
                 apps: ["App"],
                 configuration: nil,
                 platforms: [],
-                derivedDataPath: nil
+                derivedDataPath: nil,
+                json: false
             ),
             ShareServiceError.platformsNotSpecified
         )
@@ -506,7 +598,8 @@ final class ShareServiceTests: TuistUnitTestCase {
                 apps: ["App"],
                 configuration: nil,
                 platforms: [.iOS],
-                derivedDataPath: nil
+                derivedDataPath: nil,
+                json: false
             ),
             ShareServiceError.projectOrWorkspaceNotFound(path: path.pathString)
         )
@@ -553,7 +646,8 @@ final class ShareServiceTests: TuistUnitTestCase {
             apps: ["App"],
             configuration: nil,
             platforms: [.iOS],
-            derivedDataPath: nil
+            derivedDataPath: nil,
+            json: false
         )
 
         // Then
@@ -602,7 +696,8 @@ final class ShareServiceTests: TuistUnitTestCase {
                 ],
                 configuration: nil,
                 platforms: [],
-                derivedDataPath: nil
+                derivedDataPath: nil,
+                json: false
             ),
             ShareServiceError.multipleAppsSpecified(["AppOne", "AppTwo"])
         )
@@ -628,7 +723,8 @@ final class ShareServiceTests: TuistUnitTestCase {
                 ],
                 configuration: nil,
                 platforms: [],
-                derivedDataPath: nil
+                derivedDataPath: nil,
+                json: false
             ),
             ShareServiceError.multipleAppsSpecified([
                 ipaPath.pathString,
@@ -665,7 +761,8 @@ final class ShareServiceTests: TuistUnitTestCase {
             ],
             configuration: nil,
             platforms: [],
-            derivedDataPath: nil
+            derivedDataPath: nil,
+            json: false
         )
 
         // Then
@@ -721,7 +818,8 @@ final class ShareServiceTests: TuistUnitTestCase {
             ],
             configuration: nil,
             platforms: [],
-            derivedDataPath: nil
+            derivedDataPath: nil,
+            json: false
         )
 
         // Then
@@ -764,7 +862,8 @@ final class ShareServiceTests: TuistUnitTestCase {
                 ],
                 configuration: nil,
                 platforms: [],
-                derivedDataPath: nil
+                derivedDataPath: nil,
+                json: false
             ),
             ShareServiceError.appBundleInIPANotFound(ipaPath)
         )
@@ -791,7 +890,8 @@ final class ShareServiceTests: TuistUnitTestCase {
                 ],
                 configuration: nil,
                 platforms: [],
-                derivedDataPath: nil
+                derivedDataPath: nil,
+                json: false
             ),
             ShareServiceError.multipleAppsSpecified([ipaPath.pathString, watchOSIpaPath.pathString])
         )

@@ -1650,6 +1650,8 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
             name: "Project",
             buildConfigurationList: configList,
             compatibilityVersion: "0",
+            preferredProjectObjectVersion: nil,
+            minimizedProjectReferenceProxies: nil,
             mainGroup: mainGroup
         )
         pbxproj.add(object: pbxProject)

@@ -413,6 +413,24 @@ components:
       title: OrganizationUsage
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.OrganizationUsage
+    Preview:
+      properties:
+        id:
+          description: Unique identifier of the preview.
+          type: string
+        qr_code_url:
+          description: The URL for the QR code image to dowload the preview
+          type: string
+        url:
+          description: The URL to download the preview
+          type: string
+      required:
+        - id
+        - url
+        - qr_code_url
+      title: Preview
+      type: object
+      x-struct: Elixir.TuistWeb.API.Schemas.Preview
     PreviewArtifactUpload:
       description: The upload has been initiated and preview and upload unique identifier are returned to upload the various parts using multi-part uploads
       properties:
@@ -438,16 +456,6 @@ components:
         - status
         - data
       title: PreviewArtifactUpload
-      type: object
-    PreviewUploadCompletion:
-      description: The preview multipart upload has been completed
-      properties:
-        url:
-          description: The URL to download the preview
-          type: string
-      required:
-        - url
-      title: PreviewUploadCompletion
       type: object
     Project:
       properties:
@@ -2143,15 +2151,7 @@ paths:
           content:
             application/json:
               schema:
-                description: The preview multipart upload has been completed
-                properties:
-                  url:
-                    description: The URL to download the preview
-                    type: string
-                required:
-                  - url
-                title: PreviewUploadCompletion
-                type: object
+                $ref: '#/components/schemas/Preview'
           description: The upload has been completed
         401:
           content:

@@ -1720,6 +1720,41 @@ internal enum Components {
                 case current_month_remote_cache_hits
             }
         }
+        /// - Remark: Generated from `#/components/schemas/Preview`.
+        internal struct Preview: Codable, Hashable, Sendable {
+            /// Unique identifier of the preview.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Preview/id`.
+            internal var id: Swift.String
+            /// The URL for the QR code image to dowload the preview
+            ///
+            /// - Remark: Generated from `#/components/schemas/Preview/qr_code_url`.
+            internal var qr_code_url: Swift.String
+            /// The URL to download the preview
+            ///
+            /// - Remark: Generated from `#/components/schemas/Preview/url`.
+            internal var url: Swift.String
+            /// Creates a new `Preview`.
+            ///
+            /// - Parameters:
+            ///   - id: Unique identifier of the preview.
+            ///   - qr_code_url: The URL for the QR code image to dowload the preview
+            ///   - url: The URL to download the preview
+            internal init(
+                id: Swift.String,
+                qr_code_url: Swift.String,
+                url: Swift.String
+            ) {
+                self.id = id
+                self.qr_code_url = qr_code_url
+                self.url = url
+            }
+            internal enum CodingKeys: String, CodingKey {
+                case id
+                case qr_code_url
+                case url
+            }
+        }
         /// The upload has been initiated and preview and upload unique identifier are returned to upload the various parts using multi-part uploads
         ///
         /// - Remark: Generated from `#/components/schemas/PreviewArtifactUpload`.
@@ -1778,25 +1813,6 @@ internal enum Components {
             internal enum CodingKeys: String, CodingKey {
                 case data
                 case status
-            }
-        }
-        /// The preview multipart upload has been completed
-        ///
-        /// - Remark: Generated from `#/components/schemas/PreviewUploadCompletion`.
-        internal struct PreviewUploadCompletion: Codable, Hashable, Sendable {
-            /// The URL to download the preview
-            ///
-            /// - Remark: Generated from `#/components/schemas/PreviewUploadCompletion/url`.
-            internal var url: Swift.String
-            /// Creates a new `PreviewUploadCompletion`.
-            ///
-            /// - Parameters:
-            ///   - url: The URL to download the preview
-            internal init(url: Swift.String) {
-                self.url = url
-            }
-            internal enum CodingKeys: String, CodingKey {
-                case url
             }
         }
         /// - Remark: Generated from `#/components/schemas/Project`.
@@ -10810,32 +10826,13 @@ internal enum Operations {
             internal struct Ok: Sendable, Hashable {
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/complete/POST/responses/200/content`.
                 internal enum Body: Sendable, Hashable {
-                    /// The preview multipart upload has been completed
-                    ///
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/complete/POST/responses/200/content/json`.
-                    internal struct jsonPayload: Codable, Hashable, Sendable {
-                        /// The URL to download the preview
-                        ///
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/complete/POST/responses/200/content/json/url`.
-                        internal var url: Swift.String
-                        /// Creates a new `jsonPayload`.
-                        ///
-                        /// - Parameters:
-                        ///   - url: The URL to download the preview
-                        internal init(url: Swift.String) {
-                            self.url = url
-                        }
-                        internal enum CodingKeys: String, CodingKey {
-                            case url
-                        }
-                    }
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/complete/POST/responses/200/content/application\/json`.
-                    case json(Operations.completePreviewsMultipartUpload.Output.Ok.Body.jsonPayload)
+                    case json(Components.Schemas.Preview)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    internal var json: Operations.completePreviewsMultipartUpload.Output.Ok.Body.jsonPayload {
+                    internal var json: Components.Schemas.Preview {
                         get throws {
                             switch self {
                             case let .json(body):

@@ -74,3 +74,21 @@ Testing new functionality should be a part of any code review. But having to bui
 
 Once your Tuist project is connected with your Git platform such as [GitHub](https://github.com), add a [`tuist share MyApp`](/en/cli/share) to your CI workflow. Tuist will then post a Preview link directly in your pull requests:
 ![GitHub app comment with a Tuist Preview link](/images/guides/share/github-app-with-preview.png)
+
+## Automations
+
+You can use the `--json` flag to get a JSON output from the `tuist share` command:
+```
+tuist share --json
+```
+
+The JSON output is useful to create custom automations, such as posting a Slack message using your CI provider.
+The JSON contains a `url` key with the full preview link and a `qrCodeURL` key with the URL to the QR code image
+to make it easier to download previews from a real device. An example of a JSON output is below:
+```json
+{
+  "id": 1234567890,
+  "url": "https://cloud.tuist.io/preview/1234567890",
+  "qrCodeURL": "https://cloud.tuist.io/preview/1234567890/qr-code.svg"
+}
+```
