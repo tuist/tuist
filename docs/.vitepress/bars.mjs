@@ -16,41 +16,7 @@ import {
 } from "./icons.mjs";
 import { loadData as loadExamplesData } from "./data/examples";
 import { loadData as loadProjectDescriptionData } from "./data/project-description";
-import enStrings from "./strings/en.json";
-import ruStrings from "./strings/ru.json";
-import koStrings from "./strings/ko.json";
-import jaStrings from "./strings/ja.json";
-
-const strings = {
-  en: enStrings,
-  ru: ruStrings,
-  ko: koStrings,
-  ja: jaStrings,
-};
-
-function localizedString(locale, key) {
-  const getString = (localeStrings, key) => {
-    const keys = key.split(".");
-    let current = localeStrings;
-
-    for (const k of keys) {
-      if (current && current.hasOwnProperty(k)) {
-        current = current[k];
-      } else {
-        return undefined;
-      }
-    }
-    return current;
-  };
-
-  let localizedValue = getString(strings[locale], key);
-
-  if (localizedValue === undefined && locale !== "en") {
-    localizedValue = getString(strings["en"], key);
-  }
-
-  return localizedValue;
-}
+import { localizedString } from "./i18n.mjs";
 
 async function projectDescriptionSidebar(locale) {
   const projectDescriptionTypesData = await loadProjectDescriptionData();
@@ -296,60 +262,102 @@ export function serverSidebar(locale) {
 export function guidesSidebar(locale) {
   return [
     {
-      text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Quick start ${tuistIcon()}</span>`,
+      text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${localizedString(
+        locale,
+        "sidebars.guides.items.quick-start.text"
+      )} ${tuistIcon()}</span>`,
       link: "/",
       items: [
         {
-          text: "Install Tuist",
+          text: localizedString(
+            locale,
+            "sidebars.guides.items.quick-start.items.install-tuist.text"
+          ),
           link: `/${locale}/guides/quick-start/install-tuist`,
         },
         {
-          text: "Create a project",
+          text: localizedString(
+            locale,
+            "sidebars.guides.items.quick-start.items.create-a-project.text"
+          ),
           link: `/${locale}/guides/quick-start/create-a-project`,
         },
         {
-          text: "Add dependencies",
+          text: localizedString(
+            locale,
+            "sidebars.guides.items.quick-start.items.add-dependencies.text"
+          ),
           link: `/${locale}/guides/quick-start/add-dependencies`,
         },
         {
-          text: "Gather insights",
+          text: localizedString(
+            locale,
+            "sidebars.guides.items.quick-start.items.gather-insights.text"
+          ),
           link: `/${locale}/guides/quick-start/gather-insights`,
         },
         {
-          text: "Optimize workflows",
+          text: localizedString(
+            locale,
+            "sidebars.guides.items.quick-start.items.optimize-workflows.text"
+          ),
           link: `/${locale}/guides/quick-start/optimize-workflows`,
         },
       ],
     },
     {
-      text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Start ${cubeOutlineIcon()}</span>`,
+      text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${localizedString(
+        locale,
+        "sidebars.guides.items.start.text"
+      )} ${cubeOutlineIcon()}</span>`,
       items: [
         {
-          text: "Create a new project",
+          text: localizedString(
+            locale,
+            "sidebars.guides.items.start.items.new-project.text"
+          ),
           link: `/${locale}/guides/start/new-project`,
         },
         {
-          text: "Try with a Swift Package",
+          text: localizedString(
+            locale,
+            "sidebars.guides.items.start.items.swift-package.text"
+          ),
           link: `/${locale}/guides/start/swift-package`,
         },
         {
-          text: "Migrate",
+          text: localizedString(
+            locale,
+            "sidebars.guides.items.start.items.migrate.text"
+          ),
           collapsed: true,
           items: [
             {
-              text: "An Xcode project",
+              text: localizedString(
+                locale,
+                "sidebars.guides.items.start.items.migrate.items.xcode-project.text"
+              ),
               link: `/${locale}/guides/start/migrate/xcode-project`,
             },
             {
-              text: "A Swift Package",
+              text: localizedString(
+                locale,
+                "sidebars.guides.items.start.items.migrate.items.swift-package.text"
+              ),
               link: `/${locale}/guides/start/migrate/swift-package`,
             },
             {
-              text: "An XcodeGen project",
+              text: localizedString(
+                locale,
+                "sidebars.guides.items.start.items.migrate.items.xcodegen-project.text"
+              ),
               link: `/${locale}/guides/start/migrate/xcodegen-project`,
             },
             {
-              text: "A Bazel project",
+              text: localizedString(
+                locale,
+                "sidebars.guides.items.start.items.migrate.items.bazel-project.text"
+              ),
               link: `/${locale}/guides/start/migrate/bazel-project`,
             },
           ],
@@ -357,113 +365,188 @@ export function guidesSidebar(locale) {
       ],
     },
     {
-      text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Develop ${cube02Icon()}</span>`,
+      text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${localizedString(
+        locale,
+        "sidebars.guides.items.develop.text"
+      )} ${cube02Icon()}</span>`,
       items: [
         {
-          text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Projects ${code02Icon()}</span>`,
+          text: localizedString(
+            locale,
+            "sidebars.guides.items.develop.items.projects.text"
+          ),
           collapsed: true,
           link: `/${locale}/guides/develop/projects`,
           items: [
             {
-              text: "Manifests",
+              text: localizedString(
+                locale,
+                "sidebars.guides.items.develop.items.projects.items.manifests.text"
+              ),
               link: `/${locale}/guides/develop/projects/manifests`,
             },
             {
-              text: "Directory structure",
+              text: localizedString(
+                locale,
+                "sidebars.guides.items.develop.items.projects.items.directory-structure.text"
+              ),
               link: `/${locale}/guides/develop/projects/directory-structure`,
             },
             {
-              text: "Editing",
+              text: localizedString(
+                locale,
+                "sidebars.guides.items.develop.items.projects.items.editing.text"
+              ),
               link: `/${locale}/guides/develop/projects/editing`,
             },
             {
-              text: "Dependencies",
+              text: localizedString(
+                locale,
+                "sidebars.guides.items.develop.items.projects.items.dependencies.text"
+              ),
               link: `/${locale}/guides/develop/projects/dependencies`,
             },
             {
-              text: "Code sharing",
+              text: localizedString(
+                locale,
+                "sidebars.guides.items.develop.items.projects.items.code-sharing.text"
+              ),
               link: `/${locale}/guides/develop/projects/code-sharing`,
             },
             {
-              text: "Synthesized files",
+              text: localizedString(
+                locale,
+                "sidebars.guides.items.develop.items.projects.items.synthesized-files.text"
+              ),
               link: `/${locale}/guides/develop/projects/synthesized-files`,
             },
             {
-              text: "Dynamic configuration",
+              text: localizedString(
+                locale,
+                "sidebars.guides.items.develop.items.projects.items.dynamic-configuration.text"
+              ),
               link: `/${locale}/guides/develop/projects/dynamic-configuration`,
             },
             {
-              text: "Templates",
+              text: localizedString(
+                locale,
+                "sidebars.guides.items.develop.items.projects.items.templates.text"
+              ),
               link: `/${locale}/guides/develop/projects/templates`,
             },
             {
-              text: "Plugins",
+              text: localizedString(
+                locale,
+                "sidebars.guides.items.develop.items.projects.items.plugins.text"
+              ),
               link: `/${locale}/guides/develop/projects/plugins`,
             },
             {
-              text: "Hashing",
+              text: localizedString(
+                locale,
+                "sidebars.guides.items.develop.items.projects.items.hashing.text"
+              ),
               link: `/${locale}/guides/develop/projects/hashing`,
             },
             {
-              text: "The cost of convenience",
+              text: localizedString(
+                locale,
+                "sidebars.guides.items.develop.items.projects.items.the-cost-of-convenience.text"
+              ),
               link: `/${locale}/guides/develop/projects/cost-of-convenience`,
             },
             {
-              text: "Modular architecture",
+              text: localizedString(
+                locale,
+                "sidebars.guides.items.develop.items.projects.items.tma-architecture.text"
+              ),
               link: `/${locale}/guides/develop/projects/tma-architecture`,
             },
             {
-              text: "Best practices",
+              text: localizedString(
+                locale,
+                "sidebars.guides.items.develop.items.projects.items.best-practices.text"
+              ),
               link: `/${locale}/guides/develop/projects/best-practices`,
             },
           ],
         },
         {
-          text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Build ${dataIcon()}</span>`,
+          text: localizedString(
+            locale,
+            "sidebars.guides.items.develop.items.build.text"
+          ),
           link: `/${locale}/guides/develop/build`,
           collapsed: true,
           items: [
             {
-              text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Cache</span>`,
+              text: localizedString(
+                locale,
+                "sidebars.guides.items.develop.items.build.items.cache.text"
+              ),
               link: `/${locale}/guides/develop/build/cache`,
             },
           ],
         },
         {
-          text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Test ${checkCircleIcon()}</span>`,
+          text: localizedString(
+            locale,
+            "sidebars.guides.items.develop.items.test.text"
+          ),
           link: `/${locale}/guides/develop/test`,
           collapsed: true,
           items: [
             {
-              text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Smart runner</span>`,
+              text: localizedString(
+                locale,
+                "sidebars.guides.items.develop.items.test.items.smart-runner.text"
+              ),
               link: `/${locale}/guides/develop/test/smart-runner`,
             },
             {
-              text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Flakiness</span>`,
+              text: localizedString(
+                locale,
+                "sidebars.guides.items.develop.items.test.items.flakiness.text"
+              ),
               link: `/${locale}/guides/develop/test/flakiness`,
             },
           ],
         },
         {
-          text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Inspect ${microscopeIcon()}</span>`,
+          text: localizedString(
+            locale,
+            "sidebars.guides.items.develop.items.inspect.text"
+          ),
           collapsed: true,
           items: [
             {
-              text: "Implicit dependencies",
+              text: localizedString(
+                locale,
+                "sidebars.guides.items.develop.items.inspect.items.implicit-imports"
+              ),
               link: `/${locale}/guides/develop/inspect/implicit-dependencies`,
             },
           ],
         },
         {
-          text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Automate ${cloudBlank02Icon()}</span>`,
+          text: localizedString(
+            locale,
+            "sidebars.guides.items.develop.items.automate.text"
+          ),
           collapsed: true,
           items: [
             {
-              text: `Continuous Integration`,
+              text: localizedString(
+                locale,
+                "sidebars.guides.items.develop.items.automate.items.continuous-integration.text"
+              ),
               link: `/${locale}/guides/develop/automate/continuous-integration`,
             },
             {
-              text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Workflows ${comingSoonBadge()}</span>`,
+              text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${localizedString(
+                locale,
+                "sidebars.guides.items.develop.items.automate.items.workflows.text"
+              )} ${comingSoonBadge(locale)}</span>`,
               link: `/${locale}/guides/develop/automate/workflows`,
             },
           ],
@@ -471,10 +554,16 @@ export function guidesSidebar(locale) {
       ],
     },
     {
-      text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Share ${cube01Icon()}</span>`,
+      text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${localizedString(
+        locale,
+        "sidebars.guides.items.share.text"
+      )} ${cube01Icon()}</span>`,
       items: [
         {
-          text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Previews ${xcodeProjCompatibleBadge()}</span>`,
+          text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${localizedString(
+            locale,
+            "sidebars.guides.items.share.items.previews.text"
+          )} ${xcodeProjCompatibleBadge(locale)}</span>`,
           link: `/${locale}/guides/share/previews`,
         },
       ],

@@ -9,6 +9,7 @@ import {
   navBar,
 } from "./bars.mjs";
 import { loadData as loadCLIData } from "./data/cli";
+import { localizedString } from "./i18n.mjs";
 
 async function themeConfig(locale) {
   const sidebar = {};

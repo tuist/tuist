@@ -1,9 +1,9 @@
 ---
-title: Implicit dependencies
-description: Learn how to use Tuist to find implicit dependencies.
+title: Implicit imports
+description: Learn how to use Tuist to find implicit imports.
 ---
 
-# Implicit dependencies
+# Implicit imports
 
 To alleviate the complexity of maintaining an Xcode project graph with raw Xcode project, Apple designed the build system in a way that allows dependencies to be implicitly defined. This means that a product, for example an app, can depend on a framework, even without declaring the dependency explicitly. At a small scale, this is is fine, but as the project graph grows in complexity, the implicitness might manifest as unreliable incremental builds or editor-based features such as previews or code completion.
 

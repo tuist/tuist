@@ -1,4 +1,8 @@
 {
+  "badges": {
+    "coming-soon": "Coming soon",
+    "xcodeproj-compatible": "XcodeProj-compatible"
+  },
   "navbar": {
     "guides": {
       "text": "Guides"
@@ -25,6 +29,14 @@
     }
   },
   "sidebars": {
+    "cli": {
+      "text": "CLI",
+      "items": {
+        "commands": {
+          "text": "Commands"
+        }
+      }
+    },
     "references": {
       "text": "References",
       "items": {
@@ -96,6 +108,148 @@
         },
         "metrics-dashboard": {
           "text": "Metrics dashboard"
+        }
+      }
+    },
+    "guides": {
+      "text": "Guides",
+      "items": {
+        "quick-start": {
+          "text": "Quick start",
+          "items": {
+            "install-tuist": {
+              "text": "Install Tuist"
+            },
+            "create-a-project": {
+              "text": "Create a project"
+            },
+            "optimize-workflows": {
+              "text": "Optimize workflows"
+            }
+          }
+        },
+        "start": {
+          "text": "Start",
+          "items": {
+            "new-project": {
+              "text": "Create a new project"
+            },
+            "swift-package": {
+              "text": "Try with a Swift Package"
+            },
+            "migrate": {
+              "text": "Migrate",
+              "items": {
+                "xcode-project": {
+                  "text": "An Xcode project"
+                },
+                "swift-package": {
+                  "text": "A Swift package"
+                },
+                "xcodegen-project": {
+                  "text": "An XcodeGen project"
+                },
+                "bazel-project": {
+                  "text": "A Bazel project"
+                }
+              }
+            }
+          }
+        },
+        "develop": {
+          "text": "Develop",
+          "items": {
+            "projects": {
+              "text": "Projects",
+              "items": {
+                "manifests": {
+                  "text": "Manifests"
+                },
+                "directory-structure": {
+                  "text": "Directory structure"
+                },
+                "editing": {
+                  "text": "Editing"
+                },
+                "dependencies": {
+                  "text": "Dependencies"
+                },
+                "code-sharing": {
+                  "text": "Code sharing"
+                },
+                "synthesized-files": {
+                  "text": "Synthesized files"
+                },
+                "dynamic-configuration": {
+                  "text": "Dynamic configuration"
+                },
+                "templates": {
+                  "text": "Templates"
+                },
+                "plugins": {
+                  "text": "Plugins"
+                },
+                "hashing": {
+                  "text": "Hashing"
+                },
+                "the-cost-of-convenience": {
+                  "text": "The cost of convenience"
+                },
+                "tma-architecture": {
+                  "text": "Modular architecture"
+                },
+                "best-practices": {
+                  "text": "Best practices"
+                }
+              }
+            },
+            "build": {
+              "text": "Build",
+              "items": {
+                "cache": {
+                  "text": "Cache"
+                }
+              }
+            },
+            "test": {
+              "text": "Test",
+              "items": {
+                "smart-runner": {
+                  "text": "Smart runner"
+                },
+                "flakiness": {
+                  "text": "Flakiness"
+                }
+              }
+            },
+            "inspect": {
+              "text": "Inspect",
+              "items": {
+                "implicit-imports": {
+                  "text": "Implicit imports"
+                }
+              }
+            },
+            "automate": {
+              "text": "Automate",
+              "items": {
+                "continuous-integration": {
+                  "text": "Continuous integration"
+                },
+                "workflows": {
+                  "text": "Workflows"
+                }
+              }
+            }
+          }
+        },
+        "share": {
+          "text": "Share",
+          "items": {
+            "previews": {
+              "text": "Previews"
+            }
+          }
         }
       }
     }
