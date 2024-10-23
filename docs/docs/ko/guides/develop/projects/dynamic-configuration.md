@@ -1,6 +1,6 @@
 ---
 title: Dynamic configuration
-titleTemplate: ":title | Projects | Tuist"
+titleTemplate: :title | Projects | Tuist
 description: Learn how how to use environment variables to dynamically configure your project.
 ---
 
@@ -38,8 +38,8 @@ func appName() -> String {
 
 Accessing variables returns an instance of type `Environment.Value?` which can take any of the following values:
 
-| Case | Description |
-| --- | --- |
+| Case              | Description                                                 |
+| ----------------- | ----------------------------------------------------------- |
 | `.string(String)` | Used when the variable represents a string. |
 
 You can also retrieve the string or boolean `Environment` variable using either of the helper methods defined below, these methods require a default value to be passed to ensure the user gets consistent results each time. This avoids the need to define the function appName() defined above.
@@ -53,4 +53,5 @@ Environment.appName.getString(default: "TuistServer")
 ```swift [Boolean]
 Environment.isCI.getBoolean(default: false)
 ```
+
 :::
