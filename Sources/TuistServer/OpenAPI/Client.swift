@@ -3942,7 +3942,7 @@ internal struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Operations.completePreviewsMultipartUpload.Output.Ok.Body.jsonPayload.self,
+                            Components.Schemas.Preview.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)

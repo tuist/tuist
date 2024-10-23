@@ -564,18 +564,13 @@ final class TestService { // swiftlint:disable:this type_body_length
                     .union(testedGraphTargets)
             )
 
-            let cachedTargets = allTestedTargets
+            let hashes = allTestedTargets
                 .filter {
                     if let cacheItem = mapperEnvironment.targetCacheItems[$0.path]?[$0.target.name] {
                         return cacheItem.cacheCategory != .selectiveTests
                     } else {
                         return true
                     }
-                }
-
-            let hashes = allTestedTargets
-                .filter { testedTarget in
-                    !cachedTargets.contains(where: { testedTarget.path != $0.path && testedTarget.target.name != $0.target.name })
                 }
                 .compactMap { graphTarget -> (target: Target, hash: String)? in
                     guard let hash = mapperEnvironment.targetTestHashes[graphTarget.path]?[graphTarget.target.name]
