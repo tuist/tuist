@@ -92,7 +92,7 @@ tuist graph
 
 The command will output and open a `graph.png` file in the project's directory:
 
-![Project graph](/images/guides/quick-start/graph.png)
+!<LocalizedLink href="/guides/quick-start/graph.png">Project graph</LocalizedLink>
 
 ## Use the dependency
 

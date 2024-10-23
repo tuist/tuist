@@ -6,15 +6,15 @@ description: Learn how to run tests efficiently with Tuist.
 
 # Test
 
-Tuist provides a command, [`tuist test`](/ko/cli/test) to generate the project if needed, and then run the tests with the the platform-specific build tool (e.g. `xcodebuild` for Apple platforms).
+Tuist provides a command, <LocalizedLink href="/cli/test">`tuist test`</LocalizedLink> to generate the project if needed, and then run the tests with the the platform-specific build tool (e.g. `xcodebuild` for Apple platforms).
 
-You might wonder what's the value of using [`tuist test`](/ko/cli/test) over generating the project with [`tuist generate`](/ko/cli/generate) and running the tests with the platform-specific build tool.
+You might wonder what's the value of using <LocalizedLink href="/cli/test">`tuist test`</LocalizedLink> over generating the project with <LocalizedLink href="/cli/generate">`tuist generate`</LocalizedLink> and running the tests with the platform-specific build tool.
 
-- **Single command:** [`tuist test`](/ko/cli/test) ensures the project is generated if needed before compiling the project.
+- **Single command:** <LocalizedLink href="/cli/test">`tuist test`</LocalizedLink> ensures the project is generated if needed before compiling the project.
 - **Beautified output:** Tuist enriches the output using tools like [xcbeautify](https://github.com/cpisciotta/xcbeautify) that make the output more user-friendly.
-- [**Cache:**](/ko/guides/develop/build/cache) It optimizes the build by deterministically reusing the build artifacts from a remote cache.
-- [**Smart runner:**](/ko/guides/develop/test/smart-runner) It runs only the tests that need to be run, saving time and resources.
-- [**Flakiness:**](/ko/guides/develop/test/flakiness) Prevent, detect, and fix flaky tests.
+- <LocalizedLink href="/guides/develop/build/cache"><bold>Cache:</bold></LocalizedLink> It optimizes the build by deterministically reusing the build artifacts from a remote cache.
+- <LocalizedLink href="/guides/develop/test/smart-runner"><bold>Smart runner:</bold></LocalizedLink> It runs only the tests that need to be run, saving time and resources.
+- <LocalizedLink href="/guides/develop/test/flakiness"><bold>Flakiness:</bold></LocalizedLink> Prevent, detect, and fix flaky tests.
 
 ## Usage
 
@@ -36,8 +36,8 @@ tuist test --no-selective-testing
 ## Pull/merge request comments
 
 > [!IMPORTANT] REQUIREMENTS
-> To get automatic pull/merge request comments, integrate your [remote project](/ko/server/introduction/accounts-and-projects#projects) with a [Git platform](/ko/server/introduction/integrations#git-platforms).
+> To get automatic pull/merge request comments, integrate your <LocalizedLink href="/server/introduction/accounts-and-projects#projects">remote project</LocalizedLink> with a <LocalizedLink href="/server/introduction/integrations#git-platforms">Git platform</LocalizedLink>.
 
 When running tests in your CI environments we can correlate the test results with the pull/merge request that triggered the CI build. This allows us to post a comment on the pull/merge request with the test results.
 
-![GitHub App example](/images/contributors/scheme-arguments.png)
+!<LocalizedLink href="/contributors/scheme-arguments.png">GitHub App example</LocalizedLink>

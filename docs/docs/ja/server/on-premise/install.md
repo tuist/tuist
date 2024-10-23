@@ -160,7 +160,7 @@ For Google Cloud Storage, follow [these docs](https://cloud.google.com/storage/d
 
 ### Git platform configuration
 
-Tuist can [integrate with Git platforms](/en/server/introduction/integrations#git-platforms) to provide extra features such as automatically posting comments in your pull requests.
+Tuist can <LocalizedLink href="/server/introduction/integrations#git-platforms">integrate with Git platforms</LocalizedLink> to provide extra features such as automatically posting comments in your pull requests.
 
 #### GitHub
 

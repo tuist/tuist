@@ -9,7 +9,7 @@ description: Learn how to generate and share previews of your apps with anyone.
 > This feature is compatible with raw Xcode projects.
 
 > [!IMPORTANT] REMOTE PROJECT REQUIRED
-> This feature requires a [remote project](/ko/server/introduction/accounts-and-projects#projects).
+> This feature requires a <LocalizedLink href="/server/introduction/accounts-and-projects#projects">remote project</LocalizedLink>.
 
 
 When building an app, you may want to share it with others to get feedback.
@@ -64,9 +64,9 @@ To make running Tuist Previews even easier, we developed a Tuist macOS menu bar 
 ## Pull/merge request comments
 
 > [!IMPORTANT] INTEGRATION WITH GIT PLATFORM REQUIRED
-> To get automatic pull/merge request comments, integrate your [remote project](/ko/server/introduction/accounts-and-projects#projects) with a [Git platform](/ko/server/introduction/integrations#git-platforms).
+> To get automatic pull/merge request comments, integrate your <LocalizedLink href="/server/introduction/accounts-and-projects#projects">remote project</LocalizedLink> with a <LocalizedLink href="/server/introduction/integrations#git-platforms">Git platform</LocalizedLink>.
 
 Testing new functionality should be a part of any code review. But having to build an app locally adds unnecessary friction, often leading to developers skipping testing functionality on their device at all. But *what if each pull request contained a link to the build that would automatically run the app on a device you selected in the Tuist macOS app?*
 
-Once your Tuist project is connected with your Git platform such as [GitHub](https://github.com), add a [`tuist share MyApp`](/ko/cli/share) to your CI workflow. Tuist will then post a Preview link directly in your pull requests:
-![GitHub app comment with a Tuist Preview link](/images/guides/share/github-app-with-preview.png)
+Once your Tuist project is connected with your Git platform such as [GitHub](https://github.com), add a <LocalizedLink href="/cli/share">`tuist share MyApp`</LocalizedLink> to your CI workflow. Tuist will then post a Preview link directly in your pull requests:
+!<LocalizedLink href="/guides/share/github-app-with-preview.png">GitHub app comment with a Tuist Preview link</LocalizedLink>

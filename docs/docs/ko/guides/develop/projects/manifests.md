@@ -15,7 +15,7 @@ The decision of using Swift was inspired by the [Swift Package Manager](https://
 
 ## Project.swift
 
-The [`Project.swift`](/ko/references/project-description/structs/project) manifest declares an Xcode project. The project gets generated in the same directory where the manifest file is located with the name indicated in the `name` property.
+The <LocalizedLink href="/references/project-description/structs/project">`Project.swift`</LocalizedLink> manifest declares an Xcode project. The project gets generated in the same directory where the manifest file is located with the name indicated in the `name` property.
 
 ```swift
 // Project.swift
@@ -33,7 +33,7 @@ let project = Project(
 
 ## Workspace.swift
 
-By default, Tuist generates an [Xcode Workspace](https://developer.apple.com/documentation/xcode/projects-and-workspaces) containing the project being generated and the projects of its dependencies. If for any reason you'd like to customize the workspace to add additional projects or include files and groups, you can do so by defining a [`Workspace.swift`](/ko/references/project-description/structs/workspace) manifest.
+By default, Tuist generates an [Xcode Workspace](https://developer.apple.com/documentation/xcode/projects-and-workspaces) containing the project being generated and the projects of its dependencies. If for any reason you'd like to customize the workspace to add additional projects or include files and groups, you can do so by defining a <LocalizedLink href="/references/project-description/structs/workspace">`Workspace.swift`</LocalizedLink> manifest.
 
 ```swift
 // Workspace.swift
@@ -54,11 +54,11 @@ let workspace = Workspace(
 
 A question that often comes up is whether to use a single project or multiple projects in a workspace. In a world without Tuist where a mono-project setup would lead to frequent Git conflicts the usage of workspaces is encouraged. However, since we don't recommend including the Tuist-generated Xcode projects in the Git repository, Git conflicts are not an issue. Therefore, the decision of using a single project or multiple projects in a workspace is up to you.
 
-In the Tuist project we lean on mono-projects because the cold generation time is faster (fewer manifest files to compile) and we leverage [project description helpers](/ko/guides/develop/projects/code-sharing) as a unit of encapsulation. However, you might want to use Xcode projects as a unit of encapsulation to represent different domains of your application, which aligns more closely with the Xcode's recommended project structure.
+In the Tuist project we lean on mono-projects because the cold generation time is faster (fewer manifest files to compile) and we leverage <LocalizedLink href="/guides/develop/projects/code-sharing">project description helpers</LocalizedLink> as a unit of encapsulation. However, you might want to use Xcode projects as a unit of encapsulation to represent different domains of your application, which aligns more closely with the Xcode's recommended project structure.
 
 ## Config.swift
 
-Tuist provides [sensible defaults](/ko/contributors/principles.html#default-to-conventions) to simplify project configuration. However, you can customize the configuration by defining a [`Config.swift`](/ko/references/project-description/structs/config) manifest under the `Tuist` directory, which is used by Tuist to determine the root of the project.
+Tuist provides <LocalizedLink href="/contributors/principles.html#default-to-conventions">sensible defaults</LocalizedLink> to simplify project configuration. However, you can customize the configuration by defining a <LocalizedLink href="/references/project-description/structs/config">`Config.swift`</LocalizedLink> manifest under the `Tuist` directory, which is used by Tuist to determine the root of the project.
 
 ```swift
 import ProjectDescription
