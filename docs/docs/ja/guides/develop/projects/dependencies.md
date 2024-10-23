@@ -4,12 +4,12 @@ titleTemplate: :title | Projects | Tuist
 description: Learn how to declare dependencies in your Tuist project.
 ---
 
-# Dependencies
+<h1 id="dependencies">Dependencies</h1>
 
 When a project grows, it's common to split it into multiple targets to share code, define boundaries, and improve build times.
 Multiple targets means defining dependencies between them forming a **dependency graph**, which might include external dependencies as well.
 
-## XcodeProj-codified graphs
+<h2 id="xcodeprojcodified-graphs">XcodeProj-codified graphs</h2>
 
 Due to Xcode and XcodeProj's design,
 the maintenance of a dependency graph can be a tedious and error-prone task.
@@ -34,7 +34,7 @@ In the following sections you'll learn how to declare dependencies in your proje
 > [!TIP] GRAPH VALIDATION
 > Tuist validates the graph when generating the project to ensure that there are no cycles and that all the dependencies are valid. Thanks to this, any team can take part in evolving the dependency graph without worrying about breaking it.
 
-## Local dependencies
+<h2 id="local-dependencies">Local dependencies</h2>
 
 Targets can depend on other targets in the same and different projects, and on binaries.
 When instantiating a `Target`, you can pass the `dependencies` argument with any of the following options:
@@ -60,16 +60,16 @@ When instantiating a `Target`, you can pass the `dependencies` argument with any
 
 <!-- > Warning: We haven't yet solved the problem of targets being able to import dependencies that they shouldn't. Some users have implemented their custom solutions to detect this, but we haven't yet found a solution that we're happy with. We are currently exploring customizing the directory where products are outputted to solve this problem. -->
 
-## External dependencies
+<h2 id="external-dependencies">External dependencies</h2>
 
 Tuist also allows you to declare external dependencies in your project.
 
-### Swift Packages
+<h3 id="swift-packages">Swift Packages</h3>
 
 Swift Packages are our recommended way of declaring dependencies in your project.
 You can integrate them using Xcode's default integration mechanism or using Tuist's XcodeProj-based integration.
 
-#### Tuist's XcodeProj-based integration
+<h4 id="tuists-xcodeprojbased-integration">Tuist's XcodeProj-based integration</h4>
 
 Xcode's default integration while being the most convenient one,
 lacks flexibility and control that's required for medium and large projects.
@@ -116,8 +116,8 @@ The `Package.swift` file is just an interface to declare external dependencies, 
 
 ```bash
 tuist install
-# Resolving and fetching dependencies.
-# Installing Swift Package Manager dependencies.
+<h1 id="resolving-and-fetching-dependencies">Resolving and fetching dependencies.</h1>
+<h1 id="installing-swift-package-manager-dependencies">Installing Swift Package Manager dependencies.</h1>
 ```
 
 As you might have noticed, we take an approach similar to [CocoaPods](https://cocoapods.org)', where the resolution of dependencies is its own command. This gives control to the users over when they'd like dependencies to be resolved and updated, and allows opening the Xcode in project and have it ready to compile. This is an area where we believe the developer experience provided by Apple's integration with the Swift Package Manager degrates over time as the project grows.
@@ -154,7 +154,7 @@ let project = Project(
 > [!NOTE] NO SCHEMES GENERATED FOR EXTERNAL PACKAGES
 > The **schemes** are not automatically created for Swift Package projects to keep the schemes list clean. You can create them via Xcode's UI.
 
-#### Xcode's default integration
+<h4 id="xcodes-default-integration">Xcode's default integration</h4>
 
 If you want to use Xcode's default integration mechanism, you can pass the list `packages` when instantiating a project:
 
@@ -223,7 +223,7 @@ let project = Project(
 )
 ```
 
-### Carthage
+<h3 id="carthage">Carthage</h3>
 
 Since [Carthage](https://github.com/carthage/carthage) outputs `frameworks` or `xcframeworks`, you can run `carthage update` to output the dependencies in the `Carthage/Build` directory and then use the `.framework` or `.xcframework` target dependency type to declare the dependency in your target. You can wrap this in a script that you can run before generating the project.
 
@@ -237,7 +237,7 @@ tuist generate
 > [!WARNING] BUILD AND TEST
 > If you build and test your project through `tuist build` and `tuist test`, you will similarly need to ensure that the Carthage-resolved dependencies are present by running the `carthage update` command before `tuist build` or `tuist test` are run.
 
-### CocoaPods
+<h3 id="cocoapods">CocoaPods</h3>
 
 [CocoaPods](https://cocoapods.org) expects an Xcode project to integrate the dependencies. You can use Tuist to generate the project, and then run `pod install` to integrate the dependencies by creating a workspace that contains your project and the Pods dependencies. You can wrap this in a script that you can run before generating the project.
 
@@ -251,7 +251,7 @@ pod install
 > [!WARNING]
 > CocoaPods dependencies are not compatible with workflows like `build` or `test` that run `xcodebuild` right after generating the project. They are also incompatible with binary caching and selective testing since the fingerprinting logic doesn't account for the Pods dependencies.
 
-## Static or dynamic
+<h2 id="static-or-dynamic">Static or dynamic</h2>
 
 Frameworks and libraries can be linked either statically or dynamically, **a choice that has significant implications for aspects like app size and boot time**. Despite its importance, this decision is often made without much consideration.
 
@@ -277,7 +277,7 @@ Note that Tuist <LocalizedLink href="/guides/develop/projects/cost-of-convenienc
 > [!TIP] EXAMPLE: COMPOSABLE ARCHITECTURE
 > A Swift Package that many projects integrate is [Composable Architecture](https://github.com/pointfreeco/swift-composable-architecture). As described [here](https://github.com/pointfreeco/swift-composable-architecture/discussions/1657#discussioncomment-4119184) and the [troubleshooting section](#troubleshooting), you'll need to set the `OTHER_LDFLAGS` build setting to `$(inherited) -ObjC` when linking the packages statically, which is Tuist's default linking type. Alternatively, you can override the product type for the package to be dynamic.
 
-### Scenarios
+<h3 id="scenarios">Scenarios</h3>
 
 There are some scenarios where setting the linking entirely to static or dynamic is not feasible or a good idea. The following is a non-exhaustive list of scenarios where you might need to mix static and dynamic linking:
 
@@ -286,9 +286,9 @@ There are some scenarios where setting the linking entirely to static or dynamic
 
 When making changes to the graph, Tuist will analyze it and display a warning if it detects a "static side effect". This warning is meant to help you identify issues that might arise from linking a target statically that depends transitively on a static target through dynamic targets. These side effects often manifest as increased binary size or, in the worst cases, runtime crashes.
 
-## Troubleshooting
+<h2 id="troubleshooting">Troubleshooting</h2>
 
-### Objective-C Dependencies
+<h3 id="objectivec-dependencies">Objective-C Dependencies</h3>
 
 When integrating Objective-C dependencies, the inclusion of certain flags on the consuming target may be necessary to avoid runtime crashes as detailed in [Apple Technical Q&A QA1490](https://developer.apple.com/library/archive/qa/qa1490/_index.html).
 
@@ -296,13 +296,13 @@ Since the build system and Tuist have no way of inferring whether the flag is ne
 
 Consumers of Objective-C dependencies (or internal Objective-C targets) should apply `-ObjC` or `-force_load` flags when required by setting `OTHER_LDFLAGS` on consuming targets.
 
-### Firebase & Other Google Libraries
+<h3 id="firebase-other-google-libraries">Firebase & Other Google Libraries</h3>
 
 Google's open source libraries — while powerful — can be difficult to integrate within Tuist as they often use non-standard architecture and techniques in how they are built.
 
 Here are a few tips that may be necessary to follow to integrate Firebase and Google's other Apple-platform libraries:
 
-#### Ensure `-ObjC` is added to `OTHER_LDFLAGS`
+<h4 id="ensure-objc-is-added-to-other_ldflags">Ensure `-ObjC` is added to `OTHER_LDFLAGS`</h4>
 
 Many of Google's libraries are written in Objective-C. Because of this, any consuming target will need to include the `-ObjC` tag in its `OTHER_LDFLAGS` build setting. This can either be set in an `.xcconfig` file or manually specified in the target's settings within your Tuist manifests. An example:
 
@@ -318,7 +318,7 @@ Target.target(
 
 Refer to the [Objective-C Dependencies](#objective-c-dependencies) section above for more details.
 
-#### Set the product type for `FBLPromises` to dynamic framework
+<h4 id="set-the-product-type-for-fblpromises-to-dynamic-framework">Set the product type for `FBLPromises` to dynamic framework</h4>
 
 Certain Google libraries depend on `FBLPromises`, another of Google's libraries. You may encounter a crash that mentions `FBLPromises`, looking something like this:
 
@@ -348,7 +348,7 @@ let package = Package(
 ...
 ```
 
-### Transitive static dependencies leaking through `.swiftmodule`
+<h3 id="transitive-static-dependencies-leaking-through-swiftmodule">Transitive static dependencies leaking through `.swiftmodule`</h3>
 
 When a dynamic framework or library depends on static ones through `import StaticSwiftModule`, the symbols are included in the `.swiftmodule` of the dynamic framework or library, potentially [causing the compilation to fail](https://forums.swift.org/t/compiling-a-dynamic-framework-with-a-statically-linked-library-creates-dependencies-in-swiftmodule-file/22708/1). To prevent that, you'll have to import the static dependency using [`@_implementationOnly`](https://github.com/apple/swift/blob/main/docs/ReferenceGuides/UnderscoredAttributes.md#_implementationonly):
 

@@ -4,7 +4,7 @@ titleTemplate: :title | Introduction | Server | Tuist
 description: Learn why Tuist has a server and how it can help scale your app development.
 ---
 
-# Why a server?
+<h1 id="why-a-server">Why a server?</h1>
 
 At a certain scale, optimizing a project and developers' interactions with them require access to data that changes over time, and integrations with other internet services where teams collaborate. This is only possible with **a server that can store data in a database, process it asynchonously, and integrate it with other services.**
 

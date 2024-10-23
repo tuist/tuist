@@ -3,7 +3,7 @@ title: Create a project
 description: Tuist에서 첫 프로젝트를 만들어 보세요.
 ---
 
-# Create a project
+<h1 id="create-a-project">Create a project</h1>
 
 Tuist를 설치한 후에는 다음 명령을 실행하여 새 프로젝트를 만들 수 있습니다.
 
@@ -25,7 +25,7 @@ tuist generate
 
 > [!팁] Conflicts가 없고 사용자 친화적인 환경  Xcode 프로젝트는 Conflicts가 발생하기 쉽고 개발자가 다루기에 매우 복잡합니다. Tuist는 특히 프로젝트의 종속성 그래프 관리 영역에서 이를 추상화 합니다.
 
-## Build the app
+<h2 id="build-the-app">Build the app</h2>
 
 Tuist는 프로젝트에서 수행해야 하는 가장 기본적인 작업에 대한 명령어를 제공합니다. 앱을 빌드 하려면, 다음 명령어를 실행합니다.
 
@@ -35,7 +35,7 @@ tuist build
 
 이 명령어는 내부적으로 플랫폼의 빌드 시스템(예: `xcodebuild`)을 사용하며, Tuist의 기능을 더해 빌드 시스템을 더욱 강력하게 만듭니다.
 
-## Test the app
+<h2 id="test-the-app">Test the app</h2>
 
 마찬가지로 다음을 사용하여 테스트를 실행할 수 있습니다.
 
