@@ -57,7 +57,7 @@ jobs:
           token: ${{ secrets.TUIST_SERVER_TESTS_GITHUB_TOKEN }}
       - uses: jdx/mise-action@v2
       - name: Select Xcode
-        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
+        run: sudo xcode-select -switch /Applications/Xcode_16.0.0).app
       - uses: actions/cache@v3
         name: "Cache installed dependencies folder"
         with:
