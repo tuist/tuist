@@ -1,6 +1,6 @@
 ---
 title: Best practices
-titleTemplate: ":title | Projects | Tuist"
+titleTemplate: :title | Projects | Tuist
 description: Learn about the best practices for working with Tuist and Xcode projects.
 ---
 
@@ -25,8 +25,8 @@ Build configurations were designed to embody different build settings, and proje
 - Add a new key to the `Info.plist` of the bundle that will use the environment information (e.g., app bundle): `REMOTE_ENV=${REMOTE_ENV}`.
 - You can then read the value at runtime:
 
-    ```swift
-    let remoteEnvString = Bundle.main.object(forInfoDictionaryKey: "REMOTE_ENV") as? String
-    ```
+  ```swift
+  let remoteEnvString = Bundle.main.object(forInfoDictionaryKey: "REMOTE_ENV") as? String
+  ```
 
 Thanks to the above, you can keep the list of configurations simple, preventing the aforementioned downsides, and give developers the flexibility to customize things like the remote environment via schemes.

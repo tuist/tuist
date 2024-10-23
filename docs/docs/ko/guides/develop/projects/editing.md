@@ -1,6 +1,6 @@
 ---
 title: Editing
-titleTemplate: ":title | Projects | Tuist"
+titleTemplate: :title | Projects | Tuist
 description: Learn how to use Tuist's edit workflow to declare your project leveraging Xcode's build system and editor capabilities.
 ---
 
@@ -19,7 +19,7 @@ The workflow creates an Xcode project that contains all manifest files and allow
 Thanks to using Xcode,
 you get all the benefits of **code completion, syntax highlighting, and error checking**.
 
-## Edit the project
+## 프로젝트 수정하기
 
 To edit your project, you can run the following command in a Tuist project directory or a sub-directory:
 
@@ -36,7 +36,7 @@ The project includes a `Manifests` directory that you can build to ensure all yo
 ## Edit and generate workflow
 
 As you might have noticed, the editing can't be done from the generated Xcode project.
-That's by design to prevent the generated project from having a dependency on Tuist, 
+That's by design to prevent the generated project from having a dependency on Tuist,
 ensuring you can move from Tuist in the future with little effort.
 
-When iterating on a project, we recommend running `tuist edit` from a terminal session to get an Xcode project to edit the project, and use another terminal session to run `tuist generate`. 
+When iterating on a project, we recommend running `tuist edit` from a terminal session to get an Xcode project to edit the project, and use another terminal session to run `tuist generate`.

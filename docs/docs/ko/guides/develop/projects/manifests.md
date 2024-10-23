@@ -1,6 +1,6 @@
 ---
 title: Manifests
-titleTemplate: ":title | Projects | Tuist"
+titleTemplate: :title | Projects | Tuist
 description: Learn about the manifest files that Tuist uses to define projects and workspaces and configure the generation process.
 ---
 
@@ -26,7 +26,6 @@ let project = Project(
     ]
 )
 ```
-
 
 > [!WARNING] ROOT VARIABLES
 > The only variable that should be at the root of the manifest is `let project = Project(...)`. If you need to reuse code across various parts of the manifest, you can use Swift functions.
