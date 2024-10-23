@@ -108,7 +108,7 @@ function content(command) {
 
 export async function paths(locale) {
   let paths = [];
-  (await loadData(locale)).items.forEach((command) => {
+  (await loadData(locale)).items[0].items.forEach((command) => {
     traverse(command, paths);
   });
   return paths;
