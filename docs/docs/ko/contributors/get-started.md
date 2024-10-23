@@ -47,7 +47,7 @@ Tuist에 기여하기위해 최소 요구사항은 다음과 같습니다:
 
 생성된 Xcode 프로젝트에서 `tuist`를 실행하려면, `tuist` 스킴을 수정하고 명령어에 전달할 인수를 설정합니다. 예를 들어, `tuist generate` 명령어를 실행하려면, 프로젝트 생성 후에 프로젝트가 열리지 않도록 `generate --no-open` 인수를 설정할 수 있습니다.
 
-!<LocalizedLink href="/contributors/scheme-arguments.png">Tuist로 generate 명령어를 실행하기위한 스킴 구성의 예</LocalizedLink>
+![Tuist로 generate 명령어를 실행하기위한 스킴 구성의 예](/images/contributors/scheme-arguments.png)
 
 또한 생성되는 프로젝트의 루트를 작업 디렉토리로 설정해야 합니다. 모든 명령어를 적용하는 `--path` 인수를 사용할 수도 있고, 아래와 같이 스킴에 작업 디렉토리를 구성할 수도 있습니다:
 
