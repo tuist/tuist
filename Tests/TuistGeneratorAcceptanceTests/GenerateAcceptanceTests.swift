@@ -939,6 +939,25 @@ final class GenerateAcceptanceTestAppWithDefaultConfiguration: TuistAcceptanceTe
     }
 }
 
+final class GenerateAcceptanceTestAppWithCustomScheme: TuistAcceptanceTestCase {
+    func test_app_with_custom_scheme() async throws {
+        try await setUpFixture(.appWithCustomScheme)
+        try await run(GenerateCommand.self)
+
+        let xcodeproj = try XcodeProj(
+            pathString: xcodeprojPath.pathString
+        )
+
+        let scheme = try XCTUnwrap(xcodeproj.sharedData?.schemes.first)
+        XCTAssertEqual(scheme.name, "App")
+
+        let buildAction = try XCTUnwrap(scheme.buildAction)
+        XCTAssertFalse(buildAction.buildImplicitDependencies)
+
+        try await run(BuildCommand.self)
+    }
+}
+
 final class GenerateAcceptanceTestAppWithGoogleMaps: TuistAcceptanceTestCase {
     func test_app_with_google_maps() async throws {
         try await setUpFixture(.appWithGoogleMaps)

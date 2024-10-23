@@ -12,7 +12,7 @@ public struct BuildAction: Equatable, Codable, Sendable {
     public var postActions: [ExecutionAction]
     /// Whether the post actions should be run in the case of a failure
     public var runPostActionsOnFailure: Bool
-    /// Whether Xcode should be allowed to search dependencies implicitly
+    /// Whether Xcode should be allowed to find dependencies implicitly. The default is `true`.
     public var findImplicitDependencies: Bool
 
     /// Returns a build action.
@@ -21,7 +21,7 @@ public struct BuildAction: Equatable, Codable, Sendable {
     ///   - preActions: A list of actions that are executed before starting the build process.
     ///   - postActions: A list of actions that are executed after the build process.
     ///   - runPostActionsOnFailure: Whether the post actions should be run in the case of a failure
-    ///   - findImplicitDependencies: Whether Xcode should be allowed to search dependencies implicitly
+    ///   - findImplicitDependencies: Whether Xcode should be allowed to find dependencies implicitly. The default is `true`.
     /// - Returns: Initialized build action.
     public static func buildAction(
         targets: [TargetReference],
