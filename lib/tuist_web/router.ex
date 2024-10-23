@@ -63,9 +63,16 @@ defmodule TuistWeb.Router do
   # Marketing
   if @include_marketing_routes do
     scope "/" do
-      pipe_through [:open_api, :browser_marketing]
+      pipe_through [:open_api, :browser_marketing, :assign_current_path]
 
       get "/", TuistWeb.MarketingController, :home
+      get "/changelog", TuistWeb.MarketingController, :changelog
+      get "/pricing", TuistWeb.MarketingController, :pricing
+      get "/blog", TuistWeb.MarketingController, :blog
+      get "/terms", TuistWeb.MarketingController, :terms
+      get "/privacy", TuistWeb.MarketingController, :privacy
+      get "/cookies", TuistWeb.MarketingController, :cookies
+      get "/about", TuistWeb.MarketingController, :about
     end
   end
 
@@ -332,4 +339,8 @@ defmodule TuistWeb.Router do
   end
 
   get "/download", TuistWeb.DownloadController, :download
+
+  def assign_current_path(conn, _params) do
+    conn |> assign(:current_path, conn.request_path)
+  end
 end

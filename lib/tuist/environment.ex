@@ -322,6 +322,10 @@ defmodule Tuist.Environment do
     %{URI.parse(url) | path: path} |> URI.to_string()
   end
 
+  def get_url(key) do
+    Application.fetch_env!(:tuist, :urls) |> Keyword.fetch!(key)
+  end
+
   def email_icon_url() do
     uri = app_url() |> URI.parse()
     %{uri | path: "/images/tuist_email.png"} |> URI.to_string()

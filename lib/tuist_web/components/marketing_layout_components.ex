@@ -7,6 +7,67 @@ defmodule TuistWeb.MarketingLayoutComponents do
 
   embed_templates "marketing_layout_components/*"
 
+  attr :key, :string, required: true
+  attr :title, :string, required: true
+  attr :href, :string, default: nil
+  attr :children, :list, default: []
+  attr :current_path, :string, required: true
+
+  def marketing_mobile_menu_dropdown(assigns) do
+    assigns =
+      assigns
+      |> assign(
+        :selector,
+        ".marketing__header__bar__mobile__menu__main__dropdown[data-key=\"#{assigns[:key]}\"]"
+      )
+
+    ~H"""
+    <div
+      class="marketing__header__bar__mobile__menu__main__dropdown"
+      data-collapsed="true"
+      data-key={@key}
+    >
+      <div
+        class="marketing__header__bar__mobile__menu__main__dropdown__header"
+        data-current={"#{@current_path == @href}"}
+        phx-click={
+          if(length(@children) > 0,
+            do: JS.toggle_attribute({"data-collapsed", "true", "false"}, to: @selector),
+            else: nil
+          )
+        }
+      >
+        <%= if length(@children) > 0 do %>
+          <div class="marketing__header__bar__mobile__menu__main__dropdown__header__title font-xxl">
+            <%= @title %>
+          </div>
+        <% else %>
+          <.link
+            href={@href}
+            class="marketing__header__bar__mobile__menu__main__dropdown__header__title font-xxl"
+          >
+            <%= @title %>
+          </.link>
+        <% end %>
+        <%= if length(@children) > 0 do %>
+          <.plus_icon class="marketing__header__bar__mobile__menu__main__dropdown__header__icon" />
+        <% end %>
+      </div>
+
+      <div class="marketing__header__bar__mobile__menu__main__dropdown__header__children">
+        <.link
+          :for={child <- @children}
+          href={child.href}
+          data-current={"#{@current_path == child.href}"}
+          class="font-xl marketing__header__bar__mobile__menu__main__dropdown__header__children__child"
+        >
+          <%= child.title %>
+        </.link>
+      </div>
+    </div>
+    """
+  end
+
   attr :size, :integer, default: 72
   attr :class, :string, default: ""
 
@@ -77,6 +138,7 @@ defmodule TuistWeb.MarketingLayoutComponents do
 
   attr :size, :string, required: true, values: ["big", "medium", "small"]
   attr :href, :string, required: false
+  attr :class, :string, default: ""
   attr :target, :string, required: false
   attr :rest, :global
   slot :inner_block, required: false
@@ -99,7 +161,7 @@ defmodule TuistWeb.MarketingLayoutComponents do
         href={assigns[:href]}
         target={assigns[:target]}
         {@rest}
-        class={"marketing__component__primary__button #{@font_class}"}
+        class={"marketing__component__primary__button #{@font_class} #{@class}"}
         data-size={@size}
       >
         <%= render_slot(@inner_block) %>
@@ -153,4 +215,33 @@ defmodule TuistWeb.MarketingLayoutComponents do
     <% end %>
     """
   end
+
+  attr :title, :string, required: true
+  attr :items, :list, required: true
+
+  def footer_section(assigns) do
+    ~H"""
+    <div class="marketing__footer__main__menus__menu">
+      <h4 class="marketing__footer__main__menus__menu_title font-xxs-strong">
+        <%= @title %>
+      </h4>
+      <div class="marketing__footer__main__menus__menu_links">
+        <.link
+          :for={item <- @items}
+          href={item.href}
+          class="marketing__footer__main__menus__menu_link font-xxs"
+        >
+          <%= item.text %>
+        </.link>
+      </div>
+    </div>
+    """
+  end
+
+  attr :style, :string, default: ""
+  attr :class, :string, default: ""
+  def developers_docs_artwork(assigns)
+
+  attr :current_path, :string, required: true
+  def header(assigns)
 end

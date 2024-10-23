@@ -21,15 +21,24 @@ config :tuist, TuistWeb.Endpoint,
   live_view: [signing_salt: "laTbtzV8"]
 
 config :tuist, :urls,
+  contact: "mailto:contact@tuist.io",
   slack: "https://slack.tuist.io",
   x: "https://x.com/tuistio",
   github: "https://github.com/tuist",
+  github_issues: "https://github.com/tuist/tuist/issues",
   mastodon: "https://fosstodon.org/@tuist",
   linkedin: "https://www.linkedin.com/company/tuistio",
   newsletter: "https://lists.tuist.io/subscription/form",
+  podcast: "https://podcast.tuist.io",
   peertube: "https://videos.tuist.io",
   status: "https://status.tuist.io",
-  get_started: "https://docs.tuist.io"
+  get_started: "https://docs.tuist.io",
+  community: "https://community.tuist.io",
+  documentation: "https://docs.tuist.io",
+  app_lifecycle_phase_start: "https://docs.tuist.io/guides/start/new-project",
+  app_lifecycle_phase_develop: "https://docs.tuist.io/guides/develop/projects",
+  app_lifecycle_phase_share: "https://docs.tuist.io/guides/share/previews",
+  app_lifecycle_phase_measure: "https://docs.tuist.io/server/introduction/why-a-server"
 
 # Configures the mailer
 #

@@ -17,7 +17,8 @@ defmodule TuistWeb do
   those modules here.
   """
 
-  def static_paths, do: ~w(assets fonts images favicon.ico robots.txt js css .well-known)
+  def static_paths,
+    do: ~w(assets fonts images favicon.ico robots.txt js css .well-known marketing)
 
   def router do
     quote do

@@ -22,8 +22,8 @@
 
     <TuistWeb.LayoutComponents.head_analytics_scripts />
   </head>
-  <body>
-    <TuistWeb.MarketingLayoutComponents.headerbar />
+  <body data-scrollable="true">
+    <TuistWeb.MarketingLayoutComponents.header current_path={@current_path} />
     <%= @inner_content %>
     <TuistWeb.MarketingLayoutComponents.footer />
   </body>

@@ -9,6 +9,102 @@ defmodule TuistWeb.MarketingIcons do
   attr :size, :integer, default: @default_icon_size
   attr :class, :string, default: ""
 
+  def close_icon(assigns) do
+    ~H"""
+    <svg
+      width={@size}
+      height={@size}
+      class={@class}
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M18 6L6 18M6 6L18 18"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+    </svg>
+    """
+  end
+
+  attr :size, :integer, default: @default_icon_size
+  attr :class, :string, default: ""
+
+  def menu_icon(assigns) do
+    ~H"""
+    <svg
+      width={@size}
+      height={@size}
+      class={@class}
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M3 12H15M3 6H21M3 18H21"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+    </svg>
+    """
+  end
+
+  attr :size, :integer, default: @default_icon_size
+  attr :class, :string, default: ""
+
+  def plus_icon(assigns) do
+    ~H"""
+    <svg
+      width={@size}
+      height={@size}
+      class={@class}
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M12 5V19M5 12H19"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+    </svg>
+    """
+  end
+
+  attr :size, :integer, default: @default_icon_size
+  attr :class, :string, default: ""
+
+  def check_circle_icon(assigns) do
+    ~H"""
+    <svg
+      width={@size}
+      height={@size}
+      class={@class}
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M7.5 12L10.5 15L16.5 9M22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12Z"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+    </svg>
+    """
+  end
+
+  attr :size, :integer, default: @default_icon_size
+  attr :class, :string, default: ""
+
   def icon_arrow_narrow_right(assigns) do
     ~H"""
     <svg

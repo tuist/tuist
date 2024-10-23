@@ -15,7 +15,7 @@
 
     <%= if any_ongoing_incident? do %>
       <.link
-        href={Application.fetch_env!(:tuist, :urls) |> Keyword.fetch!(:status)}
+        href={Tuist.Environment.get_url(:status)}
         target="__blank"
         class="marketing__footer__header__status"
         role="status"
@@ -34,7 +34,7 @@
       </.link>
     <% else %>
       <.link
-        href={Application.fetch_env!(:tuist, :urls) |> Keyword.fetch!(:status)}
+        href={Tuist.Environment.get_url(:status)}
         target="__blank"
         class="marketing__footer__header__status"
         role="status"
@@ -56,127 +56,106 @@
 
   <div class="marketing__footer__main">
     <div class="marketing__footer__main__menus">
-      <div class="marketing__footer__main__menus__menu">
-        <h4 class="marketing__footer__main__menus__menu_title font-xxs-strong">
-          <%= gettext("App lifecycle") %>
-        </h4>
-        <.link href="#" class="marketing__footer__main__menus__menu_link font-xxs">
-          <%= gettext("Start") %>
-        </.link>
-        <.link href="#" class="marketing__footer__main__menus__menu_link font-xxs">
-          <%= gettext("Develop") %>
-        </.link>
-        <.link href="#" class="marketing__footer__main__menus__menu_link font-xxs">
-          <%= gettext("Share") %>
-        </.link>
-        <.link href="#" class="marketing__footer__main__menus__menu_link font-xxs">
-          <%= gettext("Measure") %>
-        </.link>
-      </div>
-
-      <div class="marketing__footer__main__menus__menu">
-        <h4 class="marketing__footer__main__menus__menu_title font-xxs-strong">
-          <%= gettext("Support") %>
-        </h4>
-        <.link href="#" class="marketing__footer__main__menus__menu_link font-xxs">
-          <%= gettext("Docs") %>
-        </.link>
-        <.link href="#" class="marketing__footer__main__menus__menu_link font-xxs">
-          <%= gettext("Changelog") %>
-        </.link>
-        <.link href="#" class="marketing__footer__main__menus__menu_link font-xxs">
-          <%= gettext("GitHub Discussions") %>
-        </.link>
-        <.link href="#" class="marketing__footer__main__menus__menu_link font-xxs">
-          <%= gettext("GitHub Issues") %>
-        </.link>
-        <.link href="#" class="marketing__footer__main__menus__menu_link font-xxs">
-          <%= gettext("Contact") %>
-        </.link>
-      </div>
-
-      <div class="marketing__footer__main__menus__menu">
-        <h4 class="marketing__footer__main__menus__menu_title font-xxs-strong">
-          <%= gettext("Company") %>
-        </h4>
-        <.link href="#" class="marketing__footer__main__menus__menu_link font-xxs">
-          <%= gettext("Customers") %>
-        </.link>
-        <.link href="#" class="marketing__footer__main__menus__menu_link font-xxs">
-          <%= gettext("Pricing") %>
-        </.link>
-        <.link href="#" class="marketing__footer__main__menus__menu_link font-xxs">
-          <%= gettext("Blog") %>
-        </.link>
-        <.link href="#" class="marketing__footer__main__menus__menu_link font-xxs">
-          <%= gettext("About") %>
-        </.link>
-        <.link href="#" class="marketing__footer__main__menus__menu_link font-xxs">
-          <%= gettext("Partners") %>
-        </.link>
-      </div>
+      <.footer_section
+        title={gettext("App lifecycle")}
+        items={[
+          %{
+            text: gettext("Start"),
+            href: Tuist.Environment.get_url(:app_lifecycle_phase_start)
+          },
+          %{
+            text: gettext("Develop"),
+            href: Tuist.Environment.get_url(:app_lifecycle_phase_develop)
+          },
+          %{
+            text: gettext("Share"),
+            href: Tuist.Environment.get_url(:app_lifecycle_phase_share)
+          },
+          %{
+            text: gettext("Measure"),
+            href: Tuist.Environment.get_url(:app_lifecycle_phase_measure)
+          }
+        ]}
+      />
+      <.footer_section
+        title={gettext("Support")}
+        items={[
+          %{
+            text: gettext("Docs"),
+            href: Tuist.Environment.get_url(:app_lifecycle_phase_share)
+          },
+          %{text: gettext("Changelog"), href: ~p"/changelog"},
+          %{
+            text: gettext("Community"),
+            href: Tuist.Environment.get_url(:community)
+          },
+          %{
+            text: gettext("Issues"),
+            href: Tuist.Environment.get_url(:github_issues)
+          },
+          %{
+            text: gettext("Contact"),
+            href: Tuist.Environment.get_url(:contact)
+          }
+        ]}
+      />
+      <.footer_section
+        title={gettext("Company")}
+        items={[
+          %{text: gettext("Pricing"), href: ~p"/pricing"},
+          %{text: gettext("Blog"), href: ~p"/blog"},
+          %{text: gettext("About"), href: ~p"/about"}
+        ]}
+      />
     </div>
 
     <div class="marketing__footer__main__links">
-      <h3 class="marketing__footer__main__links__title font-xxs-strong">
-        <%= gettext("Stay in touch") %>
-      </h3>
       <div class="marketing__footer__main__links__social">
-        <.link
-          href={Application.fetch_env!(:tuist, :urls) |> Keyword.fetch!(:slack)}
-          target="_blank"
-        >
-          <.icon_slack class="marketing__footer__main__links__social__logo" />
-        </.link>
-        <.link href={Application.fetch_env!(:tuist, :urls) |> Keyword.fetch!(:x)} target="_blank">
-          <.icon_x class="marketing__footer__main__links__social__logo" />
-        </.link>
-        <.link
-          href={Application.fetch_env!(:tuist, :urls) |> Keyword.fetch!(:github)}
-          target="_blank"
-        >
-          <.icon_github class="marketing__footer__main__links__social__logo" />
-        </.link>
-        <.link
-          href={Application.fetch_env!(:tuist, :urls) |> Keyword.fetch!(:mastodon)}
-          target="_blank"
-        >
-          <.icon_mastodon class="marketing__footer__main__links__social__logo" />
-        </.link>
-        <.link
-          href={Application.fetch_env!(:tuist, :urls) |> Keyword.fetch!(:peertube)}
-          target="_blank"
-        >
-          <.icon_peertube class="marketing__footer__main__links__social__logo" />
-        </.link>
-        <.link
-          href={Application.fetch_env!(:tuist, :urls) |> Keyword.fetch!(:linkedin)}
-          target="_blank"
-        >
-          <.icon_linkedin class="marketing__footer__main__links__social__logo" />
-        </.link>
+        <h3 class="marketing__footer__main__links__social__title font-xxs-strong">
+          <%= gettext("Stay in touch") %>
+        </h3>
+        <div class="marketing__footer__main__links__social__items">
+          <.link href={Tuist.Environment.get_url(:slack)} target="_blank">
+            <.icon_slack class="marketing__footer__main__links__social__items__logo" />
+          </.link>
+          <.link href={Tuist.Environment.get_url(:x)} target="_blank">
+            <.icon_x class="marketing__footer__main__links__social__items__logo" />
+          </.link>
+          <.link href={Tuist.Environment.get_url(:github)} target="_blank">
+            <.icon_github class="marketing__footer__main__links__social__items__logo" />
+          </.link>
+          <.link href={Tuist.Environment.get_url(:mastodon)} target="_blank">
+            <.icon_mastodon class="marketing__footer__main__links__social__items__logo" />
+          </.link>
+          <.link href={Tuist.Environment.get_url(:peertube)} target="_blank">
+            <.icon_peertube class="marketing__footer__main__links__social__items__logo" />
+          </.link>
+          <.link href={Tuist.Environment.get_url(:linkedin)} target="_blank">
+            <.icon_linkedin class="marketing__footer__main__links__social__items__logo" />
+          </.link>
+        </div>
       </div>
       <.secondary_button
         variant="dark"
         size="small"
-        href={Application.fetch_env!(:tuist, :urls) |> Keyword.fetch!(:newsletter)}
+        href={Tuist.Environment.get_url(:podcast)}
         target="_blank"
       >
-        <%= gettext("Newsletter") %>
+        <%= gettext("Podcast") %>
       </.secondary_button>
     </div>
   </div>
 
   <div class="marketing__footer__footer">
-    <.link href="#" class="marketing__footer__footer__link font-xxs">
+    <.link href={~p"/terms"} class="marketing__footer__footer__link font-xxs">
       <%= gettext("Terms of service") %>
     </.link>
     <span>|</span>
-    <.link href="#" class="marketing__footer__footer__link font-xxs">
+    <.link href={~p"/privacy"} class="marketing__footer__footer__link font-xxs">
       <%= gettext("Privacy policy") %>
     </.link>
     <span>|</span>
-    <.link href="#" class="marketing__footer__footer__link font-xxs">
+    <.link href={~p"/cookies"} class="marketing__footer__footer__link font-xxs">
       <%= gettext("Cookies policy") %>
     </.link>
   </div>
