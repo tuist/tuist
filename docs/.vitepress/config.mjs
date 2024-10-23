@@ -37,17 +37,17 @@ export default defineConfig({
       themeConfig: await themeConfig("en"),
     },
     ko: {
-      label: "Korean",
+      label: "한국어 (Korean)",
       lang: "ko",
       themeConfig: await themeConfig("ko"),
     },
     ja: {
-      label: "Japanese",
+      label: "日本語 (Japanese)",
       lang: "ja",
       themeConfig: await themeConfig("ja"),
     },
     ru: {
-      label: "Russian",
+      label: "Русский (Russian)",
       lang: "ru",
       themeConfig: await themeConfig("ru"),
     },

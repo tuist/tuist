@@ -1,0 +1,103 @@
+{
+  "navbar": {
+    "guides": {
+      "text": "Guides"
+    },
+    "cli": {
+      "text": "CLI"
+    },
+    "server": {
+      "text": "Server"
+    },
+    "resources": {
+      "text": "Resources",
+      "items": {
+        "references": {
+          "text": "References"
+        },
+        "contributors": {
+          "text": "Contributors"
+        },
+        "changelog": {
+          "text": "Changelog"
+        }
+      }
+    }
+  },
+  "sidebars": {
+    "references": {
+      "text": "References",
+      "items": {
+        "examples": {
+          "text": "Examples"
+        },
+        "migrations": {
+          "text": "Migrations",
+          "items": {
+            "from-v3-to-v4": {
+              "text": "From v3 to v4"
+            }
+          }
+        }
+      }
+    },
+    "contributors": {
+      "text": "Contributors",
+      "items": {
+        "get-started": {
+          "text": "Get started"
+        },
+        "issue-reporting": {
+          "text": "Issue reporting"
+        },
+        "code-reviews": {
+          "text": "Code reviews"
+        },
+        "principles": {
+          "text": "Principles"
+        }
+      }
+    },
+    "server": {
+      "items": {
+        "introduction": {
+          "text": "Introduction",
+          "items": {
+            "why-server": {
+              "text": "Why a server?"
+            },
+            "accounts-and-projects": {
+              "text": "Accounts and projects"
+            },
+            "authentication": {
+              "text": "Authentication"
+            },
+            "integrations": {
+              "text": "Integrations"
+            }
+          }
+        },
+        "on-premise": {
+          "text": "On-premise",
+          "items": {
+            "install": {
+              "text": "Install"
+            },
+            "metrics": {
+              "text": "Metrics"
+            }
+          }
+        },
+        "api-documentation": {
+          "text": "API documentation"
+        },
+        "status": {
+          "text": "Status"
+        },
+        "metrics-dashboard": {
+          "text": "Metrics dashboard"
+        }
+      }
+    }
+  }
+}

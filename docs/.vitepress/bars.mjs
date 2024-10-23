@@ -16,6 +16,41 @@ import {
 } from "./icons.mjs";
 import { loadData as loadExamplesData } from "./data/examples";
 import { loadData as loadProjectDescriptionData } from "./data/project-description";
+import enStrings from "./strings/en.json";
+import ruStrings from "./strings/ru.json";
+import koStrings from "./strings/ko.json";
+import jaStrings from "./strings/ja.json";
+
+const strings = {
+  en: enStrings,
+  ru: ruStrings,
+  ko: koStrings,
+  ja: jaStrings,
+};
+
+function localizedString(locale, key) {
+  const getString = (localeStrings, key) => {
+    const keys = key.split(".");
+    let current = localeStrings;
+
+    for (const k of keys) {
+      if (current && current.hasOwnProperty(k)) {
+        current = current[k];
+      } else {
+        return undefined;
+      }
+    }
+    return current;
+  };
+
+  let localizedValue = getString(strings[locale], key);
+
+  if (localizedValue === undefined && locale !== "en") {
+    localizedValue = getString(strings["en"], key);
+  }
+
+  return localizedValue;
+}
 
 async function projectDescriptionSidebar(locale) {
   const projectDescriptionTypesData = await loadProjectDescriptionData();
@@ -49,11 +84,14 @@ async function projectDescriptionSidebar(locale) {
 export async function referencesSidebar(locale) {
   return [
     {
-      text: "Reference",
+      text: localizedString(locale, "sidebars.references.text"),
       items: [
         await projectDescriptionSidebar(locale),
         {
-          text: "Examples",
+          text: localizedString(
+            locale,
+            "sidebars.references.items.examples.text"
+          ),
           collapsed: true,
           items: (await loadExamplesData()).map((item) => {
             return {
@@ -63,11 +101,17 @@ export async function referencesSidebar(locale) {
           }),
         },
         {
-          text: "Migrations",
+          text: localizedString(
+            locale,
+            "sidebars.references.items.migrations.text"
+          ),
           collapsed: true,
           items: [
             {
-              text: "From v3 to v4",
+              text: localizedString(
+                locale,
+                "sidebars.references.items.migrations.items.from-v3-to-v4.text"
+              ),
               link: "/references/migrations/from-v3-to-v4",
             },
           ],
@@ -80,27 +124,48 @@ export async function referencesSidebar(locale) {
 export function navBar(locale) {
   return [
     {
-      text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Guides ${bookOpen01Icon()}</span>`,
+      text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${localizedString(
+        locale,
+        "navbar.guides.text"
+      )} ${bookOpen01Icon()}</span>`,
       link: `/${locale}/`,
     },
     {
-      text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">CLI ${codeBrowserIcon()}</span>`,
+      text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${localizedString(
+        locale,
+        "navbar.cli.text"
+      )} ${codeBrowserIcon()}</span>`,
       link: `/${locale}/cli/auth`,
     },
     {
-      text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Server ${server04Icon()}</span>`,
+      text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${localizedString(
+        locale,
+        "navbar.server.text"
+      )} ${server04Icon()}</span>`,
       link: `/${locale}/server/introduction/why-a-server`,
     },
     {
-      text: "Resources",
+      text: localizedString(locale, "navbar.resources.text"),
       items: [
         {
-          text: "References",
+          text: localizedString(
+            locale,
+            "navbar.resources.items.references.text"
+          ),
           link: `/${locale}/references/project-description/structs/project`,
         },
-        { text: "Contributors", link: `/${locale}/contributors/get-started` },
         {
-          text: "Changelog",
+          text: localizedString(
+            locale,
+            "navbar.resources.items.contributors.text"
+          ),
+          link: `/${locale}/contributors/get-started`,
+        },
+        {
+          text: localizedString(
+            locale,
+            "navbar.resources.items.changelog.text"
+          ),
           link: "https://github.com/tuist/tuist/releases",
         },
       ],
@@ -111,22 +176,34 @@ export function navBar(locale) {
 export function contributorsSidebar(locale) {
   return [
     {
-      text: "Contributors",
+      text: localizedString(locale, "sidebars.contributors.text"),
       items: [
         {
-          text: "Get started",
+          text: localizedString(
+            locale,
+            "sidebars.contributors.items.get-started.text"
+          ),
           link: `/${locale}/contributors/get-started`,
         },
         {
-          text: "Issue reporting",
+          text: localizedString(
+            locale,
+            "sidebars.contributors.items.issue-reporting.text"
+          ),
           link: `/${locale}/contributors/issue-reporting`,
         },
         {
-          text: "Code reviews",
+          text: localizedString(
+            locale,
+            "sidebars.contributors.items.code-reviews.text"
+          ),
           link: `/${locale}/contributors/code-reviews`,
         },
         {
-          text: "Principles",
+          text: localizedString(
+            locale,
+            "sidebars.contributors.items.principles.text"
+          ),
           link: `/${locale}/contributors/principles`,
         },
       ],
@@ -137,50 +214,80 @@ export function contributorsSidebar(locale) {
 export function serverSidebar(locale) {
   return [
     {
-      text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">Introduction ${server04Icon()}</span>`,
+      text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${localizedString(
+        locale,
+        "sidebars.server.items.introduction.text"
+      )} ${server04Icon()}</span>`,
       items: [
         {
-          text: "Why a server?",
+          text: localizedString(
+            locale,
+            "sidebars.server.items.introduction.items.why-server.text"
+          ),
           link: `/${locale}/server/introduction/why-a-server`,
         },
         {
-          text: "Accounts and projects",
+          text: localizedString(
+            locale,
+            "sidebars.server.items.introduction.items.accounts-and-projects.text"
+          ),
           link: `/${locale}/server/introduction/accounts-and-projects`,
         },
         {
-          text: "Authentication",
+          text: localizedString(
+            locale,
+            "sidebars.server.items.introduction.items.authentication.text"
+          ),
           link: `/${locale}/server/introduction/authentication`,
         },
         {
-          text: "Integrations",
+          text: localizedString(
+            locale,
+            "sidebars.server.items.introduction.items.integrations.text"
+          ),
           link: `/${locale}/server/introduction/integrations`,
         },
       ],
     },
     {
-      text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">On-premise ${building07Icon()}</span>`,
+      text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${localizedString(
+        locale,
+        "sidebars.server.items.on-premise.text"
+      )} ${building07Icon()}</span>`,
       collapsed: true,
       items: [
         {
-          text: "Install",
+          text: localizedString(
+            locale,
+            "sidebars.server.items.on-premise.items.install.text"
+          ),
           link: `/${locale}/server/on-premise/install`,
         },
         {
-          text: "Metrics",
+          text: localizedString(
+            locale,
+            "sidebars.server.items.on-premise.items.metrics.text"
+          ),
           link: `/${locale}/server/on-premise/metrics`,
         },
       ],
     },
     {
-      text: "API Documentation",
+      text: localizedString(
+        locale,
+        "sidebars.server.items.api-documentation.text"
+      ),
       link: "https://cloud.tuist.io/api/docs",
     },
     {
-      text: "Status",
+      text: localizedString(locale, "sidebars.server.items.status.text"),
       link: "https://status.tuist.io",
     },
     {
-      text: "Metrics Dashboard",
+      text: localizedString(
+        locale,
+        "sidebars.server.items.metrics-dashboard.text"
+      ),
       link: "https://tuist.grafana.net/public-dashboards/1f85f1c3895e48febd02cc7350ade2d9",
     },
   ];
