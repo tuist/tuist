@@ -3,7 +3,7 @@ title: Migrate a Swift Package
 description: Learn how to migrate from Swift Package Manager as a solution for managing your projects to Tuist projects.
 ---
 
-# Migrate a Swift Package
+<h1 id="migrate-a-swift-package">Migrate a Swift Package</h1>
 
 Swift Package Manager emerged as a dependency manager for Swift code that uninentionally found itself solving the problem of managing projects and supporting other programming languages like Objective-C. Because the tool was designed with a different purpose in mind, it can be challenging to use it to manage projects at scale because it lacks flexibility, performance, and power that Tuist provides. This is well captured in the [Scaling iOS at Bumble](https://medium.com/bumble-tech/scaling-ios-at-bumble-239e0fa009f2) article, which includes the following table comparing the performance of Swift Package Manager and native Xcode projects:
 
@@ -16,7 +16,7 @@ We often come across developers and organizations that challenge the need for Tu
 > [!TIP] SPM AS JUST A DEPENDENCY MANAGER
 > Tuist treats Swift Package Manager as a dependency manager, and it's a great one. We use it to resolve dependencies and to build them. We don't use it to define projects because it's not designed for that.
 
-## Migrating from Swift Package Manager to Tuist
+<h2 id="migrating-from-swift-package-manager-to-tuist">Migrating from Swift Package Manager to Tuist</h2>
 
 The similarities between Swift Package Manager and Tuist make the migration process straightforward. The main difference is that you'll be defining your projects using Tuist's DSL instead of `Package.swift`.
 
@@ -55,7 +55,7 @@ let config = Config()
 
 The `Config.swift` contains the configuration for your project and its directory, `Tuist`, serves as a reference to determine the root of your project. You can check out the <LocalizedLink href="/guides/develop/projects/directory-structure">directory structure</LocalizedLink> document to learn more about the structure of Tuist projects.
 
-## Editing the project
+<h2 id="editing-the-project">Editing the project</h2>
 
 You can use <LocalizedLink href="/guides/develop/projects/editing">`tuist edit`</LocalizedLink> to edit the project in Xcode. The command will generate an Xcode project that you can open and start working on.
 
