@@ -43,4 +43,4 @@ tuist test --no-selective-testing
 
 When running tests in your CI environments we can correlate the test results with the pull/merge request that triggered the CI build. This allows us to post a comment on the pull/merge request with the test results.
 
-!<LocalizedLink href="/contributors/scheme-arguments.png">GitHub App example</LocalizedLink>
+![GitHub App example](/contributors/scheme-arguments.png)
