@@ -13,5 +13,4 @@ While the role of a server is common in other ecosystems, it's not that common i
 We believe teams shouldn't have to worry about setting up and maintaining a server to scale their projects. That's why we built a server that <LocalizedLink href="/guides/develop/projects">Tuist</LocalizedLink> and [Xcode projects](https://developer.apple.com/documentation/xcode/creating-an-xcode-project-for-an-app) can integrate with to scale their projects and teams.
 
 > [!TIP] GIVING YOUR PROJECTS AND WORKFLOWS SUPERPOWERS
-> A way of thinking about the server is as a superpower that you can give to your projects and workflows.
-Some superpowers like <LocalizedLink href="/guides/develop/build/cache">binary caching</LocalizedLink> require you to have a <LocalizedLink href="/guides/develop/projects">Tuist project</LocalizedLink> but others just work with vanilla Xcode projects.
+> A way of thinking about the server is as a superpower that you can give to your projects and workflows. Some superpowers like <LocalizedLink href="/guides/develop/build/cache">binary caching</LocalizedLink> require you to have a <LocalizedLink href="/guides/develop/projects">Tuist project</LocalizedLink> but others just work with vanilla Xcode projects.
