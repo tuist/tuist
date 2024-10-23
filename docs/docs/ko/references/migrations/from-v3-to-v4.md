@@ -48,7 +48,6 @@ Before Tuist 4, you could define dependencies in a `Dependencies.swift` file. Th
 
 For brevity, we decided to rename the `tuist cache warm` command to `tuist cache`. If you were using the `tuist cache warm` command, you'll have to update your project to use the `tuist cache` command instead.
 
-
 <h3 id="renamed-tuist-cache-printhashes-to-tuist-cache-printhashes">Renamed `tuist cache print-hashes` to `tuist cache --print-hashes`</h3>
 
 We decided to rename the `tuist cache print-hashes` command to `tuist cache --print-hashes` to make it clear that it's a flag of the `tuist cache` command. If you were using the `tuist cache print-hashes` command, you'll have to update your project to use the `tuist cache --print-hashes` flag instead.
