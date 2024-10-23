@@ -16,7 +16,7 @@ In projects with an established architecture, developers might want to bootstrap
 
 <h2 id="defining-a-template">Defining a template</h2>
 
-To define templates, you can run <LocalizedLink href="/guides/develop/projects/editing">`tuist edit`</LocalizedLink> and then create a directory called `name_of_template` under `Tuist/Templates` that represents your template. Templates need a manifest file, `name_of_template.swift` that describes the template. So if you are creating a template called `framework`, you should create a new directory `framework` at `Tuist/Templates` with a manifest file called `framework.swift` that could look like this:
+So if you are creating a template called `framework`, you should create a new directory `framework` at `Tuist/Templates` with a manifest file called `framework.swift` that could look like this: To define templates, you can run <LocalizedLink href="/guides/develop/projects/editing">`tuist edit`</LocalizedLink> and then create a directory called `name_of_template` under `Tuist/Templates` that represents your template. Templates need a manifest file, `name_of_template.swift` that describes the template.
 
 ```swift
 import ProjectDescription
