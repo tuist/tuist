@@ -4,15 +4,15 @@ titleTemplate: :title | Projects | Tuist
 description: Learn about the best practices for working with Tuist and Xcode projects.
 ---
 
-# Best practices
+<h1 id="best-practices">Best practices</h1>
 
 Over the years working with different teams and projects, we've identified a set of best practices that we recommend following when working with Tuist and Xcode projects. These practices are not mandatory, but they can help you structure your projects in a way that makes them easier to maintain and scale.
 
-## Xcode
+<h2 id="xcode">Xcode</h2>
 
-### Discouraged patterns
+<h3 id="discouraged-patterns">Discouraged patterns</h3>
 
-#### Configurations to model remote environments
+<h4 id="configurations-to-model-remote-environments">Configurations to model remote environments</h4>
 
 Many organizations use build configurations to model different remote environments (e.g., `Debug-Production` or `Release-Canary`), but this approach has some downsides:
 

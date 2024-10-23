@@ -3,7 +3,7 @@ title: What is Tuist?
 description: Extend your Apple native tooling to better apps at scale.
 ---
 
-# Tuist
+<h1 id="tuist">Tuist</h1>
 
 In the world of app development, particularly for platforms like Apple's, organizations often encounter **productivity roadblocks.** These can include sluggish compilation times, unreliable tests, and intricate automation workflows that drain resources. Traditionally, companies address these issues by forming dedicated platform teams. These specialists maintain codebase health and integrity, freeing other developers to focus on feature creation. However, this approach can be expensive and risky, as the departure of key team members can severely impact productivity.
 
@@ -11,7 +11,7 @@ In the world of app development, particularly for platforms like Apple's, organi
 
 Tuist is comprised of **a [CLI](https://github.com/tuist/tuist)**, which is the main entry point for developers, and a server that the CLI integrates with to persist state and integrate with other publicly available services. Note that the features that require with the server might require a subscription.
 
-## Why would I use Tuist?
+<h2 id="why-would-i-use-tuist">Why would I use Tuist?</h2>
 
 Why choose Tuist? Here are compelling reasons:
 
