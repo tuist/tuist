@@ -18,7 +18,6 @@ Tuist efficiently <LocalizedLink href="/guides/develop/projects/hashing">utilize
 
 This operation, known as *"warming,"* produces binaries for local use or for sharing with teammates and CI environments via Tuist. The process of warming the cache is straightforward and can be initiated with a simple command:
 
-
 ```bash
 tuist cache
 ```
@@ -30,6 +29,7 @@ The command re-uses binaries to speed up the process.
 By default, when Tuist commands necessitate project generation, they automatically substitute dependencies with their binary equivalents from the cache, if available. Additionally, if you specify a list of targets to focus on, Tuist will also replace any dependent targets with their cached binaries, provided they are available. For those who prefer a different approach, there is an option to opt out of this behavior entirely by using a specific flag:
 
 ::: code-group
+
 ```bash [Project generation]
 tuist generate # Only dependencies
 tuist generate Search # Dependencies + Search dependencies
@@ -40,6 +40,7 @@ tuist generate --no-binary-cache # No cache at all
 ```bash [Testing]
 tuist test
 ```
+
 :::
 
 > [!WARNING]
