@@ -50,7 +50,8 @@ To run `tuist` from the generated Xcode project, edit the `tuist` scheme, and se
 
 You'll also have to set the working directory to the root of the project being generated. You can do that either by using the `--path` argument, which all the commands accept, or configuring the working directory in the scheme as shown below:
 
-!<LocalizedLink href="/contributors/scheme-working-directory.png">An example of how to set the working directory to run Tuist</LocalizedLink>
+
+![An example of how to set the working directory to run Tuist](/contributors/scheme-working-directory.png)
 
 > [!WARNING] PROJECTDESCRIPTION COMPILATION
 > The `tuist` CLI depends on the `ProjectDescription` framework's presence in the built products directory. If `tuist` fails to run because it can't find the `ProjectDescription` framework, build the `Tuist-Workspace` scheme first.
