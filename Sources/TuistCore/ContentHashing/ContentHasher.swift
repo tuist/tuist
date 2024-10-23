@@ -62,7 +62,7 @@ public struct ContentHasher: ContentHashing {
             return try await fileHandler.contentsOfDirectory(filePath)
                 .filter { filesFilter($0) }
                 .sorted(by: { $0 < $1 })
-                .serialMap { try await hash(path: $0) }
+                .concurrentMap(maxConcurrentTasks: 100) { try await hash(path: $0) }
                 .joined(separator: "-")
         }
 
