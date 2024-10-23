@@ -276,17 +276,34 @@ final class TestService { // swiftlint:disable:this type_body_length
                 testPlanConfiguration: testPlanConfiguration
             )
 
-            switch (testPlanConfiguration?.testPlan, scheme.testAction?.targets.isEmpty, scheme.testAction?.testPlans?.isEmpty) {
-            case (_, false, _):
-                break
-            case (nil, true, _), (nil, nil, _):
+            guard let testAction = scheme.testAction else {
+                logger.log(level: .info, "The scheme \(schemeName)'s has not any test actions to run, finishing early.")
+                return
+            }
+
+            if let testPlanConfiguration {
+                guard let testPlans = testAction.testPlans else {
+                    logger.log(level: .info, "The scheme \(schemeName)'s test action has no test plans to run, finishing early.")
+                    return
+                }
+
+                let hasTestPlanConfiguration = testPlans.contains { $0.name == testPlanConfiguration.testPlan }
+                if !hasTestPlanConfiguration {
+                    logger.log(
+                        level: .info,
+                        "The scheme \(schemeName)'s test action has no test plan \"\(testPlanConfiguration.testPlan)\" to run, finishing early."
+                    )
+                    return
+                }
+            } else if let testPlans = testAction.testPlans, !testPlans.contains(where: \.isDefault) {
+                logger.log(
+                    level: .info,
+                    "The scheme \(schemeName)'s test action has no default test plan to run, finishing early."
+                )
+                return
+            } else if testAction.targets.isEmpty {
                 logger.log(level: .info, "The scheme \(schemeName)'s test action has no tests to run, finishing early.")
                 return
-            case (_?, _, true), (_?, _, nil):
-                logger.log(level: .info, "The scheme \(schemeName)'s test action has no test plans to run, finishing early.")
-                return
-            default:
-                break
             }
 
             schemes = [scheme]
@@ -356,19 +373,46 @@ final class TestService { // swiftlint:disable:this type_body_length
         passthroughXcodeBuildArguments: [String]
     ) async throws {
         let graphTraverser = GraphTraverser(graph: graph)
-        let testSchemes = schemes
-            .filter {
-                $0.testAction.map { !$0.targets.isEmpty } ?? false
+        var testSchemes: [Scheme] = []
+        var skippedTestTargets: [GraphTarget] = initialTestTargets(
+            mapperEnvironment: mapperEnvironment,
+            schemes: schemes,
+            testPlanConfiguration: testPlanConfiguration
+        )
+
+        for scheme in schemes {
+            let testActionTargets = testActionTargets(
+                for: scheme,
+                testPlanConfiguration: testPlanConfiguration,
+                graph: graph
+            )
+
+            guard !testActionTargets.isEmpty else {
+                continue
             }
 
-        guard shouldRunTest(
-            for: schemes,
-            testPlanConfiguration: testPlanConfiguration,
-            mapperEnvironment: mapperEnvironment,
-            graph: graph
-        ) else { return }
+            testSchemes.append(scheme)
 
-        for testScheme in testSchemes {
+            skippedTestTargets.removeAll { target in
+                !testActionTargets.contains(where: {
+                    $0.target.bundleId == target.target.bundleId
+                })
+            }
+        }
+
+        guard !testSchemes.isEmpty else {
+            logger.log(level: .info, "There are no tests to run, finishing early")
+            return
+        }
+
+        if !skippedTestTargets.isEmpty {
+            logger
+                .notice(
+                    "The following targets have not changed since the last successful run and will be skipped: \(skippedTestTargets.map(\.target.name).joined(separator: ", "))"
+                )
+        }
+
+        for testScheme in schemes {
             try await self.testScheme(
                 scheme: testScheme,
                 graphTraverser: graphTraverser,
@@ -451,50 +495,6 @@ final class TestService { // swiftlint:disable:this type_body_length
         }
     }
 
-    private func shouldRunTest(
-        for schemes: [Scheme],
-        testPlanConfiguration: TestPlanConfiguration?,
-        mapperEnvironment: MapperEnvironment,
-        graph: Graph
-    ) -> Bool {
-        let testActionTargets = testActionTargets(
-            for: schemes,
-            testPlanConfiguration: testPlanConfiguration,
-            graph: graph
-        )
-        .map(\.target)
-
-        let skippedTestTargets = initialTestTargets(
-            mapperEnvironment: mapperEnvironment,
-            schemes: schemes,
-            testPlanConfiguration: testPlanConfiguration
-        )
-        .filter { target in
-            !testActionTargets.contains(where: {
-                $0.bundleId == target.target.bundleId
-            })
-        }
-
-        let testSchemes = schemes
-            .filter {
-                $0.testAction.map { !$0.targets.isEmpty } ?? false
-            }
-
-        if testSchemes.isEmpty {
-            logger.log(level: .info, "There are no tests to run, finishing early")
-            return false
-        }
-
-        if !skippedTestTargets.isEmpty {
-            logger
-                .notice(
-                    "The following targets have not changed since the last successful run and will be skipped: \(skippedTestTargets.map(\.target.name).joined(separator: ", "))"
-                )
-        }
-
-        return true
-    }
-
     private func initialTestTargets(
         mapperEnvironment: MapperEnvironment,
         schemes: [Scheme],
@@ -502,40 +502,49 @@ final class TestService { // swiftlint:disable:this type_body_length
     ) -> [GraphTarget] {
         guard let initialGraph = mapperEnvironment.initialGraph else { return [] }
         let initialSchemes = GraphTraverser(graph: initialGraph).schemes()
-        return testActionTargets(
-            for: initialSchemes
-                .filter { initialScheme in
-                    schemes.contains(where: { $0.name == initialScheme.name })
-                },
-            testPlanConfiguration: testPlanConfiguration,
-            graph: initialGraph
-        )
+        return initialSchemes.lazy
+            .filter { initialScheme in
+                schemes.contains(where: { $0.name == initialScheme.name })
+            }
+            .flatMap {
+                testActionTargets(
+                    for: $0,
+                    testPlanConfiguration: testPlanConfiguration,
+                    graph: initialGraph
+                )
+            }
     }
 
     private func testActionTargets(
-        for schemes: [Scheme],
+        for scheme: Scheme,
         testPlanConfiguration: TestPlanConfiguration?,
         graph: Graph
     ) -> [GraphTarget] {
-        return schemes
-            .flatMap {
-                if let testPlanConfiguration {
-                    return $0.testAction?.testPlans?
-                        .first(
-                            where: { $0.name == testPlanConfiguration.testPlan }
-                        )?.testTargets.map(\.target) ?? []
-                } else {
-                    return $0.testAction?.targets.map(\.target) ?? []
-                }
+        guard let testAction = scheme.testAction else {
+            return []
+        }
+
+        let testTargets: [TestableTarget] = if let testPlanConfiguration {
+            testAction.testPlans?
+                .first(where: { $0.name == testPlanConfiguration.testPlan })?
+                .testTargets ?? []
+        } else if let defaultTestPlan = testAction.testPlans?.first(where: \.isDefault) {
+            defaultTestPlan.testTargets
+        } else if !testAction.targets.isEmpty {
+            testAction.targets
+        } else {
+            []
+        }
+
+        return testTargets.compactMap { testTarget in
+            let targetReference = testTarget.target
+            guard let project = graph.projects[targetReference.projectPath],
+                  let target = project.targets[targetReference.name]
+            else {
+                return nil
             }
-            .compactMap {
-                guard let project = graph.projects[$0.projectPath],
-                      let target = project.targets[$0.name]
-                else {
-                    return nil
-                }
-                return GraphTarget(path: project.path, target: target, project: project)
-            }
+            return GraphTarget(path: project.path, target: target, project: project)
+        }
     }
 
     private func storeSuccessfulTestHashes(
@@ -545,11 +554,13 @@ final class TestService { // swiftlint:disable:this type_body_length
         mapperEnvironment: MapperEnvironment,
         cacheStorage: CacheStoring
     ) async throws {
-        let targets: [GraphTarget] = testActionTargets(
-            for: schemes,
-            testPlanConfiguration: testPlanConfiguration,
-            graph: graph
-        )
+        let targets: [GraphTarget] = schemes.flatMap {
+            testActionTargets(
+                for: $0,
+                testPlanConfiguration: testPlanConfiguration,
+                graph: graph
+            )
+        }
         guard let initialGraph = mapperEnvironment.initialGraph else { return }
         let graphTraverser = GraphTraverser(graph: initialGraph)
 

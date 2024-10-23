@@ -13,7 +13,7 @@ extension TestPlan {
             testTargets: xcTestPlan.testTargets.map { testTarget in
                 try TestableTarget(
                     target: TargetReference(
-                        projectPath: generatorPaths.resolve(path: .relativeToRoot(testTarget.target.projectPath))
+                        projectPath: generatorPaths.resolve(path: .relativeToManifest(testTarget.target.projectPath))
                             .removingLastComponent(),
                         name: testTarget.target.name
                     ),
