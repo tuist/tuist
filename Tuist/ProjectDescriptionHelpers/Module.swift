@@ -450,6 +450,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.core.targetName),
                     .external(name: "XcodeGraph"),
                     .external(name: "SwiftToolsSupport"),
+                    .external(name: "FileSystem"),
                 ]
             case .projectDescription:
                 [

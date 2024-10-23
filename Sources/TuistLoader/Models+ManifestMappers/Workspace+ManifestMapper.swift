@@ -43,7 +43,11 @@ extension XcodeGraph.Workspace {
 
         let additionalFiles = try await manifest.additionalFiles
             .concurrentFlatMap {
-                try await XcodeGraph.FileElement.from(manifest: $0, generatorPaths: generatorPaths)
+                try await XcodeGraph.FileElement.from(
+                    manifest: $0,
+                    generatorPaths: generatorPaths,
+                    fileSystem: fileSystem
+                )
             }
 
         let schemes = try await manifest.schemes.concurrentMap { try await XcodeGraph.Scheme.from(

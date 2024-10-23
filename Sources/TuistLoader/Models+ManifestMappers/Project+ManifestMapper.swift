@@ -47,7 +47,13 @@ extension XcodeGraph.Project {
             generatorPaths: generatorPaths
         ) }
         let additionalFiles = try await manifest.additionalFiles
-            .concurrentMap { try await XcodeGraph.FileElement.from(manifest: $0, generatorPaths: generatorPaths) }
+            .concurrentMap {
+                try await XcodeGraph.FileElement.from(
+                    manifest: $0,
+                    generatorPaths: generatorPaths,
+                    fileSystem: fileSystem
+                )
+            }
             .flatMap { $0 }
         let packages = try manifest.packages.map { try XcodeGraph.Package.from(manifest: $0, generatorPaths: generatorPaths) }
         let ideTemplateMacros = try manifest.fileHeaderTemplate

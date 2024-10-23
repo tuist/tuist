@@ -75,7 +75,6 @@ public protocol FileHandling: AnyObject {
         nameFilter: Set<String>?,
         extensionFilter: Set<String>?
     ) -> Set<Path.AbsolutePath>
-    func throwingGlob(_ path: Path.AbsolutePath, glob: String) throws -> [Path.AbsolutePath]
     func linkFile(atPath: Path.AbsolutePath, toPath: Path.AbsolutePath) throws
     func createFolder(_ path: Path.AbsolutePath) throws
     func isFolder(_ path: Path.AbsolutePath) -> Bool
@@ -291,10 +290,6 @@ public class FileHandler: FileHandling {
         }
 
         return results
-    }
-
-    public func throwingGlob(_ path: Path.AbsolutePath, glob: String) throws -> [Path.AbsolutePath] {
-        try path.throwingGlob(glob)
     }
 
     public func createFolder(_ path: Path.AbsolutePath) throws {

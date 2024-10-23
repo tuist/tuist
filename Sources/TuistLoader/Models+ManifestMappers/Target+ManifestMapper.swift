@@ -56,15 +56,17 @@ extension XcodeGraph.Target {
         let settings = try manifest.settings.map { try XcodeGraph.Settings.from(manifest: $0, generatorPaths: generatorPaths) }
         let mergedBinaryType = try XcodeGraph.MergedBinaryType.from(manifest: manifest.mergedBinaryType)
 
-        let (sources, sourcesPlaygrounds) = try sourcesAndPlaygrounds(
+        let (sources, sourcesPlaygrounds) = try await sourcesAndPlaygrounds(
             manifest: manifest,
             targetName: name,
-            generatorPaths: generatorPaths
+            generatorPaths: generatorPaths,
+            fileSystem: fileSystem
         )
 
         let (resources, resourcesPlaygrounds, resourcesCoreDatas, invalidResourceGlobs) = try await resourcesAndOthers(
             manifest: manifest,
-            generatorPaths: generatorPaths
+            generatorPaths: generatorPaths,
+            fileSystem: fileSystem
         )
 
         if !invalidResourceGlobs.isEmpty {
@@ -72,7 +74,11 @@ extension XcodeGraph.Target {
         }
 
         let copyFiles = try await (manifest.copyFiles ?? []).concurrentMap {
-            try await XcodeGraph.CopyFilesAction.from(manifest: $0, generatorPaths: generatorPaths)
+            try await XcodeGraph.CopyFilesAction.from(
+                manifest: $0,
+                generatorPaths: generatorPaths,
+                fileSystem: fileSystem
+            )
         }
 
         let headers: XcodeGraph.Headers?
@@ -114,7 +120,13 @@ extension XcodeGraph.Target {
         let playgrounds = sourcesPlaygrounds + resourcesPlaygrounds
 
         let additionalFiles = try await manifest.additionalFiles
-            .concurrentMap { try await XcodeGraph.FileElement.from(manifest: $0, generatorPaths: generatorPaths) }
+            .concurrentMap {
+                try await XcodeGraph.FileElement.from(
+                    manifest: $0,
+                    generatorPaths: generatorPaths,
+                    fileSystem: fileSystem
+                )
+            }
             .flatMap { $0 }
 
         let buildRules = manifest.buildRules.map {
@@ -158,7 +170,8 @@ extension XcodeGraph.Target {
 
     fileprivate static func resourcesAndOthers(
         manifest: ProjectDescription.Target,
-        generatorPaths: GeneratorPaths
+        generatorPaths: GeneratorPaths,
+        fileSystem: FileSysteming
         // swiftlint:disable:next large_tuple
     ) async throws -> (
         resources: XcodeGraph.ResourceFileElements,
@@ -192,6 +205,7 @@ extension XcodeGraph.Target {
                     try await XcodeGraph.ResourceFileElement.from(
                         manifest: manifest,
                         generatorPaths: generatorPaths,
+                        fileSystem: fileSystem,
                         includeFiles: resourceFilter
                     ),
                     nil
@@ -228,24 +242,29 @@ extension XcodeGraph.Target {
     fileprivate static func sourcesAndPlaygrounds(
         manifest: ProjectDescription.Target,
         targetName: String,
-        generatorPaths: GeneratorPaths
-    ) throws -> (sources: [XcodeGraph.SourceFile], playgrounds: [AbsolutePath]) {
+        generatorPaths: GeneratorPaths,
+        fileSystem: FileSysteming
+    ) async throws -> (sources: [XcodeGraph.SourceFile], playgrounds: [AbsolutePath]) {
         var sourcesWithoutPlaygrounds: [XcodeGraph.SourceFile] = []
         var playgrounds: Set<AbsolutePath> = []
 
         // Sources
-        let allSources = try XcodeGraph.Target.sources(targetName: targetName, sources: manifest.sources?.globs.map { glob in
-            let globPath = try generatorPaths.resolve(path: glob.glob).pathString
-            let excluding: [String] = try glob.excluding.compactMap { try generatorPaths.resolve(path: $0).pathString }
-            let mappedCodeGen = glob.codeGen.map(XcodeGraph.FileCodeGen.from)
-            return XcodeGraph.SourceFileGlob(
-                glob: globPath,
-                excluding: excluding,
-                compilerFlags: glob.compilerFlags,
-                codeGen: mappedCodeGen,
-                compilationCondition: glob.compilationCondition?.asGraphCondition
-            )
-        } ?? [])
+        let allSources = try await XcodeGraph.Target.sources(
+            targetName: targetName,
+            sources: manifest.sources?.globs.map { glob in
+                let globPath = try generatorPaths.resolve(path: glob.glob).pathString
+                let excluding: [String] = try glob.excluding.compactMap { try generatorPaths.resolve(path: $0).pathString }
+                let mappedCodeGen = glob.codeGen.map(XcodeGraph.FileCodeGen.from)
+                return XcodeGraph.SourceFileGlob(
+                    glob: globPath,
+                    excluding: excluding,
+                    compilerFlags: glob.compilerFlags,
+                    codeGen: mappedCodeGen,
+                    compilationCondition: glob.compilationCondition?.asGraphCondition
+                )
+            } ?? [],
+            fileSystem: fileSystem
+        )
 
         for sourceFile in allSources {
             if sourceFile.path.extension == "playground" {

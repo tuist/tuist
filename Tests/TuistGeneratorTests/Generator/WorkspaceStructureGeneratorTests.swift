@@ -401,10 +401,6 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
             []
         }
 
-        func throwingGlob(_: AbsolutePath, glob _: String) throws -> [AbsolutePath] {
-            []
-        }
-
         func fileAttributes(at _: AbsolutePath) throws -> [FileAttributeKey: Any] {
             [:]
         }
