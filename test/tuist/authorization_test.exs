@@ -1,4 +1,6 @@
 defmodule Tuist.AuthorizationTest do
+  alias Tuist.CommandEventsFixtures
+  alias Tuist.PreviewsFixtures
   alias Tuist.BillingFixtures
   alias Tuist.VCS
   alias Tuist.Accounts
@@ -504,6 +506,65 @@ defmodule Tuist.AuthorizationTest do
 
     # When
     assert Authorization.can(nil, :read, project, :command_event) == true
+  end
+
+  test "can.read.command_event when the subject is a user that belongs to the command event's project organization" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    project = ProjectsFixtures.project_fixture(account_id: account.id)
+    user = AccountsFixtures.user_fixture()
+    Accounts.add_user_to_organization(user, organization, role: :user)
+    command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
+
+    # When
+    assert Authorization.can(user, :read, command_event) == true
+  end
+
+  test "can.read.command_event when the subject is a user that doesn't belong to the command event's project organization" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    project = ProjectsFixtures.project_fixture(account_id: account.id)
+    user = AccountsFixtures.user_fixture()
+    command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
+
+    # When
+    assert Authorization.can(user, :read, command_event) == false
+  end
+
+  test "can.read.command_event when the subject is a user that doesn't belong to the command event's project organization and the project's visibility is public" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    project = ProjectsFixtures.project_fixture(account_id: account.id, visibility: :public)
+    user = AccountsFixtures.user_fixture()
+    command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
+
+    # When
+    assert Authorization.can(user, :read, command_event) == true
+  end
+
+  test "can.read.command_event when the subject is an anonymous user and the command event's project's visibility is private" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    project = ProjectsFixtures.project_fixture(account_id: account.id, visibility: :private)
+    command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
+
+    # When
+    assert Authorization.can(nil, :read, command_event) == false
+  end
+
+  test "can.read.command_event when the subject is an anonymous user and the command event's project's visibility is public" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    project = ProjectsFixtures.project_fixture(account_id: account.id, visibility: :public)
+    command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
+
+    # When
+    assert Authorization.can(nil, :read, command_event) == true
   end
 
   test "can.create.account.project when the subject is a user that belongs to an organization" do
@@ -1431,6 +1492,53 @@ defmodule Tuist.AuthorizationTest do
 
     # When
     assert Authorization.can(nil, :read, project, :preview) == true
+  end
+
+  test "can.read.preview when the subject is a creator of the project and the preview is ipa" do
+    # Given
+    user = AccountsFixtures.user_fixture()
+    project = ProjectsFixtures.project_fixture(user_id: user.id)
+    preview = PreviewsFixtures.preview_fixture(project: project, type: :ipa)
+
+    # When
+    assert Authorization.can(user, :read, preview) == true
+  end
+
+  test "can.read.preview when the subject is anonymous and the preview is ipa" do
+    # Given
+    preview = PreviewsFixtures.preview_fixture(type: :ipa)
+
+    # When
+    assert Authorization.can(nil, :read, preview) == true
+  end
+
+  test "can.read.preview when the subject is a creator of the project and the preview is app_bundle" do
+    # Given
+    user = AccountsFixtures.user_fixture() |> Repo.preload(:account)
+    project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+    preview =
+      PreviewsFixtures.preview_fixture(project: project, type: :app_bundle)
+
+    # When
+    assert Authorization.can(user, :read, preview) == true
+  end
+
+  test "can.read.preview when the subject is anonymous and the preview is app_bundle" do
+    # Given
+    preview = PreviewsFixtures.preview_fixture(type: :app_bundle)
+
+    # When
+    assert Authorization.can(nil, :read, preview) == false
+  end
+
+  test "can.read.preview when the subject is anonymous, the preview is app_bundle, and the project is public" do
+    # Given
+    project = ProjectsFixtures.project_fixture(visibility: :public)
+    preview = PreviewsFixtures.preview_fixture(project: project, type: :app_bundle)
+
+    # When
+    assert Authorization.can(nil, :read, preview) == true
   end
 
   test "can.update.project.settings when the subject is not the same project account being updated" do

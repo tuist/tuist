@@ -2,12 +2,15 @@ defmodule Tuist.Authorization do
   @moduledoc ~S"""
   A module to deal with authorization in the system.
   """
+  alias Tuist.CommandEvents
+  alias Tuist.Previews.Preview
   alias Tuist.VCS
   alias Tuist.Environment
   alias Tuist.Projects.Project
   alias Tuist.Accounts
   alias Tuist.Billing
   alias Tuist.Accounts.{User, Account}
+  alias Tuist.Repo
 
   def can(%User{} = user, :read, %Project{visibility: :private} = project, :cache) do
     Accounts.owns_account_or_belongs_to_account_organization?(user, %{id: project.account_id})
@@ -41,8 +44,6 @@ defmodule Tuist.Authorization do
     else
       false
     end
-
-    # Accounts.owns_account_or_belongs_to_account_organization?(user, %{id: project.account_id})
   end
 
   def can(_, :read, %Project{visibility: :public}, :dashboard) do
@@ -164,10 +165,6 @@ defmodule Tuist.Authorization do
     Accounts.owns_account_or_belongs_to_account_organization?(user, %{id: project.account_id})
   end
 
-  def can(_, :read, %Project{visibility: :public}, :preview) do
-    true
-  end
-
   def can(%Project{} = current_project, :read, %Project{} = project, :cache) do
     current_project.id == project.id
   end
@@ -190,6 +187,38 @@ defmodule Tuist.Authorization do
 
   def can(user, :access, %Project{visibility: :private, account: %Account{} = account}, :url) do
     Accounts.owns_account_or_belongs_to_account_organization?(user, account)
+  end
+
+  def can(_, :read, %Project{visibility: :public}, :preview) do
+    true
+  end
+
+  def can(nil, :read, %Project{visibility: :private}, :preview) do
+    false
+  end
+
+  def can(_, :read, %Preview{type: :ipa}) do
+    true
+  end
+
+  def can(subject, :read, %Preview{} = preview) do
+    preview = preview |> Repo.preload(:project)
+    can(subject, :read, preview.project, :preview)
+  end
+
+  def can(subject, :read, %CommandEvents.Event{} = command_event) do
+    command_event = command_event |> Repo.preload(:project)
+    can(subject, :read, command_event.project, :command_event)
+  end
+
+  def can(%User{} = user, :read, :ops) do
+    env = Tuist.Environment.env()
+
+    if env == :dev do
+      true
+    else
+      user.account.name in Tuist.Environment.ops_user_handles()
+    end
   end
 
   def can(subject, action, project, category, opts \\ [])
@@ -228,15 +257,5 @@ defmodule Tuist.Authorization do
 
   def can(_, :read, %Project{visibility: :public}, :command_event, _opts) do
     true
-  end
-
-  def can(%User{} = user, :read, :ops) do
-    env = Tuist.Environment.env()
-
-    if env == :dev do
-      true
-    else
-      user.account.name in Tuist.Environment.ops_user_handles()
-    end
   end
 end

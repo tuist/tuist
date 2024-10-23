@@ -1,12 +1,21 @@
 defmodule TuistWeb.ProjectRunDetailLive do
+  alias TuistWeb.ProjectRunDetailLive
   use TuistWeb, :live_view
 
   alias Tuist.Projects
   alias Tuist.CommandEvents
 
-  def mount(params, _session, %{assigns: %{selected_project: project}} = socket) do
+  on_mount {ProjectRunDetailLive, :assign_current_command_event}
+  on_mount {TuistWeb.Authorization, [:current_user, :read, :command_event]}
+
+  def on_mount(
+        :assign_current_command_event,
+        %{"id" => command_event_id} = _params,
+        _session,
+        socket
+      ) do
     command_event =
-      CommandEvents.get_command_event_by_id(params["id"],
+      CommandEvents.get_command_event_by_id(command_event_id,
         preloads: [user: :account, project: :account]
       )
 
@@ -15,6 +24,18 @@ defmodule TuistWeb.ProjectRunDetailLive do
             gettext("The page you are looking for doesn't exist or has been moved.")
     end
 
+    socket =
+      socket
+      |> assign(:current_command_event, command_event)
+
+    {:cont, socket}
+  end
+
+  def mount(
+        _params,
+        _session,
+        %{assigns: %{selected_project: project, current_command_event: command_event}} = socket
+      ) do
     local_cache_target_hits = command_event.local_cache_target_hits || []
     remote_cache_target_hits = command_event.remote_cache_target_hits || []
 

@@ -68,6 +68,30 @@ defmodule TuistWeb.ProjectRunDetailLiveTest do
     end
   end
 
+  test "errors with not found if the command event exists but does not belong to the project", %{
+    conn: conn,
+    organization: organization
+  } do
+    # Given
+    project = ProjectsFixtures.project_fixture()
+    different_project = ProjectsFixtures.project_fixture(account_id: organization.account.id)
+
+    command_event =
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "generate",
+        status: :failure
+      )
+
+    # When/Then
+    assert_raise TuistWeb.Errors.NotFoundError, fn ->
+      conn
+      |> live(
+        ~p"/#{organization.account.name}/#{different_project.name}/runs/#{command_event.id}"
+      )
+    end
+  end
+
   test "sets the right title", %{conn: conn, organization: organization, project: project} do
     # Given
     command_event =

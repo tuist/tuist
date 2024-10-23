@@ -2,6 +2,10 @@ defmodule TuistWeb.Authorization do
   @moduledoc """
   A module that provides functions for authorizing requests.
   """
+  alias Tuist.CommandEvents
+  alias Tuist.Previews.Preview
+  alias Phoenix.LiveView.Socket
+  alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Authentication
   alias Tuist.Authorization
   alias Tuist.Projects
@@ -25,6 +29,24 @@ defmodule TuistWeb.Authorization do
     end
   end
 
+  def call(%Plug.Conn{assigns: %{current_preview: %Preview{} = preview}} = conn, [
+        :current_user,
+        :read,
+        :preview
+      ]) do
+    guard_can_user_read_entity(preview, conn)
+  end
+
+  def on_mount(
+        [:current_user, :read, :command_event],
+        _params,
+        _session,
+        %Socket{assigns: %{current_command_event: %CommandEvents.Event{} = command_event}} =
+          socket
+      ) do
+    guard_can_user_read_entity(command_event, socket)
+  end
+
   def on_mount([:current_user, :read, :ops], _params, _session, socket) do
     user = Authentication.current_user(socket)
 
@@ -37,6 +59,38 @@ defmodule TuistWeb.Authorization do
 
       true ->
         raise UnauthorizedError, gettext("Only operations roles can access this page.")
+    end
+  end
+
+  defp guard_can_user_read_entity(entity, %Plug.Conn{} = conn) do
+    user = Authentication.current_user(conn)
+
+    cond do
+      is_nil(user) ->
+        raise UnauthorizedError, gettext("You need to be authenticated to access this page.")
+
+      Authorization.can(user, :read, entity) ->
+        conn
+
+      true ->
+        raise NotFoundError,
+              gettext("The page you are looking for doesn't exist or has been moved.")
+    end
+  end
+
+  defp guard_can_user_read_entity(entity, %Socket{} = socket) do
+    user = Authentication.current_user(socket)
+
+    cond do
+      is_nil(user) ->
+        raise UnauthorizedError, gettext("You need to be authenticated to access this page.")
+
+      Authorization.can(user, :read, entity) ->
+        {:cont, socket}
+
+      true ->
+        raise NotFoundError,
+              gettext("The page you are looking for doesn't exist or has been moved.")
     end
   end
 

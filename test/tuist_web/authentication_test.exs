@@ -1,6 +1,7 @@
 defmodule TuistWeb.AuthenticationTest do
   use TuistWeb.ConnCase, async: true
 
+  alias Tuist.PreviewsFixtures
   alias Tuist.Repo
   alias Tuist.ProjectsFixtures
   alias Phoenix.LiveView
@@ -347,6 +348,121 @@ defmodule TuistWeb.AuthenticationTest do
       # Then
       assert conn.halted
       assert conn.status
+    end
+  end
+
+  describe "require_authenticated_user_for_previews/2" do
+    test "does not redirect if a user is authenticated", %{conn: conn, user: user} do
+      # Given
+      project =
+        ProjectsFixtures.project_fixture()
+        |> Repo.preload(:account)
+
+      preview = PreviewsFixtures.preview_fixture(project: project)
+
+      conn = %{
+        conn
+        | path_params: %{
+            "account_handle" => project.account.name,
+            "project_handle" => project.name,
+            "id" => preview.id
+          }
+      }
+
+      # When
+      conn =
+        conn
+        |> assign(:current_user, user)
+        |> Authentication.require_authenticated_user_for_previews([])
+
+      # Then
+      refute conn.halted
+      refute conn.status
+    end
+
+    test "does not redirect if a user is anonymous and a project is public", %{conn: conn} do
+      # Given
+      project =
+        ProjectsFixtures.project_fixture(visibility: :public)
+        |> Repo.preload(:account)
+
+      preview = PreviewsFixtures.preview_fixture(project: project)
+
+      conn = %{
+        conn
+        | path_params: %{
+            "account_handle" => project.account.name,
+            "project_handle" => project.name,
+            "id" => preview.id
+          }
+      }
+
+      # When
+      conn = Authentication.require_authenticated_user_for_previews(conn, [])
+
+      # Then
+      refute conn.halted
+      refute conn.status
+    end
+
+    test "redirects if a user is anonymous, a project is private, and preview type is :app_bundle",
+         %{conn: conn} do
+      # Given
+      project =
+        ProjectsFixtures.project_fixture(visibility: :private)
+        |> Repo.preload(:account)
+
+      preview =
+        PreviewsFixtures.preview_fixture(
+          project: project,
+          type: :app_bundle
+        )
+
+      conn = %{
+        conn
+        | path_params: %{
+            "account_handle" => project.account.name,
+            "project_handle" => project.name,
+            "id" => preview.id
+          }
+      }
+
+      # When
+      conn = Authentication.require_authenticated_user_for_previews(conn, [])
+
+      # Then
+      assert conn.halted
+      assert conn.status
+    end
+
+    test "does not redirect if a user is anonymous, a project is private, and preview type is :ipa",
+         %{conn: conn} do
+      # Given
+      project =
+        ProjectsFixtures.project_fixture(visibility: :private)
+        |> Repo.preload(:account)
+
+      preview =
+        PreviewsFixtures.preview_fixture(
+          project: project,
+          type: :ipa
+        )
+
+      conn = %{
+        conn
+        | path_params: %{
+            "account_handle" => project.account.name,
+            "project_handle" => project.name,
+            "id" => preview.id
+          }
+      }
+
+      # When
+      conn = Authentication.require_authenticated_user_for_previews(conn, [])
+
+      # Then
+      refute conn.halted
+      refute conn.status
     end
   end
 end

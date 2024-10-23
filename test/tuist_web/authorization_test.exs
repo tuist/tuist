@@ -1,4 +1,7 @@
 defmodule TuistWeb.AuthorizationTest do
+  alias Tuist.PreviewsFixtures
+  alias TuistWeb.Errors.NotFoundError
+  alias Tuist.CommandEventsFixtures
   alias TuistWeb.Authorization
   alias Tuist.ProjectsFixtures
   alias Tuist.Accounts
@@ -52,6 +55,130 @@ defmodule TuistWeb.AuthorizationTest do
                    gettext("Only operations roles can access this page."),
                    fn ->
                      Authorization.call(conn, Authorization.init([:current_user, :read, :ops]))
+                   end
+    end
+  end
+
+  describe "authorization plug with options [:current_user, :read, :preview]" do
+    test "raises an error when the user is not authenticated", %{conn: conn} do
+      # Given
+      preview = PreviewsFixtures.preview_fixture()
+      conn = conn |> assign(:current_preview, preview)
+
+      # When/Then
+      assert_raise UnauthorizedError,
+                   gettext("You need to be authenticated to access this page."),
+                   fn ->
+                     Authorization.call(
+                       conn,
+                       Authorization.init([:current_user, :read, :preview])
+                     )
+                   end
+    end
+
+    test "returns the same connection when the authenticated user is authorized", %{
+      conn: conn,
+      user: user
+    } do
+      # Given
+      preview = PreviewsFixtures.preview_fixture()
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> assign(:current_preview, preview)
+
+      Tuist.Authorization |> expect(:can, fn ^user, :read, ^preview -> true end)
+
+      # When
+      got = Authorization.call(conn, Authorization.init([:current_user, :read, :preview]))
+
+      # Then
+      assert got == conn
+    end
+
+    test "raises an unauthorized error when the user is not authorized", %{
+      conn: conn,
+      user: user
+    } do
+      # Given
+      preview = PreviewsFixtures.preview_fixture()
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> assign(:current_preview, preview)
+
+      Tuist.Authorization |> expect(:can, fn ^user, :read, ^preview -> false end)
+
+      # When/Then
+      assert_raise NotFoundError,
+                   gettext("The page you are looking for doesn't exist or has been moved."),
+                   fn ->
+                     Authorization.call(
+                       conn,
+                       Authorization.init([:current_user, :read, :preview])
+                     )
+                   end
+    end
+  end
+
+  describe "on_mount with options [:current_user, :read, :command_event]" do
+    test "raises an error if the socket doesn't have an authenticated user" do
+      # Given
+      command_event = CommandEventsFixtures.command_event_fixture()
+      socket = %Phoenix.LiveView.Socket{assigns: %{current_command_event: command_event}}
+
+      # When/Then
+      assert_raise UnauthorizedError,
+                   gettext("You need to be authenticated to access this page."),
+                   fn ->
+                     Authorization.on_mount(
+                       [:current_user, :read, :command_event],
+                       %{},
+                       %{},
+                       socket
+                     )
+                   end
+    end
+
+    test "continues the socket connection if the user is authorized to read the current command_event",
+         %{user: user} do
+      # Given
+      command_event = CommandEventsFixtures.command_event_fixture()
+
+      socket = %Phoenix.LiveView.Socket{
+        assigns: %{current_command_event: command_event} |> Authentication.put_current_user(user)
+      }
+
+      Tuist.Authorization |> expect(:can, fn ^user, :read, ^command_event -> true end)
+
+      # When/Then
+      assert Authorization.on_mount([:current_user, :read, :command_event], %{}, %{}, socket) ==
+               {:cont, socket}
+    end
+
+    test "raises an error if the socket has an authenticated user and they are not authorized to read the current command event",
+         %{user: user} do
+      # Given
+      command_event = CommandEventsFixtures.command_event_fixture()
+
+      socket = %Phoenix.LiveView.Socket{
+        assigns: %{current_command_event: command_event} |> Authentication.put_current_user(user)
+      }
+
+      Tuist.Authorization |> expect(:can, fn ^user, :read, ^command_event -> false end)
+
+      # When/Then
+      assert_raise NotFoundError,
+                   gettext("The page you are looking for doesn't exist or has been moved."),
+                   fn ->
+                     Authorization.on_mount(
+                       [:current_user, :read, :command_event],
+                       %{},
+                       %{},
+                       socket
+                     )
                    end
     end
   end

@@ -1,7 +1,11 @@
 defmodule TuistWeb.PreviewController do
+  alias TuistWeb.Authorization
   alias Tuist.Storage
   alias Tuist.Previews
   use TuistWeb, :controller
+
+  plug :assign_current_preview
+  plug Authorization, [:current_user, :read, :preview] when action in [:preview]
 
   def download_qr_code_svg(
         conn,
@@ -43,20 +47,13 @@ defmodule TuistWeb.PreviewController do
   end
 
   def manifest(
-        conn,
+        %{assigns: %{current_preview: preview}} = conn,
         %{
           "account_handle" => account_handle,
           "project_handle" => project_handle,
           "id" => preview_id
         } = _params
       ) do
-    preview = Previews.get_preview_by_id(preview_id)
-
-    if is_nil(preview) do
-      raise TuistWeb.Errors.NotFoundError,
-            "Preview not found."
-    end
-
     plist_content = """
     <?xml version="1.0" encoding="UTF-8"?>
     <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -98,20 +95,13 @@ defmodule TuistWeb.PreviewController do
   end
 
   def preview(
-        conn,
+        %{assigns: %{current_preview: preview}} = conn,
         %{
           "account_handle" => account_handle,
           "project_handle" => project_handle,
           "id" => preview_id
         } = _params
       ) do
-    preview = Previews.get_preview_by_id(preview_id)
-
-    if is_nil(preview) do
-      raise TuistWeb.Errors.NotFoundError,
-            "Preview not found."
-    end
-
     conn =
       conn
       |> assign(
@@ -132,5 +122,17 @@ defmodule TuistWeb.PreviewController do
       )
 
     render(conn, :preview, layout: false)
+  end
+
+  defp assign_current_preview(%{params: %{"id" => preview_id}} = conn, _opts) do
+    preview = Previews.get_preview_by_id(preview_id)
+
+    if is_nil(preview) do
+      raise TuistWeb.Errors.NotFoundError,
+            "Preview not found."
+    end
+
+    conn
+    |> assign(:current_preview, preview)
   end
 end
