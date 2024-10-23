@@ -1,8 +1,9 @@
 ---
 title: Get started
-titleTemplate: ':title - Contribute to Tuist'
+titleTemplate: :title - Tuist에 기여하기
 description: Get started contributing to Tuist by following this guide.
 ---
+
 # Get started
 
 If you have experience building apps for Apple platforms, like iOS, adding code to Tuist shouldn’t be much different. There are two differences compared to developing apps that are worth mentioning:
