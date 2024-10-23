@@ -75,7 +75,7 @@ Testing new functionality should be a part of any code review. But having to bui
 Once your Tuist project is connected with your Git platform such as [GitHub](https://github.com), add a <LocalizedLink href="/cli/share">`tuist share MyApp`</LocalizedLink> to your CI workflow. Tuist will then post a Preview link directly in your pull requests:
 ![GitHub app comment with a Tuist Preview link](/images/guides/share/github-app-with-preview.png)
 
-## Automations
+<h2 id="automations">Automations</h2>
 
 You can use the `--json` flag to get a JSON output from the `tuist share` command:
 
