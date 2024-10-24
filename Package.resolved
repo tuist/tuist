@@ -1,5 +1,5 @@
 {
-  "originHash" : "2853458b71d02fa2224e50cac488890d1bf050c340a7e0f569f2b9550fc2e7e4",
+  "originHash" : "29708d8c73df034f80638c81c29816b5ae905e46fd7c2f8b1f9ba8306baafad7",
   "pins" : [
     {
       "identity" : "aexml",
@@ -310,10 +310,10 @@
     {
       "identity" : "xcodegraph",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/tuist/XcodeGraph.git",
+      "location" : "https://github.com/Garfeild/XcodeGraph.git",
       "state" : {
-        "revision" : "b70c3bf22e8e2350f874a3290f7792e47867091d",
-        "version" : "0.14.0"
+        "branch" : "feature/embedded-spm-packages",
+        "revision" : "0b739d43f9b02f8370959ac78777b3367267155e"
       }
     },
     {

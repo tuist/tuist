@@ -186,6 +186,8 @@ public final class GraphLoader: GraphLoading {
                 return try loadPackage(fromPath: path, productName: product, type: .runtime)
             case .plugin:
                 return try loadPackage(fromPath: path, productName: product, type: .plugin)
+            case .runtimeEmbedded:
+                return try loadPackage(fromPath: path, productName: product, type: .runtimeEmbedded)
             }
 
         case .xctest:

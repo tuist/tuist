@@ -578,6 +578,39 @@ final class GraphLoaderTests: TuistUnitTestCase {
         ])
     }
 
+    func test_loadWorkspace_package_embedded() async throws {
+        // Given
+        let targetA = Target.test(name: "A", dependencies: [
+            .package(product: "PackageEmbedded", type: .runtimeEmbedded),
+        ])
+
+        let projectA = Project.test(path: "/A", name: "A", targets: [targetA], packages: [
+            .local(path: "/Packages/PackageEmbedded"),
+        ])
+
+        let workspace = Workspace.test(path: "/", name: "Workspace", projects: ["/A"])
+
+        let subject = makeSubject()
+
+        // When
+        let graph = try await subject.loadWorkspace(
+            workspace: workspace,
+            projects: [
+                projectA,
+            ]
+        )
+
+        // Then
+        XCTAssertEqual(graph.packages, [
+            "/A": ["/Packages/PackageEmbedded": .local(path: "/Packages/PackageEmbedded")],
+        ])
+        XCTAssertEqual(graph.dependencies, [
+            .target(name: "A", path: "/A"): Set([
+                .packageProduct(path: "/A", product: "PackageEmbedded", type: .runtimeEmbedded),
+            ]),
+        ])
+    }
+
     // MARK: - Error Cases
 
     func test_loadWorkspace_missingProjectReferenceInWorkspace() async throws {
