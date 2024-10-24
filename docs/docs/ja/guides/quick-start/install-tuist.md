@@ -7,7 +7,7 @@ description: Learn how to install Tuist in your environment.
 
 The Tuist CLI consists of an executable, dynamic frameworks, and a set of resources (for example, templates). Although you could manually build Tuist from [the sources](https://github.com/tuist/tuist), **we recommend using one of the following installation methods to ensure a valid installation.**
 
-<h3 id="recommended-misehttpsgithubcomjdxmise">Recommended: [Mise](https://github.com/jdx/mise)</h3>
+<h3 id="recommended-mise">Recommended: <a href="https://github.com/jdx/mise">Mise</a></h3>
 
 Tuist defaults to [Mise](https://github.com/jdx/mise) as a tool to deterministically manage and activate versions of Tuist.
 If you don't have it installed on your system,
@@ -35,7 +35,7 @@ mise use -g tuist@x.y.z       # Use tuist-x.y.z as the global default
 mise use -g tuist@system      # Use the system's tuist as the global default
 ```
 
-<h3 id="alternative-homebrewhttpsbrewsh">Alternative: [Homebrew](https://brew.sh)</h3>
+<h3 id="alternative-homebrew">Alternative: <a href="https://brew.sh">Homebrew</a></h3>
 
 If version pinning across environments is not a concern for you,
 you can install Tuist using [Homebrew](https://brew.sh) and [our formulas](https://github.com/tuist/homebrew-tuist):

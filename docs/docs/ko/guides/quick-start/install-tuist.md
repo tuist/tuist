@@ -34,7 +34,7 @@ mise use -g tuist@x.y.z # 시스템의 기본값으로 tuist-x.y.z 사용
 mise use -g tuist@system # 시스템의 tuist를 전역 기본값으로 사용합니다.
 ```
 
-<h3 id="alternative-homebrewhttpsbrewsh">대안: [HomeBrew](https://brew.sh)</h3>
+<h3 id="alternative-homebrew">대안: <a href="https://brew.sh">Homebrew</a></h3>
 
 여러 환경 에서 버전 고정이 필요하지 않다면, [Homebrew](https://brew.sh)와 제공되는 [공식 패키지](https://github.com/tuist/homebrew-tuist)를 사용하여 Tuist를 설치할 수 있습니다.
 
