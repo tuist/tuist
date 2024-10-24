@@ -29,4 +29,4 @@ Pull Reqeust 검토는 코드에 기여하는 일반적인 방식입니다. CI (
 
 <h2 id="breaking-changes">단절적 변경 사항 (Breaking changes)</h2>
 
-단절적 변경 사항 (Breaking change) 은 Tuist 사용자에게 안좋은 사용자 경험입니다. 코드 기여는 중대한 변경 사항이 없으면, 단절적 변경 사항 (Breaking change) 은 피해야 합니다. 단절적 변경 사항 (Breaking change) 없이 Tuist의 인터페이스를 발전시킬 수 있는 많은 언어적 특성이 있습니다. 변경 사항이 단절적 변경 사항 (Breaking change) 인지 아닌지 명확하지 않을 수 있습니다. 변경 사항이 단절적 변경 사항 (Breaking change) 인지 아닌지 확인하는 방법은  fixtures 디렉토리에 있는 fixture 프로젝트에 대해 Tuist 를 실행해보는 것입니다. 단절적 변경 사항 (Breaking change) 은 사용자의 입장에서 생각하고 변경 사항이 사용자에게 어떠한 영향을 줄지 생각해야 합니다.
+단절적 변경 사항 (Breaking change) 은 Tuist 사용자에게 안 좋은 사용자 경험입니다. 코드 기여는 중대한 변경 사항이 없으면, 단절적 변경 사항 (Breaking change) 은 피해야 합니다. 단절적 변경 사항 (Breaking change) 없이 Tuist의 인터페이스를 발전시킬 수 있는 많은 언어적 특성이 있습니다. 변경 사항이 단절적 변경 사항 (Breaking change) 인지 아닌지 명확하지 않을 수 있습니다. 변경 사항이 단절적 변경 사항 (Breaking change) 인지 아닌지 확인하는 방법은 fixtures 디렉토리에 있는 fixture 프로젝트에 대해 Tuist를 실행해보는 것입니다. 단절적 변경 사항 (Breaking change) 은 사용자의 입장에서 생각하고 변경 사항이 사용자에게 어떠한 영향을 줄지 생각해야 합니다.
