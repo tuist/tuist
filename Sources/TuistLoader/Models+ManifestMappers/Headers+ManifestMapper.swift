@@ -61,16 +61,16 @@ extension XcodeGraph.Headers {
                 publicHeaders.append(resolvedUmbrellaPath)
             }
             autoExlcudedPaths.formUnion(publicHeaders)
-            privateHeaders = try await unfold(manifest.private).sorted()
+            privateHeaders = try await unfold(manifest.private)
             autoExlcudedPaths.formUnion(privateHeaders)
-            projectHeaders = try await unfold(manifest.project).sorted()
+            projectHeaders = try await unfold(manifest.project)
 
         case .publicExcludesPrivateAndProject:
             projectHeaders = try await unfold(manifest.project)
             autoExlcudedPaths.formUnion(projectHeaders)
             privateHeaders = try await unfold(manifest.private)
             autoExlcudedPaths.formUnion(privateHeaders)
-            publicHeaders = try await unfold(manifest.public, isPublic: true).sorted()
+            publicHeaders = try await unfold(manifest.public, isPublic: true)
             // be sure, that umbrella was not added before
             if let resolvedUmbrellaPath,
                !publicHeaders.contains(resolvedUmbrellaPath)
@@ -78,6 +78,10 @@ extension XcodeGraph.Headers {
                 publicHeaders.append(resolvedUmbrellaPath)
             }
         }
-        return Headers(public: publicHeaders, private: privateHeaders, project: projectHeaders)
+        return Headers(
+            public: publicHeaders.sorted(),
+            private: privateHeaders.sorted(),
+            project: projectHeaders.sorted()
+        )
     }
 }

@@ -27,6 +27,7 @@ extension XcodeGraph.CopyFileElement {
             )
             .collect()
             .filter(includeFiles)
+            .sorted()
 
             if files.isEmpty {
                 if FileHandler.shared.isFolder(path) {

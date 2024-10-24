@@ -55,6 +55,7 @@ extension XcodeGraph.Project {
                 )
             }
             .flatMap { $0 }
+            .sorted(by: { $0.path < $1.path })
         let packages = try manifest.packages.map { try XcodeGraph.Package.from(manifest: $0, generatorPaths: generatorPaths) }
         let ideTemplateMacros = try manifest.fileHeaderTemplate
             .map { try IDETemplateMacros.from(manifest: $0, generatorPaths: generatorPaths) }
