@@ -1,7 +1,7 @@
 ---
 title: ベストプラクティス
 titleTemplate: :title | プロジェクト | Tuist
-description: Learn about the best practices for working with Tuist and Xcode projects.
+description: Tuist プロジェクトと Xcode プロジェクトのベストプラクティスについて学ぶ
 ---
 
 <h1 id="best-practices">ベストプラクティス</h1>
