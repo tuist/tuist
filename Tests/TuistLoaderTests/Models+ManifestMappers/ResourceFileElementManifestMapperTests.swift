@@ -29,6 +29,7 @@ final class ResourceFileElementManifestMapperTests: TuistUnitTestCase {
         let model = try await XcodeGraph.ResourceFileElement.from(
             manifest: manifest,
             generatorPaths: generatorPaths,
+            fileSystem: fileSystem,
             includeFiles: { !FileHandler.shared.isFolder($0) }
         )
 
@@ -55,7 +56,11 @@ final class ResourceFileElementManifestMapperTests: TuistUnitTestCase {
         let manifest = ProjectDescription.ResourceFileElement.folderReference(path: "README.md")
 
         // When
-        let model = try await XcodeGraph.ResourceFileElement.from(manifest: manifest, generatorPaths: generatorPaths)
+        let model = try await XcodeGraph.ResourceFileElement.from(
+            manifest: manifest,
+            generatorPaths: generatorPaths,
+            fileSystem: fileSystem
+        )
 
         // Then
         XCTAssertPrinterOutputContains("README.md is not a directory - folder reference paths need to point to directories")
@@ -73,7 +78,11 @@ final class ResourceFileElementManifestMapperTests: TuistUnitTestCase {
         let manifest = ProjectDescription.ResourceFileElement.folderReference(path: "Documentation")
 
         // When
-        let model = try await XcodeGraph.ResourceFileElement.from(manifest: manifest, generatorPaths: generatorPaths)
+        let model = try await XcodeGraph.ResourceFileElement.from(
+            manifest: manifest,
+            generatorPaths: generatorPaths,
+            fileSystem: fileSystem
+        )
 
         // Then
         XCTAssertPrinterOutputContains("Documentation does not exist")
@@ -97,7 +106,11 @@ final class ResourceFileElementManifestMapperTests: TuistUnitTestCase {
 
         // Then
         await XCTAssertThrowsSpecific(
-            try await XcodeGraph.ResourceFileElement.from(manifest: manifest, generatorPaths: generatorPaths),
+            try await XcodeGraph.ResourceFileElement.from(
+                manifest: manifest,
+                generatorPaths: generatorPaths,
+                fileSystem: fileSystem
+            ),
             error
         )
     }
@@ -118,7 +131,11 @@ final class ResourceFileElementManifestMapperTests: TuistUnitTestCase {
         let manifest = ProjectDescription.ResourceFileElement.glob(pattern: "Resources/**", excluding: ["Resources/excluded.xib"])
 
         // When
-        let got = try await XcodeGraph.ResourceFileElement.from(manifest: manifest, generatorPaths: generatorPaths)
+        let got = try await XcodeGraph.ResourceFileElement.from(
+            manifest: manifest,
+            generatorPaths: generatorPaths,
+            fileSystem: fileSystem
+        )
 
         // Then
         XCTAssertEqual(
@@ -147,7 +164,11 @@ final class ResourceFileElementManifestMapperTests: TuistUnitTestCase {
         let manifest = ProjectDescription.ResourceFileElement.glob(pattern: "Resources/**", excluding: ["Resources/Excluded"])
 
         // When
-        let got = try await XcodeGraph.ResourceFileElement.from(manifest: manifest, generatorPaths: generatorPaths)
+        let got = try await XcodeGraph.ResourceFileElement.from(
+            manifest: manifest,
+            generatorPaths: generatorPaths,
+            fileSystem: fileSystem
+        )
 
         // Then
         XCTAssertEqual(
@@ -176,7 +197,11 @@ final class ResourceFileElementManifestMapperTests: TuistUnitTestCase {
         let manifest = ProjectDescription.ResourceFileElement.glob(pattern: "Resources/**", excluding: ["Resources/Excluded/**"])
 
         // When
-        let got = try await XcodeGraph.ResourceFileElement.from(manifest: manifest, generatorPaths: generatorPaths)
+        let got = try await XcodeGraph.ResourceFileElement.from(
+            manifest: manifest,
+            generatorPaths: generatorPaths,
+            fileSystem: fileSystem
+        )
 
         // Then
         XCTAssertEqual(
@@ -205,7 +230,11 @@ final class ResourceFileElementManifestMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let got = try await XcodeGraph.ResourceFileElement.from(manifest: manifest, generatorPaths: generatorPaths)
+        let got = try await XcodeGraph.ResourceFileElement.from(
+            manifest: manifest,
+            generatorPaths: generatorPaths,
+            fileSystem: fileSystem
+        )
 
         // Then
         XCTAssertEqual(

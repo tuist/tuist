@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Path
 import ProjectDescription
@@ -23,6 +24,7 @@ public final class ManifestModelConverter: ManifestModelConverting {
     private let manifestLoader: ManifestLoading
     private let resourceSynthesizerPathLocator: ResourceSynthesizerPathLocating
     private let rootDirectoryLocator: RootDirectoryLocating
+    private let fileSystem: FileSysteming
 
     public convenience init() {
         self.init(
@@ -44,11 +46,13 @@ public final class ManifestModelConverter: ManifestModelConverting {
     init(
         manifestLoader: ManifestLoading,
         resourceSynthesizerPathLocator: ResourceSynthesizerPathLocating = ResourceSynthesizerPathLocator(),
-        rootDirectoryLocator: RootDirectoryLocating
+        rootDirectoryLocator: RootDirectoryLocating,
+        fileSystem: FileSysteming = FileSystem()
     ) {
         self.manifestLoader = manifestLoader
         self.resourceSynthesizerPathLocator = resourceSynthesizerPathLocator
         self.rootDirectoryLocator = rootDirectoryLocator
+        self.fileSystem = fileSystem
     }
 
     public func convert(
@@ -69,7 +73,8 @@ public final class ManifestModelConverter: ManifestModelConverting {
             plugins: plugins,
             externalDependencies: externalDependencies,
             resourceSynthesizerPathLocator: resourceSynthesizerPathLocator,
-            isExternal: isExternal
+            isExternal: isExternal,
+            fileSystem: fileSystem
         )
     }
 
@@ -86,7 +91,8 @@ public final class ManifestModelConverter: ManifestModelConverting {
             manifest: manifest,
             path: path,
             generatorPaths: generatorPaths,
-            manifestLoader: manifestLoader
+            manifestLoader: manifestLoader,
+            fileSystem: fileSystem
         )
         return workspace
     }

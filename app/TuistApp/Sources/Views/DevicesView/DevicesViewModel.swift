@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import PathKit
 import SwiftUI
@@ -99,7 +100,7 @@ final class DevicesViewModel: Sendable {
     private let downloadPreviewService: DownloadPreviewServicing
     private let fileArchiverFactory: FileArchivingFactorying
     private let remoteArtifactDownloader: RemoteArtifactDownloading
-    private let fileHandler: FileHandling
+    private let fileSystem: FileSysteming
     private let appBundleLoader: AppBundleLoading
     private let appStorage: AppStoring
 
@@ -109,7 +110,7 @@ final class DevicesViewModel: Sendable {
         downloadPreviewService: DownloadPreviewServicing = DownloadPreviewService(),
         fileArchiverFactory: FileArchivingFactorying = FileArchivingFactory(),
         remoteArtifactDownloader: RemoteArtifactDownloading = RemoteArtifactDownloader(),
-        fileHandler: FileHandling = FileHandler.shared,
+        fileSystem: FileSysteming = FileSystem(),
         appBundleLoader: AppBundleLoading = AppBundleLoader(),
         appStorage: AppStoring = AppStorage()
     ) {
@@ -118,7 +119,7 @@ final class DevicesViewModel: Sendable {
         self.downloadPreviewService = downloadPreviewService
         self.fileArchiverFactory = fileArchiverFactory
         self.remoteArtifactDownloader = remoteArtifactDownloader
-        self.fileHandler = fileHandler
+        self.fileSystem = fileSystem
         self.appBundleLoader = appBundleLoader
         self.appStorage = appStorage
     }
@@ -182,12 +183,12 @@ final class DevicesViewModel: Sendable {
         let fileUnarchiver = try fileArchiverFactory.makeFileUnarchiver(for: archivePath)
         let unarchivedDirectory = try fileUnarchiver.unzip()
 
-        let apps = try await (
-            fileHandler.glob(unarchivedDirectory, glob: "*.app") + fileHandler
-                .glob(unarchivedDirectory, glob: "*/*.app")
-        ).concurrentMap {
-            try await self.appBundleLoader.load($0)
-        }
+        let shallowApps = try await fileSystem.glob(directory: unarchivedDirectory, include: ["*.app"]).collect()
+        let nestedApps = try await fileSystem.glob(directory: unarchivedDirectory, include: ["*/*.app"]).collect()
+        let apps = try await (shallowApps + nestedApps)
+            .concurrentMap {
+                try await self.appBundleLoader.load($0)
+            }
 
         guard let app = apps.first(
             where: {

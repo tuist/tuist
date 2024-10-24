@@ -207,8 +207,9 @@ struct ShareService {
 
             let configuration = configuration ?? BuildConfiguration.debug.name
 
-            guard let workspaceOrProjectPath = fileHandler.glob(path, glob: "*.xcworkspace").first ?? fileHandler
-                .glob(path, glob: "*.xcodeproj").first
+            let workspace = try await fileSystem.glob(directory: path, include: ["*.xcworkspace"]).collect().first
+            let project = try await fileSystem.glob(directory: path, include: ["*.xcodeproj"]).collect().first
+            guard let workspaceOrProjectPath = workspace ?? project
             else {
                 throw ShareServiceError.projectOrWorkspaceNotFound(path: path.pathString)
             }

@@ -25,7 +25,11 @@ final class CoreDataModelManifestMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let model = try await XcodeGraph.CoreDataModel.from(manifest: manifest, generatorPaths: generatorPaths)
+        let model = try await XcodeGraph.CoreDataModel.from(
+            manifest: manifest,
+            generatorPaths: generatorPaths,
+            fileSystem: fileSystem
+        )
 
         // Then
         XCTAssertTrue(try coreDataModel(model, matches: manifest, at: temporaryPath, generatorPaths: generatorPaths))
@@ -51,7 +55,8 @@ final class CoreDataModelManifestMapperTests: TuistUnitTestCase {
         // When
         let model = try await XcodeGraph.CoreDataModel.from(
             manifest: manifestWithoutCurrentVersion,
-            generatorPaths: generatorPaths
+            generatorPaths: generatorPaths,
+            fileSystem: fileSystem
         )
 
         let manifestWithCurrentVersionExplicitly = ProjectDescription.CoreDataModel.coreDataModel(
@@ -91,7 +96,11 @@ final class CoreDataModelManifestMapperTests: TuistUnitTestCase {
 
         // Then
         await XCTAssertThrows(
-            try await XcodeGraph.CoreDataModel.from(manifest: manifestWithoutCurrentVersion, generatorPaths: generatorPaths)
+            try await XcodeGraph.CoreDataModel.from(
+                manifest: manifestWithoutCurrentVersion,
+                generatorPaths: generatorPaths,
+                fileSystem: fileSystem
+            )
         )
     }
 
@@ -108,7 +117,8 @@ final class CoreDataModelManifestMapperTests: TuistUnitTestCase {
         // When
         let got = try await XcodeGraph.CoreDataModel.from(
             manifest: manifestWithoutCurrentVersion,
-            generatorPaths: generatorPaths
+            generatorPaths: generatorPaths,
+            fileSystem: fileSystem
         )
 
         // Then

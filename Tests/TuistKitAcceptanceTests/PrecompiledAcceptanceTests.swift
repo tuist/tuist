@@ -30,7 +30,7 @@ final class PrecomiledAcceptanceTestiOSAppWithTransitiveFramework: TuistAcceptan
             framework: "Framework1",
             architecture: "arm64"
         )
-        try XCTAssertProductWithDestinationDoesNotContainHeaders(
+        try await XCTAssertProductWithDestinationDoesNotContainHeaders(
             "App.app",
             destination: "Debug-iphonesimulator"
         )
@@ -59,7 +59,7 @@ final class PrecompiledAcceptanceTestiOSAppWithXCFrameworks: TuistAcceptanceTest
             framework: "MyFramework",
             architecture: "x86_64"
         )
-        try XCTAssertProductWithDestinationDoesNotContainHeaders(
+        try await XCTAssertProductWithDestinationDoesNotContainHeaders(
             "App.app",
             destination: "Debug-iphonesimulator"
         )
@@ -75,13 +75,16 @@ extension TuistAcceptanceTestCase {
         file: StaticString = #file,
         line: UInt = #line
     ) async throws {
-        let productPath = try productPath(
+        let productPath = try await productPath(
             for: product,
             destination: destination
         )
 
-        guard let frameworkPath = FileHandler.shared.glob(productPath, glob: "**/Frameworks/\(framework).framework").first,
-              try await fileSystem.exists(frameworkPath)
+        guard let frameworkPath = try await fileSystem.glob(
+            directory: productPath,
+            include: ["**/Frameworks/\(framework).framework"]
+        ).collect().first,
+            try await fileSystem.exists(frameworkPath)
         else {
             XCTFail(
                 "Framework \(framework) not found for product \(product) and destination \(destination)",

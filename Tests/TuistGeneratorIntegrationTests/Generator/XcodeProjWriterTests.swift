@@ -57,7 +57,6 @@ final class XcodeProjWriterTests: TuistUnitTestCase {
         try await subject.write(project: descriptor)
 
         // Then
-        let fileHandler = FileHandler.shared
         let exists = try await fileSystem.exists(filePath)
         XCTAssertTrue(exists)
         let contents = try await fileSystem.readFile(at: filePath)
@@ -135,8 +134,8 @@ final class XcodeProjWriterTests: TuistUnitTestCase {
         }
 
         // Then
-        let fileHandler = FileHandler.shared
-        let schemes = fileHandler.glob(xcodeProjPath, glob: "**/*.xcscheme").map(\.basename)
+        let schemes = try await fileSystem.glob(directory: xcodeProjPath, include: ["**/*.xcscheme"]).collect().map(\.basename)
+            .sorted()
         XCTAssertEqual(schemes, [
             "SchemeA.xcscheme",
             "SchemeC.xcscheme",
@@ -166,8 +165,8 @@ final class XcodeProjWriterTests: TuistUnitTestCase {
         }
 
         // Then
-        let fileHandler = FileHandler.shared
-        let schemes = fileHandler.glob(xcodeProjPath, glob: "**/*.xcscheme").map(\.basename)
+        let schemes = try await fileSystem.glob(directory: xcodeProjPath, include: ["**/*.xcscheme"]).collect().map(\.basename)
+            .sorted()
         XCTAssertEqual(schemes, [
             "UserSchemeA.xcscheme",
             "UserSchemeB.xcscheme",
@@ -198,8 +197,8 @@ final class XcodeProjWriterTests: TuistUnitTestCase {
         }
 
         // Then
-        let fileHandler = FileHandler.shared
-        let schemes = fileHandler.glob(xcworkspacePath, glob: "**/*.xcscheme").map(\.basename)
+        let schemes = try await fileSystem.glob(directory: xcworkspacePath, include: ["**/*.xcscheme"]).collect().map(\.basename)
+            .sorted()
         XCTAssertEqual(schemes, [
             "SchemeA.xcscheme",
             "SchemeC.xcscheme",
@@ -229,8 +228,8 @@ final class XcodeProjWriterTests: TuistUnitTestCase {
         }
 
         // Then
-        let fileHandler = FileHandler.shared
-        let schemes = fileHandler.glob(xcworkspacePath, glob: "**/*.xcscheme").map(\.basename)
+        let schemes = try await fileSystem.glob(directory: xcworkspacePath, include: ["**/*.xcscheme"]).collect().map(\.basename)
+            .sorted()
         XCTAssertEqual(schemes, [
             "UserSchemeA.xcscheme",
             "UserSchemeB.xcscheme",
@@ -248,10 +247,10 @@ final class XcodeProjWriterTests: TuistUnitTestCase {
         try await subject.write(project: descriptor)
 
         // Then
-        let fileHandler = FileHandler.shared
         let username = NSUserName()
         let schemesPath = xcodeProjPath.appending(components: "xcuserdata", "\(username).xcuserdatad", "xcschemes")
-        let schemes = fileHandler.glob(schemesPath, glob: "*.xcscheme").map(\.basename)
+        let schemes = try await fileSystem.glob(directory: schemesPath, include: ["*.xcscheme"]).collect().map(\.basename)
+            .sorted()
         XCTAssertEqual(schemes, [
             "UserScheme.xcscheme",
         ])

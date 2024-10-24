@@ -15,14 +15,19 @@ extension XcodeGraph.FileElement {
     static func from(
         manifest: ProjectDescription.FileElement,
         generatorPaths: GeneratorPaths,
+        fileSystem _: FileSysteming,
         includeFiles: @escaping (AbsolutePath) -> Bool = { _ in true }
     ) async throws -> [XcodeGraph.FileElement] {
         let fileSystem = FileSystem()
         func globFiles(_ path: AbsolutePath) async throws -> [AbsolutePath] {
             if try await fileSystem.exists(path), !FileHandler.shared.isFolder(path) { return [path] }
 
-            let files = try FileHandler.shared.throwingGlob(AbsolutePath.root, glob: String(path.pathString.dropFirst()))
-                .filter(includeFiles)
+            let files = try await fileSystem.throwingGlob(
+                directory: AbsolutePath.root,
+                include: [String(path.pathString.dropFirst())]
+            )
+            .collect()
+            .filter(includeFiles)
 
             if files.isEmpty {
                 if FileHandler.shared.isFolder(path) {

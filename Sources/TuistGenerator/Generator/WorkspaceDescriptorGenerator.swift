@@ -94,10 +94,10 @@ final class WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
 
         /// Projects
         let projects = try await Array(graphTraverser.projects.values)
-            .sorted(by: { $0.path < $1.path })
             .concurrentCompactMap { project -> ProjectDescriptor? in
                 try await self.projectDescriptorGenerator.generate(project: project, graphTraverser: graphTraverser)
             }
+            .sorted(by: { $0.path < $1.path })
 
         let generatedProjects: [AbsolutePath: GeneratedProject] = Dictionary(uniqueKeysWithValues: projects.map { project in
             let pbxproj = project.xcodeProj.pbxproj

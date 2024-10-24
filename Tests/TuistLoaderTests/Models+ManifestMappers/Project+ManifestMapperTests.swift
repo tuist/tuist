@@ -52,7 +52,8 @@ final class ProjectManifestMapperTests: TuistUnitTestCase {
             plugins: .none,
             externalDependencies: [:],
             resourceSynthesizerPathLocator: MockResourceSynthesizerPathLocator(),
-            isExternal: false
+            isExternal: false,
+            fileSystem: fileSystem
         )
 
         // Then

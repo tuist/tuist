@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Path
 import TuistSupport
@@ -75,7 +76,11 @@ extension Target {
     /// This method unfolds the source file globs subtracting the paths that are excluded and ignoring
     /// the files that don't have a supported source extension.
     /// - Parameter sources: List of source file glob to be unfolded.
-    public static func sources(targetName: String, sources: [SourceFileGlob]) throws -> [XcodeGraph.SourceFile] {
+    public static func sources(
+        targetName: String,
+        sources: [SourceFileGlob],
+        fileSystem: FileSysteming
+    ) async throws -> [XcodeGraph.SourceFile] {
         var sourceFiles: [AbsolutePath: XcodeGraph.SourceFile] = [:]
         var invalidGlobs: [InvalidGlob] = []
 
@@ -87,15 +92,20 @@ extension Target {
             var excluded: [AbsolutePath] = []
             for path in source.excluding {
                 let absolute = try AbsolutePath(validating: path)
-                let globs = try AbsolutePath(validating: absolute.dirname).glob(absolute.basename)
+                let globs = try await fileSystem.glob(
+                    directory: try AbsolutePath(validating: absolute.dirname),
+                    include: [absolute.basename]
+                )
+                .collect()
                 excluded.append(contentsOf: globs)
             }
 
             let paths: [AbsolutePath]
 
             do {
-                paths = try FileHandler.shared
-                    .throwingGlob(base, glob: sourcePath.basename)
+                paths = try await fileSystem
+                    .throwingGlob(directory: base, include: [sourcePath.basename])
+                    .collect()
                     .filter { !$0.isInOpaqueDirectory }
             } catch let GlobError.nonExistentDirectory(invalidGlob) {
                 paths = []

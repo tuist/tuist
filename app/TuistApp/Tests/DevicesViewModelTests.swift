@@ -60,7 +60,7 @@ final class DevicesViewModelTests: TuistUnitTestCase {
             downloadPreviewService: downloadPreviewService,
             fileArchiverFactory: fileArchiverFactory,
             remoteArtifactDownloader: remoteArtifactDownloader,
-            fileHandler: fileHandler,
+            fileSystem: fileSystem,
             appBundleLoader: appBundleLoader,
             appStorage: appStorage
         )

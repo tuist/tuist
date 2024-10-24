@@ -105,13 +105,6 @@ final class XCFrameworkMetadataProviderTests: TuistUnitTestCase {
             ),
         ])
 
-        let expectedBinaryPath =
-            frameworkPath
-                .appending(
-                    try RelativePath(
-                        validating: "ios-x86_64-simulator/MyFramework.framework/MyFramework"
-                    )
-                )
         XCTAssertEqual(
             metadata,
             XCFrameworkMetadata(
@@ -151,12 +144,6 @@ final class XCFrameworkMetadataProviderTests: TuistUnitTestCase {
                 architectures: [.arm64]
             ),
         ])
-        let relativePath =
-            try RelativePath(
-                validating:
-                "ios-x86_64-simulator/MyMergeableFramework.framework/MyMergeableFramework"
-            )
-        let expectedBinaryPath = frameworkPath.appending(relativePath)
         XCTAssertEqual(
             metadata,
             XCFrameworkMetadata(
@@ -196,9 +183,6 @@ final class XCFrameworkMetadataProviderTests: TuistUnitTestCase {
                 architectures: [.arm64]
             ),
         ])
-        let expectedBinaryPath =
-            frameworkPath
-                .appending(try RelativePath(validating: "ios-x86_64-simulator/libMyStaticLibrary.a"))
         XCTAssertEqual(
             metadata,
             XCFrameworkMetadata(
@@ -238,13 +222,6 @@ final class XCFrameworkMetadataProviderTests: TuistUnitTestCase {
                 architectures: [.arm64]
             ),
         ])
-        let expectedBinaryPath =
-            frameworkPath
-                .appending(
-                    try RelativePath(
-                        validating: "ios-arm64/MyFrameworkMissingArch.framework/MyFrameworkMissingArch"
-                    )
-                )
         XCTAssertEqual(
             metadata,
             XCFrameworkMetadata(
@@ -273,10 +250,12 @@ final class XCFrameworkMetadataProviderTests: TuistUnitTestCase {
             to: xcframeworkPath
         )
         var macroPaths: [AbsolutePath] = []
-        for frameworkPath in fileHandler.glob(xcframeworkPath, glob: "*/*.framework").sorted() {
-            try fileHandler.createFolder(frameworkPath.appending(component: "Macros"))
+        for frameworkPath in try await fileSystem.glob(directory: xcframeworkPath, include: ["*/*.framework"]).collect()
+            .sorted()
+        {
+            try await fileSystem.makeDirectory(at: frameworkPath.appending(component: "Macros"))
             let macroPath = frameworkPath.appending(components: ["Macros", "MyFramework"])
-            try fileHandler.touch(macroPath)
+            try await fileSystem.touch(macroPath)
             macroPaths.append(macroPath)
         }
 

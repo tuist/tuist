@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Path
 import ProjectDescription
@@ -20,7 +21,8 @@ extension XcodeGraph.Project {
         plugins: Plugins,
         externalDependencies: [String: [XcodeGraph.TargetDependency]],
         resourceSynthesizerPathLocator: ResourceSynthesizerPathLocating,
-        isExternal: Bool
+        isExternal: Bool,
+        fileSystem: FileSysteming
     ) async throws -> XcodeGraph.Project {
         let name = manifest.name
         let xcodeProjectName = manifest.options.xcodeProjectName ?? name
@@ -35,7 +37,8 @@ extension XcodeGraph.Project {
             try await XcodeGraph.Target.from(
                 manifest: $0,
                 generatorPaths: generatorPaths,
-                externalDependencies: externalDependencies
+                externalDependencies: externalDependencies,
+                fileSystem: fileSystem
             )
         }
 
@@ -44,8 +47,15 @@ extension XcodeGraph.Project {
             generatorPaths: generatorPaths
         ) }
         let additionalFiles = try await manifest.additionalFiles
-            .concurrentMap { try await XcodeGraph.FileElement.from(manifest: $0, generatorPaths: generatorPaths) }
+            .concurrentMap {
+                try await XcodeGraph.FileElement.from(
+                    manifest: $0,
+                    generatorPaths: generatorPaths,
+                    fileSystem: fileSystem
+                )
+            }
             .flatMap { $0 }
+            .sorted(by: { $0.path < $1.path })
         let packages = try manifest.packages.map { try XcodeGraph.Package.from(manifest: $0, generatorPaths: generatorPaths) }
         let ideTemplateMacros = try manifest.fileHeaderTemplate
             .map { try IDETemplateMacros.from(manifest: $0, generatorPaths: generatorPaths) }

@@ -1,5 +1,6 @@
 import FileSystem
 import Foundation
+import Mockable
 import Path
 import TuistSupport
 import XcodeGraph
@@ -41,7 +42,21 @@ enum XCFrameworkMetadataProviderError: FatalError, Equatable {
 
 // MARK: - Provider
 
+@Mockable
 public protocol XCFrameworkMetadataProviding: PrecompiledMetadataProviding {
+    /// It returns the supported architectures of the binary at the given path.
+    /// - Parameter binaryPath: Binary path.
+    func architectures(binaryPath: AbsolutePath) throws -> [BinaryArchitecture]
+
+    /// Return how other binaries should link the binary at the given path.
+    /// - Parameter binaryPath: Path to the binary.
+    func linking(binaryPath: AbsolutePath) throws -> BinaryLinking
+
+    /// It uses 'dwarfdump' to dump the UUIDs of each architecture.
+    /// The UUIDs allows us to know which .bcsymbolmap files belong to this binary.
+    /// - Parameter binaryPath: Path to the binary.
+    func uuids(binaryPath: AbsolutePath) throws -> Set<UUID>
+
     /// Loads all the metadata associated with an XCFramework at the specified path
     /// - Note: This performs various shell calls and disk operations
     func loadMetadata(at path: AbsolutePath, status: LinkingStatus) async throws
@@ -87,7 +102,7 @@ public final class XCFrameworkMetadataProvider: PrecompiledMetadataProvider,
             linking: linking,
             mergeable: infoPlist.libraries.allSatisfy(\.mergeable),
             status: status,
-            macroPath: try macroPath(xcframeworkPath: path)
+            macroPath: try await macroPath(xcframeworkPath: path)
         )
     }
 
@@ -96,11 +111,13 @@ public final class XCFrameworkMetadataProvider: PrecompiledMetadataProvider,
      We assume that the Swift Macros, which are command line executables, are fat binaries for both architectures supported by macOS:
      x86_64 and arm64.
      */
-    public func macroPath(xcframeworkPath: AbsolutePath) throws -> AbsolutePath? {
-        guard let frameworkPath = fileHandler.glob(xcframeworkPath, glob: "*/*.framework").sorted()
+    public func macroPath(xcframeworkPath: AbsolutePath) async throws -> AbsolutePath? {
+        guard let frameworkPath = try await fileSystem.glob(directory: xcframeworkPath, include: ["*/*.framework"])
+            .collect()
+            .sorted()
             .first
         else { return nil }
-        guard let macroPath = fileHandler.glob(frameworkPath, glob: "Macros/*").first else {
+        guard let macroPath = try await fileSystem.glob(directory: frameworkPath, include: ["Macros/*"]).collect().first else {
             return nil
         }
         return try AbsolutePath(validating: macroPath.pathString)

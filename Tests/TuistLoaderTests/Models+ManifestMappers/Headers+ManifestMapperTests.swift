@@ -42,10 +42,11 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let model = try XcodeGraph.Headers.from(
+        let model = try await XcodeGraph.Headers.from(
             manifest: manifest,
             generatorPaths: generatorPaths,
-            productName: "ModuleA"
+            productName: "ModuleA",
+            fileSystem: fileSystem
         )
 
         // Then
@@ -97,10 +98,11 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let model = try XcodeGraph.Headers.from(
+        let model = try await XcodeGraph.Headers.from(
             manifest: manifest,
             generatorPaths: generatorPaths,
-            productName: "ModuleA"
+            productName: "ModuleA",
+            fileSystem: fileSystem
         )
 
         // Then
@@ -144,10 +146,11 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let model = try XcodeGraph.Headers.from(
+        let model = try await XcodeGraph.Headers.from(
             manifest: manifest,
             generatorPaths: generatorPaths,
-            productName: "ModuleA"
+            productName: "ModuleA",
+            fileSystem: fileSystem
         )
 
         // Then
@@ -193,10 +196,11 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let model = try XcodeGraph.Headers.from(
+        let model = try await XcodeGraph.Headers.from(
             manifest: manifest,
             generatorPaths: generatorPaths,
-            productName: "ModuleA"
+            productName: "ModuleA",
+            fileSystem: fileSystem
         )
 
         // Then
@@ -241,10 +245,11 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let model = try XcodeGraph.Headers.from(
+        let model = try await XcodeGraph.Headers.from(
             manifest: manifest,
             generatorPaths: generatorPaths,
-            productName: "ModuleA"
+            productName: "ModuleA",
+            fileSystem: fileSystem
         )
 
         // Then
@@ -288,10 +293,11 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let model = try XcodeGraph.Headers.from(
+        let model = try await XcodeGraph.Headers.from(
             manifest: manifest,
             generatorPaths: generatorPaths,
-            productName: "ModuleA"
+            productName: "ModuleA",
+            fileSystem: fileSystem
         )
 
         // Then
@@ -348,10 +354,11 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let model = try XcodeGraph.Headers.from(
+        let model = try await XcodeGraph.Headers.from(
             manifest: manifest,
             generatorPaths: generatorPaths,
-            productName: "ModuleA"
+            productName: "ModuleA",
+            fileSystem: fileSystem
         )
 
         // Then
@@ -405,10 +412,11 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let model = try XcodeGraph.Headers.from(
+        let model = try await XcodeGraph.Headers.from(
             manifest: manifest,
             generatorPaths: generatorPaths,
-            productName: "ModuleA"
+            productName: "ModuleA",
+            fileSystem: fileSystem
         )
 
         // Then
@@ -472,10 +480,11 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let model = try XcodeGraph.Headers.from(
+        let model = try await XcodeGraph.Headers.from(
             manifest: manifest,
             generatorPaths: generatorPaths,
-            productName: "TuistTestModule"
+            productName: "TuistTestModule",
+            fileSystem: fileSystem
         )
 
         // Then
@@ -543,10 +552,11 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let model = try XcodeGraph.Headers.from(
+        let model = try await XcodeGraph.Headers.from(
             manifest: manifest,
             generatorPaths: generatorPaths,
-            productName: "TuistTestModule"
+            productName: "TuistTestModule",
+            fileSystem: fileSystem
         )
 
         // Then
@@ -614,10 +624,11 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let model = try XcodeGraph.Headers.from(
+        let model = try await XcodeGraph.Headers.from(
             manifest: manifest,
             generatorPaths: generatorPaths,
-            productName: "TuistTestModule"
+            productName: "TuistTestModule",
+            fileSystem: fileSystem
         )
 
         // Then

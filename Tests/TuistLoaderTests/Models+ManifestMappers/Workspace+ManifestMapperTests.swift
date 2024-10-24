@@ -51,7 +51,8 @@ final class WorkspaceManifestMapperTests: TuistUnitTestCase {
                 manifestDirectory: workspacePath,
                 rootDirectory: workspacePath
             ),
-            manifestLoader: manifestLoader
+            manifestLoader: manifestLoader,
+            fileSystem: fileSystem
         )
 
         // Then

@@ -75,6 +75,8 @@ final class ProjectEditor: ProjectEditing {
     /// Xcode Project writer
     private let writer: XcodeProjWriting
 
+    private let fileSystem: FileSysteming
+
     init(
         generator: DescriptorGenerating = DescriptorGenerator(),
         projectEditorMapper: ProjectEditorMapping = ProjectEditorMapper(),
@@ -87,7 +89,8 @@ final class ProjectEditor: ProjectEditing {
         cacheDirectoriesProvider: CacheDirectoriesProviding = CacheDirectoriesProvider(),
         stencilDirectoryLocator: StencilPathLocating = StencilPathLocator(),
         projectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactoring =
-            ProjectDescriptionHelpersBuilderFactory()
+            ProjectDescriptionHelpersBuilderFactory(),
+        fileSystem: FileSysteming = FileSystem()
     ) {
         self.generator = generator
         self.projectEditorMapper = projectEditorMapper
@@ -100,6 +103,7 @@ final class ProjectEditor: ProjectEditing {
         self.cacheDirectoriesProvider = cacheDirectoriesProvider
         self.stencilDirectoryLocator = stencilDirectoryLocator
         self.projectDescriptionHelpersBuilderFactory = projectDescriptionHelpersBuilderFactory
+        self.fileSystem = fileSystem
     }
 
     // swiftlint:disable:next function_body_length
@@ -139,28 +143,50 @@ final class ProjectEditor: ProjectEditing {
         )
         let packageManifestPath = try await manifestFilesLocator.locatePackageManifest(at: editingPath)
 
-        let helpers = try await helpersDirectoryLocator.locate(at: editingPath).map {
-            [
-                FileHandler.shared.glob($0, glob: "**/*.swift"),
-                FileHandler.shared.glob($0, glob: "**/*.docc"),
-            ].flatMap { $0 }
-        } ?? []
+        let helpers: [AbsolutePath]
+        if let helpersDirectory = try await helpersDirectoryLocator.locate(at: editingPath) {
+            helpers = try await fileSystem.glob(
+                directory: helpersDirectory,
+                include: [
+                    "**/*.swift",
+                    "**/*.docc",
+                ]
+            )
+            .collect()
+            .sorted()
+        } else {
+            helpers = []
+        }
 
-        let templateSources = try await templatesDirectoryLocator.locateUserTemplates(at: editingPath).map {
-            FileHandler.shared.glob($0, glob: "**/*.swift")
-        } ?? []
+        let templateSources: [AbsolutePath]
+        let templateResources: [AbsolutePath]
+        if let templatesDirectory = try await templatesDirectoryLocator.locateUserTemplates(at: editingPath) {
+            templateSources = try await fileSystem.glob(directory: templatesDirectory, include: ["**/*.swift"])
+                .collect()
+            templateResources = try await fileSystem.glob(directory: templatesDirectory, include: ["**/*.stencil"])
+                .collect()
+        } else {
+            templateSources = []
+            templateResources = []
+        }
 
-        let templateResources = try await templatesDirectoryLocator.locateUserTemplates(at: editingPath).map {
-            FileHandler.shared.glob($0, glob: "**/*.stencil")
-        } ?? []
+        let resourceSynthesizers: [AbsolutePath]
+        if let resourceSynthesizersDirectory = try await resourceSynthesizersDirectoryLocator.locate(at: editingPath) {
+            resourceSynthesizers = try await fileSystem.glob(
+                directory: resourceSynthesizersDirectory,
+                include: ["**/*.stencil"]
+            )
+            .collect()
+        } else {
+            resourceSynthesizers = []
+        }
 
-        let resourceSynthesizers = try await resourceSynthesizersDirectoryLocator.locate(at: editingPath).map {
-            FileHandler.shared.glob($0, glob: "**/*.stencil")
-        } ?? []
-
-        let stencils = try await stencilDirectoryLocator.locate(at: editingPath).map {
-            FileHandler.shared.glob($0, glob: "**/*.stencil")
-        } ?? []
+        let stencils: [AbsolutePath]
+        if let stencilDirectory = try await stencilDirectoryLocator.locate(at: editingPath) {
+            stencils = try await fileSystem.glob(directory: stencilDirectory, include: ["**/*.stencil"]).collect()
+        } else {
+            stencils = []
+        }
 
         let editablePluginManifests = try await locateEditablePluginManifests(
             at: editingPath,

@@ -101,14 +101,6 @@ public final class MockFileHandler: FileHandler {
         }
         return stubFiles(path, filter, nameFilter, extensionFilter)
     }
-
-    public var stubGlob: ((AbsolutePath, String) -> [AbsolutePath])?
-    override public func glob(_ path: AbsolutePath, glob: String) -> [AbsolutePath] {
-        guard let stubGlob else {
-            return super.glob(path, glob: glob)
-        }
-        return stubGlob(path, glob)
-    }
 }
 
 open class TuistTestCase: XCTestCase {

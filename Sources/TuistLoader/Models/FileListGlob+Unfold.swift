@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Path
 import ProjectDescription
@@ -7,8 +8,9 @@ import XcodeGraph
 extension FileListGlob {
     func unfold(
         generatorPaths: GeneratorPaths,
+        fileSystem: FileSysteming,
         filter: ((AbsolutePath) -> Bool)? = nil
-    ) throws -> [AbsolutePath] {
+    ) async throws -> [AbsolutePath] {
         if glob.pathString.contains("$") {
             return [try generatorPaths.resolve(path: glob)]
         }
@@ -17,7 +19,7 @@ extension FileListGlob {
         let resolvedExcluding = try resolvedExcluding(generatorPaths: generatorPaths)
         let pattern = String(resolvedPath.pathString.dropFirst())
 
-        return FileHandler.shared.glob(AbsolutePath.root, glob: pattern).filter { path in
+        return try await fileSystem.glob(directory: AbsolutePath.root, include: [pattern]).collect().filter { path in
             guard !resolvedExcluding.contains(path) else {
                 return false
             }

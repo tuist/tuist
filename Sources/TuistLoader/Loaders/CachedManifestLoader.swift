@@ -21,8 +21,8 @@ public class CachedManifestLoader: ManifestLoading {
     private let tuistVersion: String
     private let decoder = JSONDecoder()
     private let encoder = JSONEncoder()
-    private let helpersCache: ThreadSafe<[AbsolutePath: String?]> = ThreadSafe([:])
-    private let pluginsHashCache: ThreadSafe<String?> = ThreadSafe(nil)
+    private let helpersCache: ThreadSafe<[AbsolutePath: Task<String, any Error>]> = ThreadSafe([:])
+    private let pluginsHashCache: ThreadSafe<Task<String?, any Error>?> = ThreadSafe(nil)
     private let cacheDirectory: ThrowableCaching<AbsolutePath>
 
     public convenience init(manifestLoader: ManifestLoading = ManifestLoader()) {
@@ -115,7 +115,7 @@ public class CachedManifestLoader: ManifestLoading {
     }
 
     public func register(plugins: Plugins) throws {
-        try pluginsHashCache.mutate { $0 = try calculatePluginsHash(for: plugins) }
+        pluginsHashCache.mutate { $0 = Task { try await calculatePluginsHash(for: plugins) } }
         try manifestLoader.register(plugins: plugins)
     }
 
@@ -170,7 +170,7 @@ public class CachedManifestLoader: ManifestLoading {
         return Hashes(
             manifestHash: manifestHash,
             helpersHash: helpersHash,
-            pluginsHash: pluginsHashCache.value,
+            pluginsHash: try await pluginsHashCache.value?.value,
             environmentHash: environmentHash
         )
     }
@@ -187,21 +187,26 @@ public class CachedManifestLoader: ManifestLoading {
             return nil
         }
 
-        return try helpersCache.mutate { cache in
+        return try await helpersCache.mutate { cache in
             if let cached = cache[helpersDirectory] {
                 return cached
             }
 
-            let hash = try projectDescriptionHelpersHasher.hash(helpersDirectory: helpersDirectory)
-            cache[helpersDirectory] = hash
+            let task = Task {
+                try await projectDescriptionHelpersHasher.hash(helpersDirectory: helpersDirectory)
+            }
 
-            return hash
+            cache[helpersDirectory] = task
+
+            return task
         }
+        .value
     }
 
-    private func calculatePluginsHash(for plugins: Plugins) throws -> String? {
-        try plugins.projectDescriptionHelpers
-            .map { try projectDescriptionHelpersHasher.hash(helpersDirectory: $0.path) }
+    private func calculatePluginsHash(for plugins: Plugins) async throws -> String? {
+        let projectDescriptionHelpersHasher = projectDescriptionHelpersHasher
+        return try await plugins.projectDescriptionHelpers
+            .concurrentMap { try await projectDescriptionHelpersHasher.hash(helpersDirectory: $0.path) }
             .joined(separator: "-")
             .md5
     }
