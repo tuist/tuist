@@ -145,7 +145,6 @@ let package = Package(
 > [!TIP] PRODUCT TYPES
 > You can override the product type for a specific package by adding it to the `productTypes` dictionary in the `PackageSettings` struct. By default, Tuist assumes that all packages are static frameworks.
 
-
 <h2 id="determine-the-migration-order">Determine the migration order</h2>
 
 We recommend migrating the targets from the one that is the most dependent upon to the least. You can use the following command to list the targets of a project, sorted by the number of dependencies:
@@ -155,7 +154,6 @@ tuist migration list-targets -p Project.xcodeproj
 ```
 
 Start migrating the targets from the top of the list, as they are the ones that are the most depended upon.
-
 
 <h2 id="migrate-targets">Migrate targets</h2>
 

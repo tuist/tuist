@@ -35,6 +35,7 @@ tuist generate
 ```
 
 :::
+
 <h3 id="codemagic">Codemagic</h3>
 
 In [Codemagic](https://codemagic.io), you can add an additional step to your workflow to install Tuist:

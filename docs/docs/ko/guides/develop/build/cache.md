@@ -16,7 +16,7 @@ Tuist addresses these challenges effectively with its caching feature. This tool
 
 Tuist efficiently <LocalizedLink href="/guides/develop/projects/hashing">utilizes hashes</LocalizedLink> for each target in the dependency graph to detect changes. Utilizing this data, it builds and assigns unique identifiers to binaries derived from these targets. At the time of graph generation, Tuist then seamlessly substitutes the original targets with their corresponding binary versions.
 
-This operation, known as *"warming,"* produces binaries for local use or for sharing with teammates and CI environments via Tuist. The process of warming the cache is straightforward and can be initiated with a simple command:
+This operation, known as _"warming,"_ produces binaries for local use or for sharing with teammates and CI environments via Tuist. The process of warming the cache is straightforward and can be initiated with a simple command:
 
 ```bash
 tuist cache

@@ -1,6 +1,6 @@
 ---
 title: Dependencies
-titleTemplate: :title | Projects | Tuist
+titleTemplate: :title | プロジェクト | Tuist
 description: Learn how to declare dependencies in your Tuist project.
 ---
 

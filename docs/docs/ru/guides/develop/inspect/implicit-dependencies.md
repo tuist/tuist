@@ -1,6 +1,6 @@
 ---
 title: Implicit imports
-description: Learn how to use Tuist to find implicit imports.
+description: Learn how to use Tuist to find implicit dependencies.
 ---
 
 <h1 id="implicit-imports">Implicit imports</h1>
