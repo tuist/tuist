@@ -207,8 +207,7 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
         projectDescriptionSearchPaths: ProjectDescriptionSearchPaths,
         customProjectDescriptionHelperModules: [ProjectDescriptionHelpersModule] = []
     ) async throws -> [String] {
-        let swiftFilesGlob = "**/*.swift"
-        let files = try await fileSystem.glob(directory: directory, include: [swiftFilesGlob]).collect()
+        let files = try await fileSystem.glob(directory: directory, include: ["**/*.swift"]).collect()
 
         var command: [String] = [
             "/usr/bin/xcrun", "swiftc",

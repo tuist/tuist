@@ -135,6 +135,7 @@ final class XcodeProjWriterTests: TuistUnitTestCase {
 
         // Then
         let schemes = try await fileSystem.glob(directory: xcodeProjPath, include: ["**/*.xcscheme"]).collect().map(\.basename)
+            .sorted()
         XCTAssertEqual(schemes, [
             "SchemeA.xcscheme",
             "SchemeC.xcscheme",
@@ -165,6 +166,7 @@ final class XcodeProjWriterTests: TuistUnitTestCase {
 
         // Then
         let schemes = try await fileSystem.glob(directory: xcodeProjPath, include: ["**/*.xcscheme"]).collect().map(\.basename)
+            .sorted()
         XCTAssertEqual(schemes, [
             "UserSchemeA.xcscheme",
             "UserSchemeB.xcscheme",
@@ -196,6 +198,7 @@ final class XcodeProjWriterTests: TuistUnitTestCase {
 
         // Then
         let schemes = try await fileSystem.glob(directory: xcworkspacePath, include: ["**/*.xcscheme"]).collect().map(\.basename)
+            .sorted()
         XCTAssertEqual(schemes, [
             "SchemeA.xcscheme",
             "SchemeC.xcscheme",
@@ -226,6 +229,7 @@ final class XcodeProjWriterTests: TuistUnitTestCase {
 
         // Then
         let schemes = try await fileSystem.glob(directory: xcworkspacePath, include: ["**/*.xcscheme"]).collect().map(\.basename)
+            .sorted()
         XCTAssertEqual(schemes, [
             "UserSchemeA.xcscheme",
             "UserSchemeB.xcscheme",
@@ -246,6 +250,7 @@ final class XcodeProjWriterTests: TuistUnitTestCase {
         let username = NSUserName()
         let schemesPath = xcodeProjPath.appending(components: "xcuserdata", "\(username).xcuserdatad", "xcschemes")
         let schemes = try await fileSystem.glob(directory: schemesPath, include: ["*.xcscheme"]).collect().map(\.basename)
+            .sorted()
         XCTAssertEqual(schemes, [
             "UserScheme.xcscheme",
         ])

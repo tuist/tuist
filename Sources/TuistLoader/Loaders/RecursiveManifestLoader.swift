@@ -73,7 +73,7 @@ public struct RecursiveManifestLoader: RecursiveManifestLoading {
         let projectPaths = try await projectSearchPaths.map {
             try generatorPaths.resolve(path: $0)
         }.concurrentFlatMap {
-            try await fileSystem.glob(directory: $0, include: ["*"]).collect()
+            try await fileSystem.glob(directory: $0, include: [""]).collect()
         }.filter {
             fileHandler.isFolder($0)
         }.concurrentFilter {
@@ -109,7 +109,7 @@ public struct RecursiveManifestLoader: RecursiveManifestLoading {
         let packagePaths = try await projectSearchPaths.map {
             try generatorPaths.resolve(path: $0)
         }.concurrentFlatMap {
-            try await fileSystem.glob(directory: $0, include: ["*"]).collect()
+            try await fileSystem.glob(directory: $0, include: [""]).collect()
         }.filter {
             fileHandler.isFolder($0) && $0.basename != Constants.tuistDirectoryName
         }.concurrentFilter {

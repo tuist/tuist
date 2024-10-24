@@ -392,7 +392,8 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             let pluginHelpersPath = manifest.path.appending(component: Constants.helpersDirectoryName)
             let pluginTemplatesPath = manifest.path.appending(component: Constants.templatesDirectoryName)
             let pluginResourceTemplatesPath = manifest.path.appending(component: Constants.resourceSynthesizersDirectoryName)
-            let pluginHelpers = try await fileSystem.glob(directory: pluginHelpersPath, include: ["**/*.swift"]).collect()
+            let pluginHelpers = try await fileSystem.glob(directory: pluginHelpersPath, include: ["**/*.swift"])
+                .collect()
             let pluginTemplates = try await fileSystem.glob(
                 directory: pluginTemplatesPath,
                 include: ["**/*.swift", "**/*.stencil"]

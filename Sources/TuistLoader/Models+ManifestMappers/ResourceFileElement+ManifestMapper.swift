@@ -70,6 +70,7 @@ extension XcodeGraph.ResourceFileElement {
                 tags: tags,
                 inclusionCondition: condition?.asGraphCondition
             ) }
+            .sorted(by: { $0.path < $1.path })
         case let .folderReference(folderReferencePath, tags, condition):
             let resolvedPath = try generatorPaths.resolve(path: folderReferencePath)
             return try await folderReferences(resolvedPath).map { ResourceFileElement.folderReference(
@@ -77,6 +78,7 @@ extension XcodeGraph.ResourceFileElement {
                 tags: tags,
                 inclusionCondition: condition?.asGraphCondition
             ) }
+            .sorted(by: { $0.path < $1.path })
         }
     }
 }

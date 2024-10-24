@@ -103,12 +103,16 @@ final class StableXcodeProjIntegrationTests: TuistTestCase {
         let temporaryPath = try temporaryPath()
         let projectsPaths = try workspace.projectPaths.map { temporaryPath.appending(try RelativePath(validating: $0)) }
         let parentDir = projectsPaths.map { $0.appending(relativePath) }
-        let schemes: [XCScheme] = try await parentDir.concurrentMap { try await self.fileSystem.glob(
-            directory: $0,
-            include: ["**/*.xcscheme"]
-        ).collect() }
-            .flatMap { $0 }
-            .map { try XCScheme(path: $0.path) }
+        let schemes: [XCScheme] = try await parentDir.concurrentMap {
+            try await self.fileSystem.glob(
+                directory: $0,
+                include: ["**/*.xcscheme", "*.xcscheme"]
+            )
+            .collect()
+        }
+        .flatMap { $0 }
+        .sorted()
+        .map { try XCScheme(path: $0.path) }
         return schemes
     }
 }

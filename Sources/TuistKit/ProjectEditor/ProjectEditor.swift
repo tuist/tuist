@@ -153,6 +153,7 @@ final class ProjectEditor: ProjectEditing {
                 ]
             )
             .collect()
+            .sorted()
         } else {
             helpers = []
         }
@@ -160,8 +161,10 @@ final class ProjectEditor: ProjectEditing {
         let templateSources: [AbsolutePath]
         let templateResources: [AbsolutePath]
         if let templatesDirectory = try await templatesDirectoryLocator.locateUserTemplates(at: editingPath) {
-            templateSources = try await fileSystem.glob(directory: templatesDirectory, include: ["**/*.swift"]).collect()
-            templateResources = try await fileSystem.glob(directory: templatesDirectory, include: ["**/*.stencil"]).collect()
+            templateSources = try await fileSystem.glob(directory: templatesDirectory, include: ["**/*.swift"])
+                .collect()
+            templateResources = try await fileSystem.glob(directory: templatesDirectory, include: ["**/*.stencil"])
+                .collect()
         } else {
             templateSources = []
             templateResources = []
@@ -169,8 +172,11 @@ final class ProjectEditor: ProjectEditing {
 
         let resourceSynthesizers: [AbsolutePath]
         if let resourceSynthesizersDirectory = try await resourceSynthesizersDirectoryLocator.locate(at: editingPath) {
-            resourceSynthesizers = try await fileSystem.glob(directory: resourceSynthesizersDirectory, include: ["**/*.stencil"])
-                .collect()
+            resourceSynthesizers = try await fileSystem.glob(
+                directory: resourceSynthesizersDirectory,
+                include: ["**/*.stencil"]
+            )
+            .collect()
         } else {
             resourceSynthesizers = []
         }

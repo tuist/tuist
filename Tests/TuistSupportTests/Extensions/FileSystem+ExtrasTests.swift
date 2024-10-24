@@ -29,14 +29,14 @@ final class FileSystemExtrasTests: TuistUnitTestCase {
         // When
         let got = try await fileSystem.glob(
             directory: parentDirectory,
-            include: ["path/**/*"]
+            include: ["path/**/*.swift"]
         )
         .collect()
 
         // Then
         XCTAssertEqual(
-            got.map(\.basename),
-            files.map(\.basename)
+            got,
+            files
         )
     }
 }

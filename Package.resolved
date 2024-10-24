@@ -1,5 +1,5 @@
 {
-  "originHash" : "a31e8db1b28dbdfff4769db6daf7e9847633a86537a1f7a553caf0bb2984e0e5",
+  "originHash" : "d309c8f105979d58aee36dd0841d26b043f4258ae2da6518a2dd89f645845c69",
   "pins" : [
     {
       "identity" : "aexml",
@@ -51,8 +51,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/FileSystem.git",
       "state" : {
-        "revision" : "b2c8ea0f3ac3be2523eddc4e7c9e02658a65f2d5",
-        "version" : "0.4.8"
+        "branch" : "change/glob",
+        "revision" : "fadd1da6ebb09b72fc41b167e1fd2741d4a50301"
       }
     },
     {
