@@ -244,7 +244,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             preActions: preActions,
             postActions: postActions,
             parallelizeBuild: true,
-            buildImplicitDependencies: true,
+            buildImplicitDependencies: buildAction.findImplicitDependencies,
             runPostActionsOnFailure: buildAction.runPostActionsOnFailure ? true : nil
         )
     }
