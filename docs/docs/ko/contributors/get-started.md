@@ -4,7 +4,7 @@ titleTemplate: :title - Tuist에 기여하기
 description: 다음 가이드를 통해 Tuist 기여를 시작합니다.
 ---
 
-<h1 id="get-started">Get started</h1>
+# Get started {#get-started}
 
 iOS 처럼 Apple 플랫폼의 앱을 빌드해 본 경험이 있다면, Tuist 에 코드를 추가하는 것은 다르지 않습니다. 앱 개발과 비교해서 두 가지 차이점이 있습니다:
 
@@ -14,14 +14,14 @@ iOS 처럼 Apple 플랫폼의 앱을 빌드해 본 경험이 있다면, Tuist �
 
 Swift에 대한 경험이 없다면, 언어와 Foundation API에서 자주 사용하는 요소에 대해 익숙해 지도록 [Apple’s official book](https://docs.swift.org/swift-book/)을 추천합니다.
 
-<h2 id="minimum-requirements">최소 요구 사항</h2>
+## 최소 요구 사항 {#minimum-requirements}
 
 Tuist에 기여하기 위해 최소 요구 사항은 다음과 같습니다:
 
 - macOS 14.0+
 - Xcode 16.0+
 
-<h2 id="set-up-the-project-locally">로컬에 프로젝트 설정하기</h2>
+## 로컬에 프로젝트 설정하기 {#set-up-the-project-locally}
 
 프로젝트에 작업을 시작하려면 다음과 같습니다:
 
@@ -37,13 +37,13 @@ Tuist에 기여하기 위해 최소 요구 사항은 다음과 같습니다:
 > [!NOTE] XED.
 > `xed .`를 사용하여 프로젝트를 열면, Tuist로 생성한 프로젝트가 열리지 않고, 패키지가 열립니다. Tuist로 생성한 프로젝트를 사용하는 것을 권장합니다.
 
-<h2 id="edit-the-project">프로젝트 수정하기</h2>
+## 프로젝트 수정하기 {#edit-the-project}
 
 의존성을 추가하거나 타겟을 조정하는 것과 같이 프로젝트 수정이 필요한 경우, <LocalizedLink href="/guides/develop/projects/editing">`tuist edit` 명령어</LocalizedLink>를 사용할 수 있습니다. 거의 사용되지 않지만, 이런 명령어가 존재한다는 것을 알아두면 좋습니다.
 
-<h2 id="run-tuist">Tuist 실행하기</h2>
+## Tuist 실행하기 {#run-tuist}
 
-<h3 id="from-xcode">Xcode</h3>
+### Xcode {#from-xcode}
 
 생성된 Xcode 프로젝트에서 `tuist`를 실행하려면, `tuist` 스킴을 수정하고 명령어에 전달할 인수를 설정합니다. 예를 들어, `tuist generate` 명령어를 실행하려면, 프로젝트 생성 후에 프로젝트가 열리지 않도록 `generate --no-open` 인수를 설정할 수 있습니다.
 
@@ -55,7 +55,7 @@ Tuist에 기여하기 위해 최소 요구 사항은 다음과 같습니다:
 
 > [!WARNING] PROJECTDESCRIPTION COMPILATION `tuist` CLI는 빌드된 디렉토리에 `ProjectDescription` 프레임워크의 존재에 따라 달라집니다. `ProjectDescription` 프레임워크를 찾을 수 없어 `tuist` 실행이 실패하면 먼저 `Tuist-Workspace` 스킴을 빌드합니다.
 
-<h3 id="from-the-terminal">Terminal</h3>
+### Terminal {#from-the-terminal}
 
 `tuist`는 `tuist run`을 제공하지만, 아직 CLI를 지원하지 않습니다. 따라서 이 툴을 실행하려면 Swift Package Manager를 사용해야 합니다. Swift Package Manager를 사용하면, 다음의 명령어를 실행할 수 있습니다:
 
