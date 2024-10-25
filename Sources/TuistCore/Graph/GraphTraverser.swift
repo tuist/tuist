@@ -232,9 +232,12 @@ public class GraphTraverser: GraphTraversing {
         let externalBundles = filterDependencies(
             from: .target(name: name, path: path),
             test: { dependency in
-                isDependencyResourceBundle(dependency: dependency) &&
-                    (isDependencyExternal(dependency) || dependency.isPrecompiled) &&
-                    canEmbedBundles(target: target)
+                guard isDependencyResourceBundle(dependency: dependency) else { return false }
+                // Precompiled bundles are embedded to any downstream target that supports resources to ensure Xcode previews work
+                // reliably.
+                // See this issue for more details: https://github.com/tuist/tuist/pull/6865
+                return (dependency.isPrecompiled && target.supportsResources) ||
+                    (isDependencyExternal(dependency) && canEmbedBundles(target: target))
             },
             skip: canDependencyEmbedBundles
         )

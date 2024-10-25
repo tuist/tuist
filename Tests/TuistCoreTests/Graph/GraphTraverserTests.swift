@@ -811,7 +811,12 @@ final class GraphTraverserTests: TuistUnitTestCase {
                 .bundle(path: bundlePath),
             ]
         )
-        XCTAssertEqual(frameworkResults, [])
+        XCTAssertEqual(
+            frameworkResults,
+            [
+                .bundle(path: bundlePath),
+            ]
+        )
     }
 
     func test_target_from_dependency() {
