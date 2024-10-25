@@ -7,8 +7,8 @@ extension XCTestCase {
     // MARK: - Fixtures
 
     public func fixturePath(path: RelativePath) -> AbsolutePath {
-        try! AbsolutePath(validating: #file) // swiftlint:disable:this force_try
-            .appending(try! RelativePath(validating: "../../../../Tests/Fixtures")) // swiftlint:disable:this force_try
+        try! AbsolutePath(validating: ProcessInfo.processInfo.environment["TUIST_CONFIG_SRCROOT"]!)
+            .appending(components: "Tests", "Fixtures")
             .appending(path)
     }
 
