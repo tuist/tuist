@@ -1,18 +1,18 @@
 ---
 title: Continuous Integration (CI)
-titleTemplate: ":title | Develop | Tuist"
+titleTemplate: :title | Develop | Tuist
 description: Learn how to use Tuist in your CI workflows.
 ---
 
-# Continuous Integration (CI)
+<h1 id="continuous-integration-ci">Continuous Integration (CI)</h1>
 
 You can use Tuist in [continuous integration](https://en.wikipedia.org/wiki/Continuous_integration) environments. The following sections provide examples of how to do this on different CI platforms.
 
-## Examples
+<h2 id="examples">Examples</h2>
 
 To run Tuist commands in your CI workflows, you’ll need to install it in your CI environment.
 
-### Xcode Cloud
+<h3 id="xcode-cloud">Xcode Cloud</h3>
 
 In [Xcode Cloud](https://developer.apple.com/xcode-cloud/), which uses Xcode projects as the source of truth, you'll need to add a [post-clone](https://developer.apple.com/documentation/xcode/writing-custom-build-scripts#Create-a-custom-build-script) script to install Tuist and run the commands you need, for example `tuist generate`:
 
@@ -23,21 +23,25 @@ In [Xcode Cloud](https://developer.apple.com/xcode-cloud/), which uses Xcode pro
 curl https://mise.jdx.dev/install.sh | sh
 mise install # Installs the version from .mise.toml
 
-# Runs the version of Tuist indicated in the .mise.toml file
+<h1 id="runs-the-version-of-tuist-indicated-in-the-misetoml-file">Runs the version of Tuist indicated in the .mise.toml file</h1>
 mise x tuist generate
 ```
+
 ```bash [Homebrew]
 #!/bin/sh
 brew install --formula tuist@x.y.z
 
 tuist generate
 ```
+
 :::
-### Codemagic
+
+<h3 id="codemagic">Codemagic</h3>
 
 In [Codemagic](https://codemagic.io), you can add an additional step to your workflow to install Tuist:
 
 ::: code-group
+
 ```yaml [Mise]
 workflows:
   lint:
@@ -53,6 +57,7 @@ workflows:
       - name: Build
         script: mise x tuist build
 ```
+
 ```yaml [Homebrew]
 workflows:
   lint:
@@ -67,13 +72,15 @@ workflows:
       - name: Build
         script: tuist build
 ```
+
 :::
 
-### GitHub Actions
+<h3 id="github-actions">GitHub Actions</h3>
 
 On [GitHub Actions](https://docs.github.com/actions) you can an additional step to install Tuist, and in the case of managing the installation of Mise, you can use the [mise-action](https://github.com/jdx/mise-action), which abstracts the installation of Mise and Tuist:
 
 ::: code-group
+
 ```yaml [Mise]
 name: Build Application
 on:
@@ -91,6 +98,7 @@ jobs:
       - uses: jdx/mise-action@v2
       - run: tuist build
 ```
+
 ```yaml [Homebrew]
 name: test
 on:
@@ -108,13 +116,14 @@ jobs:
       - run: brew install --formula tuist@x.y.z
       - run: tuist build
 ```
+
 :::
 
-::: tip
+:::tip
 We recommend using `mise use --pin` in your Tuist projects to pin the version of Tuist across environments. The command will create a `.tool-versions` file containing the version of Tuist.
 :::
 
-## Authentication
+<h2 id="authentication">Authentication</h2>
 
 When using server-side features such as <LocalizedLink href="/guides/develop/build/cache">cache</LocalizedLink>, you'll need a way to authenticate requests going from your CI workflows to the server. For that, you can generate a project-scoped token by running the following command:
 

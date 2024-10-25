@@ -4,23 +4,23 @@ titleTemplate: :title | Introduction | Server | Tuist
 description: Learn how to create and manage accounts and projects in Tuist.
 ---
 
-# Accounts and projects
+<h1 id="accounts-and-projects">Accounts and projects</h1>
 
-## Accounts
+<h2 id="accounts">Accounts</h2>
 
 To use the server, you'll need an account. There are two types of accounts:
 
 - **Personal account:** Those accounts are created automaticaly when you sign up and are identified by a handle that's obtained either from the identity provider (e.g. GitHub) or the first part of the email address.
 - **Organization account:** Those accounts are manually created and are identified by a handle that's defined by the developer. Organizations allow inviting other members to collaborate on projects.
 
-If you are familiar with [GitHub](https://github.com), the concept is similar to theirs, where you can have personal and organization accounts, and they are identified by a *handle* that's used when constructing URLs.
+If you are familiar with [GitHub](https://github.com), the concept is similar to theirs, where you can have personal and organization accounts, and they are identified by a _handle_ that's used when constructing URLs.
 
 > [!NOTE] CLI-FIRST
 > Most operations to manage accounts and projects are done through the CLI. We are working on a web interface that will make it easier to manage accounts and projects.
 
 You can manage the organization through the subcommands under <LocalizedLink href="/cli/organization">`tuist organization`</LocalizedLink>.
 
-## Projects
+<h2 id="projects">Projects</h2>
 
 Your projects, either Tuist's or raw Xcode's, need to be integrated with your account through a remote project. Continuing with the comparison with GitHub, it's like having a local and a remote repository where you push your changes. You can use the <LocalizedLink href="/cli/project">`tuist project`</LocalizedLink> to create and manage projects.
 

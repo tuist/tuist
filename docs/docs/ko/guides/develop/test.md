@@ -1,10 +1,10 @@
 ---
 title: tuist test
-titleTemplate: ":title | Develop | Tuist"
+titleTemplate: :title | Develop | Tuist
 description: Learn how to run tests efficiently with Tuist.
 ---
 
-# Test
+<h1 id="test">Test</h1>
 
 Tuist provides a command, <LocalizedLink href="/cli/test">`tuist test`</LocalizedLink> to generate the project if needed, and then run the tests with the the platform-specific build tool (e.g. `xcodebuild` for Apple platforms).
 
@@ -16,14 +16,16 @@ You might wonder what's the value of using <LocalizedLink href="/cli/test">`tuis
 - <LocalizedLink href="/guides/develop/test/smart-runner"><bold>Smart runner:</bold></LocalizedLink> It runs only the tests that need to be run, saving time and resources.
 - <LocalizedLink href="/guides/develop/test/flakiness"><bold>Flakiness:</bold></LocalizedLink> Prevent, detect, and fix flaky tests.
 
-## Usage
+<h2 id="usage">Usage</h2>
 
 To run the tests of a project, you can use the `tuist test` command. This command will generate the project if needed, and then run the tests using the platform-specific build tool. We support the use of the `--` terminator to forward all subsequent arguments directly to the build tool.
 
 ::: code-group
+
 ```bash [Running scheme tests]
 tuist test MyScheme
 ```
+
 ```bash [Running all tests without binary cache]
 tuist test --no-binary-cache
 ```
@@ -31,13 +33,14 @@ tuist test --no-binary-cache
 ```bash [Running all tests without selective testing]
 tuist test --no-selective-testing
 ```
+
 :::
 
-## Pull/merge request comments
+<h2 id="pullmerge-request-comments">Pull/merge request comments</h2>
 
 > [!IMPORTANT] REQUIREMENTS
 > To get automatic pull/merge request comments, integrate your <LocalizedLink href="/server/introduction/accounts-and-projects#projects">remote project</LocalizedLink> with a <LocalizedLink href="/server/introduction/integrations#git-platforms">Git platform</LocalizedLink>.
 
 When running tests in your CI environments we can correlate the test results with the pull/merge request that triggered the CI build. This allows us to post a comment on the pull/merge request with the test results.
 
-!<LocalizedLink href="/contributors/scheme-arguments.png">GitHub App example</LocalizedLink>
+![GitHub App example](/images/contributors/scheme-arguments.png)

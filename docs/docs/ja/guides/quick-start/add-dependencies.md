@@ -3,7 +3,7 @@ title: Add dependencies
 description: Learn how to add dependencies to your first Swift project
 ---
 
-# Add dependencies
+<h1 id="add-dependencies">Add dependencies</h1>
 
 It's common for projects to depend on third-party libraries to provide additional functionality. To do so, run the following command to have the best experience editing your project:
 
@@ -82,7 +82,7 @@ Then run `tuist install` to resolve and pull the dependencies using the [Swift P
 > [!NOTE] SPM AS A DEPENDENCY RESOLVER
 > Tuist recommended approach to dependencies uses the Swift Package Manager (SPM) only to resolve dependencies. Tuist then converts them into Xcode projects and targets for maximum configurability and control.
 
-## Visualize the project
+<h2 id="visualize-the-project">Visualize the project</h2>
 
 You can visualize the project structure by running:
 
@@ -92,9 +92,9 @@ tuist graph
 
 The command will output and open a `graph.png` file in the project's directory:
 
-!<LocalizedLink href="/guides/quick-start/graph.png">Project graph</LocalizedLink>
+![Project graph](/images/guides/quick-start/graph.png)
 
-## Use the dependency
+<h2 id="use-the-dependency">Use the dependency</h2>
 
 Run `tuist generate` to open the project in Xcode, and make the following changes to the `ContentView.swift` file:
 

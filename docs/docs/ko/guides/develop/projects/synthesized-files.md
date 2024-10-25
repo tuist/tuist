@@ -1,14 +1,14 @@
 ---
 title: Synthesized files
-titleTemplate: ":title | Projects | Tuist"
+titleTemplate: :title | Projects | Tuist
 description: Learn about synthesized files in Tuist projects.
 ---
 
-# Synthesized files
+<h1 id="synthesized-files">Synthesized files</h1>
 
 Tuist can generate files and code at generation-time to bring some convenience to managing and working with Xcode projects. In this page you'll learn about this functionality, and how you can use it in your projects.
 
-## Target resources
+<h2 id="target-resources">Target resources</h2>
 
 Xcode projects support adding resources to targets. However, they present teams with a few challenges, specially when working with a modular project where sources and resources are often moved around:
 
@@ -18,10 +18,10 @@ Xcode projects support adding resources to targets. However, they present teams 
 
 Tuist solves the problems above by **synthesizing a unified interface to access bundles and resources** that abstracts away the implementation details.
 
-> [!IMPORTANT] RECOMMENDED 
+> [!IMPORTANT] RECOMMENDED
 > Even though accessing resources through the Tuist-synthesized interface is not mandatory, we recommend it because it makes the code easier to reason about and the resources to move around.
 
-## Resources
+<h2 id="resources">Resources</h2>
 
 Tuist provides interfaces to declare the content of files such as `Info.plist` or entitlements in Swift.
 This is useful to ensure consistency across targets and projects,
@@ -34,11 +34,11 @@ Tuist will synthesize the content of those files and write them into the `Derive
 > [!TIP] GITIGNORE THE DERIVED DIRECTORY
 > We recommend adding the `Derived` directory to the `.gitignore` file of your project.
 
-## Bundle accessors
+<h2 id="bundle-accessors">Bundle accessors</h2>
 
 Tuist synthesizes an interface to access the bundle that contains the target resources.
 
-### Swift
+<h3 id="swift">Swift</h3>
 
 The target will contain an extension of the `Bundle` type that exposes the bundle:
 
@@ -46,7 +46,7 @@ The target will contain an extension of the `Bundle` type that exposes the bundl
 let bundle = Bundle.module
 ```
 
-### Objective-C
+<h3 id="objectivec">Objective-C</h3>
 
 In Objective-C, you'll get an interface `{Target}Resources` to access the bundle:
 
@@ -57,40 +57,40 @@ NSBundle *bundle = [MyFeatureResources bundle];
 > [!TIP] SUPPORTING RESOURCES IN LIBRARIES THROUGH BUNDLES
 > If a target product, for example a library, doesn't support resources, Tuist will include the resources in a target of product type `bundle` ensuring that it ends up in the final product and that the interface points to the right bundle.
 
-## Resource accessors
+<h2 id="resource-accessors">Resource accessors</h2>
 
 Resources are identified by their name and extension using strings. This is not ideal because it's not caught at compile time and might lead to crashes in release. To prevent that, Tuist integrates [SwiftGen](https://github.com/SwiftGen/SwiftGen) into the project generation process to synthesize an interface to access the resources. Thanks to that, you can confidently access the resources leveraging the compiler to catch any issues.
 
 Tuist includes [templates](https://github.com/tuist/tuist/tree/main/Sources/TuistGenerator/Templates) to synthesize accessors for the following resource types by default:
 
-| Resource type | Synthesized file |
-| --- | ---- |
-| Images and colors | `Assets+{Target}.swift` |
-| Strings | `Strings+{Target}.swift` |
-| Plists | `{NameOfPlist}.swift` |
-| Fonts | `Fonts+{Target}.swift` |
-| Files | `Files+{Target}.swift` |
+| Resource type     | Synthesized file         |
+| ----------------- | ------------------------ |
+| Images and colors | `Assets+{Target}.swift`  |
+| Strings           | `Strings+{Target}.swift` |
+| Plists            | `{NameOfPlist}.swift`    |
+| Fonts             | `Fonts+{Target}.swift`   |
+| Files             | `Files+{Target}.swift`   |
 
 > Note: You can disable the synthesizing of resource accessors on a per-project basis by passing the `disableSynthesizedResourceAccessors` option to the project options.
 
-#### Custom templates
+<h4 id="custom-templates">Custom templates</h4>
 
 If you want to provide your own templates to synthesize accessors to other resource types,
 which must be supported by [SwiftGen](https://github.com/SwiftGen/SwiftGen),
 you can create them at `Tuist/ResourceSynthesizers/{name}.stencil`,
 where the name is the camel-case version of the resource.
 
-| Resource | Template name |
-| --- | --- |
-| strings | `Strings.stencil` |
-| assets | `Assets.stencil` |
-| plists | `Plists.stencil` |
-| fonts | `Fonts.stencil` |
-| coreData | `CoreData.stencil` |
+| Resource         | Template name              |
+| ---------------- | -------------------------- |
+| strings          | `Strings.stencil`          |
+| assets           | `Assets.stencil`           |
+| plists           | `Plists.stencil`           |
+| fonts            | `Fonts.stencil`            |
+| coreData         | `CoreData.stencil`         |
 | interfaceBuilder | `InterfaceBuilder.stencil` |
-| json | `JSON.stencil` |
-| yaml | `YAML.stencil` |
-| files | `Files.stencil` |
+| json             | `JSON.stencil`             |
+| yaml             | `YAML.stencil`             |
+| files            | `Files.stencil`            |
 
 If you want to configure the list of resource types to synthesize accessors for,
 you can use the `Project.resourceSynthesizers` property passing the list of resource synthesizers you want to use:
@@ -99,5 +99,5 @@ you can use the `Project.resourceSynthesizers` property passing the list of reso
 let project = Project(resourceSynthesizers: [.string(), .fonts()])
 ```
 
-> [!NOTE] REFERENCE 
+> [!NOTE] REFERENCE
 > You can check out [this fixture](https://github.com/tuist/tuist/tree/main/fixtures/ios_app_with_templates) to see an example of how to use custom templates to synthesize accessors to resources.
