@@ -4,7 +4,7 @@ titleTemplate: :title | Develop | Tuist
 description: Learn how to run tests efficiently with Tuist.
 ---
 
-<h1 id="test">Test</h1>
+# Test {#test}
 
 Tuist provides a command, <LocalizedLink href="/cli/test">`tuist test`</LocalizedLink> to generate the project if needed, and then run the tests with the the platform-specific build tool (e.g. `xcodebuild` for Apple platforms).
 
@@ -16,7 +16,7 @@ You might wonder what's the value of using <LocalizedLink href="/cli/test">`tuis
 - <LocalizedLink href="/guides/develop/test/smart-runner"><bold>Smart runner:</bold></LocalizedLink> It runs only the tests that need to be run, saving time and resources.
 - <LocalizedLink href="/guides/develop/test/flakiness"><bold>Flakiness:</bold></LocalizedLink> Prevent, detect, and fix flaky tests.
 
-<h2 id="usage">Usage</h2>
+## Usage {#usage}
 
 To run the tests of a project, you can use the `tuist test` command. This command will generate the project if needed, and then run the tests using the platform-specific build tool. We support the use of the `--` terminator to forward all subsequent arguments directly to the build tool.
 
@@ -36,7 +36,7 @@ tuist test --no-selective-testing
 
 :::
 
-<h2 id="pullmerge-request-comments">Pull/merge request comments</h2>
+## Pull/merge request comments {#pullmerge-request-comments}
 
 > [!IMPORTANT] REQUIREMENTS
 > To get automatic pull/merge request comments, integrate your <LocalizedLink href="/server/introduction/accounts-and-projects">remote project</LocalizedLink> with a <LocalizedLink href="/server/introduction/integrations#git-platforms">Git platform</LocalizedLink>.

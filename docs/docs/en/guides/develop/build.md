@@ -4,7 +4,7 @@ titleTemplate: ":title | Develop | Tuist"
 description: Learn how to use Tuist to build your projects efficiently.
 ---
 
-<h1 id="build">Build</h1>
+# Build {#build}
 
 Projects are usually built through a build-system-provided CLI (e.g. `xcodebuild`). Tuist wraps them to improve the user experience and integrate the workflows with the platform to provide optimizations and analytics.
 
@@ -15,7 +15,7 @@ You might wonder what's the value of using `tuist build` over generating the pro
 - <LocalizedLink href="/guides/develop/build/cache"><bold>Cache:</bold></LocalizedLink> It optimizes the build by deterministically reusing the build artifacts from a remote cache.
 - **Analytics:** It collects and reports metrics that are correlated with other data points to provide you with actionable information to make informed decisions.
 
-<h2 id="usage">Usage</h2>
+## Usage {#usage}
 
 `tuist build` generates the project if needed, and then build it using the platform-specific build tool. We support the use of the `--` terminator to forward all subsequent arguments directly to the underlying build tool. This is useful when you need to pass arguments that are not supported by `tuist build` but are supported by the underlying build tool.
 

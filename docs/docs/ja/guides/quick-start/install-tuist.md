@@ -3,11 +3,11 @@ title: Tuistのインストール
 description: 開発環境にTuistをインストールする方法を学びます
 ---
 
-<h1 id="install-tuist">Tuistのインストール</h1>
+# Tuistのインストール {#install-tuist}
 
 Tuist CLIは、実行可能ファイル、動的フレームワーク、およびリソースのセット (たとえば、テンプレート) で構成されています。 [ソース](https://github.com/tuist/tuist)からTuistを手動でビルドすることもできますが、**有効なインストールを確保するために、以下のインストール方法のいずれかを使用することをお勧めします。**
 
-<h3 id="recommended-mise">推奨: [mise](https://github.com/jdx/mise)</h3>
+### 推奨: [mise](https://github.com/jdx/mise) {#recommended-mise}
 
 Tuistは、Tuistのバージョンを確実に管理およびアクティベートするツールとして、[mise](https://github.com/jdx/mise)をデフォルトにしています。
 システムにインストールされていない場合は、これらの[インストール方法](https://mise.jdx.dev/getting-started.html)のいずれかを使用できます。
@@ -34,7 +34,7 @@ mise use -g tuist@x.y.z       # tuist-x.y.zをグローバルデフォルトと�
 mise use -g tuist@system      # システムのtuistをグローバルデフォルトとして使用
 ```
 
-<h3 id="alternative-homebrew">代替: [Homebrew](https://brew.sh)</h3>
+### 代替: [Homebrew](https://brew.sh) {#alternative-homebrew}
 
 環境間でのバージョンの固定が問題でない場合は、[Homebrew](https://brew.sh)と[私たちのformula](https://github.com/tuist/homebrew-tuist)を使用してTuistをインストールできます。
 
@@ -44,7 +44,7 @@ brew install --formula tuist
 brew install --formula tuist@x.y.z
 ```
 
-<h3 id="shell-completions">シェルの補完</h3>
+### シェルの補完 {#shell-completions}
 
 Tuistを**グローバルにインストール**している場合、BashやZshのためのシェル補完をインストールしてコマンドやオプションを自動補完できます。
 
@@ -52,7 +52,7 @@ Tuistを**グローバルにインストール**している場合、BashやZsh�
 グローバルインストールは、シェルの `$PATH` 環境変数で利用可能なインストールです。 つまり、ターミナルの任意のディレクトリから `tuist` を実行できます。 This is the default installation method for Homebrew.
 :::
 
-<h4 id="zsh">Zsh</h4>
+#### Zsh {#zsh}
 
 [oh-my-zsh](https://ohmyz.sh/)がインストールされている場合、自動的に読み込まれる補完スクリプトのディレクトリ `.oh-my-zsh/completions` があります。 新しい補完スクリプトをそのディレクトリに `_tuist` という名前の新しいファイルとしてコピーします。
 
@@ -74,7 +74,7 @@ compinit
 tuist --generate-completion-script > ~/.zsh/completion/_tuist
 ```
 
-<h4 id="bash">Bash</h4>
+#### Bash {#bash}
 
 [bash-completion](https://github.com/scop/bash-completion)がインストールされている場合、新しい補完スクリプトをファイル `/usr/local/etc/bash_completion.d/_tuist` にコピーするだけで済みます。
 

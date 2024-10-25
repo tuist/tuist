@@ -4,15 +4,15 @@ titleTemplate: :title | Develop | Tuist
 description: Learn how to use Tuist in your CI workflows.
 ---
 
-<h1 id="continuous-integration-ci">Continuous Integration (CI)</h1>
+# Continuous Integration (CI) {#continuous-integration-ci}
 
 You can use Tuist in [continuous integration](https://en.wikipedia.org/wiki/Continuous_integration) environments. The following sections provide examples of how to do this on different CI platforms.
 
-<h2 id="examples">Examples</h2>
+## Examples {#examples}
 
 To run Tuist commands in your CI workflows, you’ll need to install it in your CI environment.
 
-<h3 id="xcode-cloud">Xcode Cloud</h3>
+### Xcode Cloud {#xcode-cloud}
 
 In [Xcode Cloud](https://developer.apple.com/xcode-cloud/), which uses Xcode projects as the source of truth, you'll need to add a [post-clone](https://developer.apple.com/documentation/xcode/writing-custom-build-scripts#Create-a-custom-build-script) script to install Tuist and run the commands you need, for example `tuist generate`:
 
@@ -23,7 +23,7 @@ In [Xcode Cloud](https://developer.apple.com/xcode-cloud/), which uses Xcode pro
 curl https://mise.jdx.dev/install.sh | sh
 mise install # Installs the version from .mise.toml
 
-<h1 id="runs-the-version-of-tuist-indicated-in-the-misetoml-file">Runs the version of Tuist indicated in the .mise.toml file</h1>
+# Runs the version of Tuist indicated in the .mise.toml file {#runs-the-version-of-tuist-indicated-in-the-misetoml-file}
 mise x tuist generate
 ```
 
@@ -36,7 +36,7 @@ tuist generate
 
 :::
 
-<h3 id="codemagic">Codemagic</h3>
+### Codemagic {#codemagic}
 
 In [Codemagic](https://codemagic.io), you can add an additional step to your workflow to install Tuist:
 
@@ -75,7 +75,7 @@ workflows:
 
 :::
 
-<h3 id="github-actions">GitHub Actions</h3>
+### GitHub Actions {#github-actions}
 
 On [GitHub Actions](https://docs.github.com/actions) you can an additional step to install Tuist, and in the case of managing the installation of Mise, you can use the [mise-action](https://github.com/jdx/mise-action), which abstracts the installation of Mise and Tuist:
 
@@ -123,7 +123,7 @@ jobs:
 We recommend using `mise use --pin` in your Tuist projects to pin the version of Tuist across environments. The command will create a `.tool-versions` file containing the version of Tuist.
 :::
 
-<h2 id="authentication">Authentication</h2>
+## Authentication {#authentication}
 
 When using server-side features such as <LocalizedLink href="/guides/develop/build/cache">cache</LocalizedLink>, you'll need a way to authenticate requests going from your CI workflows to the server. For that, you can generate a project-scoped token by running the following command:
 
