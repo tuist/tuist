@@ -3,7 +3,7 @@ title: Smart test runner
 description: Use smart test selection to run only the tests that need to be run.
 ---
 
-<h1 id="smart-test-runner">Smart test runner</h1>
+# Smart test runner {#smart-test-runner}
 
 > [!IMPORTANT] REMOTE PROJECT REQUIRED
 > This feature requires a <LocalizedLink href="/server/introduction/accounts-and-projects#projects">remote project</LocalizedLink>.
@@ -12,7 +12,7 @@ As your project grows, so does the amount of your tests. For a long time, runnin
 
 On every test run on the CI, you probably build a project with cleaned derived data and re-run all the tests, regardless of the changes. `tuist test` helps you to drastically decrease the build time and then running the tests themselves.
 
-<h2 id="running-tests-selectively">Running tests selectively</h2>
+## Running tests selectively {#running-tests-selectively}
 
 To run tests selectively, use the `tuist test` command. The command hashes your project the same way it does for <LocalizedLink href="/guides/develop/build/cache#cache-warming">warming the cache</LocalizedLink>, and on success, it persists the hashes on to determine what has changed in future runs.
 
