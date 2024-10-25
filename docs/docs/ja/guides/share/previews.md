@@ -3,7 +3,7 @@ title: Previews
 description: Learn how to generate and share previews of your apps with anyone.
 ---
 
-<h1 id="previews">Previews</h1>
+# Previews {#previews}
 
 > [!IMPORTANT] XCODEPROJ-COMPATIBLE
 > This feature is compatible with raw Xcode projects.
@@ -50,7 +50,7 @@ The links to `.ipa` previews are by default _public_. In the future, you will ha
 > [!IMPORTANT] PREVIEWS' VISIBILITY
 > Only people with access to the organization the project belongs to can access the previews. We plan to add support for expiring links.
 
-<h2 id="tuist-macos-app">Tuist macOS app</h2>
+## Tuist macOS app {#tuist-macos-app}
 
 <div style="display: flex; flex-direction: column; align-items: center;">
     <img src="/public/logo.png" style="height: 100px;" />
@@ -65,7 +65,7 @@ To make running Tuist Previews even easier, we developed a Tuist macOS menu bar 
 >
 > Additionally, you need to have Xcode locally installed.
 
-<h2 id="pullmerge-request-comments">Pull/merge request comments</h2>
+## Pull/merge request comments {#pullmerge-request-comments}
 
 > [!IMPORTANT] INTEGRATION WITH GIT PLATFORM REQUIRED
 > To get automatic pull/merge request comments, integrate your <LocalizedLink href="/server/introduction/accounts-and-projects">remote project</LocalizedLink> with a <LocalizedLink href="/server/introduction/integrations#git-platforms">Git platform</LocalizedLink>.
@@ -75,7 +75,7 @@ Testing new functionality should be a part of any code review. But having to bui
 Once your Tuist project is connected with your Git platform such as [GitHub](https://github.com), add a <LocalizedLink href="/cli/share">`tuist share MyApp`</LocalizedLink> to your CI workflow. Tuist will then post a Preview link directly in your pull requests:
 ![GitHub app comment with a Tuist Preview link](/images/guides/share/github-app-with-preview.png)
 
-<h2 id="automations">Automations</h2>
+## Automations {#automations}
 
 You can use the `--json` flag to get a JSON output from the `tuist share` command:
 
