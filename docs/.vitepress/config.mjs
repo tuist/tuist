@@ -25,6 +25,123 @@ async function themeConfig(locale) {
   };
 }
 
+function getSearchOptionsForLocale(locale) {
+  return {
+    placeholder: localizedString(locale, "search.placeholder"),
+    translations: {
+      button: {
+        buttonText: localizedString(
+          locale,
+          "search.translations.button.buttonText"
+        ),
+        buttonAriaLabel: localizedString(
+          locale,
+          "search.translations.button.buttonAriaLabel"
+        ),
+      },
+      modal: {
+        searchBox: {
+          resetButtonTitle: localizedString(
+            locale,
+            "search.translations.modal.search-box.reset-button-title"
+          ),
+          resetButtonAriaLabel: localizedString(
+            locale,
+            "search.translations.modal.search-box.reset-button-aria-label"
+          ),
+          cancelButtonText: localizedString(
+            locale,
+            "search.translations.modal.search-box.cancel-button-text"
+          ),
+          cancelButtonAriaLabel: localizedString(
+            locale,
+            "search.translations.modal.search-box.cancel-button-aria-label"
+          ),
+        },
+        startScreen: {
+          recentSearchesTitle: localizedString(
+            locale,
+            "search.translations.modal.start-screen.recent-searches-title"
+          ),
+          noRecentSearchesText: localizedString(
+            locale,
+            "search.translations.modal.start-screen.no-recent-searches-text"
+          ),
+          saveRecentSearchButtonTitle: localizedString(
+            locale,
+            "search.translations.modal.start-screen.save-recent-search-button-title"
+          ),
+          removeRecentSearchButtonTitle: localizedString(
+            locale,
+            "search.translations.modal.start-screen.remove-recent-search-button-title"
+          ),
+          favoriteSearchesTitle: localizedString(
+            locale,
+            "search.translations.modal.start-screen.favorite-searches-title"
+          ),
+          removeFavoriteSearchButtonTitle: localizedString(
+            locale,
+            "search.translations.modal.start-screen.remove-favorite-search-button-title"
+          ),
+        },
+        errorScreen: {
+          titleText: localizedString(
+            locale,
+            "search.translations.modal.error-screen.title-text"
+          ),
+          helpText: localizedString(
+            locale,
+            "search.translations.modal.error-screen.help-text"
+          ),
+        },
+        footer: {
+          selectText: localizedString(
+            locale,
+            "search.translations.modal.footer.select-text"
+          ),
+          navigateText: localizedString(
+            locale,
+            "search.translations.modal.footer.navigate-text"
+          ),
+          closeText: localizedString(
+            locale,
+            "search.translations.modal.footer.close-text"
+          ),
+          searchByText: localizedString(
+            locale,
+            "search.translations.modal.footer.search-by-text"
+          ),
+        },
+        noResultsScreen: {
+          noResultsText: localizedString(
+            locale,
+            "search.translations.modal.no-results-screen.no-results-text"
+          ),
+          suggestedQueryText: localizedString(
+            locale,
+            "search.translations.modal.no-results-screen.suggested-query-text"
+          ),
+          reportMissingResultsText: localizedString(
+            locale,
+            "search.translations.modal.no-results-screen.report-missing-results-text"
+          ),
+          reportMissingResultsLinkText: localizedString(
+            locale,
+            "search.translations.modal.no-results-screen.report-missing-results-link-text"
+          ),
+        },
+      },
+    },
+  };
+}
+
+const searchOptionsLocales = {
+  en: getSearchOptionsForLocale("en"),
+  ko: getSearchOptionsForLocale("ko"),
+  ja: getSearchOptionsForLocale("ja"),
+  ru: getSearchOptionsForLocale("ru"),
+};
+
 export default defineConfig({
   title: "Tuist",
   titleTemplate: ":title | Tuist",
@@ -154,7 +271,111 @@ ${await fs.readFile(path.join(import.meta.dirname, "locale-redirects.txt"), {
   themeConfig: {
     logo: "/logo.png",
     search: {
-      provider: "local",
+      provider: "algolia",
+      options: {
+        appId: "PVYGCQETR0",
+        apiKey: "1ece3d6b6dd4f24481dc4052900eb1a0",
+        indexName: "tuist",
+        locales: searchOptionsLocales,
+        rateLimit: 8,
+        startUrls: ["https://docs.tuist.io/"],
+        renderJavaScript: false,
+        sitemaps: [],
+        exclusionPatterns: [],
+        ignoreCanonicalTo: false,
+        discoveryPatterns: ["https://docs.tuist.io/**"],
+        schedule: "at 05:10 on Saturday",
+        actions: [
+          {
+            indexName: "tuist",
+            pathsToMatch: ["https://docs.tuist.io/**"],
+            recordExtractor: ({ $, helpers }) => {
+              return helpers.docsearch({
+                recordProps: {
+                  lvl1: ".content h1",
+                  content: ".content p, .content li",
+                  lvl0: {
+                    selectors: "section.has-active div h2",
+                    defaultValue: "Documentation",
+                  },
+                  lvl2: ".content h2",
+                  lvl3: ".content h3",
+                  lvl4: ".content h4",
+                  lvl5: ".content h5",
+                },
+                indexHeadings: true,
+              });
+            },
+          },
+        ],
+        initialIndexSettings: {
+          tuist: {
+            attributesForFaceting: ["type", "lang"],
+            attributesToRetrieve: ["hierarchy", "content", "anchor", "url"],
+            attributesToHighlight: ["hierarchy", "hierarchy_camel", "content"],
+            attributesToSnippet: ["content:10"],
+            camelCaseAttributes: ["hierarchy", "hierarchy_radio", "content"],
+            searchableAttributes: [
+              "unordered(hierarchy_radio_camel.lvl0)",
+              "unordered(hierarchy_radio.lvl0)",
+              "unordered(hierarchy_radio_camel.lvl1)",
+              "unordered(hierarchy_radio.lvl1)",
+              "unordered(hierarchy_radio_camel.lvl2)",
+              "unordered(hierarchy_radio.lvl2)",
+              "unordered(hierarchy_radio_camel.lvl3)",
+              "unordered(hierarchy_radio.lvl3)",
+              "unordered(hierarchy_radio_camel.lvl4)",
+              "unordered(hierarchy_radio.lvl4)",
+              "unordered(hierarchy_radio_camel.lvl5)",
+              "unordered(hierarchy_radio.lvl5)",
+              "unordered(hierarchy_radio_camel.lvl6)",
+              "unordered(hierarchy_radio.lvl6)",
+              "unordered(hierarchy_camel.lvl0)",
+              "unordered(hierarchy.lvl0)",
+              "unordered(hierarchy_camel.lvl1)",
+              "unordered(hierarchy.lvl1)",
+              "unordered(hierarchy_camel.lvl2)",
+              "unordered(hierarchy.lvl2)",
+              "unordered(hierarchy_camel.lvl3)",
+              "unordered(hierarchy.lvl3)",
+              "unordered(hierarchy_camel.lvl4)",
+              "unordered(hierarchy.lvl4)",
+              "unordered(hierarchy_camel.lvl5)",
+              "unordered(hierarchy.lvl5)",
+              "unordered(hierarchy_camel.lvl6)",
+              "unordered(hierarchy.lvl6)",
+              "content",
+            ],
+            distinct: true,
+            attributeForDistinct: "url",
+            customRanking: [
+              "desc(weight.pageRank)",
+              "desc(weight.level)",
+              "asc(weight.position)",
+            ],
+            ranking: [
+              "words",
+              "filters",
+              "typo",
+              "attribute",
+              "proximity",
+              "exact",
+              "custom",
+            ],
+            highlightPreTag:
+              '<span class="algolia-docsearch-suggestion--highlight">',
+            highlightPostTag: "</span>",
+            minWordSizefor1Typo: 3,
+            minWordSizefor2Typos: 7,
+            allowTyposOnNumericTokens: false,
+            minProximity: 1,
+            ignorePlurals: true,
+            advancedSyntax: true,
+            attributeCriteriaComputedByMinProximity: true,
+            removeWordsIfNoResults: "allOptional",
+          },
+        },
+      },
     },
     editLink: {
       pattern: "https://github.com/tuist/tuist/edit/main/docs/docs/:path",
