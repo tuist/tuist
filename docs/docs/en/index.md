@@ -11,8 +11,7 @@ In the world of app development, particularly for platforms like Apple's, organi
 
 Tuist is comprised of **a [CLI](https://github.com/tuist/tuist)**, which is the main entry point for developers, and a server that the CLI integrates with to persist state and integrate with other publicly available services. Note that the features that require with the server might require a subscription.
 
-
-<h2 id="why-would-i-use-tuist">Why would I use Tuist?</h2>
+## Why would I use Tuist? {#why-would-i-use-tuisttt}
 
 Why choose Tuist? Here are compelling reasons:
 
