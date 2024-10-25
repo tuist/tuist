@@ -97,7 +97,10 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
                                 ),
                             ]
                         ),
-                        linking: .static
+                        linking: .static,
+                        moduleMaps: [
+                            googleMapsHeadersPath.appending(component: "module.modulemap"),
+                        ]
                     ),
                 ],
             ]
@@ -215,7 +218,10 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
                                 ),
                             ]
                         ),
-                        linking: .static
+                        linking: .static,
+                        moduleMaps: [
+                            googleMapsHeadersPath.appending(component: "module.modulemap"),
+                        ]
                     ),
                 ],
             ]
@@ -311,7 +317,10 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
                                 ),
                             ]
                         ),
-                        linking: .static
+                        linking: .static,
+                        moduleMaps: [
+                            googleMapsHeadersPath.appending(component: "module.modulemap"),
+                        ]
                     ),
                 ],
             ]
@@ -436,7 +445,10 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
                                 ),
                             ]
                         ),
-                        linking: .static
+                        linking: .static,
+                        moduleMaps: [
+                            googleMapsHeadersPath.appending(component: "module.modulemap"),
+                        ]
                     ),
                 ],
             ]

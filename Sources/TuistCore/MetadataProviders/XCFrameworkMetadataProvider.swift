@@ -102,7 +102,9 @@ public final class XCFrameworkMetadataProvider: PrecompiledMetadataProvider,
             linking: linking,
             mergeable: infoPlist.libraries.allSatisfy(\.mergeable),
             status: status,
-            macroPath: try await macroPath(xcframeworkPath: path)
+            macroPath: try await macroPath(xcframeworkPath: path),
+            swiftModules: try await fileSystem.glob(directory: path, include: ["**/*.swiftmodule"]).collect().sorted(),
+            moduleMaps: try await fileSystem.glob(directory: path, include: ["**/*.modulemap"]).collect().sorted()
         )
     }
 
