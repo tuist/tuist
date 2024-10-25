@@ -10,7 +10,7 @@ import XCTest
 @testable import TuistLoaderTesting
 @testable import TuistSupportTesting
 
-class ManifestModelConverterTests: TuistUnitTestCase {
+final class ManifestModelConverterTests: TuistUnitTestCase {
     typealias WorkspaceManifest = ProjectDescription.Workspace
     typealias ProjectManifest = ProjectDescription.Project
     typealias TargetManifest = ProjectDescription.Target

@@ -122,7 +122,8 @@ struct ShareService {
         apps: [String],
         configuration: String?,
         platforms: [Platform],
-        derivedDataPath: String?
+        derivedDataPath: String?,
+        json: Bool
     ) async throws {
         let path = try self.path(path)
 
@@ -148,20 +149,25 @@ struct ShareService {
             try await shareIPA(
                 appPaths,
                 fullHandle: fullHandle,
-                serverURL: serverURL
+                serverURL: serverURL,
+                json: json
             )
         } else if appPaths.contains(where: { $0.extension == "app" }) {
             try await shareAppBundles(
                 appPaths,
                 fullHandle: fullHandle,
-                serverURL: serverURL
+                serverURL: serverURL,
+                json: json
             )
         } else if try await manifestLoader.hasRootManifest(at: path) {
             guard apps.count < 2 else { throw ShareServiceError.multipleAppsSpecified(apps) }
 
             let (graph, _, _, _) = try await manifestGraphLoader.load(path: path)
             let graphTraverser = GraphTraverser(graph: graph)
-            let appTargets = graphTraverser.targets(product: .app)
+            let shareableTargets = graphTraverser
+                .targets(product: .app)
+                .union(graphTraverser.targets(product: .appClip))
+                .union(graphTraverser.targets(product: .watch2App))
                 .map { $0 }
                 .filter {
                     if let app = apps.first {
@@ -172,7 +178,7 @@ struct ShareService {
                 }
             let appTarget: GraphTarget = try userInputReader.readValue(
                 asking: "Select the app that you want to share:",
-                values: appTargets.sorted(by: { $0.target.name < $1.target.name }),
+                values: shareableTargets.sorted(by: { $0.target.name < $1.target.name }),
                 valueDescription: \.target.name
             )
 
@@ -191,7 +197,8 @@ struct ShareService {
                 app: appTarget.target.productName,
                 derivedDataPath: derivedDataPath,
                 fullHandle: fullHandle,
-                serverURL: serverURL
+                serverURL: serverURL,
+                json: json
             )
         } else {
             guard !apps.isEmpty else { throw ShareServiceError.appNotSpecified }
@@ -200,8 +207,9 @@ struct ShareService {
 
             let configuration = configuration ?? BuildConfiguration.debug.name
 
-            guard let workspaceOrProjectPath = fileHandler.glob(path, glob: "*.xcworkspace").first ?? fileHandler
-                .glob(path, glob: "*.xcodeproj").first
+            let workspace = try await fileSystem.glob(directory: path, include: ["*.xcworkspace"]).collect().first
+            let project = try await fileSystem.glob(directory: path, include: ["*.xcodeproj"]).collect().first
+            guard let workspaceOrProjectPath = workspace ?? project
             else {
                 throw ShareServiceError.projectOrWorkspaceNotFound(path: path.pathString)
             }
@@ -213,7 +221,8 @@ struct ShareService {
                 app: app,
                 derivedDataPath: derivedDataPath,
                 fullHandle: fullHandle,
-                serverURL: serverURL
+                serverURL: serverURL,
+                json: json
             )
         }
     }
@@ -231,7 +240,8 @@ struct ShareService {
     private func shareIPA(
         _ appPaths: [AbsolutePath],
         fullHandle: String,
-        serverURL: URL
+        serverURL: URL,
+        json: Bool
     ) async throws {
         guard appPaths.count == 1,
               let ipaPath = appPaths.first else { throw ShareServiceError.multipleAppsSpecified(appPaths.map(\.pathString)) }
@@ -247,14 +257,16 @@ struct ShareService {
             version: appBundle.infoPlist.version.description,
             bundleIdentifier: appBundle.infoPlist.bundleId,
             fullHandle: fullHandle,
-            serverURL: serverURL
+            serverURL: serverURL,
+            json: json
         )
     }
 
     private func shareAppBundles(
         _ appPaths: [AbsolutePath],
         fullHandle: String,
-        serverURL: URL
+        serverURL: URL,
+        json: Bool
     ) async throws {
         let appBundles = try await appPaths.concurrentMap {
             try await appBundleLoader.load($0)
@@ -272,7 +284,8 @@ struct ShareService {
             version: appBundles.map(\.infoPlist.version.description).first,
             bundleIdentifier: appBundles.map(\.infoPlist.bundleId).first,
             fullHandle: fullHandle,
-            serverURL: serverURL
+            serverURL: serverURL,
+            json: json
         )
     }
 
@@ -312,7 +325,8 @@ struct ShareService {
         app: String,
         derivedDataPath: AbsolutePath?,
         fullHandle: String,
-        serverURL: URL
+        serverURL: URL,
+        json: Bool
     ) async throws {
         try await fileHandler.inTemporaryDirectory { temporaryPath in
             let appPaths = try await platforms
@@ -349,7 +363,8 @@ struct ShareService {
                 version: nil,
                 bundleIdentifier: nil,
                 fullHandle: fullHandle,
-                serverURL: serverURL
+                serverURL: serverURL,
+                json: json
             )
         }
     }
@@ -360,7 +375,8 @@ struct ShareService {
         version: String?,
         bundleIdentifier: String?,
         fullHandle: String,
-        serverURL: URL
+        serverURL: URL,
+        json: Bool
     ) async throws {
         logger.notice("Uploading \(displayName)...")
         let preview = try await previewsUploadService.uploadPreviews(
@@ -378,5 +394,15 @@ struct ShareService {
                 "preview_id": "\(preview.id)",
             ]
         )
+
+        if json {
+            let previewJSON = try preview.toJSON()
+            logger.info(
+                .init(
+                    stringLiteral: previewJSON.toString(prettyPrint: true)
+                ),
+                metadata: .json
+            )
+        }
     }
 }

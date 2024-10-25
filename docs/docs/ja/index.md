@@ -1,24 +1,24 @@
 ---
-title: What is Tuist?
-description: Extend your Apple native tooling to better apps at scale.
+title: Tuistとは？
+description: Apple の公式ツールを拡張し、大規模なアプリをより優れたものにします。
 ---
 
-# Tuist
+# Tuistについて {#tuist}
 
-In the world of app development, particularly for platforms like Apple's, organizations often encounter **productivity roadblocks.** These can include sluggish compilation times, unreliable tests, and intricate automation workflows that drain resources. Traditionally, companies address these issues by forming dedicated platform teams. These specialists maintain codebase health and integrity, freeing other developers to focus on feature creation. However, this approach can be expensive and risky, as the departure of key team members can severely impact productivity.
+アプリ開発の世界、特に Apple のようなプラットフォームでは、組織はしばしば **生産性の問題** に直面します。これには、遅いコンパイル時間、不確実なテスト、リソースを消耗する複雑な自動化ワークフローが含まれます。 従来、企業は専任のプラットフォームチームを結成してこれらの問題に対処しています。 これらの専門家はコードベースの健全性と整合性を維持し、他の開発者が機能の開発に集中できるようにします。 しかし、このアプローチは高コストでリスクが伴う可能性があり、重要な役割を担うチームメンバーの退職が生産性に深刻な影響を及ぼすことがあります。
 
-**Tuist is a toolchain designed to accelerate and enhance app development.** We integrate seamlessly with official tools and systems, meeting developers in familiar territory. By shouldering the burden of tool and system integration, we enable teams to channel their energy into feature development and improving the overall developer experience. In essence, Tuist serves as your virtual platform team. We're with you every step of the way - from the spark of an app idea to its user launch - tackling challenges as they arise.
+**Tuist は、アプリ開発を加速し、強化するために設計されたツールチェーンです。** 私たちは公式ツールやシステムとシームレスに統合し、開発者が馴染みのある環境で作業できるようサポートします。 ツールやシステムの統合の負担を軽減することで、チームが機能開発と全体的な開発者体験の向上にエネルギーを注げるようにします。 要するに、Tuistはあなたのプロジェクトを支えるチームのような役割を果たします。 アプリアイディアの閃きからユーザーへのリリースまで、私たちはあなたと共に歩み、発生する課題に取り組みます。
 
-Tuist is comprised of **a [CLI](https://github.com/tuist/tuist)**, which is the main entry point for developers, and a server that the CLI integrates with to persist state and integrate with other publicly available services. Note that the features that require with the server might require a subscription.
+Tuist は、開発者の主要な入り口である **[CLI](https://github.com/tuist/tuist)** と、CLI が状態を保持し、他の公開サービスと統合するためのサーバーで構成されています。 サーバーを必要とする機能は、サブスクリプションを必要とする場合がありますのでご注意ください。 サーバーを必要とする機能は、サブスクリプションを必要とする場合がありますのでご注意ください。 サーバーを必要とする機能は、サブスクリプションを必要とする場合がありますのでご注意ください。
 
-## Why would I use Tuist?
+## Tuistを使う理由は？ {#why-would-i-use-tuist}
 
-Why choose Tuist? Here are compelling reasons:
+なぜTuistを選択するのか？ その理由は以下の通りです： その理由は以下の通りです： その理由は以下の通りです：
 
-- **Simplify modularization:** As projects grow and span multiple platforms, modularization becomes crucial. Tuist streamlines this complexity, offering tools to optimize and better understand your project's structure.
-- **Optimize workflows:** Leveraging project information, Tuist enhances efficiency through selective test execution and deterministic binary reuse across builds.
-- **Foster healthy project evolution:** We provide insights into your project's dynamics and expert guidance for informed decision-making. This approach prevents the frustration and productivity loss associated with unhealthy projects, which can lead to developer attrition and missed business goals.
-- **Replace costly platform teams:** Instead of investing in expensive, potentially risky in-house platform teams, let Tuist be your virtual expert. We offer consistent support without the vulnerabilities of relying on key individuals.
-- **Break down silos:** Unlike platform-specific ecosystems (e.g., Xcode's contained environment), Tuist offers web-centric experiences and integrates seamlessly with popular tools like Slack, Prometheus, and GitHub, enhancing cross-tool collaboration.
+- **モジュール化を容易にする：** プロジェクトが成長し、複数のプラットフォームにまたがると、モジュール化が重要になります。 Tuistはこの複雑さを簡素化し、プロジェクトの構造を最適化し、よりよく理解するためのツールを提供します。 Tuistはこの複雑さを簡素化し、プロジェクトの構造を最適化し、よりよく理解するためのツールを提供します。
+- **ワークフローの最適化：** プロジェクト情報を活用し、Tuistは選択的なテスト実行とビルド間の決定論的なバイナリ再利用を通じて効率を向上させます。
+- **プロジェクトの健全な成長を促進する：** プロジェクトのダイナミクスに関する洞察と、情報に基づいた意思決定のための専門的なガイダンスを提供します。 このアプローチにより、開発者の離職やビジネスゴールの達成に失敗することに繋がる健全でないプロジェクトによるフラストレーションや生産性の低下を防ぎます。 このアプローチにより、開発者の離職やビジネスゴールの達成に失敗することに繋がる健全でないプロジェクトによるフラストレーションや生産性の低下を防ぎます。
+- **高コストなプラットフォーム専任チームの代替：** 高コストでリスクのある社内の専任チームに投資するのではなく、Tuistをあなたのバーチャル専門家として利用してください。 私たちは、属人化に伴うリスクを避けながら、安定したサポートを提供します。 私たちは、属人化に伴うリスクを避けながら、安定したサポートを提供します。 私たちは、属人化に伴うリスクを避けながら、安定したサポートを提供します。
+- **サイロの解消：** プラットフォーム特有のエコシステム (例：Xcodeの閉じられた環境) とは異なり、Tuistはウェブ中心の体験を提供し、Slack、Prometheus、GitHubなどの人気ツールとシームレスに統合され、クロスツールコラボレーションを強化します。
 
-If you want to know more about Tuist, the project, and the company, you can check out our [handbook](https://handbook.tuist.io/), which contains detailed information about our vision, values, and the team behind Tuist.
+Tuist やプロジェクト、会社情報について詳しく知りたい場合は、私たちの[ハンドブック](https://handbook.tuist.io/)をご覧ください。そこには、私たちのビジョンや価値、Tuist を支えるチームに関する詳細な情報が含まれています。

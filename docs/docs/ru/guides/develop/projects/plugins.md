@@ -4,14 +4,14 @@ titleTemplate: :title | Projects | Tuist
 description: Learn how to create and use plugins in Tuist to extend its functionality.
 ---
 
-# Plugins
+# Plugins {#plugins}
 
 Plugins are a tool to share and reuse Tuist artifacts across multiple projects. The following artifacts are supported:
 
-- [Project description helpers](/en/guides/develop/projects/code-sharing) across multiple projects.
-- [Templates](/en/guides/develop/projects/templates) across multiple projects.
+- <LocalizedLink href="/guides/develop/projects/code-sharing">Project description helpers</LocalizedLink> across multiple projects.
+- <LocalizedLink href="/guides/develop/projects/templates">Templates</LocalizedLink> across multiple projects.
 - Tasks across multiple projects.
-- [Resource accessor](/en/guides/develop/projects/synthesized-files) template across multiple projects
+- <LocalizedLink href="/guides/develop/projects/synthesized-files">Resource accessor</LocalizedLink> template across multiple projects
 
 Note that plugins are designed to be a simple way to extend Tuist's functionality. Therefore there are **some limitations to consider**:
 
@@ -24,9 +24,9 @@ If you need more flexibility, consider suggesting a feature for the tool or buil
 > [!WARNING] NON-ACTIVELY-MAINTAINED
 > Our plugin infrastructure is not actively maintained. We are looking for contributors to help us improve it. If you are interested, please reach out to us on [Slack](https://slack.tuist.io/).
 
-## Plugin types
+## Plugin types {#plugin-types}
 
-### Project description helper plugin
+### Project description helper plugin {#project-description-helper-plugin}
 
 A project description helper plugin is represented by a directory containing a `Plugin.swift` manifest file that declares the plugin's name and a `ProjectDescriptionHelpers` directory containing the helper Swift files.
 
@@ -48,9 +48,9 @@ let plugin = Plugin(name: "MyPlugin")
 
 :::
 
-### Resource accessor templates plugin
+### Resource accessor templates plugin {#resource-accessor-templates-plugin}
 
-If you need to share [synthesized resource accessors](/en/guides/develop/projects/synthesized-files#resource-accessors) you can use
+If you need to share <LocalizedLink href="/guides/develop/projects/synthesized-files#resource-accessors">synthesized resource accessors</LocalizedLink> you can use
 this type of plugin. The plugin is represented by a directory containing a `Plugin.swift` manifest file that declares the plugin's name and a `ResourceSynthesizers` directory containing the resource accessor template files.
 
 ::: code-group
@@ -93,7 +93,7 @@ When defining the resource synthesizers in the project, you can specify the plug
 let project = Project(resourceSynthesizers: [.strings(plugin: "MyPlugin")])
 ```
 
-### Task plugin <Badge type="warning" text="deprecated" />
+### Task plugin <Badge type="warning" text="deprecated" /> {#task-plugin-badge-typewarning-textdeprecated-}
 
 Tasks are `$PATH`-exposed executables that are invocable through the `tuist` command if they follow the naming convention `tuist-<task-name>`. In earlier versions, Tuist provided some weak conventions and tools under `tuist plugin` to `build`, `run`, `test` and `archive` tasks represented by executables in Swift Packages, but we have deprecated this feature since it increases the maintenance burden and complexity of the tool.
 
@@ -106,9 +106,9 @@ If you were using Tuist for distributing tasks, we recommend building your
 > [!NOTE] THE FUTURE OF PROJECTAUTOMATION
 > We plan to consolidate the models of `ProjectAutomation` and `XcodeGraph` into a single backward-compatible framework that exposes the entirity of the project graph to the user. Moreover, we'll extract the generation logic into a new layer, `XcodeGraph` that you can also use from your own CLI. Think of it as building your own Tuist.
 
-## Using plugins
+## Using plugins {#using-plugins}
 
-To use a plugin, you'll have to add it to your project's [`Config.swift`](/en/references/project-description/structs/config) manifest file:
+To use a plugin, you'll have to add it to your project's <LocalizedLink href="/references/project-description/structs/config">`Config.swift`</LocalizedLink> manifest file:
 
 ```swift
 import ProjectDescription

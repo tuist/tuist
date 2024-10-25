@@ -1,5 +1,5 @@
 {
-  "originHash" : "9f9f17753ffeb62659df2e3c669fde8d954af772133419d3373f285eb9cb97d6",
+  "originHash" : "c61cfec75c45792c9d872bcbc78ef9eee634bb861c2f4a5588e2b18e4ad83160",
   "pins" : [
     {
       "identity" : "aexml",
@@ -51,8 +51,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/FileSystem.git",
       "state" : {
-        "revision" : "ef64f03f4a9a7c554bd437d9a486e2b63f096901",
-        "version" : "0.4.0"
+        "revision" : "0cda08ddcb9c9ac8c83891d83f26387cc1104029",
+        "version" : "0.5.0"
       }
     },
     {
@@ -202,10 +202,10 @@
     {
       "identity" : "swift-glob",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/davbeck/swift-glob",
+      "location" : "https://github.com/tuist/swift-glob",
       "state" : {
-        "revision" : "f8d3495325bfd1a53f37ece5a244f28d1d857879",
-        "version" : "0.1.0"
+        "revision" : "a0bc22cc5e5113356d31540dbe66da0b653cd6d8",
+        "version" : "0.2.2"
       }
     },
     {
@@ -240,8 +240,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-nio",
       "state" : {
-        "revision" : "665206000b8307cab5ac51203d29b0f232d7e31b",
-        "version" : "2.74.0"
+        "revision" : "914081701062b11e3bb9e21accc379822621995e",
+        "version" : "2.76.1"
       }
     },
     {
@@ -276,8 +276,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-system.git",
       "state" : {
-        "revision" : "025bcb1165deab2e20d4eaba79967ce73013f496",
-        "version" : "1.2.1"
+        "revision" : "c8a44d836fe7913603e246acab7c528c2e780168",
+        "version" : "1.4.0"
       }
     },
     {
@@ -312,17 +312,17 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/XcodeGraph.git",
       "state" : {
-        "revision" : "b70c3bf22e8e2350f874a3290f7792e47867091d",
-        "version" : "0.14.0"
+        "revision" : "b8920950e66ec77723da5c17134e698f80ed3db8",
+        "version" : "0.15.0"
       }
     },
     {
       "identity" : "xcodeproj",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/kelvinharron/XcodeProj",
+      "location" : "https://github.com/tuist/XcodeProj",
       "state" : {
-        "branch" : "add-swifttesting-parallelizable-handling",
-        "revision" : "0090f0f2e2cd3f29d38bfa075853ceea338a174d"
+        "revision" : "59b6e3fe9b07e3323b4c4e97b58523bc3c5754a0",
+        "version" : "8.24.4"
       }
     },
     {

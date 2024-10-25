@@ -68,6 +68,9 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
         "ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES",
         "WRAPPER_EXTENSION",
         "SWIFT_VERSION",
+        "TEST_TARGET_NAME",
+        "TEST_HOST",
+        "BUNDLE_LOADER",
     ]
 
     // These are not needed or are computed elsewhere so we exclude them

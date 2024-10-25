@@ -4,11 +4,11 @@ titleTemplate: ":title | Projects | Tuist"
 description: Learn about synthesized files in Tuist projects.
 ---
 
-# Synthesized files
+# Synthesized files {#synthesized-files}
 
 Tuist can generate files and code at generation-time to bring some convenience to managing and working with Xcode projects. In this page you'll learn about this functionality, and how you can use it in your projects.
 
-## Target resources
+## Target resources {#target-resources}
 
 Xcode projects support adding resources to targets. However, they present teams with a few challenges, specially when working with a modular project where sources and resources are often moved around:
 
@@ -21,7 +21,7 @@ Tuist solves the problems above by **synthesizing a unified interface to access 
 > [!IMPORTANT] RECOMMENDED 
 > Even though accessing resources through the Tuist-synthesized interface is not mandatory, we recommend it because it makes the code easier to reason about and the resources to move around.
 
-## Resources
+## Resources {#resources}
 
 Tuist provides interfaces to declare the content of files such as `Info.plist` or entitlements in Swift.
 This is useful to ensure consistency across targets and projects,
@@ -34,11 +34,11 @@ Tuist will synthesize the content of those files and write them into the `Derive
 > [!TIP] GITIGNORE THE DERIVED DIRECTORY
 > We recommend adding the `Derived` directory to the `.gitignore` file of your project.
 
-## Bundle accessors
+## Bundle accessors {#bundle-accessors}
 
 Tuist synthesizes an interface to access the bundle that contains the target resources.
 
-### Swift
+### Swift {#swift}
 
 The target will contain an extension of the `Bundle` type that exposes the bundle:
 
@@ -46,7 +46,7 @@ The target will contain an extension of the `Bundle` type that exposes the bundl
 let bundle = Bundle.module
 ```
 
-### Objective-C
+### Objective-C {#objectivec}
 
 In Objective-C, you'll get an interface `{Target}Resources` to access the bundle:
 
@@ -57,7 +57,7 @@ NSBundle *bundle = [MyFeatureResources bundle];
 > [!TIP] SUPPORTING RESOURCES IN LIBRARIES THROUGH BUNDLES
 > If a target product, for example a library, doesn't support resources, Tuist will include the resources in a target of product type `bundle` ensuring that it ends up in the final product and that the interface points to the right bundle.
 
-## Resource accessors
+## Resource accessors {#resource-accessors}
 
 Resources are identified by their name and extension using strings. This is not ideal because it's not caught at compile time and might lead to crashes in release. To prevent that, Tuist integrates [SwiftGen](https://github.com/SwiftGen/SwiftGen) into the project generation process to synthesize an interface to access the resources. Thanks to that, you can confidently access the resources leveraging the compiler to catch any issues.
 
@@ -73,7 +73,7 @@ Tuist includes [templates](https://github.com/tuist/tuist/tree/main/Sources/Tuis
 
 > Note: You can disable the synthesizing of resource accessors on a per-project basis by passing the `disableSynthesizedResourceAccessors` option to the project options.
 
-#### Custom templates
+#### Custom templates {#custom-templates}
 
 If you want to provide your own templates to synthesize accessors to other resource types,
 which must be supported by [SwiftGen](https://github.com/SwiftGen/SwiftGen),

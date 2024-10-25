@@ -180,6 +180,8 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
             name: project.name,
             buildConfigurationList: configurationList,
             compatibilityVersion: Xcode.Default.compatibilityVersion,
+            preferredProjectObjectVersion: nil,
+            minimizedProjectReferenceProxies: nil,
             mainGroup: groups.sortedMain,
             developmentRegion: developmentRegion,
             hasScannedForEncodings: 0,

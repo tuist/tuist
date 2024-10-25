@@ -4,11 +4,11 @@ titleTemplate: :title | Projects | Tuist
 description: Learn how how to use environment variables to dynamically configure your project.
 ---
 
-# Dynamic configuration
+# Dynamic configuration {#dynamic-configuration}
 
 There are certain scenarios where you might need to dynamically configure your project at generation time. For example, you might want to change the name of the app, the bundle identifier, or the deployment target based on the environment where the project is being generated. Tuist supports that via environment variables, which can be accessed from the manifest files.
 
-## Configuration through environment variables
+## Configuration through environment variables {#configuration-through-environment-variables}
 
 Tuist allows passing configuration through environment variables that can be accessed from the manifest files. For example:
 
@@ -22,9 +22,9 @@ If you want to pass multiple environment variables just separate them with a spa
 TUIST_APP_NAME=MyApp TUIST_APP_LOCALE=pl tuist generate
 ```
 
-## Reading the environment variables from manifests
+## Reading the environment variables from manifests {#reading-the-environment-variables-from-manifests}
 
-Variables can be accessed using the [`Environment`](/en/references/project-description/enums/environment) type. Any variables following the convention `TUIST_XXX` defined in the environment or passed to Tuist when running commands will be accessible using the `Environment` type. The following example shows how we access the `TUIST_APP_NAME` variable:
+Variables can be accessed using the <LocalizedLink href="/references/project-description/enums/environment">`Environment`</LocalizedLink> type. Any variables following the convention `TUIST_XXX` defined in the environment or passed to Tuist when running commands will be accessible using the `Environment` type. The following example shows how we access the `TUIST_APP_NAME` variable:
 
 ```swift
 func appName() -> String {

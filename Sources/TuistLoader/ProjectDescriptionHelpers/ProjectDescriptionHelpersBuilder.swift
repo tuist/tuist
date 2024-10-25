@@ -55,6 +55,7 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
     /// Clock for measuring build duration.
     private let clock: Clock
     private let fileHandler: FileHandling
+    private let fileSystem: FileSysteming
 
     /// The name of the default project description helpers module
     static let defaultHelpersName = "ProjectDescriptionHelpers"
@@ -70,13 +71,15 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
         cacheDirectory: AbsolutePath,
         helpersDirectoryLocator: HelpersDirectoryLocating = HelpersDirectoryLocator(),
         clock: Clock = WallClock(),
-        fileHandler: FileHandling = FileHandler.shared
+        fileHandler: FileHandling = FileHandler.shared,
+        fileSystem: FileSysteming = FileSystem()
     ) {
         self.projectDescriptionHelpersHasher = projectDescriptionHelpersHasher
         self.cacheDirectory = cacheDirectory
         self.helpersDirectoryLocator = helpersDirectoryLocator
         self.clock = clock
         self.fileHandler = fileHandler
+        self.fileSystem = fileSystem
     }
 
     public func build(
@@ -159,27 +162,27 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
         projectDescriptionSearchPaths: ProjectDescriptionSearchPaths,
         customProjectDescriptionHelperModules: [ProjectDescriptionHelpersModule] = []
     ) async throws -> ProjectDescriptionHelpersModule {
-        let projectDescriptionHelpersModuleTask = try builtHelpers.mutate { cache in
+        let projectDescriptionHelpersModuleTask = builtHelpers.mutate { cache in
             if let cachedTask = cache[path] {
                 return cachedTask
             }
 
-            let hash = try projectDescriptionHelpersHasher.hash(helpersDirectory: path)
-            let moduleCacheDirectory = cacheDirectory.appending(component: hash)
-            let dylibName = "lib\(name).dylib"
-            let modulePath = moduleCacheDirectory.appending(component: dylibName)
-            let module = ProjectDescriptionHelpersModule(name: name, path: modulePath)
-            try fileHandler.createFolder(moduleCacheDirectory)
-
-            let command = createCommand(
-                moduleName: name,
-                directory: path,
-                outputDirectory: moduleCacheDirectory,
-                projectDescriptionSearchPaths: projectDescriptionSearchPaths,
-                customProjectDescriptionHelperModules: customProjectDescriptionHelperModules
-            )
-
             let buildTask = Task {
+                let hash = try await projectDescriptionHelpersHasher.hash(helpersDirectory: path)
+                let moduleCacheDirectory = cacheDirectory.appending(component: hash)
+                let dylibName = "lib\(name).dylib"
+                let modulePath = moduleCacheDirectory.appending(component: dylibName)
+                let module = ProjectDescriptionHelpersModule(name: name, path: modulePath)
+                try fileHandler.createFolder(moduleCacheDirectory)
+
+                let command = try await createCommand(
+                    moduleName: name,
+                    directory: path,
+                    outputDirectory: moduleCacheDirectory,
+                    projectDescriptionSearchPaths: projectDescriptionSearchPaths,
+                    customProjectDescriptionHelperModules: customProjectDescriptionHelperModules
+                )
+
                 let timer = clock.startTimer()
                 try System.shared.runAndPrint(command, verbose: false, environment: Environment.shared.manifestLoadingVariables)
                 let duration = timer.stop()
@@ -203,9 +206,8 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
         outputDirectory: AbsolutePath,
         projectDescriptionSearchPaths: ProjectDescriptionSearchPaths,
         customProjectDescriptionHelperModules: [ProjectDescriptionHelpersModule] = []
-    ) -> [String] {
-        let swiftFilesGlob = "**/*.swift"
-        let files = fileHandler.glob(directory, glob: swiftFilesGlob)
+    ) async throws -> [String] {
+        let files = try await fileSystem.glob(directory: directory, include: ["**/*.swift"]).collect()
 
         var command: [String] = [
             "/usr/bin/xcrun", "swiftc",

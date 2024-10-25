@@ -10,7 +10,7 @@ import XCTest
 @testable import TuistSupportTesting
 
 final class TargetScriptManifestMapperTests: TuistUnitTestCase {
-    func test_from() throws {
+    func test_from() async throws {
         // Given
         let temporaryPath = try temporaryPath()
         let rootDirectory = temporaryPath
@@ -25,7 +25,11 @@ final class TargetScriptManifestMapperTests: TuistUnitTestCase {
             arguments: ["arg1", "arg2"]
         )
         // When
-        let model = try XcodeGraph.TargetScript.from(manifest: manifest, generatorPaths: generatorPaths)
+        let model = try await XcodeGraph.TargetScript.from(
+            manifest: manifest,
+            generatorPaths: generatorPaths,
+            fileSystem: fileSystem
+        )
 
         // Then
         XCTAssertEqual(model.name, "MyScript")
@@ -65,7 +69,11 @@ final class TargetScriptManifestMapperTests: TuistUnitTestCase {
             outputFileListPaths: ["$(SRCROOT)/foo/bar/**/*.swift"]
         )
         // When
-        let model = try XcodeGraph.TargetScript.from(manifest: manifest, generatorPaths: generatorPaths)
+        let model = try await XcodeGraph.TargetScript.from(
+            manifest: manifest,
+            generatorPaths: generatorPaths,
+            fileSystem: fileSystem
+        )
 
         // Then
         let relativeSources = try model.inputPaths.map { try AbsolutePath(validating: $0).relative(to: temporaryPath).pathString }
@@ -135,7 +143,11 @@ final class TargetScriptManifestMapperTests: TuistUnitTestCase {
             outputFileListPaths: ["$(SRCROOT)/foo/bar/**/*.swift"]
         )
         // When
-        let model = try XcodeGraph.TargetScript.from(manifest: manifest, generatorPaths: generatorPaths)
+        let model = try await XcodeGraph.TargetScript.from(
+            manifest: manifest,
+            generatorPaths: generatorPaths,
+            fileSystem: fileSystem
+        )
 
         // Then
         let relativeSources = try model.inputPaths.map { try AbsolutePath(validating: $0).relative(to: temporaryPath).pathString }

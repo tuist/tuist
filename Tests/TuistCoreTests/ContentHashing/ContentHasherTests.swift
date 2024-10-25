@@ -105,7 +105,7 @@ final class ContentHasherTests: TuistUnitTestCase {
         let hash = try await subject.hash(path: folderPath)
 
         // Then
-        XCTAssertEqual(hash, "37b51d194a7513e45b56f6524f2d51f2-224e2539f52203eb33728acd228b4432")
+        XCTAssertEqual(hash, "224e2539f52203eb33728acd228b4432-37b51d194a7513e45b56f6524f2d51f2")
         // This is the md5 of "bar", a dash, md5 of "bar2", in sorted order according to the file name
         // and .DS_STORE should be ignored
     }

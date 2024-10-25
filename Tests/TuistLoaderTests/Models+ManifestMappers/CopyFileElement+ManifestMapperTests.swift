@@ -29,6 +29,7 @@ final class CopyFileElementManifestMapperTests: TuistUnitTestCase {
         let model = try await XcodeGraph.CopyFileElement.from(
             manifest: manifest,
             generatorPaths: generatorPaths,
+            fileSystem: fileSystem,
             includeFiles: { !FileHandler.shared.isFolder($0) }
         )
 
@@ -55,7 +56,11 @@ final class CopyFileElementManifestMapperTests: TuistUnitTestCase {
         let manifest = ProjectDescription.CopyFileElement.folderReference(path: "README.md")
 
         // When
-        let model = try await XcodeGraph.CopyFileElement.from(manifest: manifest, generatorPaths: generatorPaths)
+        let model = try await XcodeGraph.CopyFileElement.from(
+            manifest: manifest,
+            generatorPaths: generatorPaths,
+            fileSystem: fileSystem
+        )
 
         // Then
         XCTAssertPrinterOutputContains("README.md is not a directory - folder reference paths need to point to directories")
@@ -73,7 +78,11 @@ final class CopyFileElementManifestMapperTests: TuistUnitTestCase {
         let manifest = ProjectDescription.CopyFileElement.folderReference(path: "Documentation")
 
         // When
-        let model = try await XcodeGraph.CopyFileElement.from(manifest: manifest, generatorPaths: generatorPaths)
+        let model = try await XcodeGraph.CopyFileElement.from(
+            manifest: manifest,
+            generatorPaths: generatorPaths,
+            fileSystem: fileSystem
+        )
 
         // Then
         XCTAssertPrinterOutputContains("Documentation does not exist")
@@ -97,7 +106,11 @@ final class CopyFileElementManifestMapperTests: TuistUnitTestCase {
 
         // Then
         await XCTAssertThrowsSpecific(
-            try await XcodeGraph.CopyFileElement.from(manifest: manifest, generatorPaths: generatorPaths),
+            try await XcodeGraph.CopyFileElement.from(
+                manifest: manifest,
+                generatorPaths: generatorPaths,
+                fileSystem: fileSystem
+            ),
             error
         )
     }

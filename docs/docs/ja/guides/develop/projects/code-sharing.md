@@ -1,10 +1,10 @@
 ---
 title: Code sharing
-titleTemplate: :title | Projects | Tuist
+titleTemplate: :title | プロジェクト | Tuist
 description: Learn how to share code across manifest files to reduce duplications and ensure consistency
 ---
 
-# Code sharing
+# Code sharing {#code-sharing}
 
 One of the inconveniences of Xcode when we use it with large projects is that it doesn't allow reusing elements of the projects other than the build settings through `.xcconfig` files. Being able to reuse project definitions is useful for the following reasons:
 
@@ -18,7 +18,7 @@ Reusing code across manifest files is possible in Tuist thanks to the concept of
 > [!TIP] A TUIST UNIQUE ASSET
 > Many organizations like Tuist because they see in project description helpers a platform for platform teams to codify their own conventions and come up with their own language for describing their projects. For example, YAML-based project generators have to come up with their own YAML-based propietary templating solution, or force organizations onto building their tools upon.
 
-## Project description helpers
+## Project description helpers {#project-description-helpers}
 
 Project description helpers are Swift files that get compiled into a module, `ProjectDescriptionHelpers`, that manifest files can import. The module is compiled by gathering all the files in the `Tuist/ProjectDescriptionHelpers` directory.
 
@@ -36,7 +36,7 @@ import ProjectDescriptionHelpers
 - `Package.swift` (only behind the `#TUIST` compiler flag)
 - `Workspace.swift`
 
-## Example
+## Example {#example}
 
 The snippets below contain an example of how we extend the `Project` model to add static constructors and how we use them from a `Project.swift` file:
 

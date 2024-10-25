@@ -1,6 +1,7 @@
 ---
 editLink: false
-description: {{ $params.description }}
+description:
+  "{ $params.description }": null
 ---
 
 <script setup>

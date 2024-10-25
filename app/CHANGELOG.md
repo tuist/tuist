@@ -1,3 +1,8 @@
+## What's Changed in app@0.3.3
+* refactor: migrate globs to the new FileSystem utility by @fortmarek in [#6920](https://github.com/tuist/tuist/pull/6920)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/app@0.3.2...app@0.3.3
+
 ## What's Changed in app@0.3.2
 * fix: getting devices when a device is unavailable, improve the menu tappable area by @foyoodo in [#6864](https://github.com/tuist/tuist/pull/6864)
 

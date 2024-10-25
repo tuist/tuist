@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Path
 import ProjectDescription
@@ -34,20 +35,23 @@ public struct LoadedWorkspace {
     public var projects: [AbsolutePath: ProjectDescription.Project]
 }
 
-public class RecursiveManifestLoader: RecursiveManifestLoading {
+public struct RecursiveManifestLoader: RecursiveManifestLoading {
     private let manifestLoader: ManifestLoading
     private let fileHandler: FileHandling
+    private let fileSystem: FileSysteming
     private let packageInfoMapper: PackageInfoMapping
     private let rootDirectoryLocator: RootDirectoryLocating
 
     public init(
         manifestLoader: ManifestLoading = ManifestLoader(),
         fileHandler: FileHandling = FileHandler.shared,
+        fileSystem: FileSysteming = FileSystem(),
         packageInfoMapper: PackageInfoMapping = PackageInfoMapper(),
         rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator()
     ) {
         self.manifestLoader = manifestLoader
         self.fileHandler = fileHandler
+        self.fileSystem = fileSystem
         self.packageInfoMapper = packageInfoMapper
         self.rootDirectoryLocator = rootDirectoryLocator
     }
@@ -68,8 +72,8 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
         let manifestLoader = manifestLoader
         let projectPaths = try await projectSearchPaths.map {
             try generatorPaths.resolve(path: $0)
-        }.flatMap {
-            fileHandler.glob($0, glob: "")
+        }.concurrentFlatMap {
+            try await fileSystem.glob(directory: $0, include: [""]).collect()
         }.filter {
             fileHandler.isFolder($0)
         }.concurrentFilter {
@@ -104,8 +108,8 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
         let manifestLoader = manifestLoader
         let packagePaths = try await projectSearchPaths.map {
             try generatorPaths.resolve(path: $0)
-        }.flatMap {
-            fileHandler.glob($0, glob: "")
+        }.concurrentFlatMap {
+            try await fileSystem.glob(directory: $0, include: [""]).collect()
         }.filter {
             fileHandler.isFolder($0) && $0.basename != Constants.tuistDirectoryName
         }.concurrentFilter {
@@ -141,8 +145,8 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
         while !paths.isEmpty {
             paths.subtract(cache.keys)
             let projects = try await Array(paths).concurrentCompactMap {
-                let packageInfo = try await self.manifestLoader.loadPackage(at: $0)
-                return try await self.packageInfoMapper.map(
+                let packageInfo = try await manifestLoader.loadPackage(at: $0)
+                return try await packageInfoMapper.map(
                     packageInfo: packageInfo,
                     path: $0,
                     packageType: .local,
@@ -167,7 +171,7 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
         while !paths.isEmpty {
             paths.subtract(cache.keys)
             let projects = try await Array(paths).concurrentMap {
-                try await self.manifestLoader.loadProject(at: $0)
+                try await manifestLoader.loadProject(at: $0)
             }
             var newDependenciesPaths = Set<AbsolutePath>()
             for (path, project) in zip(paths, projects) {

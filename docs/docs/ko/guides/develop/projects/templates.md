@@ -1,10 +1,10 @@
 ---
 title: Templates
-titleTemplate: ":title | Projects | Tuist"
+titleTemplate: :title | Projects | Tuist
 description: Learn how to create and use templates in Tuist to generate code in your projects.
 ---
 
-# Templates
+# Templates {#templates}
 
 In projects with an established architecture, developers might want to bootstrap new components or features that are consistent with the project. With `tuist scaffold` you can generate files from a template. You can define your own templates or use the ones that are vendored with Tuist. These are some scenarios where scaffolding might be useful:
 
@@ -14,10 +14,9 @@ In projects with an established architecture, developers might want to bootstrap
 > [!NOTE] NON-OPINIONATED
 > Tuist is not opinionated about the content of your templates, and what you use them for. They are only required to be in a specific directory.
 
-## Defining a template
+## Defining a template {#defining-a-template}
 
-To define templates, you can run [`tuist edit`](/ko/guides/develop/projects/editing) and then create a directory called `name_of_template` under `Tuist/Templates` that represents your template. Templates need a manifest file, `name_of_template.swift` that describes the template. So if you are creating a template called `framework`, you should create a new directory `framework` at `Tuist/Templates` with a manifest file called `framework.swift` that could look like this:
-
+So if you are creating a template called `framework`, you should create a new directory `framework` at `Tuist/Templates` with a manifest file called `framework.swift` that could look like this: To define templates, you can run <LocalizedLink href="/guides/develop/projects/editing">`tuist edit`</LocalizedLink> and then create a directory called `name_of_template` under `Tuist/Templates` that represents your template. So if you are creating a template called `framework`, you should create a new directory `framework` at `Tuist/Templates` with a manifest file called `framework.swift` that could look like this: To define templates, you can run <LocalizedLink href="/guides/develop/projects/editing">`tuist edit`</LocalizedLink> and then create a directory called `name_of_template` under `Tuist/Templates` that represents your template.
 
 ```swift
 import ProjectDescription
@@ -47,7 +46,7 @@ let template = Template(
 )
 ```
 
-## Using a template
+## Using a template {#using-a-template}
 
 After defining the template, we can use it from the `scaffold` command:
 
@@ -65,4 +64,4 @@ Using string interpolation, `\(nameAttribute)` above would resolve to `{{ name }
 You can also use `.directory` which gives the possibility to copy entire folders to a given path.
 
 > [!TIP] PROJECT DESCRIPTION HELPERS
-> Templates support the use of [project description helpers](/ko/guides/develop/projects/code-sharing) to reuse code across templates.
+> Templates support the use of <LocalizedLink href="/guides/develop/projects/code-sharing">project description helpers</LocalizedLink> to reuse code across templates.

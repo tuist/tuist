@@ -685,7 +685,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         let pluginTarget = try XCTUnwrap(project.targets.values.first)
 
         XCTAssertEqual(
-            pluginTarget.sources,
+            pluginTarget.sources.sorted(by: { $0.path < $1.path }),
             ([pluginManifestPath] + helperSources + templateSources).map { SourceFile(path: $0) }
         )
     }

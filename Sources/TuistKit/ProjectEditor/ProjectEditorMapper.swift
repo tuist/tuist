@@ -29,14 +29,17 @@ protocol ProjectEditorMapping: AnyObject {
 // swiftlint:disable:next type_body_length
 final class ProjectEditorMapper: ProjectEditorMapping {
     private let swiftPackageManagerController: SwiftPackageManagerControlling
+    private let fileSystem: FileSysteming
 
     init(
         swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(
             system: System.shared,
             fileSystem: FileSystem()
-        )
+        ),
+        fileSystem: FileSysteming = FileSystem()
     ) {
         self.swiftPackageManagerController = swiftPackageManagerController
+        self.fileSystem = fileSystem
     }
 
     // swiftlint:disable:next function_body_length
@@ -60,7 +63,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         logger.notice("Building the editable project graph")
         let swiftVersion = try SwiftVersionProvider.shared.swiftVersion()
 
-        let pluginsProject = mapPluginsProject(
+        let pluginsProject = try await mapPluginsProject(
             pluginManifests: editablePluginManifests,
             projectDescriptionPath: projectDescriptionSearchPath,
             swiftVersion: swiftVersion,
@@ -367,7 +370,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         sourceRootPath: AbsolutePath,
         destinationDirectory: AbsolutePath,
         tuistPath _: AbsolutePath
-    ) -> Project? {
+    ) async throws -> Project? {
         guard !pluginManifests.isEmpty else { return nil }
 
         let projectName = "Plugins"
@@ -383,17 +386,22 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             defaultSettings: .recommended
         )
 
-        let pluginTargets = pluginManifests.map { manifest -> Target in
+        let fileSystem = fileSystem
+        let pluginTargets = try await pluginManifests.concurrentMap { manifest -> Target in
             let pluginManifest = manifest.path.appending(component: "Plugin.swift")
             let pluginHelpersPath = manifest.path.appending(component: Constants.helpersDirectoryName)
             let pluginTemplatesPath = manifest.path.appending(component: Constants.templatesDirectoryName)
             let pluginResourceTemplatesPath = manifest.path.appending(component: Constants.resourceSynthesizersDirectoryName)
-            let sourcePaths = [pluginManifest] +
-                FileHandler.shared.glob(pluginHelpersPath, glob: "**/*.swift") +
-                FileHandler.shared.glob(pluginTemplatesPath, glob: "**/*.swift") +
-                FileHandler.shared.glob(pluginTemplatesPath, glob: "**/*.stencil") +
-                FileHandler.shared.glob(pluginResourceTemplatesPath, glob: "*.stencil")
-            return editorHelperTarget(
+            let pluginHelpers = try await fileSystem.glob(directory: pluginHelpersPath, include: ["**/*.swift"])
+                .collect()
+            let pluginTemplates = try await fileSystem.glob(
+                directory: pluginTemplatesPath,
+                include: ["**/*.swift", "**/*.stencil"]
+            ).collect()
+            let pluginResources = try await fileSystem.glob(directory: pluginResourceTemplatesPath, include: ["*.stencil"])
+                .collect()
+            let sourcePaths = [pluginManifest] + pluginHelpers + pluginTemplates + pluginResources
+            return self.editorHelperTarget(
                 name: manifest.name,
                 filesGroup: pluginsFilesGroup,
                 targetSettings: targetSettings,

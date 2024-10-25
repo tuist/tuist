@@ -11,7 +11,7 @@ public protocol MultipartUploadCompletePreviewsServicing {
         parts: [(etag: String, partNumber: Int)],
         fullHandle: String,
         serverURL: URL
-    ) async throws -> URL
+    ) async throws -> Preview
 }
 
 public enum MultipartUploadCompletePreviewsServiceError: FatalError, Equatable {
@@ -19,11 +19,11 @@ public enum MultipartUploadCompletePreviewsServiceError: FatalError, Equatable {
     case notFound(String)
     case forbidden(String)
     case unauthorized(String)
-    case invalidURL(String)
+    case invalidPreview(String)
 
     public var type: ErrorType {
         switch self {
-        case .unknownError, .invalidURL:
+        case .unknownError, .invalidPreview:
             return .bug
         case .notFound, .forbidden, .unauthorized:
             return .abort
@@ -36,8 +36,8 @@ public enum MultipartUploadCompletePreviewsServiceError: FatalError, Equatable {
             return "The multi-part upload could not get completed due to an unknown Tuist Cloud response of \(statusCode)."
         case let .notFound(message), let .forbidden(message), let .unauthorized(message):
             return message
-        case let .invalidURL(url):
-            return "The app build download URL \(url) returned from the server is invalid."
+        case let .invalidPreview(id):
+            return "The preview \(id) is invalid."
         }
     }
 }
@@ -63,7 +63,7 @@ public final class MultipartUploadCompletePreviewsService: MultipartUploadComple
         parts: [(etag: String, partNumber: Int)],
         fullHandle: String,
         serverURL: URL
-    ) async throws -> URL {
+    ) async throws -> Preview {
         let client = Client.authenticated(serverURL: serverURL)
         let handles = try fullHandleService.parse(fullHandle)
         let response = try await client.completePreviewsMultipartUpload(
@@ -88,12 +88,12 @@ public final class MultipartUploadCompletePreviewsService: MultipartUploadComple
         case let .ok(previewUploadCompletionResponse):
             switch previewUploadCompletionResponse.body {
             case let .json(previewUploadCompletionResponse):
-                guard let url = URL(string: previewUploadCompletionResponse.url)
+                guard let preview = Preview(previewUploadCompletionResponse)
                 else {
-                    throw MultipartUploadCompletePreviewsServiceError.invalidURL(previewUploadCompletionResponse.url)
+                    throw MultipartUploadCompletePreviewsServiceError.invalidPreview(previewUploadCompletionResponse.id)
                 }
 
-                return url
+                return preview
             }
         case let .undocumented(statusCode: statusCode, _):
             throw MultipartUploadCompletePreviewsServiceError.unknownError(statusCode)
