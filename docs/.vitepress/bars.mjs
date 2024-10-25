@@ -3,13 +3,8 @@ import {
   cubeOutlineIcon,
   cube02Icon,
   cube01Icon,
-  microscopeIcon,
-  code02Icon,
-  dataIcon,
-  checkCircleIcon,
   tuistIcon,
   building07Icon,
-  cloudBlank02Icon,
   server04Icon,
   bookOpen01Icon,
   codeBrowserIcon,
@@ -266,7 +261,6 @@ export function guidesSidebar(locale) {
         locale,
         "sidebars.guides.items.quick-start.text"
       )} ${tuistIcon()}</span>`,
-      link: "/",
       items: [
         {
           text: localizedString(
