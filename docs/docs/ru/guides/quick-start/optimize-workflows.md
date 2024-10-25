@@ -3,11 +3,11 @@ title: Optimize workflows
 description: Learn how to optimize workflows with Tuist.
 ---
 
-<h1 id="optimize-workflows">Optimize workflows</h1>
+# Optimize workflows {#optimize-workflows}
 
 Because Tuist knows your project through your description and the insights it collects, it can optimize your workflows to make them more efficient. Let's see some examples.
 
-<h2 id="smart-test-runs">Smart test runs</h2>
+## Smart test runs {#smart-test-runs}
 
 Let's run `tuist test` again. You'll notice the following message:
 
@@ -17,7 +17,7 @@ There are no tests to run, finishing early
 
 Tuist detected that you didn't change anything in your project since last time you ran the tests, and therefore re-running the tests is not needed. And the best of all is that this works across different machines and CI environments.
 
-<h2 id="cache">Cache</h2>
+## Cache {#cache}
 
 If you clean build the project, which you usually do on CI or after cleaning the global cache in the hope of fixing cryptic compilation issues, you have to compile the whole project from scratch. When the project becomes large, this can take a long time.
 
@@ -47,7 +47,7 @@ tuist generate
 
 And they'll suddenly get a project with the dependencies as binaries.
 
-<h2 id="optimizations-on-ci">Optimizations on CI</h2>
+## Optimizations on CI {#optimizations-on-ci}
 
 If want to access those optimizations on CI,
 you'll have to generate a project-scoped token to authenticate requests in the CI environment.
