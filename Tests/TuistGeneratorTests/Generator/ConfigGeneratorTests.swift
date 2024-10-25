@@ -162,9 +162,45 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         assert(config: releaseConfig, contains: testHostSettings)
     }
 
+    func test_generateTestTargetConfiguration_iOS_when_essentialSettings() async throws {
+        // Given / When
+        let settings = Settings.test(defaultSettings: .essential)
+        try await generateTestTargetConfig(appName: "App", settings: settings)
+
+        let configurationList = pbxTarget.buildConfigurationList
+        let debugConfig = configurationList?.configuration(name: "Debug")
+        let releaseConfig = configurationList?.configuration(name: "Release")
+
+        let testHostSettings: SettingsDictionary = [
+            "TEST_HOST": "$(BUILT_PRODUCTS_DIR)/App.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/App",
+            "BUNDLE_LOADER": "$(TEST_HOST)",
+        ]
+
+        assert(config: debugConfig, contains: testHostSettings)
+        assert(config: releaseConfig, contains: testHostSettings)
+    }
+
     func test_generateTestTargetConfiguration_macOS() async throws {
         // Given / When
         try await generateTestTargetConfig(appName: "App", destinations: .macOS)
+
+        let configurationList = pbxTarget.buildConfigurationList
+        let debugConfig = configurationList?.configuration(name: "Debug")
+        let releaseConfig = configurationList?.configuration(name: "Release")
+
+        let testHostSettings: SettingsDictionary = [
+            "TEST_HOST": "$(BUILT_PRODUCTS_DIR)/App.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/App",
+            "BUNDLE_LOADER": "$(TEST_HOST)",
+        ]
+
+        assert(config: debugConfig, contains: testHostSettings)
+        assert(config: releaseConfig, contains: testHostSettings)
+    }
+
+    func test_generateTestTargetConfiguration_macOS_when_essentialSettings() async throws {
+        // Given / When
+        let settings = Settings.test(defaultSettings: .essential)
+        try await generateTestTargetConfig(appName: "App", destinations: .macOS, settings: settings)
 
         let configurationList = pbxTarget.buildConfigurationList
         let debugConfig = configurationList?.configuration(name: "Debug")
@@ -199,9 +235,48 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         assert(config: releaseConfig, contains: testHostSettings)
     }
 
+    func test_generateTestTargetConfiguration_usesProductName_when_essentialSettings() async throws {
+        // Given / When
+        let settings = Settings.test(defaultSettings: .essential)
+        try await generateTestTargetConfig(
+            appName: "App-dash",
+            productName: "App_dash",
+            settings: settings
+        )
+
+        let configurationList = pbxTarget.buildConfigurationList
+        let debugConfig = configurationList?.configuration(name: "Debug")
+        let releaseConfig = configurationList?.configuration(name: "Release")
+
+        let testHostSettings: SettingsDictionary = [
+            "TEST_HOST": "$(BUILT_PRODUCTS_DIR)/App_dash.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/App_dash",
+            "BUNDLE_LOADER": "$(TEST_HOST)",
+        ]
+
+        assert(config: debugConfig, contains: testHostSettings)
+        assert(config: releaseConfig, contains: testHostSettings)
+    }
+
     func test_generateUITestTargetConfiguration() async throws {
         // Given / When
         try await generateTestTargetConfig(appName: "App", uiTest: true)
+
+        let configurationList = pbxTarget.buildConfigurationList
+        let debugConfig = configurationList?.configuration(name: "Debug")
+        let releaseConfig = configurationList?.configuration(name: "Release")
+
+        let testHostSettings: SettingsDictionary = [
+            "TEST_TARGET_NAME": "App",
+        ]
+
+        assert(config: debugConfig, contains: testHostSettings)
+        assert(config: releaseConfig, contains: testHostSettings)
+    }
+
+    func test_generateUITestTargetConfiguration_when_essentialSettings() async throws {
+        // Given / When
+        let settings = Settings.test(defaultSettings: .essential)
+        try await generateTestTargetConfig(appName: "App", uiTest: true, settings: settings)
 
         let configurationList = pbxTarget.buildConfigurationList
         let debugConfig = configurationList?.configuration(name: "Debug")
@@ -221,6 +296,28 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
             appName: "App-dash",
             productName: "App_dash",
             uiTest: true
+        )
+
+        let configurationList = pbxTarget.buildConfigurationList
+        let debugConfig = configurationList?.configuration(name: "Debug")
+        let releaseConfig = configurationList?.configuration(name: "Release")
+
+        let testHostSettings: SettingsDictionary = [
+            "TEST_TARGET_NAME": "App-dash", // `TEST_TARGET_NAME` should reference the target name as opposed to `productName`
+        ]
+
+        assert(config: debugConfig, contains: testHostSettings)
+        assert(config: releaseConfig, contains: testHostSettings)
+    }
+
+    func test_generateUITestTargetConfiguration_usesTargetName_when_essentialSettings() async throws {
+        // Given / When
+        let settings = Settings.test(defaultSettings: .essential)
+        try await generateTestTargetConfig(
+            appName: "App-dash",
+            productName: "App_dash",
+            uiTest: true,
+            settings: settings
         )
 
         let configurationList = pbxTarget.buildConfigurationList
@@ -1210,7 +1307,8 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         appName: String = "App",
         destinations: Destinations = .iOS,
         productName: String? = nil,
-        uiTest: Bool = false
+        uiTest: Bool = false,
+        settings: Settings? = nil
     ) async throws {
         let dir = try temporaryPath()
 
@@ -1218,7 +1316,8 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
             name: appName,
             destinations: destinations,
             product: .app,
-            productName: productName
+            productName: productName,
+            settings: settings
         )
 
         let target = Target.test(name: "Test", destinations: destinations, product: uiTest ? .uiTests : .unitTests)
