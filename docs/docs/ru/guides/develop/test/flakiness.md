@@ -3,7 +3,7 @@ title: Test flakiness
 description: Prevent, detect, and fix flaky tests with Tuist.
 ---
 
-<h1 id="test-flakiness">Test flakiness</h1>
+# Test flakiness {#test-flakiness}
 
 > [!IMPORTANT] REMOTE PROJECT REQUIRED
 > This feature requires a <LocalizedLink href="/server/introduction/accounts-and-projects">remote project</LocalizedLink>.
@@ -12,7 +12,7 @@ It's common in test suite to have flaky tests. Those are tests that sometimes pa
 
 Luckily, Tuist provides a solution to detect flay tests.
 
-<h2 id="detecting-flakiness">Detecting flakiness</h2>
+## Detecting flakiness {#detecting-flakiness}
 
 When running tests with <LocalizedLink href="/guides/develop/test">`tuist test`</LocalizedLink>, Tuist persists the result of each test case along with a unique hash that identifies the test state. The unique hash changes if either the module containing the test or any of its dependencies change. Thanks to the unique hash and the results, Tuist can determine if a test is flaky. A test case is flaky if it has yielded different results for the same hash.
 
