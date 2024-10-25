@@ -7,17 +7,21 @@ extension TuistAcceptanceTestCase {
     private func headers(
         for productName: String,
         destination: String
-    ) throws -> [AbsolutePath] {
-        let productPath = try productPath(for: productName, destination: destination)
-        return FileHandler.shared.glob(productPath, glob: "**/*.h")
+    ) async throws -> [AbsolutePath] {
+        let productPath = try await productPath(for: productName, destination: destination)
+        return try await fileSystem.glob(directory: productPath, include: ["**/*.h"]).collect()
     }
 
     public func productPath(
         for name: String,
         destination: String
-    ) throws -> AbsolutePath {
-        try XCTUnwrap(
-            FileHandler.shared.glob(derivedDataPath, glob: "**/Build/**/Products/\(destination)/\(name)/").first
+    ) async throws -> AbsolutePath {
+        let products = try await fileSystem.glob(
+            directory: derivedDataPath,
+            include: ["**/Build/**/Products/\(destination)/\(name)/"]
+        ).collect()
+        return try XCTUnwrap(
+            products.first
         )
     }
 
@@ -46,8 +50,8 @@ extension TuistAcceptanceTestCase {
         destination: String,
         file: StaticString = #file,
         line: UInt = #line
-    ) throws {
-        if try !headers(for: product, destination: destination).isEmpty {
+    ) async throws {
+        if try await !headers(for: product, destination: destination).isEmpty {
             XCTFail("Product with name \(product) and destination \(destination) contains headers", file: file, line: line)
         }
     }

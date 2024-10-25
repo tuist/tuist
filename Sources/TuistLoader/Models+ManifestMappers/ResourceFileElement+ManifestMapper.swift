@@ -15,10 +15,10 @@ extension XcodeGraph.ResourceFileElement {
     static func from(
         manifest: ProjectDescription.ResourceFileElement,
         generatorPaths: GeneratorPaths,
+        fileSystem: FileSysteming,
         includeFiles: @escaping (AbsolutePath) -> Bool = { _ in true }
     ) async throws -> [XcodeGraph.ResourceFileElement] {
-        let fileSystem = FileSystem()
-        func globFiles(_ path: AbsolutePath, excluding: [String]) throws -> [AbsolutePath] {
+        func globFiles(_ path: AbsolutePath, excluding: [String]) async throws -> [AbsolutePath] {
             var excluded: Set<AbsolutePath> = []
             for path in excluding {
                 let absolute = try AbsolutePath(validating: path)
@@ -26,8 +26,9 @@ extension XcodeGraph.ResourceFileElement {
                 excluded.formUnion(globs)
             }
 
-            let files = try FileHandler.shared
-                .throwingGlob(.root, glob: String(path.pathString.dropFirst()))
+            let files = try await fileSystem
+                .throwingGlob(directory: .root, include: [String(path.pathString.dropFirst())])
+                .collect()
                 .filter { !$0.isInOpaqueDirectory }
                 .filter(includeFiles)
                 .filter { !excluded.contains($0) }
@@ -64,11 +65,12 @@ extension XcodeGraph.ResourceFileElement {
         case let .glob(pattern, excluding, tags, condition):
             let resolvedPath = try generatorPaths.resolve(path: pattern)
             let excluding: [String] = try excluding.compactMap { try generatorPaths.resolve(path: $0).pathString }
-            return try globFiles(resolvedPath, excluding: excluding).map { ResourceFileElement.file(
+            return try await globFiles(resolvedPath, excluding: excluding).map { ResourceFileElement.file(
                 path: $0,
                 tags: tags,
                 inclusionCondition: condition?.asGraphCondition
             ) }
+            .sorted(by: { $0.path < $1.path })
         case let .folderReference(folderReferencePath, tags, condition):
             let resolvedPath = try generatorPaths.resolve(path: folderReferencePath)
             return try await folderReferences(resolvedPath).map { ResourceFileElement.folderReference(
@@ -76,6 +78,7 @@ extension XcodeGraph.ResourceFileElement {
                 tags: tags,
                 inclusionCondition: condition?.asGraphCondition
             ) }
+            .sorted(by: { $0.path < $1.path })
         }
     }
 }

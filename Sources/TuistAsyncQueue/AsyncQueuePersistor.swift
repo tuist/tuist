@@ -64,7 +64,7 @@ final class AsyncQueuePersistor: AsyncQueuePersisting {
     func readAll() async throws -> [AsyncQueueEventTuple] {
         let dateService = dateService
         let fileSystem = fileSystem
-        let paths = FileHandler.shared.glob(directory, glob: "*.json")
+        let paths = try await fileSystem.glob(directory: directory, include: ["*.json"]).collect()
         let events: [AsyncQueueEventTuple] = await paths.concurrentCompactMap { eventPath in
             let fileName = eventPath.basenameWithoutExt
             let components = fileName.split(separator: ".")
