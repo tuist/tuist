@@ -4,14 +4,14 @@ titleTemplate: :title | On-premise | Server | Tuist
 description: Learn how to install Tuist on your infrastructure.
 ---
 
-<h1 id="onpremise-installation">On-premise installation</h1>
+# On-premise installation {#onpremise-installation}
 
 We offer a self-hosted version of the Tuist server for organizations that require more control over their infrastructure. This version allows you to host Tuist on your own infrastructure, ensuring that your data remains secure and private.
 
 > [!IMPORTANT] ENTERPRISE CUSTOMERS ONLY
 > The on-premise version of Tuist is available only for organizations on the Enterprise plan. If you are interested in this version, please reach out to [contact@tuist.io](mailto:contact@tuist.io).
 
-<h2 id="release-cadence">Release cadence</h2>
+## Release cadence {#release-cadence}
 
 The Tuist server is **released every Monday** and the version name follows the convention name `{MAJOR}.YY.MM.DD`. The date component is used to warn the CLI user if their hosted version is 60 days older than the release date of the CLI. It's crucial that on-premise organizations keep up with Tuist updates to ensure their developers benefit from the most recent improvements and that we can drop deprecated features with the confidence that we are not breaking any of the on-premise setups.
 
@@ -20,17 +20,17 @@ The major component of the CLI is used to flag breaking changes in the Tuist ser
 > [!NOTE] RELEASE NOTES
 > You'll be given access to a `tuist/registry` repository associated with the registry where images are published. Every new released will be published in that repository as a GitHub release and will contain release notes to inform you about what changes come with it.
 
-<h2 id="runtime-requirements">Runtime requirements</h2>
+## Runtime requirements {#runtime-requirements}
 
 This section outlines the requirements for hosting the Tuist server on your infrastructure.
 
-<h3 id="running-dockervirtualized-images">Running Docker-virtualized images</h3>
+### Running Docker-virtualized images {#running-dockervirtualized-images}
 
 We distribute the server as a [Docker](https://www.docker.com/) image via [GitHub’s Container Registry](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry).
 
 To run it, your infrastructure must support running Docker images. Note that most infrastructure providers support it because it’s become the standard container for distributing and running software in production environments.
 
-<h3 id="postgres-database">Postgres database</h3>
+### Postgres database {#postgres-database}
 
 In addition to running the Docker images, you’ll need a [Postgres database](https://www.postgresql.org/) to store relational data. Most infrastructure providers include Posgres databases in their offering (e.g., [AWS](https://aws.amazon.com/rds/postgresql/) & [Google Cloud](https://cloud.google.com/sql/docs/postgres)).
 
@@ -39,18 +39,18 @@ For performant analytics, we use a [Timescale Postgres extension](https://www.ti
 > [!INFO] MIGRATIONS
 > The Docker image's entrypoint automatically runs any pending schema migrations before starting the service.
 
-<h3 id="storage">Storage</h3>
+### Storage {#storage}
 
 You’ll also need a solution to store files (e.g. framework and library binaries). Currently we support any storage that's S3-compliant.
 
-<h2 id="configuration">Configuration</h2>
+## Configuration {#configuration}
 
 The configuration of the service is done at runtime through environment variables. Given the sensitive nature of these variables, we advise encrypting and storing them in secure password management solutions. Rest assured, Tuist handles these variables with utmost care, ensuring they are never displayed in logs.
 
 > [!NOTE] LAUNCH CHECKS
 > The necessary variables are verified at startup. If any are missing, the launch will fail and the error message will detail the absent variables.
 
-<h3 id="license-configuration">License configuration</h3>
+### License configuration {#license-configuration}
 
 As an on-premise user, you'll receive a license key that you'll need to expose as an environment variable. This key is used to validate the license and ensure that the service is running within the terms of the agreement.
 
@@ -61,7 +61,7 @@ As an on-premise user, you'll receive a license key that you'll need to expose a
 > [!IMPORTANT] EXPIRATION DATE
 > Licenses have an expiration date. Users will receive a warning while using Tuist commands that interact with the server if the license expires in less than 30 days. If you are interested in renewing your license, please reach out to [contact@tuist.io](mailto:contact@tuist.io).
 
-<h3 id="base-environment-configuration">Base environment configuration</h3>
+### Base environment configuration {#base-environment-configuration}
 
 | Environment variable           | Description                                                                                                          | Required | Default                  | Example                                                                  |                                                                                                                                    |
 | ------------------------------ | -------------------------------------------------------------------------------------------------------------------- | -------- | ------------------------ | ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
@@ -74,7 +74,7 @@ As an on-premise user, you'll receive a license key that you'll need to expose a
 | `TUIST_GITHUB_APP_PRIVATE_KEY` | The private key used for the GitHub app to unlock extra functionality such as posting automatic PR comments          | No       | `-----BEGIN RSA...`      |                                                                          |                                                                                                                                    |
 | `TUIST_OPS_USER_HANDLES`       | A comma-separated list of user handles that have access to the operations URLs                                       | No       |                          | `user1,user2`                                                            |                                                                                                                                    |
 
-<h3 id="database-configuration">Database configuration</h3>
+### Database configuration {#database-configuration}
 
 The following environment variables are used to configure the database connection:
 
@@ -86,11 +86,11 @@ The following environment variables are used to configure the database connectio
 | `TUIST_DATABASE_QUEUE_TARGET`   | The interval (in miliseconds) for checking if all the connections checked out from the pool took more than the queue interval [(More information)](https://hexdocs.pm/db_connection/DBConnection.html#start_link/2-queue-config) | No       | `300`   | `300`                                                                  |
 | `TUIST_DATABASE_QUEUE_INTERVAL` | The threshold time (in miliseconds) in the queue that the pool uses to determine if it should start dropping new connections [(More information)](https://hexdocs.pm/db_connection/DBConnection.html#start_link/2-queue-config)  | No       | `1000`  | `1000`                                                                 |
 
-<h3 id="authentication-environment-configuration">Authentication environment configuration</h3>
+### Authentication environment configuration {#authentication-environment-configuration}
 
 We facilitate authentication through [identity providers (IdP)](https://en.wikipedia.org/wiki/Identity_provider). To utilize this, ensure all necessary environment variables for the chosen provider are present in the server's environment. **Missing variables** will result in Tuist bypassing that provider.
 
-<h4 id="github">GitHub</h4>
+#### GitHub {#github}
 
 We recommend authenticating using a [GitHub App](https://docs.github.com/en/apps/creating-github-apps/about-creating-github-apps/about-creating-github-apps) but you can also use the [OAuth App](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/creating-an-oauth-app). Make sure to include all essential environment variables specified by GitHub in the server environment. Absent variables will cause Tuist to overlook the GitHub authentication. To properly set up the GitHub app:
 
@@ -107,14 +107,14 @@ You'll then need to expose the following environment variables in the environmen
 | `TUIST_GITHUB_APP_CLIENT_ID`     | The client ID of the GitHub application | Yes      |         | `Iv1.a629723000043722`                     |
 | `TUIST_GITHUB_APP_CLIENT_SECRET` | The client secret of the application    | Yes      |         | `232f972951033b89799b0fd24566a04d83f44ccc` |
 
-<h4 id="google">Google</h4>
+#### Google {#google}
 
 You can set up authentication with Google using [OAuth 2](https://developers.google.com/identity/protocols/oauth2). For that, you'll need to create a new credential of type OAuth client ID. When creating the credentials, select "Web Application" as application type, name it `Tuist`, and set the redirect URI to `{base_url}/users/auth/google/callback` where `base_url` is the URL your hosted-service is running at. Once you create the app, copy the client ID and secret and set them as environment variables `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` respectively.
 
 > [!NOTE] CONSENT SCREEN SCOPES
 > You might need to create a consent screen. When you do so, make sure to add the `userinfo.email` and `openid` scopes and mark the app as internal.
 
-<h4 id="okta">Okta</h4>
+#### Okta {#okta}
 
 You can enable authentication with Okta through the [OAuth 2.0](https://oauth.net/2/) protocol. You'll have to [create an app](https://developer.okta.com/docs/en/guides/implement-oauth-for-okta/main/#create-an-oauth-2-0-app-in-okta) on Okta with the following configuration:
 
@@ -131,11 +131,11 @@ Once the app is created you'll need to set the following environment variables:
 | `TUIST_OKTA_CLIENT_ID`     | The client ID to authenticate against Okta     | Yes      |         |                             |
 | `TUIST_OKTA_CLIENT_SECRET` | The client secret to authenticate against Okta | Yes      |         |                             |
 
-<h3 id="storage-environment-configuration">Storage environment configuration</h3>
+### Storage environment configuration {#storage-environment-configuration}
 
 Tuist needs storage to house artifacts uploaded through the API. It's **essential to configure one of the supported storage solutions** for Tuist to operate effectively.
 
-<h4 id="s3compliant-storages">S3-compliant storages</h4>
+#### S3-compliant storages {#s3compliant-storages}
 
 You can use any S3-compliant storage provider to store artifacts. The following environment variables are required to authenticate and configure the integration with the storage provider:
 
@@ -154,14 +154,15 @@ You can use any S3-compliant storage provider to store artifacts. The following 
 > [!NOTE] AWS authentication with Web Identity Token from environment variables
 > If your storage provider is AWS and you'd like to authenticate using a web identity token, you can set the environment variable `TUIST_S3_AUTHENTICATION_METHOD` to `aws_web_identity_token_from_env_vars`, and Tuist will use that method using the conventional AWS environment variables.
 
-<h4 id="google-cloud-storage">Google Cloud Storage</h4>
+#### Google Cloud Storage {#google-cloud-storage}
+
 For Google Cloud Storage, follow [these docs](https://cloud.google.com/storage/docs/authentication/managing-hmackeys) to get the `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` pair. The `AWS_ENDPOINT` should be set to `https://storage.googleapis.com`. Other environment variables are the same as for any other S3-compliant storage.
 
-<h3 id="git-platform-configuration">Git platform configuration</h3>
+### Git platform configuration {#git-platform-configuration}
 
 Tuist can <LocalizedLink href="/server/introduction/integrations#git-platforms">integrate with Git platforms</LocalizedLink> to provide extra features such as automatically posting comments in your pull requests.
 
-<h4 id="github">GitHub</h4>
+#### GitHub {#platform-github}
 
 You will need to [create a GitHub app](https://docs.github.com/en/apps/creating-github-apps/about-creating-github-apps/about-creating-github-apps). You can reuse the one you created for authentication, unless you created an OAuth GitHub app. In the `Permissions and events`'s `Repository permissions` section, you will need to additionally set the `Pull requests` permission to `Read and write`.
 
@@ -171,14 +172,14 @@ On top of the `TUIST_GITHUB_APP_CLIENT_ID` and `TUIST_GITHUB_APP_CLIENT_SECRET`,
 | ------------------------------ | ----------------------------------------- | -------- | ------- | ------------------------------------ |
 | `TUIST_GITHUB_APP_PRIVATE_KEY` | The private key of the GitHub application | Yes      |         | `-----BEGIN RSA PRIVATE KEY-----...` |
 
-<h2 id="deployment">Deployment</h2>
+## Deployment {#deployment}
 
 On-premise users are granted access to the repository located at [tuist/registry](https://github.com/cloud/registry) which has a linked container registry for pulling images. Currently, the container registry allows authentication only as an individual user. Therefore, users with repository access must generate a **personal access token** within the Tuist organization, ensuring they have the necessary permissions to read packages. After submission, we will promptly approve this token.
 
 > [!IMPORTANT] USER VS ORGANIZATION-SCOPED TOKENS
 > Using a personal access token presents a challenge because it's associated with an individual who might eventually depart from the enterprise organization. GitHub recognizes this limitation and is actively developing a solution to allow GitHub apps to authenticate with app-generated tokens.
 
-<h3 id="pulling-the-docker-image">Pulling the Docker image</h3>
+### Pulling the Docker image {#pulling-the-docker-image}
 
 After generating the token, you can retrieve the image by executing the following command:
 
@@ -187,7 +188,7 @@ echo $TOKEN | docker login ghcr.io -u USERNAME --password-stdin
 docker pull ghcr.io/tuist/tuist:latest
 ```
 
-<h3 id="deploying-the-docker-image">Deploying the Docker image</h3>
+### Deploying the Docker image {#deploying-the-docker-image}
 
 The deployment process for the Docker image will differ based on your chosen cloud provider and your organization's continuous deployment approach. Since most cloud solutions and tools, like [Kubernetes](https://kubernetes.io/), utilize Docker images as fundamental units, the examples in this section should align well with your existing setup.
 
@@ -196,7 +197,7 @@ We recommend establishing a deployment pipeline that that runs **every Tuesday**
 > [!IMPORTANT]
 > If your deployment pipeline needs to validate that the server is up and running, you can send a `GET` HTTP request to `/ready` and assert a `200` status code in the response.
 
-<h4 id="fly">Fly</h4>
+#### Fly {#fly}
 
 To deploy the app on [Fly](https://fly.io/), you'll require a `fly.toml` configuration file. Consider generating it dynamically within your Continuous Deployment (CD) pipeline. Below is a reference example for your use:
 
@@ -254,7 +255,7 @@ kill_timeout = "5s"
 
 Then you can run `fly launch --local-only --no-deploy` to launch the app. On subsequent deploys, instead of running `fly launch --local-only`, you will need to run `fly deploy --local-only`. Fly.io doesn't allow to pull private Docker images, which is why we need to use the `--local-only` flag.
 
-<h3 id="docker-compose">Docker Compose</h3>
+### Docker Compose {#docker-compose}
 
 Below is an example of a `docker-compose.yml` file that you can use as a reference to deploy the service:
 
@@ -341,7 +342,7 @@ volumes:
     driver: local
 ```
 
-<h2 id="operations">Operations</h2>
+## Operations {#operations}
 
 Tuist provides a set of utilities under `/ops/` that you can use to manage your instance.
 
