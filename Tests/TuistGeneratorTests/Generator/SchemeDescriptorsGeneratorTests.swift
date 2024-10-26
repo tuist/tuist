@@ -756,7 +756,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         // Then
         let testableTargetReference = result.testables[0]
         XCTAssertEqual(testableTargetReference.skipped, false)
-        XCTAssertEqual(testableTargetReference.parallelizable, true)
+        XCTAssertEqual(testableTargetReference.parallelizable, .all)
         XCTAssertEqual(testableTargetReference.randomExecutionOrdering, true)
     }
 
