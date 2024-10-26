@@ -39,29 +39,6 @@ extension AbsolutePath {
             .map { try! AbsolutePath(validating: $0) } // swiftlint:disable:this force_try
     }
 
-    /// Returns the list of paths that match the given glob pattern, if the directory exists.
-    ///
-    /// - Parameter pattern: Relative glob pattern used to match the paths.
-    /// - Throws: an error if the directory where the first glob pattern is declared doesn't exist
-    /// - Returns: List of paths that match the given pattern.
-    public func throwingGlob(_ pattern: String) throws -> [AbsolutePath] {
-        let globPath = appending(try RelativePath(validating: pattern)).pathString
-
-        if globPath.isGlobComponent {
-            let pathUpToLastNonGlob = try AbsolutePath(validating: globPath).upToLastNonGlob
-
-            if !FileHandler.shared.isFolder(pathUpToLastNonGlob) {
-                let invalidGlob = InvalidGlob(
-                    pattern: globPath,
-                    nonExistentPath: pathUpToLastNonGlob
-                )
-                throw GlobError.nonExistentDirectory(invalidGlob)
-            }
-        }
-
-        return glob(pattern)
-    }
-
     /// Returns true if the path is a package, recognized by having a UTI `com.apple.package`
     public var isPackage: Bool {
         let ext = URL(fileURLWithPath: pathString).pathExtension

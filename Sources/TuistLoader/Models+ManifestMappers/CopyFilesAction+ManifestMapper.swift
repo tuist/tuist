@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Path
 import ProjectDescription
@@ -24,7 +25,11 @@ extension XcodeGraph.CopyFilesAction {
     /// - Parameters:
     ///   - manifest: Manifest representation of platform model.
     ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.CopyFilesAction, generatorPaths: GeneratorPaths) async throws -> XcodeGraph
+    static func from(
+        manifest: ProjectDescription.CopyFilesAction,
+        generatorPaths: GeneratorPaths,
+        fileSystem: FileSysteming
+    ) async throws -> XcodeGraph
         .CopyFilesAction
     {
         let result = try await manifest.files.concurrentMap { manifest -> ([XcodeGraph.CopyFileElement], InvalidGlob?) in
@@ -32,6 +37,7 @@ extension XcodeGraph.CopyFilesAction {
                 let files = try await XcodeGraph.CopyFileElement.from(
                     manifest: manifest,
                     generatorPaths: generatorPaths,
+                    fileSystem: fileSystem,
                     includeFiles: { XcodeGraph.Target.isResource(path: $0) }
                 )
                 return (files.cleanPackages(), nil)

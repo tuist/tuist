@@ -4,11 +4,11 @@ titleTemplate: :title - Contribute to Tuist
 description: This document describes the principles that guide the development of Tuist.
 ---
 
-# Principles
+# Principles {#principles}
 
 This page describes principles that are pillars to the design and development of Tuist. They evolve with the project and are meant to ensure a sustainable growth that is well-aligned with the project foundation.
 
-## Default to conventions
+## Default to conventions {#default-to-conventions}
 
 One of the reasons why Tuist exists is because Xcode is weak in conventions and that leads to complex projects that are hard to scale up and maintain. For that reason, Tuist takes a different approach by defaulting to simple and thoroughly designed conventions. **Developers can opt-out from the conventions, but that’s a conscious decision that doesn’t feel natural.**
 
@@ -16,7 +16,7 @@ For example, there’s a convention for defining dependencies between targets by
 
 The reason why we default to conventions is that the more decision we can make on behalf of the developers, the more focus they’ll have crafting features for their apps. When we are left with no conventions like it’s the case in many projects, we have to make decisions that will end up not being consistent with other decisions and as a consequence, there’ll be an accidental complexity that will be hard to manage.
 
-## Manifests are the source of truth
+## Manifests are the source of truth {#manifests-are-the-source-of-truth}
 
 Having many layers of configurations and contracts between them results in a project setup that is hard to reason about and maintain. Think for a second on an average project. The definition of the project lives in the `.xcodeproj` directories, the CLI in scripts (e.g `Fastfiles`), and the CI logic in pipelines. Those are three layers with contracts between them that we need to maintain. _How often have you been in a situation where you changed something in your projects, and then a week later you realized that the release scripts broke?_
 
@@ -24,7 +24,7 @@ We can simplify this by having a single source of truth, the manifest files. Tho
 
 **Tuist should own the complexity and expose a simple, safe, and enjoyable interface to describe their projects as explicitly as possible.**
 
-## Make the implicit explicit
+## Make the implicit explicit {#make-the-implicit-explicit}
 
 Xcode supports implicit configurations. A good example of that is inferring the implicitly defined dependencies. While implicitness is fine for small projects, where configurations are simple, as projects get larger it might cause slowness or odd behaviors.
 
@@ -37,7 +37,7 @@ The definition of dependencies is a good example of that. While developers can d
 > [!TIP]
 > We should treat each request to port features from Xcode as an opportunity to simplify concepts with simple and explicit APIs.
 
-## Keep it simple
+## Keep it simple {#keep-it-simple}
 
 One of the main challenges when scaling Xcode projects comes from the fact that **Xcode exposes a lot of complexity to the users.** Due to that, teams have a high bus factor and only a few people in the team understand the project and the errors that the build system throws. That’s a bad situation to be in because the team relies on a few people.
 
@@ -45,7 +45,7 @@ Xcode is a great tool, but so many years of improvements, new platforms, and pro
 
 Tuist should take the opportunity to keep things simple because working on simple things is fun and motivates us. No one wants to spend time trying to debug an error that happens at the very end of the compilation process, or understanding why they are not able to run the app on their devices. Xcode delegates the tasks to its underlying build system and in some cases it does a very poor job translating errors into actionable items. Have you ever got a _“framework X not found”_ error and you didn’t know what to do? Imagine if we got a list of potential root causes for the bug.
 
-## Start from the developer’s experience
+## Start from the developer’s experience {#start-from-the-developers-experience}
 
 Part of the reason why there is a lack of innovation around Xcode, or put differently, not as much as in other programming environments, is because **we often start analyzing problems from existing solutions.** As a consequence, most of the solutions that we find nowadays revolve around the same ideas and workflows. While it’s good to include existing solutions in the equations, we should not let them constrain our creativity.
 
@@ -53,7 +53,7 @@ We like to think as [Tom Preston](https://tom.preston-werner.com/) puts it in [t
 
 We might feel tempted to follow what everyone is doing, even if that means sticking with the inconveniences that everyone continues to complain about. Let’s not do that. How do I imagine archiving my app? How would I love code signing to be? What processes can I help streamline with Tuist? For example, adding support for [Fastlane](https://fastlane.tools/) is a solution to a problem that we need to understand first. We can get to the root of the problem by asking “why” questions. Once we narrow down where the motivation comes from, we can think of how Tuist can help them best. Maybe the solution is integrating with Fastlane, but it’s important we don’t disregard other equally valid solutions that we can put on the table before making trade-offs.
 
-## Errors can and will happen
+## Errors can and will happen {#errors-can-and-will-happen}
 
 We, developers, have an inherent temptation to disregard that errors can happen. As a result, we design and test software only considering the ideal scenario.
 

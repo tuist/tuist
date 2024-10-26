@@ -47,7 +47,7 @@ final class ServerClientOutputWarningsMiddlewareTests: TuistUnitTestCase {
         )
 
         // When
-        let (gotResponse, gotBody) = try await subject
+        let (gotResponse, _) = try await subject
             .intercept(request, body: nil, baseURL: url, operationID: "123") { _, _, _ in
                 (response, nil)
             }
@@ -66,7 +66,7 @@ final class ServerClientOutputWarningsMiddlewareTests: TuistUnitTestCase {
         let response = HTTPResponse(status: 200)
 
         // When
-        let (gotResponse, gotBody) = try await subject
+        let (gotResponse, _) = try await subject
             .intercept(request, body: nil, baseURL: url, operationID: "123") { _, _, _ in
                 (response, nil)
             }

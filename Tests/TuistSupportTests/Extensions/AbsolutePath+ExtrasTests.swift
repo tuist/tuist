@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Path
 import XCTest
@@ -53,20 +54,6 @@ final class AbsolutePathExtrasTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(resultA, resultB)
-    }
-
-    func test_throwingGlob_throws_when_directoryDoesntExist() throws {
-        // Given
-        let dir = try temporaryPath()
-
-        // Then
-        XCTAssertThrowsSpecific(
-            try dir.throwingGlob("invalid/path/**/*"),
-            GlobError.nonExistentDirectory(InvalidGlob(
-                pattern: dir.appending(try RelativePath(validating: "invalid/path/**/*")).pathString,
-                nonExistentPath: dir.appending(try RelativePath(validating: "invalid/path/"))
-            ))
-        )
     }
 
     func test_isInOpaqueDirectory() throws {

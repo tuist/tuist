@@ -3,6 +3,7 @@ import { temporaryDirectoryTask } from "tempy";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 import ejs from "ejs";
+import { localizedString } from "../i18n.mjs";
 
 // Root directory
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -14,8 +15,10 @@ await $`swift build --product tuist --configuration debug --package-path ${rootD
 var dumpedCLISchema;
 await temporaryDirectoryTask(async (tmpDir) => {
   // I'm passing --path to sandbox the execution since we are only interested in the schema and nothing else.
-  dumpedCLISchema =
-    await $`${path.join(rootDirectory, ".build/debug/tuist")} --experimental-dump-help --path ${tmpDir}`;
+  dumpedCLISchema = await $`${path.join(
+    rootDirectory,
+    ".build/debug/tuist"
+  )} --experimental-dump-help --path ${tmpDir}`;
 });
 const { stdout } = dumpedCLISchema;
 export const schema = JSON.parse(stdout);
@@ -71,7 +74,7 @@ const template = ejs.compile(
 <% }); -%>
 <% } -%>
 `,
-  {},
+  {}
 );
 
 function content(command) {
@@ -105,7 +108,7 @@ function content(command) {
 
 export async function paths(locale) {
   let paths = [];
-  (await loadData(locale)).items.forEach((command) => {
+  (await loadData(locale)).items[0].items.forEach((command) => {
     traverse(command, paths);
   });
   return paths;
@@ -115,7 +118,7 @@ export async function loadData(locale) {
   function parseCommand(
     command,
     parentCommand = "tuist",
-    parentPath = `/${locale}/cli/`,
+    parentPath = `/${locale}/cli/`
   ) {
     const output = {
       text: command.commandName,
@@ -128,7 +131,7 @@ export async function loadData(locale) {
         return parseCommand(
           subcommand,
           parentCommand + " " + command.commandName,
-          path.join(parentPath, command.commandName),
+          path.join(parentPath, command.commandName)
         );
       });
     }
@@ -141,14 +144,19 @@ export async function loadData(locale) {
   } = schema;
 
   return {
-    text: "CLI",
-    items: subcommands
-      .map((command) => {
-        return {
-          ...parseCommand(command),
-          collapsed: true,
-        };
-      })
-      .sort((a, b) => a.text.localeCompare(b.text)),
+    text: localizedString(locale, "sidebars.cli.text"),
+    items: [
+      {
+        text: localizedString(locale, "sidebars.cli.items.commands.text"),
+        items: subcommands
+          .map((command) => {
+            return {
+              ...parseCommand(command),
+              collapsed: true,
+            };
+          })
+          .sort((a, b) => a.text.localeCompare(b.text)),
+      },
+    ],
   };
 }

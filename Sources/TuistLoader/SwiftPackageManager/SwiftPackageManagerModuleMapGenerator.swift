@@ -120,7 +120,7 @@ public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerMod
             // User defined modulemap exists, use it
             return .custom(customModuleMapPath, umbrellaHeaderPath: nil)
         } else if try await fileSystem.exists(publicHeadersPath) {
-            if FileHandler.shared.glob(publicHeadersPath, glob: "**/*.h").isEmpty {
+            if try await fileSystem.glob(directory: publicHeadersPath, include: ["**/*.h", "*.h"]).collect().isEmpty {
                 return .none
             }
             // Consider the public headers folder as umbrella directory

@@ -32,7 +32,11 @@ final class CopyFilesManifestMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let model = try await XcodeGraph.CopyFilesAction.from(manifest: manifest, generatorPaths: generatorPaths)
+        let model = try await XcodeGraph.CopyFilesAction.from(
+            manifest: manifest,
+            generatorPaths: generatorPaths,
+            fileSystem: fileSystem
+        )
 
         // Then
         XCTAssertEqual(model.name, "Copy Fonts")
@@ -69,7 +73,11 @@ final class CopyFilesManifestMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let model = try await XcodeGraph.CopyFilesAction.from(manifest: manifest, generatorPaths: generatorPaths)
+        let model = try await XcodeGraph.CopyFilesAction.from(
+            manifest: manifest,
+            generatorPaths: generatorPaths,
+            fileSystem: fileSystem
+        )
 
         // Then
         XCTAssertEqual(model.name, "Copy Templates")

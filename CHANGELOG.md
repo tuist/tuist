@@ -1,5 +1,24 @@
 # Changelog
 
+## 4.31.0 - 2024-10-23
+
+### CLI
+
+#### Added
+
+- Add tuist share --json support [#6902](https://github.com/tuist/tuist/pull/6902) by [@fortmarek](https://github.com/fortmarek)
+- Synthesize resource accessors for fonts with a .woff extension [#6912](https://github.com/tuist/tuist/pull/6912) by [@brunoorocha](https://github.com/brunoorocha)
+- Add Preview support for watch2App and appClip targets [#6901](https://github.com/tuist/tuist/pull/6901) by [@fortmarek](https://github.com/fortmarek)
+
+#### Fixed
+
+- Do not include CFBundleExecutable for bundle targets without sources [#6866](https://github.com/tuist/tuist/pull/6866) by [@PaulTaykalo](https://github.com/PaulTaykalo)
+- Fix selective test results not being stored [#6907](https://github.com/tuist/tuist/pull/6907) by [@fortmarek](https://github.com/fortmarek)
+
+### CLI (Server features)
+
+- no changes
+
 ## 4.30.0 - 2024-10-16
 
 ### CLI

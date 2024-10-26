@@ -1,11 +1,11 @@
 ---
 title: Create a project
-description: Learn how to create your first project with Tuist.
+description: Tuist에서 첫 프로젝트를 만들어 보세요.
 ---
 
-# Create a project
+# Create a project {#create-a-project}
 
-Once you've installed Tuist, you can create a new project by running the following command:
+Tuist를 설치한 후에는 다음 명령을 실행하여 새 프로젝트를 만들 수 있습니다.
 
 ```bash
 mkdir MyApp
@@ -13,38 +13,36 @@ cd MyApp
 tuist init --name MyApp
 ```
 
-By default it creates a project that represents an **iOS application.** The project directory will contain a `Project.swift`, which describes the project, a `Tuist/Config.swift`, which contains project-scoped Tuist configuration, and a `MyApp/` directory, which contains the source code of the application.
+기본적으로 **iOS application** 프로젝트가 생성됩니다. 프로젝트 디렉터리에는 프로젝트를 설명하는 `Project.swift`, 프로젝트의 Tuist 구성이 포함된 `Tuist/Config.swift`, application의 소스 코드가 포함된 `MyApp/` 디렉터리가 포함됩니다.
 
-To work on it in Xcode, you can generate an Xcode project by running:
+Xcode에서 작업하려면, Xcode 프로젝트를 실행하여 생성할 수 있습니다.
 
 ```bash
 tuist generate
 ```
 
-Note that unlike Xcode projects, which you can open and edit directly, Tuist projects are generated from a manifest file. This means that you should not edit the generated Xcode project directly.
+직접 열고 편집할 수 있는 Xcode 프로젝트와 달리, Tuist 프로젝트는 manifest 파일에서 생성됩니다. 즉, 생성된 Xcode 프로젝트를 직접 편집해서는 안 됩니다.
 
-> [!TIP] A CONFLICT-FREE AND USER-FRIENDLY EXPERIENCE
-> Xcode projects are prone to conflicts and expose a lot of intricacies to users. Tuist abstracts those away, specially in the area of managing the project's dependency graph.
+> [!팁] Conflicts가 없고 사용자 친화적인 환경  Xcode 프로젝트는 Conflicts가 발생하기 쉽고 개발자가 다루기에 매우 복잡합니다. Tuist는 특히 프로젝트의 종속성 그래프 관리 영역에서 이를 추상화 합니다.
 
-## Build the app
+## Build the app {#build-the-app}
 
-Tuist provides commands for the most common tasks you'll need to perform on your project. To build the app, run:
+Tuist는 프로젝트에서 수행해야 하는 가장 기본적인 작업에 대한 명령어를 제공합니다. 앱을 빌드 하려면, 다음 명령어를 실행합니다.
 
 ```bash
 tuist build
 ```
 
-Under the hood, this command uses the platform's build system (e.g. `xcodebuild`), enriching it with Tuist's features. 
+이 명령어는 내부적으로 플랫폼의 빌드 시스템(예: `xcodebuild`)을 사용하며, Tuist의 기능을 더해 빌드 시스템을 더욱 강력하게 만듭니다.
 
-## Test the app
+## Test the app {#test-the-app}
 
-Similarly, you can run tests with:
+마찬가지로 다음을 사용하여 테스트를 실행할 수 있습니다.
 
 ```bash
 tuist test
 ```
 
-Like the `build` command, `test` uses the platform's test runner (e.g. `xcodebuild test`), but with the added benefits of Tuist's test features and optimizations.
+`build` 명령과 마찬가지로 `test` 명령도 플랫폼의 테스트 러너(예: `xcodebuild test`)를 사용하지만, Tuist의 테스트 기능과 최적화의 이점을 추가로 제공합니다.
 
-> [!TIP] PASSING ARGUMENTS TO THE UNDERLYING BUILD SYSTEM
-> Both `build` and `test` can take extra arguments after `--` which are forwarded to the underlying build system.
+> [!팁] 기본 빌드 시스템에 인수 전달하기 `build`와 `test` 모두 `--` 뒤에 추가 인수를 받아 기본 빌드 시스템으로 전달할 수 있습니다.

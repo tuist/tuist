@@ -3,7 +3,7 @@ title: Create a project
 description: Learn how to create your first project with Tuist.
 ---
 
-# Create a project
+# Create a project {#create-a-project}
 
 Once you've installed Tuist, you can create a new project by running the following command:
 
@@ -26,7 +26,7 @@ Note that unlike Xcode projects, which you can open and edit directly, Tuist pro
 > [!TIP] A CONFLICT-FREE AND USER-FRIENDLY EXPERIENCE
 > Xcode projects are prone to conflicts and expose a lot of intricacies to users. Tuist abstracts those away, specially in the area of managing the project's dependency graph.
 
-## Build the app
+## Build the app {#build-the-app}
 
 Tuist provides commands for the most common tasks you'll need to perform on your project. To build the app, run:
 
@@ -36,7 +36,7 @@ tuist build
 
 Under the hood, this command uses the platform's build system (e.g. `xcodebuild`), enriching it with Tuist's features. 
 
-## Test the app
+## Test the app {#test-the-app}
 
 Similarly, you can run tests with:
 

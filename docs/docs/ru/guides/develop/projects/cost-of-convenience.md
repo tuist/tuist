@@ -4,7 +4,7 @@ titleTemplate: :title | Projects | Tuist
 description: Learn about the cost of convenience in Xcode and how Tuist helps you prevent the issues that come with it.
 ---
 
-# The cost of convenience
+# The cost of convenience {#the-cost-of-convenience}
 
 Designing a code editor that the spectrum **from small to large-scale projects can use** is a challenging task.
 Many tools approach the problem by layering their solution and providing extensibility. The bottom-most layer is very low-level and close to the underlying build system, and the top-most layer is a high-level abstraction that's convenient to use but less flexible.
@@ -19,7 +19,7 @@ and strongly coupled the tools with the underlying build system.
 To achieve the convenience, they provide sensible defaults, which you can easily replace,
 and added a lot of implicit build-time-resolved behaviors that are the culprit of many issues at scale.
 
-## Explicitness and scale
+## Explicitness and scale {#explicitness-and-scale}
 
 When working at scale, **explicitness is key**.
 It allows the build system to analyze and understand the project structure and dependencies ahead of time,
@@ -41,9 +41,9 @@ they degrade the developer experience in other areas and continue to make the pr
 
 In the following sections, we'll discuss some real examples of how implicitness affects the developer experience and the project's health. The list is not exhaustive, but it should give you a good idea of the challenges that you might face when working with Xcode projects or Swift Packages.
 
-## Convenience getting in your way
+## Convenience getting in your way {#convenience-getting-in-your-way}
 
-### Shared built products directory
+### Shared built products directory {#shared-built-products-directory}
 
 Xcode uses a directory inside the derived data directory for each product.
 Inside it, it stores the build artifacts, such as the compiled binaries, the dSYM files, and the logs.
@@ -58,7 +58,7 @@ The consequence of this design decision is that many projects acidentally compil
 > [!TIP] TUIST ENFORCEMENT OF EXPLICIT DEPENDENCIES
 > Tuist provides a generation configuration option to disallow implicit dependencies. When enabled, if a target tries to import a dependencies that's not explicitly declared, the build will fail.
 
-### Find implicit dependencies in schemes
+### Find implicit dependencies in schemes {#find-implicit-dependencies-in-schemes}
 
 Defining and maintaining a dependency graph in Xcode gets harder as the project grows.
 It's hard because they are codified in the `.pbxproj` files as build phases and build settings,
@@ -76,27 +76,27 @@ but then fail to compile on CI because the state is different.
 > [!TIP]
 > We recommend disabling this in your project schemes, and use like Tuist that eases the management of the dependency graph.
 
-### SwiftUI Previews and static libraries/frameworks
+### SwiftUI Previews and static libraries/frameworks {#swiftui-previews-and-static-librariesframeworks}
 
 Some editor features like SwiftUI Previews or Swift Macros require the compilation of the dependency graph from the file that's being edited. This integration between the editor requires that the build system resolves any implicitness and output the right artifacts that are necessary for those features to work. As you can imagine, **the more implicit the graph is, the more challenging the task is for the build system**, and therefore it's not surprising that many of these features don't work reliably. We often hear from developers that they stopped using SwiftUI previews long time ago because they were too unreliable. Instead, they are using either example apps, or avoiding certaing things, like the usage of static libraries or script build phases, because they cause the feature to break.
 
-### Mergeable libraries
+### Mergeable libraries {#mergeable-libraries}
 
 Dynamic frameworks, while more flexible and easier to work with, have a negative impact in the launch time of apps. On the other side, static libraries are faster to launch, but impact the compilation time and are a bit harder to work with, specially in complex graph scenarios. _Wouldn't it be great if you could change between one or the other depending on the configuration?_ That's what Apple must have thought when they decided to work on mergeable libraries. But once again, they moved more build-time inference to the build-time. If reasoning about a dependency graph, imagine having to do so when the static or dynamic nature of the target will be resolved at build-time based on some build settings in some targets. Good luck making that work reliably while ensuring features like SwiftUI previews don't break.
 
 **Many users come to Tuist wanting to use mergeable libraries and our answer is always the same. You don't need to.** You can control the static or dynamic nature of your targets at generation-time leading to a project whose graph is known ahead of compilation. No variables need to be resolved at build-time.
 
 ```bash
-# The value of TUIST_DYNAMIC can be read from the project
-# to set the product as static or dynamic based on the value.
+# The value of TUIST_DYNAMIC can be read from the project {#the-value-of-tuist_dynamic-can-be-read-from-the-project}
+# to set the product as static or dynamic based on the value. {#to-set-the-product-as-static-or-dynamic-based-on-the-value}
 TUIST_DYNAMIC=1 tuist generate
 ```
 
-## Explicit, explicit, and explicit
+## Explicit, explicit, and explicit {#explicit-explicit-and-explicit}
 
 If there's an important non-written principle that we recommend every developer or organization that wants their development with Xcode to scale, is that they should embrace explicitness. And if explicitness is hard to manage with raw Xcode projects, they should consider something else, either [Tuist](https://tuist.io) or [Bazel](https://bazel.build). **Only then reliability, predicability, and optimizations will be possible.**
 
-## Future
+## Future {#future}
 
 Whether Apple will do something to prevent all the above issues is unknown.
 Their continuous decisions embedded into Xcode and the Swift Package Manager don't suggest that they will.

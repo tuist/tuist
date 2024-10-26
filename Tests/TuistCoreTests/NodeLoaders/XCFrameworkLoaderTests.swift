@@ -1,3 +1,4 @@
+import Mockable
 import Path
 import TuistSupport
 import XcodeGraph
@@ -26,12 +27,12 @@ final class XCFrameworkLoaderErrorTests: TuistUnitTestCase {
 }
 
 final class XCFrameworkLoaderTests: TuistUnitTestCase {
-    var xcframeworkMetadataProvider: MockXCFrameworkMetadataProvider!
+    var xcframeworkMetadataProvider: MockXCFrameworkMetadataProviding!
     var subject: XCFrameworkLoader!
 
     override func setUp() {
         super.setUp()
-        xcframeworkMetadataProvider = MockXCFrameworkMetadataProvider()
+        xcframeworkMetadataProvider = MockXCFrameworkMetadataProviding()
         subject = XCFrameworkLoader(xcframeworkMetadataProvider: xcframeworkMetadataProvider)
     }
 
@@ -57,22 +58,23 @@ final class XCFrameworkLoaderTests: TuistUnitTestCase {
         // Given
         let path = try temporaryPath()
         let xcframeworkPath = path.appending(component: "tuist.xcframework")
-        let binaryPath = path.appending(try RelativePath(validating: "tuist.xcframework/whatever/tuist"))
         let linking: BinaryLinking = .dynamic
 
         let infoPlist = XCFrameworkInfoPlist.test()
         try FileHandler.shared.touch(xcframeworkPath)
 
-        xcframeworkMetadataProvider.loadMetadataStub = {
-            XCFrameworkMetadata(
-                path: $0,
-                infoPlist: infoPlist,
-                linking: linking,
-                mergeable: false,
-                status: .required,
-                macroPath: nil
-            )
-        }
+        given(xcframeworkMetadataProvider)
+            .loadMetadata(at: .any, status: .any)
+            .willProduce { path, _ in
+                XCFrameworkMetadata(
+                    path: path,
+                    infoPlist: infoPlist,
+                    linking: linking,
+                    mergeable: false,
+                    status: .required,
+                    macroPath: nil
+                )
+            }
 
         // When
         let got = try await subject.load(path: xcframeworkPath, status: .required)

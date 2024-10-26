@@ -3,11 +3,11 @@ title: Install Tuist
 description: Learn how to install Tuist in your environment.
 ---
 
-# Install Tuist
+# Install Tuist {#install-tuist}
 
 The Tuist CLI consists of an executable, dynamic frameworks, and a set of resources (for example, templates). Although you could manually build Tuist from [the sources](https://github.com/tuist/tuist), **we recommend using one of the following installation methods to ensure a valid installation.**
 
-### Recommended: [Mise](https://github.com/jdx/mise)
+### Recommended: <a href="https://github.com/jdx/mise">Mise</a> {#recommended-mise}
 
 Tuist defaults to [Mise](https://github.com/jdx/mise) as a tool to deterministically manage and activate versions of Tuist.
 If you don't have it installed on your system,
@@ -36,7 +36,7 @@ mise use -g tuist@x.y.z       # Use tuist-x.y.z as the global default
 mise use -g tuist@system      # Use the system's tuist as the global default
 ```
 
-### Alternative: [Homebrew](https://brew.sh)
+### Alternative: <a href="https://brew.sh">Homebrew</a> {#alternative-homebrew}
 
 If version pinning across environments is not a concern for you,
 you can install Tuist using [Homebrew](https://brew.sh) and [our formulas](https://github.com/tuist/homebrew-tuist):
@@ -47,7 +47,7 @@ brew install --formula tuist
 brew install --formula tuist@x.y.z
 ```
 
-### Shell completions
+### Shell completions {#shell-completions}
 
 If you have Tuist **globally installed**,
 you can install shell completions for Bash and Zsh to autocomplete commands and options.
@@ -56,7 +56,7 @@ you can install shell completions for Bash and Zsh to autocomplete commands and 
 A global installation is an installation that's available in your shell's `$PATH` environment variable. This means you can run `tuist` from any directory in your terminal. This is the default installation method for Homebrew.
 :::
 
-#### Zsh
+#### Zsh {#zsh}
 
 If you have [oh-my-zsh](https://ohmyz.sh/) installed, you already have a directory of automatically loading completion scripts — `.oh-my-zsh/completions`. Copy your new completion script to a new file in that directory called `_tuist`:
 
@@ -78,7 +78,7 @@ Next, create a directory at `~/.zsh/completion` and copy the completion script t
 tuist --generate-completion-script > ~/.zsh/completion/_tuist
 ```
 
-#### Bash
+#### Bash {#bash}
 
 If you have [bash-completion](https://github.com/scop/bash-completion) installed, you can just copy your new completion script to file `/usr/local/etc/bash_completion.d/_tuist`:
 
