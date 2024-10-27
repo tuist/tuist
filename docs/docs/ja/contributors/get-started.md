@@ -54,7 +54,7 @@ Tuist に貢献するには、最低限の要件があります。
 ![Tuistを実行するための作業ディレクトリの設定例](/images/contributors/scheme-working-directory.png)
 
 > [!WARNING] PROJECTDESCRIPTION COMPILATION
-> The `tuist` CLI depends on the `ProjectDescription` framework's presence in the built products directory. If `tuist` fails to run because it can't find the `ProjectDescription` framework, build the `Tuist-Workspace` scheme first.
+> `tuist` CLI は、ビルドされたプロダクトのディレクトリにある `ProjectDescription` フレームワークの存在に依存します。 `ProjectDescription` フレームワークが見つからずに `tuist` の実行が失敗した場合は、まず `Tuist-Workspace` スキームをビルドしてください。
 
 ### ターミナル経由 {#from-the-terminal}
 
