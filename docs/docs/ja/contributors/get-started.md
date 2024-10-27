@@ -1,14 +1,14 @@
 ---
-title: Get started
+title: はじめに
 titleTemplate: :title - Tuist に貢献する
-description: Get started contributing to Tuist by following this guide.
+description: このガイドに従って、Tuistへのコントリビューションを始めましょう。
 ---
 
-# Get started {#get-started}
+# はじめに {#get-started}
 
-If you have experience building apps for Apple platforms, like iOS, adding code to Tuist shouldn’t be much different. There are two differences compared to developing apps that are worth mentioning:
+iOS などの Apple プラットフォーム向けのアプリ開発経験がある場合、Tuist にコードを追加することもそれほど違いはないでしょう。 アプリ開発と比べて、触れておくべき違いが2点あります。
 
-- **The interactions with CLIs happen through the terminal.** The user executes Tuist, which performs the desired task, and then returns successfully or with a status code. During the execution, the user can be notified by sending output information to the standard output and standard error. There are no gestures, or graphical interactions, just the user intent.
+- **CLIとのやり取りはターミナルを通じて行われます。** ユーザーはTuistを実行し、指定したタスクを実行した後、正常に終了するか、またはステータスコードを返します。 During the execution, the user can be notified by sending output information to the standard output and standard error. There are no gestures, or graphical interactions, just the user intent.
 
 - **There’s no runloop that keeps the process alive waiting for input**, like it happens in an iOS app when the app receives system or user events. CLIs run in its process and finishes when the work is done. Asynchronous work can be done using system APIs like [DispatchQueue](https://developer.apple.com/documentation/dispatch/dispatchqueue) or [structured concurrency](https://developer.apple.com/tutorials/app-dev-training/managing-structured-concurrency), but need to make sure the process is running while the asynchronous work is being executed. Otherwise, the process will terminate the asynchronous work.
 
