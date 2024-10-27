@@ -35,7 +35,7 @@
           "no-results-text": "No relevant results found",
           "suggested-query-text": "You might try querying",
           "report-missing-results-text": "Do you think this query should have results?",
-          "report-missing-results-link-text": "Click to give feedback"
+          "report-missing-results-link-text": "クリックしてフィードバックする"
         }
       }
     }
@@ -117,7 +117,7 @@
           "text": "はじめに",
           "items": {
             "why-server": {
-              "text": "なぜサーバーが必要か？"
+              "text": "なぜサーバーが必要なのか？"
             },
             "accounts-and-projects": {
               "text": "アカウントとプロジェクト"
