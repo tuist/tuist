@@ -12,7 +12,7 @@ iOS などの Apple プラットフォーム向けのアプリ開発経験があ
 
 - **プロセスを保持して入力待ちをするランループはありません。** これはiOSアプリがシステムやユーザーのイベントを受け取るときの挙動とは異なります。 CLIはそのプロセス内で実行され、タスクが完了すると終了します。 非同期処理は、[DispatchQueue](https://developer.apple.com/documentation/dispatch/dispatchqueue) や [構造化並行処理](https://developer.apple.com/tutorials/app-dev-training/managing-structured-concurrency) などのシステムAPIを使用して実行できますが、非同期処理が実行されている間はプロセスが稼働していることを確認する必要があります。 さもなければ、プロセスが終了し、非同期処理も中断されてしまいます。
 
-If you don’t have any experience with Swift, we recommend [Apple’s official book](https://docs.swift.org/swift-book/) to get familiar with the language and the most used elements from the Foundation’s API.
+Swiftに関する経験がない場合は、言語と Foundation API の主要な要素に慣れるために、[Appleの公式ブック](https://docs.swift.org/swift-book/)をお勧めします。
 
 ## 最小要件 {#minimum-requirements}
 
@@ -49,7 +49,7 @@ Tuist に貢献するには、最低限の要件があります。
 
 ![Tuist で生成コマンドを実行するためのスキーム設定例](/images/contributors/scheme-arguments.png)
 
-また、生成されるプロジェクトのルートを作業ディレクトリに設定する必要があります。 You can do that either by using the `--path` argument, which all the commands accept, or configuring the working directory in the scheme as shown below:
+また、生成されるプロジェクトのルートを作業ディレクトリに設定する必要があります。 `--path` 引数を使用して設定することも、以下のようにスキームで作業ディレクトリを設定することもできます。
 
 ![Tuistを実行するための作業ディレクトリの設定例](/images/contributors/scheme-working-directory.png)
 
@@ -58,7 +58,7 @@ Tuist に貢献するには、最低限の要件があります。
 
 ### ターミナル経由 {#from-the-terminal}
 
-Although `tuist` provides a `tuist run` it does not support CLIs yet. Therefore, you'll have to use the Swift Package Manager to run the tool. To do that, you can run the following command:
+`tuist` には `tuist run` コマンドがありますが、CLIにはまだ対応していません。 そのため、Swift Package Manager を使用してツールを実行する必要があります。 以下のコマンドを実行してください。
 
 ```bash
 swift build --product ProjectDescription
