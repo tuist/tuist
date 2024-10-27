@@ -22,11 +22,11 @@ Tuist のユーザーとして、バグや予期しない動作に遭遇する�
 - 使用している Tuist のバージョンは？
 - この問題が作業の妨げになっているか
 
-We also require you to provide a minimal **reproducible project**.
+また、最小限の**再現可能なプロジェクト**の提供もお願いしています。
 
-## Reproducible project {#reproducible-project}
+## 再現可能なプロジェクト {#reproducible-project}
 
-### What is a reproducible project? {#what-is-a-reproducible-project}
+### 再現可能なプロジェクトとは？ {#what-is-a-reproducible-project}
 
 A reproducible project is a small Tuist project to demonstrate a problem - often this problem is caused by a bug in Tuist. Your reproducible project should contain the bare minimum features needed to clearly demonstrate the bug.
 
