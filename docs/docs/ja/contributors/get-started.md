@@ -10,7 +10,7 @@ iOS などの Apple プラットフォーム向けのアプリ開発経験があ
 
 - **CLIとのやり取りはターミナルを通じて行われます。** ユーザーはTuistを実行し、指定したタスクを実行した後、正常に終了するか、またはステータスコードを返します。 実行中は、標準出力や標準エラーに情報を出力することで、ユーザーに通知を行うことができます。 ジェスチャーやグラフィカルな操作はなく、あるのはユーザーの意図だけです。
 
-- **There’s no runloop that keeps the process alive waiting for input**, like it happens in an iOS app when the app receives system or user events. CLIs run in its process and finishes when the work is done. Asynchronous work can be done using system APIs like [DispatchQueue](https://developer.apple.com/documentation/dispatch/dispatchqueue) or [structured concurrency](https://developer.apple.com/tutorials/app-dev-training/managing-structured-concurrency), but need to make sure the process is running while the asynchronous work is being executed. Otherwise, the process will terminate the asynchronous work.
+- **プロセスを保持して入力待ちをするランループはありません。** これはiOSアプリがシステムやユーザーのイベントを受け取るときの挙動とは異なります。 CLIはそのプロセス内で実行され、タスクが完了すると終了します。 非同期処理は、[DispatchQueue](https://developer.apple.com/documentation/dispatch/dispatchqueue) や [構造化並行処理](https://developer.apple.com/tutorials/app-dev-training/managing-structured-concurrency) などのシステムAPIを使用して実行できますが、非同期処理が実行されている間はプロセスが稼働していることを確認する必要があります。 さもなければ、プロセスが終了し、非同期処理も中断されてしまいます。
 
 If you don’t have any experience with Swift, we recommend [Apple’s official book](https://docs.swift.org/swift-book/) to get familiar with the language and the most used elements from the Foundation’s API.
 
@@ -21,7 +21,7 @@ Tuist に貢献するには、最低限の要件があります。
 - macOS 14.0 以上
 - Xcode 16.0 以上
 
-## Set up the project locally {#set-up-the-project-locally}
+## ローカルでプロジェクトをセットアップする {#set-up-the-project-locally}
 
 プロジェクトの作業を開始するには、以下の手順に従います。
 
