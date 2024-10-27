@@ -986,7 +986,7 @@ final class GenerateAcceptanceTestAppWithSPMModuleAliases: TuistAcceptanceTestCa
 }
 
 final class GenerateAcceptanceTesAppWithLocalSPMModuleWithRemoteDependencies: TuistAcceptanceTestCase {
-    func test_app_with_local_spm_module_with_remote_dependencioes() async throws {
+    func test_app_with_local_spm_module_with_remote_dependencies() async throws {
         try await setUpFixture(.appWithLocalSPMModuleWithRemoteDependencies)
         try await run(InstallCommand.self)
         try await run(GenerateCommand.self)
@@ -998,6 +998,37 @@ final class GenerateAcceptanceTesAppWithLocalSPMModuleWithRemoteDependencies: Tu
         let workspacePackageResolvedData = try Data(contentsOf: workspacePackageResolved.url)
         let fixturePackageResolvedData = try Data(contentsOf: fixturePackageResolved.url)
         XCTAssertEqual(workspacePackageResolvedData, fixturePackageResolvedData)
+    }
+}
+
+final class GenerateAcceptanceTestAppWithNonLocalAppDependencies: TuistAcceptanceTestCase {
+    func test_app_with_non_local_app_dependencies() async throws {
+        try await setUpFixture(.appWithExecutableNonLocalDependencies)
+        try await run(InstallCommand.self)
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self, "MainApp")
+
+        let xcodeproj = try XcodeProj(
+            pathString: fixturePath.appending(components: "MainApp", "MainApp.xcodeproj").pathString
+        )
+
+        let target = try XCTUnwrapTarget("MainApp", in: xcodeproj)
+        let buildPhases = target.buildPhases
+        XCTAssertTrue(buildPhases.contains(where: { $0.name() == "Dependencies" }))
+
+        let dependenciesBuildPhase = buildPhases.first(where: { $0.name() == "Dependencies" }) as? PBXCopyFilesBuildPhase
+        let targetFileNames = dependenciesBuildPhase?.files?.compactMap { $0.file?.nameOrPath }.sorted()
+        let expectedTargetFileNames = ["AppExtension.appex", "WatchApp.app"]
+        XCTAssertEqual(targetFileNames, expectedTargetFileNames)
+
+        let testTarget = try XCTUnwrapTarget("MainAppTests", in: xcodeproj)
+        let testBuildPhases = testTarget.buildPhases
+        XCTAssertTrue(testBuildPhases.contains(where: { $0.name() == "Dependencies" }))
+
+        let testDependenciesBuildPhase = testBuildPhases.first(where: { $0.name() == "Dependencies" }) as? PBXCopyFilesBuildPhase
+        let testTargetFileNames = testDependenciesBuildPhase?.files?.compactMap { $0.file?.nameOrPath }.sorted()
+        let expectedTestTargetFileNames = ["TestHost.app"]
+        XCTAssertEqual(testTargetFileNames, expectedTestTargetFileNames)
     }
 }
 
