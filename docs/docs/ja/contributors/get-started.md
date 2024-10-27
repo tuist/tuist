@@ -8,13 +8,13 @@ description: このガイドに従って、Tuistへのコントリビューシ�
 
 iOS などの Apple プラットフォーム向けのアプリ開発経験がある場合、Tuist にコードを追加することもそれほど違いはないでしょう。 アプリ開発と比べて、触れておくべき違いが2点あります。
 
-- **CLIとのやり取りはターミナルを通じて行われます。** ユーザーはTuistを実行し、指定したタスクを実行した後、正常に終了するか、またはステータスコードを返します。 During the execution, the user can be notified by sending output information to the standard output and standard error. There are no gestures, or graphical interactions, just the user intent.
+- **CLIとのやり取りはターミナルを通じて行われます。** ユーザーはTuistを実行し、指定したタスクを実行した後、正常に終了するか、またはステータスコードを返します。 実行中は、標準出力や標準エラーに情報を出力することで、ユーザーに通知を行うことができます。 ジェスチャーやグラフィカルな操作はなく、あるのはユーザーの意図だけです。
 
 - **There’s no runloop that keeps the process alive waiting for input**, like it happens in an iOS app when the app receives system or user events. CLIs run in its process and finishes when the work is done. Asynchronous work can be done using system APIs like [DispatchQueue](https://developer.apple.com/documentation/dispatch/dispatchqueue) or [structured concurrency](https://developer.apple.com/tutorials/app-dev-training/managing-structured-concurrency), but need to make sure the process is running while the asynchronous work is being executed. Otherwise, the process will terminate the asynchronous work.
 
 If you don’t have any experience with Swift, we recommend [Apple’s official book](https://docs.swift.org/swift-book/) to get familiar with the language and the most used elements from the Foundation’s API.
 
-## Minimum requirements {#minimum-requirements}
+## 最小要件 {#minimum-requirements}
 
 Tuist に貢献するには、最低限の要件があります。
 
