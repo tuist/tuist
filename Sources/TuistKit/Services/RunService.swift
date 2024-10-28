@@ -217,14 +217,15 @@ final class RunService {
         let graph: Graph
         let config = try await configLoader.loadConfig(path: path)
         let generator = generatorFactory.defaultGenerator(config: config, sources: [])
-        if try (generate || buildGraphInspector.workspacePath(directory: path) == nil) {
+        let workspacePath = try await buildGraphInspector.workspacePath(directory: path)
+        if generate || workspacePath == nil {
             logger.notice("Generating project for running", metadata: .section)
             graph = try await generator.generateWithGraph(path: path).1
         } else {
             graph = try await generator.load(path: path)
         }
 
-        guard let workspacePath = try buildGraphInspector.workspacePath(directory: path) else {
+        guard let workspacePath = try await buildGraphInspector.workspacePath(directory: path) else {
             throw RunServiceError.workspaceNotFound(path: path.pathString)
         }
 

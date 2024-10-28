@@ -474,7 +474,7 @@ public class GraphTraverser: GraphTraversing {
             from: Set(precompiledDynamicLibrariesAndFrameworks).filter { $0.xcframeworkDependency != nil },
             test: {
                 $0.xcframeworkDependency?.linking == .static &&
-                    $0.xcframeworkDependency?.path.glob("**/*.swiftmodule").isEmpty == false
+                    $0.xcframeworkDependency?.swiftModules.isEmpty == false
             },
             skip: { $0.xcframeworkDependency == nil }
         )
@@ -595,8 +595,8 @@ public class GraphTraverser: GraphTraversing {
             ).filter { $0.xcframeworkDependency != nil },
             test: {
                 $0.xcframeworkDependency?.linking == .static &&
-                    $0.xcframeworkDependency?.path.glob("**/*.swiftmodule").isEmpty == true &&
-                    $0.xcframeworkDependency?.path.glob("**/*.modulemap").isEmpty == false
+                    $0.xcframeworkDependency?.swiftModules.isEmpty == true &&
+                    $0.xcframeworkDependency?.moduleMaps.isEmpty == false
             },
             skip: { $0.xcframeworkDependency == nil }
         )

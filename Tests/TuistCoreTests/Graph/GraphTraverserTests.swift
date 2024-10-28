@@ -1277,48 +1277,41 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let project = Project.test(targets: [app])
 
         // Given: Value Graph
-        let cDependency = GraphDependency.xcframework(
-            GraphDependency.XCFramework(
-                path: "/xcframeworks/c.xcframework",
-                infoPlist: .test(libraries: [.test(
-                    identifier: "id",
-                    path: try RelativePath(validating: "path"),
-                    architectures: [.arm64]
-                )]),
-                linking: .dynamic,
-                mergeable: false,
-                status: .required,
-                macroPath: nil
-            )
+        let cDependency: GraphDependency = .testXCFramework(
+            path: "/xcframeworks/c.xcframework",
+            infoPlist: .test(libraries: [.test(
+                identifier: "id",
+                path: try RelativePath(validating: "path"),
+                architectures: [.arm64]
+            )]),
+            linking: .dynamic,
+            status: .required,
+            macroPath: nil
         )
-        let dDependency = GraphDependency.xcframework(
-            GraphDependency.XCFramework(
-                path: "/xcframeworks/d.xcframework",
-                infoPlist: .test(libraries: [.test(
-                    identifier: "id",
-                    path: try RelativePath(validating: "path"),
-                    architectures: [.arm64]
-                )]),
-                linking: .dynamic,
-                mergeable: false,
-                status: .required,
-                macroPath: nil
-            )
+        let dDependency: GraphDependency = .testXCFramework(
+            path: "/xcframeworks/d.xcframework",
+            infoPlist: .test(libraries: [.test(
+                identifier: "id",
+                path: try RelativePath(validating: "path"),
+                architectures: [.arm64]
+            )]),
+            linking: .dynamic,
+            mergeable: false,
+            status: .required,
+            macroPath: nil
         )
-        let eDependency = GraphDependency.xcframework(
-            GraphDependency.XCFramework(
-                path: "/xcframeworks/e.xcframework",
-                infoPlist: .test(libraries: [.test(
-                    identifier: "id",
-                    path: try RelativePath(validating: "path"),
-                    mergeable: true,
-                    architectures: [.arm64]
-                )]),
-                linking: .dynamic,
+        let eDependency: GraphDependency = .testXCFramework(
+            path: "/xcframeworks/e.xcframework",
+            infoPlist: .test(libraries: [.test(
+                identifier: "id",
+                path: try RelativePath(validating: "path"),
                 mergeable: true,
-                status: .required,
-                macroPath: nil
-            )
+                architectures: [.arm64]
+            )]),
+            linking: .dynamic,
+            mergeable: true,
+            status: .required,
+            macroPath: nil
         )
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
             .target(name: app.name, path: project.path): Set(arrayLiteral: cDependency, eDependency),
@@ -1354,48 +1347,42 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let project = Project.test(targets: [app])
 
         // Given: Value Graph
-        let cDependency = GraphDependency.xcframework(
-            GraphDependency.XCFramework(
-                path: "/xcframeworks/c.xcframework",
-                infoPlist: .test(libraries: [.test(
-                    identifier: "id",
-                    path: try RelativePath(validating: "c.framework"),
-                    architectures: [.arm64]
-                )]),
-                linking: .dynamic,
-                mergeable: false,
-                status: .required,
-                macroPath: nil
-            )
+        let cDependency: GraphDependency = .testXCFramework(
+            path: "/xcframeworks/c.xcframework",
+            infoPlist: .test(libraries: [.test(
+                identifier: "id",
+                path: try RelativePath(validating: "c.framework"),
+                architectures: [.arm64]
+            )]),
+            linking: .dynamic,
+            mergeable: false,
+            status: .required,
+            macroPath: nil
         )
-        let dDependency = GraphDependency.xcframework(
-            GraphDependency.XCFramework(
-                path: "/xcframeworks/d.xcframework",
-                infoPlist: .test(libraries: [.test(
-                    identifier: "id",
-                    path: try RelativePath(validating: "d.framework"),
-                    architectures: [.arm64]
-                )]),
-                linking: .dynamic,
-                mergeable: false,
-                status: .required,
-                macroPath: nil
-            )
+        let dDependency: GraphDependency = .testXCFramework(
+            path: "/xcframeworks/d.xcframework",
+            infoPlist: .test(libraries: [.test(
+                identifier: "id",
+                path: try RelativePath(validating: "d.framework"),
+                architectures: [.arm64]
+            )]),
+            linking: .dynamic,
+            mergeable: false,
+            status: .required,
+            macroPath: nil
         )
-        let eDependency = GraphDependency.xcframework(
-            GraphDependency.XCFramework(
-                path: "/xcframeworks/e.xcframework",
-                infoPlist: .test(libraries: [.test(
-                    identifier: "id",
-                    path: try RelativePath(validating: "e.framework"),
-                    mergeable: true,
-                    architectures: [.arm64]
-                )]),
-                linking: .dynamic,
+        let eDependency: GraphDependency = .testXCFramework(
+            path: "/xcframeworks/e.xcframework",
+            infoPlist: .test(libraries: [.test(
+                identifier: "id",
+                path: try RelativePath(validating: "e.framework"),
                 mergeable: true,
-                status: .required,
-                macroPath: nil
-            )
+                architectures: [.arm64]
+            )]),
+            linking: .dynamic,
+            mergeable: true,
+            status: .required,
+            macroPath: nil
         )
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
             .target(name: app.name, path: project.path): Set(arrayLiteral: cDependency, eDependency),
@@ -1972,19 +1959,17 @@ final class GraphTraverserTests: TuistUnitTestCase {
         )
         let dependencyStaticXCFrameworkA = GraphDependency.testXCFramework(
             path: staticFrameworkAPath,
-            linking: .static
-        )
-        try await fileSystem.makeDirectory(at: staticFrameworkAPath)
-        try await fileSystem.touch(
-            staticFrameworkAPath.appending(component: "StaticFrameworkA.swiftmodule")
+            linking: .static,
+            swiftModules: [
+                staticFrameworkAPath.appending(component: "StaticFrameworkA.swiftmodule"),
+            ]
         )
         let dependencyStaticXCFrameworkB = GraphDependency.testXCFramework(
             path: staticFrameworkBPath,
-            linking: .static
-        )
-        try await fileSystem.makeDirectory(at: staticFrameworkBPath)
-        try await fileSystem.touch(
-            staticFrameworkBPath.appending(component: "StaticFrameworkB.swiftmodule")
+            linking: .static,
+            swiftModules: [
+                staticFrameworkBPath.appending(component: "StaticFrameworkB.swiftmodule"),
+            ]
         )
 
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
@@ -2077,11 +2062,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
             .appending(component: "StaticFrameworkA.xcframework")
         let dependencyStaticXCFrameworkA = GraphDependency.testXCFramework(
             path: staticFrameworkAPath,
-            linking: .static
-        )
-        try await fileSystem.makeDirectory(at: staticFrameworkAPath)
-        try await fileSystem.touch(
-            staticFrameworkAPath.appending(component: "StaticFrameworkA.swiftmodule")
+            linking: .static,
+            swiftModules: [
+                staticFrameworkAPath.appending(component: "StaticFrameworkA.swiftmodule"),
+            ]
         )
         let dependencyLibCpp = GraphDependency.testSDK(
             name: "libc++.tbd",
@@ -3947,19 +3931,17 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let staticFramework = Target.test(name: "StaticFramework", product: .staticFramework)
 
         let project = Project.test(targets: [staticLibrary])
-        let directXCFramework = GraphDependency.xcframework(
-            GraphDependency.XCFramework(
-                path: "/xcframeworks/direct.xcframework",
-                infoPlist: .test(libraries: [.test(
-                    identifier: "id",
-                    path: try RelativePath(validating: "path"),
-                    architectures: [.arm64]
-                )]),
-                linking: .static,
-                mergeable: false,
-                status: .required,
-                macroPath: nil
-            )
+        let directXCFramework: GraphDependency = .testXCFramework(
+            path: "/xcframeworks/direct.xcframework",
+            infoPlist: .test(libraries: [.test(
+                identifier: "id",
+                path: try RelativePath(validating: "path"),
+                architectures: [.arm64]
+            )]),
+            linking: .static,
+            mergeable: false,
+            status: .required,
+            macroPath: nil
         )
         let directFramework = GraphDependency.framework(
             path: "/frameworks/direct.framework",
@@ -3971,47 +3953,41 @@ final class GraphTraverserTests: TuistUnitTestCase {
             status: .required
         )
         let directFrameworkTarget = GraphDependency.target(name: staticFramework.name, path: project.path)
-        let transitiveFrameworkTargetXCFramework = GraphDependency.xcframework(
-            GraphDependency.XCFramework(
-                path: "/xcframeworks/transitive-framework-target-xcframework.xcframework",
-                infoPlist: .test(libraries: [.test(
-                    identifier: "id",
-                    path: try RelativePath(validating: "path"),
-                    architectures: [.arm64]
-                )]),
-                linking: .static,
-                mergeable: false,
-                status: .required,
-                macroPath: nil
-            )
+        let transitiveFrameworkTargetXCFramework: GraphDependency = .testXCFramework(
+            path: "/xcframeworks/transitive-framework-target-xcframework.xcframework",
+            infoPlist: .test(libraries: [.test(
+                identifier: "id",
+                path: try RelativePath(validating: "path"),
+                architectures: [.arm64]
+            )]),
+            linking: .static,
+            mergeable: false,
+            status: .required,
+            macroPath: nil
         )
-        let transitiveXCFramework = GraphDependency.xcframework(
-            GraphDependency.XCFramework(
-                path: "/xcframeworks/transitive.xcframework",
-                infoPlist: .test(libraries: [.test(
-                    identifier: "id",
-                    path: try RelativePath(validating: "path"),
-                    architectures: [.arm64]
-                )]),
-                linking: .static,
-                mergeable: false,
-                status: .required,
-                macroPath: nil
-            )
+        let transitiveXCFramework: GraphDependency = .testXCFramework(
+            path: "/xcframeworks/transitive.xcframework",
+            infoPlist: .test(libraries: [.test(
+                identifier: "id",
+                path: try RelativePath(validating: "path"),
+                architectures: [.arm64]
+            )]),
+            linking: .static,
+            mergeable: false,
+            status: .required,
+            macroPath: nil
         )
-        let frameworkTransitiveXCFramework = GraphDependency.xcframework(
-            GraphDependency.XCFramework(
-                path: "/xcframeworks/framework-transitive.xcframework",
-                infoPlist: .test(libraries: [.test(
-                    identifier: "id",
-                    path: try RelativePath(validating: "path"),
-                    architectures: [.arm64]
-                )]),
-                linking: .static,
-                mergeable: false,
-                status: .required,
-                macroPath: nil
-            )
+        let frameworkTransitiveXCFramework: GraphDependency = .testXCFramework(
+            path: "/xcframeworks/framework-transitive.xcframework",
+            infoPlist: .test(libraries: [.test(
+                identifier: "id",
+                path: try RelativePath(validating: "path"),
+                architectures: [.arm64]
+            )]),
+            linking: .static,
+            mergeable: false,
+            status: .required,
+            macroPath: nil
         )
 
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
@@ -5170,11 +5146,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
         )
         let dependencyStaticXCFrameworkA = GraphDependency.testXCFramework(
             path: staticFrameworkAPath,
-            linking: .static
-        )
-        try await fileSystem.makeDirectory(at: staticFrameworkAPath)
-        try await fileSystem.touch(
-            staticFrameworkAPath.appending(component: "StaticFrameworkB.modulemap")
+            linking: .static,
+            moduleMaps: [
+                staticFrameworkAPath.appending(component: "StaticFrameworkB.modulemap"),
+            ]
         )
 
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
@@ -5192,10 +5167,13 @@ final class GraphTraverserTests: TuistUnitTestCase {
             .sorted()
 
         // Then
-        XCTAssertEqual(got, [
+        XCTAssertBetterEqual(got, [
             .testXCFramework(
                 path: staticFrameworkAPath,
-                linking: .static
+                linking: .static,
+                moduleMaps: [
+                    staticFrameworkAPath.appending(component: "StaticFrameworkB.modulemap"),
+                ]
             ),
         ])
     }

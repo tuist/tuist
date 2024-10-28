@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Path
 import TuistCore
@@ -10,13 +11,16 @@ import XcodeGraph
 /// See this PR for more context: https://github.com/tuist/tuist/pull/6757
 public final class StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
     private let fileHandler: FileHandling
+    private let fileSystem: FileSysteming
     private let manifestFilesLocator: ManifestFilesLocating
 
     public init(
         fileHandler: FileHandling = FileHandler.shared,
+        fileSystem: FileSysteming = FileSystem(),
         manifestFilesLocator: ManifestFilesLocating = ManifestFilesLocator()
     ) {
         self.fileHandler = fileHandler
+        self.fileSystem = fileSystem
         self.manifestFilesLocator = manifestFilesLocator
     }
 
@@ -38,7 +42,7 @@ public final class StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
         var sideEffects: [SideEffectDescriptor] = []
         let graphTraverser = GraphTraverser(graph: graph)
 
-        let graph = try mapGraph(
+        let graph = try await mapGraph(
             graph: graph
         ) { graphTarget in
             let target = graphTarget.target
@@ -63,7 +67,7 @@ public final class StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
                 staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies
                     .filter { $0.containsLibrary() }
 
-            sideEffects += try generateModuleMapAndUmbrellaHeader(
+            sideEffects += try await generateModuleMapAndUmbrellaHeader(
                 for: staticObjcXCFrameworksWithLibrariesLinkedByDynamicXCFrameworkDependencies,
                 derivedDirectory: derivedDirectory
             )
@@ -114,7 +118,7 @@ public final class StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
                 )
                 settings["HEADER_SEARCH_PATHS"] = .array(
                     staticObjcXCFrameworksWithLibrariesLinkedByDynamicXCFrameworkDependencies.flatMap { xcframework -> [String] in
-                        guard let moduleMap = xcframework.path.glob("**/module.modulemap").first
+                        guard let moduleMap = xcframework.moduleMaps.first
                         else { return [] }
                         return [
                             "\"$(SRCROOT)/\(moduleMap.parentDirectory.relative(to: project.path).pathString)\"",
@@ -146,13 +150,16 @@ public final class StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
     private func generateModuleMapAndUmbrellaHeader(
         for staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies: [GraphDependency.XCFramework],
         derivedDirectory: AbsolutePath
-    ) throws -> [SideEffectDescriptor] {
-        try staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies
-            .flatMap { xcframework -> [SideEffectDescriptor] in
-                guard let moduleMap = xcframework.path.glob("**/module.modulemap").first
+    ) async throws -> [SideEffectDescriptor] {
+        let fileSystem = fileSystem
+        let fileHandler = fileHandler
+        return try await staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies
+            .concurrentFlatMap { xcframework -> [SideEffectDescriptor] in
+                guard let moduleMap = xcframework.moduleMaps.first
                 else { return [] }
                 let name = xcframework.path.basenameWithoutExt
-                let umbrellaHeader = xcframework.path.glob("**/\(name).h").first
+                let umbrellaHeader = try await fileSystem.glob(directory: xcframework.path, include: ["**/\(name).h"]).collect()
+                    .first
                 let headersDirectory = derivedDirectory.appending(components: name, "Headers")
                 var sideEffects: [SideEffectDescriptor] = [
                     .directory(DirectoryDescriptor(path: headersDirectory)),
@@ -183,15 +190,15 @@ public final class StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
 
     private func mapGraph(
         graph: Graph,
-        targetSettings: (GraphTarget) throws -> SettingsDictionary
-    ) throws -> Graph {
+        targetSettings: (GraphTarget) async throws -> SettingsDictionary
+    ) async throws -> Graph {
         var graph = graph
         var settings: [GraphDependency: SettingsDictionary] = [:]
         let targets = try GraphTraverser(graph: graph).allTargetsTopologicalSorted()
         for target in targets {
             guard let dependencies = graph.dependencies[.target(name: target.target.name, path: target.path)] else { continue }
             let targetDependency: GraphDependency = .target(name: target.target.name, path: target.path)
-            settings[targetDependency] = try targetSettings(target)
+            settings[targetDependency] = try await targetSettings(target)
             for dependency in dependencies {
                 settings[targetDependency] = (settings[targetDependency] ?? [:]).combine(with: settings[dependency] ?? [:])
             }
