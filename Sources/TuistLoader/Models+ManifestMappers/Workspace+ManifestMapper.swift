@@ -49,6 +49,7 @@ extension XcodeGraph.Workspace {
                     fileSystem: fileSystem
                 )
             }
+            .sorted(by: { $0.path < $1.path })
 
         let schemes = try await manifest.schemes.concurrentMap { try await XcodeGraph.Scheme.from(
             manifest: $0,
