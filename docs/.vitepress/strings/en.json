@@ -58,6 +58,9 @@
     "xcodeproj-compatible": "XcodeProj-compatible"
   },
   "navbar": {
+    "home": {
+      "text": "Home"
+    },
     "guides": {
       "text": "Guides"
     },
@@ -83,6 +86,21 @@
     }
   },
   "sidebars": {
+    "home": {
+      "items": {
+        "welcome": {
+          "text": "Welcome",
+          "items": {
+            "faq": {
+              "text": "FAQ"
+            }
+          }
+        },
+        "you": {
+          "text": "You"
+        }
+      }
+    },
     "cli": {
       "text": "CLI",
       "items": {

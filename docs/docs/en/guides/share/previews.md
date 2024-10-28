@@ -1,5 +1,6 @@
 ---
 title: Previews
+titleTemplate: :title · share · Guides · Tuist
 description: Learn how to generate and share previews of your apps with anyone.
 ---
 

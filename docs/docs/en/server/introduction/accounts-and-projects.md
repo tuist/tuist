@@ -1,6 +1,6 @@
 ---
 title: Accounts and projects
-titleTemplate: :title | Introduction | Server | Tuist
+titleTemplate: :title · Introduction · Server · Tuist
 description: Learn how to create and manage accounts and projects in Tuist.
 ---
 

@@ -1,6 +1,6 @@
 ---
 title: Why a server?
-titleTemplate: :title | Introduction | Server | Tuist
+titleTemplate: :title · Introduction · Server · Tuist
 description: Learn why Tuist has a server and how it can help scale your app development.
 ---
 

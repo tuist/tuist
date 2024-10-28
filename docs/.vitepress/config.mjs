@@ -7,6 +7,7 @@ import {
   referencesSidebar,
   serverSidebar,
   navBar,
+  homeSidebar,
 } from "./bars.mjs";
 import { loadData as loadCLIData } from "./data/cli";
 import { localizedString } from "./i18n.mjs";
@@ -15,8 +16,9 @@ async function themeConfig(locale) {
   const sidebar = {};
   sidebar[`/${locale}/contributors`] = contributorsSidebar(locale);
   sidebar[`/${locale}/guides/`] = guidesSidebar(locale);
+  sidebar[`/${locale}/home`] = homeSidebar(locale);
   sidebar[`/${locale}/server/`] = serverSidebar(locale);
-  sidebar[`/${locale}/`] = guidesSidebar(locale);
+  sidebar[`/${locale}/`] = homeSidebar(locale);
   sidebar[`/${locale}/cli/`] = await loadCLIData(locale);
   sidebar[`/${locale}/references/`] = await referencesSidebar(locale);
   return {
@@ -32,102 +34,102 @@ function getSearchOptionsForLocale(locale) {
       button: {
         buttonText: localizedString(
           locale,
-          "search.translations.button.buttonText"
+          "search.translations.button.buttonText",
         ),
         buttonAriaLabel: localizedString(
           locale,
-          "search.translations.button.buttonAriaLabel"
+          "search.translations.button.buttonAriaLabel",
         ),
       },
       modal: {
         searchBox: {
           resetButtonTitle: localizedString(
             locale,
-            "search.translations.modal.search-box.reset-button-title"
+            "search.translations.modal.search-box.reset-button-title",
           ),
           resetButtonAriaLabel: localizedString(
             locale,
-            "search.translations.modal.search-box.reset-button-aria-label"
+            "search.translations.modal.search-box.reset-button-aria-label",
           ),
           cancelButtonText: localizedString(
             locale,
-            "search.translations.modal.search-box.cancel-button-text"
+            "search.translations.modal.search-box.cancel-button-text",
           ),
           cancelButtonAriaLabel: localizedString(
             locale,
-            "search.translations.modal.search-box.cancel-button-aria-label"
+            "search.translations.modal.search-box.cancel-button-aria-label",
           ),
         },
         startScreen: {
           recentSearchesTitle: localizedString(
             locale,
-            "search.translations.modal.start-screen.recent-searches-title"
+            "search.translations.modal.start-screen.recent-searches-title",
           ),
           noRecentSearchesText: localizedString(
             locale,
-            "search.translations.modal.start-screen.no-recent-searches-text"
+            "search.translations.modal.start-screen.no-recent-searches-text",
           ),
           saveRecentSearchButtonTitle: localizedString(
             locale,
-            "search.translations.modal.start-screen.save-recent-search-button-title"
+            "search.translations.modal.start-screen.save-recent-search-button-title",
           ),
           removeRecentSearchButtonTitle: localizedString(
             locale,
-            "search.translations.modal.start-screen.remove-recent-search-button-title"
+            "search.translations.modal.start-screen.remove-recent-search-button-title",
           ),
           favoriteSearchesTitle: localizedString(
             locale,
-            "search.translations.modal.start-screen.favorite-searches-title"
+            "search.translations.modal.start-screen.favorite-searches-title",
           ),
           removeFavoriteSearchButtonTitle: localizedString(
             locale,
-            "search.translations.modal.start-screen.remove-favorite-search-button-title"
+            "search.translations.modal.start-screen.remove-favorite-search-button-title",
           ),
         },
         errorScreen: {
           titleText: localizedString(
             locale,
-            "search.translations.modal.error-screen.title-text"
+            "search.translations.modal.error-screen.title-text",
           ),
           helpText: localizedString(
             locale,
-            "search.translations.modal.error-screen.help-text"
+            "search.translations.modal.error-screen.help-text",
           ),
         },
         footer: {
           selectText: localizedString(
             locale,
-            "search.translations.modal.footer.select-text"
+            "search.translations.modal.footer.select-text",
           ),
           navigateText: localizedString(
             locale,
-            "search.translations.modal.footer.navigate-text"
+            "search.translations.modal.footer.navigate-text",
           ),
           closeText: localizedString(
             locale,
-            "search.translations.modal.footer.close-text"
+            "search.translations.modal.footer.close-text",
           ),
           searchByText: localizedString(
             locale,
-            "search.translations.modal.footer.search-by-text"
+            "search.translations.modal.footer.search-by-text",
           ),
         },
         noResultsScreen: {
           noResultsText: localizedString(
             locale,
-            "search.translations.modal.no-results-screen.no-results-text"
+            "search.translations.modal.no-results-screen.no-results-text",
           ),
           suggestedQueryText: localizedString(
             locale,
-            "search.translations.modal.no-results-screen.suggested-query-text"
+            "search.translations.modal.no-results-screen.suggested-query-text",
           ),
           reportMissingResultsText: localizedString(
             locale,
-            "search.translations.modal.no-results-screen.report-missing-results-text"
+            "search.translations.modal.no-results-screen.report-missing-results-text",
           ),
           reportMissingResultsLinkText: localizedString(
             locale,
-            "search.translations.modal.no-results-screen.report-missing-results-link-text"
+            "search.translations.modal.no-results-screen.report-missing-results-link-text",
           ),
         },
       },
@@ -144,7 +146,7 @@ const searchOptionsLocales = {
 
 export default defineConfig({
   title: "Tuist",
-  titleTemplate: ":title | Tuist",
+  titleTemplate: ":title · Tuist",
   description: "Scale your Xcode app development",
   srcDir: "docs",
   lastUpdated: true,

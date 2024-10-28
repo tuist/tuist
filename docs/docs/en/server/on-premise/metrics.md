@@ -1,6 +1,6 @@
 ---
 title: Metrics
-titleTemplate: :title | On-premise | Server | Tuist
+titleTemplate: :title · On-premise · Server · Tuist
 description: Optimize your build times by caching compiled binaries and sharing them across different environments.
 ---
 

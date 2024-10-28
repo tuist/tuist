@@ -5,11 +5,18 @@ description: Extend your Apple native tooling to better apps at scale.
 
 # Tuist {#tuist}
 
-In the world of app development, particularly for platforms like Apple's, organizations often encounter **productivity roadblocks.** These can include sluggish compilation times, unreliable tests, and intricate automation workflows that drain resources. Traditionally, companies address these issues by forming dedicated platform teams. These specialists maintain codebase health and integrity, freeing other developers to focus on feature creation. However, this approach can be expensive and risky, as the departure of key team members can severely impact productivity.
+Extend the Apple development toolchain to **build better apps faster**.
 
-**Tuist is a toolchain designed to accelerate and enhance app development.** We integrate seamlessly with official tools and systems, meeting developers in familiar territory. By shouldering the burden of tool and system integration, we enable teams to channel their energy into feature development and improving the overall developer experience. In essence, Tuist serves as your virtual platform team. We're with you every step of the way - from the spark of an app idea to its user launch - tackling challenges as they arise.
+## From hello world to million users
 
-Tuist is comprised of **a [CLI](https://github.com/tuist/tuist)**, which is the main entry point for developers, and a server that the CLI integrates with to persist state and integrate with other publicly available services. Note that the features that require with the server might require a subscription.
+We meet you where you are:
+
+<Card title="Indie crafter 👩‍💻" description="Focus on building your app while we handle the tools." color="purple" />
+<Card title="Small startup 🌱" description="Your virtual platform team, guiding you to scale smartly when the time is right." color="pink" />
+<Card title="Scaling business 🚀" description="Your platform team’s copilot, helping craft a productive and thriving development environment." color="green" />
+<Card title="Enterprise 💼" description="Streamline workflows and gain insights to empower informed decision-making." color="blue" />
+
+
 
 ## Why would I use Tuist? {#why-would-i-use-tuist}
 

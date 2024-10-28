@@ -1,5 +1,6 @@
 ---
 title: Cache
+titleTemplate: :title · Build · Develop · Guides · Tuist
 description: Optimize your build times by caching compiled binaries and sharing them across different environments.
 ---
 

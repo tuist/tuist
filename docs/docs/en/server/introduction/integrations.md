@@ -1,6 +1,6 @@
 ---
 title: Integrations
-titleTemplate: :title | Introduction | Server | Tuist
+titleTemplate: :title · Introduction · Server · Tuist
 description: Learn how to connect Tuist to other tools and services.
 ---
 

@@ -1,6 +1,6 @@
 ---
 title: Continuous Integration (CI)
-titleTemplate: ":title | Develop | Tuist"
+titleTemplate: :title · Automate · Develop · Guides · Tuist
 description: Learn how to use Tuist in your CI workflows.
 ---
 

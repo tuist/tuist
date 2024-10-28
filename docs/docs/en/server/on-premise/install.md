@@ -1,6 +1,6 @@
 ---
 title: Installation
-titleTemplate: :title | On-premise | Server | Tuist
+titleTemplate: :title · On-premise · Server · Tuist
 description: Learn how to install Tuist on your infrastructure.
 ---
 

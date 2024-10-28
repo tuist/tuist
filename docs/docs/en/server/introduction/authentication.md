@@ -1,6 +1,6 @@
 ---
 title: Authentication
-titleTemplate: :title | Introduction | Server | Tuist
+titleTemplate: :title · Introduction · Server · Tuist
 description: Learn how to authenticate with the Tuist server from the CLI.
 ---
 

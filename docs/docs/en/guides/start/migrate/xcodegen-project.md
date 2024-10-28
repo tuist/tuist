@@ -1,5 +1,6 @@
 ---
 title: Migrate an XcodeGen project
+titleTemplate: :title · Migrate · Start · Guides · Tuist
 description: Learn how to migrate your projects from XcodeGen to Tuist.
 ---
 
