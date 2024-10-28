@@ -1,6 +1,6 @@
 ---
 title: はじめに
-titleTemplate: :title - Tuist に貢献する
+titleTemplate: :title | Contributors | Tuist
 description: このガイドに従って、Tuistへのコントリビューションを始めましょう。
 ---
 
