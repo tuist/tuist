@@ -1,4 +1,17 @@
 {
+  "aside": {
+    "translate": {
+      "title": {
+        "text": "Translation 🌍"
+      },
+      "description": {
+        "text": "You can translate or improve the translation of this page."
+      },
+      "cta": {
+        "text": "Contribute"
+      }
+    }
+  },
   "search": {
     "placeholder": "Search",
     "translations": {
