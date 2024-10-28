@@ -108,6 +108,9 @@
         },
         "principles": {
           "text": "Principles"
+        },
+        "translate": {
+          "text": "Translate"
         }
       }
     },
