@@ -3,6 +3,15 @@
     <channel>
         <title>Tuist</title>
         <item>
+            <title>0.3.4</title>
+            <pubDate>Mon, 28 Oct 2024 17:11:18 +0000</pubDate>
+            <link>https://github.com/tuist/tuist/releases</link>
+            <sparkle:version>0.3.4</sparkle:version>
+            <sparkle:shortVersionString>0.3.4</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0.0</sparkle:minimumSystemVersion>
+            <enclosure url="https://github.com/tuist/tuist/releases/download/app@0.3.4/Tuist.dmg" length="19774900" type="application/octet-stream" sparkle:edSignature="umakg8xnQOGBH1b1qPl6IW0RFgUnzrGN4g2hGTSFjX99o7LBUHcfCpkGCbcuHHw2Oc1qHuwjQGfYDIxvLffFCQ=="/>
+        </item>
+        <item>
             <title>0.3.3</title>
             <pubDate>Fri, 25 Oct 2024 10:40:39 +0000</pubDate>
             <link>https://github.com/tuist/tuist/releases</link>
@@ -19,15 +28,6 @@
             <sparkle:shortVersionString>0.3.2</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0.0</sparkle:minimumSystemVersion>
             <enclosure url="https://github.com/tuist/tuist/releases/download/app@0.3.2/Tuist.dmg" length="19702131" type="application/octet-stream" sparkle:edSignature="D1cLfVtc54ezfgu1ru943LnpMyIYz59Mp42pgzMN6ozg+SjZ2Qc43/sl9KDCr6TT9Aglf6UQkIZ9D9L7gAN3DQ=="/>
-        </item>
-        <item>
-            <title>0.3.1</title>
-            <pubDate>Thu, 17 Oct 2024 14:42:44 +0000</pubDate>
-            <link>https://github.com/tuist/tuist/releases</link>
-            <sparkle:version>0.3.1</sparkle:version>
-            <sparkle:shortVersionString>0.3.1</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0.0</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/tuist/tuist/releases/download/app@0.3.1/Tuist.dmg" length="19181041" type="application/octet-stream" sparkle:edSignature="HN/E9Zaer6ySAIR00AjlJypj32jt91Is5kRaz2EOYzETWbOoslwET2PO3XAm3UaHzKHvXHbwYZqetJ08aVhiAA=="/>
         </item>
     </channel>
 </rss>

@@ -1,3 +1,8 @@
+## What's Changed in app@0.3.4
+* refactor: migrate AbsolutePath.glob to FileSystem.glob by @fortmarek in [#6936](https://github.com/tuist/tuist/pull/6936)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/app@0.3.3...app@0.3.4
+
 ## What's Changed in app@0.3.3
 * refactor: migrate globs to the new FileSystem utility by @fortmarek in [#6920](https://github.com/tuist/tuist/pull/6920)
 
