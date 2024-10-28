@@ -1,4 +1,45 @@
 {
+  "search": {
+    "placeholder": "Search",
+    "translations": {
+      "button": {
+        "button-text": "Search documentation",
+        "button-aria-label": "Search documentation"
+      },
+      "modal": {
+        "search-box": {
+          "reset-button-title": "Clear query",
+          "reset-button-aria-label": "Clear query",
+          "cancel-button-text": "Cancel",
+          "cancel-button-aria-label": "Cancel"
+        },
+        "start-screen": {
+          "recent-searches-title": "Search history",
+          "no-recent-searches-text": "No search history",
+          "save-recent-search-button-title": "Save to search history",
+          "remove-recent-search-button-title": "Remove from search history",
+          "favorite-searches-title": "Favorites",
+          "remove-favorite-search-button-title": "Remove from favorites"
+        },
+        "error-screen": {
+          "title-text": "Unable to retrieve results",
+          "help-text": "You may need to check your network connection"
+        },
+        "footer": {
+          "select-text": "Select",
+          "navigate-text": "Navigate",
+          "close-text": "Close",
+          "search-by-text": "Search provider"
+        },
+        "no-results-screen": {
+          "no-results-text": "No relevant results found",
+          "suggested-query-text": "You might try querying",
+          "report-missing-results-text": "Do you think this query should have results?",
+          "report-missing-results-link-text": "クリックしてフィードバックする"
+        }
+      }
+    }
+  },
   "badges": {
     "coming-soon": "近日公開",
     "xcodeproj-compatible": "XcodeProj互換"
@@ -76,7 +117,7 @@
           "text": "はじめに",
           "items": {
             "why-server": {
-              "text": "なぜサーバーが必要か？"
+              "text": "なぜサーバーが必要なのか？"
             },
             "accounts-and-projects": {
               "text": "アカウントとプロジェクト"

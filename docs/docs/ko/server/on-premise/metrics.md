@@ -10,6 +10,8 @@ You can ingest metrics gathered by the Tuist server using [Prometheus](https://p
 
 ## Elixir metrics {#elixir-metrics}
 
+By default we include metrics of the Elixir runtime, [BEAM](https://en.wikipedia.org/wiki/BEAM_\\\\(Erlang_virtual_machine\\\\)), Elixir, and some of the libraries we use. The following are some of the metrics you can expect to see:
+
 By default we include metrics of the Elixir runtime, [BEAM](https://en.wikipedia.org/wiki/BEAM_(Erlang_virtual_machine)), Elixir, and some of the libraries we use. The following are some of the metrics you can expect to see:
 - [Application](https://hexdocs.pm/prom_ex/PromEx.Plugins.Application.html)
 - [BEAM](https://hexdocs.pm/prom_ex/PromEx.Plugins.Beam.html)
@@ -81,7 +83,6 @@ The size (in bytes) of an object fetched from the remote storage.
 |--- | ---- |
 | `object_key` | The lookup key of the object in the remote storage. |
 
-
 ### `tuist_storage_get_object_size_duration_miliseconds` (histogram) {#tuist_storage_get_object_size_duration_miliseconds-histogram}
 
 The duration (in milliseconds) of fetching an object size from the remote storage.
@@ -91,7 +92,6 @@ The duration (in milliseconds) of fetching an object size from the remote storag
 | Tag | Description |
 |--- | ---- |
 | `object_key` | The lookup key of the object in the remote storage. |
-
 
 ### `tuist_storage_get_object_size_count` (counter) {#tuist_storage_get_object_size_count-counter}
 
@@ -113,7 +113,6 @@ The duration (in milliseconds) of deleting all objects from the remote storage.
 |--- | ---- |
 | `project_slug` | The project slug of the project whose objects are being deleted. |
 
-
 ### `tuist_storage_delete_all_objects_count` (counter) {#tuist_storage_delete_all_objects_count-counter}
 
 The number of times all project objects were deleted from the remote storage.
@@ -123,7 +122,6 @@ The number of times all project objects were deleted from the remote storage.
 | Tag | Description |
 |--- | ---- |
 | `project_slug` | The project slug of the project whose objects are being deleted. |
-
 
 ### `tuist_storage_multipart_start_upload_duration_milliseconds` (histogram) {#tuist_storage_multipart_start_upload_duration_milliseconds-histogram}
 
@@ -145,7 +143,6 @@ The number of times an upload was started to the remote storage.
 |--- | ---- |
 | `object_key` | The lookup key of the object in the remote storage. |
 
-
 ### `tuist_storage_get_object_as_string_duration_milliseconds` (histogram) {#tuist_storage_get_object_as_string_duration_milliseconds-histogram}
 
 The duration (in milliseconds) of fetching an object as a string from the remote storage.
@@ -165,7 +162,6 @@ The number of times an object was fetched as a string from the remote storage.
 | Tag | Description |
 |--- | ---- |
 | `object_key` | The lookup key of the object in the remote storage. |
-
 
 ### `tuist_storage_check_object_existence_duration_milliseconds` (histogram) {#tuist_storage_check_object_existence_duration_milliseconds-histogram}
 
@@ -196,7 +192,6 @@ The duration (in milliseconds) of generating a download presigned URL for an obj
 | Tag | Description |
 |--- | ---- |
 | `object_key` | The lookup key of the object in the remote storage. |
-
 
 ### `tuist_storage_generate_download_presigned_url_count` (count) {#tuist_storage_generate_download_presigned_url_count-count}
 
