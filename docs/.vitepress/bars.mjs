@@ -167,6 +167,13 @@ export function contributorsSidebar(locale) {
           ),
           link: `/${locale}/contributors/principles`,
         },
+        {
+          text: localizedString(
+            locale,
+            "sidebars.contributors.items.translate.text"
+          ),
+          link: `/${locale}/contributors/translate`,
+        },
       ],
     },
   ];
