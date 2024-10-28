@@ -2,19 +2,18 @@ import Foundation
 import TuistSupport
 import XcodeGraph
 
-/// Cache designed to store `PlatformCondition.CombinationResult` for `GraphTraverser`
-final class ConditionCache {
-    private final class ConditionCacheValue {
-        let conditionResult: PlatformCondition.CombinationResult
-        init(conditionResult: PlatformCondition.CombinationResult) {
-            self.conditionResult = conditionResult
+final class GraphCache<Key: Hashable, Value> {
+    private final class CacheValue {
+        let value: Value
+        init(_ value: Value) {
+            self.value = value
         }
     }
 
-    private final class GraphEdgeCacheKey: NSObject {
-        let edge: GraphEdge
-        init(_ edge: GraphEdge) {
-            self.edge = edge
+    private final class CacheKey: NSObject {
+        let key: Key
+        init(_ key: Key) {
+            self.key = key
         }
 
         override func isEqual(_ object: Any?) -> Bool {
@@ -22,28 +21,49 @@ final class ConditionCache {
                 return false
             }
 
-            return edge == other.edge
+            return key == other.key
         }
 
         override var hash: Int {
-            edge.hashValue
+            key.hashValue
         }
     }
 
-    private let cache = NSCache<GraphEdgeCacheKey, ConditionCacheValue>()
+    private let cache = NSCache<CacheKey, CacheValue>()
 
-    public subscript(_ edge: (GraphDependency, GraphDependency)) -> PlatformCondition.CombinationResult? {
+    public subscript(_ key: Key) -> Value? {
         get {
-            cache.object(forKey: GraphEdgeCacheKey(GraphEdge(from: edge.0, to: edge.1)))?.conditionResult
+            cache.object(forKey: CacheKey(key))?.value
         }
         set {
             if let newValue {
                 cache.setObject(
-                    ConditionCacheValue(conditionResult: newValue),
-                    forKey: GraphEdgeCacheKey(GraphEdge(from: edge.0, to: edge.1))
+                    CacheValue(newValue),
+                    forKey: CacheKey(key)
                 )
             } else {
-                cache.removeObject(forKey: GraphEdgeCacheKey(GraphEdge(from: edge.0, to: edge.1)))
+                cache.removeObject(forKey: CacheKey(key))
+            }
+        }
+    }
+}
+
+/// Cache designed to store `PlatformCondition.CombinationResult` for `GraphTraverser`
+typealias ConditionCache = GraphCache<GraphEdge, PlatformCondition.CombinationResult>
+
+extension ConditionCache {
+    subscript(_ edge: (GraphDependency, GraphDependency)) -> Value? {
+        get {
+            self[GraphEdge(from: edge.0, to: edge.1)]
+        }
+        set {
+            if let newValue {
+                cache.setObject(
+                    CacheValue(newValue),
+                    forKey: CacheKey(GraphEdge(from: edge.0, to: edge.1))
+                )
+            } else {
+                cache.removeObject(forKey: CacheKey(GraphEdge(from: edge.0, to: edge.1)))
             }
         }
     }
