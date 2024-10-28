@@ -73,7 +73,7 @@ export async function referencesSidebar(locale) {
                 locale,
                 "sidebars.references.items.migrations.items.from-v3-to-v4.text"
               ),
-              link: "/references/migrations/from-v3-to-v4",
+              link: `/${locale}/references/migrations/from-v3-to-v4`,
             },
           ],
         },

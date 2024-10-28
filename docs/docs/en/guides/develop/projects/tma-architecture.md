@@ -4,7 +4,7 @@ titleTemplate: ":title | Projects | Tuist"
 description: Learn about The Modular Architecture (TMA) and how to structure your projects using it.
 ---
 
-<h1 id="the-modular-architecture-tma">The Modular Architecture (TMA)</h1>
+# The Modular Architecture (TMA) {#the-modular-architecture-tma}
 
 TMA is an architectural approach to structure Apple OS applications to enable scalability, optimize build and test cycles, and ensure good practices in your team. Its core idea is to build your apps by building independent features that are interconnected using clear and concise APIs.
 
@@ -13,11 +13,11 @@ These guidelines introduce the principles of the architecture, helping you ident
 > [!INFO] µFEATURES
 > This architecture was previously known as µFeatures. We've renamed it to The Modular Architecture (TMA) to better reflect its purpose and the principles behind it.
 
-<h2 id="core-principle">Core principle</h2>
+## Core principle {#core-principle}
 
 Developers should be able to **build, test, and try** their features fast, independently of the main app, and while ensuring Xcode features like UI previews, code completion, and debugging work reliably.
 
-<h2 id="what-is-a-module">What is a module</h2>
+## What is a module {#what-is-a-module}
 
 A module represents an application feature and is a combination of the following five targets (where target referts to an Xcode target):
 
@@ -43,35 +43,35 @@ We recommend following a naming convention for targets, something that you can e
 > [!IMPORTANT] COMPILER DIRECTIVES INSTEAD OF TESTING TARGETS
 > Alternatively, you can use compiler directives to include test data and mocks in the `Feature` or `FeatureInterface` targets when compiling for `Debug`. You simplify the graph, but you'll end up compiling code that you won't need for running the app.
 
-<h2 id="why-a-module">Why a module</h2>
+## Why a module {#why-a-module}
 
-<h3 id="clear-and-concise-apis">Clear and concise APIs</h3>
+### Clear and concise APIs {#clear-and-concise-apis}
 
 When all the app source code lives in the same target it is very easy to build implicit dependencies in code and end up with the so well-known spaghetti code. Everything is strongly coupled, the state is sometimes unpredictable, and introducing new changes become a nightmare. When we define features in independent targets we need to design public APIs as part of our feature implementation. We need to decide what should be public, how our feature should be consumed, what should remain private. We have more control over how we want our feature clients to use the feature and we can enforce good practices by designing safe APIs.
 
-<h3 id="small-modules">Small modules</h3>
+### Small modules {#small-modules}
 
 [Divide and conquer](https://en.wikipedia.org/wiki/Divide_and_conquer). Working in small modules allows you to have more focus and test and try the feature in isolation. Moreover, development cycles are much faster since we have a more selective compilation, compiling only the components that are necessary to get our feature working. The compilation of the whole app is only necessary at the very end of our work, when we need to integrate the feature into the app.
 
-<h3 id="reusability">Reusability</h3>
+### Reusability {#reusability}
 
 Reusing code across apps and other products like extensions is encouraged using frameworks or libraries. By building modules reusing them is pretty straightforward. We can build an iMessage extension, a Today Extension, or a watchOS application by just combining existing modules and adding _(when necessary)_ platform-specific UI layers.
 
-<h2 id="dependencies">Dependencies</h2>
+## Dependencies {#dependencies}
 
 When a module depends on another module, it declares a dependency against its interface target. The benefit of this is two-fold. It prevents the implementation of a module to be coupled to the implementation of another module, and it speeds up clean builds because they only have to compile the implementation of our feature, and the interfaces of direct and transitive dependencies. This approach is inspired by SwiftRock's idea of [Reducing iOS Build Times by using Interface Modules](https://swiftrocks.com/reducing-ios-build-times-by-using-interface-targets).
 
 Depending on interfaces requires apps to build the graph of implementations at runtime, and dependency-inject it into the modules that need it. Although TMA is non-opinionated about how to do this, we recommend using dependency-injection solutions or patterns or solutions that don't add built-time indirections or use platform APIs that were not designed for this purpose.
 
-<h2 id="product-types">Product types</h2>
+## Product types {#product-types}
 
 When building a module, you can choose between **libraries and frameworks**, and **static and dynamic linking** for the targets. Without Tuist, making this decision is a bit more complex because you need to configure the dependency graph manually. However, thanks to Tuist Projects, this is no longer a problem.
 
 We recommend using dynamic libraries or frameworks during development using <LocalizedLink href="/guides/develop/projects/synthesized-files#bundle-accessors">bundle accessors</LocalizedLink> to decouple the bundle-accessing logic from the library or framework nature of the target. This is key for fast compilation times and to ensure [SwiftUI Previews](https://developer.apple.com/documentation/swiftui/previews-in-xcode) work reliably. And static libraries or frameworks for the release builds to ensure the app boots fast. You can leverage <LocalizedLink href="/guides/develop/projects/dynamic-configuration#configuration-through-environment-variables">dynamic configuration</LocalizedLink> to change the product type at generation-time:
 
 ```bash
-<h1 id="youll-have-to-read-the-value-of-the-variable-from-the-manifest">You'll have to read the value of the variable from the manifest</h1>
-<h1 id="and-use-it-to-change-the-linking-type">and use it to change the linking type</h1>
+# You'll have to read the value of the variable from the manifest {#youll-have-to-read-the-value-of-the-variable-from-the-manifest}
+# and use it to change the linking type {#and-use-it-to-change-the-linking-type}
 TUIST_PRODUCT_TYPE=static-library tuist generate
 ```
 
@@ -91,7 +91,7 @@ func productType() -> Product {
 > [!IMPORTANT] MERGEABLE LIBRARIES
 > Apple attempted to alleviate the cumbersomeness of switching between static and dynamic libraries by introducing [mergeable libraries](https://developer.apple.com/documentation/xcode/configuring-your-project-to-use-mergeable-libraries). However, that introduces build-time non-determinism that makes your build non-reproducible and harder to optimize so we don't recommend using it.
 
-<h2 id="code">Code</h2>
+## Code {#code}
 
 TMA is non-opinionated about the code architecture and patterns for your modules. However, we'd like to share some tips based on our experience:
 
@@ -100,7 +100,7 @@ TMA is non-opinionated about the code architecture and patterns for your modules
 - **Embrace the platform and the language, don't abstract them.** Trying to come up with ellaborated abstraction layers might end up being counterproductive. The platform and the language are powerful enough to build great apps without the need for additional abstraction layers. Use good programming and design patterns as a reference to build your features.
 
 
-<h2 id="resources">Resources</h2>
+## Resources {#resources}
 
 - [Building µFeatures](https://speakerdeck.com/pepibumur/building-ufeatures)
 - [Framework Oriented Programming](https://speakerdeck.com/pepibumur/framework-oriented-programming-mobilization-dot-pl)

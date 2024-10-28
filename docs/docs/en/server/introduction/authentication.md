@@ -4,11 +4,11 @@ titleTemplate: :title | Introduction | Server | Tuist
 description: Learn how to authenticate with the Tuist server from the CLI.
 ---
 
-<h1 id="authentication">Authentication</h1>
+# Authentication {#authentication}
 
 To interact with the server, the CLI needs to authenticate the requests using [bearer authentication](https://swagger.io/docs/specification/authentication/bearer-authentication/). The CLI supports authenticating as a user or as a project.
 
-<h2 id="as-a-user">As a user</h2>
+## As a user {#as-a-user}
 
 When using the CLI locally on your machine, we recommend authenticating as a user. To authenticate as a user, you need to run the following command:
 
@@ -20,7 +20,7 @@ The command will take you through a web-based authentication flow. Once you auth
 
 The CLI will automatically look up the credentials when making requests to the server. If the access token is expired, the CLI will use the refresh token to get a new access token.
 
-<h2 id="as-a-project">As a project</h2>
+## As a project {#as-a-project}
 
 In non-interactive environments like continuous integrations', you can't authenticate through an interactive flow. For those environments, we recommend authenticating as a project by using a project-scoped token:
 
