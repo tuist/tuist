@@ -1,6 +1,6 @@
 ---
 title: Principles
-titleTemplate: :title - Contribute to Tuist
+titleTemplate: :title | Contributors | Tuist
 description: This document describes the principles that guide the development of Tuist.
 ---
 
