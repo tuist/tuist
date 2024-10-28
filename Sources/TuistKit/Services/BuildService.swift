@@ -93,7 +93,7 @@ public final class BuildService {
             return
         }
 
-        guard let workspacePath else {
+        guard let workspacePath = try await buildGraphInspector.workspacePath(directory: path) else {
             throw BuildServiceError.workspaceNotFound(path: path.pathString)
         }
 

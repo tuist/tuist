@@ -225,7 +225,7 @@ final class RunService {
             graph = try await generator.load(path: path)
         }
 
-        guard let workspacePath else {
+        guard let workspacePath = try await buildGraphInspector.workspacePath(directory: path) else {
             throw RunServiceError.workspaceNotFound(path: path.pathString)
         }
 
