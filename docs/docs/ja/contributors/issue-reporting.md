@@ -1,6 +1,6 @@
 ---
 title: Issue報告
-titleTemplate: :title - Tuist に貢献する
+titleTemplate: :title | Contributors | Tuist
 description: バグを報告してTuist に貢献する方法を学ぶ
 ---
 
