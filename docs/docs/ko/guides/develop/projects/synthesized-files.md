@@ -1,6 +1,6 @@
 ---
 title: Synthesized files
-titleTemplate: :title | Projects | Tuist
+titleTemplate: :title · Projects · Develop · Guides · Tuist
 description: Learn about synthesized files in Tuist projects.
 ---
 

@@ -1,6 +1,6 @@
 ---
 title: Issue reporting
-titleTemplate: :title | Contributors | Tuist
+titleTemplate: :title · Contributors · Tuist
 description: Learn how to contribute to Tuist by reporting bugs
 ---
 

@@ -1,6 +1,6 @@
 ---
 title: Issue reporting
-titleTemplate: :title | Contributors | Tuist
+titleTemplate: :title · Contributors · Tuist
 description: 버그 리포트를 통해 Tuist에 어떻게 기여하는지 알아봅니다.
 ---
 

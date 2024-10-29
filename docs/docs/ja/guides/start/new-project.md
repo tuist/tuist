@@ -1,5 +1,6 @@
 ---
 title: Create a new project
+titleTemplate: :title · Start · Guides · Tuist
 description: Learn how to create a new project with Tuist.
 ---
 

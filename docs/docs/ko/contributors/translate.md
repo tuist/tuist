@@ -1,6 +1,6 @@
 ---
 title: Translate
-titleTemplate: :title | Contributors | Tuist
+titleTemplate: :title · Contributors · Tuist
 description: 이 문서는 Tuist의 개발을 위한 원칙을 설명합니다.
 ---
 

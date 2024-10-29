@@ -1,6 +1,6 @@
 ---
 title: Get started
-titleTemplate: :title | Contributors | Tuist
+titleTemplate: :title · Contributors · Tuist
 description: 다음 가이드를 통해 Tuist 기여를 시작합니다.
 ---
 

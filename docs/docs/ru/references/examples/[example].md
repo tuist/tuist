@@ -1,5 +1,6 @@
 ---
 editLink: false
+titleTemplate: :title · Examples · References · Tuist
 description:
   "{ $params.description }": null
 ---

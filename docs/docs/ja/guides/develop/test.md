@@ -1,6 +1,6 @@
 ---
 title: tuist test
-titleTemplate: :title | Develop | Tuist
+titleTemplate: :title · Develop · Guides · Tuist
 description: Learn how to run tests efficiently with Tuist.
 ---
 

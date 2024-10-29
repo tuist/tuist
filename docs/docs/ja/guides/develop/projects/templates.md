@@ -1,6 +1,6 @@
 ---
 title: Templates
-titleTemplate: :title | プロジェクト | Tuist
+titleTemplate: :title · Projects · Develop · Guides · Tuist
 description: Learn how to create and use templates in Tuist to generate code in your projects.
 ---
 

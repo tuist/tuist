@@ -1,5 +1,6 @@
 ---
 title: Create a project
+titleTemplate: :title · Quick-start · Guides · Tuist
 description: Learn how to create your first project with Tuist.
 ---
 
