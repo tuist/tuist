@@ -1,5 +1,6 @@
 ---
 title: Test flakiness
+titleTemplate: :title · Test · Develop · Guides · Tuist
 description: Prevent, detect, and fix flaky tests with Tuist.
 ---
 
