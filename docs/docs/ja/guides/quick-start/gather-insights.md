@@ -1,5 +1,6 @@
 ---
 title: Gather insights
+titleTemplate: :title · Quick-start · Guides · Tuist
 description: Learn how to gather insights about your project.
 ---
 
