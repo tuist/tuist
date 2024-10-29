@@ -158,6 +158,7 @@ export function homeSidebar(locale) {
             locale,
             "sidebars.home.items.welcome.items.faq.text",
           ),
+          link: `/${locale}/home/welcome/faq`,
         },
       ],
     },
@@ -165,7 +166,16 @@ export function homeSidebar(locale) {
       text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${localizedString(locale, "sidebars.home.items.you.text")} ${zapIcon()}</span>`,
       items: [
         {
-          text: "Foo",
+          text: "Indie crafter",
+        },
+        {
+          text: "Small startup",
+        },
+        {
+          text: "Scaling business",
+        },
+        {
+          text: "Enterprise",
         },
       ],
     },
