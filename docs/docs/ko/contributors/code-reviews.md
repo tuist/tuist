@@ -1,6 +1,6 @@
 ---
 title: Code reviwes
-titleTemplate: :title | Contributors | Tuist
+titleTemplate: :title · Contributors · Tuist
 description: 코드 리뷰를 통해 Tuist에 어떻게 기여하는지 알아봅니다.
 ---
 
