@@ -1,5 +1,6 @@
 ---
 title: Optimize workflows
+titleTemplate: :title · Quick-start · Guides · Tuist
 description: Tuist로 워크플로우를 최적화하는 방법을 배워봅시다.
 ---
 
