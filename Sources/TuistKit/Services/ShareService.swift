@@ -246,7 +246,12 @@ struct ShareService {
         guard appPaths.count == 1,
               let ipaPath = appPaths.first else { throw ShareServiceError.multipleAppsSpecified(appPaths.map(\.pathString)) }
 
-        guard let appBundlePath = try fileArchiverFactory.makeFileUnarchiver(for: ipaPath).unzip().glob("**/*.app").first
+        guard let appBundlePath = try await fileSystem.glob(
+            directory: fileArchiverFactory.makeFileUnarchiver(for: ipaPath).unzip(),
+            include: ["**/*.app"]
+        )
+        .collect()
+        .first
         else { throw ShareServiceError.appBundleInIPANotFound(ipaPath) }
         let appBundle = try await appBundleLoader.load(appBundlePath)
         let displayName = appBundle.infoPlist.name

@@ -321,8 +321,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/XcodeGraph.git",
       "state" : {
-        "revision" : "ac13f3f4046bc02a472ba5167067fb13dc9ad70a",
-        "version" : "0.15.1"
+        "revision" : "7be8001a127582859dc71528402e178c65e5f28e",
+        "version" : "0.16.0"
       }
     },
     {

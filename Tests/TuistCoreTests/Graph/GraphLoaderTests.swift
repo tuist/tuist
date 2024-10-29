@@ -374,15 +374,13 @@ final class GraphLoaderTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(graph.dependencies, [
             .target(name: "A", path: "/A"): Set([
-                .xcframework(
-                    GraphDependency.XCFramework(
-                        path: "/XCFrameworks/XF1.xcframework",
-                        infoPlist: .test(),
-                        linking: .dynamic,
-                        mergeable: false,
-                        status: .required,
-                        macroPath: nil
-                    )
+                .testXCFramework(
+                    path: "/XCFrameworks/XF1.xcframework",
+                    infoPlist: .test(),
+                    linking: .dynamic,
+                    mergeable: false,
+                    status: .required,
+                    macroPath: nil
                 ),
             ]),
         ])
@@ -421,15 +419,13 @@ final class GraphLoaderTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(graph.dependencies, [
             .target(name: "A", path: "/A"): Set([
-                .xcframework(
-                    GraphDependency.XCFramework(
-                        path: "/XCFrameworks/XF1.xcframework",
-                        infoPlist: .test(),
-                        linking: .dynamic,
-                        mergeable: true,
-                        status: .required,
-                        macroPath: nil
-                    )
+                .testXCFramework(
+                    path: "/XCFrameworks/XF1.xcframework",
+                    infoPlist: .test(),
+                    linking: .dynamic,
+                    mergeable: true,
+                    status: .required,
+                    macroPath: nil
                 ),
             ]),
         ])
