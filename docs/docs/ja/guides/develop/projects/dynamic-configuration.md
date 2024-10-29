@@ -1,6 +1,6 @@
 ---
 title: Dynamic configuration
-titleTemplate: :title | プロジェクト | Tuist
+titleTemplate: :title · Projects · Develop · Guides · Tuist
 description: Learn how how to use environment variables to dynamically configure your project.
 ---
 
