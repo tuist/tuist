@@ -1,12 +1,12 @@
 ---
 title: Translate
-titleTemplate: :title | Contributors | Tuist
+titleTemplate: :title · Contributors · Tuist
 description: This document describes the principles that guide the development of Tuist.
 ---
 
 # Translate
 
-Languages can be barriers to understanding. We want to make sure that Tuist is accessible to as many people as possible. If you speak a language that Tuist doesn't support, you can help us by translating the various surfaces of Tuist. 
+Languages can be barriers to understanding. We want to make sure that Tuist is accessible to as many people as possible. If you speak a language that Tuist doesn't support, you can help us by translating the various surfaces of Tuist.
 
 Since maintaining translations is a continuous effort, we add languages as we see contributors willing to help us maintain them. The following languages are currently supported:
 
