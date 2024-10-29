@@ -1,5 +1,6 @@
 ---
 title: Install Tuist
+titleTemplate: :title · Quick-start · Guides · Tuist
 description: Tuist를 설치하는 방법을 알아보세요.
 ---
 
