@@ -1,4 +1,17 @@
 {
+  "aside": {
+    "translate": {
+      "title": {
+        "text": "Translation 🌍"
+      },
+      "description": {
+        "text": "You can translate or improve the translation of this page."
+      },
+      "cta": {
+        "text": "Contribute"
+      }
+    }
+  },
   "search": {
     "placeholder": "Search",
     "translations": {
@@ -104,10 +117,13 @@
           "text": "Issue reporting"
         },
         "code-reviews": {
-          "text": "Code reviwes"
+          "text": "Code reviews"
         },
         "principles": {
           "text": "Principles"
+        },
+        "translate": {
+          "text": "Translate"
         }
       }
     },

@@ -1,32 +1,32 @@
 ---
 title: Translate
 titleTemplate: :title | Contributors | Tuist
-description: This document describes the principles that guide the development of Tuist.
+description: 이 문서는 Tuist의 개발을 위한 원칙을 설명합니다.
 ---
 
 # Translate
 
-Languages can be barriers to understanding. We want to make sure that Tuist is accessible to as many people as possible. If you speak a language that Tuist doesn't support, you can help us by translating the various surfaces of Tuist. 
+언어는 이해의 장벽이 될 수 있습니다. 우리는 Tuist가 가능한 많은 사람들에게 접근 가능하도록 하려고 합니다. Tuist에서 지원하지 않는 언어를 사용한다면, Tuist를 번역하여 우리를 도울 수 있습니다.
 
-Since maintaining translations is a continuous effort, we add languages as we see contributors willing to help us maintain them. The following languages are currently supported:
+번역을 유지하는 것은 지속적인 노력이 필요하므로, 번역을 도와 줄 기여자가 있다면 해당 언어를 추가합니다. 현재 지원하고 있는 언어는 다음과 같습니다:
 
-- English
-- Korean
-- Japanese
-- Russian
+- 영어
+- 한국어
+- 일본어
+- 러시아어
 
-> [!TIP] REQUEST A NEW LANGUAGE
-> If you believe Tuist would benefit from supporting a new language, please create a new [topic in the community forum](https://community.tuist.io/c/general/4) to discuss it with the community.
+> [!팁] 새로운 언어 요청
+> Tuist에 새로운 언어를 지원해야 된다면, 커뮤니티에 의논할 수 있도록 [커뮤니티 포럼에 주제](https://community.tuist.io/c/general/4)를 새로 생성해 주세요.
 
-## How to translate
+## 번역 방법 (How to translate)
 
-We use [Crowdin](https://crowdin.com/) to manage the translations. First, go to the project that you want to contribute to:
+우리는 번역을 관리하기 위해 [Crowdin](https://crowdin.com/)을 사용합니다. 먼저, 기여하고 싶은 프로젝트로 이동합니다:
 
 - [Documentation](https://crowdin.com/project/tuist-documentation)
 
-You'll need an account to start translating. You can sign in with GitHub. Once you have access, you can start translating. You'll see the list of resources that are available for translation. When you click on a resource, the editor will open, and you'll see a split view with the resource in the source language on the left and the translation on the right. Translate the text on the right and save your changes.
+번역을 시작하려면 계정이 필요합니다. GitHub으로 로그인 할 수 있습니다. 접근 권한이 생기면 번역을 시작할 수 있습니다. 번역 가능한 리소스 목록을 확인할 수 있습니다. 리소스를 클릭하면 편집창이 열리고, 기존 언어는 왼편에 번역한 언어는 오른편에 나타나는 화면을 볼 수 있습니다. 오른편에 번역 내용을 작성하고 변경 사항을 저장합니다.
 
-As translations are updated, Crowdin will push them automatically to the right repository opening a pull request, which the maintainers will review and merge.
+번역이 업데이트 되면 Crowdin은 자동으로 리포지토리에 저장하여 Pull Request를 열고, 메인테이너는 해당 내용을 검토하여 병합합니다.
 
-> [!IMPORTANT] DON'T MODIFY THE RESOURCES IN THE TARGET LANGUAGE
-> Crowdin segments the files to bind source and target languages. If you modify the source language, you'll break the binding, and the reconciliation might yield unexpected results.
+> [!중요] 번역 언어의 리소스를 수정하지 마세요
+> Crowdin은 기존 언어와 번역 언어를 결합 하기 위해 파일을 분할합니다. 기존 언어를 수정하면 바인딩이 끊어지고 예상치 못한 결과를 가져올 수 있습니다.

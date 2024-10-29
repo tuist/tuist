@@ -1,6 +1,6 @@
 ---
 title: コードレビュー
-titleTemplate: :title - Tuist に貢献する
+titleTemplate: :title | Contributors | Tuist
 description: Tuistへの貢献を、コードレビューを通じて学ぶ
 ---
 
