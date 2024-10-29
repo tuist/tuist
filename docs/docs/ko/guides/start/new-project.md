@@ -31,7 +31,7 @@ tuist init --platform macos
 
 :::
 
-이 명령어는 현재 디렉토리에 프로젝트를 초기화 합니다. Swift Package Manager에 익숙하다면 Xcode 프로젝트에서 사용하는 `Package.swift`라고 생각하면 됩니다. `tuist edit`을 수행하여 <LocalizedLink href="/guides/develop/projects/editing">프로젝트를 수정</LocalizedLink>할 수 있으며, 해당 프로젝트를 수정할 수 있게 Xcode가 열립니다. 생성된 파일 중 하나 인 `Project.swift` 는 프로젝트의 정의를 포함하고 있습니다.
+이 명령어는 현재 디렉토리에 프로젝트를 초기화 합니다. 생성된 파일 중 하나 인 `Project.swift` 는 프로젝트의 정의를 포함하고 있습니다. Swift Package Manager에 익숙하다면 Xcode 프로젝트에서 사용하는 `Package.swift`라고 생각하면 됩니다. `tuist edit`을 수행하여 <LocalizedLink href="/guides/develop/projects/editing">프로젝트를 수정</LocalizedLink>할 수 있으며, 해당 프로젝트를 수정할 수 있게 Xcode가 열립니다.
 
 ::: code-group
 
