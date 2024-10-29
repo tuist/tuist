@@ -18,7 +18,7 @@ description: 이 문서는 Tuist의 개발을 위한 원칙을 설명합니다.
 > [!팁] 새로운 언어 요청
 > Tuist에 새로운 언어를 지원해야 된다면, 커뮤니티에 의논할 수 있도록 [커뮤니티 포럼에 주제](https://community.tuist.io/c/general/4)를 새로 생성해 주세요.
 
-## 번역 방식
+## 번역 방법 (How to translate)
 
 우리는 번역을 관리하기 위해 [Crowdin](https://crowdin.com/)을 사용합니다. 먼저, 기여하고 싶은 프로젝트로 이동합니다:
 
