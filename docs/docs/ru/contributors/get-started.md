@@ -1,6 +1,6 @@
 ---
 title: Get started
-titleTemplate: :title | Contributors | Tuist
+titleTemplate: :title · Contributors · Tuist
 description: Get started contributing to Tuist by following this guide.
 ---
 
