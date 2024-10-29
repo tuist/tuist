@@ -1,6 +1,6 @@
 ---
 title: Workflows
-titleTemplate: ":title | Integrate | Develop | Tuist"
+titleTemplate: :title · Automate · Develop · Guides · Tuist
 description: Integrate your changes through workflows.
 ---
 
