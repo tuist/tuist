@@ -1609,6 +1609,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "rhysm94",
+      "name": "Rhys Morgan",
+      "avatar_url": "https://avatars.githubusercontent.com/u/11096937?v=4",
+      "profile": "http://rhysmorgan.co",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,
