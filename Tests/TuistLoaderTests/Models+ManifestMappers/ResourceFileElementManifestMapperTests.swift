@@ -141,7 +141,6 @@ final class ResourceFileElementManifestMapperTests: TuistUnitTestCase {
         XCTAssertEqual(
             got,
             [
-                .file(path: resourcesFolder, tags: []),
                 .file(path: includedResource, tags: []),
             ]
         )
@@ -174,7 +173,6 @@ final class ResourceFileElementManifestMapperTests: TuistUnitTestCase {
         XCTAssertEqual(
             got,
             [
-                .file(path: resourcesFolder, tags: []),
                 .file(path: includedResource, tags: []),
             ]
         )
@@ -204,10 +202,9 @@ final class ResourceFileElementManifestMapperTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(
+        XCTAssertBetterEqual(
             got,
             [
-                .file(path: resourcesFolder, tags: []),
                 .file(path: includedResource, tags: []),
             ]
         )

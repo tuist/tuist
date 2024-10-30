@@ -42,8 +42,8 @@ extension FileListGlob {
         for path in excluding {
             let resolved = try generatorPaths.resolve(path: path)
             let globs = try await fileSystem.glob(
-                directory: AbsolutePath(validating: resolved.dirname),
-                include: [resolved.basename]
+                directory: .root,
+                include: [String(resolved.pathString.dropFirst())]
             )
             .collect()
             result.formUnion(globs)
