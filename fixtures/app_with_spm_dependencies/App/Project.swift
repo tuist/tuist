@@ -68,10 +68,7 @@ let project = Project(
             destinations: [.appleVision],
             product: .app,
             bundleId: "io.tuist.app.applevision",
-            sources: ["Sources/VisionOS/App/**"],
-            dependencies: [
-                .external(name: "Alamofire"),
-            ]
+            sources: ["Sources/VisionOS/App/**"]
         ),
         .target(
             name: "WatchApp",
@@ -93,10 +90,7 @@ let project = Project(
             destinations: [.appleWatch],
             product: .watch2Extension,
             bundleId: "io.tuist.app.watchapp.extension",
-            sources: ["Sources/Watch/Extension/**"],
-            dependencies: [
-                .external(name: "Alamofire"),
-            ]
+            sources: ["Sources/Watch/Extension/**"]
         ),
     ],
     schemes: Scheme.allSchemes(for: ["App", "AppKit"], executable: "App")

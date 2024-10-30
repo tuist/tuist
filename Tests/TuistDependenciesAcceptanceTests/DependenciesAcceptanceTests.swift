@@ -33,6 +33,15 @@ final class DependenciesAcceptanceTestAppWithSPMDependenciesWithoutInstall: Tuis
     }
 }
 
+final class DependenciesAcceptanceTestAppAlamofire: TuistAcceptanceTestCase {
+    func test_app_with_alamofire() async throws {
+        try await setUpFixture(.appWithAlamofire)
+        try await run(InstallCommand.self)
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self, "App")
+    }
+}
+
 final class DependenciesAcceptanceTestIosAppWithSPMDependencies: TuistAcceptanceTestCase {
     func test_ios_app_spm_dependencies() async throws {
         try await setUpFixture(.iosAppWithSpmDependencies)

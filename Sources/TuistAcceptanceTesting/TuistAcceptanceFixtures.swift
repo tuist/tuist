@@ -2,6 +2,7 @@ import Foundation
 
 public enum TuistAcceptanceFixtures {
     case appWithAirshipSDK
+    case appWithAlamofire
     case appWithBuildRules
     case appWithComposableArchitecture
     case appWithCustomDefaultConfiguration
@@ -89,6 +90,8 @@ public enum TuistAcceptanceFixtures {
         switch self {
         case .appWithAirshipSDK:
             return "app_with_airship_sdk"
+        case .appWithAlamofire:
+            return "app_with_alamofire"
         case .appWithBuildRules:
             return "app_with_build_rules"
         case .appWithComposableArchitecture:
