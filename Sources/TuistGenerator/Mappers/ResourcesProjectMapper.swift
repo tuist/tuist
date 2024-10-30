@@ -282,6 +282,8 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
             }
 
             // This is a fix to make unit tests work with bundled resources.
+            // Making this change allows unit tests to search one directory up for a bundle.
+            // More context can be found in this PR: https://github.com/tuist/tuist/pull/6895
             #if canImport(XCTest)
             candidates.append(bundleFinderResourceURL?.appendingPathComponent(".."))
             #endif
