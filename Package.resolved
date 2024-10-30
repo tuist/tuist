@@ -52,7 +52,7 @@
       "location" : "https://github.com/tuist/FileSystem.git",
       "state" : {
         "branch" : "performance/swift-glob",
-        "revision" : "4d7a9aa31cd72f435a4bbe6b49df578f346a524f"
+        "revision" : "fdc3629519f31c29996043e76ec57be47c60376a"
       }
     },
     {
@@ -204,8 +204,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/swift-glob",
       "state" : {
-        "revision" : "c2bf1c8cce6c2ee91bd8ed57080ff00acfb6f3fb",
-        "version" : "0.3.3"
+        "revision" : "a32f83e851593b4bec436ebac910d70af6d77f6a",
+        "version" : "0.3.4"
       }
     },
     {
