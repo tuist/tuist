@@ -280,7 +280,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
                     }
                 }
             }
-        
+
             // This is a fix to make unit tests work with bundled resources.
             #if canImport(XCTest)
             candidates.append(bundleFinderResourceURL?.appendingPathComponent(".."))
