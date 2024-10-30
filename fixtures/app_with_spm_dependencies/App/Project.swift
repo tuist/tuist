@@ -32,7 +32,6 @@ let project = Project(
             sources: "Sources/AppKit/**",
             dependencies: [
                 .sdk(name: "c++", type: .library, status: .required),
-                .external(name: "Alamofire"),
                 .external(name: "ZipArchive"),
                 .external(name: "Yams"),
                 .external(name: "GoogleSignIn"),
