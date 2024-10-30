@@ -523,7 +523,7 @@ export function guidesSidebar(locale) {
             {
               text: localizedString(
                 locale,
-                "sidebars.guides.items.develop.items.inspect.items.implicit-imports"
+                "sidebars.guides.items.develop.items.inspect.items.implicit-imports.text"
               ),
               link: `/${locale}/guides/develop/inspect/implicit-dependencies`,
             },
