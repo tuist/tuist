@@ -449,6 +449,7 @@ final class TestService { // swiftlint:disable:this type_body_length
         resultBundlePath: AbsolutePath?
     ) async throws {
         if let runResultBundlePath, let resultBundlePath, runResultBundlePath != resultBundlePath {
+            guard try await fileSystem.exists(resultBundlePath) else { return }
             if try await !fileSystem.exists(resultBundlePath.parentDirectory) {
                 try await fileSystem.makeDirectory(at: resultBundlePath.parentDirectory)
             }
