@@ -1001,6 +1001,22 @@ final class GenerateAcceptanceTesAppWithLocalSPMModuleWithRemoteDependencies: Tu
     }
 }
 
+final class GenerateAcceptanceTestParallelizable: TuistAcceptanceTestCase {
+    func test_app_parallelizable_swift_testing_only_from_test_plan() async throws {
+        try await setUpFixture(.appWithTestPlan)
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self)
+        try await run(BuildCommand.self, "App")
+        
+        try XCTAssertContainsParallelizable(
+            xcodeprojPath: xcodeprojPath,
+            scheme: "App",
+            testTarget: "AppTests",
+            parallelizable: .swiftTestingOnly
+        )
+    }
+}
+
 // frameworkWithMacroAndPluginPackages
 
 extension TuistAcceptanceTestCase {

@@ -317,7 +317,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
 
             let testable = XCScheme.TestableReference(
                 skipped: testableTarget.isSkipped,
-                parallelizable: testableTarget.isParallelizable,
+                parallelizable: .all,
                 randomExecutionOrdering: testableTarget.isRandomExecutionOrdering,
                 buildableReference: reference,
                 locationScenarioReference: locationScenarioReference,
