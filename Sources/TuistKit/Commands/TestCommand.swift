@@ -38,7 +38,7 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
 
     @Flag(
         name: .shortAndLong,
-        help: "When passed, selective tests are not uploaded to the remote storage.",
+        help: "When passed, the result necessary for test selection is not persisted to the server.",
         envKey: .testNoUpload
     )
     var noUpload: Bool = false
