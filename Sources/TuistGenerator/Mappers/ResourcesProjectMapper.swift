@@ -258,9 +258,10 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         ), the bundle containing the resources is copied into the final product.
         static let module: Bundle = {
             let bundleName = "\(bundleName)"
+            let bundleFinderResourceURL = Bundle(for: BundleFinder.self).resourceURL
             var candidates = [
                 Bundle.main.resourceURL,
-                Bundle(for: BundleFinder.self).resourceURL,
+                bundleFinderResourceURL,
                 Bundle.main.bundleURL,
             ]
             // This is a fix to make Previews work with bundled resources.
@@ -279,6 +280,14 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
                     }
                 }
             }
+
+            // This is a fix to make unit tests work with bundled resources.
+            // Making this change allows unit tests to search one directory up for a bundle.
+            // More context can be found in this PR: https://github.com/tuist/tuist/pull/6895
+            #if canImport(XCTest)
+            candidates.append(bundleFinderResourceURL?.appendingPathComponent(".."))
+            #endif
+
             for candidate in candidates {
                 let bundlePath = candidate?.appendingPathComponent(bundleName + ".bundle")
                 if let bundle = bundlePath.flatMap(Bundle.init(url:)) {
