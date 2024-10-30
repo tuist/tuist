@@ -655,6 +655,68 @@ final class TestServiceTests: TuistUnitTestCase {
         XCTAssertStandardOutput(pattern: "The scheme ProjectSchemeOne's test action has no tests to run, finishing early.")
     }
 
+    func test_skips_running_tests_when_all_tests_are_cached() async throws {
+        // Given
+        givenGenerator()
+        var environment = MapperEnvironment()
+        environment.initialGraph = .test(
+            projects: [
+                try temporaryPath(): .test(schemes: [.test(name: "ProjectSchemeOne")]),
+            ]
+        )
+        given(generator)
+            .generateWithGraph(path: .any)
+            .willProduce { path in
+                (
+                    path,
+                    .test(),
+                    environment
+                )
+            }
+
+        // When
+        try await testRun(
+            path: try temporaryPath()
+        )
+
+        // Then
+        XCTAssertEmpty(testedSchemes)
+        XCTAssertStandardOutput(pattern: "There are no tests to run, finishing early")
+    }
+
+    func test_skips_running_tests_when_all_tests_are_cached_with_a_custom_result_bundle_path() async throws {
+        // Given
+        givenGenerator()
+        var environment = MapperEnvironment()
+        environment.initialGraph = .test(
+            projects: [
+                try temporaryPath(): .test(schemes: [.test(name: "ProjectSchemeOne")]),
+            ]
+        )
+        given(generator)
+            .generateWithGraph(path: .any)
+            .willProduce { path in
+                (
+                    path,
+                    .test(),
+                    environment
+                )
+            }
+
+        let resultBundlePath = try temporaryPath()
+            .appending(component: "test.xcresult")
+
+        // When
+        try await testRun(
+            path: try temporaryPath(),
+            resultBundlePath: resultBundlePath
+        )
+
+        // Then
+        XCTAssertEmpty(testedSchemes)
+        XCTAssertStandardOutput(pattern: "There are no tests to run, finishing early")
+    }
+
     func test_run_tests_when_part_is_cached() async throws {
         // Given
         givenGenerator()
