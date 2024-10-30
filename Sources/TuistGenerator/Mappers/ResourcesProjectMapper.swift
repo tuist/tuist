@@ -262,7 +262,6 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
             var candidates = [
                 Bundle.main.resourceURL,
                 bundleFinderResourceURL,
-                bundleFinderResourceURL?.appendingPathComponent(".."),
                 Bundle.main.bundleURL,
             ]
             // This is a fix to make Previews work with bundled resources.
@@ -281,6 +280,12 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
                     }
                 }
             }
+        
+            // This is a fix to make unit tests work with bundled resources.
+            #if canImport(XCTest)
+            candidates.append(bundleFinderResourceURL?.appendingPathComponent(".."))
+            #endif
+
             for candidate in candidates {
                 let bundlePath = candidate?.appendingPathComponent(bundleName + ".bundle")
                 if let bundle = bundlePath.flatMap(Bundle.init(url:)) {
