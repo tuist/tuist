@@ -85,9 +85,10 @@ defmodule TuistWeb.Router do
         get blog_post_slug, TuistWeb.MarketingController, :blog_post
       end
 
-      get "/terms", TuistWeb.MarketingController, :terms
-      get "/privacy", TuistWeb.MarketingController, :privacy
-      get "/cookies", TuistWeb.MarketingController, :cookies
+      for %{slug: page_slug} <- Tuist.Pages.get_pages() do
+        get page_slug, TuistWeb.MarketingController, :page
+      end
+
       get "/about", TuistWeb.MarketingController, :about
     end
   end

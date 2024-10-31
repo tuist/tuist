@@ -1,4 +1,4 @@
-defmodule Tuist.Blog.ASTPostProcessor do
+defmodule Tuist.Earmark.ASTProcessor do
   @moduledoc ~S"""
   This module overrides the processing logic of the Earmark library to customize the HTML output of code blocks and headings. Code blocks are wrapped in a window-like container and headings get an anchor link.
   """

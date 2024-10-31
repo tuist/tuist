@@ -5,15 +5,16 @@ defmodule Tuist.Blog do
   """
   alias Tuist.Blog.Post
   alias Tuist.Blog.PostParser
+  alias Tuist.Earmark.ASTProcessor
 
   use NimblePublisher,
     build: Post,
-    from: Application.app_dir(:tuist, "priv/blog/**/*.md"),
+    from: Application.app_dir(:tuist, "priv/marketing/blog/**/*.md"),
     as: :posts,
     parser: PostParser,
     highlighters: [],
     earmark_options: [
-      postprocessor: &Tuist.Blog.ASTPostProcessor.process/1
+      postprocessor: &ASTProcessor.process/1
     ]
 
   @posts @posts |> Enum.reverse()
