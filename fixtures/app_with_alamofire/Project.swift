@@ -16,7 +16,7 @@ let project = Project(
                     ],
                 ]
             ),
-            sources: ["App/Sources/**"],
+            sources: [.glob("App/Sources/**", excluding: ["App/Sources/**/*ExcludeMe.swift"])],
             dependencies: [
                 .external(name: "Alamofire"),
             ]
