@@ -1396,7 +1396,7 @@ extension PackageInfo.Target.TargetType {
                 cLanguageStandard: "c99",
                 cxxLanguageStandard: nil,
                 swiftLanguageVersions: nil,
-                toolsVersion: Version(5, 9, 0)
+                toolsVersion: Version(5, 1, 0)
             )
         }
 
@@ -1661,7 +1661,7 @@ extension PackageInfo.Target.TargetType {
                 cLanguageStandard: nil,
                 cxxLanguageStandard: nil,
                 swiftLanguageVersions: ["5.0.0"],
-                toolsVersion: Version(5, 9, 0)
+                toolsVersion: Version(5, 1, 0)
             )
         }
     }
@@ -2115,7 +2115,7 @@ extension PackageInfo.Target.TargetType {
                 cLanguageStandard: "c99",
                 cxxLanguageStandard: "gnu++14",
                 swiftLanguageVersions: nil,
-                toolsVersion: Version(5, 9, 0)
+                toolsVersion: Version(5, 3, 0)
             )
         }
 
