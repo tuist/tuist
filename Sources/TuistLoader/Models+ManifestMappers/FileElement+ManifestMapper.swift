@@ -15,10 +15,9 @@ extension XcodeGraph.FileElement {
     static func from(
         manifest: ProjectDescription.FileElement,
         generatorPaths: GeneratorPaths,
-        fileSystem _: FileSysteming,
+        fileSystem: FileSysteming,
         includeFiles: @escaping (AbsolutePath) -> Bool = { _ in true }
     ) async throws -> [XcodeGraph.FileElement] {
-        let fileSystem = FileSystem()
         func globFiles(_ path: AbsolutePath) async throws -> [AbsolutePath] {
             if try await fileSystem.exists(path), !FileHandler.shared.isFolder(path) { return [path] }
 

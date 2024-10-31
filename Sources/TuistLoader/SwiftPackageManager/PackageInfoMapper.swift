@@ -126,19 +126,13 @@ public final class PackageInfoMapper: PackageInfoMapping {
     fileprivate static let predefinedTestDirectories = ["Tests", "Sources", "Source", "src", "srcs"]
     private let moduleMapGenerator: SwiftPackageManagerModuleMapGenerating
     private let fileSystem: FileSysteming
-    private let swiftPackageManagerController: SwiftPackageManagerControlling
 
     public init(
         moduleMapGenerator: SwiftPackageManagerModuleMapGenerating = SwiftPackageManagerModuleMapGenerator(),
-        fileSystem: FileSysteming = FileSystem(),
-        swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(
-            system: System.shared,
-            fileSystem: FileSystem()
-        )
+        fileSystem: FileSysteming = FileSystem()
     ) {
         self.moduleMapGenerator = moduleMapGenerator
         self.fileSystem = fileSystem
-        self.swiftPackageManagerController = swiftPackageManagerController
     }
 
     /// Resolves all SwiftPackageManager dependencies.
@@ -319,10 +313,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
 
         let baseSettings: XcodeGraph.Settings
 
-        let swiftToolsVersion = try swiftPackageManagerController
-            .getToolsVersion(at: path)
-
-        if swiftToolsVersion >= Version(5, 9, 0) {
+        if packageInfo.toolsVersion >= Version(5, 9, 0) {
             baseSettings = packageSettings.baseSettings.with(
                 base: packageSettings.baseSettings.base.combine(
                     with: [
@@ -401,7 +392,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
             name: packageInfo.name,
             options: options,
             settings: packageInfo.projectSettings(
-                swiftToolsVersion: .init(packageSettings.swiftToolsVersion.description),
+                swiftToolsVersion: .init(packageInfo.toolsVersion.description),
                 buildConfigs: baseSettings.configurations.map { key, _ in key }
             ),
             targets: targets,

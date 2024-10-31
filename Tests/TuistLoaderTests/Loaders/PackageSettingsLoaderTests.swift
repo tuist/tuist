@@ -85,8 +85,7 @@ final class PackageSettingsLoaderTests: TuistUnitTestCase {
                 ],
                 defaultSettings: .recommended
             ),
-            targetSettings: [:],
-            swiftToolsVersion: Version(stringLiteral: "5.4.9")
+            targetSettings: [:]
         )
         verify(manifestLoader)
             .register(plugins: .any)
