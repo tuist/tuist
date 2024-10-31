@@ -167,6 +167,13 @@ export function contributorsSidebar(locale) {
           ),
           link: `/${locale}/contributors/principles`,
         },
+        {
+          text: localizedString(
+            locale,
+            "sidebars.contributors.items.translate.text"
+          ),
+          link: `/${locale}/contributors/translate`,
+        },
       ],
     },
   ];
@@ -516,7 +523,7 @@ export function guidesSidebar(locale) {
             {
               text: localizedString(
                 locale,
-                "sidebars.guides.items.develop.items.inspect.items.implicit-imports"
+                "sidebars.guides.items.develop.items.inspect.items.implicit-imports.text"
               ),
               link: `/${locale}/guides/develop/inspect/implicit-dependencies`,
             },

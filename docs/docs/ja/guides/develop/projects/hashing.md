@@ -1,6 +1,6 @@
 ---
 title: Hashing
-titleTemplate: :title | プロジェクト | Tuist
+titleTemplate: :title · Projects · Develop · Guides · Tuist
 description: Learn about Tuist's hashing logic upon which features like binary caching and selective testing are built.
 ---
 

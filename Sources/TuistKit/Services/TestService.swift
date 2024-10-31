@@ -88,7 +88,6 @@ final class TestService { // swiftlint:disable:this type_body_length
     init(
         generatorFactory: GeneratorFactorying = GeneratorFactory(),
         cacheStorageFactory: CacheStorageFactorying = EmptyCacheStorageFactory(),
-        analyticsDelegate _: TrackableParametersDelegate? = nil,
         xcodebuildController: XcodeBuildControlling = XcodeBuildController(),
         buildGraphInspector: BuildGraphInspecting = BuildGraphInspector(),
         simulatorController: SimulatorControlling = SimulatorController(),
@@ -163,6 +162,7 @@ final class TestService { // swiftlint:disable:this type_body_length
         runId: String,
         schemeName: String?,
         clean: Bool,
+        noUpload: Bool,
         configuration: String?,
         path: AbsolutePath,
         deviceName: String?,
@@ -307,6 +307,7 @@ final class TestService { // swiftlint:disable:this type_body_length
                 mapperEnvironment: mapperEnvironment,
                 cacheStorage: cacheStorage,
                 clean: clean,
+                noUpload: noUpload,
                 configuration: configuration,
                 version: version,
                 deviceName: deviceName,
@@ -342,6 +343,7 @@ final class TestService { // swiftlint:disable:this type_body_length
         mapperEnvironment: MapperEnvironment,
         cacheStorage: CacheStoring,
         clean: Bool,
+        noUpload: Bool,
         configuration: String?,
         version: Version?,
         deviceName: String?,
@@ -388,12 +390,18 @@ final class TestService { // swiftlint:disable:this type_body_length
             )
         }
 
+        let uploadCacheStorage: CacheStoring
+        if noUpload {
+            uploadCacheStorage = try await cacheStorageFactory.cacheLocalStorage()
+        } else {
+            uploadCacheStorage = cacheStorage
+        }
         try await storeSuccessfulTestHashes(
             for: testSchemes,
             testPlanConfiguration: testPlanConfiguration,
             graph: graph,
             mapperEnvironment: mapperEnvironment,
-            cacheStorage: cacheStorage
+            cacheStorage: uploadCacheStorage
         )
 
         logger.log(level: .notice, "The project tests ran successfully", metadata: .success)
@@ -441,6 +449,7 @@ final class TestService { // swiftlint:disable:this type_body_length
         resultBundlePath: AbsolutePath?
     ) async throws {
         if let runResultBundlePath, let resultBundlePath, runResultBundlePath != resultBundlePath {
+            guard try await fileSystem.exists(resultBundlePath) else { return }
             if try await !fileSystem.exists(resultBundlePath.parentDirectory) {
                 try await fileSystem.makeDirectory(at: resultBundlePath.parentDirectory)
             }

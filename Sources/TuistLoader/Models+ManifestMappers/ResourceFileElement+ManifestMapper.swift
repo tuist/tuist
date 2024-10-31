@@ -22,7 +22,11 @@ extension XcodeGraph.ResourceFileElement {
             var excluded: Set<AbsolutePath> = []
             for path in excluding {
                 let absolute = try AbsolutePath(validating: path)
-                let globs = try AbsolutePath(validating: absolute.dirname).glob(absolute.basename)
+                let globs = try await fileSystem.glob(
+                    directory: .root,
+                    include: [String(absolute.pathString.dropFirst())]
+                )
+                .collect()
                 excluded.formUnion(globs)
             }
 

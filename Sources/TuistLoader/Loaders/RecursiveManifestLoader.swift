@@ -69,15 +69,17 @@ public struct RecursiveManifestLoader: RecursiveManifestLoading {
             rootDirectory: rootDirectory
         )
         let projectSearchPaths = (loadedWorkspace?.projects ?? ["."])
-        let manifestLoader = manifestLoader
         let projectPaths = try await projectSearchPaths.map {
             try generatorPaths.resolve(path: $0)
         }.concurrentFlatMap {
-            try await fileSystem.glob(directory: $0, include: [""]).collect()
-        }.filter {
-            fileHandler.isFolder($0)
-        }.concurrentFilter {
-            try await manifestLoader.manifests(at: $0).contains(.project)
+            try await fileSystem.glob(
+                directory: AbsolutePath.root,
+                include: [
+                    String($0.appending(component: Manifest.project.fileName($0)).pathString.dropFirst()),
+                ]
+            )
+            .collect()
+            .map(\.parentDirectory)
         }
 
         let projects = await LoadedProjects(projects: try loadProjects(paths: projectPaths).projects)

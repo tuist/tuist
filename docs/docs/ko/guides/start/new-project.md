@@ -1,22 +1,23 @@
 ---
 title: Create a new project
-description: Learn how to create a new project with Tuist.
+titleTemplate: :title · Start · Guides · Tuist
+description: Tuist로 새로운 프로젝트를 어떻게 생성하는지 배웁니다.
 ---
 
 # Create a new project {#create-a-new-project}
 
-The most straightforward way to start a new project with Tuist is to use the `tuist init` command. This command generates a new project with a default structure and configuration.
+Tuist로 새로운 프로젝트를 시작하는 가장 간단한 방법은 `tuist init` 명령어를 사용하는 것입니다. 이 명령어는 기본 구조와 구성으로 새로운 프로젝트를 생성합니다.
 
-## Initializing an application project {#initializing-an-application-project}
+## 애플리케이션 프로젝트 초기화 {#initializing-an-application-project}
 
-To start, you'll need to create a directory where the project will be created:
+시작하려면 프로젝트를 생성할 디렉토리를 만들어야 합니다.
 
 ```bash
 mkdir MyApp
 cd MyApp
 ```
 
-Once the directory is created and you're inside it, run the following command:
+디렉토리가 생성되면 해당 디렉토리로 이동해서 아래의 명령어를 수행합니다:
 
 ::: code-group
 
@@ -30,7 +31,7 @@ tuist init --platform macos
 
 :::
 
-The command will initialize the project in the current directory. One of the files that are generated is the `Project.swift`, which contains the definition of your project. If you are familiar with the Swift Package Manager, think of it as the `Package.swift` but with the lingo of Xcode projects. You can then <LocalizedLink href="/guides/develop/projects/editing">edit the project</LocalizedLink> running `tuist edit`, and Xcode will open a project where you can edit the project.
+이 명령어는 현재 디렉토리에 프로젝트를 초기화 합니다. Swift Package Manager에 익숙하다면 Xcode 프로젝트에서 사용하는 `Package.swift`라고 생각하면 됩니다. `tuist edit`을 수행하여 <LocalizedLink href="/guides/develop/projects/editing">프로젝트를 수정</LocalizedLink>할 수 있으며, 해당 프로젝트를 수정할 수 있게 Xcode가 열립니다. 생성된 파일 중 하나 인 `Project.swift` 는 프로젝트의 정의를 포함하고 있습니다.
 
 ::: code-group
 
@@ -74,18 +75,18 @@ let project = Project(
 :::
 
 > [!NOTE]
-> We intentionally keep the list of available templates short to minimize maintenance overhead. If you want to create a project that doesn't represent an application, for example a framework, you can use `tuist init` as a starting point and then modify the generated project to suit your needs.
+> 유지 보수를 최소화 하기 위해 템플릿은 가능한 짧게 유지합니다. 프레임워크와 같이 애플리케이션이 아닌 프로젝트를 생성하고 싶으면, `tuist init`을 사용하여 생성된 프로젝트를 필요에 따라 수정할 수 있습니다.
 
-## Manually creating a project {#manually-creating-a-project}
+## 수동으로 프로젝트 생성 {#manually-creating-a-project}
 
-Alternatively, you can create the project manually. We recommend doing this only if you're already familiar with Tuist and its concepts. The first thing that you'll need to do is to create additional directories for the project structure:
+수동으로도 프로젝트를 생성할 수 있습니다. Tuist와 그 개념에 익숙한 경우에만 해당 내용을 수행하도록 추천합니다. 먼저, 프로젝트 구조에 대한 디렉토리를 생성해야 합니다:
 
 ```bash
 mkdir MyFramework
 cd MyFramework
 ```
 
-Then create a `Tuist/Config.swift` file, which will configure Tuist and is used by Tuist to determine the root directory of the project, and a `Project.swift`, where your project will be declared:
+그런 다음 Tuist를 구성하고 Tuist에서 프로젝트의 루트 디렉토리를 결정하는데 사용되는 `Tuist/Config.swift` 파일과 프로젝트를 선언할 `Project.swift` 파일을 생성합니다:
 
 ::: code-group
 
@@ -115,5 +116,5 @@ let config = Config()
 
 :::
 
-> [!IMPORTANT]
-> Tuist uses the `Tuist/` directory to determine the root of your project, and from there it looks for other manifest files globbing the directories. We recommend creating those files with your editor of choice, and from that point on, you can use `tuist edit` to edit the project with Xcode.
+> [!중요]
+> Tuist는 `Tuist/` 디렉토리를 사용하여 프로젝트의 루트를 결정하고, 그 디렉토리에서 다른 매니페스트 파일을 찾습니다. 원하는 편집기로 해당 파일을 생성하고, `tuist edit`를 사용하여 Xcode로 프로젝트를 수정할 수 있습니다.

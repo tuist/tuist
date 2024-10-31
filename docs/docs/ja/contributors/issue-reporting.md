@@ -1,32 +1,33 @@
 ---
 title: Issue報告
-titleTemplate: :title - Tuist に貢献する
-description: Learn how to contribute to Tuist by reporting bugs
+titleTemplate: :title · Contributors · Tuist
+description: バグを報告してTuist に貢献する方法を学ぶ
 ---
 
-# Issue報告 {#issue-reporting}
+# Issue の報告 {#issue-reporting}
 
-As user of Tuist, you might come across bugs or unexpected behaviors.
-If you do, we encourage you to report them so that we can fix them.
+Tuist のユーザーとして、バグや予期しない動作に遭遇することがあるかもしれません。
+その場合は、ぜひ報告してください。私たちが修正に取り組みます。
+その場合は、ぜひ報告してください。私たちが修正に取り組みます。
 
-## GitHub issues is our ticketing platform {#github-issues-is-our-ticketing-platform}
+## GitHub Issues は当プロジェクトのチケット管理プラットフォームです {#github-issues-is-our-ticketing-platform}
 
-Issues should be reported on GitHub as [GitHub issues](https://github.com/tuist/tuist/issues) and not on Slack or other platforms. GitHub is better for tracing and managing issues, is closer to the codebase, and allows us to track the progress of the issue. Moreover, it encourages a long-form description of the problem, which forces the reporter to think about the problem and provide more context.
+問題は GitHub の [Issue](https://github.com/tuist/tuist/issues) として報告し、Slack など他のプラットフォームでは報告しないでください。 GitHub は、問題の追跡や管理に適しており、コードベースに近い場所で問題の進捗を追うことができます。 加えて、問題の詳細な説明が推奨されるため、報告者は問題について考え、より多くの背景情報を提供することが求められます。 GitHub は、問題の追跡や管理に適しており、コードベースに近い場所で問題の進捗を追うことができます。 加えて、問題の詳細な説明が推奨されるため、報告者は問題について考え、より多くの背景情報を提供することが求められます。 GitHub は、問題の追跡や管理に適しており、コードベースに近い場所で問題の進捗を追うことができます。 加えて、問題の詳細な説明が推奨されるため、報告者は問題について考え、より多くの背景情報を提供することが求められます。
 
-## Context is crucial {#context-is-crucial}
+## 背景情報が鍵 {#context-is-crucial}
 
-An issue without enough context will be deemed incomplete and the author will be asked for additional context. If not provided, the issue will be closed. Think about it this way: the more context you provide, the easier it is for us to understand the problem and fix it. So if you want your issue to be fixed, provide as much context as possible. Try to answer the following questions:
+背景情報が不十分な課題は不完全と見なされ、作成者は追加の情報を要求されます。 もし背景情報が提供されない場合、 Issue はクローズされます。 逆に言えば、背景情報を多く提供するほど、私たちが問題を理解し、解決するのが容易になります。 そのため、Issue を解決してほしい場合は、できるだけ詳しい情報を提供してください。 次の質問に答える形で情報を記載してください。
 
-- What were you trying to do?
-- How does your graph look?
-- What version of Tuist are you using?
-- Is this blocking you?
+- 試したことは何か？
+- プロジェクトの依存関係の状態はどうなっているのか？
+- 使用している Tuist のバージョンは？
+- この問題が作業の妨げになっているか
 
-We also require you to provide a minimal **reproducible project**.
+また、最小限の**再現可能なプロジェクト**の提供もお願いしています。
 
-## Reproducible project {#reproducible-project}
+## 再現可能なプロジェクト {#reproducible-project}
 
-### What is a reproducible project? {#what-is-a-reproducible-project}
+### 再現可能なプロジェクトとは？ 再現可能なプロジェクトとは？ {#what-is-a-reproducible-project} 再現可能なプロジェクトとは？ {#what-is-a-reproducible-project}
 
 A reproducible project is a small Tuist project to demonstrate a problem - often this problem is caused by a bug in Tuist. Your reproducible project should contain the bare minimum features needed to clearly demonstrate the bug.
 

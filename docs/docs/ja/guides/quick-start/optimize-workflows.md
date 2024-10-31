@@ -1,5 +1,6 @@
 ---
 title: Optimize workflows
+titleTemplate: :title · Quick-start · Guides · Tuist
 description: Learn how to optimize workflows with Tuist.
 ---
 

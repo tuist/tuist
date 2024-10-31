@@ -1,3 +1,4 @@
+import FileSystem
 import Path
 import TuistCore
 import TuistLoader
@@ -44,17 +45,20 @@ class InitService {
     private let templatesDirectoryLocator: TemplatesDirectoryLocating
     private let templateGenerator: TemplateGenerating
     private let templateGitLoader: TemplateGitLoading
+    private let fileSystem: FileSysteming
 
     init(
         templateLoader: TemplateLoading = TemplateLoader(),
         templatesDirectoryLocator: TemplatesDirectoryLocating = TemplatesDirectoryLocator(),
         templateGenerator: TemplateGenerating = TemplateGenerator(),
-        templateGitLoader: TemplateGitLoading = TemplateGitLoader()
+        templateGitLoader: TemplateGitLoading = TemplateGitLoader(),
+        fileSystem: FileSysteming = FileSystem()
     ) {
         self.templateLoader = templateLoader
         self.templatesDirectoryLocator = templatesDirectoryLocator
         self.templateGenerator = templateGenerator
         self.templateGitLoader = templateGitLoader
+        self.fileSystem = fileSystem
     }
 
     func loadTemplateOptions(
@@ -110,7 +114,7 @@ class InitService {
         let path = try self.path(path)
         let name = try self.name(name, path: path)
         let templateName = templateName ?? "default"
-        try verifyDirectoryIsEmpty(path: path)
+        try await verifyDirectoryIsEmpty(path: path)
 
         if templateName.isGitURL {
             try await templateGitLoader.loadTemplate(from: templateName, closure: { template in
@@ -167,8 +171,8 @@ class InitService {
     ///
     /// - Parameter path: Directory to be checked.
     /// - Throws: An InitServiceError.nonEmptyDirectory error when the directory is not empty.
-    private func verifyDirectoryIsEmpty(path: AbsolutePath) throws {
-        if !path.glob("*").isEmpty {
+    private func verifyDirectoryIsEmpty(path: AbsolutePath) async throws {
+        if try await !fileSystem.glob(directory: path, include: ["*"]).collect().isEmpty {
             throw InitServiceError.nonEmptyDirectory(path)
         }
     }

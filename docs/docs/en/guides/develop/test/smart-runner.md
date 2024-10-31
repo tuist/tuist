@@ -1,5 +1,6 @@
 ---
 title: Smart test runner
+titleTemplate: :title · Test · Develop · Guides · Tuist
 description: Use smart test selection to run only the tests that need to be run.
 ---
 

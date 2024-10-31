@@ -2,6 +2,7 @@ import Foundation
 
 public enum TuistAcceptanceFixtures {
     case appWithAirshipSDK
+    case appWithAlamofire
     case appWithBuildRules
     case appWithComposableArchitecture
     case appWithCustomDefaultConfiguration
@@ -24,6 +25,7 @@ public enum TuistAcceptanceFixtures {
     case frameworkWithMacroAndPluginPackages
     case frameworkWithNativeSwiftMacro
     case frameworkWithSwiftMacro
+    case frameworkWithSPMBundle
     case invalidManifest
     case invalidWorkspaceManifestName
     case iosAppLarge
@@ -90,6 +92,8 @@ public enum TuistAcceptanceFixtures {
         switch self {
         case .appWithAirshipSDK:
             return "app_with_airship_sdk"
+        case .appWithAlamofire:
+            return "app_with_alamofire"
         case .appWithBuildRules:
             return "app_with_build_rules"
         case .appWithComposableArchitecture:
@@ -134,6 +138,8 @@ public enum TuistAcceptanceFixtures {
             return "framework_with_native_swift_macro"
         case .frameworkWithSwiftMacro:
             return "framework_with_swift_macro"
+        case .frameworkWithSPMBundle:
+            return "framework_with_spm_bundle"
         case .invalidManifest:
             return "invalid_manifest"
         case .invalidWorkspaceManifestName:

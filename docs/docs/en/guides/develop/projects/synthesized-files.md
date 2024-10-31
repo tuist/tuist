@@ -1,6 +1,6 @@
 ---
 title: Synthesized files
-titleTemplate: ":title | Projects | Tuist"
+titleTemplate: :title · Projects · Develop · Guides · Tuist
 description: Learn about synthesized files in Tuist projects.
 ---
 
@@ -18,7 +18,7 @@ Xcode projects support adding resources to targets. However, they present teams 
 
 Tuist solves the problems above by **synthesizing a unified interface to access bundles and resources** that abstracts away the implementation details.
 
-> [!IMPORTANT] RECOMMENDED 
+> [!IMPORTANT] RECOMMENDED
 > Even though accessing resources through the Tuist-synthesized interface is not mandatory, we recommend it because it makes the code easier to reason about and the resources to move around.
 
 ## Resources {#resources}
@@ -99,5 +99,5 @@ you can use the `Project.resourceSynthesizers` property passing the list of reso
 let project = Project(resourceSynthesizers: [.string(), .fonts()])
 ```
 
-> [!NOTE] REFERENCE 
+> [!NOTE] REFERENCE
 > You can check out [this fixture](https://github.com/tuist/tuist/tree/main/fixtures/ios_app_with_templates) to see an example of how to use custom templates to synthesize accessors to resources.

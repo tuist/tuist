@@ -266,7 +266,9 @@ public final class GraphLoader: GraphLoading {
             linking: metadata.linking,
             mergeable: metadata.mergeable,
             status: metadata.status,
-            macroPath: metadata.macroPath
+            macroPath: metadata.macroPath,
+            swiftModules: metadata.swiftModules,
+            moduleMaps: metadata.moduleMaps
         ))
         cache.add(xcframework: xcframework, at: path)
         return xcframework

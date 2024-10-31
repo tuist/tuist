@@ -104,7 +104,7 @@ extension Target {
 
             do {
                 paths = try await fileSystem
-                    .throwingGlob(directory: base, include: [sourcePath.basename])
+                    .throwingGlob(directory: .root, include: [String(sourcePath.pathString.dropFirst())])
                     .collect()
                     .filter { !$0.isInOpaqueDirectory }
             } catch let GlobError.nonExistentDirectory(invalidGlob) {

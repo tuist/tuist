@@ -113,6 +113,7 @@ public enum EnvKey: String, CaseIterable {
     // TEST
     case testScheme = "TUIST_TEST_SCHEME"
     case testClean = "TUIST_TEST_CLEAN"
+    case testNoUpload = "TUIST_TEST_NO_UPLOAD"
     case testPath = "TUIST_TEST_PATH"
     case testDevice = "TUIST_TEST_DEVICE"
     case testPlatform = "TUIST_TEST_PLATFORM"

@@ -1,5 +1,5 @@
 {
-  "originHash" : "c61cfec75c45792c9d872bcbc78ef9eee634bb861c2f4a5588e2b18e4ad83160",
+  "originHash" : "a9617a3347e84b2c49d9ea93bc2b29d7f5616d13f54a0d533186b5ed67833529",
   "pins" : [
     {
       "identity" : "aexml",
@@ -51,8 +51,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/FileSystem.git",
       "state" : {
-        "revision" : "0cda08ddcb9c9ac8c83891d83f26387cc1104029",
-        "version" : "0.5.0"
+        "revision" : "f48e7201b027eea63d97f523205aefa67dadd02d",
+        "version" : "0.6.1"
       }
     },
     {
@@ -204,8 +204,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/swift-glob",
       "state" : {
-        "revision" : "a0bc22cc5e5113356d31540dbe66da0b653cd6d8",
-        "version" : "0.2.2"
+        "revision" : "4edc097f7d457582c14ae717185611e2ade22efb",
+        "version" : "0.3.5"
       }
     },
     {
@@ -312,8 +312,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/XcodeGraph.git",
       "state" : {
-        "revision" : "b8920950e66ec77723da5c17134e698f80ed3db8",
-        "version" : "0.15.0"
+        "revision" : "7be8001a127582859dc71528402e178c65e5f28e",
+        "version" : "0.16.0"
       }
     },
     {

@@ -25,6 +25,7 @@ public class GraphTraverser: GraphTraversing {
 
     private let graph: Graph
     private let conditionCache = ConditionCache()
+    private let swiftPluginExecutablesCache = GraphCache<GraphDependency, Set<String>>()
     private let systemFrameworkMetadataProvider: SystemFrameworkMetadataProviding =
         SystemFrameworkMetadataProvider()
     private let targetDirectTargetDependenciesCache: ThreadSafe<[GraphTarget: [GraphTarget]]> =
@@ -490,7 +491,7 @@ public class GraphTraverser: GraphTraversing {
             from: Set(precompiledDynamicLibrariesAndFrameworks).filter { $0.xcframeworkDependency != nil },
             test: {
                 $0.xcframeworkDependency?.linking == .static &&
-                    $0.xcframeworkDependency?.path.glob("**/*.swiftmodule").isEmpty == false
+                    $0.xcframeworkDependency?.swiftModules.isEmpty == false
             },
             skip: { $0.xcframeworkDependency == nil }
         )
@@ -611,8 +612,8 @@ public class GraphTraverser: GraphTraversing {
             ).filter { $0.xcframeworkDependency != nil },
             test: {
                 $0.xcframeworkDependency?.linking == .static &&
-                    $0.xcframeworkDependency?.path.glob("**/*.swiftmodule").isEmpty == true &&
-                    $0.xcframeworkDependency?.path.glob("**/*.modulemap").isEmpty == false
+                    $0.xcframeworkDependency?.swiftModules.isEmpty == true &&
+                    $0.xcframeworkDependency?.moduleMaps.isEmpty == false
             },
             skip: { $0.xcframeworkDependency == nil }
         )
@@ -983,70 +984,75 @@ public class GraphTraverser: GraphTraversing {
 
     // swiftlint:disable:next function_body_length
     public func allSwiftPluginExecutables(path: Path.AbsolutePath, name: String) -> Set<String> {
-        func precompiledMacroDependencies(_ graphDependency: GraphDependency) -> Set<
-            Path.AbsolutePath
-        > {
-            Set(
-                dependencies[graphDependency, default: Set()]
-                    .lazy
-                    .compactMap {
-                        if case let GraphDependency.macro(path) = $0 {
-                            return path
-                        } else {
-                            return nil
+        if let cached = swiftPluginExecutablesCache[.target(name: name, path: path)] {
+            return cached
+        } else {
+            func precompiledMacroDependencies(_ graphDependency: GraphDependency) -> Set<
+                Path.AbsolutePath
+            > {
+                Set(
+                    dependencies[graphDependency, default: Set()]
+                        .lazy
+                        .compactMap {
+                            if case let GraphDependency.macro(path) = $0 {
+                                return path
+                            } else {
+                                return nil
+                            }
                         }
-                    }
-            )
-        }
+                )
+            }
 
-        let precompiledMacroPluginExecutables = filterDependencies(
-            from: .target(name: name, path: path),
-            test: { dependency in
+            let precompiledMacroPluginExecutables = filterDependencies(
+                from: .target(name: name, path: path),
+                test: { dependency in
+                    switch dependency {
+                    case .xcframework:
+                        return !precompiledMacroDependencies(dependency).isEmpty
+                    case .macro:
+                        return true
+                    case .bundle, .library, .framework, .sdk, .target, .packageProduct:
+                        return false
+                    }
+                },
+                skip: { dependency in
+                    switch dependency {
+                    case .macro:
+                        return true
+                    case .bundle, .library, .framework, .sdk, .target, .packageProduct, .xcframework:
+                        return false
+                    }
+                }
+            )
+            .flatMap { dependency in
                 switch dependency {
                 case .xcframework:
-                    return !precompiledMacroDependencies(dependency).isEmpty
-                case .macro:
-                    return true
+                    return Array(precompiledMacroDependencies(dependency))
+                case let .macro(path):
+                    return [path]
                 case .bundle, .library, .framework, .sdk, .target, .packageProduct:
-                    return false
-                }
-            },
-            skip: { dependency in
-                switch dependency {
-                case .macro:
-                    return true
-                case .bundle, .library, .framework, .sdk, .target, .packageProduct, .xcframework:
-                    return false
+                    return []
                 }
             }
-        )
-        .flatMap { dependency in
-            switch dependency {
-            case .xcframework:
-                return Array(precompiledMacroDependencies(dependency))
-            case let .macro(path):
-                return [path]
-            case .bundle, .library, .framework, .sdk, .target, .packageProduct:
-                return []
-            }
+            .map { "\($0.pathString)#\($0.basename.replacingOccurrences(of: ".macro", with: ""))" }
+
+            let sourceMacroPluginExecutables = allSwiftMacroTargets(path: path, name: name)
+                .flatMap { target in
+                    directSwiftMacroExecutables(path: target.project.path, name: target.target.name).map
+                        { (target, $0) }
+                }
+                .compactMap { _, dependencyReference in
+                    switch dependencyReference {
+                    case let .product(_, productName, _, _):
+                        return "$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/\(productName)#\(productName)"
+                    default:
+                        return nil
+                    }
+                }
+            let result = Set(precompiledMacroPluginExecutables + sourceMacroPluginExecutables)
+            swiftPluginExecutablesCache[.target(name: name, path: path)] = result
+            return result
         }
-        .map { "\($0.pathString)#\($0.basename.replacingOccurrences(of: ".macro", with: ""))" }
-
-        let sourceMacroPluginExecutables = allSwiftMacroTargets(path: path, name: name)
-            .flatMap { target in
-                directSwiftMacroExecutables(path: target.project.path, name: target.target.name).map
-                    { (target, $0) }
-            }
-            .compactMap { _, dependencyReference in
-                switch dependencyReference {
-                case let .product(_, productName, _, _):
-                    return "$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/\(productName)#\(productName)"
-                default:
-                    return nil
-                }
-            }
-
-        return Set(precompiledMacroPluginExecutables + sourceMacroPluginExecutables)
     }
 
     // MARK: - Internal

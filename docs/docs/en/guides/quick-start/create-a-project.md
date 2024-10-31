@@ -1,5 +1,6 @@
 ---
 title: Create a project
+titleTemplate: :title · Quick-start · Guides · Tuist
 description: Learn how to create your first project with Tuist.
 ---
 
@@ -34,7 +35,7 @@ Tuist provides commands for the most common tasks you'll need to perform on your
 tuist build
 ```
 
-Under the hood, this command uses the platform's build system (e.g. `xcodebuild`), enriching it with Tuist's features. 
+Under the hood, this command uses the platform's build system (e.g. `xcodebuild`), enriching it with Tuist's features.
 
 ## Test the app {#test-the-app}
 

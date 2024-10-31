@@ -1,21 +1,22 @@
 ---
 title: Optimize workflows
-description: Learn how to optimize workflows with Tuist.
+titleTemplate: :title · Quick-start · Guides · Tuist
+description: Tuist로 워크플로우를 최적화하는 방법을 배워봅시다.
 ---
 
 # Optimize workflows {#optimize-workflows}
 
-Because Tuist knows your project through your description and the insights it collects, it can optimize your workflows to make them more efficient. Let's see some examples.
+Tuist는 프로젝트에 대한 설명과 그에 따른 다양한 정보를 바탕으로, 워크플로우를 더 효율적으로 최적화할 수 있습니다. 몇 가지 예시를 살펴봅시다.
 
 ## Smart test runs {#smart-test-runs}
 
-Let's run `tuist test` again. You'll notice the following message:
+`tuist test`를 다시 실행해 보겠습니다. 다음과 같은 메시지가 표시됩니다.
 
 ```bash
 There are no tests to run, finishing early
 ```
 
-Tuist detected that you didn't change anything in your project since last time you ran the tests, and therefore re-running the tests is not needed. And the best of all is that this works across different machines and CI environments.
+마지막으로 테스트를 실행한 이후 프로젝트에서 변경한 사항이 없으므로 테스트를 다시 실행할 필요가 없습니다. 무엇보다도 가장 좋은 점은 이 기능이 다양한 기기나 CI 환경에서 작동한다는 것입니다.
 
 ## Cache {#cache}
 

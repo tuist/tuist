@@ -172,28 +172,29 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
 
     // swiftlint:disable:next function_body_length
     static func fileContent(targetName _: String, bundleName: String, target: Target, in project: Project) -> String {
-        var content = """
+        let bundleAccessor = if target.supportsResources {
+            swiftFrameworkBundleAccessorString(for: target)
+        } else {
+            swiftSPMBundleAccessorString(for: target, and: bundleName)
+        }
+
+        // Add public accessors only for non external projects
+        let publicBundleAccessor = if project.isExternal || target.sourcesContainsPublicResourceClassName {
+            ""
+        } else {
+            publicBundleAccessorString(for: target)
+        }
+
+        return """
         // swiftlint:disable all
         // swift-format-ignore-file
         // swiftformat:disable all
         import Foundation
-        """
-        if !target.supportsResources {
-            content += swiftSPMBundleAccessorString(for: target, and: bundleName)
-        } else {
-            content += swiftFrameworkBundleAccessorString(for: target)
-        }
-
-        // Add public accessors only for non external projects
-        if !project.isExternal, !target.sourcesContainsPublicResourceClassName {
-            content += publicBundleAccessorString(for: target)
-        }
-
-        content += """
-        // swiftlint:enable all
+        \(bundleAccessor)
+        \(publicBundleAccessor)
         // swiftformat:enable all
+        // swiftlint:enable all
         """
-        return content
     }
 
     static func objcHeaderFileContent(
@@ -257,9 +258,10 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         ), the bundle containing the resources is copied into the final product.
         static let module: Bundle = {
             let bundleName = "\(bundleName)"
+            let bundleFinderResourceURL = Bundle(for: BundleFinder.self).resourceURL
             var candidates = [
                 Bundle.main.resourceURL,
-                Bundle(for: BundleFinder.self).resourceURL,
+                bundleFinderResourceURL,
                 Bundle.main.bundleURL,
             ]
             // This is a fix to make Previews work with bundled resources.
@@ -278,6 +280,14 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
                     }
                 }
             }
+
+            // This is a fix to make unit tests work with bundled resources.
+            // Making this change allows unit tests to search one directory up for a bundle.
+            // More context can be found in this PR: https://github.com/tuist/tuist/pull/6895
+            #if canImport(XCTest)
+            candidates.append(bundleFinderResourceURL?.appendingPathComponent(".."))
+            #endif
+
             for candidate in candidates {
                 let bundlePath = candidate?.appendingPathComponent(bundleName + ".bundle")
                 if let bundle = bundlePath.flatMap(Bundle.init(url:)) {
