@@ -14,7 +14,6 @@ import XCTest
 
 final class PackageInfoMapperTests: TuistUnitTestCase {
     private var subject: PackageInfoMapper!
-    private var swiftPackageManagerController: MockSwiftPackageManagerControlling!
 
     override func setUp() {
         super.setUp()
@@ -22,13 +21,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         given(swiftVersionProvider)
             .swiftVersion()
             .willReturn("5.9")
-        swiftPackageManagerController = MockSwiftPackageManagerControlling()
-        given(swiftPackageManagerController)
-            .getToolsVersion(at: .any)
-            .willReturn(Version(6, 0, 0))
-        subject = PackageInfoMapper(
-            swiftPackageManagerController: swiftPackageManagerController
-        )
+        subject = PackageInfoMapper()
     }
 
     override func tearDown() {
@@ -42,7 +35,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Sources/Target_2")))
         let resolvedDependencies = try subject.resolveExternalDependencies(
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target_1", "Target_2"]),
@@ -51,10 +44,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         .test(name: "Target_1", type: .binary, url: "https://binary.target.com/target1.xcframework.zip"),
                         .test(name: "Target_2"),
                     ],
-                    platforms: [.ios],
-                    cLanguageStandard: nil,
-                    cxxLanguageStandard: nil,
-                    swiftLanguageVersions: nil
+                    platforms: [.ios]
                 ),
             ],
             packageToFolder: ["Package": basePath],
@@ -82,7 +72,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Sources/Target_2")))
         let resolvedDependencies = try subject.resolveExternalDependencies(
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target_1", "Target_2"]),
@@ -119,7 +109,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Sources/Target_2")))
         let resolvedDependencies = try subject.resolveExternalDependencies(
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target_1", "Target_2"]),
@@ -159,7 +149,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Sources/Target_2")))
         let resolvedDependencies = try subject.resolveExternalDependencies(
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target_1", "Target_2"]),
@@ -197,7 +187,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package2/Sources/Target_2")))
         let resolvedDependencies = try subject.resolveExternalDependencies(
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target_1"]),
@@ -220,7 +210,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     cxxLanguageStandard: nil,
                     swiftLanguageVersions: nil
                 ),
-                "Package2": .init(
+                "Package2": .test(
                     name: "Package2",
                     products: [
                         .init(name: "Product2", type: .library(.automatic), targets: ["Target_2"]),
@@ -269,7 +259,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package2/Sources/Target_2")))
         let resolvedDependencies = try subject.resolveExternalDependencies(
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product", type: .library(.automatic), targets: ["Product"]),
@@ -292,7 +282,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     cxxLanguageStandard: nil,
                     swiftLanguageVersions: nil
                 ),
-                "Package2": .init(
+                "Package2": .test(
                     name: "Package2",
                     products: [
                         .init(name: "Product", type: .library(.automatic), targets: ["Product"]),
@@ -347,7 +337,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             .createFolder(basePath.appending(try RelativePath(validating: "com.example.dep-1/Sources/com.example.dep-1")))
         let resolvedDependencies = try subject.resolveExternalDependencies(
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target_1"]),
@@ -370,7 +360,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     cxxLanguageStandard: nil,
                     swiftLanguageVersions: nil
                 ),
-                "com.example.dep-1": .init(
+                "com.example.dep-1": .test(
                     name: "com.example.dep-1",
                     products: [
                         .init(name: "com.example.dep-1", type: .library(.automatic), targets: ["com.example.dep-1"]),
@@ -420,7 +410,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/Dependency_2")))
         let resolvedDependencies = try subject.resolveExternalDependencies(
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product", type: .library(.automatic), targets: ["Target_1"]),
@@ -470,7 +460,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package_2/Sources/Target_3")))
         let resolvedDependencies = try subject.resolveExternalDependencies(
             packageInfos: [
-                "Package_1": .init(
+                "Package_1": .test(
                     name: "Package_1",
                     products: [
                         .init(name: "Product_1", type: .library(.automatic), targets: ["Target_1"]),
@@ -499,7 +489,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     cxxLanguageStandard: nil,
                     swiftLanguageVersions: nil
                 ),
-                "Package_2": .init(
+                "Package_2": .test(
                     name: "Package_2",
                     products: [
                         .init(name: "Product_2", type: .library(.automatic), targets: ["Target_2"]),
@@ -560,7 +550,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -596,7 +586,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -640,7 +630,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -686,7 +676,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -734,7 +724,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 package: "Package",
                 basePath: basePath,
                 packageInfos: [
-                    "Package": .init(
+                    "Package": .test(
                         name: "Package",
                         products: [
                             .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -778,7 +768,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         let project = try await subject.map(
             package: "Package",
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target_1"]),
@@ -806,7 +796,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target_1"]),
@@ -847,7 +837,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -928,7 +918,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "com.example.product-1", type: .library(.automatic), targets: ["com.example.target-1"]),
@@ -975,7 +965,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -1015,7 +1005,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1", "Target2", "Target3"]),
@@ -1053,7 +1043,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -1092,7 +1082,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -1155,7 +1145,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -1258,7 +1248,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -1320,7 +1310,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -1367,7 +1357,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -1415,7 +1405,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -1470,7 +1460,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -1503,7 +1493,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -1559,7 +1549,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -1649,7 +1639,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -1665,7 +1655,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     cxxLanguageStandard: nil,
                     swiftLanguageVersions: nil
                 ),
-                "Package2": .init(
+                "Package2": .test(
                     name: "Package2",
                     products: [
                         .init(name: "Dependency1", type: .library(.automatic), targets: ["Dependency1"]),
@@ -1681,7 +1671,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     cxxLanguageStandard: nil,
                     swiftLanguageVersions: nil
                 ),
-                "Package3": .init(
+                "Package3": .test(
                     name: "Package3",
                     products: [
                         .init(name: "Dependency2", type: .library(.automatic), targets: ["Dependency2"]),
@@ -1740,7 +1730,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -1806,7 +1796,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -1866,7 +1856,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -1916,7 +1906,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -1966,7 +1956,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -2016,7 +2006,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -2057,7 +2047,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -2102,7 +2092,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -2146,7 +2136,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -2185,7 +2175,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -2225,7 +2215,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -2265,7 +2255,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -2309,7 +2299,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -2352,7 +2342,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -2395,7 +2385,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -2439,7 +2429,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -2481,7 +2471,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             basePath: basePath,
             packageType: .local,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -2578,7 +2568,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -2630,7 +2620,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -2697,7 +2687,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -2741,7 +2731,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -2787,7 +2777,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -2829,7 +2819,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -2879,7 +2869,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -2919,7 +2909,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -2969,7 +2959,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -3018,7 +3008,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -3066,7 +3056,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package2/Sources/Target4")))
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/Dependency1")))
 
-        let package1 = PackageInfo(
+        let package1 = PackageInfo.test(
             name: "Package",
             products: [
                 .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -3083,7 +3073,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             cxxLanguageStandard: nil,
             swiftLanguageVersions: nil
         )
-        let package2 = PackageInfo(
+        let package2 = PackageInfo.test(
             name: "Package2",
             products: [
                 .init(name: "Product2", type: .library(.automatic), targets: ["Target2", "Target3"]),
@@ -3129,7 +3119,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package2/Sources/Target4")))
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/Dependency1")))
 
-        let package1 = PackageInfo(
+        let package1 = PackageInfo.test(
             name: "Package",
             products: [
                 .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -3146,7 +3136,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             cxxLanguageStandard: nil,
             swiftLanguageVersions: nil
         )
-        let package2 = PackageInfo(
+        let package2 = PackageInfo.test(
             name: "Package2",
             products: [
                 .init(name: "Product2", type: .library(.automatic), targets: ["Target2", "Target3"]),
@@ -3193,7 +3183,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -3229,7 +3219,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -3265,7 +3255,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -3301,7 +3291,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -3337,7 +3327,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -3348,19 +3338,19 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     platforms: [.ios],
                     cLanguageStandard: nil,
                     cxxLanguageStandard: nil,
-                    swiftLanguageVersions: ["4.0.0", "5.0.0", "4.2.0"]
+                    swiftLanguageVersions: ["5.0.0", "6.0.0", "5.9.0"],
+                    toolsVersion: Version(5, 9, 0)
                 ),
             ],
             packageSettings: .test(
-                baseSettings: .default,
-                swiftToolsVersion: "4.4.0"
+                baseSettings: .default
             )
         )
         XCTAssertEqual(
             project,
             .test(
                 name: "Package",
-                settings: .settings(base: ["SWIFT_VERSION": "4.2.0"]),
+                settings: .settings(base: ["SWIFT_VERSION": "5.9.0"]),
                 targets: [
                     .test("Target1", basePath: basePath),
                 ]
@@ -3377,7 +3367,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -3395,8 +3385,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 baseSettings: Settings(
                     configurations: [.release: nil, .debug: nil, .init(name: "Custom", variant: .release): nil],
                     defaultSettings: .recommended
-                ),
-                swiftToolsVersion: "4.4.0"
+                )
             )
         )
 
@@ -3425,7 +3414,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: allTargets),
@@ -3489,7 +3478,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product", type: .library(.automatic), targets: ["Target1"]),
@@ -3563,7 +3552,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package2/Sources/Target2")))
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package2/Sources/Target3")))
 
-        let package1 = PackageInfo(
+        let package1 = PackageInfo.test(
             name: "Package",
             products: [
                 .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -3586,7 +3575,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             cxxLanguageStandard: nil,
             swiftLanguageVersions: nil
         )
-        let package2 = PackageInfo(
+        let package2 = PackageInfo.test(
             name: "Package2",
             products: [
                 .init(name: "Product2", type: .library(.automatic), targets: ["Target2", "Target3"]),
@@ -3645,7 +3634,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: packageName,
             basePath: basePath,
             packageInfos: [
-                packageName: .init(
+                packageName: .test(
                     name: packageName,
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -3689,7 +3678,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             basePath: basePath,
             packageType: .local,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product", type: .library(.automatic), targets: ["Target"]),
@@ -3750,7 +3739,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             basePath: basePath,
             packageType: .local,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product", type: .library(.automatic), targets: ["Target"]),
@@ -3824,7 +3813,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             basePath: basePath,
             packageType: .local,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(
@@ -3988,7 +3977,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/Product")))
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package2/Sources/Product")))
         let packageInfos: [String: PackageInfo] = [
-            "Package": .init(
+            "Package": .test(
                 name: "Package",
                 products: [
                     .init(name: "Product", type: .library(.automatic), targets: ["Product"]),
@@ -4011,7 +4000,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 cxxLanguageStandard: nil,
                 swiftLanguageVersions: nil
             ),
-            "Package2": .init(
+            "Package2": .test(
                 name: "Package2",
                 products: [
                     .init(name: "Product", type: .library(.automatic), targets: ["Product"]),
@@ -4085,7 +4074,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         let basePath = try temporaryPath()
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/Product")))
         let packageInfos: [String: PackageInfo] = [
-            "Package": .init(
+            "Package": .test(
                 name: "Package",
                 products: [
                     .init(name: "Product", type: .library(.automatic), targets: ["Product"]),
@@ -4098,13 +4087,10 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 platforms: [.ios],
                 cLanguageStandard: nil,
                 cxxLanguageStandard: nil,
-                swiftLanguageVersions: nil
+                swiftLanguageVersions: nil,
+                toolsVersion: Version(5, 8, 0)
             ),
         ]
-        swiftPackageManagerController.reset()
-        given(swiftPackageManagerController)
-            .getToolsVersion(at: .any)
-            .willReturn(Version(5, 8, 0))
 
         // When
         let project = try await subject.map(
@@ -4125,7 +4111,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         let basePath = try temporaryPath()
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/Product")))
         let packageInfos: [String: PackageInfo] = [
-            "Package": .init(
+            "Package": .test(
                 name: "Package",
                 products: [
                     .init(name: "Product", type: .library(.automatic), targets: ["Product"]),
@@ -4138,13 +4124,10 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 platforms: [.ios],
                 cLanguageStandard: nil,
                 cxxLanguageStandard: nil,
-                swiftLanguageVersions: nil
+                swiftLanguageVersions: nil,
+                toolsVersion: Version(5, 9, 0)
             ),
         ]
-        swiftPackageManagerController.reset()
-        given(swiftPackageManagerController)
-            .getToolsVersion(at: .any)
-            .willReturn(Version(5, 9, 0))
 
         // When
         let project = try await subject.map(
