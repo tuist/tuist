@@ -1,6 +1,6 @@
 ---
 title: プロジェクトの作成
-titleTemplate: :title · Quick-start · Guides · Tuist
+titleTemplate: :title · クイックスタート · ガイド · Tuist
 description: Tuistで最初のプロジェクトを作成する方法を学びます
 ---
 
