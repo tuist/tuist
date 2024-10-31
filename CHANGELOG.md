@@ -1,5 +1,27 @@
 # Changelog
 
+## 4.32.0 - 2024-10-31
+
+### CLI
+
+#### Changed
+
+- Improve globbing performance by using parallelized Swift glob implementation [#6957](https://github.com/tuist/tuist/pull/6957) by [@fortmarek](https://github.com/fortmarek)
+
+#### Added
+
+- Add --no-upload flag to tuist test [#6935](https://github.com/tuist/tuist/pull/6935) by [@fortmarek](https://github.com/fortmarek)
+
+#### Fixed
+
+- Fix SwiftLint warning in generated resource bundle accessors [#6954](https://github.com/tuist/tuist/pull/6954) by [@vldalx](https://github.com/vldalx)
+- Fix tests crashing when accessing SPM dependency resource bundle [#6895](https://github.com/tuist/tuist/pull/6895) by [@rhysm94](https://github.com/rhysm94)
+- Fix running selective tests with a custom result bundle path when all tests are skipped [#6959](https://github.com/tuist/tuist/pull/6959) by [@fortmarek](https://github.com/fortmarek)
+
+### CLI (Server features)
+
+- no changes
+
 ## 4.31.0 - 2024-10-23
 
 ### CLI
