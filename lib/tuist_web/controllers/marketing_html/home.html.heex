@@ -1,7 +1,7 @@
 <!-- Hero section -->
 <div class="marketing__home__section__hero">
   <h1 class="font-xxxl-strong marketing__home__section__hero__title">
-    <%= gettext("Extend Apple's official tools to scale up your app development") %>
+    <%= gettext("Scale your Swift App development") %>
   </h1>
   <.primary_button size="big" href="https://docs.tuist.io">
     <%= gettext("Get started") %>
@@ -1046,42 +1046,14 @@
       <%= gettext("View all") %>
     </.marketing_link>
   </div>
-  <% learn_more_items = [
-    %{
-      category: "news",
-      title: "Building an open core company",
-      description:
-        "How we are striking the balance between sustainability and low risk for our organizations",
-      image_url:
-        "https://plus.unsplash.com/premium_photo-1661337178354-86e24a57922d?q=80&w=1470&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
-      href: "/"
-    },
-    %{
-      category: "engineering",
-      title: "Unveiling Workflows",
-      description: "A new Swifty approach to CI that blurs local and remote environments.",
-      image_url:
-        "https://images.unsplash.com/photo-1493020258366-be3ead1b3027?w=900&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8MXx8Y29tcHV0ZXIlMjB0ZXJtaW5hbHxlbnwwfHwwfHx8Mg%3D%3D",
-      href: "/"
-    },
-    %{
-      category: "design",
-      title: "Designing in the open",
-      description: "Learn how we apply open source principles to our design system.",
-      image_url:
-        "https://images.unsplash.com/photo-1470790376778-a9fbc86d70e2?q=80&w=3104&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
-      href: "/"
-    }
-  ] %>
   <div class="marketing__home__section__learn_more__body">
     <div class="marketing__home__section__learn_more__cards">
-      <.home_learn_more_card
-        :for={item <- learn_more_items}
-        category={item.category}
-        title={item.title}
-        description={item.description}
-        image_url={item.image_url}
-        href={item.href}
+      <.more_card_content
+        :for={post <- @read_more_posts}
+        category={post.category}
+        title={post.title}
+        description={post.excerpt}
+        href={post.slug}
       />
     </div>
   </div>
@@ -1092,11 +1064,4 @@
   </div>
 </div>
 <!-- CTA section -->
-<div class="marketing__home__section__cta">
-  <h2 class="font-xxl-strong marketing__home__section__cta__title">
-    <%= gettext("Supercharge your app development") %>
-  </h2>
-  <.primary_button href={Tuist.Environment.get_url(:get_started)} size="medium">
-    <%= gettext("Get started") %>
-  </.primary_button>
-</div>
+<.cta />

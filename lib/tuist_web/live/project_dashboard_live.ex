@@ -18,7 +18,7 @@ defmodule TuistWeb.ProjectDashboardLive do
     {
       :ok,
       socket
-      |> assign(:page_title, "#{gettext("Dashboard")} · #{slug} · Tuist")
+      |> assign(:head_title, "#{gettext("Dashboard")} · #{slug} · Tuist")
       |> assign(
         :date_range,
         params["date_range"]

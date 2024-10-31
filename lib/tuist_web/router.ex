@@ -35,6 +35,10 @@ defmodule TuistWeb.Router do
     plug :fetch_current_user
   end
 
+  pipeline :browser_marketing_feed do
+    plug :accepts, ["xml"]
+  end
+
   pipeline :non_authenticated_api do
     plug :accepts, ["json"]
   end
@@ -63,12 +67,24 @@ defmodule TuistWeb.Router do
   # Marketing
   if @include_marketing_routes do
     scope "/" do
+      pipe_through [:browser_marketing_feed]
+
+      get "/blog+rss.xml", TuistWeb.MarketingController, :blog_rss
+      get "/blog+atom.xml", TuistWeb.MarketingController, :blog_atom
+    end
+
+    scope "/" do
       pipe_through [:open_api, :browser_marketing, :assign_current_path]
 
       get "/", TuistWeb.MarketingController, :home
       get "/changelog", TuistWeb.MarketingController, :changelog
       get "/pricing", TuistWeb.MarketingController, :pricing
-      get "/blog", TuistWeb.MarketingController, :blog
+      live "/blog", TuistWeb.MarketingBlogLive
+
+      for %{slug: blog_post_slug} <- Tuist.Blog.get_posts() do
+        get blog_post_slug, TuistWeb.MarketingController, :blog_post
+      end
+
       get "/terms", TuistWeb.MarketingController, :terms
       get "/privacy", TuistWeb.MarketingController, :privacy
       get "/cookies", TuistWeb.MarketingController, :cookies

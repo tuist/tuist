@@ -18,7 +18,7 @@ defmodule TuistWeb.ProjectRunsLive do
       :ok,
       socket
       |> assign(:uri, uri)
-      |> assign(:page_title, "#{gettext("Runs")} · #{slug} · Tuist")
+      |> assign(:head_title, "#{gettext("Runs")} · #{slug} · Tuist")
       |> assign(
         :command_events,
         command_events

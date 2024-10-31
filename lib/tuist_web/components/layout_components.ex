@@ -6,19 +6,44 @@ defmodule TuistWeb.LayoutComponents do
 
   def head_meta_meta_tags(assigns) do
     ~H"""
+    <% default_description =
+      gettext("Tuist extends Apple's tools, helping you ship apps that stand out.") %>
+    <meta name="description" content={assigns[:head_description] || default_description} />
+    <%= if not is_nil(assigns[:head_keywords]) do %>
+      <meta name="keywords" content={assigns[:head_keywords] |> Enum.join(", ")} />
+    <% end %>
+    <%= if not is_nil(assigns[:head_structured_data]) do %>
+      <script type="application/ld+json">
+        <%= raw assigns[:head_structured_data] %>
+      </script>
+    <% end %>
     <meta property="og:url" content={Tuist.Environment.app_url(path: "/")} />
     <meta property="og:type" content="website" />
-    <meta property="og:title" content={assigns[:page_title] || "Tuist"} />
-    <meta property="og:image" content={Tuist.Environment.app_url(path: "/images/open-graph.png")} />
+    <meta property="og:title" content={assigns[:head_title] || "Tuist"} />
+    <meta property="og:description" content={assigns[:head_description] || default_description} />
+
+    <%= if is_nil(assigns[:head_image]) do %>
+      <meta property="og:image" content={Tuist.Environment.app_url(path: "/images/open-graph.png")} />
+    <% else %>
+      <meta property="og:image" content={assigns[:head_image]} />
+    <% end %>
     """
   end
 
   def head_x_meta_tags(assigns) do
     ~H"""
-    <meta name="twitter:card" content="summary" />
+    <%= if is_nil(assigns[:head_twitter_card]) do %>
+      <meta name="twitter:card" content="summary" />
+    <% else %>
+      <meta name="twitter:card" content={assigns[:head_twitter_card]} />
+    <% end %>
     <meta name="twitter:site" content="@tuistio" />
-    <meta name="twitter:image" content={Tuist.Environment.app_url(path: "/")} />
-    <meta name="twitter:title" content={assigns[:page_title] || "Tuist"} />
+    <%= if is_nil(assigns[:head_image]) do %>
+      <meta name="twitter:image" content={Tuist.Environment.app_url(path: "/images/open-graph.png")} />
+    <% else %>
+      <meta name="twitter:image" content={assigns[:head_image]} />
+    <% end %>
+    <meta name="twitter:title" content={assigns[:head_title] || "Tuist"} />
     <meta
       property="twitter:domain"
       content={Tuist.Environment.app_url(path: "/") |> URI.parse() |> Map.get(:host)}

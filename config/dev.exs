@@ -22,8 +22,7 @@ config :tuist, TuistWeb.Endpoint,
   code_reloader: true,
   debug_errors: true,
   watchers: [
-    esbuild_app: {Esbuild, :install_and_run, [:app, ~w(--sourcemap=inline --watch)]},
-    esbuild_marketing: {Esbuild, :install_and_run, [:marketing, ~w(--sourcemap=inline --watch)]}
+    esbuild_app: {Esbuild, :install_and_run, [:app, ~w(--sourcemap=inline --watch)]}
   ]
 
 # ## SSL Support
@@ -56,7 +55,8 @@ config :tuist, TuistWeb.Endpoint,
       ~r"priv/static/(?!uploads/).*(js|css|png|jpeg|jpg|gif|svg)$",
       ~r"priv/static/(?!uploads/).*(js|css|png|jpeg|jpg|gif|svg)$",
       ~r"priv/gettext/.*(po)$",
-      ~r"lib/tuist_web/(controllers|live|components)/.*(ex|heex)$"
+      ~r"lib/tuist_web/(controllers|live|components)/.*(ex|heex)$",
+      ~r"priv/blog/*/.*(md)$"
     ]
   ]
 

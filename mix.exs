@@ -40,7 +40,7 @@ defmodule Tuist.MixProject do
       {:phoenix_html, "~> 4.0"},
       {:phoenix_live_reload, "~> 1.2", only: :dev},
       {:phoenix_live_view, "~> 0.20.17"},
-      {:floki, ">= 0.30.0", only: :test},
+      {:floki, ">= 0.33.0"},
       {:phoenix_live_dashboard, "~> 0.8.3"},
       {:esbuild, "~> 0.8", runtime: Mix.env() == :dev},
       {:heroicons,
@@ -102,7 +102,11 @@ defmodule Tuist.MixProject do
       {:error_tracker, "~> 0.4.0"},
       {:excellent_migrations, "~> 0.1.8"},
       {:ex_aws_sts, "~> 2.2"},
-      {:qr_code, "~> 3.1.0"}
+      {:qr_code, "~> 3.1.0"},
+      {:nimble_publisher, "~> 1.1"},
+      {:yaml_elixir, "~> 2.11"},
+      {:reading_time, "~> 0.2.0"},
+      {:plug_cowboy, "~> 2.7"}
     ]
   end
 
@@ -120,10 +124,9 @@ defmodule Tuist.MixProject do
       "ecto.reset": ["ecto.drop", "ecto.create", "ecto.load", "ecto.migrate"],
       test: ["ecto.create --quiet", "ecto.migrate --quiet", "test"],
       "assets.setup": ["esbuild.install --if-missing"],
-      "assets.build": ["esbuild app", "esbuild marketing"],
+      "assets.build": ["esbuild app"],
       "assets.deploy": [
         "esbuild app --minify",
-        "esbuild marketing --minify",
         "phx.digest"
       ]
     ]

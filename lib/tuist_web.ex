@@ -40,7 +40,7 @@ defmodule TuistWeb do
   def controller do
     quote do
       use Phoenix.Controller,
-        formats: [:html, :json],
+        formats: [:html, :json, :xml],
         layouts: [html: TuistWeb.Layouts]
 
       import Plug.Conn
@@ -54,6 +54,7 @@ defmodule TuistWeb do
     quote do
       use Phoenix.LiveView
       import TuistWeb.AppLayoutComponents
+      import TuistWeb.Gettext
 
       unquote(html_helpers())
     end
@@ -67,15 +68,24 @@ defmodule TuistWeb do
     end
   end
 
+  def xml do
+    quote do
+      use Phoenix.Component
+
+      import Phoenix.Controller,
+        only: [get_csrf_token: 0, view_module: 1, view_template: 1]
+
+      unquote(html_helpers())
+    end
+  end
+
   def html do
     quote do
       use Phoenix.Component
 
-      # Import convenience functions from controllers
       import Phoenix.Controller,
         only: [get_csrf_token: 0, view_module: 1, view_template: 1]
 
-      # Include general helpers for rendering HTML
       unquote(html_helpers())
     end
   end

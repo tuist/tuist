@@ -1,9 +1,16 @@
 defmodule TuistWeb.MarketingController do
   use TuistWeb, :controller
 
+  plug(:assign_default_head_tags)
+
   def home(conn, _params) do
+    read_more_posts = Tuist.Blog.get_posts() |> Enum.reverse() |> Enum.take(3)
+
     conn
+    |> assign(:head_title, "Tuist · Scale your Swift App development")
+    |> assign(:head_twitter_card, "summary_large_image")
     |> assign(:testimonials, home_testimonials())
+    |> assign(:read_more_posts, read_more_posts)
     |> render(:home, layout: false)
   end
 
@@ -12,9 +19,49 @@ defmodule TuistWeb.MarketingController do
     |> render(:about, layout: false)
   end
 
-  def blog(conn, _params) do
+  def blog_rss(conn, _params) do
+    posts = Tuist.Blog.get_posts()
+    last_build_date = posts |> List.last() |> Map.get(:date)
+
     conn
-    |> render(:blog, layout: false)
+    |> assign(:posts, Tuist.Blog.get_posts())
+    |> assign(:last_build_date, last_build_date)
+    |> render(:blog_rss, layout: false)
+  end
+
+  def blog_atom(conn, _params) do
+    posts = Tuist.Blog.get_posts()
+    last_build_date = posts |> List.last() |> Map.get(:date)
+
+    conn
+    |> assign(:posts, Tuist.Blog.get_posts())
+    |> assign(:last_build_date, last_build_date)
+    |> render(:blog_atom, layout: false)
+  end
+
+  def blog_post(%{request_path: request_path} = conn, _params) do
+    post =
+      Tuist.Blog.get_posts() |> Enum.find(&(&1.slug == String.trim_trailing(request_path, "/")))
+
+    if is_nil(post) do
+      raise TuistWeb.Errors.NotFoundError
+    else
+      related_posts = Tuist.Blog.get_posts() |> Enum.take_random(3)
+      author = Tuist.Blog.get_authors()[post.author]
+
+      page_structured_data =
+        Tuist.Blog.get_blog_post_structured_markup_data(post) |> Jason.encode!()
+
+      conn
+      |> assign(:head_title, "#{post.title} · Blog · Tuist")
+      |> assign(:head_description, post.excerpt)
+      |> assign(:head_keywords, post.tags)
+      |> assign(:head_structured_data, page_structured_data)
+      |> assign(:post, post)
+      |> assign(:author, author)
+      |> assign(:related_posts, related_posts)
+      |> render(:blog_post, layout: false)
+    end
   end
 
   def pricing(conn, _params) do
@@ -129,5 +176,11 @@ defmodule TuistWeb.MarketingController do
         }
       ]
     ]
+  end
+
+  def assign_default_head_tags(conn, _params) do
+    conn
+    |> assign(:head_image, Tuist.Environment.app_url(path: "/images/marketing/og/home.jpg"))
+    |> assign(:head_twitter_card, "summary_large_image")
   end
 end

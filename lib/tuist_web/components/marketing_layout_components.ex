@@ -244,4 +244,54 @@ defmodule TuistWeb.MarketingLayoutComponents do
 
   attr :current_path, :string, required: true
   def header(assigns)
+
+  attr :category, :string, required: true
+  attr :title, :string, required: true
+  attr :description, :string, required: true
+  attr :image_url, :string, required: false
+  attr :href, :string, required: true
+  attr :class, :string, required: false
+
+  def more_card(assigns) do
+    ~H"""
+    <div class={["marketing__component__more_card", @class]}>
+      <.more_card_content
+        category={@category}
+        title={@title}
+        description={@description}
+        image_url={assigns[:image_url]}
+        href={@href}
+      />
+    </div>
+    """
+  end
+
+  attr :category, :string, required: true
+  attr :title, :string, required: true
+  attr :description, :string, required: true
+  attr :image_url, :string, required: false
+  attr :href, :string, required: true
+
+  def more_card_content(assigns) do
+    ~H"""
+    <div class="font-xs-strong marketing__component__more_card__content__category">
+      <%= @category %>
+    </div>
+    <.link class="font-xl-strong marketing__component__more_card__content__title" href={@href}>
+      <%= @title %>
+    </.link>
+    <div class="font-m marketing__component__more_card__content__description">
+      <%= @description %>
+    </div>
+    <% style =
+      if(is_nil(assigns[:image_url]),
+        do: "",
+        else:
+          "background-image: url(#{assigns[:image_url]}); background-size: cover; background-position: center;"
+      ) %>
+    <div class="marketing__component__more_card__content__image" style={style}>
+      <.primary_icon_button href={@href} />
+    </div>
+    """
+  end
 end

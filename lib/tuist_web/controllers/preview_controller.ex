@@ -105,7 +105,7 @@ defmodule TuistWeb.PreviewController do
     conn =
       conn
       |> assign(
-        :page_title,
+        :head_title,
         gettext("Redirecting...")
       )
       |> assign(

@@ -17,7 +17,7 @@ defmodule TuistWeb.AccountProjectsLive do
     {:ok,
      socket
      |> assign(:projects, projects)
-     |> assign(:page_title, "#{gettext("Projects")} · #{selected_account.name} · Tuist")}
+     |> assign(:head_title, "#{gettext("Projects")} · #{selected_account.name} · Tuist")}
   end
 
   attr(:title, :string, required: true)

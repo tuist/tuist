@@ -17,7 +17,7 @@ defmodule TuistWeb.ProjectTestsLive do
       :ok,
       socket
       |> assign(:uri, uri)
-      |> assign(:page_title, "#{gettext("Tests")} · #{slug} · Tuist")
+      |> assign(:head_title, "#{gettext("Tests")} · #{slug} · Tuist")
       |> assign(:flaky_tests, flaky_tests)
       |> assign(:flaky_tests_meta, flaky_tests_meta)
     }

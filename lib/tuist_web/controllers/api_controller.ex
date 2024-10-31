@@ -18,7 +18,7 @@ defmodule TuistWeb.APIController do
 
     conn
     |> assign(:bearer_token, bearer_token)
-    |> assign(:page_title, "API Documentation · Tuist")
+    |> assign(:head_title, "API Documentation · Tuist")
     |> put_root_layout(false)
     |> render(:docs, layout: false)
   end

@@ -7,13 +7,13 @@
     <!-- Meta Meta Tags -->
     <meta property="og:url" content={Tuist.Environment.app_url(path: "/")} />
     <meta property="og:type" content="website" />
-    <meta property="og:title" content={assigns[:page_title] || "Tuist"} />
+    <meta property="og:title" content={assigns[:head_title] || "Tuist"} />
     <meta property="og:image" content={Tuist.Environment.app_url(path: "/images/open-graph.png")} />
     <!-- Twitter Meta Tags -->
     <meta name="twitter:card" content="summary" />
     <meta name="twitter:site" content="@tuistio" />
     <meta name="twitter:image" content={Tuist.Environment.app_url(path: "/")} />
-    <meta name="twitter:title" content={assigns[:page_title] || "Tuist"} />
+    <meta name="twitter:title" content={assigns[:head_title] || "Tuist"} />
     <meta
       property="twitter:domain"
       content={Tuist.Environment.app_url(path: "/") |> URI.parse() |> Map.get(:host)}

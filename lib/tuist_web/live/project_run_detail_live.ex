@@ -64,7 +64,7 @@ defmodule TuistWeb.ProjectRunDetailLive do
     {
       :ok,
       socket
-      |> assign(:page_title, "#{gettext("Run")} · #{slug} · Tuist")
+      |> assign(:head_title, "#{gettext("Run")} · #{slug} · Tuist")
       |> assign(:command_event, command_event)
       |> assign(:cache_misses, cache_misses)
       |> assign(:cacheable_targets, cacheable_targets)

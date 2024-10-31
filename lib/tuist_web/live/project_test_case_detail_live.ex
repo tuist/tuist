@@ -29,7 +29,7 @@ defmodule TuistWeb.ProjectTestCaseDetailLive do
     {
       :ok,
       socket
-      |> assign(:page_title, "#{gettext("Test case")} #{test_case_identifier} · #{slug} · Tuist")
+      |> assign(:head_title, "#{gettext("Test case")} #{test_case_identifier} · #{slug} · Tuist")
       |> assign(:uri, uri)
       |> assign(:test_case, test_case)
       |> assign(:test_case_runs, test_case_runs)

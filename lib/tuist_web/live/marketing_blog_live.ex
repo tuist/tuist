@@ -1,0 +1,43 @@
+defmodule TuistWeb.MarketingBlogLive do
+  use TuistWeb, :live_view
+
+  def mount(params, _session, socket) do
+    posts = Tuist.Blog.get_posts()
+    categories = Tuist.Blog.get_categories()
+    highlighted_posts = posts |> Enum.filter(& &1.highlighted)
+    category = params |> Map.get("category")
+    posts = if is_nil(category), do: posts, else: posts |> Enum.filter(&(&1.category == category))
+
+    socket =
+      socket
+      |> assign(:posts, posts)
+      |> assign(:highlighted_posts, highlighted_posts)
+      |> assign(:categories, categories)
+      |> attach_hook(:assign_current_path, :handle_params, fn _params, url, socket ->
+        uri = URI.parse(url)
+        current_path = if(is_nil(uri.query), do: uri.path, else: "#{uri.path}?#{uri.query}")
+        {:cont, assign(socket, current_path: current_path)}
+      end)
+
+    {:ok, socket}
+  end
+
+  @spec handle_params(map(), any(), map()) :: {:noreply, map()}
+  def handle_params(params, _url, socket) do
+    posts = Tuist.Blog.get_posts()
+    category = params |> Map.get("category")
+
+    posts = if is_nil(category), do: posts, else: posts |> Enum.filter(&(&1.category == category))
+
+    page_structured_data = Tuist.Blog.get_blog_structured_markup_data(posts) |> Jason.encode!()
+
+    {:noreply,
+     socket
+     |> assign(:posts, posts)
+     |> assign(:head_image, Tuist.Environment.app_url(path: "/images/marketing/og/blog.jpg"))
+     |> assign(:head_title, "Blog · Tuist")
+     |> assign(:head_twitter_card, "summary_large_image")
+     |> assign(:head_structured_data, page_structured_data)
+     |> assign(:head_description, gettext("Read engaging stories and expert insights."))}
+  end
+end
