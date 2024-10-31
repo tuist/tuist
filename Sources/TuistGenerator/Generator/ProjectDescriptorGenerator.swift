@@ -86,6 +86,7 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
         graphTraverser: GraphTraversing
     ) async throws -> ProjectDescriptor {
         logger.notice("Generating project \(project.name)")
+        let time = Date().timeIntervalSince1970
 
         let selfRef = XCWorkspaceDataFileRef(location: .current(""))
         let selfRefFile = XCWorkspaceDataElement.file(selfRef)
@@ -97,19 +98,23 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
             archiveVersion: projectConstants.archiveVersion,
             classes: [:]
         )
+        print("Time to init pbxproj of \(project.name), \(Date().timeIntervalSince1970 - time)")
         let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj)
+        print("Time to generate groups of \(project.name), \(Date().timeIntervalSince1970 - time)")
         let fileElements = ProjectFileElements()
-        try fileElements.generateProjectFiles(
+        try await fileElements.generateProjectFiles(
             project: project,
             graphTraverser: graphTraverser,
             groups: groups,
             pbxproj: pbxproj
         )
+        print("Time to generate project files of \(project.name), \(Date().timeIntervalSince1970 - time)")
         let configurationList = try await configGenerator.generateProjectConfig(
             project: project,
             pbxproj: pbxproj,
             fileElements: fileElements
         )
+        print("Time to generate test project config of \(project.name), \(Date().timeIntervalSince1970 - time)")
         let pbxProject = try generatePbxproject(
             project: project,
             projectFileElements: fileElements,
@@ -117,6 +122,7 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
             groups: groups,
             pbxproj: pbxproj
         )
+        print("Time to generate pbxproj of \(project.name), \(Date().timeIntervalSince1970 - time)")
 
         let nativeTargets = try await generateTargets(
             project: project,
@@ -125,6 +131,8 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
             fileElements: fileElements,
             graphTraverser: graphTraverser
         )
+        
+        print("Time to generate targets of \(project.name), \(Date().timeIntervalSince1970 - time)")
 
         generateTestTargetIdentity(
             project: project,
@@ -154,6 +162,7 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
         groups.removeEmptyAuxiliaryGroups()
 
         let xcodeProj = XcodeProj(workspace: workspace, pbxproj: pbxproj)
+        print("Time to generate project \(project.name), \(Date().timeIntervalSince1970 - time)")
         return ProjectDescriptor(
             path: project.path,
             xcodeprojPath: project.xcodeProjPath,
@@ -173,7 +182,7 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
         pbxproj: PBXProj
     ) throws -> PBXProject {
         let defaultKnownRegions = project.defaultKnownRegions ?? ["en", "Base"]
-        let knownRegions = Set(defaultKnownRegions + projectFileElements.knownRegions).sorted()
+        let knownRegions = Set(defaultKnownRegions + projectFileElements.knownRegions.value).sorted()
         let developmentRegion = project.developmentRegion ?? Xcode.Default.developmentRegion
         let attributes = generateAttributes(project: project)
         let pbxProject = PBXProject(
