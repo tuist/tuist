@@ -170,7 +170,7 @@ tuist migration settings-to-xcconfig -p MyApp.xcodeproj -t TargetX -x xcconfigs/
 
 ### `Project.swift` 파일에 타겟 정의 {#define-the-target-in-the-projectswift-file}
 
-Define the target in `Project.targets`:
+`Project.targets` 에 타겟을 정의합니다:
 
 ```swift
 import ProjectDescription
@@ -203,18 +203,18 @@ let project = Project(
 ```
 
 > [!NOTE] TEST TARGETS
-> If the target has an associated test target, you should define it in the `Project.swift` file as well repeating the same steps.
+> 타겟과 연관있는 테스트 타겟이 존재하면, `Project.swift` 파일에 동일하게 해당 타겟을 정의해야 합니다.
 
-### Validate the target migration {#validate-the-target-migration}
+### 타겟 마이그레이션 검증 {#validate-the-target-migration}
 
-Run `tuist build` and `tuist test` to ensure the project builds and tests pass. Additionally, you can use [xcdiff](https://github.com/bloomberg/xcdiff) to compare the generated Xcode project with the existing one to ensure that the changes are correct.
+`tuist build`와 `tuist test`를 수행해서 프로젝트 빌드와 테스트가 통과되는지 확인합니다. 또한, [xcdiff](https://github.com/bloomberg/xcdiff)을 사용하여 생성된 Xcode 프로젝트와 기존 프로젝트의 변경사항이 맞는지 비교할 수 있습니다.
 
-### Repeat {#repeat}
+### 반복 {#repeat}
 
-Repeat until all the targets are fully migrated. Once you are done, we recommend updating your CI and CD pipelines to build and test the project using `tuist build` and `tuist test` commands to benefit from the speed and reliability that Tuist provides.
+모든 타겟이 마이그레이션 할 때까지 반복합니다. 작업이 완료되면, Tuist가 제공하는 속도와 안정성의 이점을 위해 `tuist build`와 `tuist test` 명령어를 사용하여 프로젝트 빌드와 테스트를 할 수 있게 CI와 CD 파이프라인을 업데이트 하는 것이 좋습니다.
 
-## Troubleshooting {#troubleshooting}
+## 문제 해결 {#troubleshooting}
 
-### Compilation errors due to missing files. {#compilation-errors-due-to-missing-files}
+### 파일 누락으로 인한 컴파일 오류 {#compilation-errors-due-to-missing-files}
 
-If the files associated to your Xcode project targets were not all contained in a file-system directory representing the target, you might end up with a project that doesn't compile. Make sure the list of files after generating the project with Tuist matches the list of files in the Xcode project, and take the opportunity to align the file structure with the target structure.
+Xcode 프로젝트 타겟에 연관된 파일이 마이그레이션 한 타겟 파일 시스템 디렉토리에 포함되지 않으면, 그 프로젝트는 컴파일되지 않습니다. Tuist로 프로젝트를 생성한 후에 Xcode 프로젝트의 파일 목록과 일치하는지 확인하고, 타겟 구조와 파일 구조를 일치 시킵니다.
