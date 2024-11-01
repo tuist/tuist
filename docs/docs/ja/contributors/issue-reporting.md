@@ -27,7 +27,7 @@ Tuist のユーザーとして、バグや予期しない動作に遭遇する�
 
 ## 再現可能なプロジェクト {#reproducible-project}
 
-### 再現可能なプロジェクトとは？ 再現可能なプロジェクトとは？ {#what-is-a-reproducible-project} 再現可能なプロジェクトとは？ {#what-is-a-reproducible-project} 再現可能なプロジェクトとは？ {#what-is-a-reproducible-project}
+### 再現可能なプロジェクトとは？ 再現可能なプロジェクトとは?
 
 A reproducible project is a small Tuist project to demonstrate a problem - often this problem is caused by a bug in Tuist. Your reproducible project should contain the bare minimum features needed to clearly demonstrate the bug.
 
