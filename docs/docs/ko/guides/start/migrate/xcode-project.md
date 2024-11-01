@@ -215,6 +215,6 @@ let project = Project(
 
 ## 문제 해결 {#troubleshooting}
 
-### 파일 누락으로 인한 컴파일 오류 파일 누락으로 인한 컴파일 오류 {#compilation-errors-due-to-missing-files}
+### 파일 누락으로 인한 컴파일 오류 파일 누락으로 인한 컴파일 오류 파일 누락으로 인한 컴파일 오류 {#compilation-errors-due-to-missing-files}
 
 Xcode 프로젝트 타겟에 연관된 파일이 마이그레이션 한 타겟 파일 시스템 디렉토리에 포함되지 않으면, 그 프로젝트는 컴파일되지 않습니다. Tuist로 프로젝트를 생성한 후에 Xcode 프로젝트의 파일 목록과 일치하는지 확인하고, 타겟 구조와 파일 구조를 일치 시킵니다.
