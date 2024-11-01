@@ -8,7 +8,7 @@ description: Tuist를 설치하는 방법을 알아보세요.
 
 Tuist CLI는 실행 가능한 동적 프레임워크와 일련의 리소스(예: 템플릿)로 구성되어 있습니다. [소스에서](https://github.com/tuist/tuist) 수동으로 Tuist를 빌드할 수도 있지만, **올바른 설치를 위해 다음 설치 방법 중 하나를 사용하는 것이 좋습니다.**
 
-### 권장: [Mise](https://github.com/jdx/mise) {#recommended-misehttpsgithubcomjdxmise}
+### 권장: <a href="https://github.com/jdx/mise">Mise</a> {#recommended-mise}
 
 Tuist의 버전을 체계적으로 관리하고 활성화하기 위한 도구로 [Mise](https://github.com/jdx/mise)가 기본으로 사용됩니다.
 Mise가 시스템에 아직 설치되어 있지 않은 경우 다음 [설치 방법](https://mise.jdx.dev/getting-started.html) 중 하나를 사용할 수 있습니다.
@@ -50,7 +50,7 @@ brew install --formula tuist@x.y.z
 Tuist를 **시스템 전체**(global installation)에 설치했다면, Bash와 Zsh의 명령어 및 옵션 자동 완성을 사용할 수 있도록 shell completions을 설치할 수 있습니다.
 
 :::warning Global installation란?
-Global installation는 Shell의 `$PATH` 환경 변수에 포함된 설치를 말합니다. 즉, 터미널의 모든 디렉토리에서 `tuist`를 실행할 수 있습니다.이것은 Homebrew의 기본 설치 방법입니다. This is the default installation method for Homebrew.
+Global installation는 Shell의 `$PATH` 환경 변수에 포함된 설치를 말합니다. 즉, 터미널의 모든 디렉토리에서 `tuist`를 실행할 수 있습니다.이것은 Homebrew의 기본 설치 방법입니다. 이것은 Homebrew의 기본 설치 방법입니다.
 :::
 
 #### Zsh {#zsh}
