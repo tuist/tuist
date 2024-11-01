@@ -22,6 +22,9 @@ let project = Project(
                     excluding: "App/Sources/**/*ExcludeMe.swift"
                 ),
             ],
+            resources: [
+                "App/**/Nested/**/*.json"
+            ],
             dependencies: [],
             additionalFiles: [
                 "**/.*.yml",
