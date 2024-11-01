@@ -19,21 +19,27 @@ struct MenuBarView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 0) {
             simulatorsView
 
             Divider()
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
 
             Button("Check for updates", action: viewModel.checkForUpdates)
                 .disabled(!viewModel.canCheckForUpdates)
+                .padding(.vertical, 2)
                 .menuItemStyle()
+                .padding(.horizontal, 8)
 
             Button("Quit Tuist") {
                 NSApplication.shared.terminate(nil)
             }
+            .padding(.vertical, 2)
             .menuItemStyle()
+            .padding(.horizontal, 8)
         }
-        .padding(8)
+        .padding(.vertical, 8)
         .environmentObject(errorHandling)
     }
 }

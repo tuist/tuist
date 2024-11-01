@@ -1,3 +1,4 @@
+import Command
 import FileSystem
 import Foundation
 import PathKit
