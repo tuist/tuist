@@ -1,5 +1,26 @@
 # Changelog
 
+## 4.32.1 - 2024-11-01
+
+### CLI
+
+#### Changed
+
+- Improve performance by loading Swift tools version directly from Package manifests [#6963](https://github.com/tuist/tuist/pull/6963) by [@fortmarek](https://github.com/fortmarek)
+
+#### Added
+
+- Add support for dependencies on app targets from different projects [#6820](https://github.com/tuist/tuist/pull/6820) by [@TamarMilchtaich](https://github.com/TamarMilchtaich)
+
+#### Fixed
+
+- Fix glob regression for hidden files and excluding sources [#6970](https://github.com/tuist/tuist/pull/6970) by [@fortmarek](https://github.com/fortmarek)
+- Fix running tests on a device specified with -destination xcodebuild argument [#6971](https://github.com/tuist/tuist/pull/6971) by [@fortmarek](https://github.com/fortmarek)
+
+### CLI (Server features)
+
+- no changes
+
 ## 4.32.0 - 2024-10-31
 
 ### CLI
