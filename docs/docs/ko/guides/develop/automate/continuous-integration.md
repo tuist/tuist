@@ -77,7 +77,7 @@ workflows:
 
 ### GitHub Actions {#github-actions}
 
-On [GitHub Actions](https://docs.github.com/actions) you can an additional step to install Tuist, and in the case of managing the installation of Mise, you can use the [mise-action](https://github.com/jdx/mise-action), which abstracts the installation of Mise and Tuist:
+[GitHub Actions](https://docs.github.com/en/actions)에서 Tuist를 설치하기 위한 단계를 추가할 수 있으며, Mise를 설치하고 관리하려면 Mise와 Tuist의 설치 과정을 추상화한 [mise-action](https://github.com/jdx/mise-action)을 사용할 수 있습니다.
 
 ::: code-group
 
