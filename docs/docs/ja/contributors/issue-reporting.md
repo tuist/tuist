@@ -12,7 +12,7 @@ Tuist のユーザーとして、バグや予期しない動作に遭遇する�
 
 ## GitHub Issues は当プロジェクトのチケット管理プラットフォームです {#github-issues-is-our-ticketing-platform}
 
-問題は GitHub の [Issue](https://github.com/tuist/tuist/issues) として報告し、Slack など他のプラットフォームでは報告しないでください。 GitHub は、問題の追跡や管理に適しており、コードベースに近い場所で問題の進捗を追うことができます。 加えて、問題の詳細な説明が推奨されるため、報告者は問題について考え、より多くの背景情報を提供することが求められます。 GitHub は、問題の追跡や管理に適しており、コードベースに近い場所で問題の進捗を追うことができます。 加えて、問題の詳細な説明が推奨されるため、報告者は問題について考え、より多くの背景情報を提供することが求められます。 GitHub は、問題の追跡や管理に適しており、コードベースに近い場所で問題の進捗を追うことができます。 加えて、問題の詳細な説明が推奨されるため、報告者は問題について考え、より多くの背景情報を提供することが求められます。
+問題は GitHub の [Issue](https://github.com/tuist/tuist/issues) として報告し、Slack など他のプラットフォームでは報告しないでください。 GitHub は、問題の追跡や管理に適しており、コードベースに近い場所で問題の進捗を追うことができます。 加えて、問題の詳細な説明が推奨されるため、報告者は問題について考え、より多くの背景情報を提供することが求められます。 GitHub は、問題の追跡や管理に適しており、コードベースに近い場所で問題の進捗を追うことができます。 加えて、問題の詳細な説明が推奨されるため、報告者は問題について考え、より多くの背景情報を提供することが求められます。 GitHub は、問題の追跡や管理に適しており、コードベースに近い場所で問題の進捗を追うことができます。 加えて、問題の詳細な説明が推奨されるため、報告者は問題について考え、より多くの背景情報を提供することが求められます。 GitHub は、問題の追跡や管理に適しており、コードベースに近い場所で問題の進捗を追うことができます。 加えて、問題の詳細な説明が推奨されるため、報告者は問題について考え、より多くの背景情報を提供することが求められます。
 
 ## 背景情報が鍵 {#context-is-crucial}
 
@@ -27,7 +27,7 @@ Tuist のユーザーとして、バグや予期しない動作に遭遇する�
 
 ## 再現可能なプロジェクト {#reproducible-project}
 
-### 再現可能なプロジェクトとは？ 再現可能なプロジェクトとは？ {#what-is-a-reproducible-project} 再現可能なプロジェクトとは？ {#what-is-a-reproducible-project}
+### 再現可能なプロジェクトとは？ 再現可能なプロジェクトとは?
 
 A reproducible project is a small Tuist project to demonstrate a problem - often this problem is caused by a bug in Tuist. Your reproducible project should contain the bare minimum features needed to clearly demonstrate the bug.
 

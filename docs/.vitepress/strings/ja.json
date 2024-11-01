@@ -2,18 +2,18 @@
   "aside": {
     "translate": {
       "title": {
-        "text": "Translation 🌍"
+        "text": "翻訳 🌍"
       },
       "description": {
-        "text": "You can translate or improve the translation of this page."
+        "text": "このページの翻訳を行ったり、改善したりすることができます。"
       },
       "cta": {
-        "text": "Contribute"
+        "text": "コントリビュートする"
       }
     }
   },
   "search": {
-    "placeholder": "Search",
+    "placeholder": "検索",
     "translations": {
       "button": {
         "button-text": "Search documentation",
@@ -39,9 +39,9 @@
           "help-text": "You may need to check your network connection"
         },
         "footer": {
-          "select-text": "Select",
-          "navigate-text": "Navigate",
-          "close-text": "Close",
+          "select-text": "選択",
+          "navigate-text": "移動",
+          "close-text": "閉じる",
           "search-by-text": "Search provider"
         },
         "no-results-screen": {
@@ -123,7 +123,7 @@
           "text": "原則"
         },
         "translate": {
-          "text": "Translate"
+          "text": "翻訳する"
         }
       }
     },
