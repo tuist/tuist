@@ -59,5 +59,5 @@ tuist project tokens create my-handle/MyApp
 
 Then expose the token as an environment variable `TUIST_CONFIG_TOKEN` in your CI environment. The presence of the token will automatically enable the optimizations and insights.
 
-> [!IMPORTANT] CI ENVIRONMENT DETECTION
-> Tuist only uses the token when it detects it's running on a CI environment. If your CI environment is not detected, you can force the token usage by setting the environment variable `CI` to `1`.
+> [!중요] CI 환경 감지
+> Tuist는 CI 환경에서 실행 중임을 감지할 때만 토큰을 사용합니다. CI 환경이 감지되지 않는 경우, 환경 변수 `CI`를 `1`로 설정하여 토큰 사용을 강제할 수 있습니다.
