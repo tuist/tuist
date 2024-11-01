@@ -1,0 +1,23 @@
+name: Actionable task
+description: Use this template to report actionable tasks that include execution steps. For everything else use the [community forum](https://community.tuist.io).
+body:
+  - type: markdown
+    attributes:
+      value: |
+      > [!IMPORTANT]
+      > Only actionable issues should be reported here. For everything else use the [community forum](https://community.tuist.io).
+  - type: input
+    id: problem-need
+    attributes:
+      label: Problem or need
+      description: Link to the problem or need being addressed (e.g. community forum topic))
+    validations:
+      required: false
+     
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps
+      description: Describe the steps that a contributor needs to take to address the problem or need. Be as detailed as possible.
+    validations:
+      required: true
