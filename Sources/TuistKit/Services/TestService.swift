@@ -655,15 +655,21 @@ final class TestService { // swiftlint:disable:this type_body_length
             buildPlatform = try buildableTarget.target.servicePlatform
         }
 
-        let destination = try await XcodeBuildDestination.find(
-            for: buildableTarget.target,
-            on: buildPlatform,
-            scheme: scheme,
-            version: version,
-            deviceName: deviceName,
-            graphTraverser: graphTraverser,
-            simulatorController: simulatorController
-        )
+        let destination: XcodeBuildDestination?
+
+        if passthroughXcodeBuildArguments.contains("-destination") {
+            destination = nil
+        } else {
+            destination = try await XcodeBuildDestination.find(
+                for: buildableTarget.target,
+                on: buildPlatform,
+                scheme: scheme,
+                version: version,
+                deviceName: deviceName,
+                graphTraverser: graphTraverser,
+                simulatorController: simulatorController
+            )
+        }
 
         try await xcodebuildController.test(
             .workspace(graphTraverser.workspace.xcWorkspacePath),
