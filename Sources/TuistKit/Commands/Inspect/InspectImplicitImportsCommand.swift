@@ -17,8 +17,17 @@ struct InspectImplicitImportsCommand: AsyncParsableCommand {
     )
     var path: String?
 
+    @Flag(
+        help: "Skip inspecting external dependencies.",
+        envKey: .ignoreExternalDependencies
+    )
+    var ignoreExternalDependencies: Bool = false
+
     func run() async throws {
         try await InspectImplicitImportsService()
-            .run(path: path)
+            .run(
+                path: path,
+                ignoreExternalDependencies: ignoreExternalDependencies
+            )
     }
 }
