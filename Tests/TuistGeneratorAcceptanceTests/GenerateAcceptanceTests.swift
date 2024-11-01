@@ -967,6 +967,14 @@ final class GenerateAcceptanceTestAppWithGoogleMaps: TuistAcceptanceTestCase {
     }
 }
 
+final class GenerateAcceptanceTestAppWithGlobs: TuistAcceptanceTestCase {
+    func test_app_with_globs() async throws {
+        try await setUpFixture(.appWithGlobs)
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self)
+    }
+}
+
 final class GenerateAcceptanceTestFrameworkWithMacroAndPluginPackages: TuistAcceptanceTestCase {
     func test_framework_with_macro_and_plugin_packages() async throws {
         try await setUpFixture(.frameworkWithMacroAndPluginPackages)
