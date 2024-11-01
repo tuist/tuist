@@ -8,6 +8,7 @@ public enum TuistAcceptanceFixtures {
     case appWithCustomDefaultConfiguration
     case appWithCustomScheme
     case appWithFrameworkAndTests
+    case appWithGlobs
     case appWithGoogleMaps
     case appWithPlugins
     case appWithPreviews
@@ -104,6 +105,8 @@ public enum TuistAcceptanceFixtures {
             return "app_with_custom_scheme"
         case .appWithFrameworkAndTests:
             return "app_with_framework_and_tests"
+        case .appWithGlobs:
+            return "app_with_globs"
         case .appWithGoogleMaps:
             return "app_with_google_maps"
         case .appWithPlugins:
