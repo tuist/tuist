@@ -49,30 +49,35 @@ struct DevicesView: View, ErrorViewHandling {
     }
 
     var body: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 4) {
-                pinnedDevicesSection()
+        VStack(alignment: .leading, spacing: 0) {
+            pinnedDevicesSection()
+                .padding(.horizontal, 8)
+                .padding(.bottom, 4)
 
-                HStack {
-                    Text("Other devices")
-                        .font(.headline)
-                        .fontWeight(.medium)
-                    Spacer()
-                    Image(systemName: "chevron.right")
-                        .rotationEffect(.degrees(isExpanded ? 90 : 0))
-                        .frame(height: 16)
-                }
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    isExpanded.toggle()
-                }
-                .menuItemStyle()
+            HStack {
+                Text("Other devices")
+                    .font(.headline)
+                    .fontWeight(.medium)
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                    .frame(height: 16)
+            }
+            .padding(.vertical, 2)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                isExpanded.toggle()
+            }
+            .menuItemStyle()
+            .padding(.horizontal, 8)
 
-                if isExpanded {
-                    VStack(spacing: 0) {
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    if isExpanded {
                         simulators(viewModel.unpinnedSimulators)
                     }
                 }
+                .padding(.horizontal, 8)
             }
         }
         .frame(height: isExpanded ? NSScreen.main.map { $0.visibleFrame.size.height - 300 } ?? 500 : nil)
@@ -124,6 +129,7 @@ struct DevicesView: View, ErrorViewHandling {
                     simulators(viewModel.pinnedSimulators)
                 }
             }
+            .padding(.bottom, 2)
 
             Divider()
         }
