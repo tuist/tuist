@@ -309,6 +309,50 @@ final class TestServiceTests: TuistUnitTestCase {
         )
     }
 
+    func test_run_tests_with_passthrough_destination() async throws {
+        // Given
+        givenGenerator()
+        given(generator)
+            .generateWithGraph(path: .any)
+            .willProduce { path in
+                (path, .test(workspace: .test(schemes: [.test(name: "TestScheme")])), MapperEnvironment())
+            }
+
+        // When
+        try await testRun(
+            schemeName: "TestScheme",
+            path: try temporaryPath(),
+            passthroughXcodeBuildArguments: ["-destination", "id=device-id"]
+        )
+
+        // Then
+        verify(simulatorController)
+            .findAvailableDevice(
+                platform: .any,
+                version: .any,
+                minVersion: .any,
+                deviceName: .any
+            )
+            .called(0)
+        verify(xcodebuildController)
+            .test(
+                .any,
+                scheme: .any,
+                clean: .any,
+                destination: .value(nil),
+                rosetta: .any,
+                derivedDataPath: .any,
+                resultBundlePath: .any,
+                arguments: .any,
+                retryCount: .any,
+                testTargets: .any,
+                skipTestTargets: .any,
+                testPlanConfiguration: .any,
+                passthroughXcodeBuildArguments: .value(["-destination", "id=device-id"])
+            )
+            .called(1)
+    }
+
     func test_run_tests_for_only_specified_scheme() async throws {
         // Given
         givenGenerator()
