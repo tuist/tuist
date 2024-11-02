@@ -36,4 +36,4 @@ After the resolution completes, you can then generate the project:
 tuist generate
 ```
 
-Voilà! You have a native Xcode project that you can open and start working on.
+ほら！ You have a native Xcode project that you can open and start working on.
