@@ -23,16 +23,16 @@
         "search-box": {
           "reset-button-title": "Clear query",
           "reset-button-aria-label": "Clear query",
-          "cancel-button-text": "Cancel",
-          "cancel-button-aria-label": "Cancel"
+          "cancel-button-text": "キャンセル",
+          "cancel-button-aria-label": "キャンセル"
         },
         "start-screen": {
           "recent-searches-title": "Search history",
           "no-recent-searches-text": "No search history",
           "save-recent-search-button-title": "Save to search history",
           "remove-recent-search-button-title": "Remove from search history",
-          "favorite-searches-title": "Favorites",
-          "remove-favorite-search-button-title": "Remove from favorites"
+          "favorite-searches-title": "お気に入り",
+          "remove-favorite-search-button-title": "お気に入りから削除"
         },
         "error-screen": {
           "title-text": "Unable to retrieve results",
@@ -101,7 +101,7 @@
           "text": "マイグレーション",
           "items": {
             "from-v3-to-v4": {
-              "text": "v3からv4へ"
+              "text": "v3 から v4 へ"
             }
           }
         }
