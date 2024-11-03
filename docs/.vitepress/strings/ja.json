@@ -16,38 +16,38 @@
     "placeholder": "検索",
     "translations": {
       "button": {
-        "button-text": "Search documentation",
-        "button-aria-label": "Search documentation"
+        "button-text": "ドキュメントを検索",
+        "button-aria-label": "ドキュメントを検索"
       },
       "modal": {
         "search-box": {
-          "reset-button-title": "Clear query",
-          "reset-button-aria-label": "Clear query",
+          "reset-button-title": "検索キーワードを削除",
+          "reset-button-aria-label": "検索キーワードを削除",
           "cancel-button-text": "キャンセル",
           "cancel-button-aria-label": "キャンセル"
         },
         "start-screen": {
-          "recent-searches-title": "Search history",
-          "no-recent-searches-text": "No search history",
-          "save-recent-search-button-title": "Save to search history",
-          "remove-recent-search-button-title": "Remove from search history",
+          "recent-searches-title": "履歴を検索",
+          "no-recent-searches-text": "検索履歴はありません",
+          "save-recent-search-button-title": "検索履歴に保存",
+          "remove-recent-search-button-title": "検索履歴から削除する",
           "favorite-searches-title": "お気に入り",
           "remove-favorite-search-button-title": "お気に入りから削除"
         },
         "error-screen": {
-          "title-text": "Unable to retrieve results",
-          "help-text": "You may need to check your network connection"
+          "title-text": "結果を取得できませんでした",
+          "help-text": "ネットワーク接続を確認してください"
         },
         "footer": {
           "select-text": "選択",
           "navigate-text": "移動",
           "close-text": "閉じる",
-          "search-by-text": "Search provider"
+          "search-by-text": "検索プロバイダー"
         },
         "no-results-screen": {
-          "no-results-text": "No relevant results found",
-          "suggested-query-text": "You might try querying",
-          "report-missing-results-text": "Do you think this query should have results?",
+          "no-results-text": "関連する結果が見つかりませんでした",
+          "suggested-query-text": "クエリを試してみることができます",
+          "report-missing-results-text": "このクエリには結果があると思いますか?",
           "report-missing-results-link-text": "クリックしてフィードバックする"
         }
       }
