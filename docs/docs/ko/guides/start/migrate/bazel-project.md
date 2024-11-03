@@ -13,7 +13,7 @@ description: Bazel에서 Tuist로 프로젝트를 마이그레이션 하는 방�
 
 ## 규칙 {#rules}
 
-Bazel은 소프트웨어를 빌드하고 테스트하는 방식을 정의하는 규칙을 사용합니다. 이 규칙은 Python과 유사한 언어인 [Starlark](https://github.com/bazelbuild/starlark)로 작성되어 있습니다. Tuist는 구성 언어로 Swift를 사용하므로 개발자는 Xcode의 자동완성, 타입 검사, 그리고 기능 검증을 사용할 수 있습니다. 예를 들어, 다음은 Bazel이 Swift 라이브러리를 빌드하는 규칙을 나타냅니다:
+Bazel은 소프트웨어를 빌드하고 테스트하는 방식을 정의하는 규칙을 사용합니다. 이 규칙은 Python과 유사한 언어인 [Starlark](https://github.com/bazelbuild/starlark)로 작성되어 있습니다. Tuist는 구성 언어로 Swift를 사용하므로 개발자는 Xcode의 자동 완성, 타입 검사, 그리고 기능 검증을 사용할 수 있습니다. 예를 들어, 다음은 Bazel이 Swift 라이브러리를 빌드하는 규칙을 나타냅니다:
 
 ::: code-group
 
