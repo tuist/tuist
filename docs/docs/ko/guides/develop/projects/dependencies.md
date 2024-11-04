@@ -34,16 +34,16 @@ Tuist와 함께라면, 의존 관계를 정의하는데만 집중하세요. 나�
 
 ## 로컬 의존성 {#local-dependencies}
 
-Targets can depend on other targets in the same and different projects, and on binaries.
-When instantiating a `Target`, you can pass the `dependencies` argument with any of the following options:
+타겟은 같은 프로젝트나 다른 프로젝트의 타겟, 그리고 바이너리에 의존할 수 있습니다.
+`Target`을 생성할 때, `dependencies ` 아규먼트에 다음과 같은 옵션들을 전달할 수 있습니다:
 
-- `Target`: Declares a dependency with a target within the same project.
-- `Project`: Declares a dependency with a target in a different project.
-- `Framework`: Declares a dependency with a binary framework.
-- `Library`: Declares a dependency with a binary library.
-- `XCFramework`: Declares a dependency with a binary XCFramework.
-- `SDK`: Declares a dependency with a system SDK.
-- `XCTest`: Declares a dependency with XCTest.
+- `Target`: 같은 프로젝트에 있는 타겟을 의존성으로 선언합니다.
+- `Project`: 다른 프로젝트에 있는 타겟을 의존성으로 선언합니다.
+- `Framework`: 바이너리 프레임워크에 대한 의존성을 선언합니다.
+- `Library`: 바이너리 라이브러리에 대한 의존성을 선언합니다.
+- `XCFramework`: 바이너리 XCFramework에 대한 의존성을 선언합니다.
+- `SDK`: 시스템 SDK에 대한 의존성을 선언합니다.
+- `XCTest`: XCTest에 대한 의존성을 선언합니다.
 
 > [!NOTE] DEPENDENCY CONDITIONS
 > Every dependency type accepts a `condition` option to conditionally link the dependency based on the platform. By default, it links the dependency for all platforms the target supports.
