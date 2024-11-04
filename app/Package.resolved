@@ -51,8 +51,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/FileSystem.git",
       "state" : {
-        "revision" : "ef51eeb6913aba41ac7d7e05ee1723c3cfbaa6e9",
-        "version" : "0.6.4"
+        "revision" : "876e70c368698a76b58c2fadfe4c507e248229b9",
+        "version" : "0.6.6"
       }
     },
     {
@@ -213,8 +213,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/swift-glob",
       "state" : {
-        "revision" : "c086760260c4bd6541ea42fdbb8cc76a9798b3fa",
-        "version" : "0.3.6"
+        "revision" : "106ff5ea97cca6ee504765133af3175ecd5ca257",
+        "version" : "0.3.7"
       }
     },
     {

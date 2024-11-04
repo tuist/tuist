@@ -1,3 +1,8 @@
+## What's Changed in app@0.3.5
+* fix: when scrolling, scroll only the other devices section by @fortmarek in [#6976](https://github.com/tuist/tuist/pull/6976)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/app@0.3.4...app@0.3.5
+
 ## What's Changed in app@0.3.4
 * refactor: migrate AbsolutePath.glob to FileSystem.glob by @fortmarek in [#6936](https://github.com/tuist/tuist/pull/6936)
 
