@@ -283,7 +283,7 @@
               "text": "Inspect",
               "items": {
                 "implicit-imports": {
-                  "text": "Implicit imports"
+                  "text": "Неявные импорты"
                 }
               }
             },
