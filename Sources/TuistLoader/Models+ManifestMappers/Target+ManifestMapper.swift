@@ -6,8 +6,9 @@ import TuistCore
 import TuistSupport
 import XcodeGraph
 
-public enum TargetManifestMapperError: FatalError {
+public enum TargetManifestMapperError: FatalError, Equatable {
     case invalidResourcesGlob(targetName: String, invalidGlobs: [InvalidGlob])
+    case nonSpecificGeneratedResource(targetName: String, generatedSource: AbsolutePath)
 
     public var type: ErrorType { .abort }
 
@@ -15,6 +16,8 @@ public enum TargetManifestMapperError: FatalError {
         switch self {
         case let .invalidResourcesGlob(targetName: targetName, invalidGlobs: invalidGlobs):
             return "The target \(targetName) has the following invalid resource globs:\n" + invalidGlobs.invalidGlobsDescription
+        case let .nonSpecificGeneratedResource(targetName: targetName, generatedSource: generatedSource):
+            return "Generated source files must be explicit. The target \(targetName) has a generated source file at \(generatedSource.pathString) that is not specific."
         }
     }
 }
@@ -249,22 +252,43 @@ extension XcodeGraph.Target {
         var playgrounds: Set<AbsolutePath> = []
 
         // Sources
-        let allSources = try await XcodeGraph.Target.sources(
+        let globSources = try await XcodeGraph.Target.sources(
             targetName: targetName,
-            sources: manifest.sources?.globs.map { glob in
-                let globPath = try generatorPaths.resolve(path: glob.glob).pathString
-                let excluding: [String] = try glob.excluding.compactMap { try generatorPaths.resolve(path: $0).pathString }
-                let mappedCodeGen = glob.codeGen.map(XcodeGraph.FileCodeGen.from)
-                return XcodeGraph.SourceFileGlob(
-                    glob: globPath,
-                    excluding: excluding,
-                    compilerFlags: glob.compilerFlags,
-                    codeGen: mappedCodeGen,
-                    compilationCondition: glob.compilationCondition?.asGraphCondition
-                )
-            } ?? [],
+            sources: manifest.sources?.globs
+                .filter { $0.type == .alwaysPresent }
+                .map { glob in
+                    let globPath = try generatorPaths.resolve(path: glob.glob).pathString
+                    let excluding: [String] = try glob.excluding.compactMap { try generatorPaths.resolve(path: $0).pathString }
+                    let mappedCodeGen = glob.codeGen.map(XcodeGraph.FileCodeGen.from)
+                    return XcodeGraph.SourceFileGlob(
+                        glob: globPath,
+                        excluding: excluding,
+                        compilerFlags: glob.compilerFlags,
+                        codeGen: mappedCodeGen,
+                        compilationCondition: glob.compilationCondition?.asGraphCondition
+                    )
+                } ?? [],
             fileSystem: fileSystem
         )
+
+        let scriptGeneratedSources = try manifest.sources?.globs
+            .filter { $0.type == .generated }
+            .map { generated in
+                let pathString = try generatorPaths.resolve(path: generated.glob).pathString
+                let path = try AbsolutePath(validating: pathString)
+                if path.isGlobPath {
+                    throw TargetManifestMapperError.nonSpecificGeneratedResource(targetName: targetName, generatedSource: path)
+                }
+                let mappedCodeGen = generated.codeGen.map(XcodeGraph.FileCodeGen.from)
+                return XcodeGraph.SourceFile(
+                    path: path,
+                    compilerFlags: generated.compilerFlags,
+                    codeGen: mappedCodeGen,
+                    compilationCondition: generated.compilationCondition?.asGraphCondition
+                )
+            }
+
+        let allSources = globSources + (scriptGeneratedSources ?? [])
 
         for sourceFile in allSources {
             if sourceFile.path.extension == "playground" {

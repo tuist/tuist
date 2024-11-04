@@ -2,6 +2,16 @@ import Foundation
 
 /// A glob pattern configuration representing source files and its compiler flags, if any.
 public struct SourceFileGlob: Codable, Equatable, Sendable {
+    /// Type of the source file.
+    public enum FileType: String, Codable, Sendable {
+        /// File is already present on disk before generating the project.
+        case alwaysPresent
+
+        /// File was generated during the generation of the project, e.g. by a pre-build phase
+        /// script.
+        case generated
+    }
+
     /// Glob pattern to the source files.
     public var glob: Path
 
@@ -17,7 +27,11 @@ public struct SourceFileGlob: Codable, Equatable, Sendable {
     /// Source file condition for compilation
     public var compilationCondition: PlatformCondition?
 
+    /// Type of the file.
+    public var type: FileType
+
     /// Returns a source glob pattern configuration.
+    /// Used for file there were already present during the generation.
     ///
     /// - Parameters:
     ///   - glob: Glob pattern to the source files.
@@ -37,7 +51,8 @@ public struct SourceFileGlob: Codable, Equatable, Sendable {
             excluding: excluding,
             compilerFlags: compilerFlags,
             codeGen: codeGen,
-            compilationCondition: compilationCondition
+            compilationCondition: compilationCondition,
+            type: .alwaysPresent
         )
     }
 
@@ -54,14 +69,46 @@ public struct SourceFileGlob: Codable, Equatable, Sendable {
             excluding: paths,
             compilerFlags: compilerFlags,
             codeGen: codeGen,
-            compilationCondition: compilationCondition
+            compilationCondition: compilationCondition,
+            type: .alwaysPresent
+        )
+    }
+
+    /// Returns a source generated source file configuration, for a single generated file.
+    ///
+    /// - Parameters:
+    ///   - path: Path to the generated file. Assumed to be a specific path (as oppose to a glob pattern).
+    ///   - compilerFlags: The compiler flags to be set to the source files in the sources build phase.
+    ///   - codeGen: The source file attribute to be set in the build phase.
+    ///   - compilationCondition: Condition for file compilation.
+
+    public static func generated(
+        _ path: Path,
+        compilerFlags: String? = nil,
+        codeGen: FileCodeGen? = nil,
+        compilationCondition: PlatformCondition? = nil
+    ) -> Self {
+        .init(
+            glob: path,
+            excluding: [],
+            compilerFlags: compilerFlags,
+            codeGen: codeGen,
+            compilationCondition: compilationCondition,
+            type: .generated
         )
     }
 }
 
 extension SourceFileGlob: ExpressibleByStringInterpolation {
     public init(stringLiteral value: String) {
-        self.init(glob: .path(value), excluding: [], compilerFlags: nil, codeGen: nil, compilationCondition: nil)
+        self.init(
+            glob: .path(value),
+            excluding: [],
+            compilerFlags: nil,
+            codeGen: nil,
+            compilationCondition: nil,
+            type: .alwaysPresent
+        )
     }
 }
 

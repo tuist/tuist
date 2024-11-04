@@ -112,7 +112,7 @@ extension AbsolutePath {
     }
 }
 
-extension AbsolutePath: ExpressibleByStringLiteral {
+extension AbsolutePath: Swift.ExpressibleByStringLiteral {
     public init(stringLiteral value: String) {
         self = try! AbsolutePath(validating: value) // swiftlint:disable:this force_try
     }
@@ -122,5 +122,12 @@ extension String {
     var isGlobComponent: Bool {
         let globCharacters = CharacterSet(charactersIn: "*{}")
         return rangeOfCharacter(from: globCharacters) != nil
+    }
+}
+
+extension AbsolutePath {
+    /// `true` if the path is of a glob pattern, `no` otherwise.
+    public var isGlobPath: Bool {
+        return pathString.isGlobComponent
     }
 }

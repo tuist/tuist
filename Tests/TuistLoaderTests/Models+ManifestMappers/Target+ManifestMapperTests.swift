@@ -24,6 +24,21 @@ final class TargetManifestMapperErrorTests: TuistUnitTestCase {
             "The target Target has the following invalid resource globs:\n" + invalidGlobs.invalidGlobsDescription
         )
     }
+
+    func test_description_when_nonSpecificGeneratedResource() {
+        // Given
+        let path = try! AbsolutePath(validating: "/path/to/A")
+        let subject = TargetManifestMapperError.nonSpecificGeneratedResource(targetName: "Target", generatedSource: path)
+
+        // When
+        let got = subject.description
+
+        // Then
+        XCTAssertEqual(
+            got,
+            "Generated source files must be explicit. The target Target has a generated source file at /path/to/A that is not specific."
+        )
+    }
 }
 
 final class TargetManifestMapperTests: TuistUnitTestCase {
@@ -40,6 +55,7 @@ final class TargetManifestMapperTests: TuistUnitTestCase {
         try await fileSystem.makeDirectory(at: secondDirectory)
         try await fileSystem.touch(secondSourceFile)
         try await fileSystem.touch(secondExcludedSourceFile)
+        let scriptOutputFile = rootDirectory.appending(component: "Scripts").appending(component: "file.swift")
 
         // When
         let got = try await XcodeGraph.Target.from(
@@ -52,9 +68,14 @@ final class TargetManifestMapperTests: TuistUnitTestCase {
                                 .relativeToRoot("Sources/**/*exclude.swift"),
                             ]
                         ),
+                        .generated("Scripts/file.swift"),
                     ]
                 ),
-                resources: .resources([])
+                resources: .resources([]),
+                scripts: [.test(
+                    order: .pre,
+                    outputPaths: ["Scripts/file.swift"]
+                )]
             ),
             generatorPaths: GeneratorPaths(
                 manifestDirectory: try temporaryPath(),
@@ -69,7 +90,40 @@ final class TargetManifestMapperTests: TuistUnitTestCase {
             got.sources,
             [
                 SourceFile(path: secondSourceFile),
+                SourceFile(path: scriptOutputFile),
             ]
+        )
+    }
+
+    func test_errorThrown_when_generatedSourceIsGlobPattern() async throws {
+        // Given
+        let rootDirectory = try temporaryPath()
+        let sourcePath = rootDirectory.appending(component: "Scripts").appending(component: "**")
+
+        // When
+        await XCTAssertThrowsSpecific(
+            try await XcodeGraph.Target.from(
+                manifest: .test(
+                    name: "Target",
+                    sources: .sourceFilesList(
+                        globs: [
+                            .generated("Scripts/**"),
+                        ]
+                    ),
+                    resources: .resources([]),
+                    scripts: [.test(
+                        order: .pre,
+                        outputPaths: ["Scripts/file.swift"]
+                    )]
+                ),
+                generatorPaths: GeneratorPaths(
+                    manifestDirectory: try temporaryPath(),
+                    rootDirectory: rootDirectory
+                ),
+                externalDependencies: [:],
+                fileSystem: fileSystem
+            ),
+            TargetManifestMapperError.nonSpecificGeneratedResource(targetName: "Target", generatedSource: sourcePath)
         )
     }
 }
