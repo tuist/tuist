@@ -30,3 +30,52 @@ As translations are updated, Crowdin will push them automatically to the right r
 
 > [!IMPORTANT] DON'T MODIFY THE RESOURCES IN THE TARGET LANGUAGE
 > Crowdin segments the files to bind source and target languages. If you modify the source language, you'll break the binding, and the reconciliation might yield unexpected results.
+
+## Guidelines
+
+The following are the guidelines we follow when translating.
+
+### Custom containers and GitHub alerts
+
+When translating [custom containers](https://vitepress.dev/guide/markdown#custom-containers) or [GitHub Alerts](https://docs.github.com/en/get-started/writing-on-github/getting-started-with-writing-and-formatting-on-github/basic-writing-and-formatting-syntax#alerts), only translate the title and the content **but not the type of alert**.
+
+:::details Example with GitHub Alert
+
+````markdown
+    > [!WARNING] 루트 변수\
+    > 매니페스트의 루트에 있어야 하는 변수는...
+
+    // Instead of
+    > [!주의] 루트 변수\
+    > 매니페스트의 루트에 있어야 하는 변수는...
+    ```
+:::
+
+
+::: details Example with custom container
+```markdown
+    ::: warning 루트 변수\
+    매니페스트의 루트에 있어야 하는 변수는...
+    :::
+
+    # Instead of
+    ::: 주의 루트 변수\
+    매니페스트의 루트에 있어야 하는 변수는...
+    :::
+````
+
+:::
+
+### Heading titles
+
+When translating headings, only translate tht title but not the id. For example, when translating the following heading:
+
+```markdown
+# Add dependencies {#add-dependencies}
+```
+
+It should be translated as (note the id is not translated):
+
+```markdown
+# 의존성 추가하기 {#add-dependencies}
+```
