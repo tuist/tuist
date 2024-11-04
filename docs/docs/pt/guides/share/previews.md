@@ -12,7 +12,6 @@ description: Learn how to generate and share previews of your apps with anyone.
 > [!IMPORTANT] REMOTE PROJECT REQUIRED
 > This feature requires a <LocalizedLink href="/server/introduction/accounts-and-projects">remote project</LocalizedLink>.
 
-
 When building an app, you may want to share it with others to get feedback.
 Traditionally, this is something that teams do by building, signing, and pushing their apps to platforms like Apple's [TestFlight](https://developer.apple.com/testflight/).
 However, this process can be cumbersome and slow, especially when you're just looking for quick feedback from a colleague or a friend.
@@ -23,17 +22,20 @@ To make this process more streamlined, Tuist provides a way to generate and shar
 > When building for device, it is currently your responsibility to ensure the app is signed correctly. We plan to streamline this in the future.
 
 :::code-group
+
 ```bash [Tuist Project]
 tuist build App # Build the app for the simulator
 tuist build App -- -destination 'generic/platform=iOS' # Build the app for the device
 tuist share App
 ```
+
 ```bash [Xcode Project]
 xcodebuild -scheme App -project App.xcodeproj -configuration Debug # Build the app for the simulator
 xcodebuild -scheme App -project App.xcodeproj -configuration Debug -destination 'generic/platform=iOS' # Build the app for the device
 tuist share App --configuration Debug --platforms iOS
 tuist share App.ipa # Share an existing .ipa file
 ```
+
 :::
 
 The command will generate a link that you can share with anyone to run the app – either on a simulator or an actual device. All they'll need to do is to run the command below:
@@ -54,6 +56,8 @@ The links to `.ipa` previews are by default _public_. In the future, you will ha
 <div style="display: flex; flex-direction: column; align-items: center;">
     <img src="/public/logo.png" style="height: 100px;" />
     <h1>Tuist</h1>
+    
+    
     <a href="https://cloud.tuist.io/download" style="text-decoration: none;">Download</a>
     <img src="/images/guides/share/menu-bar-app.png" style="width: 300px;" />
 </div>
@@ -71,7 +75,7 @@ To make running Tuist Previews even easier, we developed a Tuist macOS menu bar 
 > [!IMPORTANT] INTEGRATION WITH GIT PLATFORM REQUIRED
 > To get automatic pull/merge request comments, integrate your <LocalizedLink href="/server/introduction/accounts-and-projects">remote project</LocalizedLink> with a <LocalizedLink href="/server/introduction/integrations#git-platforms">Git platform</LocalizedLink>.
 
-Testing new functionality should be a part of any code review. But having to build an app locally adds unnecessary friction, often leading to developers skipping testing functionality on their device at all. But *what if each pull request contained a link to the build that would automatically run the app on a device you selected in the Tuist macOS app?*
+Testing new functionality should be a part of any code review. But having to build an app locally adds unnecessary friction, often leading to developers skipping testing functionality on their device at all. But _what if each pull request contained a link to the build that would automatically run the app on a device you selected in the Tuist macOS app?_
 
 Once your Tuist project is connected with your Git platform such as [GitHub](https://github.com), add a <LocalizedLink href="/cli/share">`tuist share MyApp`</LocalizedLink> to your CI workflow. Tuist will then post a Preview link directly in your pull requests:
 ![GitHub app comment with a Tuist Preview link](/images/guides/share/github-app-with-preview.png)
@@ -79,6 +83,7 @@ Once your Tuist project is connected with your Git platform such as [GitHub](htt
 ## Automations {#automations}
 
 You can use the `--json` flag to get a JSON output from the `tuist share` command:
+
 ```
 tuist share --json
 ```
@@ -86,6 +91,7 @@ tuist share --json
 The JSON output is useful to create custom automations, such as posting a Slack message using your CI provider.
 The JSON contains a `url` key with the full preview link and a `qrCodeURL` key with the URL to the QR code image
 to make it easier to download previews from a real device. An example of a JSON output is below:
+
 ```json
 {
   "id": 1234567890,
