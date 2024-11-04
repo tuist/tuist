@@ -1,17 +1,17 @@
 ---
 title: Plugins
 titleTemplate: :title · Projects · Develop · Guides · Tuist
-description: Learn how to create and use plugins in Tuist to extend its functionality.
+description: Tuist에서 플러그인을 생성하고 사용하여 기능을 확장하는 방법을 알아보세요.
 ---
 
 # Plugins {#plugins}
 
-Plugins are a tool to share and reuse Tuist artifacts across multiple projects. The following artifacts are supported:
+플러그인은 여러 프로젝트에서 Tuist 아티팩트를 공유하고 재사용할 수 있는 도구입니다. 지원되는 아티팩트는 다음과 같습니다:
 
-- <LocalizedLink href="/guides/develop/projects/code-sharing">Project description helpers</LocalizedLink> across multiple projects.
-- <LocalizedLink href="/guides/develop/projects/templates">Templates</LocalizedLink> across multiple projects.
-- Tasks across multiple projects.
-- <LocalizedLink href="/guides/develop/projects/synthesized-files">Resource accessor</LocalizedLink> template across multiple projects
+- <LocalizedLink href="/guides/develop/projects/code-sharing">Project description helpers</LocalizedLink>를 여러 프로젝트에서 사용.
+- <LocalizedLink href="/guides/develop/projects/templates"> Templates</LocalizedLink>을 여러 프로젝트에서 사용.
+- Tasks를 여러 프로젝트에서 사용.
+- <LocalizedLink href="/guides/develop/projects/synthesized-files">Resource accessor</LocalizedLink> 템플릿을 여러 프로젝트에서 사용.
 
 Note that plugins are designed to be a simple way to extend Tuist's functionality. Therefore there are **some limitations to consider**:
 
