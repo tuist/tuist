@@ -36,7 +36,7 @@ Workspace.swift
 
 위 프로젝트와 상호작용할 때 명령어는 작업 디렉토리나 `--path` 플래그로 나타낸 디렉토리에 `Workspace.swift` 또는 `Project.swift` 파일을 찾습니다. 이 매니페스트는 프로젝트의 루트 인 `Tuist` 디렉토리를 포함하는 디렉토리나 하위 디렉토리에 위치해야 합니다.
 
-> [!팁]\
+> [!TIP]\
 > Xcode 워크스페이스는 병합 충돌을 줄이기 위해 Xcode 프로젝트를 여러개로 나눌 수 있습니다. 이러한 목적이 워크스페이스를 사용하는 목적이라면, Tuist에서는 워크스페이스를 사용할 필요가 없습니다. Tuist는 프로젝트와 의존성을 가진 프로젝트를 포함해 워크스페이스를 자동으로 생성합니다.
 
 ## Swift Package <Badge type="warning" text="beta" /> {#swift-package-badge-typewarning-textbeta-}
