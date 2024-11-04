@@ -39,8 +39,9 @@ The following are the guidelines we follow when translating.
 
 When translating [custom containers](https://vitepress.dev/guide/markdown#custom-containers) or [GitHub Alerts](https://docs.github.com/pt/get-started/writing-on-github/getting-started-with-writing-and-formatting-on-github/basic-writing-and-formatting-syntax#alerts), only translate the title and the content **but not the type of alert**.
 
-::: details Example with GitHub Alert
-```markdown
+:::details Example with GitHub Alert
+
+````markdown
     > [!WARNING] 루트 변수\
     > 매니페스트의 루트에 있어야 하는 변수는...
 
@@ -61,7 +62,8 @@ When translating [custom containers](https://vitepress.dev/guide/markdown#custom
     ::: 주의 루트 변수\
     매니페스트의 루트에 있어야 하는 변수는...
     :::
-```
+````
+
 :::
 
 ### Heading titles
