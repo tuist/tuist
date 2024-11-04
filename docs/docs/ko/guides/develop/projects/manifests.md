@@ -27,7 +27,7 @@ let project = Project(
 )
 ```
 
-> [!주의] 루트 변수\
+> [!WARNING] 루트 변수\
 > 매니페스트의 루트에 있어야 하는 변수는 `let project = Project(...)` 입니다. 매니페스트의 일부분을 코드에서 재사용 해야 된다면 Swift 함수를 사용할 수 있습니다.
 
 ## Workspace.swift {#workspaceswift}
