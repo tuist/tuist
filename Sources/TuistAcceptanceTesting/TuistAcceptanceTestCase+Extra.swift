@@ -18,7 +18,7 @@ extension TuistAcceptanceTestCase {
     ) async throws -> AbsolutePath {
         let products = try await fileSystem.glob(
             directory: derivedDataPath,
-            include: ["**/Build/**/Products/\(destination)/\(name)/"]
+            include: ["Build/Products/\(destination)/\(name)/"]
         ).collect()
         return try XCTUnwrap(
             products.first
