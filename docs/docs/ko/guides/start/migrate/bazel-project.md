@@ -8,7 +8,7 @@ description: Bazel에서 Tuist로 프로젝트를 마이그레이션 하는 방�
 
 [Bazel](https://bazel.build)은 Google이 2015년에 오픈소스로 공개한 빌드 시스템입니다. Bazel은 어떤 크기의 소프트웨어에서도 빠르고 안정적으로 빌드와 테스트할 수 있는 강력한 툴입니다. [Spotify](https://engineering.atspotify.com/2023/10/switching-build-systems-seamlessly/), [Tinder](https://medium.com/tinder/bazel-hermetic-toolchain-and-tooling-migration-c244dc0d3ae), 또는 [Lyft](https://semaphoreci.com/blog/keith-smiley-bazel)와 같은 일부 대규모 조직에서는 Bazel을 사용하지만, Bazel을 도입하고 유지하는데 초기 투자 (즉, 기술 학습) 와 지속적인 투자 (즉, Xcode 업데이트 유지) 가 필요합니다. 일부 조직에서는 이를 범용적인 문제로 다루어 효과를 볼 수 있지만, 제품 개발에만 집중하길 원하는 조직에서는 최선의 선택이 아닐 수 있습니다. 예를 들어, iOS 플랫폼 팀이 Bazel을 도입했는데 이를 주도했던 개발자들이 회사를 떠난 후에 이를 포기해야 했던 조직을 본 적이 있습니다. 애플의 Xcode와 빌드 시스템 간의 강한 결합성도 Bazel 프로젝트를 유지하는데 어렵게 만드는 또 다른 요인입니다.
 
-> [!팁] TUIST의 독창성은 섬세함에 있다\
+> [!TIP] TUIST의 독창성은 섬세함에 있다\
 > Tuist는 Xcode와 Xcode 프로젝트에 맞서기 보다는 그것을 받아들입니다. Tuist는 동일한 개념 (즉, 타겟, 스킴, 빌드 설정), 익숙한 언어 (즉, Swift), 그리고 프로젝트를 유지하고 확장하는 것을 iOS 플랫폼 팀 뿐만 아니라 모든 팀에게 간단하고 즐거운 경험을 제공합니다.
 
 ## 규칙 {#rules}

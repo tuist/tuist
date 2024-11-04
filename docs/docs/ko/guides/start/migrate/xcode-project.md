@@ -68,7 +68,7 @@ let package = Package(
 
 `Project.swift`는 프로젝트를 정의하는 매니페스트 파일이며, `Package.swift`는 의존성을 정의하는 매니페스트 파일입니다. `Config.swift` 파일은 프로젝트 범위에 대한 Tuist 설정을 정의할 수 있습니다.
 
-> [!팁] -TUIST 접미사가 붙은 프로젝트 이름
+> [!TIP] -TUIST 접미사가 붙은 프로젝트 이름
 > 기존에 Xcode 프로젝트의 충돌을 방지하기 위해 프로젝트 이름에 `-Tuist` 접미사를 추가하는 것이 좋습니다. 프로젝트를 Tuist로 완전히 마이그레이션 하면 삭제할 수 있습니다.
 
 ## CI에서 Tuist 프로젝트 빌드와 테스트 {#build-and-test-the-tuist-project-in-ci}
@@ -143,7 +143,7 @@ let package = Package(
 )
 ```
 
-> [!팁] PRODUCT TYPES
+> [!TIP] PRODUCT TYPES
 > `PackageSettings` 구조체의 `productTypes` 딕셔너리에 특정 패키지에 대한 제품 타입을 재정의할 수 있습니다. 기본적으로 Tuist는 모든 패키지가 정적 프레임워크로 간주합니다.
 
 ## 마이그레이션 순서 {#determine-the-migration-order}
@@ -215,6 +215,6 @@ let project = Project(
 
 ## 문제 해결 {#troubleshooting}
 
-### 파일 누락으로 인한 컴파일 오류 파일 누락으로 인한 컴파일 오류 파일 누락으로 인한 컴파일 오류 {#compilation-errors-due-to-missing-files}
+### 파일 누락으로 인한 컴파일 오류 파일 누락으로 인한 컴파일 오류 파일 누락으로 인한 컴파일 오류 {#compilation-errors-due-to-missing-files} 파일 누락으로 인한 컴파일 오류 파일 누락으로 인한 컴파일 오류 {#compilation-errors-due-to-missing-files}
 
 Xcode 프로젝트 타겟에 연관된 파일이 마이그레이션 한 타겟 파일 시스템 디렉토리에 포함되지 않으면, 그 프로젝트는 컴파일되지 않습니다. Tuist로 프로젝트를 생성한 후에 Xcode 프로젝트의 파일 목록과 일치하는지 확인하고, 타겟 구조와 파일 구조를 일치 시킵니다.
