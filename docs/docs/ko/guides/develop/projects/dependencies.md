@@ -15,14 +15,13 @@ Xcode와 XcodeProj의 설계 특성상 의존성 그래프를 관리하는 일�
 발생할 수 있는 문제들을 예로 들어보면 다음과 같습니다:
 
 - Xcode의 빌드 시스템은 프로젝트의 모든 산출물을 derived data 내 동일한 디렉터리에 저장하기 때문에, 이로 인해 각 타겟이 원래 사용해서는 안 되는 다른 타켓의 산출물을 import할 수 있습니다. 클린 빌드가 더 흔하게 사용되는 CI 환경이나, 나중에 다른 구성을 사용할 때 컴파일이 실패할 수 있습니다.
-- The transitive dynamic dependencies of a target need to be copied into any of the directories that are part of the `LD_RUNPATH_SEARCH_PATHS` build setting. If they aren't, the target won't be able to find them at runtime. This is easy to think about and set up when the graph is small, but it becomes a problem as the graph grows.
-- When a target links a static [XCFramework](https://developer.apple.com/documentation/xcode/creating-a-multi-platform-binary-framework-bundle), the target needs an additional build phase for Xcode to process the bundle and extract the right binary for the current platform and architecture. This build phase is not added automatically, and it's easy to forget to add it.
+- 타겟의 전이적 동적 의존성들(transitive dynamic dependencies)은 `LD_RUNPATH_SEARCH_PATHS` 빌드 설정에 포함된 모든 디렉터리에 복사되어야 합니다. 이렇게 해당 의존성들이 복사되지 않으면, 타겟이 런타임에 의존성을 찾을 수 없습니다. 의존성 그래프가 간단할 때는 생각하고 설정하기 쉽지만, 그래프가 복잡해질수록 문제가 됩니다.
+- 타겟이 정적 [XCFramework](https://developer.apple.com/documentation/xcode/creating-a-multi-platform-binary-framework-bundle)를 링크할 때, Xcode가 번들을 처리하고 현재 플랫폼과 아키텍처에 맞는 바이너리를 추출할 수 있도록 추가 빌드 페이즈(Build Phase)가 필요합니다. 이 빌드 페이즈는 자동으로 추가되지 않으며, 추가하는 것을 쉽게 잊어버릴 수 있습니다.
 
-The above are just a few examples, but there are many more that we've encountered over the years.
-Imagine if you required a team of engineers to maintain a dependency graph and ensure its validity.
-Or even worse,
-that the intricacies were resolved at build-time by a closed-source build system that you can't control or customize.
-Sounds familiar? This is the approach that Apple took with Xcode and XcodeProj and that the Swift Package Manager has inherited.
+위의 내용들은 몇 가지 예시에 불과하며, 우리는 수년간 이보다 더 많은 문제들을 겪어왔습니다.
+의존성 그래프를 관리하고 유효성을 검증하기 위해 엔지니어 팀이 필요하다고 상상해보세요.
+더 안 좋은 경우는, 제어하거나 커스터마이즈할 수 없는 빌드 시스템(closed-source build system)이 빌드 시점에 이러한 복잡한 세부 사항을 해결하는 경우입니다.
+어디서 많이 들어본 것 같지 않나요? 이 방식은 Apple이 Xcode와 XcodeProj에서 채택한 접근 방식이며, Swift Package Manager도 그대로 채택하고 있습니다.
 
 We strongly believe that the dependency graph should be **explicit** and **static** because only then can it be **validated** and **optimized**.
 With Tuist, you focus on describing what depends on what, and we take care of the rest.
