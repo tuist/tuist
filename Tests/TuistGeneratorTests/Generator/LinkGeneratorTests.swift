@@ -391,6 +391,10 @@ final class LinkGeneratorTests: XCTestCase {
             .copyProductDependencies(path: .any, name: .any)
             .willReturn(dependencies)
 
+        given(graphTraverser)
+            .executableDependencies(path: .any, name: .any)
+            .willReturn(dependencies)
+
         // When
         try subject.generateLinks(
             target: target,
