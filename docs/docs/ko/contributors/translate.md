@@ -30,3 +30,52 @@ description: 이 문서는 Tuist의 개발을 위한 원칙을 설명합니다.
 
 > [!중요] 번역 언어의 리소스를 수정하지 마세요
 > Crowdin은 기존 언어와 번역 언어를 결합 하기 위해 파일을 분할합니다. 기존 언어를 수정하면 바인딩이 끊어지고 예상치 못한 결과를 가져올 수 있습니다.
+
+## Guidelines
+
+The following are the guidelines we follow when translating.
+
+### Custom containers and GitHub alerts
+
+When translating [custom containers](https://vitepress.dev/guide/markdown#custom-containers) or [GitHub Alerts](https://docs.github.com/en/get-started/writing-on-github/getting-started-with-writing-and-formatting-on-github/basic-writing-and-formatting-syntax#alerts), only translate the title and the content **but not the type of alert**.
+
+:::details Example with GitHub Alert
+
+````markdown
+    > [!WARNING] 루트 변수\
+    > 매니페스트의 루트에 있어야 하는 변수는...
+
+    // Instead of
+    > [!주의] 루트 변수\
+    > 매니페스트의 루트에 있어야 하는 변수는...
+    ```
+:::
+
+
+::: details Example with custom container
+```markdown
+    ::: warning 루트 변수\
+    매니페스트의 루트에 있어야 하는 변수는...
+    :::
+
+    # Instead of
+    ::: 주의 루트 변수\
+    매니페스트의 루트에 있어야 하는 변수는...
+    :::
+````
+
+:::
+
+### Heading titles
+
+When translating headings, only translate tht title but not the id. For example, when translating the following heading:
+
+```markdown
+# Add dependencies {#add-dependencies}
+```
+
+It should be translated as (note the id is not translated):
+
+```markdown
+# 의존성 추가하기 {#add-dependencies}
+```
