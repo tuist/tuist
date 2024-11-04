@@ -23,16 +23,16 @@ Xcode와 XcodeProj의 설계 특성상 의존성 그래프를 관리하는 일�
 더 안 좋은 경우는, 제어하거나 커스터마이즈할 수 없는 빌드 시스템(closed-source build system)이 빌드 시점에 이러한 복잡한 세부 사항을 해결하는 경우입니다.
 어디서 많이 들어본 것 같지 않나요? 이 방식은 Apple이 Xcode와 XcodeProj에서 채택한 접근 방식이며, Swift Package Manager도 그대로 채택하고 있습니다.
 
-We strongly believe that the dependency graph should be **explicit** and **static** because only then can it be **validated** and **optimized**.
-With Tuist, you focus on describing what depends on what, and we take care of the rest.
-The intricacies and implementation details are abstracted away from you.
+의존성 그래프는 반드시 **명시적**이고 **정적**이어야 합니다. 그래야 **검증**되고 **최적화**될 수 있기 때문이죠.
+Tuist와 함께라면, 의존 관계를 정의하는데만 집중하세요. 나머지는 저희가 알아서 처리할게요.
+복잡한 세부 구현 사항들은 추상화되어 신경 쓸 필요가 없습니다.
 
-In the following sections you'll learn how to declare dependencies in your project.
+다음 섹션에서는 프로젝트에서 의존성을 선언하는 방법을 알아보겠습니다.
 
-> [!TIP] GRAPH VALIDATION
-> Tuist validates the graph when generating the project to ensure that there are no cycles and that all the dependencies are valid. Thanks to this, any team can take part in evolving the dependency graph without worrying about breaking it.
+> [!팁] 그래프 검증
+> Tuist는 프로젝트를 생성할 때 그래프를 검증하여 순환이 없고 모든 의존성이 유효한지 확인합니다. 덕분에 어떤 팀이든 그래프가 깨질 걱정 없이 의존성 그래프를 발전시킬 수 있습니다.
 
-## Local dependencies {#local-dependencies}
+## 로컬 의존성 {#local-dependencies}
 
 Targets can depend on other targets in the same and different projects, and on binaries.
 When instantiating a `Target`, you can pass the `dependencies` argument with any of the following options:
