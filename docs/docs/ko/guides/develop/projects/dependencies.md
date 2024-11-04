@@ -45,11 +45,11 @@ Tuist와 함께라면, 의존 관계를 정의하는데만 집중하세요. 나�
 - `SDK`: 시스템 SDK에 대한 의존성을 선언합니다.
 - `XCTest`: XCTest에 대한 의존성을 선언합니다.
 
-> [!NOTE] DEPENDENCY CONDITIONS
-> Every dependency type accepts a `condition` option to conditionally link the dependency based on the platform. By default, it links the dependency for all platforms the target supports.
+> [!노트] 의존성 조건
+> 모든 의존성 유형은 플랫폼에 따라 의존성을 조건부로 연결하기 위한 `condition` 옵션을 허용합니다. 기본적으로, 타겟이 지원하는 모든 플랫폼에 대해 의존성이 연결됩니다.
 
-> [!TIP] ENFORCING EXPLICIT DEPENDENCIES
-> We have an experimental feature to enforce explicit dependencies in Xcode. We recommend enabling it to ensure targets can only import the dependencies that they've explicitly declared.
+> [!팁] 명시적 의존성 강제하기
+> Xcode에서 명시적 의존성을 강제하는 실험적 기능이 있습니다. We recommend enabling it to ensure targets can only import the dependencies that they've explicitly declared.
 >
 > ```swift
 > import ProjectDescription
