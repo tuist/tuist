@@ -3,6 +3,7 @@ title: Get started
 titleTemplate: :title · Contributors · Tuist
 description: Get started contributing to Tuist by following this guide.
 ---
+
 # Get started {#get-started}
 
 If you have experience building apps for Apple platforms, like iOS, adding code to Tuist shouldn’t be much different. There are two differences compared to developing apps that are worth mentioning:
@@ -49,7 +50,6 @@ To run `tuist` from the generated Xcode project, edit the `tuist` scheme, and se
 ![An example of a scheme configuration to run the generate command with Tuist](/images/contributors/scheme-arguments.png)
 
 You'll also have to set the working directory to the root of the project being generated. You can do that either by using the `--path` argument, which all the commands accept, or configuring the working directory in the scheme as shown below:
-
 
 ![An example of how to set the working directory to run Tuist](/images/contributors/scheme-working-directory.png)
 
