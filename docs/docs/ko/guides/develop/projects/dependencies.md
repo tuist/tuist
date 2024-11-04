@@ -14,7 +14,7 @@ description: Tuist 프로젝트에서 의존성을 선언하는 방법을 알아
 Xcode와 XcodeProj의 설계 특성상 의존성 그래프를 관리하는 일은 번거롭고 실수하기 쉬운 작업이 될 수 있습니다.
 발생할 수 있는 문제들을 예로 들어보면 다음과 같습니다:
 
-- Xcode의 빌드 시스템은 프로젝트의 모든 산출물을 derived data 내 동일한 디렉터리에 저장하기 때문에, 이로 인해 각 타겟이 원래 사용해서는 안 되는 다른 타켓의 산출물을 import할 수 있습니다. Compilations might fail on CI, where clean builds are more common, or later on when a different configuration is used.
+- Xcode의 빌드 시스템은 프로젝트의 모든 산출물을 derived data 내 동일한 디렉터리에 저장하기 때문에, 이로 인해 각 타겟이 원래 사용해서는 안 되는 다른 타켓의 산출물을 import할 수 있습니다. 클린 빌드가 더 흔하게 사용되는 CI 환경이나, 나중에 다른 구성을 사용할 때 컴파일이 실패할 수 있습니다.
 - The transitive dynamic dependencies of a target need to be copied into any of the directories that are part of the `LD_RUNPATH_SEARCH_PATHS` build setting. If they aren't, the target won't be able to find them at runtime. This is easy to think about and set up when the graph is small, but it becomes a problem as the graph grows.
 - When a target links a static [XCFramework](https://developer.apple.com/documentation/xcode/creating-a-multi-platform-binary-framework-bundle), the target needs an additional build phase for Xcode to process the bundle and extract the right binary for the current platform and architecture. This build phase is not added automatically, and it's easy to forget to add it.
 
