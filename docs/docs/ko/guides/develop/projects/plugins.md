@@ -1,10 +1,10 @@
 ---
-title: Plugins
+title: 플러그인
 titleTemplate: :title · Projects · Develop · Guides · Tuist
 description: Tuist에서 플러그인을 생성하고 사용하여 기능을 확장하는 방법을 알아보세요.
 ---
 
-# Plugins {#plugins}
+# 플러그인 {#plugins}
 
 플러그인은 여러 프로젝트에서 Tuist 아티팩트를 공유하고 재사용할 수 있는 도구입니다. 지원되는 아티팩트는 다음과 같습니다:
 
@@ -13,18 +13,18 @@ description: Tuist에서 플러그인을 생성하고 사용하여 기능을 확
 - Tasks를 여러 프로젝트에서 사용.
 - <LocalizedLink href="/guides/develop/projects/synthesized-files">Resource accessor</LocalizedLink> 템플릿을 여러 프로젝트에서 사용.
 
-Note that plugins are designed to be a simple way to extend Tuist's functionality. Therefore there are **some limitations to consider**:
+플러그인은 Tuist의 기능을 확장하기 위한 간단한 방법으로 설계되었습니다. 따라서 고려해야 할 **몇 가지 제한 사항이 있습니다.**
 
-- A plugin cannot depend on another plugin.
-- A plugin cannot depend on third-party Swift packages
-- A plugin cannot use project description helpers from the project that uses the plugin.
+- 플러그인은 다른 플러그인에 의존할 수 없습니다.
+- 플러그인은 써드-파티 Swift 패키지에 의존할 수 없습니다.
+- 플러그인은 플러그인을 사용하는 프로젝트에 project description helpers을 사용할 수 없습니다.
 
-If you need more flexibility, consider suggesting a feature for the tool or building your own solution upon Tuist's generation framework, [`TuistGenerator`](https://github.com/tuist/tuist/tree/main/Sources/TuistGenerator).
+더 많은 유연성이 필요하다면, 도구에 대한 기능 제안을 하거나 Tuist의 생성 프레임워크인 [TuistGenerator]를 기반으로 자체 솔루션을 구축하는 것을 고려해 보세요.
+(https://github.com/tuist/tuist/tree/main/Sources/TuistGenerator).
 
-> [!WARNING] NON-ACTIVELY-MAINTAINED
-> Our plugin infrastructure is not actively maintained. We are looking for contributors to help us improve it. If you are interested, please reach out to us on [Slack](https://slack.tuist.io/).
+> [!경고] 플러그인 인프라는 현재 관리되지 않습니다. 우리는 이를 개선하는 데 도움을 줄 기여자를 찾고 있습니다. 관심이 있으시면 [Slack](https://slack.tuist.io/)을 통해 저희에게 연락해 주세요.
 
-## Plugin types {#plugin-types}
+## 플러그인 타입 {#plugin-types}
 
 ### Project description helper plugin {#project-description-helper-plugin}
 
