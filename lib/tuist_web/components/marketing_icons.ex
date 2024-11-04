@@ -9,6 +9,98 @@ defmodule TuistWeb.MarketingIcons do
   attr :size, :integer, default: @default_icon_size
   attr :class, :string, default: ""
 
+  def file_download_02_icon(assigns) do
+    ~H"""
+    <svg
+      width={@size}
+      height={@size}
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M20 12.5V6.8C20 5.11984 20 4.27976 19.673 3.63803C19.3854 3.07354 18.9265 2.6146 18.362 2.32698C17.7202 2 16.8802 2 15.2 2H8.8C7.11984 2 6.27976 2 5.63803 2.32698C5.07354 2.6146 4.6146 3.07354 4.32698 3.63803C4 4.27976 4 5.11984 4 6.8V17.2C4 18.8802 4 19.7202 4.32698 20.362C4.6146 20.9265 5.07354 21.3854 5.63803 21.673C6.27976 22 7.1198 22 8.79986 22H12.5M14 11H8M10 15H8M16 7H8M15 19L18 22M18 22L21 19M18 22V16"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+    </svg>
+    """
+  end
+
+  attr :size, :integer, default: @default_icon_size
+  attr :class, :string, default: ""
+
+  def cube_outline_icon(assigns) do
+    ~H"""
+    <svg
+      width={@size}
+      height={@size}
+      viewBox="0 0 20 22"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M7.75 19.75L9.22297 20.5683C9.50658 20.7259 9.64838 20.8047 9.79855 20.8355C9.93146 20.8629 10.0685 20.8629 10.2015 20.8355C10.3516 20.8047 10.4934 20.7259 10.777 20.5683L12.25 19.75M3.25 17.25L1.82297 16.4572C1.52346 16.2908 1.37368 16.2076 1.26463 16.0893C1.16816 15.9846 1.09515 15.8605 1.05048 15.7253C1 15.5725 1 15.4012 1 15.0586V13.5M1 8.5V6.94145C1 6.5988 1 6.42748 1.05048 6.27468C1.09515 6.13951 1.16816 6.01543 1.26463 5.91074C1.37368 5.7924 1.52345 5.7092 1.82297 5.5428L3.25 4.75M7.75 2.25L9.22297 1.43168C9.50658 1.27412 9.64838 1.19535 9.79855 1.16446C9.93146 1.13713 10.0685 1.13713 10.2015 1.16446C10.3516 1.19535 10.4934 1.27412 10.777 1.43168L12.25 2.25M16.75 4.75L18.177 5.54279C18.4766 5.7092 18.6263 5.7924 18.7354 5.91073C18.8318 6.01542 18.9049 6.13951 18.9495 6.27468C19 6.42748 19 6.5988 19 6.94145V8.5M19 13.5V15.0586C19 15.4012 19 15.5725 18.9495 15.7253C18.9049 15.8605 18.8318 15.9846 18.7354 16.0893C18.6263 16.2076 18.4766 16.2908 18.177 16.4572L16.75 17.25M7.75 9.75L10 11M10 11L12.25 9.75M10 11V13.5M1 6L3.25 7.25M16.75 7.25L19 6M10 18.5V21"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+    </svg>
+    """
+  end
+
+  attr :size, :integer, default: @default_icon_size
+  attr :class, :string, default: ""
+
+  def face_smiles_icon(assigns) do
+    ~H"""
+    <svg
+      width={@size}
+      height={@size}
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M8 14C8 14 9.5 16 12 16C14.5 16 16 14 16 14M15 9H15.01M9 9H9.01M22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12ZM15.5 9C15.5 9.27614 15.2761 9.5 15 9.5C14.7239 9.5 14.5 9.27614 14.5 9C14.5 8.72386 14.7239 8.5 15 8.5C15.2761 8.5 15.5 8.72386 15.5 9ZM9.5 9C9.5 9.27614 9.27614 9.5 9 9.5C8.72386 9.5 8.5 9.27614 8.5 9C8.5 8.72386 8.72386 8.5 9 8.5C9.27614 8.5 9.5 8.72386 9.5 9Z"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+    </svg>
+    """
+  end
+
+  attr :size, :integer, default: @default_icon_size
+  attr :class, :string, default: ""
+
+  def git_merge_icon(assigns) do
+    ~H"""
+    <svg
+      width={@size}
+      height={@size}
+      viewBox="0 0 20 20"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M13 16C13 17.6569 14.3431 19 16 19C17.6569 19 19 17.6569 19 16C19 14.3431 17.6569 13 16 13C14.3431 13 13 14.3431 13 16ZM13 16C10.6131 16 8.32387 15.0518 6.63604 13.364C4.94821 11.6761 4 9.38695 4 7M4 7C5.65685 7 7 5.65685 7 4C7 2.34315 5.65685 1 4 1C2.34315 1 1 2.34315 1 4C1 5.65685 2.34315 7 4 7ZM4 7V19"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+    </svg>
+    """
+  end
+
+  attr :size, :integer, default: @default_icon_size
+  attr :class, :string, default: ""
+
   def close_icon(assigns) do
     ~H"""
     <svg

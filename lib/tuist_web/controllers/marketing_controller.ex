@@ -17,6 +17,10 @@ defmodule TuistWeb.MarketingController do
 
   def about(conn, _params) do
     conn
+    |> assign(
+      :head_structured_data,
+      TuistWeb.StructuredMarkup.get_organization() |> Jason.encode!()
+    )
     |> render(:about, layout: false)
   end
 

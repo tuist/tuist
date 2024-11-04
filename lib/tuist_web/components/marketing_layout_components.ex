@@ -93,6 +93,7 @@ defmodule TuistWeb.MarketingLayoutComponents do
 
   attr :class, :string, default: ""
   attr :flavor, :string, values: ["primary", "secondary"], default: "primary"
+  attr :rest, :global
 
   def marketing_link(assigns) do
     assigns =
@@ -106,7 +107,7 @@ defmodule TuistWeb.MarketingLayoutComponents do
       )
 
     ~H"""
-    <.link class={"marketing__component__link #{@font_class} #{@class}"} data-flavor={@flavor}>
+    <.link class={"marketing__component__link #{@font_class} #{@class}"} data-flavor={@flavor} {@rest}>
       <%= render_slot(@inner_block) %>
     </.link>
     """

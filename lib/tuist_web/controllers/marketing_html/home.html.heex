@@ -1048,17 +1048,18 @@
   </div>
   <div class="marketing__home__section__learn_more__body">
     <div class="marketing__home__section__learn_more__cards">
-      <.more_card_content
+      <.more_card
         :for={post <- @read_more_posts}
         category={post.category}
         title={post.title}
         description={post.excerpt}
         href={post.slug}
+        class="marketing__home__section__learn_more__cards__card"
       />
     </div>
   </div>
   <div class="marketing__home__section__learn_more__footer">
-    <.marketing_link class="marketing__home__section__learn_more__footer__link">
+    <.marketing_link class="marketing__home__section__learn_more__footer__link" href={~p"/blog"}>
       <%= gettext("View all") %>
     </.marketing_link>
   </div>

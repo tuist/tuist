@@ -62,7 +62,7 @@
   }
 
   & h1 {
-    margin-top: var(--spacing-48);
+    margin-top: 0;
   }
 
   & h2 {

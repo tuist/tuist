@@ -1,0 +1,316 @@
+.marketing__about {
+  display: flex;
+  flex-direction: column;
+}
+
+.marketing__about__intro {
+  padding: var(--spacing-96);
+  background: var(--gray-violet);
+  color: var(--dark-violet);
+  display: flex;
+  gap: var(--spacing-48);
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+}
+
+@media (max-width: 1024px) {
+  .marketing__about__intro {
+    padding: var(--spacing-48) var(--spacing-24);
+    flex-direction: column;
+    justify-content: flex-start;
+  }
+}
+
+.marketing__about__intro__left {
+  flex: 1;
+}
+
+.marketing__about__intro__left__title {
+  margin: 0;
+}
+
+.marketing__about__intro__right {
+  flex: 1;
+  max-width: 50%;
+  overflow: hidden;
+  border-radius: var(--radius-xl);
+}
+
+@media (max-width: 1024px) {
+  .marketing__about__intro__right {
+    max-width: 100%;
+    width: 100%;
+  }
+}
+
+.marketing__about__company {
+  padding: var(--spacing-96);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-24);
+}
+
+@media (max-width: 1024px) {
+  .marketing__about__company {
+    padding: var(--spacing-48) var(--spacing-24);
+  }
+}
+
+.marketing__about__company__title {
+  margin: 0;
+  color: var(--dark-violet);
+}
+
+.marketing__about__company__subtitle {
+  margin: 0;
+  color: var(--violet);
+}
+
+.marketing__about__company__description {
+  margin: 0;
+  color: var(--dark-violet);
+}
+
+.marketing__about__company__quote {
+  background: var(--gray-violet);
+  padding: var(--spacing-32);
+  color: var(--dark-violet);
+  border-radius: var(--radius-l);
+}
+
+.marketing__about__company__photos {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  grid-template-rows: auto auto;
+  gap: var(--spacing-24);
+  margin-top: var(--spacing-32);
+}
+
+@media (max-width: 1024px) {
+  .marketing__about__company__photos {
+    grid-template-columns: repeat(1, 1fr);
+  }
+}
+
+.marketing__about__company__photos__photo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: var(--radius-l);
+}
+
+.marketing__about__principles {
+  background: var(--medium-violet);
+  padding: var(--spacing-96);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-72);
+}
+
+@media (max-width: 1024px) {
+  .marketing__about__principles {
+    padding: var(--spacing-48) var(--spacing-24);
+  }
+}
+
+.marketing__about__principles__items {
+  display: flex;
+  flex-direction: row;
+  gap: var(--spacing-24);
+}
+
+@media (max-width: 1024px) {
+  .marketing__about__principles__items {
+    flex-direction: column;
+    gap: var(--spacing-24);
+  }
+}
+
+.marketing__about__principles__title {
+  margin: 0;
+  color: var(--lime);
+}
+
+.marketing__about__principles__items__value {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--spacing-24);
+}
+
+@media (max-width: 1024px) {
+  .marketing__about__principles__items__value {
+    flex-direction: row;
+  }
+}
+
+.marketing__about__principles__items__value__icon {
+  background: var(--lime);
+  color: var(--dark-violet);
+  border-radius: var(--radius-l);
+  padding: var(--spacing-16);
+}
+
+.marketing__about__principles__items__value__content__title {
+  color: white;
+  margin: 0;
+}
+
+.marketing__about__principles__items__value__content__description {
+  margin: 0;
+  color: white;
+}
+
+.marketing__about__leadership {
+  padding: var(--spacing-96);
+  display: flex;
+  flex-direction: row;
+  gap: var(--spacing-72);
+}
+
+@media (max-width: 1024px) {
+  .marketing__about__leadership {
+    padding: var(--spacing-48) var(--spacing-24);
+    flex-direction: column;
+    gap: var(--spacing-48);
+  }
+}
+
+.marketing__about__leadership__left {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  gap: var(--spacing-32);
+}
+
+.marketing__about__leadership__left__title {
+  color: var(--dark-violet);
+  margin: 0;
+}
+
+.marketing__about__leadership__left__description {
+  color: var(--dark-violet);
+  margin: 0;
+}
+
+.marketing__about__leadership__right {
+  flex: 1;
+  display: flex;
+  flex-direction: row;
+  gap: var(--spacing-24);
+}
+
+@media (max-width: 1024px) {
+  .marketing__about__leadership__right {
+    flex-direction: column;
+  }
+}
+
+.marketing__about__leadership__right__lead {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-24);
+}
+
+@media (max-width: 1024px) {
+  .marketing__about__leadership__right__lead {
+    gap: var(--spacing-8);
+  }
+}
+
+.marketing__about__leadership__right__lead__image {
+  border-radius: var(--radius-xl);
+  max-width: 100%;
+  height: auto;
+}
+
+.marketing__about__leadership__right__lead__name {
+  color: var(--dark-violet);
+  margin: 0;
+}
+
+.marketing__about__leadership__right__lead__role {
+  color: var(--dark-violet);
+  margin: 0;
+}
+
+.marketing__about__leadership__right__lead__socials {
+  display: flex;
+  flex-direction: row;
+  gap: var(--spacing-24);
+}
+
+.marketing__about__leadership__right__lead__socials_item {
+  color: var(--violet);
+
+  &:hover {
+    color: var(--dark-violet);
+  }
+}
+
+.marketing__about__resources {
+  background: var(--gray-violet);
+  padding: var(--spacing-96);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-48);
+}
+
+@media (max-width: 1024px) {
+  .marketing__about__resources {
+    padding: var(--spacing-48) var(--spacing-24);
+  }
+}
+
+.marketing__about__resources__title {
+  color: var(--dark-violet);
+  margin: 0;
+}
+
+.marketing__about__resources__items {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--spacing-24);
+}
+
+@media (max-width: 1024px) {
+  .marketing__about__resources__items {
+    grid-template-columns: repeat(1, 1fr);
+  }
+}
+
+.marketing__about__resources__items__item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-32);
+}
+
+.marketing__about__resources__items__item__title {
+  margin: 0;
+  color: var(--violet);
+}
+
+.marketing__about__resources__items__item__description {
+  color: var(--dark-violet);
+  margin: 0;
+}
+.marketing__about__resources__items__item__list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.marketing__about__resources__items__item__list__item {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  color: var(--violet);
+  gap: var(--spacing-16);
+}
+
+.marketing__about__resources__items__item__list__item__link {
+  color: var(--violet);
+  text-decoration: none;
+}

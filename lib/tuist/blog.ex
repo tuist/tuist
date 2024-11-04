@@ -95,14 +95,7 @@ defmodule Tuist.Blog do
       },
       "name" => "Tuist's blog",
       "description" => "Read engaging stories and expert insights.",
-      "publisher" => %{
-        "@type" => "Organization",
-        "name" => "Tuist",
-        "logo" => %{
-          "@type" => "ImageObject",
-          "url" => Tuist.Environment.app_url(path: "/images/open-graph.png")
-        }
-      }
+      "publisher" => TuistWeb.StructuredMarkup.get_organization()
     }
   end
 
@@ -122,14 +115,7 @@ defmodule Tuist.Blog do
         "name" => "Author's Name",
         "url" => "https://github.com/#{get_post_author(post)["github_handle"]}"
       },
-      "publisher" => %{
-        "@type" => "Organization",
-        "name" => "Tuist",
-        "logo" => %{
-          "@type" => "ImageObject",
-          "url" => Tuist.Environment.app_url(path: "/images/open-graph.png")
-        }
-      },
+      "publisher" => TuistWeb.StructuredMarkup.get_organization(),
       "datePublished" => Timex.format!(post.date, "{ISO:Extended}"),
       "dateModified" => Timex.format!(post.date, "{ISO:Extended}"),
       "articleBody" => post.excerpt
