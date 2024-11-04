@@ -44,7 +44,7 @@ let project = Project(
 
 - **ProjectDescription**: `PackageDescription` 대신에 `ProjectDescription`을 사용합니다.
 - **Project:** `package` 인스턴스를 내보내는 대신에 `project` 인스턴스를 내보냅니다.
-- **Xcode 언어:** 프로젝트를 정의하는데 사용하는 기본 요소는 Xcode의 언어를 따르므로 스키마, 타겟, 그리고 Build Phases 등을 찾을 수 있습니다.
+- **Xcode 언어:** 프로젝트를 정의하는데 사용하는 기본 요소는 Xcode의 언어를 따르므로 스킴, 타겟, 그리고 Build Phases 등을 찾을 수 있습니다.
 
 그런 다음 아래의 내용으로 `Tuist/Config.swift` 파일을 생성합니다:
 
@@ -58,10 +58,10 @@ let config = Config()
 
 ## 프로젝트 수정 {#editing-the-project}
 
-<LocalizedLink href="/guides/develop/projects/editing">`tuist edit`</LocalizedLink>를 사용하여 Xcode에서 프로젝트를 수정할 수 있습니다. 이 명령어는 프로젝트를 열고 작업을 수행할 수 있게 Xcode 프로젝트를 생성합니다.
+이 명령어는 프로젝트를 열고 작업을 수행할 수 있게 Xcode 프로젝트를 생성합니다. <LocalizedLink href="/guides/develop/projects/editing">`tuist edit`</LocalizedLink>를 사용하여 Xcode에서 프로젝트를 수정할 수 있습니다.
 
 ```bash
 tuist edit
 ```
 
-프로젝트 규모에 따라 한 번에 사용하거나 점진적으로 사용할 수 있습니다. DSL과 작업흐름에 익숙해지기 위해 작은 프로젝트로 시작하는 것을 권장합니다. 우리의 조언은 가장 많은 의존성을 가진 타겟부터 시작하여 최상위 타겟까지 차례대로 작업하라는 것입니다.
+프로젝트 규모에 따라 한 번에 사용하거나 점진적으로 사용할 수 있습니다. DSL과 워크플로우에 익숙해지기 위해 작은 프로젝트로 시작하는 것을 권장합니다. 우리의 조언은 가장 많은 의존성을 가진 타겟부터 시작하여 최상위 타겟까지 차례대로 작업하라는 것입니다.

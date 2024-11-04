@@ -1,13 +1,13 @@
 ---
 title: Cache
 titleTemplate: :title · Build · Develop · Guides · Tuist
-description: Optimize your build times by caching compiled binaries and sharing them across different environments.
+description: 컴파일된 바이너리를 캐싱하고 다양한 환경 간에 공유하여 빌드 시간을 최적화하세요.
 ---
 
 # Cache {#cache}
 
-> [!IMPORTANT] REMOTE PROJECT REQUIRED
-> This feature requires a <LocalizedLink href="/server/introduction/accounts-and-projects#projects">remote project</LocalizedLink>.
+> [!중요] REMOTE PROJECT 필요
+> 이 기능은 <LocalizedLink href="/server/introduction/accounts-and-projects">remote project</LocalizedLink>가 필요합니다.
 
 Xcode's build system provides [incremental builds](https://en.wikipedia.org/wiki/Incremental_build_model), enhancing efficiency under normal circumstances. However, this feature falls short in [Continuous Integration (CI) environments](https://en.wikipedia.org/wiki/Continuous_integration), where data essential for incremental builds is not shared across different builds. Additionally, **developers often reset this data locally to troubleshoot complex compilation problems**, leading to more frequent clean builds. This results in teams spending excessive time waiting for local builds to finish or for Continuous Integration pipelines to provide feedback on pull requests. Furthermore, the frequent context switching in such an environment compounds this unproductiveness.
 

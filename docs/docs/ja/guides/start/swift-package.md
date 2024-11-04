@@ -1,15 +1,15 @@
 ---
-title: Use Tuist with a Swift Package
-titleTemplate: :title · Start · Guides · Tuist
-description: Learn how to use Tuist with a Swift Package.
+title: TuistをSwiftパッケージと使用する
+titleTemplate: :title · スタート・ガイド・Tuist
+description: TuistをSwiftパッケージで使用する方法を学びます。
 ---
 
-# Using Tuist with a Swift Package <Badge type="warning" text="beta" /> {#using-tuist-with-a-swift-package-badge-typewarning-textbeta-}
+# TuistをSwiftパッケージと共に使用する <Badge type="warning" text="beta" /> {#using-tuist-with-a-swift-package-badge-typewarning-textbeta-}
 
-Tuist supports using `Package.swift` as a DSL for your projects and it converts your package targets into a native Xcode project and targets.
+Tuist は、`Package.swift` をプロジェクトの DSL として使用することをサポートしており、パッケージのターゲットをネイティブの Xcode プロジェクトおよびターゲットに変換します。
 
 > [!WARNING]
-> The aim of this feature is to provide an easy way for developers to assess the impact of adopting Tuist in their Swift Packages. Therefore, we don't plan to support the full range of Swift Package Manager features nor to bring every Tuist's unique features like <LocalizedLink href="/guides/develop/projects/code-sharing">project description helpers</LocalizedLink> to the packages world.
+> この機能の目的は、開発者がSwiftパッケージにTuistを導入する影響を評価するための簡単な方法を提供することです。 そのため、Swiftパッケージマネージャーの全機能をサポートする予定はなく、<LocalizedLink href="/guides/develop/projects/code-sharing">Project Description Helper</LocalizedLink>のようなTuist特有の機能をパッケージの世界に持ち込むことも計画していません。
 
 > [!NOTE] ROOT DIRECTORY
 > Tuist commands expect a certain <LocalizedLink href="/guides/develop/projects/directory-structure#standard-tuist-projects">directory structure</LocalizedLink> whose root is identified by a `Tuist` or a `.git` directory.
@@ -36,4 +36,4 @@ After the resolution completes, you can then generate the project:
 tuist generate
 ```
 
-Voilà! You have a native Xcode project that you can open and start working on.
+ほら！ You have a native Xcode project that you can open and start working on.

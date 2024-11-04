@@ -1,7 +1,7 @@
 ---
 title: Metrics
 titleTemplate: :title | On-premise | Server | Tuist
-description: Optimize your build times by caching compiled binaries and sharing them across different environments.
+description: 컴파일된 바이너리를 캐싱하고 다양한 환경 간에 공유하여 빌드 시간을 최적화하세요.
 ---
 
 # Metrics {#metrics}
@@ -10,7 +10,7 @@ You can ingest metrics gathered by the Tuist server using [Prometheus](https://p
 
 ## Elixir metrics {#elixir-metrics}
 
-By default we include metrics of the Elixir runtime, [BEAM](https://en.wikipedia.org/wiki/BEAM_\\\\\\\(Erlang_virtual_machine\\\\\\\)), Elixir, and some of the libraries we use. The following are some of the metrics you can expect to see:
+By default we include metrics of the Elixir runtime, [BEAM](https://en.wikipedia.org/wiki/BEAM_\\\\\\\\(Erlang_virtual_machine\\\\\\\\)), Elixir, and some of the libraries we use. The following are some of the metrics you can expect to see:
 
 - [Application](https://hexdocs.pm/prom_ex/PromEx.Plugins.Application.html)
 - [BEAM](https://hexdocs.pm/prom_ex/PromEx.Plugins.Beam.html)
