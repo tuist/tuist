@@ -1,42 +1,35 @@
 ---
 title: Editing
 titleTemplate: :title · Projects · Develop · Guides · Tuist
-description: Learn how to use Tuist's edit workflow to declare your project leveraging Xcode's build system and editor capabilities.
+description: Xcode의 빌드 시스템과 편집기 기능을 활용하여 프로젝트를 선언하기 위한 Tuist의 편집 워크플로우에 대해 배워봅니다.
 ---
 
 # Editing {#editing}
 
-Unlike traditional Xcode projects or Swift Packages,
-where changes are done through Xcode's UI,
-Tuist-managed projects are defined in Swift code contained in **manifest files**.
-If you're familiar with Swift Packages and the `Package.swift` file,
-the approach is very similar.
+Xcode의 UI를 통해 변경되는 기존 Xcode 프로젝트와 Swift Package와 달리, Tuist로 관리되는 프로젝트는 매니페스트 파일에 포함된 Swift 코드로 정의됩니다.
+Swift Package와 `Package.swift` 파일에 익숙하다면, 이 방식은 매우 유사합니다.
 
-You could edit these files using any text editor,
-but we recommend to use Tuist-provided workflow for that,
-`tuist edit`.
-The workflow creates an Xcode project that contains all manifest files and allows you to edit and compile them.
-Thanks to using Xcode,
-you get all the benefits of **code completion, syntax highlighting, and error checking**.
+어떤 편집기로도 이 파일을 수정할 수 있지만, 우리는 Tuist에서 제공하는 워크플로우인 `tuist edit`를 사용하길 권장합니다.
+이 워크플로우는 모든 매니페스트 파일을 포함하는 Xcode 프로젝트를 생성하고 이를 수정하고 컴파일 할 수 있도록 합니다.
+Xcode를 사용하면 **코드 완성, 구문 강조, 그리고 오류 검사**의 모든 이점을 얻을 수 있습니다.
 
 ## 프로젝트 수정하기 {#edit-the-project}
 
-To edit your project, you can run the following command in a Tuist project directory or a sub-directory:
+프로젝트를 수정하려면 Tuist 프로젝트 디렉토리 또는 그 하위 디렉토리에서 다음의 명령어를 수행해야 합니다:
 
 ```bash
 tuist edit
 ```
 
-The command creates an Xcode project in a global directory and opens it in Xcode.
-The project includes a `Manifests` directory that you can build to ensure all your manifests are valid.
+이 명령어는 전역 디렉토리에 Xcode 프로젝트를 생성하고 Xcode에서 이 프로젝트를 엽니다.
+프로젝트는 모든 매니페스트가 유효한지 확인하기 위해 빌드 할 수 있는 `Manifests` 디렉토리를 포함합니다.
 
-> [!INFO] GLOB-RESOLVED MANIFESTS
-> `tuist edit` resolves the manifests to be included by using the glob `**/{Manifest}.swift` from the project's root directory (the one containing the `/Tuist` directory). Make sure the `/Tuist` directory contains a valid `Config.swift`
+> [!INFO] 글로벌 패턴 (GLOB) 으로 해석된 매니페스트\
+> `tuist edit`는 프로젝트의 루트 디렉토리 (`/Tuist` 디렉토리가 포함된 디렉토리) 에서 글로벌 패턴 `**/{Manifest}.swift`를 사용하여 매니페스트를 포함합니다. `/Tuist` 디렉토리에 유효한 `Config.swift`가 포함되어 있는지 확인합니다.
 
-## Edit and generate workflow {#edit-and-generate-workflow}
+## 워크플로우 수정과 생성 {#edit-and-generate-workflow}
 
-As you might have noticed, the editing can't be done from the generated Xcode project.
-That's by design to prevent the generated project from having a dependency on Tuist,
-ensuring you can move from Tuist in the future with little effort.
+이미 알고 있듯이, 이미 생성된 Xcode 프로젝트는 편집이 불가능 합니다.
+이것은 생성된 프로젝트가 Tuist에 의존 하지 않도록 설계되어 있으며, 나중에 Tuist를 쉽게 걷어낼 수 있도록 합니다.
 
-When iterating on a project, we recommend running `tuist edit` from a terminal session to get an Xcode project to edit the project, and use another terminal session to run `tuist generate`.
+프로젝트를 반복적으로 수정할 때, 터미널 세션에서 `tuist edit`를 수행하여 편집할 수 있는 Xcode 프로젝트를 열고, 다른 터미널 세션에서 `tuist generate`를 수행하길 권장합니다.
