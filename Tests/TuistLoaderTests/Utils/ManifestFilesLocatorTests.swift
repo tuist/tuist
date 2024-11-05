@@ -478,6 +478,17 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
         XCTAssertNil(configPath)
     }
 
+    func test_locateConfig_where_tuist_file_is_not_a_directory() async throws {
+        // Given
+        try await createFiles(["tuist"])
+
+        // When
+        let configPath = try await subject.locateConfig(at: try temporaryPath())
+
+        // Then
+        XCTAssertNil(configPath)
+    }
+
     func test_locateConfig_traversing_where_config_not_exist() async throws {
         // Given
         let paths = try await createFiles([
