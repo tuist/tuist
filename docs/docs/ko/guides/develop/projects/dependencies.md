@@ -64,14 +64,13 @@ Tuist는 프로젝트에서 외부 의존성을 선언할 수 있습니다.
 
 ### Swift Packages {#swift-packages}
 
-Swift Packages are our recommended way of declaring dependencies in your project.
-You can integrate them using Xcode's default integration mechanism or using Tuist's XcodeProj-based integration.
+Swift Packages는 프로젝트에서 의존성을 선언하는 권장 방법입니다.
+Xcode의 기본 통합 메커니즘을 사용하거나 Tuist의 XcodeProj 기반 통합을 통해 이를 통합할 수 있습니다.
 
-#### Tuist's XcodeProj-based integration {#tuists-xcodeprojbased-integration}
+#### Tuist의 XcodeProj 기반 통합 {#tuists-xcodeprojbased-integration}
 
-Xcode's default integration while being the most convenient one,
-lacks flexibility and control that's required for medium and large projects.
-To overcome this, Tuist offers an XcodeProj-based integration that allows you to integrate Swift Packages in your project using XcodeProj's targets.
+Xcode의 기본 통합이 가장 편리하긴 하지만, 중간 규모 및 대형 프로젝트에서 필요한 유연성과 제어 기능이 부족합니다.
+이를 극복하기 위해 Tuist는 XcodeProj 기반 통합을 제공하여 XcodeProj의 타겟을 사용해 프로젝트에 Swift 패키지를 통합할 수 있도록 합니다.
 Thanks to that, we can not only give you more control over the integration but also make it compatible with workflows like <LocalizedLink href="/guides/develop/build/cache">caching</LocalizedLink> and <LocalizedLink href="/guides/develop/test/smart-runner">smart test runs</LocalizedLink>.
 
 XcodeProj's integration is more likely to take more time to support new Swift Package features or handle more package configurations. However, the mapping logic between Swift Packages and XcodeProj targets is open-source and can be contributed to by the community. This is contrary to Xcode's default integration, which is closed-source and maintained by Apple.
