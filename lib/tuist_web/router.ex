@@ -71,15 +71,17 @@ defmodule TuistWeb.Router do
 
       get "/blog+rss.xml", TuistWeb.MarketingController, :blog_rss
       get "/blog+atom.xml", TuistWeb.MarketingController, :blog_atom
+      get "/changelog+rss.xml", TuistWeb.MarketingController, :changelog_rss
+      get "/changelog+atom.xml", TuistWeb.MarketingController, :changelog_atom
     end
 
     scope "/" do
       pipe_through [:open_api, :browser_marketing, :assign_current_path]
 
       get "/", TuistWeb.MarketingController, :home
-      get "/changelog", TuistWeb.MarketingController, :changelog
       get "/pricing", TuistWeb.MarketingController, :pricing
       live "/blog", TuistWeb.MarketingBlogLive
+      live "/changelog", TuistWeb.MarketingChangelogLive
 
       for %{slug: blog_post_slug} <- Tuist.Blog.get_posts() do
         get blog_post_slug, TuistWeb.MarketingController, :blog_post

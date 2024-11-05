@@ -163,7 +163,7 @@ reset_dopdowns_state_js =
             title: gettext("Docs"),
             href: Tuist.Environment.get_url(:documentation)
           },
-          %{title: gettext("Changelog"), href: ~p"/changelog", target: "_blank"},
+          %{title: gettext("Changelog"), href: ~p"/changelog"},
           %{
             title: gettext("Community"),
             href: Tuist.Environment.get_url(:community)
@@ -289,7 +289,7 @@ reset_dopdowns_state_js =
     <.developers_docs_artwork style="grid-area: span 2;" />
 
     <h2 class="marketing__header__bar__developers__phase__title font-m-strong">
-      <.link href={~p"/changelog"} target="_blank">
+      <.link href={~p"/changelog"}>
         <%= gettext("Changelog") %>
       </.link>
     </h2>

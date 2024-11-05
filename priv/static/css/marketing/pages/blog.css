@@ -185,12 +185,7 @@
     border-bottom-style: solid;
     border-bottom-color: var(--violet);
     color: var(--violet);
-    /* font-m-strong */
-    font-family: var(--font-grotesk);
-    font-weight: 700;
-    font-style: normal;
-    font-size: 22px;
-    line-height: 26px;
+    font: var(--font-m-strong);
   }
 }
 

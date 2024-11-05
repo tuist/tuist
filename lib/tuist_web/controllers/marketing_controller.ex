@@ -29,7 +29,7 @@ defmodule TuistWeb.MarketingController do
     last_build_date = posts |> List.last() |> Map.get(:date)
 
     conn
-    |> assign(:posts, Tuist.Blog.get_posts())
+    |> assign(:posts, posts)
     |> assign(:last_build_date, last_build_date)
     |> render(:blog_rss, layout: false)
   end
@@ -39,9 +39,29 @@ defmodule TuistWeb.MarketingController do
     last_build_date = posts |> List.last() |> Map.get(:date)
 
     conn
-    |> assign(:posts, Tuist.Blog.get_posts())
+    |> assign(:posts, posts)
     |> assign(:last_build_date, last_build_date)
     |> render(:blog_atom, layout: false)
+  end
+
+  def changelog_rss(conn, _params) do
+    entries = Tuist.Changelog.get_entries()
+    last_build_date = entries |> List.last() |> Map.get(:date)
+
+    conn
+    |> assign(:entries, entries)
+    |> assign(:last_build_date, last_build_date)
+    |> render(:changelog_rss, layout: false)
+  end
+
+  def changelog_atom(conn, _params) do
+    entries = Tuist.Changelog.get_entries()
+    last_build_date = entries |> List.last() |> Map.get(:date)
+
+    conn
+    |> assign(:entries, entries)
+    |> assign(:last_build_date, last_build_date)
+    |> render(:changelog_atom, layout: false)
   end
 
   def blog_post(%{request_path: request_path} = conn, _params) do
@@ -72,11 +92,6 @@ defmodule TuistWeb.MarketingController do
   def pricing(conn, _params) do
     conn
     |> render(:pricing, layout: false)
-  end
-
-  def changelog(conn, _params) do
-    conn
-    |> render(:changelog, layout: false)
   end
 
   def page(conn, _params) do

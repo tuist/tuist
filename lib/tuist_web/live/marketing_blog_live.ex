@@ -22,7 +22,6 @@ defmodule TuistWeb.MarketingBlogLive do
     {:ok, socket}
   end
 
-  @spec handle_params(map(), any(), map()) :: {:noreply, map()}
   def handle_params(params, _url, socket) do
     posts = Tuist.Blog.get_posts()
     category = params |> Map.get("category")
