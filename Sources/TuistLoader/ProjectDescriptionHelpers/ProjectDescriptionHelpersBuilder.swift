@@ -173,6 +173,12 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
                 let dylibName = "lib\(name).dylib"
                 let modulePath = moduleCacheDirectory.appending(component: dylibName)
                 let module = ProjectDescriptionHelpersModule(name: name, path: modulePath)
+
+                // If the same helpers directory has been previously compiled, we just return the module, no need to recompile it.
+                if try await fileSystem.exists(modulePath) {
+                    return module
+                }
+
                 try fileHandler.createFolder(moduleCacheDirectory)
 
                 let command = try await createCommand(
