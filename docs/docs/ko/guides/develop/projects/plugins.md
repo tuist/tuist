@@ -21,13 +21,13 @@ Plugin은 Tuist의 기능을 확장하기 위한 간단한 방법으로 설계�
 
 더 많은 유연성이 필요하다면, 도구에 대한 기능 제안을 하거나 Tuist의 생성 프레임워크인 [`TuistGenerator`](https://github.com/tuist/tuist/tree/main/Sources/TuistGenerator)를 기반으로 자체 솔루션을 구축하는 것을 고려해 보세요.
 
-> [!경고] Plugin 인프라는 현재 관리되지 않습니다. 우리는 이를 개선하는 데 도움을 줄 기여자를 찾고 있습니다. 관심이 있으시면 [Slack](https://slack.tuist.io/)을 통해 저희에게 연락해 주세요.
+> [!WARNING] Plugin 인프라는 현재 관리되지 않습니다. 우리는 이를 개선하는 데 도움을 줄 기여자를 찾고 있습니다. 관심이 있으시면 [Slack](https://slack.tuist.io/)을 통해 저희에게 연락해 주세요.
 
 ## Plugin types {#plugin-types}
 
 ### Project description helper plugin {#project-description-helper-plugin}
 
-A project description helper plugin is represented by a directory containing a `Plugin.swift` manifest file that declares the plugin's name and a `ProjectDescriptionHelpers` directory containing the helper Swift files.
+Project description helper plugin은 Plugin의 이름을 선언하는 'Plugin.swift' 매니페스트 파일이 포함된 디렉토리와 helper Swift files이 포함된 'ProjectDescriptionHelpers' 디렉토리로 표시됩니다.
 
 ::: code-group
 
@@ -49,8 +49,7 @@ let plugin = Plugin(name: "MyPlugin")
 
 ### Resource accessor templates plugin {#resource-accessor-templates-plugin}
 
-If you need to share <LocalizedLink href="/guides/develop/projects/synthesized-files#resource-accessors">synthesized resource accessors</LocalizedLink> you can use
-this type of plugin. The plugin is represented by a directory containing a `Plugin.swift` manifest file that declares the plugin's name and a `ResourceSynthesizers` directory containing the resource accessor template files.
+<LocalizedLink href="/guides/develop/projects/synthesized-files#resource-accessors">synthesized Resource accessor</LocalizedLink>를 공유해야 하는 경우, 이 유형의 plugin을 사용할 수 있습니다. 이 plugin은 plugin의 이름을 선언하는 'Plugin.swift' 매니페스트 파일이 포함된 디렉토리와 resource accessor 템플릿 파일이 포함된 'ResourceSynthesizer' 디렉토리로 표시됩니다.
 
 ::: code-group
 
@@ -73,7 +72,7 @@ let plugin = Plugin(name: "MyPlugin")
 
 :::
 
-The name of the template is the [camel case](https://en.wikipedia.org/wiki/Camel_case) version of the resource type:
+템플릿의 이름은 resource type의 [camel case](https://en.wikipedia.org/wiki/Camel_case) 버전입니다.
 
 | Resource type     | Template file name                       |
 | ----------------- | ---------------------------------------- |
@@ -86,7 +85,7 @@ The name of the template is the [camel case](https://en.wikipedia.org/wiki/Camel
 | JSON              | JSON.stencil             |
 | YAML              | YAML.stencil             |
 
-When defining the resource synthesizers in the project, you can specify the plugin name to use the templates from the plugin:
+프로젝트에서 resource synthesizers를 정의할 때, plugin의 템플릿을 사용하도록 plugin 이름을 지정할 수 있습니다.
 
 ```swift
 let project = Project(resourceSynthesizers: [.strings(plugin: "MyPlugin")])
@@ -94,7 +93,7 @@ let project = Project(resourceSynthesizers: [.strings(plugin: "MyPlugin")])
 
 ### Task plugin <Badge type="warning" text="deprecated" /> {#task-plugin-badge-typewarning-textdeprecated-}
 
-Tasks are `$PATH`-exposed executables that are invocable through the `tuist` command if they follow the naming convention `tuist-<task-name>`. In earlier versions, Tuist provided some weak conventions and tools under `tuist plugin` to `build`, `run`, `test` and `archive` tasks represented by executables in Swift Packages, but we have deprecated this feature since it increases the maintenance burden and complexity of the tool.
+Tasks는 'tuist-<task-name>' 명명 규칙을 따를 경우 'tuist' 명령을 통해 호출할 수 있는 '$PATH' 실행 파일입니다. 이전 버전에서 Tuist는 Swift 패키지에서 실행 파일로 구성된 'build', 'run', 'test' 및 'archive' 작업에 'tuist plugin'에 따라 몇 가지 약한 규칙과 도구를 제공했지만, 유지 관리 부담과 도구의 복잡성을 증가시키기 때문에 이 기능은 더 이상 지원되지 않습니다.
 
 If you were using Tuist for distributing tasks, we recommend building your
 
