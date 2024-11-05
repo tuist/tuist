@@ -224,19 +224,22 @@ public final class ManifestFilesLocator: ManifestFilesLocating {
 
     private func traverseAndLocateTuistDirectory(at locatingPath: AbsolutePath) async throws -> AbsolutePath? {
         // swiftlint:disable:next force_try
-        return try await traverseAndLocate(
+        return try await traverseAndLocateDirectory(
             at: locatingPath,
             appending: try RelativePath(validating: Constants.tuistDirectoryName)
         )
     }
 
-    private func traverseAndLocate(at locatingPath: AbsolutePath, appending subpath: RelativePath) async throws -> AbsolutePath? {
+    private func traverseAndLocateDirectory(
+        at locatingPath: AbsolutePath,
+        appending subpath: RelativePath
+    ) async throws -> AbsolutePath? {
         let manifestPath = locatingPath.appending(subpath)
 
-        if try await fileSystem.exists(manifestPath) {
+        if try await fileSystem.exists(manifestPath, isDirectory: true) {
             return manifestPath
         } else if locatingPath != .root {
-            return try await traverseAndLocate(at: locatingPath.parentDirectory, appending: subpath)
+            return try await traverseAndLocateDirectory(at: locatingPath.parentDirectory, appending: subpath)
         } else {
             return nil
         }
