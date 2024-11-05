@@ -56,6 +56,9 @@ public protocol GitControlling {
 
     /// - Returns: `true` if there are commits in the current branch.
     func hasCurrentBranchCommits(workingDirectory: AbsolutePath) -> Bool
+
+    /// - Returns: The current branch string. `nil` if HEAD is not pointing to any branch.
+    func currentBranch(workingDirectory: AbsolutePath) throws -> String?
 }
 
 /// An implementation of `GitControlling`.
@@ -107,6 +110,16 @@ public final class GitController: GitControlling {
     public func urlOrigin(workingDirectory: AbsolutePath) throws -> String {
         try capture(command: "git", "-C", workingDirectory.pathString, "remote", "get-url", "origin")
             .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    public func currentBranch(workingDirectory: AbsolutePath) throws -> String? {
+        let currentBranch = try capture(command: "git", "-C", workingDirectory.pathString, "branch", "--show-current")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if currentBranch.isEmpty {
+            return nil
+        } else {
+            return currentBranch
+        }
     }
 
     public func remoteTaggedVersions(url: String) throws -> [Version] {
