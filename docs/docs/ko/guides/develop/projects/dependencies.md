@@ -73,9 +73,9 @@ Xcode의 기본 통합이 가장 편리하긴 하지만, 중간 규모 및 대�
 이를 극복하기 위해 Tuist는 XcodeProj 기반 통합을 제공하여 XcodeProj의 타겟을 사용해 프로젝트에 Swift 패키지를 통합할 수 있도록 합니다.
 덕분에 통합을 더 잘 제어할 수 있을 뿐만 아니라, <LocalizedLink href="/guides/develop/build/cache">caching</LocalizedLink> 및 <LocalizedLink href="/guides/develop/test/smart-runner">smart test runs</LocalizedLink>과 같은 워크플로우와도 호환되도록 만들 수 있습니다.
 
-XcodeProj's integration is more likely to take more time to support new Swift Package features or handle more package configurations. However, the mapping logic between Swift Packages and XcodeProj targets is open-source and can be contributed to by the community. This is contrary to Xcode's default integration, which is closed-source and maintained by Apple.
+XcodeProj의 통합은 새로운 Swift Package 기능을 지원하거나 더 많은 Package 구성을 처리하는데 시간이 더 걸릴 가능성이 큽니다. 하지만 Swift Packages와 XcodeProj 타겟 간의 매핑 로직은 오픈소스이며, 커뮤니티에서 기여할 수 있습니다. 이는 Apple이 관리하는 비공개 소스인 Xcode의 기본 통합 방식과는 대조됩니다.
 
-To add external dependencies, you'll have to create a `Package.swift` either under `Tuist/` or at the root of the project.
+외부 의존성을 추가하려면 `Tuist/` 디렉터리나 프로젝트 루트에 `Package.swift` 파일을 생성해야 합니다.
 
 ::: code-group
 
@@ -107,9 +107,9 @@ let package = Package(
 :::
 
 > [!TIP] PACKAGE SETTINGS
-> The `PackageSettings` instance wrapped in a compiler directive allows you to configure how packages are integrated. For example, in the example above it's used to override the default product type used for packages. By default, you shouldn't need it.
+> 컴파일러 지시문으로 감싼 `PackageSettings` 인스턴스를 통해 패키지 통합 방식을 설정할 수 있습니다. 예를 들어, 위 예시에서는 패키지에 사용되는 기본 제품 유형을 재정의하는 데 사용됩니다. 기본적으로는, 필요하지 않을 것입니다.
 
-The `Package.swift` file is just an interface to declare external dependencies, nothing else. That's why you don't define any targets or products in the package. Once you have the dependencies defined, you can run the following command to resolve and pull the dependencies into the `Tuist/Dependencies` directory:
+`Package.swift` 파일은 외부 의존성을 선언하기 위한 인터페이스일 뿐, 그 외의 역할은 하지 않습니다. That's why you don't define any targets or products in the package. Once you have the dependencies defined, you can run the following command to resolve and pull the dependencies into the `Tuist/Dependencies` directory:
 
 ```bash
 tuist install
