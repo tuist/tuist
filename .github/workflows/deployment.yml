@@ -54,7 +54,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: tuist/cli-ext
-          token: ${{ secrets.TUIST_SERVER_RELEASE_TOKEN }}
+          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
       - uses: jdx/mise-action@v2
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_16.0.0.app

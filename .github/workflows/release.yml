@@ -35,7 +35,7 @@ jobs:
         with:
           owner: tuist
           repo: server
-          token: ${{ secrets.TUIST_SERVER_RELEASE_TOKEN }}
+          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
       - name: "Generate Changelog"
         id: changelog
         uses: mikepenz/release-changelog-builder-action@v2
@@ -78,7 +78,7 @@ jobs:
             MIX_ENV=prod
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          github-token: ${{ secrets.TUIST_SERVER_RELEASE_TOKEN }}
+          github-token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
       - uses: stefanzweifel/git-auto-commit-action@v5
         id: commit
         with:
@@ -93,5 +93,5 @@ jobs:
           name: ${{ steps.version.outputs.version }}
           tag_name: ${{ steps.version.outputs.version }}
           body: ${{ steps.changelog.outputs.changelog }}
-          token: ${{ secrets.TUIST_SERVER_RELEASE_TOKEN }}
+          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
           target_commitish: ${{ steps.commit.outputs.commit_hash }}
