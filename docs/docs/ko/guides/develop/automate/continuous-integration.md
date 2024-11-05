@@ -133,5 +133,5 @@ tuist project tokens create my-handle/MyApp
 
 이 명령어는 `my-account/my-project`라는 전체 핸들을 가진 프로젝트에 대한 토큰을 생성합니다. 해당 값을 CI 환경의 `TUIST_CONFIG_TOKEN` 환경 변수로 설정하고, secret으로 설정하여 노출되지 않도록 합니다.
 
-> [!중요] CI 환경 감지
+> [! IMPORTANT] CI 환경 감지
 > Tuist는 CI 환경에서 실행 중임을 감지할 때만 토큰을 사용합니다. CI 환경이 감지되지 않는 경우, 환경 변수 `CI`를 `1`로 설정하여 토큰 사용을 강제할 수 있습니다.
