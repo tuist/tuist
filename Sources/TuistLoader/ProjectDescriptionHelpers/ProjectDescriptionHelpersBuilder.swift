@@ -175,7 +175,7 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
                 let module = ProjectDescriptionHelpersModule(name: name, path: modulePath)
 
                 // If the same helpers directory has been previously compiled, we just return the module, no need to recompile it.
-                if try await fileSystem.exists(modulePath) {
+                if try await fileSystem.exists(moduleCacheDirectory) {
                     return module
                 }
 
