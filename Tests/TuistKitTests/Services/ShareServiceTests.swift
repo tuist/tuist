@@ -216,6 +216,10 @@ final class ShareServiceTests: TuistUnitTestCase {
             .willReturn(try temporaryPath().appending(component: "visionOS"))
         try fileHandler.touch(visionOSPath.appending(component: "App.app"))
 
+        given(appBundleLoader)
+            .load(.any)
+            .willReturn(.test())
+
         // When
         try await subject.run(
             path: nil,
@@ -309,6 +313,10 @@ final class ShareServiceTests: TuistUnitTestCase {
             )
             .willReturn(try temporaryPath().appending(component: "iphoneos"))
 
+        given(appBundleLoader)
+            .load(.any)
+            .willReturn(.test())
+
         // When / Then
         await XCTAssertThrowsSpecific(
             try await subject.run(
@@ -391,6 +399,17 @@ final class ShareServiceTests: TuistUnitTestCase {
             .willReturn(try temporaryPath().appending(component: "iphoneos"))
         try fileHandler.touch(iosPath.appending(component: "AppTwo.app"))
 
+        given(appBundleLoader)
+            .load(.any)
+            .willReturn(
+                .test(
+                    infoPlist: .test(
+                        version: Version(1, 0, 0),
+                        bundleId: "com.tuist.app"
+                    )
+                )
+            )
+
         // When
         try await subject.run(
             path: nil,
@@ -406,8 +425,8 @@ final class ShareServiceTests: TuistUnitTestCase {
             .uploadPreviews(
                 .any,
                 displayName: .any,
-                version: .any,
-                bundleIdentifier: .any,
+                version: .value("1.0.0"),
+                bundleIdentifier: .value("com.tuist.app"),
                 fullHandle: .value("tuist/tuist"),
                 serverURL: .value(Constants.URLs.production)
             )
@@ -430,6 +449,10 @@ final class ShareServiceTests: TuistUnitTestCase {
             ]
         )
         let graphAppTarget = GraphTarget(path: projectPath, target: appTarget, project: project)
+
+        given(appBundleLoader)
+            .load(.any)
+            .willReturn(.test())
 
         given(manifestGraphLoader)
             .load(path: .any)
@@ -563,6 +586,10 @@ final class ShareServiceTests: TuistUnitTestCase {
             )
             .willReturn(try temporaryPath().appending(component: "iphoneos"))
         try fileHandler.touch(iosPath.appending(component: "AppClip.app"))
+
+        given(appBundleLoader)
+            .load(.any)
+            .willReturn(.test())
 
         // When
         try await subject.run(
@@ -720,6 +747,10 @@ final class ShareServiceTests: TuistUnitTestCase {
             )
             .willReturn(try temporaryPath().appending(component: "iphoneos"))
         try fileHandler.touch(iosPath.appending(component: "App.app"))
+
+        given(appBundleLoader)
+            .load(.any)
+            .willReturn(.test())
 
         // When
         try await subject.run(

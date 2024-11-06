@@ -1622,6 +1622,14 @@ internal enum Components {
         }
         /// - Remark: Generated from `#/components/schemas/Preview`.
         internal struct Preview: Codable, Hashable, Sendable {
+            /// The bundle identifier of the preview
+            ///
+            /// - Remark: Generated from `#/components/schemas/Preview/bundle_identifier`.
+            internal var bundle_identifier: Swift.String?
+            /// The display name of the preview
+            ///
+            /// - Remark: Generated from `#/components/schemas/Preview/display_name`.
+            internal var display_name: Swift.String?
             /// Unique identifier of the preview.
             ///
             /// - Remark: Generated from `#/components/schemas/Preview/id`.
@@ -1637,19 +1645,27 @@ internal enum Components {
             /// Creates a new `Preview`.
             ///
             /// - Parameters:
+            ///   - bundle_identifier: The bundle identifier of the preview
+            ///   - display_name: The display name of the preview
             ///   - id: Unique identifier of the preview.
             ///   - qr_code_url: The URL for the QR code image to dowload the preview
             ///   - url: The URL to download the preview
             internal init(
+                bundle_identifier: Swift.String? = nil,
+                display_name: Swift.String? = nil,
                 id: Swift.String,
                 qr_code_url: Swift.String,
                 url: Swift.String
             ) {
+                self.bundle_identifier = bundle_identifier
+                self.display_name = display_name
                 self.id = id
                 self.qr_code_url = qr_code_url
                 self.url = url
             }
             internal enum CodingKeys: String, CodingKey {
+                case bundle_identifier
+                case display_name
                 case id
                 case qr_code_url
                 case url
@@ -1705,14 +1721,14 @@ internal enum Components {
         }
         /// - Remark: Generated from `#/components/schemas/PreviewsIndex`.
         internal struct PreviewsIndex: Codable, Hashable, Sendable {
-            /// A list of previews.
+            /// Previews list.
             ///
             /// - Remark: Generated from `#/components/schemas/PreviewsIndex/previews`.
             internal var previews: [Components.Schemas.Preview]
             /// Creates a new `PreviewsIndex`.
             ///
             /// - Parameters:
-            ///   - previews: A list of previews.
+            ///   - previews: Previews list.
             internal init(previews: [Components.Schemas.Preview]) {
                 self.previews = previews
             }
@@ -10836,6 +10852,14 @@ internal enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/query/page`.
                 internal var page: Swift.Int?
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/query/distinct_field`.
+                internal enum distinct_fieldPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case bundle_identifier = "bundle_identifier"
+                }
+                /// Distinct fields – no two previews will be returned with this field having the same value.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/query/distinct_field`.
+                internal var distinct_field: Operations.listPreviews.Input.Query.distinct_fieldPayload?
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
@@ -10843,16 +10867,19 @@ internal enum Operations {
                 ///   - specifier: The preview version specifier. Currently, accepts a commit SHA, branch name, or latest.
                 ///   - page_size:
                 ///   - page:
+                ///   - distinct_field: Distinct fields – no two previews will be returned with this field having the same value.
                 internal init(
                     display_name: Swift.String? = nil,
                     specifier: Swift.String? = nil,
                     page_size: Swift.Int? = nil,
-                    page: Swift.Int? = nil
+                    page: Swift.Int? = nil,
+                    distinct_field: Operations.listPreviews.Input.Query.distinct_fieldPayload? = nil
                 ) {
                     self.display_name = display_name
                     self.specifier = specifier
                     self.page_size = page_size
                     self.page = page
+                    self.distinct_field = distinct_field
                 }
             }
             internal var query: Operations.listPreviews.Input.Query
@@ -10890,14 +10917,14 @@ internal enum Operations {
                 internal enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/responses/200/content/json`.
                     internal struct jsonPayload: Codable, Hashable, Sendable {
-                        /// A list of previews.
+                        /// Previews list.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/responses/200/content/json/previews`.
                         internal var previews: [Components.Schemas.Preview]
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
-                        ///   - previews: A list of previews.
+                        ///   - previews: Previews list.
                         internal init(previews: [Components.Schemas.Preview]) {
                             self.previews = previews
                         }
@@ -10930,7 +10957,7 @@ internal enum Operations {
                     self.body = body
                 }
             }
-            /// The list of previews
+            /// Successful response for listing previews.
             ///
             /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/get(listPreviews)/responses/200`.
             ///
@@ -11362,7 +11389,7 @@ internal enum Operations {
                     self.body = body
                 }
             }
-            /// The project doesn't exist
+            /// The project or preview doesn't exist
             ///
             /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/complete/post(completePreviewsMultipartUpload)/responses/404`.
             ///

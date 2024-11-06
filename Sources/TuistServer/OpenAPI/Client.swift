@@ -3939,6 +3939,13 @@ internal struct Client: APIProtocol {
                     name: "page",
                     value: input.query.page
                 )
+                try converter.setQueryItemAsURI(
+                    in: &request,
+                    style: .form,
+                    explode: true,
+                    name: "distinct_field",
+                    value: input.query.distinct_field
+                )
                 converter.setAcceptHeader(
                     in: &request.headerFields,
                     contentTypes: input.headers.accept

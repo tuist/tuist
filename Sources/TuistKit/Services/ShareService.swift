@@ -358,6 +358,10 @@ struct ShareService {
                 }
                 .uniqued()
 
+            let appBundles = try await appPaths.concurrentMap {
+                try await appBundleLoader.load($0)
+            }
+
             if appPaths.isEmpty {
                 throw ShareServiceError.noAppsFound(app: app, configuration: configuration)
             }
@@ -365,8 +369,8 @@ struct ShareService {
             try await uploadPreviews(
                 .appBundles(appPaths),
                 displayName: app,
-                version: nil,
-                bundleIdentifier: nil,
+                version: appBundles.first?.infoPlist.version.description,
+                bundleIdentifier: appBundles.first?.infoPlist.bundleId,
                 fullHandle: fullHandle,
                 serverURL: serverURL,
                 json: json

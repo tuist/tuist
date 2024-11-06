@@ -367,6 +367,12 @@ components:
       x-struct: Elixir.TuistWeb.API.Schemas.Module
     Preview:
       properties:
+        bundle_identifier:
+          description: The bundle identifier of the preview
+          type: string
+        display_name:
+          description: The display name of the preview
+          type: string
         id:
           description: Unique identifier of the preview.
           type: string
@@ -413,7 +419,7 @@ components:
     PreviewsIndex:
       properties:
         previews:
-          description: A list of previews.
+          description: Previews list.
           items:
             $ref: '#/components/schemas/Preview'
           type: array
@@ -2189,6 +2195,14 @@ paths:
             minimum: 1
             title: PreviewIndexPage
             type: integer
+        - description: Distinct fields – no two previews will be returned with this field having the same value.
+          in: query
+          name: distinct_field
+          required: false
+          schema:
+            enum:
+              - bundle_identifier
+            type: string
       responses:
         200:
           content:
@@ -2196,7 +2210,7 @@ paths:
               schema:
                 properties:
                   previews:
-                    description: A list of previews.
+                    description: Previews list.
                     items:
                       $ref: '#/components/schemas/Preview'
                     type: array
@@ -2204,7 +2218,7 @@ paths:
                   - previews
                 title: PreviewsIndex
                 type: object
-          description: The list of previews
+          description: Successful response for listing previews.
         401:
           content:
             application/json:
@@ -2279,7 +2293,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: The project doesn't exist
+          description: The project or preview doesn't exist
       summary: It completes a multi-part upload.
       tags:
         - Previews

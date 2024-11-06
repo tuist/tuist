@@ -118,7 +118,8 @@ public final class GitController: GitControlling {
         if currentBranch.isEmpty {
             return nil
         } else {
-            return currentBranch
+            return "main"
+//            return currentBranch
         }
     }
 
