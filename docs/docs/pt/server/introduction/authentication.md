@@ -20,6 +20,17 @@ The command will take you through a web-based authentication flow. Once you auth
 
 The CLI will automatically look up the credentials when making requests to the server. If the access token is expired, the CLI will use the refresh token to get a new access token.
 
+### Organization SSO {#organization-sso}
+
+If you have a Google Workspace organization and you want any developer who signs in with the same Google hosted domain to be added to your Tuist organization, you can set it up with:
+
+```bash
+tuist organization update sso my-organization --provider google --organization-id my-domain.com
+```
+
+> [!IMPORTANT]
+> You must be authenticated with Google using an email tied to the organization whose domain you are setting up.
+
 ## As a project {#as-a-project}
 
 In non-interactive environments like continuous integrations', you can't authenticate through an interactive flow. For those environments, we recommend authenticating as a project by using a project-scoped token:
