@@ -43,7 +43,7 @@ For performant analytics, we use a [Timescale Postgres extension](https://www.ti
 
 You’ll also need a solution to store files (e.g. framework and library binaries). Currently we support any storage that's S3-compliant.
 
-## Configuration {#configuration}
+## 구성 {#configuration}
 
 The configuration of the service is done at runtime through environment variables. Given the sensitive nature of these variables, we advise encrypting and storing them in secure password management solutions. Rest assured, Tuist handles these variables with utmost care, ensuring they are never displayed in logs.
 
