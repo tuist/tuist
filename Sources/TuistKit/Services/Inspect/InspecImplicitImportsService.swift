@@ -46,19 +46,25 @@ final class InspectImplicitImportsService {
         self.targetScanner = targetScanner
     }
 
-    func run(path: String?) async throws {
+    func run(
+        path: String?,
+        recursiveSPM: Bool
+    ) async throws {
         let path = try self.path(path)
         let config = try await configLoader.loadConfig(path: path)
         let generator = generatorFactory.defaultGenerator(config: config, sources: [])
         let graph = try await generator.load(path: path)
-        let issues = try await lint(graphTraverser: GraphTraverser(graph: graph))
+        let issues = try await lint(graphTraverser: GraphTraverser(graph: graph), recursiveSPM: recursiveSPM)
         guard issues.isEmpty else {
             throw InspectImplicitImportsServiceError.implicitImportsFound(issues)
         }
         logger.log(level: .info, "We did not find any implicit dependencies in your project.")
     }
 
-    private func lint(graphTraverser: GraphTraverser) async throws -> [InspectImplicitImportsServiceErrorIssue] {
+    private func lint(
+        graphTraverser: GraphTraverser,
+        recursiveSPM: Bool
+    ) async throws -> [InspectImplicitImportsServiceErrorIssue] {
         let allInternalTargets = graphTraverser
             .allInternalTargets()
         let allTargets = allInternalTargets.union(graphTraverser.allExternalTargets())
@@ -68,10 +74,11 @@ final class InspectImplicitImportsService {
         var implicitTargetImports: [Target: Set<String>] = [:]
         for target in allInternalTargets {
             let sourceDependencies = Set(try await targetScanner.imports(for: target.target))
-            let explicitTargetDependencies = Set(
-                graphTraverser
-                    .directTargetDependencies(path: target.project.path, name: target.target.name)
-                    .map(\.graphTarget.target.productName)
+
+            let explicitTargetDependencies = explicitTargetDependencies(
+                graphTraverser: graphTraverser,
+                target: target,
+                recursiveSPM: recursiveSPM
             )
             let implicitImports = sourceDependencies.intersection(allTargetNames).subtracting(explicitTargetDependencies)
             if !implicitImports.isEmpty {
@@ -81,6 +88,27 @@ final class InspectImplicitImportsService {
         return implicitTargetImports.map { target, implicitDependencies in
             return InspectImplicitImportsServiceErrorIssue(target: target.name, implicitDependencies: implicitDependencies)
         }
+    }
+
+    private func explicitTargetDependencies(
+        graphTraverser: GraphTraverser,
+        target: GraphTarget,
+        recursiveSPM: Bool
+    ) -> Set<String> {
+        let targetDependencies = graphTraverser
+            .directTargetDependencies(path: target.project.path, name: target.target.name)
+
+        let explicitTargetDependencies = targetDependencies.map { targetDependency in
+            if targetDependency.graphTarget.project.isExternal, recursiveSPM {
+                return graphTraverser
+                    .recursiveTargetDependencies(path: target.project.path, name: target.target.name)
+            } else {
+                return Set(arrayLiteral: targetDependency)
+            }
+        }
+        .flatMap { $0 }
+        .map(\.graphTarget.target.productName)
+        return Set(explicitTargetDependencies)
     }
 
     private func path(_ path: String?) throws -> AbsolutePath {
