@@ -92,6 +92,7 @@ final class CommandEventFactoryTests: TuistUnitTestCase {
             gitCommitSHA: "commit-sha",
             gitRef: "github-ref",
             gitRemoteURLOrigin: "https://github.com/tuist/tuist",
+            gitBranch: "main",
             targetHashes: nil,
             graphPath: path,
             cacheableTargets: ["A", "B", "C"],
@@ -124,6 +125,10 @@ final class CommandEventFactoryTests: TuistUnitTestCase {
         given(gitController)
             .hasCurrentBranchCommits(workingDirectory: .any)
             .willReturn(true)
+
+        given(gitController)
+            .currentBranch(workingDirectory: .any)
+            .willReturn("main")
 
         // When
         let event = try subject.make(
@@ -239,6 +244,10 @@ final class CommandEventFactoryTests: TuistUnitTestCase {
             .ref(environment: .any)
             .willReturn(nil)
 
+        given(gitController)
+            .currentBranch(workingDirectory: .any)
+            .willReturn(nil)
+
         // When
         let event = try subject.make(
             from: info,
@@ -288,6 +297,10 @@ final class CommandEventFactoryTests: TuistUnitTestCase {
         given(gitController)
             .hasUrlOrigin(workingDirectory: .value(path))
             .willReturn(false)
+
+        given(gitController)
+            .currentBranch(workingDirectory: .any)
+            .willReturn(nil)
 
         // When
         let event = try subject.make(
