@@ -134,6 +134,7 @@ defmodule TuistWeb.Router do
           post "/generate-url", PreviewsController, :multipart_generate_url
           post "/complete", PreviewsController, :multipart_complete
           get "/:preview_id", PreviewsController, :download
+          get "/", PreviewsController, :index
         end
 
         scope "/tokens" do

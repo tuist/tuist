@@ -1,4 +1,6 @@
 defmodule TuistWeb.PreviewsControllerTest do
+  alias Tuist.CommandEventsFixtures
+  alias Tuist.PreviewsFixtures
   alias Tuist.Previews.Preview
   alias Tuist.Repo
   alias TuistWeb.Authentication
@@ -26,13 +28,10 @@ defmodule TuistWeb.PreviewsControllerTest do
         upload_id
       end)
 
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
-
       # When
       conn =
         conn
+        |> Authentication.put_current_user(user)
         |> put_req_header("content-type", "application/json")
         |> post(~p"/api/projects/#{account.name}/#{project.name}/previews/start")
 
@@ -493,6 +492,418 @@ defmodule TuistWeb.PreviewsControllerTest do
       conn =
         conn
         |> get(~p"/api/projects/#{account.name}/#{project.name}/previews/preview-id")
+
+      # Then
+      response = json_response(conn, :forbidden)
+
+      assert response["message"] ==
+               "tuist is not authorized to read preview"
+    end
+  end
+
+  describe "GET /api/projects/:account_handle/:project_handle/previews" do
+    test "lists a single latest preview for a given display name", %{
+      conn: conn,
+      user: user,
+      project: project,
+      account: account
+    } do
+      # Given
+      preview_one =
+        PreviewsFixtures.preview_fixture(
+          project: project,
+          display_name: "App"
+        )
+
+      _command_event_one =
+        CommandEventsFixtures.command_event_fixture(
+          name: "share",
+          project_id: project.id,
+          preview_id: preview_one.id,
+          created_at: ~N[2021-01-01 00:00:00]
+        )
+
+      preview_two =
+        PreviewsFixtures.preview_fixture(
+          project: project,
+          display_name: "App"
+        )
+
+      _command_event_two =
+        CommandEventsFixtures.command_event_fixture(
+          name: "share",
+          project_id: project.id,
+          preview_id: preview_two.id,
+          created_at: ~N[2021-01-01 01:00:00],
+          git_branch: "main"
+        )
+
+      _preview_three =
+        PreviewsFixtures.preview_fixture(
+          project: project,
+          display_name: "App"
+        )
+
+      _command_event_three =
+        CommandEventsFixtures.command_event_fixture(
+          name: "share",
+          project_id: project.id,
+          preview_id: preview_two.id,
+          created_at: ~N[2021-01-01 02:00:00],
+          git_branch: "feature-branch"
+        )
+
+      _preview_four =
+        PreviewsFixtures.preview_fixture(
+          project: project,
+          display_name: "AppTwo"
+        )
+
+      _command_event_four =
+        CommandEventsFixtures.command_event_fixture(
+          name: "share",
+          project_id: project.id,
+          preview_id: preview_two.id,
+          created_at: ~N[2021-01-01 02:30:00],
+          git_branch: "main"
+        )
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+
+      # When
+      conn =
+        conn
+        |> get(
+          ~p"/api/projects/#{account.name}/#{project.name}/previews?display_name=App&specifier=latest&page_size=1"
+        )
+
+      # Then
+      response =
+        json_response(conn, :ok)
+
+      assert response["previews"] == [
+               %{
+                 "id" => preview_two.id,
+                 "url" => url(~p"/#{account.name}/#{project.name}/previews/#{preview_two.id}"),
+                 "qr_code_url" =>
+                   url(
+                     ~p"/#{account.name}/#{project.name}/previews/#{preview_two.id}/qr-code.svg"
+                   )
+               }
+             ]
+    end
+
+    test "lists no previews when no preview for latest is available", %{
+      conn: conn,
+      user: user,
+      project: project,
+      account: account
+    } do
+      # Given
+      preview_one =
+        PreviewsFixtures.preview_fixture(
+          project: project,
+          display_name: "preview-one"
+        )
+
+      _command_event_one =
+        CommandEventsFixtures.command_event_fixture(
+          name: "share",
+          project_id: project.id,
+          preview_id: preview_one.id,
+          created_at: ~N[2021-01-01 00:00:00]
+        )
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+
+      # When
+      conn =
+        conn
+        |> get(
+          ~p"/api/projects/#{account.name}/#{project.name}/previews?specifier=latest&page_size=1"
+        )
+
+      # Then
+      response =
+        json_response(conn, :ok)
+
+      assert response["previews"] == []
+    end
+
+    test "lists a single preview from feature branch", %{
+      conn: conn,
+      user: user,
+      project: project,
+      account: account
+    } do
+      # Given
+      preview_one =
+        PreviewsFixtures.preview_fixture(
+          project: project,
+          display_name: "preview-one"
+        )
+
+      _command_event_one =
+        CommandEventsFixtures.command_event_fixture(
+          name: "share",
+          project_id: project.id,
+          preview_id: preview_one.id,
+          created_at: ~N[2021-01-01 01:00:00],
+          git_branch: "feature-branch"
+        )
+
+      preview_two =
+        PreviewsFixtures.preview_fixture(
+          project: project,
+          display_name: "preview-one"
+        )
+
+      _command_event_two =
+        CommandEventsFixtures.command_event_fixture(
+          name: "share",
+          project_id: project.id,
+          preview_id: preview_two.id,
+          created_at: ~N[2021-01-01 02:00:00],
+          git_branch: "main"
+        )
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+
+      # When
+      conn =
+        conn
+        |> get(
+          ~p"/api/projects/#{account.name}/#{project.name}/previews?specifier=feature-branch&page_size=1"
+        )
+
+      # Then
+      response =
+        json_response(conn, :ok)
+
+      assert response["previews"] == [
+               %{
+                 "id" => preview_one.id,
+                 "url" => url(~p"/#{account.name}/#{project.name}/previews/#{preview_one.id}"),
+                 "qr_code_url" =>
+                   url(
+                     ~p"/#{account.name}/#{project.name}/previews/#{preview_one.id}/qr-code.svg"
+                   )
+               }
+             ]
+    end
+
+    test "lists a single preview for a git commit SHA", %{
+      conn: conn,
+      user: user,
+      project: project,
+      account: account
+    } do
+      # Given
+      preview_one =
+        PreviewsFixtures.preview_fixture(
+          project: project,
+          display_name: "preview-one"
+        )
+
+      _command_event_one =
+        CommandEventsFixtures.command_event_fixture(
+          name: "share",
+          project_id: project.id,
+          preview_id: preview_one.id,
+          created_at: ~N[2021-01-01 01:00:00],
+          git_commit_sha: "36fa9d5c3cb9f1dd45f194035a665444ea2d316f"
+        )
+
+      preview_two =
+        PreviewsFixtures.preview_fixture(
+          project: project,
+          display_name: "preview-one"
+        )
+
+      _command_event_two =
+        CommandEventsFixtures.command_event_fixture(
+          name: "share",
+          project_id: project.id,
+          preview_id: preview_two.id,
+          created_at: ~N[2021-01-01 02:00:00],
+          git_commit_sha: "a8169b2276adc2a4fb8c41030e5c640541b46ef9"
+        )
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+
+      # When
+      conn =
+        conn
+        |> get(
+          ~p"/api/projects/#{account.name}/#{project.name}/previews?specifier=36fa9d5c3cb9f1dd45f194035a665444ea2d316f&page_size=1"
+        )
+
+      # Then
+      response =
+        json_response(conn, :ok)
+
+      assert response["previews"] == [
+               %{
+                 "id" => preview_one.id,
+                 "url" => url(~p"/#{account.name}/#{project.name}/previews/#{preview_one.id}"),
+                 "qr_code_url" =>
+                   url(
+                     ~p"/#{account.name}/#{project.name}/previews/#{preview_one.id}/qr-code.svg"
+                   )
+               }
+             ]
+    end
+
+    test "lists previews page by two", %{
+      conn: conn,
+      user: user,
+      project: project,
+      account: account
+    } do
+      # Given
+      preview_one =
+        PreviewsFixtures.preview_fixture(
+          project: project,
+          display_name: "preview-one"
+        )
+
+      _command_event_one =
+        CommandEventsFixtures.command_event_fixture(
+          name: "share",
+          project_id: project.id,
+          preview_id: preview_one.id,
+          created_at: ~N[2021-01-01 00:00:00]
+        )
+
+      preview_two =
+        PreviewsFixtures.preview_fixture(
+          project: project,
+          display_name: "preview-one"
+        )
+
+      _command_event_two =
+        CommandEventsFixtures.command_event_fixture(
+          name: "share",
+          project_id: project.id,
+          preview_id: preview_two.id,
+          created_at: ~N[2021-01-01 01:00:00]
+        )
+
+      preview_three =
+        PreviewsFixtures.preview_fixture(
+          project: project,
+          display_name: "preview-one"
+        )
+
+      _command_event_three =
+        CommandEventsFixtures.command_event_fixture(
+          name: "share",
+          project_id: project.id,
+          preview_id: preview_three.id,
+          created_at: ~N[2021-01-01 02:00:00]
+        )
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+
+      # When
+      first_page_conn =
+        conn
+        |> get(~p"/api/projects/#{account.name}/#{project.name}/previews?page_size=2")
+
+      second_page_conn =
+        conn
+        |> get(~p"/api/projects/#{account.name}/#{project.name}/previews?page_size=2&page=2")
+
+      # Then
+      first_page_response =
+        json_response(first_page_conn, :ok)
+
+      second_page_response = json_response(second_page_conn, :ok)
+
+      assert first_page_response["previews"] == [
+               %{
+                 "id" => preview_three.id,
+                 "url" => url(~p"/#{account.name}/#{project.name}/previews/#{preview_three.id}"),
+                 "qr_code_url" =>
+                   url(
+                     ~p"/#{account.name}/#{project.name}/previews/#{preview_three.id}/qr-code.svg"
+                   )
+               },
+               %{
+                 "id" => preview_two.id,
+                 "url" => url(~p"/#{account.name}/#{project.name}/previews/#{preview_two.id}"),
+                 "qr_code_url" =>
+                   url(
+                     ~p"/#{account.name}/#{project.name}/previews/#{preview_two.id}/qr-code.svg"
+                   )
+               }
+             ]
+
+      assert second_page_response["previews"] == [
+               %{
+                 "id" => preview_one.id,
+                 "url" => url(~p"/#{account.name}/#{project.name}/previews/#{preview_one.id}"),
+                 "qr_code_url" =>
+                   url(
+                     ~p"/#{account.name}/#{project.name}/previews/#{preview_one.id}/qr-code.svg"
+                   )
+               }
+             ]
+    end
+
+    test "returns not_found when project doesn't exist", %{
+      conn: conn,
+      user: user,
+      account: account
+    } do
+      # Given
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+
+      # When
+      conn =
+        conn
+        |> get(
+          ~p"/api/projects/#{account.name}/non-existing-project/previews?specifier=latest&page_size=1"
+        )
+
+      # Then
+      response = json_response(conn, :not_found)
+
+      assert response["message"] ==
+               "The project tuist/non-existing-project was not found."
+    end
+
+    test "returns forbidden when user is not authorized to read preview", %{
+      conn: conn,
+      user: user
+    } do
+      # Given
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+
+      organization = AccountsFixtures.organization_fixture()
+      account = Accounts.get_account_from_organization(organization)
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+      # When
+      conn =
+        conn
+        |> get(
+          ~p"/api/projects/#{account.name}/#{project.name}/previews?specifier=latest&page_size=1"
+        )
 
       # Then
       response = json_response(conn, :forbidden)

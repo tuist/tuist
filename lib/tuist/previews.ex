@@ -6,20 +6,24 @@ defmodule Tuist.Previews do
   alias Tuist.Projects.Project
   alias Tuist.Previews.Preview
 
-  def create_preview(%{
-        project: %Project{} = project,
-        type: type,
-        display_name: display_name,
-        bundle_identifier: bundle_identifier,
-        version: version
-      }) do
+  def create_preview(
+        %{
+          project: %Project{} = project,
+          type: type,
+          display_name: display_name,
+          bundle_identifier: bundle_identifier,
+          version: version
+        },
+        opts \\ []
+      ) do
     %Preview{}
     |> Preview.create_changeset(%{
       project_id: project.id,
       type: type,
       display_name: display_name,
       bundle_identifier: bundle_identifier,
-      version: version
+      version: version,
+      inserted_at: Keyword.get(opts, :inserted_at)
     })
     |> Repo.insert!()
   end

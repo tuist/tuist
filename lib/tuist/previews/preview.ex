@@ -7,6 +7,11 @@ defmodule Tuist.Previews.Preview do
   use Ecto.Schema
   import Ecto.Changeset
 
+  @derive {
+    Flop.Schema,
+    filterable: [:project_id, :display_name], sortable: [:inserted_at]
+  }
+
   @primary_key {:id, UUIDv7, autogenerate: true}
   schema "previews" do
     belongs_to :project, Project
@@ -20,7 +25,7 @@ defmodule Tuist.Previews.Preview do
 
   def create_changeset(token, attrs) do
     token
-    |> cast(attrs, [:project_id, :type, :display_name, :bundle_identifier, :version])
+    |> cast(attrs, [:project_id, :type, :display_name, :bundle_identifier, :version, :inserted_at])
     |> validate_required([:project_id, :type])
   end
 end

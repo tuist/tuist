@@ -1,4 +1,6 @@
 defmodule TuistWeb.API.PreviewsController do
+  alias TuistWeb.API.Schemas
+  alias Tuist.CommandEvents
   alias TuistWeb.API.Schemas.ArtifactDownloadURL
   alias TuistWeb.API.EnsureProjectPresencePlug
   alias Tuist.Previews
@@ -329,6 +331,152 @@ defmodule TuistWeb.API.PreviewsController do
     expires_at = System.system_time(:second) + expires_in
     Tuist.Analytics.preview_download(Authentication.authenticated_subject(conn))
     conn |> json(%{url: url, expires_at: expires_at})
+  end
+
+  operation(:index,
+    summary: "List previews.",
+    description: "This endpoint returns a list of previews for a given project.",
+    operation_id: "listPreviews",
+    parameters: [
+      account_handle: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The handle of the account."
+      ],
+      project_handle: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The handle of the project."
+      ],
+      display_name: [
+        in: :query,
+        type: :string,
+        description: "The display name of previews."
+      ],
+      specifier: [
+        in: :query,
+        type: :string,
+        description:
+          "The preview version specifier. Currently, accepts a commit SHA, branch name, or latest."
+      ],
+      page_size: [
+        in: :query,
+        type: %Schema{
+          title: "PreviewIndexPageSize",
+          description: "The maximum number of preview to return in a single page.",
+          type: :integer,
+          default: 10,
+          minimum: 1,
+          maximum: 20
+        }
+      ],
+      page: [
+        in: :query,
+        type: %Schema{
+          title: "PreviewIndexPage",
+          description: "The page number to return.",
+          type: :integer,
+          default: 1,
+          minimum: 1
+        }
+      ]
+    ],
+    responses: %{
+      ok:
+        {"Successful response for listing previews.", "application/json",
+         %Schema{
+           title: "PreviewsIndex",
+           type: :object,
+           properties: %{
+             previews: %Schema{
+               description: "Previews list.",
+               type: :array,
+               items: Schemas.Preview
+             }
+           },
+           required: [:previews]
+         }},
+      unauthorized:
+        {"You need to be authenticated to access this resource", "application/json", Error},
+      forbidden:
+        {"The authenticated subject is not authorized to perform this action", "application/json",
+         Error}
+    }
+  )
+
+  def index(
+        %{
+          params:
+            %{
+              account_handle: account_handle,
+              project_handle: project_handle,
+              page_size: page_size,
+              page: page
+            } = params
+        } =
+          conn,
+        _params
+      ) do
+    project =
+      EnsureProjectPresencePlug.get_project(conn)
+
+    specifier = Map.get(params, :specifier)
+
+    filters = [
+      %{field: :project_id, op: :==, value: project.id},
+      %{field: :name, op: :==, value: "share"},
+      %{field: :preview_id, op: :!=, value: nil}
+    ]
+
+    specifier_filters =
+      cond do
+        is_nil(specifier) -> []
+        specifier == "latest" -> [%{field: :git_branch, op: :==, value: project.default_branch}]
+        valid_git_commit_sha?(specifier) -> [%{field: :git_commit_sha, op: :==, value: specifier}]
+        true -> [%{field: :git_branch, op: :==, value: specifier}]
+      end
+
+    filters = specifier_filters ++ filters
+
+    display_name = Map.get(params, :display_name)
+
+    filters =
+      case display_name do
+        nil -> filters
+        _ -> [%{field: :preview_display_name, op: :==, value: display_name} | filters]
+      end
+
+    {command_events, _meta} =
+      CommandEvents.list_command_events(
+        %{
+          page: page,
+          page_size: page_size,
+          filters: filters,
+          order_by: [:created_at],
+          order_directions: [:desc]
+        },
+        preload: [:preview]
+      )
+
+    conn
+    |> json(%{
+      previews:
+        command_events
+        |> Enum.map(
+          &%{
+            id: &1.preview.id,
+            url: url(~p"/#{account_handle}/#{project_handle}/previews/#{&1.preview.id}"),
+            qr_code_url:
+              url(~p"/#{account_handle}/#{project_handle}/previews/#{&1.preview.id}/qr-code.svg")
+          }
+        )
+    })
+  end
+
+  defp valid_git_commit_sha?(hash) do
+    Regex.match?(~r/^[a-fA-F0-9]{40}$/, hash)
   end
 
   defp get_object_key(

@@ -11,7 +11,29 @@ defmodule Tuist.CommandEvents.Event do
 
   @derive {
     Flop.Schema,
-    filterable: [:project_id, :name], sortable: [:created_at]
+    filterable: [
+      :project_id,
+      :name,
+      :git_commit_sha,
+      :git_branch,
+      :preview_display_name,
+      :preview_id
+    ],
+    sortable: [:created_at],
+    adapter_opts: [
+      join_fields: [
+        preview_id: [
+          binding: :preview,
+          field: :id,
+          ecto_type: :uuid
+        ],
+        preview_display_name: [
+          binding: :preview,
+          field: :display_name,
+          ecto_type: :string
+        ]
+      ]
+    ]
   }
 
   schema "command_events" do
@@ -28,6 +50,7 @@ defmodule Tuist.CommandEvents.Event do
     field :error_message, :string
     field :git_commit_sha, :string
     field :git_ref, :string
+    field :git_branch, :string
 
     # Binary Cache
     field :cacheable_targets, {:array, :string}, default: []
@@ -84,7 +107,8 @@ defmodule Tuist.CommandEvents.Event do
         :error_message,
         :preview_id,
         :git_commit_sha,
-        :git_ref
+        :git_ref,
+        :git_branch
       ])
 
     is_ci = get_field(changeset, :is_ci)

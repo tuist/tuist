@@ -14,13 +14,17 @@ defmodule Tuist.PreviewsFixtures do
     display_name = Keyword.get(opts, :display_name, "App")
     bundle_identifier = Keyword.get(opts, :bundle_identifier, "com.tuist.app")
     version = Keyword.get(opts, :version, "1.0.0")
+    inserted_at = Keyword.get(opts, :inserted_at)
 
-    Previews.create_preview(%{
-      project: project,
-      type: type,
-      display_name: display_name,
-      bundle_identifier: bundle_identifier,
-      version: version
-    })
+    Previews.create_preview(
+      %{
+        project: project,
+        type: type,
+        display_name: display_name,
+        bundle_identifier: bundle_identifier,
+        version: version
+      },
+      inserted_at: inserted_at
+    )
   end
 end

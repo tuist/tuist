@@ -75,6 +75,7 @@ defmodule Tuist.CommandEventsTest do
           preview_id: nil,
           git_ref: nil,
           git_commit_sha: nil,
+          git_branch: nil,
           error_message: nil
         })
 

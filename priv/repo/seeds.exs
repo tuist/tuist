@@ -152,6 +152,7 @@ for _event <- 1..10000 do
     preview_id: nil,
     git_ref: nil,
     git_commit_sha: nil,
+    git_branch: nil,
     created_at:
       NaiveDateTime.new!(
         Date.add(DateTime.utc_now(), -Enum.random(0..400)),

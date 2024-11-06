@@ -104,10 +104,22 @@ defmodule Tuist.CommandEvents do
     end
   end
 
-  def list_command_events(attrs) do
-    Event
-    |> preload(user: :account)
-    |> Flop.validate_and_run!(attrs)
+  def list_command_events(attrs, opts \\ []) do
+    preload_preview = Keyword.get(opts, :preload, []) |> Enum.member?(:preview)
+
+    query =
+      Event
+      |> preload(user: :account)
+
+    query =
+      if preload_preview do
+        query |> join(:left, [e], p in assoc(e, :preview), as: :preview) |> preload(:preview)
+      else
+        query
+      end
+
+    query
+    |> Flop.validate_and_run!(attrs, for: Event)
   end
 
   def get_command_events_by_name_git_ref_and_project(
@@ -618,7 +630,8 @@ defmodule Tuist.CommandEvents do
           error_message: error_message,
           preview_id: preview_id,
           git_commit_sha: git_commit_sha,
-          git_ref: git_ref
+          git_ref: git_ref,
+          git_branch: git_branch
         } = event
       ) do
     command_event =
@@ -647,6 +660,7 @@ defmodule Tuist.CommandEvents do
         error_message: error_message |> truncate_error_message(),
         preview_id: preview_id,
         git_commit_sha: git_commit_sha,
+        git_branch: git_branch,
         git_ref: git_ref,
         created_at: Map.get(event, :created_at, Time.utc_now())
       })

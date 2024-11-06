@@ -151,6 +151,10 @@ defmodule TuistWeb.API.AnalyticsController do
              type: :string,
              description: "The git remote URL origin."
            },
+           git_branch: %Schema{
+             type: :string,
+             description: "The git branch."
+           },
            preview_id: %Schema{
              type: :string,
              description: "The preview identifier."
@@ -224,7 +228,8 @@ defmodule TuistWeb.API.AnalyticsController do
         preview_id: preview_id,
         git_commit_sha: git_commit_sha,
         git_ref: git_ref,
-        git_remote_url_origin: git_remote_url_origin
+        git_remote_url_origin: git_remote_url_origin,
+        git_branch: Map.get(body_params, :git_branch)
       })
 
     VCS.post_vcs_pull_request_comment(%{
