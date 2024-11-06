@@ -173,7 +173,9 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
 
     // swiftlint:disable:next function_body_length
     static func fileContent(targetName _: String, bundleName: String, target: Target, in project: Project) -> String {
-        let bundleAccessor = if target.supportsResources {
+        let bundleAccessor = if target.product == .staticFramework {
+            swiftStaticFrameworkBundleAccessorString(for: target)
+        } else if target.supportsResources {
             swiftFrameworkBundleAccessorString(for: target)
         } else {
             swiftSPMBundleAccessorString(for: target, and: bundleName)
@@ -253,10 +255,8 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         // MARK: - Swift Bundle Accessor - for SPM
         private class BundleFinder {}
         extension Foundation.Bundle {
-        /// Since \(target.name) is a \(
-            target
-                .product
-        ), the bundle containing the resources is copied into the final product.
+        /// Since \(target.name) is a \(target.product), \
+        the bundle containing the resources is copied into the final product.
         static let module: Bundle = {
             let bundleName = "\(bundleName)"
             let bundleFinderResourceURL = Bundle(for: BundleFinder.self).resourceURL
@@ -306,11 +306,41 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         // MARK: - Swift Bundle Accessor for Frameworks
         private class BundleFinder {}
         extension Foundation.Bundle {
-        /// Since \(target.name) is a \(
-            target
-                .product
-        ), the bundle for classes within this module can be used directly.
+        /// Since \(target.name) is a \(target.product), \
+        the bundle for classes within this module can be used directly.
         static let module = Bundle(for: BundleFinder.self)
+        }
+        """
+    }
+
+    private static func swiftStaticFrameworkBundleAccessorString(for target: Target) -> String {
+        """
+        // MARK: - Swift Bundle Accessor for Frameworks
+        extension Foundation.Bundle {
+        /// Since \(target.name) is a \(target.product), \
+        a cut down framework is embedded, with all the resources but only a stub Mach-O image.
+        static let module: Bundle = {
+        var candidates = [Bundle.main.privateFrameworksURL]
+        // This is a fix to make unit tests work with bundled resources.
+        // Making this change allows unit tests to search one directory up for the framework.
+        // More context can be found in this PR: https://github.com/tuist/tuist/pull/6895
+        #if canImport(XCTest)
+        final class BundleFinder {}
+        let bundleFinderResourceURL = Bundle(for: BundleFinder.self).resourceURL
+        candidates.append(bundleFinderResourceURL?.appendingPathComponent(".."))
+        #endif
+        for candidate in candidates {
+            let frameworkUrl = if #available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *) {
+                candidate?.appending(path: "\(target.name).framework", directoryHint: .isDirectory)
+            } else {
+                candidate?.appendingPathComponent("\(target.name).framework")
+            }
+            if let bundle = frameworkUrl.flatMap(Bundle.init(url:)) {
+                return bundle
+            }
+        }
+        fatalError("unable to find \(target.product) \\"\(target.name).framework\\"")
+        }()
         }
         """
     }

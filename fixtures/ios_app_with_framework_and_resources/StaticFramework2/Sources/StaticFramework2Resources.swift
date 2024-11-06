@@ -18,13 +18,14 @@ extension Bundle {
     private class BundleFinder {}
 
     fileprivate static var staticFramework2: Bundle {
-        let hostBundle = Bundle(for: BundleFinder.self)
-        let path = hostBundle.path(
+        let bundleUrl = Bundle.main.privateFrameworksURL?.appendingPathComponent("StaticFramework2.framework")
+        let hostBundle = bundleUrl.flatMap(Bundle.init(url:))
+        let path = hostBundle?.path(
             forResource: "StaticFramework2Resources",
             ofType: "bundle"
         )
 
-        guard let bundle = path.flatMap({ Bundle(path: $0) }) else {
+        guard let bundle = path.flatMap(Bundle.init(path:)) else {
             fatalError("StaticFramework2Resources could not be loaded")
         }
 
