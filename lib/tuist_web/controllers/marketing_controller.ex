@@ -91,6 +91,13 @@ defmodule TuistWeb.MarketingController do
 
   def pricing(conn, _params) do
     conn
+    |> assign(:head_title, "Pricing · Tuist")
+    |> assign(
+      :head_description,
+      gettext(
+        "Discover our flexible pricing plans at Tuist. Enjoy a free tier with no time limits, and pay only for what you use. Plus, it's free forever for open source projects."
+      )
+    )
     |> render(:pricing, layout: false)
   end
 

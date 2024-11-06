@@ -10,6 +10,31 @@ defmodule TuistWeb.MarketingIcons do
   attr :class, :string, default: ""
   attr :rest, :global
 
+  def share_icon(assigns) do
+    ~H"""
+    <svg
+      width={@size}
+      height={@size}
+      class={@class}
+      {@rest}
+      viewBox="0 0 10 10"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M9.5 3.5L9.5 0.5M9.5 0.5H6.5M9.5 0.5L5.5 4.5M4 1.5H2.9C2.05992 1.5 1.63988 1.5 1.31901 1.66349C1.03677 1.8073 0.8073 2.03677 0.66349 2.31901C0.5 2.63988 0.5 3.05992 0.5 3.9V7.1C0.5 7.94008 0.5 8.36012 0.66349 8.68099C0.8073 8.96323 1.03677 9.1927 1.31901 9.33651C1.63988 9.5 2.05992 9.5 2.9 9.5H6.1C6.94008 9.5 7.36012 9.5 7.68099 9.33651C7.96323 9.1927 8.1927 8.96323 8.33651 8.68099C8.5 8.36012 8.5 7.94008 8.5 7.1V6"
+        stroke="currentColor"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+    </svg>
+    """
+  end
+
+  attr :size, :integer, default: @default_icon_size
+  attr :class, :string, default: ""
+  attr :rest, :global
+
   def shell_icon(assigns) do
     ~H"""
     <svg
@@ -280,7 +305,7 @@ defmodule TuistWeb.MarketingIcons do
     >
       <path
         d="M5 12H19"
-        stroke="black"
+        stroke="currentColor"
         stroke-width="2"
         stroke-linecap="round"
         stroke-linejoin="round"

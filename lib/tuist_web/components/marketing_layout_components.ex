@@ -301,4 +301,58 @@ defmodule TuistWeb.MarketingLayoutComponents do
     </div>
     """
   end
+
+  attr :popular, :boolean, default: false
+  attr :name, :string, required: true
+  attr :description, :string, required: true
+  attr :price, :string, required: true
+  attr :cta, :any, required: true
+  attr :features, :list, required: true
+  attr :badges, :list, required: true
+
+  def pricing_plan_plan_card(assigns) do
+    ~H"""
+    <div class="marketing__pricing__plans__plan" data-popular={@popular}>
+      <div class="marketing__pricing__plans__plan__badge"><%= gettext("Most popular") %></div>
+      <h2 class="marketing__pricing__plans__plan__name">
+        <%= @name %>
+      </h2>
+      <p class="marketing__pricing__plans__plan__description">
+        <%= @description %>
+      </p>
+      <div class="marketing__pricing__plans__plan__price">
+        <%= @price %>
+      </div>
+      <%= case @cta do %>
+        <% {:primary, text, href} -> %>
+          <.primary_button href={href} size="big">
+            <%= text %>
+          </.primary_button>
+        <% {:secondary, text, href} -> %>
+          <.secondary_button href={href} size="big" variant="light">
+            <%= text %>
+          </.secondary_button>
+      <% end %>
+      <div class="marketing__pricing__plans__plan__cta__separator"></div>
+      <ul class="marketing__pricing__plans__plan__features">
+        <li :for={{title, description} <- @features} class="marketing__pricing__plans__plan__feature">
+          <TuistWeb.MarketingIcons.check_circle_icon class="marketing__pricing__plans__plan__feature__icon" />
+          <div class="marketing__pricing__plans__plan__feature__content">
+            <span class="marketing__pricing__plans__plan__feature__content__title">
+              <%= title %>
+            </span>
+            <span class="marketing__pricing__plans__plan__feature__content__description">
+              <%= description %>
+            </span>
+          </div>
+        </li>
+      </ul>
+      <div class="marketing__pricing__plans__plan__bottom_badges">
+        <div :for={badge <- @badges} class="marketing__pricing__plans__plan__bottom_badges__badge">
+          <%= badge %>
+        </div>
+      </div>
+    </div>
+    """
+  end
 end

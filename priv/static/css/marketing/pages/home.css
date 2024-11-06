@@ -20,6 +20,13 @@
   margin: 0;
 }
 
+.marketing__home__section__hero__subtitle {
+  font: var(--font-xl);
+  color: var(--dark-violet);
+  text-align: center;
+  width: 50vw;
+}
+
 .marketing__home__section__hero__terminal {
   width: 50%;
 }
