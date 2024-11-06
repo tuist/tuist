@@ -24,7 +24,7 @@ final class GenerateService {
         generatorFactory: GeneratorFactorying,
         clock: Clock = WallClock(),
         timeTakenLoggerFormatter: TimeTakenLoggerFormatting = TimeTakenLoggerFormatter(),
-        manifestLoader: ManifestLoading = ManifestLoader(),
+        manifestLoader: ManifestLoading = CachedManifestLoader(),
         opener: Opening = Opener(),
         pluginService: PluginServicing = PluginService(),
         configLoader: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader())
