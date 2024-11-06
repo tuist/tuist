@@ -1,7 +1,7 @@
 ---
 title:
   params.command.fullCommand: null
-titleTemplate: :title · CLI · Tuist
+titleTemplate: :title · Интерфейс командной строки (CLI) · Tuist
 ---
 
 <!-- @content -->
