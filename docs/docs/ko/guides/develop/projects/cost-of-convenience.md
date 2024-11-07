@@ -80,9 +80,9 @@ SwiftUI 프리뷰나 Swift Macro와 같은 일부 편집기 기능은 수정된 
 ### Mergeable libraries {#mergeable-libraries}
 
 작업을 더 유연하고 쉽게 하는 동적 프레임워크는 앱의 실행 시간에 안좋은 영향을 줍니다. 반면에, 정적 라이브러리는 더 빠른 실행 시간을 가지지만, 컴파일 시간에 영향을 주고 복잡한 그래프 환경에서 작업하기 어렵게 만듭니다. _구성에 따라 둘 중 하나로 변경할 수 있다면 좋지 않을까요?_
-아마 Apple은 Mergeable libraries 작업을 하면서 그 생각을 가졌을 것입니다. 하지만 다시 한 번 Apple은 더 많은 빌드 시간 추론을 빌드 시간으로 옮겼습니다. 의존성 그래프에 대해 추론해야 한다면 타겟의 정적 또는 동적 특성이 일부 타겟의 빌드 설정을 기반으로 빌드 시간이 결정된다고 상상해 봅시다. Good luck making that work reliably while ensuring features like SwiftUI previews don't break.
+아마 Apple은 Mergeable libraries 작업을 하면서 그 생각을 가졌을 것입니다. 하지만 다시 한 번 Apple은 더 많은 빌드 시간 추론을 빌드 시간으로 옮겼습니다. 의존성 그래프에 대해 추론해야 한다면 타겟의 정적 또는 동적 특성이 일부 타겟의 빌드 설정을 기반으로 빌드 시간이 결정된다고 상상해 봅시다. SwiftUI 프리뷰 기능이 안정적으로 동작하게 하는 것은 쉽지 않습니다.
 
-**Many users come to Tuist wanting to use mergeable libraries and our answer is always the same. You don't need to.** You can control the static or dynamic nature of your targets at generation-time leading to a project whose graph is known ahead of compilation. No variables need to be resolved at build-time.
+**많은 사용자가 Mergeable libraries를 사용하기 위해 Tuist를 찾지만 우리의 대답은 항상 같습니다. 그럴 필요가 없습니다.** 생성 시점에 타겟의 정적 또는 동적 특성을 제어할 수 있으며, 이를 통해 컴파일 전에 의존성 그래프를 미리 알 수 있는 프로젝트를 만들 수 있습니다. 빌드 시점에 해결해야 될 변수는 없습니다.
 
 ```bash
 # The value of TUIST_DYNAMIC can be read from the project {#the-value-of-tuist_dynamic-can-be-read-from-the-project}
@@ -90,7 +90,7 @@ SwiftUI 프리뷰나 Swift Macro와 같은 일부 편집기 기능은 수정된 
 TUIST_DYNAMIC=1 tuist generate
 ```
 
-## Explicit, explicit, and explicit {#explicit-explicit-and-explicit}
+## 명시적, 명시적, 그리고 명시적 {#explicit-explicit-and-explicit}
 
 If there's an important non-written principle that we recommend every developer or organization that wants their development with Xcode to scale, is that they should embrace explicitness. And if explicitness is hard to manage with raw Xcode projects, they should consider something else, either [Tuist](https://tuist.io) or [Bazel](https://bazel.build). **Only then reliability, predicability, and optimizations will be possible.**
 
