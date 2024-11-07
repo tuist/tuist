@@ -111,11 +111,11 @@ final class DevicesViewModel: Sendable {
         self.appStorage = appStorage
     }
 
-    func selectSimulator(_ simulator: SimulatorDeviceAndRuntime) {
+    @MainActor func selectSimulator(_ simulator: SimulatorDeviceAndRuntime) {
         deviceService.selectDevice(.simulator(simulator))
     }
 
-    func selectPhysicalDevice(_ device: PhysicalDevice) {
+    @MainActor func selectPhysicalDevice(_ device: PhysicalDevice) {
         deviceService.selectDevice(.device(device))
     }
 

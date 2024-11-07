@@ -26,7 +26,7 @@ enum DeviceServiceError: FatalError, Equatable {
 
 @Mockable
 protocol DeviceServicing: ObservableObject {
-    func selectDevice(_ newDevice: Device?)
+    @MainActor func selectDevice(_ newDevice: Device?)
     var selectedDevice: Device? { get }
     var devices: [PhysicalDevice] { get }
     var simulators: [SimulatorDeviceAndRuntime] { get }
@@ -78,10 +78,8 @@ final class DeviceService: DeviceServicing {
         self.appBundleLoader = appBundleLoader
     }
 
-    func selectDevice(_ newDevice: Device?) {
-        DispatchQueue.main.async {
-            self.selectedDevice = newDevice
-        }
+    @MainActor func selectDevice(_ newDevice: Device?) {
+        selectedDevice = newDevice
         switch newDevice {
         case let .simulator(simulator):
             try? appStorage.set(SelectedDeviceKey.self, value: .simulator(id: simulator.id))

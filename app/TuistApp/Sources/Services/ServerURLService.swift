@@ -9,7 +9,6 @@ protocol ServerURLServicing {
 
 struct ServerURLService: ServerURLServicing {
     func serverURL() -> URL {
-//        Constants.URLs.production
-        URL(string: "http://localhost:8080")!
+        Constants.URLs.production
     }
 }

@@ -30,11 +30,6 @@ struct Panel<Content: View>: View {
         colorScheme == .dark
     }
 
-    private var lineWidth: CGFloat {
-        0.5
-    }
-
-    private var cornerRadius: CGFloat {
-        8
-    }
+    private let lineWidth: CGFloat = 0.5
+    private let cornerRadius: CGFloat = 8
 }

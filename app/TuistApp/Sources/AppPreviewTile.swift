@@ -1,5 +1,4 @@
 import SwiftUI
-import TuistServer
 
 struct AppPreviewTile: View {
     let appPreview: AppPreview
