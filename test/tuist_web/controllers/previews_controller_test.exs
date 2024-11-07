@@ -286,13 +286,14 @@ defmodule TuistWeb.PreviewsControllerTest do
       organization = AccountsFixtures.organization_fixture()
       account = Accounts.get_account_from_organization(organization)
       project = ProjectsFixtures.project_fixture(account_id: account.id)
+      preview = PreviewsFixtures.preview_fixture(project: project)
 
       # When
       conn =
         conn
         |> put_req_header("content-type", "application/json")
         |> post(~p"/api/projects/#{account.name}/#{project.name}/previews/generate-url",
-          preview_id: "preview-id",
+          preview_id: preview.id,
           multipart_upload_part: %{part_number: 0, upload_id: "upload-id"}
         )
 
@@ -313,10 +314,10 @@ defmodule TuistWeb.PreviewsControllerTest do
     } do
       # Given
       upload_id = "1234"
-      preview_id = "preview-id"
+      preview = PreviewsFixtures.preview_fixture(project: project)
 
       object_key =
-        "#{account.name}/#{project.name}/previews/#{preview_id}.zip"
+        "#{account.name}/#{project.name}/previews/#{preview.id}.zip"
 
       parts = [
         %{part_number: 1, etag: "etag1"},
@@ -340,7 +341,7 @@ defmodule TuistWeb.PreviewsControllerTest do
         conn
         |> put_req_header("content-type", "application/json")
         |> post(~p"/api/projects/#{account.name}/#{project.name}/previews/complete",
-          preview_id: preview_id,
+          preview_id: preview.id,
           multipart_upload_parts: %{
             parts: parts,
             upload_id: upload_id
@@ -351,10 +352,12 @@ defmodule TuistWeb.PreviewsControllerTest do
       response = json_response(conn, :ok)
 
       assert response == %{
-               "id" => "preview-id",
-               "url" => url(~p"/#{account.name}/#{project.name}/previews/#{preview_id}"),
+               "id" => preview.id,
+               "url" => url(~p"/#{account.name}/#{project.name}/previews/#{preview.id}"),
                "qr_code_url" =>
-                 url(~p"/#{account.name}/#{project.name}/previews/#{preview_id}/qr-code.svg")
+                 url(~p"/#{account.name}/#{project.name}/previews/#{preview.id}/qr-code.svg"),
+               "bundle_identifier" => "com.tuist.app",
+               "display_name" => "App"
              }
     end
 
@@ -385,6 +388,36 @@ defmodule TuistWeb.PreviewsControllerTest do
 
       assert response["message"] ==
                "The project tuist/non-existing-project was not found."
+    end
+
+    test "returns error when preview doesn't exist", %{
+      conn: conn,
+      user: user,
+      project: project,
+      account: account
+    } do
+      # Given
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/projects/#{account.name}/#{project.name}/previews/complete",
+          preview_id: "01930188-401e-7529-a9e8-84f6c71a406c",
+          multipart_upload_parts: %{
+            parts: [],
+            upload_id: "upload-id"
+          }
+        )
+
+      # Then
+      response = json_response(conn, :not_found)
+
+      assert response["message"] ==
+               "Preview not found."
     end
 
     test "returns forbidden when user is not authorized to create preview", %{
@@ -428,10 +461,10 @@ defmodule TuistWeb.PreviewsControllerTest do
       account: account
     } do
       # Given
-      preview_id = "preview-id"
+      preview = PreviewsFixtures.preview_fixture(project: project)
 
       object_key =
-        "#{account.name}/#{project.name}/previews/#{preview_id}.zip"
+        "#{account.name}/#{project.name}/previews/#{preview.id}.zip"
 
       Storage
       |> expect(:generate_download_url, fn ^object_key, expires_in: 3600 ->
@@ -445,7 +478,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       # When
       conn =
         conn
-        |> get(~p"/api/projects/#{account.name}/#{project.name}/previews/#{preview_id}")
+        |> get(~p"/api/projects/#{account.name}/#{project.name}/previews/#{preview.id}")
 
       # Then
       response = json_response(conn, :ok)
@@ -463,10 +496,12 @@ defmodule TuistWeb.PreviewsControllerTest do
         conn
         |> Authentication.put_current_user(user)
 
+      preview = PreviewsFixtures.preview_fixture()
+
       # When
       conn =
         conn
-        |> get(~p"/api/projects/#{account.name}/non-existing-project/previews/preview-id")
+        |> get(~p"/api/projects/#{account.name}/non-existing-project/previews/#{preview.id}")
 
       # Then
       response = json_response(conn, :not_found)
@@ -487,11 +522,12 @@ defmodule TuistWeb.PreviewsControllerTest do
       organization = AccountsFixtures.organization_fixture()
       account = Accounts.get_account_from_organization(organization)
       project = ProjectsFixtures.project_fixture(account_id: account.id)
+      preview = PreviewsFixtures.preview_fixture(project: project)
 
       # When
       conn =
         conn
-        |> get(~p"/api/projects/#{account.name}/#{project.name}/previews/preview-id")
+        |> get(~p"/api/projects/#{account.name}/#{project.name}/previews/#{preview.id}")
 
       # Then
       response = json_response(conn, :forbidden)
@@ -526,7 +562,8 @@ defmodule TuistWeb.PreviewsControllerTest do
       preview_two =
         PreviewsFixtures.preview_fixture(
           project: project,
-          display_name: "App"
+          display_name: "App",
+          bundle_identifier: "com.tuist.app"
         )
 
       _command_event_two =
@@ -590,7 +627,9 @@ defmodule TuistWeb.PreviewsControllerTest do
                  "qr_code_url" =>
                    url(
                      ~p"/#{account.name}/#{project.name}/previews/#{preview_two.id}/qr-code.svg"
-                   )
+                   ),
+                 "bundle_identifier" => "com.tuist.app",
+                 "display_name" => "App"
                }
              ]
     end
@@ -625,6 +664,170 @@ defmodule TuistWeb.PreviewsControllerTest do
         conn
         |> get(
           ~p"/api/projects/#{account.name}/#{project.name}/previews?specifier=latest&page_size=1"
+        )
+
+      # Then
+      response =
+        json_response(conn, :ok)
+
+      assert response["previews"] == []
+    end
+
+    test "lists previews with distinct bundle identifiers for the latest specifier", %{
+      conn: conn,
+      user: user,
+      project: project,
+      account: account
+    } do
+      # Given
+      preview_one =
+        PreviewsFixtures.preview_fixture(
+          project: project,
+          bundle_identifier: "com.bundle.app.one"
+        )
+
+      _command_event_one =
+        CommandEventsFixtures.command_event_fixture(
+          name: "share",
+          project_id: project.id,
+          preview_id: preview_one.id,
+          created_at: ~N[2021-01-01 00:00:00],
+          git_branch: "main"
+        )
+
+      preview_two =
+        PreviewsFixtures.preview_fixture(
+          project: project,
+          bundle_identifier: "com.bundle.app.one"
+        )
+
+      _command_event_two =
+        CommandEventsFixtures.command_event_fixture(
+          name: "share",
+          project_id: project.id,
+          preview_id: preview_two.id,
+          created_at: ~N[2021-01-01 01:00:00],
+          git_branch: "main"
+        )
+
+      preview_three =
+        PreviewsFixtures.preview_fixture(
+          project: project,
+          bundle_identifier: "com.bundle.app.two"
+        )
+
+      _command_event_three =
+        CommandEventsFixtures.command_event_fixture(
+          name: "share",
+          project_id: project.id,
+          preview_id: preview_three.id,
+          created_at: ~N[2021-01-01 02:00:00],
+          git_branch: "main"
+        )
+
+      preview_four =
+        PreviewsFixtures.preview_fixture(
+          project: project,
+          bundle_identifier: "com.bundle.app.two"
+        )
+
+      _command_event_four =
+        CommandEventsFixtures.command_event_fixture(
+          name: "share",
+          project_id: project.id,
+          preview_id: preview_four.id,
+          created_at: ~N[2021-01-01 02:30:00],
+          git_branch: "feature-branch"
+        )
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+
+      # When
+      conn =
+        conn
+        |> get(
+          ~p"/api/projects/#{account.name}/#{project.name}/previews?distinct_field=bundle_identifier&specifier=latest"
+        )
+
+      # Then
+      response =
+        json_response(conn, :ok)
+
+      assert response["previews"] |> Enum.map(& &1["bundle_identifier"]) == [
+               "com.bundle.app.one",
+               "com.bundle.app.two"
+             ]
+    end
+
+    test "does not list any previews with distinct bundle identifiers for the latest specifier when the only preview has a nil preview_id",
+         %{
+           conn: conn,
+           user: user,
+           project: project,
+           account: account
+         } do
+      # Given
+      _command_event_one =
+        CommandEventsFixtures.command_event_fixture(
+          name: "share",
+          project_id: project.id,
+          preview_id: nil,
+          created_at: ~N[2021-01-01 00:00:00],
+          git_branch: "main"
+        )
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+
+      # When
+      conn =
+        conn
+        |> get(
+          ~p"/api/projects/#{account.name}/#{project.name}/previews?distinct_field=bundle_identifier&specifier=latest"
+        )
+
+      # Then
+      response =
+        json_response(conn, :ok)
+
+      assert response["previews"] == []
+    end
+
+    test "does not list any previews with distinct bundle identifiers for the latest specifier when the only preview has a nil bundle_identifier",
+         %{
+           conn: conn,
+           user: user,
+           project: project,
+           account: account
+         } do
+      # Given
+      preview_one =
+        PreviewsFixtures.preview_fixture(
+          project: project,
+          bundle_identifier: nil
+        )
+
+      _command_event_one =
+        CommandEventsFixtures.command_event_fixture(
+          name: "share",
+          project_id: project.id,
+          preview_id: preview_one.id,
+          created_at: ~N[2021-01-01 00:00:00],
+          git_branch: "main"
+        )
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+
+      # When
+      conn =
+        conn
+        |> get(
+          ~p"/api/projects/#{account.name}/#{project.name}/previews?distinct_field=bundle_identifier&specifier=latest"
         )
 
       # Then
@@ -686,15 +889,8 @@ defmodule TuistWeb.PreviewsControllerTest do
       response =
         json_response(conn, :ok)
 
-      assert response["previews"] == [
-               %{
-                 "id" => preview_one.id,
-                 "url" => url(~p"/#{account.name}/#{project.name}/previews/#{preview_one.id}"),
-                 "qr_code_url" =>
-                   url(
-                     ~p"/#{account.name}/#{project.name}/previews/#{preview_one.id}/qr-code.svg"
-                   )
-               }
+      assert response["previews"] |> Enum.map(& &1["id"]) == [
+               preview_one.id
              ]
     end
 
@@ -750,15 +946,8 @@ defmodule TuistWeb.PreviewsControllerTest do
       response =
         json_response(conn, :ok)
 
-      assert response["previews"] == [
-               %{
-                 "id" => preview_one.id,
-                 "url" => url(~p"/#{account.name}/#{project.name}/previews/#{preview_one.id}"),
-                 "qr_code_url" =>
-                   url(
-                     ~p"/#{account.name}/#{project.name}/previews/#{preview_one.id}/qr-code.svg"
-                   )
-               }
+      assert response["previews"] |> Enum.map(& &1["id"]) == [
+               preview_one.id
              ]
     end
 
@@ -830,34 +1019,13 @@ defmodule TuistWeb.PreviewsControllerTest do
 
       second_page_response = json_response(second_page_conn, :ok)
 
-      assert first_page_response["previews"] == [
-               %{
-                 "id" => preview_three.id,
-                 "url" => url(~p"/#{account.name}/#{project.name}/previews/#{preview_three.id}"),
-                 "qr_code_url" =>
-                   url(
-                     ~p"/#{account.name}/#{project.name}/previews/#{preview_three.id}/qr-code.svg"
-                   )
-               },
-               %{
-                 "id" => preview_two.id,
-                 "url" => url(~p"/#{account.name}/#{project.name}/previews/#{preview_two.id}"),
-                 "qr_code_url" =>
-                   url(
-                     ~p"/#{account.name}/#{project.name}/previews/#{preview_two.id}/qr-code.svg"
-                   )
-               }
+      assert first_page_response["previews"] |> Enum.map(& &1["id"]) == [
+               preview_three.id,
+               preview_two.id
              ]
 
-      assert second_page_response["previews"] == [
-               %{
-                 "id" => preview_one.id,
-                 "url" => url(~p"/#{account.name}/#{project.name}/previews/#{preview_one.id}"),
-                 "qr_code_url" =>
-                   url(
-                     ~p"/#{account.name}/#{project.name}/previews/#{preview_one.id}/qr-code.svg"
-                   )
-               }
+      assert second_page_response["previews"] |> Enum.map(& &1["id"]) == [
+               preview_one.id
              ]
     end
 

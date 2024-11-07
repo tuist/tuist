@@ -1,4 +1,5 @@
 defmodule Tuist.CommandEventsTest do
+  alias Tuist.PreviewsFixtures
   alias Tuist.CommandEvents.TestCaseRun
   alias Tuist.CommandEvents.TestCase
   alias Tuist.CommandEvents.TargetTestSummary
@@ -260,6 +261,133 @@ defmodule Tuist.CommandEventsTest do
       assert got_command_events_first_page == [command_event_five, command_event_four]
       assert got_command_events_second_page == [command_event_three, command_event_two]
       assert got_command_events_third_page == [command_event_one]
+    end
+
+    test "returns command events with preloaded previews" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      preview_one =
+        PreviewsFixtures.preview_fixture(
+          project: project,
+          display_name: "App"
+        )
+
+      command_event_one =
+        CommandEventsFixtures.command_event_fixture(
+          name: "share",
+          project_id: project.id,
+          preview_id: preview_one.id,
+          created_at: ~N[2021-01-01 00:00:00]
+        )
+
+      preview_two =
+        PreviewsFixtures.preview_fixture(
+          project: project,
+          display_name: "App"
+        )
+
+      command_event_two =
+        CommandEventsFixtures.command_event_fixture(
+          name: "share",
+          project_id: project.id,
+          preview_id: preview_two.id,
+          created_at: ~N[2021-01-01 01:00:00]
+        )
+
+      # When
+      {got_command_events_page, _got_meta_page} =
+        CommandEvents.list_command_events(
+          %{
+            first: 20,
+            filters: [%{field: :project_id, op: :==, value: project.id}],
+            order_by: [:created_at],
+            order_directions: [:desc]
+          },
+          preload: [:preview]
+        )
+
+      # Then
+      assert got_command_events_page |> Enum.map(& &1.id) == [
+               command_event_two.id,
+               command_event_one.id
+             ]
+
+      assert got_command_events_page |> Enum.map(& &1.preview) == [
+               preview_two,
+               preview_one
+             ]
+    end
+
+    test "returns command events with preloaded previews and distinct bundle identifiers" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      preview_one =
+        PreviewsFixtures.preview_fixture(
+          project: project,
+          bundle_identifier: "com.example.app-one"
+        )
+
+      command_event_one =
+        CommandEventsFixtures.command_event_fixture(
+          name: "share",
+          project_id: project.id,
+          preview_id: preview_one.id,
+          created_at: ~N[2021-01-01 00:00:00]
+        )
+
+      preview_two =
+        PreviewsFixtures.preview_fixture(
+          project: project,
+          bundle_identifier: "com.example.app-one"
+        )
+
+      command_event_two =
+        CommandEventsFixtures.command_event_fixture(
+          name: "share",
+          project_id: project.id,
+          preview_id: preview_two.id,
+          created_at: ~N[2021-01-01 01:00:00]
+        )
+
+      preview_three =
+        PreviewsFixtures.preview_fixture(
+          project: project,
+          bundle_identifier: "com.example.app-two"
+        )
+
+      command_event_three =
+        CommandEventsFixtures.command_event_fixture(
+          name: "share",
+          project_id: project.id,
+          preview_id: preview_three.id,
+          created_at: ~N[2021-01-01 02:00:00]
+        )
+
+      # When
+      {got_command_events_page, _got_meta_page} =
+        CommandEvents.list_command_events(
+          %{
+            first: 20,
+            filters: [%{field: :project_id, op: :==, value: project.id}],
+            order_by: [:created_at],
+            order_directions: [:desc]
+          },
+          preload: [:preview],
+          distinct: [preview: [:bundle_identifier]]
+        )
+
+      # Then
+      assert got_command_events_page |> Enum.map(& &1.id) == [
+               command_event_two.id,
+               command_event_three.id
+             ]
+
+      assert got_command_events_page |> Enum.map(& &1.preview.bundle_identifier) == [
+               "com.example.app-one",
+               "com.example.app-two"
+             ]
     end
   end
 

@@ -17,6 +17,7 @@ defmodule Tuist.CommandEvents.Event do
       :git_commit_sha,
       :git_branch,
       :preview_display_name,
+      :preview_bundle_identifier,
       :preview_id
     ],
     sortable: [:created_at],
@@ -30,6 +31,11 @@ defmodule Tuist.CommandEvents.Event do
         preview_display_name: [
           binding: :preview,
           field: :display_name,
+          ecto_type: :string
+        ],
+        preview_bundle_identifier: [
+          binding: :preview,
+          field: :bundle_identifier,
           ecto_type: :string
         ]
       ]

@@ -105,15 +105,27 @@ defmodule Tuist.CommandEvents do
   end
 
   def list_command_events(attrs, opts \\ []) do
-    preload_preview = Keyword.get(opts, :preload, []) |> Enum.member?(:preview)
-
     query =
       Event
       |> preload(user: :account)
 
+    preload_preview = Keyword.get(opts, :preload, []) |> Enum.member?(:preview)
+
     query =
       if preload_preview do
         query |> join(:left, [e], p in assoc(e, :preview), as: :preview) |> preload(:preview)
+      else
+        query
+      end
+
+    distinct_preview_bundle_identifier =
+      Keyword.get(opts, :distinct, [])
+      |> Keyword.get(:preview, [])
+      |> Enum.member?(:bundle_identifier)
+
+    query =
+      if distinct_preview_bundle_identifier do
+        query |> distinct([e, p], p.bundle_identifier)
       else
         query
       end

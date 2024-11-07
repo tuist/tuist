@@ -235,7 +235,7 @@ defmodule TuistWeb.API.PreviewsController do
       forbidden:
         {"The authenticated subject is not authorized to perform this action", "application/json",
          Error},
-      not_found: {"The project doesn't exist", "application/json", Error}
+      not_found: {"The project or preview doesn't exist", "application/json", Error}
     }
   )
 
@@ -255,26 +255,36 @@ defmodule TuistWeb.API.PreviewsController do
         } = conn,
         _params
       ) do
-    :ok =
-      Storage.multipart_complete_upload(
-        get_object_key(conn, preview_id),
-        upload_id,
-        parts
-        |> Enum.map(fn %{part_number: part_number, etag: etag} ->
-          {part_number, etag}
-        end)
-      )
+    preview = Previews.get_preview_by_id(preview_id)
 
-    Tuist.Analytics.preview_upload(Authentication.authenticated_subject(conn))
+    if is_nil(preview) do
+      conn
+      |> put_status(:not_found)
+      |> json(%{message: "Preview not found."})
+    else
+      :ok =
+        Storage.multipart_complete_upload(
+          get_object_key(conn, preview_id),
+          upload_id,
+          parts
+          |> Enum.map(fn %{part_number: part_number, etag: etag} ->
+            {part_number, etag}
+          end)
+        )
 
-    conn
-    |> put_status(:ok)
-    |> json(%{
-      id: preview_id,
-      url: url(~p"/#{account_handle}/#{project_handle}/previews/#{preview_id}"),
-      qr_code_url:
-        url(~p"/#{account_handle}/#{project_handle}/previews/#{preview_id}/qr-code.svg")
-    })
+      Tuist.Analytics.preview_upload(Authentication.authenticated_subject(conn))
+
+      conn
+      |> put_status(:ok)
+      |> json(%{
+        id: preview_id,
+        url: url(~p"/#{account_handle}/#{project_handle}/previews/#{preview_id}"),
+        qr_code_url:
+          url(~p"/#{account_handle}/#{project_handle}/previews/#{preview_id}/qr-code.svg"),
+        bundle_identifier: preview.bundle_identifier,
+        display_name: preview.display_name
+      })
+    end
   end
 
   operation(:download,
@@ -381,6 +391,15 @@ defmodule TuistWeb.API.PreviewsController do
           default: 1,
           minimum: 1
         }
+      ],
+      distinct_field: [
+        in: :query,
+        type: %Schema{
+          type: :string,
+          enum: ["bundle_identifier"]
+        },
+        description:
+          "Distinct fields – no two previews will be returned with this field having the same value."
       ]
     ],
     responses: %{
@@ -427,7 +446,8 @@ defmodule TuistWeb.API.PreviewsController do
     filters = [
       %{field: :project_id, op: :==, value: project.id},
       %{field: :name, op: :==, value: "share"},
-      %{field: :preview_id, op: :!=, value: nil}
+      %{field: :preview_id, op: :not_empty, value: true},
+      %{field: :preview_bundle_identifier, op: :not_empty, value: true}
     ]
 
     specifier_filters =
@@ -448,6 +468,12 @@ defmodule TuistWeb.API.PreviewsController do
         _ -> [%{field: :preview_display_name, op: :==, value: display_name} | filters]
       end
 
+    distinct =
+      case Map.get(params, :distinct_field) do
+        nil -> []
+        field -> [preview: [field |> String.to_atom()]]
+      end
+
     {command_events, _meta} =
       CommandEvents.list_command_events(
         %{
@@ -457,7 +483,8 @@ defmodule TuistWeb.API.PreviewsController do
           order_by: [:created_at],
           order_directions: [:desc]
         },
-        preload: [:preview]
+        preload: [:preview],
+        distinct: distinct
       )
 
     conn
@@ -469,7 +496,9 @@ defmodule TuistWeb.API.PreviewsController do
             id: &1.preview.id,
             url: url(~p"/#{account_handle}/#{project_handle}/previews/#{&1.preview.id}"),
             qr_code_url:
-              url(~p"/#{account_handle}/#{project_handle}/previews/#{&1.preview.id}/qr-code.svg")
+              url(~p"/#{account_handle}/#{project_handle}/previews/#{&1.preview.id}/qr-code.svg"),
+            bundle_identifier: &1.preview.bundle_identifier,
+            display_name: &1.preview.display_name
           }
         )
     })

@@ -17,6 +17,14 @@ defmodule TuistWeb.API.Schemas.Preview do
       qr_code_url: %Schema{
         type: :string,
         description: "The URL for the QR code image to dowload the preview"
+      },
+      bundle_identifier: %Schema{
+        type: :string,
+        description: "The bundle identifier of the preview"
+      },
+      display_name: %Schema{
+        type: :string,
+        description: "The display name of the preview"
       }
     }
   })
