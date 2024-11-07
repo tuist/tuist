@@ -10,6 +10,8 @@ func tuistAppDependencies() -> [TargetDependency] {
         .external(name: "XcodeGraph"),
         .external(name: "Command"),
         .external(name: "Sparkle"),
+        .external(name: "FileSystem"),
+        .external(name: "Mockable"),
     ]
 }
 
