@@ -424,6 +424,7 @@ final class RunServiceTests: TuistUnitTestCase {
                 specifier: .value("latest"),
                 page: .value(1),
                 pageSize: .value(1),
+                distinctField: .any,
                 fullHandle: .any,
                 serverURL: .any
             )
@@ -471,6 +472,7 @@ final class RunServiceTests: TuistUnitTestCase {
                 specifier: .value("latest"),
                 page: .value(1),
                 pageSize: .value(1),
+                distinctField: .any,
                 fullHandle: .any,
                 serverURL: .any
             )

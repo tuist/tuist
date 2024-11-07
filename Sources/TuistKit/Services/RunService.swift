@@ -186,6 +186,7 @@ final class RunService {
                 specifier: specifier,
                 page: 1,
                 pageSize: 1,
+                distinctField: nil,
                 fullHandle: fullHandle,
                 serverURL: config.url
             ).first else { throw RunServiceError.previewNotFound(displayName: displayName, specifier: specifier) }

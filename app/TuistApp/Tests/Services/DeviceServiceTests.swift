@@ -9,8 +9,8 @@ import XCTest
 
 @testable import Tuist
 
-final class DevicesViewModelTests: TuistUnitTestCase {
-    private var subject: DevicesViewModel!
+final class DeviceServiceTests: TuistUnitTestCase {
+    private var subject: DeviceService!
     private var simulatorController: MockSimulatorControlling!
     private var downloadPreviewService: MockDownloadPreviewServicing!
     private var fileUnarchiver: MockFileUnarchiving!
@@ -54,15 +54,15 @@ final class DevicesViewModelTests: TuistUnitTestCase {
         appStorage = .init()
         deviceController = .init()
 
-        subject = DevicesViewModel(
+        subject = DeviceService(
+            appStorage: appStorage,
             deviceController: deviceController,
             simulatorController: simulatorController,
             downloadPreviewService: downloadPreviewService,
             fileArchiverFactory: fileArchiverFactory,
             remoteArtifactDownloader: remoteArtifactDownloader,
             fileSystem: fileSystem,
-            appBundleLoader: appBundleLoader,
-            appStorage: appStorage
+            appBundleLoader: appBundleLoader
         )
 
         given(deviceController)
@@ -126,7 +126,7 @@ final class DevicesViewModelTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_onAppear_when_appStorage_is_empty_and_no_simulator_is_booted() async throws {
+    func test_loadDevices_when_appStorage_is_empty_and_no_simulator_is_booted() async throws {
         // Given
         appStorage.reset()
         simulatorController.reset()
@@ -157,15 +157,13 @@ final class DevicesViewModelTests: TuistUnitTestCase {
             .willReturn(simulators)
 
         // When
-        try await subject.onAppear()
+        try await subject.loadDevices()
 
         // Then
         XCTAssertEqual(subject.selectedDevice, nil)
-        XCTAssertEmpty(subject.pinnedSimulators)
-        XCTAssertEqual(subject.unpinnedSimulators, simulators)
     }
 
-    func test_onAppear_when_appStorage_is_empty_and_a_simulator_is_booted() async throws {
+    func test_loadDevices_when_appStorage_is_empty_and_a_simulator_is_booted() async throws {
         // Given
         appStorage.reset()
         simulatorController.reset()
@@ -197,15 +195,13 @@ final class DevicesViewModelTests: TuistUnitTestCase {
             .willReturn(simulators)
 
         // When
-        try await subject.onAppear()
+        try await subject.loadDevices()
 
         // Then
         XCTAssertEqual(subject.selectedDevice, .simulator(try XCTUnwrap(simulators.last)))
-        XCTAssertEmpty(subject.pinnedSimulators)
-        XCTAssertEqual(subject.unpinnedSimulators, simulators)
     }
 
-    func test_onAppear_when_appStorage_contains_selected_and_pinned_simulators() async throws {
+    func test_loadDevices_when_appStorage_contains_selected_and_pinned_simulators() async throws {
         // Given
         appStorage.reset()
 
@@ -223,15 +219,13 @@ final class DevicesViewModelTests: TuistUnitTestCase {
             .willReturn(.simulator(id: appleTV.id))
 
         // When
-        try await subject.onAppear()
+        try await subject.loadDevices()
 
         // Then
         XCTAssertEqual(subject.selectedDevice, .simulator(appleTV))
-        XCTAssertEqual(subject.pinnedSimulators, [appleTV, iPhone15])
-        XCTAssertEqual(subject.unpinnedSimulators, [iPhone15Pro])
     }
 
-    func test_refreshDevices() async throws {
+    func test_reloadDevices() async throws {
         // Given
         appStorage.reset()
         deviceController.reset()
@@ -267,19 +261,18 @@ final class DevicesViewModelTests: TuistUnitTestCase {
             .willReturn([iPhone11, iPhone12, watchS9])
 
         // When
-        try await subject.refreshDevices()
+        try await subject.loadDevices()
 
         // Then
-        XCTAssertEqual(subject.connectedDevices, [iPhone11, iPhone12])
-        XCTAssertEqual(subject.disconnectedDevices, [watchS9])
+        XCTAssertEqual(subject.devices, [iPhone11, iPhone12, watchS9])
     }
 
     func test_selectSimulator() async throws {
         // Given
-        try await subject.onAppear()
+        try await subject.loadDevices()
 
         // When
-        subject.selectSimulator(iPhone15Pro)
+        await subject.selectDevice(.simulator(iPhone15Pro))
 
         // Then
         XCTAssertEqual(subject.selectedDevice, .simulator(iPhone15Pro))
@@ -301,10 +294,10 @@ final class DevicesViewModelTests: TuistUnitTestCase {
             .findAvailableDevices()
             .willReturn([myiPhone])
 
-        try await subject.onAppear()
+        try await subject.loadDevices()
 
         // When
-        subject.selectPhysicalDevice(myiPhone)
+        await subject.selectDevice(.device(myiPhone))
 
         // Then
         XCTAssertEqual(subject.selectedDevice, .device(myiPhone))
@@ -316,67 +309,9 @@ final class DevicesViewModelTests: TuistUnitTestCase {
             .called(1)
     }
 
-    func test_pin_simulator() async throws {
+    func test_launchPreviewDeeplink() async throws {
         // Given
-        appStorage.reset()
-
-        given(appStorage)
-            .get(.any as Parameter<PinnedSimulatorsKey.Type>)
-            .willReturn([iPhone15])
-
-        given(appStorage)
-            .get(.any as Parameter<SelectedDeviceKey.Type>)
-            .willReturn(nil)
-
-        given(appStorage)
-            .set(.any as Parameter<PinnedSimulatorsKey.Type>, value: .any)
-            .willReturn()
-
-        try await subject.onAppear()
-
-        // When
-        subject.simulatorPinned(iPhone15Pro, pinned: true)
-
-        // Then
-        XCTAssertEqual(subject.pinnedSimulators, [iPhone15, iPhone15Pro])
-        XCTAssertEqual(subject.unpinnedSimulators, [appleTV])
-        verify(appStorage)
-            .set(.any as Parameter<PinnedSimulatorsKey.Type>, value: .value([iPhone15, iPhone15Pro]))
-            .called(1)
-    }
-
-    func test_unpin_simulator() async throws {
-        // Given
-        appStorage.reset()
-
-        given(appStorage)
-            .get(.any as Parameter<PinnedSimulatorsKey.Type>)
-            .willReturn([iPhone15])
-
-        given(appStorage)
-            .get(.any as Parameter<SelectedDeviceKey.Type>)
-            .willReturn(nil)
-
-        given(appStorage)
-            .set(.any as Parameter<PinnedSimulatorsKey.Type>, value: .any)
-            .willReturn()
-
-        try await subject.onAppear()
-
-        // When
-        subject.simulatorPinned(iPhone15, pinned: false)
-
-        // Then
-        XCTAssertEqual(subject.pinnedSimulators, [])
-        XCTAssertEqual(subject.unpinnedSimulators, [appleTV, iPhone15, iPhone15Pro])
-        verify(appStorage)
-            .set(.any as Parameter<PinnedSimulatorsKey.Type>, value: .value([]))
-            .called(1)
-    }
-
-    func test_onChangeOfURL() async throws {
-        // Given
-        try await subject.onAppear()
+        try await subject.loadDevices()
 
         given(downloadPreviewService)
             .downloadPreview(
@@ -428,7 +363,7 @@ final class DevicesViewModelTests: TuistUnitTestCase {
             .willReturn()
 
         // When
-        try await subject.onChangeOfURL(previewURL)
+        try await subject.launchPreviewDeeplink(with: previewURL)
 
         // Then
         verify(simulatorController)
@@ -446,16 +381,16 @@ final class DevicesViewModelTests: TuistUnitTestCase {
             .called(1)
     }
 
-    func test_onChangeOfURL_when_physical_device_selected() async throws {
+    func test_launchPreviewDeeplink_when_physical_device_selected() async throws {
         // Given
         let myiPhone: PhysicalDevice = .test()
         given(deviceController)
             .findAvailableDevices()
             .willReturn([myiPhone])
 
-        try await subject.onAppear()
+        try await subject.loadDevices()
 
-        subject.selectPhysicalDevice(myiPhone)
+        await subject.selectDevice(.device(myiPhone))
 
         given(downloadPreviewService)
             .downloadPreview(
@@ -512,7 +447,7 @@ final class DevicesViewModelTests: TuistUnitTestCase {
             )
 
         // When
-        try await subject.onChangeOfURL(previewURL)
+        try await subject.launchPreviewDeeplink(with: previewURL)
 
         // Then
         verify(deviceController)
@@ -529,16 +464,16 @@ final class DevicesViewModelTests: TuistUnitTestCase {
             .called(1)
     }
 
-    func test_onChangeOfURL_when_physical_device_selected_and_preview_is_ipa() async throws {
+    func test_launchPreviewDeeplink_when_physical_device_selected_and_preview_is_ipa() async throws {
         // Given
         let myiPhone: PhysicalDevice = .test()
         given(deviceController)
             .findAvailableDevices()
             .willReturn([myiPhone])
 
-        try await subject.onAppear()
+        try await subject.loadDevices()
 
-        subject.selectPhysicalDevice(myiPhone)
+        await subject.selectDevice(.device(myiPhone))
 
         given(downloadPreviewService)
             .downloadPreview(
@@ -596,7 +531,7 @@ final class DevicesViewModelTests: TuistUnitTestCase {
             )
 
         // When
-        try await subject.onChangeOfURL(previewURL)
+        try await subject.launchPreviewDeeplink(with: previewURL)
 
         // Then
         verify(deviceController)
@@ -613,33 +548,33 @@ final class DevicesViewModelTests: TuistUnitTestCase {
             .called(1)
     }
 
-    func test_onChangeOfURL_when_no_simulator_selected() async throws {
+    func test_launchPreviewDeeplink_when_no_simulator_selected() async throws {
         // When / Then
         await XCTAssertThrowsSpecific(
-            try await subject.onChangeOfURL(previewURL),
+            try await subject.launchPreviewDeeplink(with: previewURL),
             SimulatorsViewModelError.noSelectedSimulator
         )
     }
 
-    func test_onChangeOfURL_when_deeplink_is_invalid() async throws {
+    func test_launchPreviewDeeplink_when_deeplink_is_invalid() async throws {
         // Given
-        try await subject.onAppear()
+        try await subject.loadDevices()
 
         let invalidDeeplinkURL =
             "tuist:open-preview?server_url=https://cloud.tuist.io&preview_id=01912892-3778-7297-8ca9-d66ac7ee2a53"
 
         // When / Then
         await XCTAssertThrowsSpecific(
-            try await subject.onChangeOfURL(
-                try XCTUnwrap(URL(string: invalidDeeplinkURL))
+            try await subject.launchPreviewDeeplink(
+                with: try XCTUnwrap(URL(string: invalidDeeplinkURL))
             ),
             SimulatorsViewModelError.invalidDeeplink(invalidDeeplinkURL)
         )
     }
 
-    func test_onChangeOfURL_when_appDownloadFailed() async throws {
+    func test_launchPreviewDeeplink_when_appDownloadFailed() async throws {
         // Given
-        try await subject.onAppear()
+        try await subject.loadDevices()
 
         given(downloadPreviewService)
             .downloadPreview(.any, fullHandle: .any, serverURL: .any)
@@ -651,14 +586,14 @@ final class DevicesViewModelTests: TuistUnitTestCase {
 
         // When / Then
         await XCTAssertThrowsSpecific(
-            try await subject.onChangeOfURL(previewURL),
-            SimulatorsViewModelError.appDownloadFailed(previewURL.absoluteString)
+            try await subject.launchPreviewDeeplink(with: previewURL),
+            DeviceServiceError.appDownloadFailed("01912892-3778-7297-8ca9-d66ac7ee2a53")
         )
     }
 
-    func test_onChangeOfURL_when_appNotFound() async throws {
+    func test_launchPreviewDeeplink_when_appNotFound() async throws {
         // Given
-        try await subject.onAppear()
+        try await subject.loadDevices()
 
         given(downloadPreviewService)
             .downloadPreview(.any, fullHandle: .any, serverURL: .any)
@@ -693,7 +628,7 @@ final class DevicesViewModelTests: TuistUnitTestCase {
 
         // When / Then
         await XCTAssertThrowsSpecific(
-            try await subject.onChangeOfURL(previewURL),
+            try await subject.launchPreviewDeeplink(with: previewURL),
             SimulatorsViewModelError.appNotFound(.simulator(iPhone15), [.visionOS])
         )
     }

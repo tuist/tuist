@@ -13,7 +13,6 @@ enum SimulatorsViewModelError: FatalError, Equatable {
     case noSelectedSimulator
     case invalidDeeplink(String)
     case invalidDownloadURL(String)
-    case appDownloadFailed(String)
     case appNotFound(Device, [Platform])
 
     var description: String {
@@ -22,8 +21,6 @@ enum SimulatorsViewModelError: FatalError, Equatable {
             return "To run a preview, you must have a simulator selected."
         case let .invalidDownloadURL(url):
             return "The preview download url \(url) is invalid."
-        case let .appDownloadFailed(url):
-            return "The app at \(url) was not found."
         case let .appNotFound(device, platforms):
             let name: String
             let platform: String
@@ -45,7 +42,7 @@ enum SimulatorsViewModelError: FatalError, Equatable {
         switch self {
         case .invalidDownloadURL:
             return .bug
-        case .noSelectedSimulator, .appDownloadFailed, .appNotFound, .invalidDeeplink:
+        case .noSelectedSimulator, .appNotFound, .invalidDeeplink:
             return .abort
         }
     }
@@ -73,7 +70,9 @@ enum SelectedDevice: Codable, Equatable {
 
 @Observable
 final class DevicesViewModel: Sendable {
-    private(set) var devices: [PhysicalDevice] = []
+    var devices: [PhysicalDevice] {
+        deviceService.devices
+    }
 
     var connectedDevices: [PhysicalDevice] {
         devices.filter { $0.connectionState == .connected }
@@ -83,7 +82,10 @@ final class DevicesViewModel: Sendable {
         devices.filter { $0.connectionState == .disconnected }
     }
 
-    private(set) var simulators: [SimulatorDeviceAndRuntime] = []
+    var simulators: [SimulatorDeviceAndRuntime] {
+        deviceService.simulators
+    }
+
     private(set) var pinnedSimulators: [SimulatorDeviceAndRuntime] = []
     var unpinnedSimulators: [SimulatorDeviceAndRuntime] {
         Set(simulators)
@@ -92,47 +94,29 @@ final class DevicesViewModel: Sendable {
             .sorted()
     }
 
-    private(set) var selectedDevice: Device?
+    var selectedDevice: Device? {
+        deviceService.selectedDevice
+    }
 
     private(set) var isRefreshing: Bool = false
 
-    private let deviceController: DeviceControlling
-    private let simulatorController: SimulatorControlling
-    private let downloadPreviewService: DownloadPreviewServicing
-    private let fileArchiverFactory: FileArchivingFactorying
-    private let remoteArtifactDownloader: RemoteArtifactDownloading
-    private let fileSystem: FileSysteming
-    private let appBundleLoader: AppBundleLoading
+    private let deviceService: any DeviceServicing
     private let appStorage: AppStoring
 
     init(
-        deviceController: DeviceControlling = DeviceController(),
-        simulatorController: SimulatorControlling = SimulatorController(),
-        downloadPreviewService: DownloadPreviewServicing = DownloadPreviewService(),
-        fileArchiverFactory: FileArchivingFactorying = FileArchivingFactory(),
-        remoteArtifactDownloader: RemoteArtifactDownloading = RemoteArtifactDownloader(),
-        fileSystem: FileSysteming = FileSystem(),
-        appBundleLoader: AppBundleLoading = AppBundleLoader(),
+        deviceService: any DeviceServicing,
         appStorage: AppStoring = AppStorage()
     ) {
-        self.deviceController = deviceController
-        self.simulatorController = simulatorController
-        self.downloadPreviewService = downloadPreviewService
-        self.fileArchiverFactory = fileArchiverFactory
-        self.remoteArtifactDownloader = remoteArtifactDownloader
-        self.fileSystem = fileSystem
-        self.appBundleLoader = appBundleLoader
+        self.deviceService = deviceService
         self.appStorage = appStorage
     }
 
-    func selectSimulator(_ simulator: SimulatorDeviceAndRuntime) {
-        selectedDevice = .simulator(simulator)
-        try? appStorage.set(SelectedDeviceKey.self, value: .simulator(id: simulator.id))
+    @MainActor func selectSimulator(_ simulator: SimulatorDeviceAndRuntime) {
+        deviceService.selectDevice(.simulator(simulator))
     }
 
-    func selectPhysicalDevice(_ device: PhysicalDevice) {
-        selectedDevice = .device(device)
-        try? appStorage.set(SelectedDeviceKey.self, value: .device(id: device.id))
+    @MainActor func selectPhysicalDevice(_ device: PhysicalDevice) {
+        deviceService.selectDevice(.device(device))
     }
 
     func simulatorPinned(_ simulator: SimulatorDeviceAndRuntime, pinned: Bool) {
@@ -147,115 +131,10 @@ final class DevicesViewModel: Sendable {
     func refreshDevices() async throws {
         isRefreshing = true
         defer { isRefreshing = false }
-        try await onAppear()
+        try await deviceService.loadDevices()
     }
 
-    func onAppear() async throws {
-        devices = try await deviceController.findAvailableDevices()
-        simulators = try await simulatorController.devicesAndRuntimes().sorted()
-
+    func onAppear() throws {
         pinnedSimulators = try appStorage.get(PinnedSimulatorsKey.self)
-
-        selectedDevice = storedSelectedDevice() ?? simulators.first(where: { !$0.device.isShutdown }).map { .simulator($0) }
-    }
-
-    func onChangeOfURL(_ url: URL?) async throws {
-        guard let previewURL = url else { return }
-
-        guard let selectedDevice else { throw SimulatorsViewModelError.noSelectedSimulator }
-
-        let urlComponents = URLComponents(url: previewURL, resolvingAgainstBaseURL: false)
-        guard let previewId = urlComponents?.queryItems?.first(where: { $0.name == "preview_id" })?.value,
-              let fullHandle = urlComponents?.queryItems?.first(where: { $0.name == "full_handle" })?.value,
-              let serverURLString = urlComponents?.queryItems?.first(where: { $0.name == "server_url" })?.value,
-              let serverURL = URL(string: serverURLString)
-        else { throw SimulatorsViewModelError.invalidDeeplink(previewURL.absoluteString) }
-
-        let downloadURL = try await downloadPreviewService.downloadPreview(
-            previewId,
-            fullHandle: fullHandle,
-            serverURL: serverURL
-        )
-
-        guard let downloadURL = URL(string: downloadURL) else { throw SimulatorsViewModelError.invalidDownloadURL(downloadURL) }
-
-        guard let archivePath = try await remoteArtifactDownloader.download(url: downloadURL)
-        else { throw SimulatorsViewModelError.appDownloadFailed(previewURL.absoluteString) }
-        let fileUnarchiver = try fileArchiverFactory.makeFileUnarchiver(for: archivePath)
-        let unarchivedDirectory = try fileUnarchiver.unzip()
-
-        let shallowApps = try await fileSystem.glob(directory: unarchivedDirectory, include: ["*.app"]).collect()
-        let nestedApps = try await fileSystem.glob(directory: unarchivedDirectory, include: ["*/*.app"]).collect()
-        let apps = try await (shallowApps + nestedApps)
-            .concurrentMap {
-                try await self.appBundleLoader.load($0)
-            }
-
-        guard let app = apps.first(
-            where: {
-                $0.infoPlist.supportedPlatforms.contains(
-                    where: {
-                        switch $0 {
-                        case let .device(platform):
-                            switch selectedDevice {
-                            case let .device(device):
-                                return device.platform == platform
-                            case .simulator:
-                                return false
-                            }
-                        case let .simulator(platform):
-                            switch selectedDevice {
-                            case .device:
-                                return false
-                            case let .simulator(simulator):
-                                return simulator.runtime.platform == platform
-                            }
-                        }
-                    }
-                )
-            }
-        )
-        else {
-            throw SimulatorsViewModelError.appNotFound(
-                selectedDevice,
-                apps.flatMap(\.infoPlist.supportedPlatforms).compactMap {
-                    switch $0 {
-                    case .device:
-                        return nil
-                    case let .simulator(platform):
-                        return platform
-                    }
-                }
-            )
-        }
-
-        switch selectedDevice {
-        case let .simulator(simulator):
-            let bootedDevice = try simulatorController.booted(device: simulator.device, forced: true)
-            try simulatorController.installApp(at: app.path, device: bootedDevice)
-            try await simulatorController.launchApp(bundleId: app.infoPlist.bundleId, device: bootedDevice, arguments: [])
-        case let .device(device):
-            try await deviceController.installApp(at: app.path, device: device)
-            try await deviceController.launchApp(bundleId: app.infoPlist.bundleId, device: device)
-        }
-    }
-
-    private func storedSelectedDevice() -> Device? {
-        guard let selectedDevice = try? appStorage.get(SelectedDeviceKey.self) else { return nil }
-        switch selectedDevice {
-        case let .simulator(id):
-            return simulators.first(where: { $0.id == id }).map { .simulator($0) }
-        case let .device(id):
-            return devices.first(where: { $0.id == id }).map { .device($0) }
-        }
-    }
-}
-
-extension [SimulatorDeviceAndRuntime] {
-    fileprivate func sorted() -> Self {
-        sorted(by: {
-            if $0.device.name == $1.device.name { return $0.runtime.name < $1.runtime.name }
-            else { return $0.device.name < $1.device.name }
-        })
     }
 }

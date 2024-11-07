@@ -2,13 +2,18 @@ import Foundation
 import Mockable
 import TuistSupport
 
+public enum ListPreviewsDistinctField {
+    case bundleIdentifier
+}
+
 @Mockable
 public protocol ListPreviewsServicing {
     func listPreviews(
         displayName: String?,
         specifier: String?,
-        page: Int,
-        pageSize: Int,
+        page: Int?,
+        pageSize: Int?,
+        distinctField: ListPreviewsDistinctField?,
         fullHandle: String,
         serverURL: URL
     ) async throws -> [Preview]
@@ -54,10 +59,11 @@ public final class ListPreviewsService: ListPreviewsServicing {
     }
 
     public func listPreviews(
-        displayName _: String?,
+        displayName: String?,
         specifier: String?,
-        page: Int,
-        pageSize _: Int,
+        page: Int?,
+        pageSize: Int?,
+        distinctField: ListPreviewsDistinctField?,
         fullHandle: String,
         serverURL: URL
     ) async throws -> [Preview] {
@@ -70,9 +76,16 @@ public final class ListPreviewsService: ListPreviewsServicing {
                     project_handle: handles.projectHandle
                 ),
                 query: .init(
+                    display_name: displayName,
                     specifier: specifier,
-                    page_size: page,
-                    page: page
+                    page_size: pageSize,
+                    page: page,
+                    distinct_field: distinctField.map {
+                        switch $0 {
+                        case .bundleIdentifier:
+                            .bundle_identifier
+                        }
+                    }
                 )
             )
         )

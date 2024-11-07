@@ -1,9 +1,11 @@
 import Foundation
 
-public struct Preview: Equatable, Codable {
+public struct Preview: Equatable, Codable, Identifiable {
     public let id: String
     public let url: URL
     public let qrCodeURL: URL
+    public let bundleIdentifier: String?
+    public var displayName: String?
 }
 
 extension Preview {
@@ -14,6 +16,8 @@ extension Preview {
         else { return nil }
         self.url = url
         self.qrCodeURL = qrCodeURL
+        bundleIdentifier = preview.bundle_identifier
+        displayName = preview.display_name
     }
 }
 
@@ -24,12 +28,17 @@ extension Preview {
             url: URL = URL(string: "https://cloud.tuist.io/tuist/tuist/previews/preview-id")!,
             // swiftlint:disable:this force_try,
             qrCodeURL: URL =
-                URL(string: "https://cloud.tuist.io/tuist/tuist/previews/preview-id/qr-code.svg")! // swiftlint:disable:this force_try
+                URL(string: "https://cloud.tuist.io/tuist/tuist/previews/preview-id/qr-code.svg")!,
+            // swiftlint:disable:this force_try
+            bundleIdentifier: String? = "com.tuist.app",
+            displayName: String? = "App"
         ) -> Self {
             .init(
                 id: id,
                 url: url,
-                qrCodeURL: qrCodeURL
+                qrCodeURL: qrCodeURL,
+                bundleIdentifier: bundleIdentifier,
+                displayName: displayName
             )
         }
     }
