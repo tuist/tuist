@@ -22,12 +22,7 @@ final class SettingsMapperTests: XCTestCase {
 
         let resolvedSettings = try mapper.settingsDictionary()
 
-        XCTAssertEqual(resolvedSettings, [
-            "GCC_PREPROCESSOR_DEFINITIONS": .array(["$(inherited)",
-                                                    "SWIFT_PACKAGE=1",
-                ]),
-            "SWIFT_ACTIVE_COMPILATION_CONDITIONS": .string("$(inherited) SWIFT_PACKAGE"),
-        ])
+        XCTAssertTrue(resolvedSettings.isEmpty)
     }
 
     func test_set_GCC_PREPROCESSOR_DEFINITIONS() throws {
@@ -55,7 +50,6 @@ final class SettingsMapperTests: XCTestCase {
                 "CXX_DEFINE_2=1",
                 "C_DEFINE=C_VALUE",
                 "C_DEFINE_2=1",
-                "SWIFT_PACKAGE=1",
             ])
         )
     }
@@ -97,7 +91,7 @@ final class SettingsMapperTests: XCTestCase {
 
         XCTAssertEqual(
             resolvedSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS"],
-            .string("$(inherited) SWIFT_PACKAGE Define1 Define2")
+            .array(["$(inherited)", "Define1", "Define2"])
         )
     }
 
@@ -210,41 +204,41 @@ final class SettingsMapperTests: XCTestCase {
 
         XCTAssertEqual(
             allPlatformSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS"],
-            .string("$(inherited) SWIFT_PACKAGE Define1")
+            .array(["$(inherited)", "Define1"])
         )
 
         let iosPlatformSettings = try mapper.settingsDictionary(for: .iOS)
 
         XCTAssertEqual(
             iosPlatformSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS"],
-            .string("$(inherited) SWIFT_PACKAGE Define1 Define2")
+            .array(["$(inherited)", "Define1", "Define2"])
         )
 
         let combinedSettings = try mapper.mapSettings()
 
         XCTAssertEqual(
             combinedSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS[sdk=iphoneos*]"],
-            .string("$(inherited) SWIFT_PACKAGE Define1 Define2")
+            .array(["$(inherited)", "Define1", "Define2"])
         )
 
         XCTAssertEqual(
             combinedSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS[sdk=iphonesimulator*]"],
-            .string("$(inherited) SWIFT_PACKAGE Define1 Define2")
+            .array(["$(inherited)", "Define1", "Define2"])
         )
 
         XCTAssertEqual(
             combinedSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS[sdk=appletvos*]"],
-            .string("$(inherited) SWIFT_PACKAGE Define1 Define2")
+            .array(["$(inherited)", "Define1", "Define2"])
         )
 
         XCTAssertEqual(
             combinedSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS[sdk=appletvsimulator*]"],
-            .string("$(inherited) SWIFT_PACKAGE Define1 Define2")
+            .array(["$(inherited)", "Define1", "Define2"])
         )
 
         XCTAssertEqual(
             combinedSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS"],
-            .string("$(inherited) SWIFT_PACKAGE Define1")
+            .array(["$(inherited)", "Define1"])
         )
     }
 
@@ -269,31 +263,31 @@ final class SettingsMapperTests: XCTestCase {
 
         XCTAssertEqual(
             allPlatformSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS"],
-            .string("$(inherited) SWIFT_PACKAGE Define1")
+            .array(["$(inherited)", "Define1"])
         )
 
         let iosPlatformSettings = try mapper.settingsDictionary(for: .iOS)
 
         XCTAssertEqual(
             iosPlatformSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS"],
-            .string("$(inherited) SWIFT_PACKAGE Define1 Define2")
+            .array(["$(inherited)", "Define1", "Define2"])
         )
 
         let combinedSettings = try mapper.mapSettings()
 
         XCTAssertEqual(
             combinedSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS[sdk=iphoneos*]"],
-            .string("$(inherited) SWIFT_PACKAGE Define1 Define2")
+            .array(["$(inherited)", "Define1", "Define2"])
         )
 
         XCTAssertEqual(
             combinedSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS[sdk=iphonesimulator*]"],
-            .string("$(inherited) SWIFT_PACKAGE Define1 Define2")
+            .array(["$(inherited)", "Define1", "Define2"])
         )
 
         XCTAssertEqual(
             combinedSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS"],
-            .string("$(inherited) SWIFT_PACKAGE Define1")
+            .array(["$(inherited)", "Define1"])
         )
     }
 }
