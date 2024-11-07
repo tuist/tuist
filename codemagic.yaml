@@ -271,22 +271,21 @@ workflows:
         script: mise x -- tuist test TuistKitAcceptanceTests
     triggering:
       <<: *branch_triggering
-  app_tests:
-    name: App tests
+  tuist_app_tests:
+    name: Tuist App tests
     max_build_duration: 60
     environment:
       xcode: 16.0
       groups:
-        - tuist-app
+        - tuist
     cache:
       cache_paths:
-        - $CM_BUILD_DIR/app/.build
+        - $CM_BUILD_DIR/.build
     scripts:
       - name: Set environment variables
         script: |
           echo "MISE_EXPERIMENTAL=1" >> $CM_ENV
       - name: Install Mise
-        working_directory: $CM_BUILD_DIR/app
         script: |
           curl https://mise.run | sh
           mise install
@@ -295,40 +294,8 @@ workflows:
       - name: Skip Xcode Package Validation
         script: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidatation -bool YES
       - name: Install Tuist dependencies
-        working_directory: $CM_BUILD_DIR/app
         script: mise x -- tuist install
       - name: Run tests
-        working_directory: $CM_BUILD_DIR/app
-        script: mise x -- tuist test -- CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
+        script: mise x -- tuist test TuistApp -- CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
     triggering:
       <<: *branch_triggering
-  warm_app_cache:
-    name: Warm app cache
-    max_build_duration: 60
-    environment:
-      xcode: 16.0
-      groups:
-        - tuist-app
-    cache:
-      cache_paths:
-        - $CM_BUILD_DIR/app/.build
-    scripts:
-      - name: Set environment variables
-        script: |
-          echo "MISE_EXPERIMENTAL=1" >> $CM_ENV
-      - name: Install Mise
-        working_directory: $CM_BUILD_DIR/app
-        script: |
-          curl https://mise.run | sh
-          mise install
-      - name: Install Tuist dependencies
-        working_directory: $CM_BUILD_DIR/app
-        script: mise x -- tuist install
-      - name: Print hashes
-        working_directory: $CM_BUILD_DIR/app
-        script: mise x -- tuist cache --print-hashes
-      - name: Cache
-        working_directory: $CM_BUILD_DIR/app
-        script: mise x -- tuist cache
-    triggering:
-      <<: *main_triggering

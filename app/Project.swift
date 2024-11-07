@@ -3,10 +3,10 @@ import ProjectDescription
 func tuistAppDependencies() -> [TargetDependency] {
     [
         .external(name: "Path"),
-        .external(name: "TuistSupport"),
-        .external(name: "TuistCore"),
-        .external(name: "TuistServer"),
-        .external(name: "TuistAutomation"),
+        .project(target: "TuistSupport", path: "../"),
+        .project(target: "TuistCore", path: "../"),
+        .project(target: "TuistServer", path: "../"),
+        .project(target: "TuistAutomation", path: "../"),
         .external(name: "XcodeGraph"),
         .external(name: "Command"),
         .external(name: "Sparkle"),
@@ -14,7 +14,7 @@ func tuistAppDependencies() -> [TargetDependency] {
 }
 
 let project = Project(
-    name: "Tuist",
+    name: "TuistApp",
     settings: .settings(
         debug: [
             "SWIFT_ACTIVE_COMPILATION_CONDITIONS": "$(inherited) MOCKING",
@@ -22,13 +22,14 @@ let project = Project(
     ),
     targets: [
         .target(
-            name: "Tuist",
+            name: "TuistApp",
             destinations: .macOS,
             product: .app,
             bundleId: "io.tuist.app",
             deploymentTargets: .macOS("14.0.0"),
             infoPlist: .extendingDefault(
                 with: [
+                    "CFBundleDisplayName": "Tuist",
                     "CFBundleURLTypes": [
                         Plist.Value.dictionary(
                             [
@@ -73,8 +74,8 @@ let project = Project(
             sources: ["TuistApp/Tests/**"],
             resources: [],
             dependencies: tuistAppDependencies() + [
-                .target(name: "Tuist"),
-                .external(name: "TuistSupportTesting"),
+                .target(name: "TuistApp"),
+                .project(target: "TuistSupportTesting", path: "../"),
                 .external(name: "Mockable"),
             ]
         ),
