@@ -13,20 +13,26 @@ struct AppPreviews: View {
 
     var body: some View {
         Panel {
-            LazyVGrid(columns: columns, alignment: .leading, spacing: 14) {
-                ForEach(viewModel.appPreviews) { appPreview in
-                    Button {
-                        Task {
-                            do {
-                                try await viewModel.launchAppPreview(appPreview)
-                            } catch {
-                                errorHandling.handle(error: error)
+            Group {
+                if viewModel.appPreviews.isEmpty {
+                    AppPreviewsEmptyStateView()
+                } else {
+                    LazyVGrid(columns: columns, alignment: .leading, spacing: 14) {
+                        ForEach(viewModel.appPreviews) { appPreview in
+                            Button {
+                                Task {
+                                    do {
+                                        try await viewModel.launchAppPreview(appPreview)
+                                    } catch {
+                                        errorHandling.handle(error: error)
+                                    }
+                                }
+                            } label: {
+                                AppPreviewTile(appPreview: appPreview)
                             }
+                            .buttonStyle(.plain)
                         }
-                    } label: {
-                        AppPreviewTile(appPreview: appPreview)
                     }
-                    .buttonStyle(.plain)
                 }
             }
             .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
