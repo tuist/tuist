@@ -1,10 +1,11 @@
 import Foundation
 import Mockable
+import class TuistApp.MockServerURLServicing
 import TuistServer
 import TuistSupportTesting
 import XCTest
 
-@testable import Tuist
+@testable import TuistApp
 
 final class AppPreviewsViewModelTests: TuistUnitTestCase {
     private var subject: AppPreviewsViewModel!
@@ -12,7 +13,7 @@ final class AppPreviewsViewModelTests: TuistUnitTestCase {
     private var appStorage: MockAppStoring!
     private var listPreviewsService: MockListPreviewsServicing!
     private var listProjectsService: MockListProjectsServicing!
-    private var serverURLService: Tuist.MockServerURLServicing!
+    private var serverURLService: MockServerURLServicing!
 
     override func setUp() {
         super.setUp()
@@ -119,7 +120,7 @@ final class AppPreviewsViewModelTests: TuistUnitTestCase {
 
     func test_launch_preview_when_no_preview_found() async throws {
         // Given
-        let appPreview: Tuist.AppPreview = .test()
+        let appPreview: AppPreview = .test()
         given(appStorage)
             .get(.any as Parameter<AppPreviewsKey.Type>)
             .willReturn([appPreview])
@@ -147,7 +148,7 @@ final class AppPreviewsViewModelTests: TuistUnitTestCase {
 
     func test_launch_preview() async throws {
         // Given
-        let appPreview: Tuist.AppPreview = .test()
+        let appPreview: AppPreview = .test()
         given(appStorage)
             .get(.any as Parameter<AppPreviewsKey.Type>)
             .willReturn([appPreview])
