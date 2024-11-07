@@ -26,7 +26,7 @@ Xcode와 Xcode 프로젝트는 편리성을 위해 암시성을 유효한 설계
 Swift Package Manager도 이 원칙을 계승하였으며,
 Xcode를 사용할 때의 어려움이 Swift Package Manager에서도 나타납니다.
 
-> [!INFO] TUIST의 역할\
+> [!INFO] TUIST의 역할
 > Tuist의 역할은 프로젝트의 암시적 정의를 방지하고 명시성을 활용해 더 나은 개발자 경험 (예: 검증, 최적화) 을 제공하는 툴로 요약할 수 있습니다. [Bazel](https://bazel.build)과 같은 툴은 이를 한단계 더 발전시켜 빌드 시스템 수준까지 확장합니다.
 
 이 문제는 커뮤니티에서 거의 언급이 되지 않지만, 중요한 문제입니다.
@@ -52,7 +52,7 @@ Xcode는 Derived Data 디렉토리 내에 각 결과물의 디렉토리를 사�
 
 이 설계의 결과로 많은 프로젝트는 명확하게 정의되지 않은 그래프로 컴파일 됩니다.
 
-> [!TIP] TUIST의 명시적 의존성 강제\
+> [!TIP] TUIST의 명시적 의존성 강제
 > Tuist는 암시적 의존성을 허용하지 않기 위해 생성 구성 옵션을 제공합니다. 이것을 활성화 하면, 타겟이 명시적으로 선언되지 않은 의존성을 가져오려고 할 때, 빌드는 실패합니다.
 
 ### 스킴에서 암시적 의존성 찾기 {#find-implicit-dependencies-in-schemes}
@@ -70,7 +70,7 @@ Apple은 어느 시점에 그래프 모델을 더 관리하기 쉬운 형태로 
 이 상태는 [singleton](https://en.wikipedia.org/wiki/Singleton_pattern)처럼 동작하므로,
 상태가 다른 CI에서는 컴파일이 실패할 수 있습니다.
 
-> [!TIP]\
+> [!TIP]
 > 우리는 프로젝트 스킴에서 이 기능을 비활성화 하고, 의존성 그래프 관리가 용이한 Tuist 같은 툴을 사용하길 권장합니다.
 
 ### SwiftUI 프리뷰와 정적 라이브러리/프레임워크 {#swiftui-previews-and-static-librariesframeworks}

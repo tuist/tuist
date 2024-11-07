@@ -11,7 +11,7 @@ description: 프로젝트에서 코드 생성을 위해 Tuist에서 템플릿을
 - 주어진 아키텍처를 따르는 새로운 기능을 생성: `tuist scaffold viper --name MyFeature`.
 - 새로운 프로젝트 생성: `tuist scaffold feature-project --name Home`
 
-> [!NOTE] NON-OPINIONATED\
+> [!NOTE] NON-OPINIONATED
 > Tuist는 템플릿의 내용과 사용 목적에 대해 의견을 제시하지 않습니다. 특정 디렉토리에만 있으면 됩니다.
 
 ## 템플릿 정의 {#defining-a-template}
@@ -63,5 +63,5 @@ tuist scaffold name_of_template --name Name --platform macos
 
 `.directory`를 사용하면, 주어진 경로에 전체 폴더를 복사할 수 있습니다.
 
-> [!TIP] 프로젝트 설명 도우미\
+> [!TIP] 프로젝트 설명 도우미
 > 템플릿은 템플릿간의 코드 재사용을 위해 <LocalizedLink href="/guides/develop/projects/code-sharing">프로젝트 설명 도우미</LocalizedLink>의 사용을 지원합니다.

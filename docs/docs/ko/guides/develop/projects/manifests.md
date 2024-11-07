@@ -10,7 +10,7 @@ Tuist는 프로젝트와 워크스페이스를 정의하고 생성 프로세스�
 
 Swift를 사용하기로 결정한 것은 패키지를 정의하기 위해 Swift 파일을 사용하는 [Swift Package Manager](https://www.swift.org/documentation/package-manager/)에서 영감을 받았습니다. Swift를 사용하면, 컴파일러를 활용해 컨텐츠의 정확성을 검증하고 다른 매니페스트 파일에서 코드를 재사용할 수 있고 Xcode를 활용하여 구문 강조, 자동 완성, 그리고 검증으로 좋은 편집 환경을 제공합니다.
 
-> [!NOTE] 캐싱\
+> [!NOTE] 캐싱
 > 매니페스트 파일은 컴파일 되어야 할 Swift 파일이므로, Tuist는 파싱 과정의 속도를 올리기 위해 결과를 캐시합니다. 그래서 Tuist를 처음 실행해 프로젝트를 생성할 때 조금 더 시간이 걸릴 수 있습니다. 이후 실행은 더 빨라 집니다.
 
 ## Project.swift {#projectswift}
@@ -27,7 +27,7 @@ let project = Project(
 )
 ```
 
-> [!WARNING] 루트 변수\
+> [!WARNING] 루트 변수
 > 매니페스트의 루트에 있어야 하는 변수는 `let project = Project(...)` 입니다. 매니페스트의 일부분을 코드에서 재사용 해야 된다면 Swift 함수를 사용할 수 있습니다.
 
 ## Workspace.swift {#workspaceswift}

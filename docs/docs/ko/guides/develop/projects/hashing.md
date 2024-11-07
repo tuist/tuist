@@ -20,7 +20,7 @@ description: 바이너리 캐싱과 선택적 테스트 기능의 기반이 되�
 
 `/usr/bin/xcrun swift --version` 명령어를 수행하여 얻은 Swift 버전을 해시하여, 타겟과 바이너리 간의 Swift 버전 불일치로 인한 컴파일 오류를 방지합니다.
 
-> [!NOTE] 모듈 안정성\
+> [!NOTE] 모듈 안정성
 > 이전 버전의 바이너리 캐싱은 `BUILD_LIBRARY_FOR_DISTRIBUTION` 빌드 설정에 의존하여 [모듈 안정성](https://www.swift.org/blog/library-evolution#enabling-library-evolution-support)을 활성화하고 모든 컴파일러 버전에서 바이너리를 사용할 수 있도록 합니다. 하지만 모듈 안정성을 지원하지 않는 타겟을 가지는 프로젝트에서 컴파일 문제가 발생합니다. 생성된 바이너리는 컴파일에 사용한 Swift 버전에 바인딩되고 Swift 버전은 프로젝트를 컴파일하는 버전과 일치해야 합니다.
 
 #### 구성 {#configuration}
@@ -34,5 +34,5 @@ description: 바이너리 캐싱과 선택적 테스트 기능의 기반이 되�
 1. 모든 환경에서 동일한 [구성](#configuration) 과 [Swift 버전](#swift-version) 이 사용되었는지 확인합니다.
 2. 두 번 연속으로 `tuist generate`를 호출하여 생성된 Xcode 프로젝트 간의 차이점이나 환경 간의 차이점을 확인합니다. 프로젝트를 비교하기 위해 `diff` 명령어를 사용할 수 있습니다. 생성된 프로젝트에는 해싱 로직이 의도치 않은 동작을 야기시키는 **절대 경로**가 포함될 수 있습니다.
 
-> [!NOTE] 디버깅 경험 개선 계획\
+> [!NOTE] 디버깅 경험 개선 계획
 > 디버깅 경험 개선은 로드맵에 포함되어 있습니다. 차이를 이해하기 어려운 print-hashes 명령어는 해시 간의 차이점을 트리 구조로 보여주는 사용자 친화적인 명령어로 대체될 예정입니다.

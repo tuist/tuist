@@ -41,11 +41,11 @@ When translating [custom containers](https://vitepress.dev/guide/markdown#custom
 
 ::: details Example with GitHub Alert
 ```markdown
-    > [!WARNING] 루트 변수\
+    > [!WARNING] 루트 변수
     > 매니페스트의 루트에 있어야 하는 변수는...
 
     // Instead of
-    > [!주의] 루트 변수\
+    > [!주의] 루트 변수
     > 매니페스트의 루트에 있어야 하는 변수는...
     ```
 :::

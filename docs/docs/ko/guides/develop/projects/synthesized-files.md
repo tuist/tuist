@@ -18,7 +18,7 @@ Xcode 프로젝트는 타겟에 리소스 추가를 지원합니다. 그러나 �
 
 Tuist는 구현 세부 사항을 추상화하여 **번들과 리소스에 접근하기 위한 통합된 인터페이스를 자동으로 생성**하여 위의 문제를 해결합니다.
 
-> [!IMPORTANT] 권장\
+> [!IMPORTANT] 권장
 > Tuist가 자동으로 생성하는 인터페이스를 통해 리소스에 접근하는 방식은 필수가 아니지만, 코드를 쉽게 추론할 수 있고 리소스 이동에 용이하므로 권장합니다.
 
 ## 리소스 {#resources}
@@ -31,7 +31,7 @@ Tuist는 `info.plist`나 entitlement와 같은 파일의 내용을 Swift로 선�
 프로젝트가 생성될 때,
 Tuist는 해당 파일의 내용을 합성하여 프로젝트가 포함된 디렉토리를 기준으로 `Derived` 디렉토리에 작성합니다.
 
-> [!TIP] DERIVED 디렉토리 GITIGNORE\
+> [!TIP] DERIVED 디렉토리 GITIGNORE
 > 프로젝트의 `.gitignore` 파일에 `Derived` 디렉토리를 추가하길 권장합니다.
 
 ## 번들 접근자 {#bundle-accessors}
@@ -54,7 +54,7 @@ Objective-C에서 번들에 접근하기 위해 `{Target}Resources` 인터페이
 NSBundle *bundle = [MyFeatureResources bundle];
 ```
 
-> [!TIP] 번들로 라이브러리 리소스 지원\
+> [!TIP] 번들로 라이브러리 리소스 지원
 > 예를 들어, 라이브러리와 같이 타겟 결과물이 리소스를 지원하지 않으면, Tuist는 `bundle` 타입의 타겟에 리소스를 포함시켜 최종 결과물에 포함시키고 인터페이스가 올바른 번들을 가리키도록 보장합니다.
 
 ## 리소스 접근자 {#resource-accessors}
@@ -96,5 +96,5 @@ Tuist는 기본적으로 다음의 리소스에 대한 접근자를 자동으로
 let project = Project(resourceSynthesizers: [.string(), .fonts()])
 ```
 
-> [!NOTE] 참조\
+> [!NOTE] 참조
 > 리소스 접근자를 자동 생성하기 위해 어떻게 사용자 정의된 템플릿을 사용하는지 확인하려면 [이 예제](https://github.com/tuist/tuist/tree/main/fixtures/ios_app_with_templates)에서 확인할 수 있습니다.
