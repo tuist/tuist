@@ -88,7 +88,7 @@ func schemes() -> [Scheme] {
                 targets: [.target(Module.projectDescription.targetName)]
             ),
             testAction: .targets([])
-        )
+        ),
     ]
     schemes.append(contentsOf: Module.allCases.filter(\.isRunnable).map {
         .scheme(

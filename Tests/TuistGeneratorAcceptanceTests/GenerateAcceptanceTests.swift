@@ -106,10 +106,18 @@ final class GenerateAcceptanceTestiOSAppWithFrameworkAndResources: TuistAcceptan
             "resource_without_extension",
             "StaticFrameworkResources.bundle",
             "StaticFramework2Resources.bundle",
+        ] {
+            try await XCTAssertProductWithDestinationContainsResource(
+                "App.app",
+                destination: "Debug-iphonesimulator",
+                resource: resource
+            )
+        }
+        for resource in [
             "StaticFramework3_StaticFramework3.bundle",
             "StaticFramework4_StaticFramework4.bundle",
         ] {
-            try await XCTAssertProductWithDestinationContainsResource(
+            try await XCTAssertProductWithDestinationDoesNotContainResource(
                 "App.app",
                 destination: "Debug-iphonesimulator",
                 resource: resource
@@ -131,12 +139,12 @@ final class GenerateAcceptanceTestiOSAppWithFrameworkAndResources: TuistAcceptan
             resource: "StaticFramework2Resources-tuist.png"
         )
         try await XCTAssertProductWithDestinationContainsResource(
-            "StaticFramework3_StaticFramework3.bundle",
+            "App.app/Frameworks/StaticFramework3.framework",
             destination: "Debug-iphonesimulator",
             resource: "StaticFramework3Resources-tuist.png"
         )
         try await XCTAssertProductWithDestinationContainsResource(
-            "StaticFramework4_StaticFramework4.bundle",
+            "App.app/Frameworks/StaticFramework4.framework",
             destination: "Debug-iphonesimulator",
             resource: "StaticFramework4Resources-tuist.png"
         )
@@ -1135,9 +1143,9 @@ final class GenerateAcceptanceTestAppWithMacBundle: TuistAcceptanceTestCase {
         try await run(BuildCommand.self, "App", "--platform", "ios")
 
         try await XCTAssertProductWithDestinationContainsResource(
-            "App.app",
+            "App.app/Contents/Frameworks/ResourcesFramework.framework",
             destination: "Debug-maccatalyst",
-            resource: "Resources/ResourcesFramework_ResourcesFramework.bundle"
+            resource: "greeting.txt"
         )
         try await XCTAssertProductWithDestinationDoesNotContainResource(
             "App.app",
