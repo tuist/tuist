@@ -43,7 +43,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         let bundleName = "\(project.name)_\(sanitizedTargetName)"
         var modifiedTarget = target
 
-        if !target.supportsResources {
+        if !target.bundlesResources {
             let resourcesTarget = Target(
                 name: bundleName,
                 destinations: target.destinations,
@@ -91,7 +91,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
            target.supportsSources,
            target.sources.containsObjcFiles,
            target.resources.containsBundleAccessedResources,
-           !target.supportsResources
+           !target.bundlesResources
         {
             let (headerFilePath, headerData) = synthesizedObjcHeaderFile(bundleName: bundleName, target: target, project: project)
 
@@ -175,7 +175,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
     static func fileContent(targetName _: String, bundleName: String, target: Target, in project: Project) -> String {
         let bundleAccessor = if target.product == .staticFramework {
             swiftStaticFrameworkBundleAccessorString(for: target)
-        } else if target.supportsResources {
+        } else if target.bundlesResources {
             swiftFrameworkBundleAccessorString(for: target)
         } else {
             swiftSPMBundleAccessorString(for: target, and: bundleName)

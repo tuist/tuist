@@ -228,10 +228,10 @@ public class GraphTraverser: GraphTraversing {
         GraphDependencyReference
     > {
         guard let target = graph.projects[path]?.targets[name] else { return [] }
-        guard target.supportsResources else { return [] }
+        guard target.bundlesResources else { return [] }
 
         let canHostResources: (GraphDependency) -> Bool = {
-            self.target(from: $0)?.target.supportsResources == true
+            self.target(from: $0)?.target.bundlesResources == true
         }
 
         let bundles = filterDependencies(
@@ -252,7 +252,7 @@ public class GraphTraverser: GraphTraversing {
                 // Precompiled bundles are embedded to any downstream target that supports resources to ensure Xcode previews work
                 // reliably.
                 // See this issue for more details: https://github.com/tuist/tuist/pull/6865
-                return (dependency.isPrecompiled && target.supportsResources) ||
+                return (dependency.isPrecompiled && target.bundlesResources) ||
                     (isDependencyExternal(dependency) && canEmbedBundles(target: target))
             },
             skip: canDependencyEmbedBundles
