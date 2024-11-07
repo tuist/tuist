@@ -19,48 +19,41 @@
       <div class="marketing__home__section__hero__terminal__bar__maximize_button" />
     </div>
     <div class="marketing__home__section__hero__terminal__main">
-      <svg
-        width="11"
-        height="18"
-        viewBox="0 0 11 18"
-        fill="none"
-        xmlns="http://www.w3.org/2000/svg"
-      >
-        <path
-          d="M1.5 17L9.5 9L1.5 1"
-          stroke="#D7F775"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        />
-      </svg>
-
-      <div class="font-mono marketing__home__section__hero__terminal__main__prompt">
-        tuist build
+      <div class="font-mono marketing__home__section__hero__terminal__main__prompt" id="termynal">
+        <span data-ty="input" data-ty-prompt=">">tuist test</span>
+        <span data-ty>
+          <span class="marketing__home__section__hero__terminal__main__prompt__info">
+            <%= gettext("INFO:") %>
+          </span>
+          <%= gettext("Pulling cache binaries...") %>
+        </span>
+        <span data-ty>
+          <span class="marketing__home__section__hero__terminal__main__prompt__info">
+            <%= gettext("INFO:") %>
+          </span>
+          <%= gettext("You'll save 60% of compilation time") %>
+        </span>
+        <span data-ty>
+          <span class="marketing__home__section__hero__terminal__main__prompt__info">
+            <%= gettext("INFO:") %>
+          </span>
+          <%= gettext("Running tests - 4.200 tests skipped (already run)") %>
+        </span>
+        <span data-ty="progress"></span>
+        <span data-ty>
+          <span class="marketing__home__section__hero__terminal__main__prompt__success">
+            <%= gettext("SUCCESS:") %>
+          </span>
+          <%= gettext("1250 tests ran successfully") %>
+        </span>
+        <span data-ty>📝 <%= gettext("Report: https://tuist.dev/tuist/tuist/runs/589318") %></span>
       </div>
-
-      <svg
-        style="align-self: flex-end;"
-        width="21"
-        height="2"
-        viewBox="0 0 21 2"
-        fill="none"
-        xmlns="http://www.w3.org/2000/svg"
-      >
-        <path
-          d="M1.16663 1H19.8333"
-          stroke="#D7F775"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        />
-      </svg>
     </div>
   </div>
 </div>
 <!-- Companies section -->
 <div class="marketing__home__section__companies">
-  <h2 class="font-xl-strong marketing__home__section__companies__title">
+  <h2 class="marketing__home__section__companies__title">
     <%= gettext("Trusted by the following organizations") %>
   </h2>
   <div class="marketing__home__section__companies__logos">
@@ -226,11 +219,14 @@
   </div>
 </div>
 <!-- Features section -->
-<div class="marketing__home__section__features">
+<div class="marketing__home__section__features" data-last-clicked="1">
   <.home_feature
     index={1}
     title="start"
     banner_color={:violet}
+    toggle_feature={
+      JS.set_attribute({"data-last-clicked", "1"}, to: ".marketing__home__section__features")
+    }
     collapsed={false}
     features={[
       gettext("Swift as a configuration language"),
@@ -413,6 +409,9 @@
   </.home_feature>
   <.home_feature
     index={2}
+    toggle_feature={
+      JS.set_attribute({"data-last-clicked", "2"}, to: ".marketing__home__section__features")
+    }
     title="develop"
     banner_color={:blue}
     collapsed={true}
@@ -602,13 +601,16 @@
   </.home_feature>
   <.home_feature
     index={3}
+    toggle_feature={
+      JS.set_attribute({"data-last-clicked", "3"}, to: ".marketing__home__section__features")
+    }
     title="share"
     banner_color={:pink}
     collapsed={true}
     features={[
       gettext("One-click/tap previews"),
       gettext("URL as a collaboration token"),
-      gettext("Relase orchestration (Coming soon)")
+      gettext("Device or simulator")
     ]}
   >
     <:logo>
@@ -665,7 +667,7 @@
     </:logo>
     <:description>
       <%= gettext(
-        "Ready to share your app? Distribute it internally or externally via the App Store, alternative stores, or an installation link (preview)."
+        "Easily share your app with a single URL. One click lets anyone run it on a simulator or device instantly."
       ) %>
     </:description>
     <:illustration>
@@ -777,6 +779,9 @@
   </.home_feature>
   <.home_feature
     index={4}
+    toggle_feature={
+      JS.set_attribute({"data-last-clicked", "4"}, to: ".marketing__home__section__features")
+    }
     title="measure"
     banner_color={:lime}
     collapsed={true}
@@ -1012,18 +1017,21 @@
 <!-- Highlights section -->
 <% highlights = [
   %{
-    title: "4x",
+    title: "70%",
     subtitle: gettext("Faster builds"),
-    cta_href: "/",
-    cta_text: gettext("Read story"),
-    cta_variant: "dark"
+    cta_href:
+      "https://www.youtube.com/watch?v=s9bqf01gciA&list=PLfCiO1zYKkAStEDxfttXZy4EJlPON4kYm&index=15",
+    cta_text: gettext("Watch Trendyol's story"),
+    cta_variant: "dark",
+    cta_target: "_blank"
   },
   %{
     title: gettext("Happier devs"),
     subtitle: gettext("We aim to empower developers to create great products."),
-    cta_href: "/",
-    cta_text: gettext("Know more"),
-    cta_variant: "light"
+    cta_href: "https://medium.com/bumble-tech/scaling-ios-at-bumble-6f0602682903",
+    cta_text: gettext("Read Bumble's story"),
+    cta_variant: "light",
+    cta_target: "_blank"
   },
   %{title: "7+", subtitle: gettext("Years building an OSS foundation")},
   %{title: "10K", subtitle: gettext("Teams using Tuist")},
@@ -1037,6 +1045,7 @@
     subtitle={highlight.subtitle}
     cta_href={Map.get(highlight, :cta_href)}
     cta_text={Map.get(highlight, :cta_text)}
+    cta_target={Map.get(highlight, :cta_target)}
     cta_variant={Map.get(highlight, :cta_variant)}
   />
 </div>

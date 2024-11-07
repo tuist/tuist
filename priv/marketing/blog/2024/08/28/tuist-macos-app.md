@@ -12,7 +12,7 @@ Today, we are excited to announce that the Tuist app for macOS is finally here!
 
 ![Screenshot of the Tuist macOS menu bar app](/images/marketing/blog/2024/08/28/tuist-macos-app/menu-bar-app.png)
 
-[Download the app](https://cloud.tuist.io/download)
+[Download the app](https://tuist.dev/download)
 
 <em>
   The macOS app is inspired by [Shopify's
@@ -26,7 +26,7 @@ Until now, you would share and run Tuist Previews exclusively with the CLI:
 
 ```sh
 tuist share Wikipedia --platforms iOS --configuration Debug
-tuist run https://cloud.tuist.io/tuist/wikipedia/previews/0191984a-8d33-754d-806b-bfecfd65f1c9
+tuist run https://tuist.dev/tuist/wikipedia/previews/0191984a-8d33-754d-806b-bfecfd65f1c9
 ```
 
 Clicking on the Preview link wouldn't do anything. This changes now. After you install the Tuist app on your Mac, opening the link in the browser will automatically run the shared app in the simulator that you selected in the menu bar app.
@@ -49,4 +49,4 @@ Do you have any suggestions or want to get involved? Let us know on our [GitHub]
 
 ## The Future of the macOS App
 
-Although the macOS app is currently focused on previews, we don’t plan to stop there. We’ll continually seek out opportunities to enhance Tuist by leveraging the native capabilities of the platform, aiming to make your development experience even more enjoyable. We are committed to developing a flexible and [well-documented](https://cloud.tuist.io/api/docs) API, enabling any contributor to extend the app’s capabilities and even build their own clients using Apple’s robust technologies.
+Although the macOS app is currently focused on previews, we don’t plan to stop there. We’ll continually seek out opportunities to enhance Tuist by leveraging the native capabilities of the platform, aiming to make your development experience even more enjoyable. We are committed to developing a flexible and [well-documented](https://tuist.dev/api/docs) API, enabling any contributor to extend the app’s capabilities and even build their own clients using Apple’s robust technologies.

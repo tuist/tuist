@@ -64,6 +64,10 @@
   flex-direction: column;
   font: var(--font-m);
 
+  &:hover {
+    color: var(--violet);
+  }
+
   &[data-selected="true"] {
     border-bottom-width: 3px;
     border-bottom-style: solid;

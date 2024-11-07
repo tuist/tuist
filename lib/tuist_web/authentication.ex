@@ -116,7 +116,7 @@ defmodule TuistWeb.Authentication do
     |> renew_session()
     |> put_token_in_session(token)
     |> maybe_write_remember_me_cookie(token, params)
-    |> redirect(to: user_return_to || signed_in_path(conn))
+    |> redirect(to: user_return_to || signed_in_path(user))
     |> halt()
   end
 
@@ -249,11 +249,12 @@ defmodule TuistWeb.Authentication do
 
   def on_mount(:redirect_if_user_is_authenticated, _params, session, socket) do
     socket = mount_current_user(socket, session)
+    user = socket.assigns.current_user
 
-    if socket.assigns.current_user do
-      {:halt, Phoenix.LiveView.redirect(socket, to: signed_in_path(socket))}
-    else
+    if is_nil(user) do
       {:cont, socket}
+    else
+      {:halt, Phoenix.LiveView.redirect(socket, to: signed_in_path(user))}
     end
   end
 
@@ -269,12 +270,14 @@ defmodule TuistWeb.Authentication do
   Used for routes that require the user to not be authenticated.
   """
   def redirect_if_user_is_authenticated(conn, _opts) do
-    if TuistWeb.Authentication.authenticated?(conn) do
+    user = current_user(conn)
+
+    if is_nil(user) do
       conn
-      |> redirect(to: signed_in_path(conn))
-      |> halt()
     else
       conn
+      |> redirect(to: signed_in_path(user))
+      |> halt()
     end
   end
 
@@ -339,5 +342,18 @@ defmodule TuistWeb.Authentication do
 
   defp maybe_store_return_to(conn), do: conn
 
-  defp signed_in_path(_conn), do: ~p"/"
+  def signed_in_path(user) do
+    project =
+      if is_nil(user.last_visited_project_id) do
+        Projects.get_all_project_accounts(user) |> List.first()
+      else
+        Projects.get_project_account_by_project_id(user.last_visited_project_id)
+      end
+
+    if project do
+      "/#{project.handle}"
+    else
+      "/#{user.account.name}/projects"
+    end
+  end
 end

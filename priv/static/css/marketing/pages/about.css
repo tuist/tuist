@@ -290,11 +290,13 @@
 .marketing__about__resources__items__item__title {
   margin: 0;
   color: var(--violet);
+  font: var(--font-xxl);
 }
 
 .marketing__about__resources__items__item__description {
   color: var(--dark-violet);
   margin: 0;
+  font: var(--font-m);
 }
 .marketing__about__resources__items__item__list {
   list-style: none;
@@ -308,9 +310,11 @@
   align-items: center;
   color: var(--violet);
   gap: var(--spacing-16);
+  font: var(--font-m);
 }
 
 .marketing__about__resources__items__item__list__item__link {
   color: var(--violet);
   text-decoration: none;
+  font: var(--font-m);
 }

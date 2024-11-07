@@ -26,6 +26,11 @@ defmodule Tuist.Blog do
 
   def get_authors() do
     %{
+      "silvia" => %{
+        "role" => "Senior Product Designer at Guinda Studio",
+        "name" => "Silvia",
+        "image_href" => "/images/marketing/authors/silvia.jpeg"
+      },
       "vytis" => %{
         "role" => "Automation at Neko Health",
         "name" => "Vytis",
@@ -77,48 +82,6 @@ defmodule Tuist.Blog do
         "mastodon_url" => "https://mastodon.social/@charlespisciotta",
         "github_handle" => "cpisciotta"
       }
-    }
-  end
-
-  def get_blog_structured_markup_data(posts) do
-    %{
-      "@context" => "https://schema.org",
-      "@type" => "CollectionPage",
-      "mainEntityOfPage" => %{
-        "@type" => "ItemList",
-        "itemListElement" =>
-          posts
-          |> Enum.with_index()
-          |> Enum.map(fn {post, index} ->
-            get_blog_post_structured_markup_data(post) |> Map.merge(%{"position" => index + 1})
-          end)
-      },
-      "name" => "Tuist's blog",
-      "description" => "Read engaging stories and expert insights.",
-      "publisher" => TuistWeb.StructuredMarkup.get_organization()
-    }
-  end
-
-  def get_blog_post_structured_markup_data(post) do
-    %{
-      "@context" => "https://schema.org",
-      "@type" => "BlogPosting",
-      "mainEntityOfPage" => %{
-        "@type" => "WebPage",
-        "@id" => Tuist.Environment.app_url(path: post.slug)
-      },
-      "headline" => post.title,
-      "description" => post.excerpt,
-      "image" => if(is_nil(post.image_url), do: [], else: [post.image_url]),
-      "author" => %{
-        "@type" => "Person",
-        "name" => "Author's Name",
-        "url" => "https://github.com/#{get_post_author(post)["github_handle"]}"
-      },
-      "publisher" => TuistWeb.StructuredMarkup.get_organization(),
-      "datePublished" => Timex.format!(post.date, "{ISO:Extended}"),
-      "dateModified" => Timex.format!(post.date, "{ISO:Extended}"),
-      "articleBody" => post.excerpt
     }
   end
 end

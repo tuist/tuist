@@ -89,7 +89,7 @@ defmodule Tuist.Analytics.Attio do
         %{event_id: [:organization, :create], name: organization_name, email: email},
         {name, _table_id}
       ) do
-    company_domain = "#{organization_name}.cloud.tuist.io"
+    company_domain = "#{organization_name}.tuist.dev"
 
     {:ok, %{body: %{"data" => %{"id" => company_id}}}} =
       send_request("/v2/objects/companies/records?matching_attribute=domains", %{

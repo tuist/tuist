@@ -17,7 +17,7 @@ defmodule TuistWeb.AuthenticationTest do
       |> Map.replace!(:secret_key_base, TuistWeb.Endpoint.config(:secret_key_base))
       |> init_test_session(%{})
 
-    %{user: user_fixture(), conn: conn}
+    %{user: user_fixture(preloads: [:account]), conn: conn}
   end
 
   describe "log_in_user/3" do
@@ -25,7 +25,7 @@ defmodule TuistWeb.AuthenticationTest do
       conn = Authentication.log_in_user(conn, user)
       assert token = get_session(conn, :user_token)
       assert get_session(conn, :live_socket_id) == "users_sessions:#{Base.url_encode64(token)}"
-      assert redirected_to(conn) == ~p"/"
+      assert redirected_to(conn) == ~p"/#{user.account.name}/projects"
       assert Accounts.get_user_by_session_token(token)
     end
 
@@ -229,7 +229,7 @@ defmodule TuistWeb.AuthenticationTest do
         |> Authentication.redirect_if_user_is_authenticated([])
 
       assert conn.halted
-      assert redirected_to(conn) == ~p"/"
+      assert redirected_to(conn) == ~p"/#{user.account.name}/projects"
     end
 
     test "does not redirect if user is not authenticated", %{conn: conn} do

@@ -60,7 +60,7 @@
     <TuistWeb.LayoutComponents.head_analytics_scripts {assigns} />
   </head>
   <body data-scrollable="true">
-    <TuistWeb.MarketingLayoutComponents.header current_path={@current_path} />
+    <TuistWeb.MarketingLayoutComponents.header current_path={@current_path} {assigns} />
     <%= @inner_content %>
     <TuistWeb.MarketingLayoutComponents.footer />
   </body>

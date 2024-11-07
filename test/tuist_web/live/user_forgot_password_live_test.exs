@@ -14,11 +14,13 @@ defmodule TuistWeb.UserForgotPasswordLiveTest do
     end
 
     test "redirects if already logged in", %{conn: conn} do
+      user = user_fixture(preloads: [:account])
+
       result =
         conn
-        |> log_in_user(user_fixture())
+        |> log_in_user(user)
         |> live(~p"/users/reset_password")
-        |> follow_redirect(conn, ~p"/")
+        |> follow_redirect(conn, ~p"/#{user.account.name}/projects")
 
       assert {:ok, _conn} = result
     end

@@ -281,7 +281,7 @@ defmodule TuistWeb.MarketingIcons do
     >
       <path
         d="M12 5V19M5 12H19"
-        stroke="black"
+        stroke="currentColor"
         stroke-width="2"
         stroke-linecap="round"
         stroke-linejoin="round"

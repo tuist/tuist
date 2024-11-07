@@ -10,6 +10,7 @@ defmodule TuistWeb.MarketingHTML do
   attr :subtitle, :string, required: true
   attr :cta_variant, :string, required: false, default: "light"
   attr :cta_href, :string, required: false
+  attr :cta_target, :string, default: ""
   attr :cta_text, :string, required: false
 
   def home_highlight_card(assigns) do
@@ -31,9 +32,10 @@ defmodule TuistWeb.MarketingHTML do
           :if={not is_nil(Map.get(assigns, :cta_text))}
           size="medium"
           variant={@cta_variant}
+          target={@cta_target}
           href={@cta_href}
         >
-          <%= @cta_text %>
+          <%= raw(@cta_text) %>
         </.secondary_button>
       </div>
     </div>
@@ -45,6 +47,7 @@ defmodule TuistWeb.MarketingHTML do
   attr :banner_color, :atom, values: [:lime, :pink, :blue, :violet]
   attr :collapsed, :boolean, default: true
   attr :features, :list, required: true
+  attr :toggle_feature, :any, required: false
   slot :logo, required: true
   slot :description, required: true
   slot :illustration, required: true
@@ -54,11 +57,8 @@ defmodule TuistWeb.MarketingHTML do
       assign(
         assigns,
         :toggle_feature,
-        %JS{}
-        |> JS.set_attribute({"data-collapsed", "true"},
-          to: ".marketing__home__section__features__feature"
-        )
-        |> JS.set_attribute({"data-collapsed", "false"},
+        (assigns[:toggle_feature] || %JS{})
+        |> JS.toggle_attribute({"data-collapsed", "false", "true"},
           to: ".marketing__home__section__features__feature[data-index=\"#{assigns[:index]}\"]"
         )
       )

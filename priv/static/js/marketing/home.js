@@ -1,3 +1,5 @@
+import "./components/termynal.js";
+
 function scrollInfinitely(scrollableContainer) {
   scrollableContainer.scrollLeft += 1;
   if (
@@ -14,14 +16,14 @@ function scrollInfinitely(scrollableContainer) {
 }
 
 const logosElement = document.querySelector(
-  ".marketing__home__section__companies__logos",
+  ".marketing__home__section__companies__logos"
 );
 if (logosElement) {
   scrollInfinitely(logosElement);
 }
 
 const testimonialsElement = document.querySelector(
-  ".marketing__home__section__testimonials__main",
+  ".marketing__home__section__testimonials__main"
 );
 if (testimonialsElement) {
   scrollInfinitely(testimonialsElement);

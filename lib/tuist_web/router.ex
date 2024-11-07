@@ -7,8 +7,6 @@ defmodule TuistWeb.Router do
   import Phoenix.LiveDashboard.Router
   use ErrorTracker.Web, :router
 
-  @include_marketing_routes false
-
   pipeline :open_api do
     plug OpenApiSpex.Plug.PutApiSpec, module: TuistWeb.API.Spec
   end
@@ -65,34 +63,34 @@ defmodule TuistWeb.Router do
   end
 
   # Marketing
-  if @include_marketing_routes do
-    scope "/" do
-      pipe_through [:browser_marketing_feed]
 
-      get "/blog+rss.xml", TuistWeb.MarketingController, :blog_rss
-      get "/blog+atom.xml", TuistWeb.MarketingController, :blog_atom
-      get "/changelog+rss.xml", TuistWeb.MarketingController, :changelog_rss
-      get "/changelog+atom.xml", TuistWeb.MarketingController, :changelog_atom
+  scope "/" do
+    pipe_through [:browser_marketing_feed]
+
+    get "/blog+rss.xml", TuistWeb.MarketingController, :blog_rss
+    get "/blog+atom.xml", TuistWeb.MarketingController, :blog_atom
+    get "/changelog+rss.xml", TuistWeb.MarketingController, :changelog_rss
+    get "/changelog+atom.xml", TuistWeb.MarketingController, :changelog_atom
+    get "/sitemap.xml", TuistWeb.MarketingController, :sitemap
+  end
+
+  scope "/" do
+    pipe_through [:open_api, :browser_marketing, :assign_current_path]
+
+    get "/", TuistWeb.MarketingController, :home
+    get "/pricing", TuistWeb.MarketingController, :pricing
+    live "/blog", TuistWeb.MarketingBlogLive
+    live "/changelog", TuistWeb.MarketingChangelogLive
+
+    for %{slug: blog_post_slug} <- Tuist.Blog.get_posts() do
+      get blog_post_slug, TuistWeb.MarketingController, :blog_post
     end
 
-    scope "/" do
-      pipe_through [:open_api, :browser_marketing, :assign_current_path]
-
-      get "/", TuistWeb.MarketingController, :home
-      get "/pricing", TuistWeb.MarketingController, :pricing
-      live "/blog", TuistWeb.MarketingBlogLive
-      live "/changelog", TuistWeb.MarketingChangelogLive
-
-      for %{slug: blog_post_slug} <- Tuist.Blog.get_posts() do
-        get blog_post_slug, TuistWeb.MarketingController, :blog_post
-      end
-
-      for %{slug: page_slug} <- Tuist.Pages.get_pages() do
-        get page_slug, TuistWeb.MarketingController, :page
-      end
-
-      get "/about", TuistWeb.MarketingController, :about
+    for %{slug: page_slug} <- Tuist.Pages.get_pages() do
+      get page_slug, TuistWeb.MarketingController, :page
     end
+
+    get "/about", TuistWeb.MarketingController, :about
   end
 
   scope "/" do
@@ -323,7 +321,6 @@ defmodule TuistWeb.Router do
         {TuistWeb.LayoutLive, :account},
         {TuistWeb.Authentication, :mount_current_user}
       ] do
-      live "/", AccountProjectsLive
       live "/:account_handle/billing", AccountBillingLive
       live "/:account_handle/projects", AccountProjectsLive
     end

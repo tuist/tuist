@@ -4,22 +4,27 @@ defmodule TuistWeb.MarketingController do
   plug(:assign_default_head_tags)
 
   def home(conn, _params) do
-    read_more_posts = Tuist.Blog.get_posts() |> Enum.reverse() |> Enum.take(3)
+    read_more_posts = Tuist.Blog.get_posts() |> Enum.take(3)
+    testimonials = home_testimonials()
 
     conn
     |> assign(:head_title, "Tuist · Scale your Swift App development")
     |> assign(:head_image, Tuist.Environment.app_url(path: "/images/marketing/og/home.jpg"))
     |> assign(:head_twitter_card, "summary_large_image")
-    |> assign(:testimonials, home_testimonials())
+    |> assign_structured_data(get_testimonials_structured_data(testimonials))
+    |> assign(:testimonials, testimonials)
     |> assign(:read_more_posts, read_more_posts)
     |> render(:home, layout: false)
   end
 
   def about(conn, _params) do
     conn
-    |> assign(
-      :head_structured_data,
-      TuistWeb.StructuredMarkup.get_organization() |> Jason.encode!()
+    |> assign_structured_data(get_organization_structured_data())
+    |> assign_structured_data(
+      get_breadcrumbs_structured_data([
+        {gettext("Tuist"), Tuist.Environment.app_url(path: ~p"/")},
+        {gettext("About"), Tuist.Environment.app_url(path: ~p"/about")}
+      ])
     )
     |> render(:about, layout: false)
   end
@@ -64,6 +69,26 @@ defmodule TuistWeb.MarketingController do
     |> render(:changelog_atom, layout: false)
   end
 
+  def sitemap(conn, _params) do
+    page_urls =
+      Tuist.Pages.get_pages() |> Enum.map(&Tuist.Environment.app_url(path: &1.slug))
+
+    post_urls =
+      Tuist.Blog.get_posts() |> Enum.map(&Tuist.Environment.app_url(path: &1.slug))
+
+    entries =
+      [
+        Tuist.Environment.app_url(path: ~p"/"),
+        Tuist.Environment.app_url(path: ~p"/pricing"),
+        Tuist.Environment.app_url(path: ~p"/blog"),
+        Tuist.Environment.app_url(path: ~p"/changelog")
+      ] ++ page_urls ++ post_urls
+
+    conn
+    |> assign(:entries, entries)
+    |> render(:sitemap, layout: false)
+  end
+
   def blog_post(%{request_path: request_path} = conn, _params) do
     post =
       Tuist.Blog.get_posts() |> Enum.find(&(&1.slug == String.trim_trailing(request_path, "/")))
@@ -74,14 +99,18 @@ defmodule TuistWeb.MarketingController do
       related_posts = Tuist.Blog.get_posts() |> Enum.take_random(3)
       author = Tuist.Blog.get_authors()[post.author]
 
-      page_structured_data =
-        Tuist.Blog.get_blog_post_structured_markup_data(post) |> Jason.encode!()
-
       conn
-      |> assign(:head_title, "#{post.title} · Blog · Tuist")
+      |> assign(:head_title, post.title)
       |> assign(:head_description, post.excerpt)
       |> assign(:head_keywords, post.tags)
-      |> assign(:head_structured_data, page_structured_data)
+      |> assign_structured_data(get_blog_post_structured_markup_data(post))
+      |> assign_structured_data(
+        get_breadcrumbs_structured_data([
+          {gettext("Tuist"), Tuist.Environment.app_url(path: ~p"/")},
+          {gettext("Blog"), Tuist.Environment.app_url(path: ~p"/blog")},
+          {post.title, Tuist.Environment.app_url(path: post.slug)}
+        ])
+      )
       |> assign(:post, post)
       |> assign(:author, author)
       |> assign(:related_posts, related_posts)
@@ -90,8 +119,86 @@ defmodule TuistWeb.MarketingController do
   end
 
   def pricing(conn, _params) do
+    plans = [
+      %{
+        name: gettext("Air"),
+        popular: true,
+        description: gettext("Get started with no credit card required—try with no commitment."),
+        price: gettext("Free"),
+        cta: {:primary, gettext("Get started"), Tuist.Environment.get_url(:get_started)},
+        features: [
+          {gettext("Generous free monthly tier"), gettext("Usage capped at free tier limits")},
+          {gettext("Like, totally free"), gettext("All features, no credit card required")},
+          {gettext("Community support"), gettext("Support via community forum")}
+        ],
+        badges: [
+          gettext("Update later easily"),
+          gettext("No credit card required")
+        ]
+      },
+      %{
+        name: gettext("Pro"),
+        popular: false,
+        description:
+          gettext("Usage-based pricing beyond the free tier counts toward the base price."),
+        price: gettext("$249"),
+        cta: {:secondary, gettext("Get started"), Tuist.Environment.get_url(:get_started)},
+        features: [
+          {gettext("Generous base price"),
+           gettext("Usage beyond the free tier is included in the base price")},
+          {gettext("Usage-based pricing"), gettext("Pay only for what you use per feature")},
+          {gettext("Standard support"), gettext("Via Slack and email")}
+        ],
+        badges: []
+      },
+      %{
+        name: gettext("Enterprise"),
+        popular: false,
+        description: gettext("Create your plan or self-host your instance."),
+        price: gettext("Custom"),
+        cta: {:secondary, gettext("Contact sales"), "mailto:sales@tuist.io"},
+        features: [
+          {gettext("Custom terms"), gettext("Tailored agreements to meet your specific needs")},
+          {gettext("On-premise"), gettext("Self-host your instance of Tuist")},
+          {gettext("Priority support"), gettext("Via shared Slack channel")}
+        ],
+        badges: []
+      }
+    ]
+
+    faqs = [
+      {gettext(
+         "Why is your pricing model more accessible compared to traditional enterprise models?"
+       ),
+       gettext(~S"""
+       <p>Our commitment to open-source and our core values shape our unique approach to pricing. Unlike many models that try to extract every dollar from you with "contact sales" calls, limited demos, and other sales tactics, we believe in fairness and transparency. We treat everyone equally and set prices that are fair for all. By choosing our services, you are not only getting a great product but also supporting the development of more open-source projects. We see building a thriving business as a long-term journey, not a short-term sprint filled with shady practices. You can <a href="#{~p"/blog/2024/11/05/our-pricing-philosophy"}">read more</a> about our philosophy.</p>
+       <p>By supporting Tuist, you are also supporting the development of more open-source software for the Swift ecosystem.</p>
+       """)},
+      {gettext("How can I estimate the cost of my project?"),
+       gettext(
+         "You can set up the Air plan, and use the features for a few days to get a usage estimate. If you need a higher limit, let us know and we can help you set up a custom plan."
+       )},
+      {gettext("Is there a free trial on paid plans?"),
+       gettext(
+         "We have a generous free tier on every paid plan so you can try out the features before paying any money."
+       )},
+      {gettext("Do you offer discounts for non-profits and open-source?"),
+       gettext("Yes, we do. Please reach out to oss@tuist.io for more information.")}
+    ]
+
     conn
-    |> assign(:head_title, "Pricing · Tuist")
+    |> assign(:head_title, "Pricing · Plans for every developer · Tuist")
+    |> assign(:faqs, faqs)
+    |> assign(:plans, plans)
+    |> assign(:head_image, Tuist.Environment.app_url(path: "/images/marketing/og/pricing.jpg"))
+    |> assign_structured_data(get_faq_structured_data(faqs))
+    |> assign_structured_data(get_pricing_plans_structured_data(plans))
+    |> assign_structured_data(
+      get_breadcrumbs_structured_data([
+        {gettext("Tuist"), Tuist.Environment.app_url(path: ~p"/")},
+        {gettext("Pricing"), Tuist.Environment.app_url(path: ~p"/pricing")}
+      ])
+    )
     |> assign(
       :head_description,
       gettext(
@@ -107,8 +214,14 @@ defmodule TuistWeb.MarketingController do
       |> Enum.find(&(&1.slug == String.trim_trailing(conn.request_path, "/")))
 
     conn
-    |> assign(:head_title, "#{page.title} · Tuist")
+    |> assign(:head_title, "Tuist #{page.title}")
     |> assign(:head_description, page.excerpt)
+    |> assign_structured_data(
+      get_breadcrumbs_structured_data([
+        {gettext("Tuist"), Tuist.Environment.app_url(path: ~p"/")},
+        {page.title, Tuist.Environment.app_url(path: page.slug)}
+      ])
+    )
     |> assign(:page, page)
     |> render(:page, layout: false)
   end

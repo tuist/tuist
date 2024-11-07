@@ -225,22 +225,44 @@
     </h2>
     <div class="marketing__about__resources__items">
       <div class="marketing__about__resources__items__item">
-        <h3 class="marketing__about__resources__items__item__title font-xxl">
+        <h3 class="marketing__about__resources__items__item__title">
           <%= gettext("Tax certificates") %>
         </h3>
-        <p class="marketing__about__resources__items__item__description font-m">
+        <p class="marketing__about__resources__items__item__description">
           <%= gettext("The following certificates are available for download:") %>
         </p>
         <ul class="marketing__about__resources__items__item__list">
-          <li class="marketing__about__resources__items__item__list__item font-m">
+          <li class="marketing__about__resources__items__item__list__item">
             <TuistWeb.MarketingIcons.file_download_02_icon class="marketing__about__resources__items__item__list__item__icon" />
             <.link
-              class="marketing__about__resources__items__item__list__item__link font-m"
+              class="marketing__about__resources__items__item__list__item__link"
               href="/pdfs/marketing/W-8BEN-E.pdf"
+              target="_blank"
+              aria-label={gettext("Download W-8BEN-E certificate")}
+            >
+              <span class="font-m-strong"><%= gettext("W-8BEN-E certificate") %></span><span> (PDF)</span>
+            </.link>
+          </li>
+        </ul>
+      </div>
+
+      <div class="marketing__about__resources__items__item">
+        <h3 class="marketing__about__resources__items__item__title">
+          <%= gettext("Design systems") %>
+        </h3>
+        <p class="marketing__about__resources__items__item__description">
+          <%= gettext("The following design systems are available licensed under CC BY-SA 4.0:") %>
+        </p>
+        <ul class="marketing__about__resources__items__item__list">
+          <li class="marketing__about__resources__items__item__list__item">
+            <TuistWeb.MarketingIcons.file_download_02_icon class="marketing__about__resources__items__item__list__item__icon" />
+            <.link
+              class="marketing__about__resources__items__item__list__item__link"
+              href="https://www.figma.com/community/file/1436003642379974190/tuist-website-design-system"
               target="_blank"
               aria-label="Download W-8BEN-E certificate"
             >
-              <span class="font-m-strong"><%= gettext("W-8BEN-E certificate") %></span><span> (PDF)</span>
+              <span class="font-m-strong"><%= gettext("Marketing website") %></span>
             </.link>
           </li>
         </ul>

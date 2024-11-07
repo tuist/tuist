@@ -23,7 +23,7 @@ defmodule Tuist.Analytics.AttionTest do
                  data: %{
                    values: %{
                      name: [%{value: organization_name}],
-                     domains: [%{domain: "#{organization_name}.cloud.tuist.io"}]
+                     domains: [%{domain: "#{organization_name}.tuist.dev"}]
                    }
                  }
                }
@@ -89,7 +89,7 @@ defmodule Tuist.Analytics.AttionTest do
                  data: %{
                    values: %{
                      name: [%{value: organization_name}],
-                     domains: [%{domain: "#{organization_name}.cloud.tuist.io"}]
+                     domains: [%{domain: "#{organization_name}.tuist.dev"}]
                    }
                  }
                }

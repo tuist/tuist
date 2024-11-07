@@ -14,11 +14,13 @@ defmodule TuistWeb.UserLoginLiveTest do
     end
 
     test "redirects if already logged in", %{conn: conn} do
+      user = user_fixture(preloads: [:account])
+
       result =
         conn
-        |> log_in_user(user_fixture())
+        |> log_in_user(user)
         |> live(~p"/users/log_in")
-        |> follow_redirect(conn, "/")
+        |> follow_redirect(conn, ~p"/#{user.account.name}/projects")
 
       assert {:ok, _conn} = result
     end
@@ -45,7 +47,7 @@ defmodule TuistWeb.UserLoginLiveTest do
   describe "user login" do
     test "redirects if user login with valid credentials", %{conn: conn} do
       password = "123456789abcd"
-      user = user_fixture(password: password)
+      user = user_fixture(password: password, preloads: [:account])
 
       {:ok, lv, _html} = live(conn, ~p"/users/log_in")
 
@@ -54,7 +56,7 @@ defmodule TuistWeb.UserLoginLiveTest do
 
       conn = submit_form(form, conn)
 
-      assert redirected_to(conn) == ~p"/"
+      assert redirected_to(conn) == ~p"/#{user.account.name}/projects"
     end
 
     test "redirects to login page with a flash error if there are no valid credentials", %{

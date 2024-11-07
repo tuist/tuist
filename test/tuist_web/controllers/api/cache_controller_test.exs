@@ -19,7 +19,7 @@ defmodule TuistWeb.API.CacheControllerTest do
     name = "name"
     project_id = "#{account.name}/#{project.name}"
     cache_category = "builds"
-    download_url = "https://cloud.tuist.io/download/1234"
+    download_url = "https://tuist.dev/download/1234"
     object_key = "#{project_id}/#{cache_category}/#{hash}/#{name}"
 
     CommandEvents.create_cache_event(%{
@@ -269,7 +269,7 @@ defmodule TuistWeb.API.CacheControllerTest do
     cache_category = "builds"
     upload_id = "1234"
     part_number = "3"
-    upload_url = "https://cloud.tuist.io/upload/1234"
+    upload_url = "https://tuist.dev/upload/1234"
     object_key = "#{project_id}/#{cache_category}/#{hash}/#{name}"
 
     Storage

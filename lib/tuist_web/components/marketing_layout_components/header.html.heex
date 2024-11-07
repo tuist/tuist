@@ -59,7 +59,7 @@ reset_dopdowns_state_js =
 
     <nav class="marketing__header__bar__links">
       <.link
-        class="font-xxs marketing__header__bar__links__link"
+        class="marketing__header__bar__links__link"
         id="app-lifecycle"
         aria-expanded="false"
         aria-haspopup="true"
@@ -70,7 +70,7 @@ reset_dopdowns_state_js =
         <.icon_minus size={15} class="marketing__header__bar__links__link__close_icon" />
       </.link>
       <.link
-        class="font-xxs marketing__header__bar__links__link"
+        class="marketing__header__bar__links__link"
         id="developers"
         aria-expanded="false"
         aria-haspopup="true"
@@ -80,20 +80,23 @@ reset_dopdowns_state_js =
         <.icon_plus size={15} class="marketing__header__bar__links__link__open_icon" />
         <.icon_minus size={15} class="marketing__header__bar__links__link__close_icon" />
       </.link>
-      <.link href={~p"/pricing"} class="font-xxs marketing__header__bar__links__link">
+      <.link href={~p"/pricing"} class="marketing__header__bar__links__link">
         <%= gettext("Pricing") %>
       </.link>
-      <.link href={~p"/blog"} class="font-xxs marketing__header__bar__links__link">
+      <.link href={~p"/blog"} class="marketing__header__bar__links__link">
         <%= gettext("Blog") %>
       </.link>
     </nav>
 
-    <.primary_button
-      class="marketing__header__bar__cta"
-      size="small"
-      href={Tuist.Environment.get_url(:get_started)}
-    >
-      <%= gettext("Get started") %>
+    <% {cta_text, cta_href} =
+      if is_nil(TuistWeb.Authentication.current_user(assigns)) do
+        {gettext("Log in"), ~p"/users/log_in"}
+      else
+        {gettext("Dashboard"),
+         TuistWeb.Authentication.signed_in_path(TuistWeb.Authentication.current_user(assigns))}
+      end %>
+    <.primary_button class="marketing__header__bar__cta" size="small" href={cta_href}>
+      <%= cta_text %>
     </.primary_button>
 
     <button
@@ -196,7 +199,7 @@ reset_dopdowns_state_js =
           <%= gettext("Get started") %>
         </.primary_button>
         <div class="marketing__header__bar__mobile__menu__main__footer__links">
-          <div class="marketing__header__bar__mobile__menu__main__footer__links__header font-xxs">
+          <div class="marketing__header__bar__mobile__menu__main__footer__links__header">
             <%= gettext("Stay in touch") %>
           </div>
           <div class="marketing__header__bar__mobile__menu__main__footer__links__main">
@@ -223,14 +226,6 @@ reset_dopdowns_state_js =
                 <.icon_linkedin class="marketing__header__bar__mobile__menu__main__footer__links__main__social__icon" />
               </.link>
             </nav>
-            <.secondary_button
-              variant="dark"
-              size="small"
-              href={Tuist.Environment.get_url(:podcast)}
-              target="_blank"
-            >
-              <%= gettext("Podcast") %>
-            </.secondary_button>
           </div>
         </div>
       </div>
@@ -238,94 +233,129 @@ reset_dopdowns_state_js =
   </nav>
   <!-- App Lifecycle Menu -->
   <nav class="marketing__header__bar__app-lifecycle" aria-labelledby="app-lifecycle">
-    <h2 class="marketing__header__bar__app-lifecycle__phase__title font-m-strong">
-      <.link href={Tuist.Environment.get_url(:app_lifecycle_phase_start)} target="_blank">
+    <.link
+      class="marketing__header__bar__app-lifecycle__phase"
+      href={Tuist.Environment.get_url(:app_lifecycle_phase_start)}
+      target="_blank"
+    >
+      <h2 class="marketing__header__bar__app-lifecycle__phase__title">
         <%= gettext("Start") %>
-      </.link>
-    </h2>
-    <p class="marketing__header__bar__app-lifecycle__phase__description font-xs">
-      <%= gettext("Start a new project or add Tuist to an existing one.") %>
-    </p>
-    <.app_lifecycle_start_artwork />
-    <h2 class="marketing__header__bar__app-lifecycle__phase__title font-m-strong">
-      <.link href={Tuist.Environment.get_url(:app_lifecycle_phase_develop)} target="_blank">
+      </h2>
+      <p class="marketing__header__bar__app-lifecycle__phase__description">
+        <%= gettext("Start a new project or add Tuist to an existing one.") %>
+      </p>
+      <.app_lifecycle_start_artwork />
+    </.link>
+
+    <.link
+      class="marketing__header__bar__app-lifecycle__phase"
+      href={Tuist.Environment.get_url(:app_lifecycle_phase_develop)}
+      target="_blank"
+    >
+      <h2 class="marketing__header__bar__app-lifecycle__phase__title">
         <%= gettext("Develop") %>
-      </.link>
-    </h2>
-    <p class="marketing__header__bar__app-lifecycle__phase__description font-xs">
-      <%= gettext("Develop top-notch apps fast and with confidence.") %>
-    </p>
-    <.app_lifecycle_develop_artwork />
-    <h2 class="marketing__header__bar__app-lifecycle__phase__title font-m-strong">
-      <.link href={Tuist.Environment.get_url(:app_lifecycle_phase_share)} target="_blank">
+      </h2>
+      <p class="marketing__header__bar__app-lifecycle__phase__description">
+        <%= gettext("Develop top-notch apps fast and with confidence.") %>
+      </p>
+      <.app_lifecycle_develop_artwork />
+    </.link>
+    <.link
+      class="marketing__header__bar__app-lifecycle__phase"
+      href={Tuist.Environment.get_url(:app_lifecycle_phase_share)}
+      target="_blank"
+    >
+      <h2 class="marketing__header__bar__app-lifecycle__phase__title">
         <%= gettext("Share") %>
-      </.link>
-    </h2>
-    <p class="marketing__header__bar__app-lifecycle__phase__description font-xs">
-      <%= gettext("Effortlessly share your app and release it to Apple.") %>
-    </p>
-    <.app_lifecycle_share_artwork />
-    <h2 class="marketing__header__bar__app-lifecycle__phase__title font-m-strong">
-      <.link href={Tuist.Environment.get_url(:app_lifecycle_phase_measure)} target="_blank">
+      </h2>
+      <p class="marketing__header__bar__app-lifecycle__phase__description">
+        <%= gettext("Effortlessly share your app with a single URL.") %>
+      </p>
+      <.app_lifecycle_share_artwork />
+    </.link>
+
+    <.link
+      class="marketing__header__bar__app-lifecycle__phase"
+      href={Tuist.Environment.get_url(:app_lifecycle_phase_measure)}
+      target="_blank"
+    >
+      <h2 class="marketing__header__bar__app-lifecycle__phase__title">
         <%= gettext("Measure") %>
-      </.link>
-    </h2>
-    <p class="marketing__header__bar__app-lifecycle__phase__description font-xs">
-      <%= gettext("Enhance your product and development with actionable insights.") %>
-    </p>
-    <.app_lifecycle_measure_artwork />
+      </h2>
+      <p class="marketing__header__bar__app-lifecycle__phase__description">
+        <%= gettext("Enhance your product and development with actionable insights.") %>
+      </p>
+      <.app_lifecycle_measure_artwork />
+    </.link>
   </nav>
   <!-- Developers Menu -->
   <nav class="marketing__header__bar__developers" aria-labelledby="app-lifecycle">
-    <h2 class="marketing__header__bar__developers__phase__title font-m-strong">
-      <.link href={Tuist.Environment.get_url(:documentation)} target="_blank">
+    <.link
+      class="marketing__header__bar__developers__phase"
+      href={Tuist.Environment.get_url(:documentation)}
+      target="_blank"
+    >
+      <h2 class="marketing__header__bar__developers__phase__title">
         <%= gettext("Docs") %>
-      </.link>
-    </h2>
-    <p class="marketing__header__bar__developers__phase__description font-xs">
-      <%= gettext("Explore our documentation—your go-to guide for mastering all things.") %>
-    </p>
+      </h2>
+      <p class="marketing__header__bar__developers__phase__description">
+        <%= gettext("Explore our documentation—your go-to guide for mastering all things.") %>
+      </p>
 
-    <.developers_docs_artwork style="grid-area: span 2;" />
+      <.developers_docs_artwork style="grid-area: span 2;" />
+    </.link>
 
-    <h2 class="marketing__header__bar__developers__phase__title font-m-strong">
-      <.link href={~p"/changelog"}>
+    <.link class="marketing__header__bar__developers__phase" href={~p"/changelog"}>
+      <h2 class="marketing__header__bar__developers__phase__title">
         <%= gettext("Changelog") %>
-      </.link>
-    </h2>
-    <p class="marketing__header__bar__developers__phase__description font-xs">
-      <%= gettext("Keep up with the latest and greatest changes in Tuist.") %>
-    </p>
+      </h2>
+      <p class="marketing__header__bar__developers__phase__description">
+        <%= gettext("Keep up with the latest and greatest changes in Tuist.") %>
+      </p>
+    </.link>
 
-    <h2 class="marketing__header__bar__developers__phase__title font-m-strong">
-      <.link href={Tuist.Environment.get_url(:community)} target="_blank">
+    <.link
+      class="marketing__header__bar__developers__phase"
+      href={Tuist.Environment.get_url(:community)}
+      target="_blank"
+    >
+      <h2 class="marketing__header__bar__developers__phase__title">
         <%= gettext("Community") %>
-      </.link>
-    </h2>
-    <p class="marketing__header__bar__developers__phase__description font-xs">
-      <%= gettext("Got ideas or questions? Join the conversation in our community forum.") %>
-    </p>
+      </h2>
+      <p class="marketing__header__bar__developers__phase__description">
+        <%= gettext("Got ideas or questions? Join the conversation in our community forum.") %>
+      </p>
+    </.link>
 
-    <h2 class="marketing__header__bar__developers__phase__title font-m-strong">
-      <.link href={Tuist.Environment.get_url(:slack)} target="_blank">
+    <.link
+      class="marketing__header__bar__developers__phase"
+      href={Tuist.Environment.get_url(:slack)}
+      target="_blank"
+    >
+      <h2 class="marketing__header__bar__developers__phase__title">
         <%= gettext("Slack") %>
-      </.link>
-    </h2>
-    <p class="marketing__header__bar__developers__phase__description font-xs">
-      <%= gettext(
-        "Join our Slack group for real-time conversations and to connect with the Tuist community"
-      ) %>
-    </p>
+      </h2>
 
-    <h2 class="marketing__header__bar__developers__phase__title font-m-strong">
-      <.link href={Tuist.Environment.get_url(:github)} target="_blank">
+      <p class="marketing__header__bar__developers__phase__description">
+        <%= gettext(
+          "Join our Slack group for real-time conversations and to connect with the Tuist community"
+        ) %>
+      </p>
+    </.link>
+
+    <.link
+      class="marketing__header__bar__developers__phase"
+      href={Tuist.Environment.get_url(:github)}
+      target="_blank"
+    >
+      <h2 class="marketing__header__bar__developers__phase__title">
         <%= gettext("GitHub") %>
-      </.link>
-    </h2>
-    <p class="marketing__header__bar__developers__phase__description font-xs">
-      <%= gettext(
-        "Check out our GitHub to see all the action—where the magic happens and collaboration thrives."
-      ) %>
-    </p>
+      </h2>
+      <p class="marketing__header__bar__developers__phase__description">
+        <%= gettext(
+          "Check out our GitHub to see all the action—where the magic happens and collaboration thrives."
+        ) %>
+      </p>
+    </.link>
   </nav>
 </header>

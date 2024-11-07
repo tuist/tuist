@@ -8,7 +8,7 @@
 
 @media (max-width: 1024px) {
   .marketing__pricing {
-    padding: var(--spacing-24);
+    padding: var(--spacing-48) var(--spacing-24);
   }
 }
 
@@ -47,11 +47,13 @@
   display: flex;
   flex-direction: row;
   gap: var(--spacing-24);
+  align-self: stretch;
 }
 
 @media (max-width: 1024px) {
   .marketing__pricing__plans {
     flex-direction: column;
+    align-items: stretch;
   }
 }
 
@@ -315,6 +317,8 @@
   font: var(--font-xs-strong);
   text-align: left;
   text-decoration: none;
+  color: var(--dark-violet);
+
   &:visited {
     color: var(--dark-violet);
   }

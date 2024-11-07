@@ -58,9 +58,17 @@
       <address class="marketing__blog_post__body__side__person" aria-labelledby="author-info">
         <% avatar_src =
           cond do
-            not is_nil(@author) -> "https://github.com/#{@author["github_handle"]}.png"
-            @post.type == "interview" -> @post.interviewee_avatar
-            true -> nil
+            not is_nil(@author) and not is_nil(@author["github_handle"]) ->
+              "https://github.com/#{@author["github_handle"]}.png"
+
+            not is_nil(@author) and not is_nil(@author["image_href"]) ->
+              @author["image_href"]
+
+            @post.type == "interview" ->
+              @post.interviewee_avatar
+
+            true ->
+              nil
           end %>
         <img
           class="marketing__blog_post__body__side__person__avatar"

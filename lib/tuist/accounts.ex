@@ -279,7 +279,8 @@ defmodule Tuist.Accounts do
         |> Repo.update!()
       end
 
-      get_user_by_id(oauth2_identity.user_id) |> Repo.preload(Keyword.get(opts, :preload, []))
+      get_user_by_id(oauth2_identity.user_id)
+      |> Repo.preload(Keyword.get(opts, :preload, [:account]))
     else
       oauth2_identity =
         create_oauth2_identity(%{
@@ -289,7 +290,8 @@ defmodule Tuist.Accounts do
           provider_organization_id: provider_organization_id
         })
 
-      get_user_by_id(oauth2_identity.user_id) |> Repo.preload(Keyword.get(opts, :preload, []))
+      get_user_by_id(oauth2_identity.user_id)
+      |> Repo.preload(Keyword.get(opts, :preload, [:account]))
     end
   end
 
@@ -851,7 +853,7 @@ defmodule Tuist.Accounts do
   def get_user_by_email_and_password(email, password)
       when is_binary(email) and is_binary(password) do
     user =
-      Repo.one(from u in User, where: u.email == ^email)
+      Repo.one(from u in User, where: u.email == ^email) |> Repo.preload([:account])
 
     if User.valid_password?(user, password) do
       if is_nil(user.confirmed_at) do

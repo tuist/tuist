@@ -28,15 +28,13 @@ defmodule TuistWeb.MarketingBlogLive do
 
     posts = if is_nil(category), do: posts, else: posts |> Enum.filter(&(&1.category == category))
 
-    page_structured_data = Tuist.Blog.get_blog_structured_markup_data(posts) |> Jason.encode!()
-
     {:noreply,
      socket
      |> assign(:posts, posts)
      |> assign(:head_image, Tuist.Environment.app_url(path: "/images/marketing/og/blog.jpg"))
-     |> assign(:head_title, "Blog · Tuist")
+     |> assign(:head_title, "The Tuist Blog")
      |> assign(:head_twitter_card, "summary_large_image")
-     |> assign(:head_structured_data, page_structured_data)
+     |> assign_structured_data(get_blog_structured_markup_data(posts))
      |> assign(:head_description, gettext("Read engaging stories and expert insights."))}
   end
 end

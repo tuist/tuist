@@ -45,6 +45,7 @@ defmodule TuistWeb do
 
       import Plug.Conn
       import TuistWeb.Gettext
+      import TuistWeb.StructuredMarkup
 
       unquote(verified_routes())
     end
@@ -55,6 +56,7 @@ defmodule TuistWeb do
       use Phoenix.LiveView
       import TuistWeb.AppLayoutComponents
       import TuistWeb.Gettext
+      import TuistWeb.StructuredMarkup
 
       unquote(html_helpers())
     end
