@@ -105,11 +105,19 @@ final class GenerateAcceptanceTestiOSAppWithFrameworkAndResources: TuistAcceptan
             "fr.lproj/Greetings.strings",
             "resource_without_extension",
             "StaticFrameworkResources.bundle",
-            "StaticFramework2Resources.bundle",
+            "StaticFramework2.framework/StaticFramework2Resources.bundle",
+        ] {
+            try await XCTAssertProductWithDestinationContainsResource(
+                "App.app",
+                destination: "Debug-iphonesimulator",
+                resource: resource
+            )
+        }
+        for resource in [
             "StaticFramework3_StaticFramework3.bundle",
             "StaticFramework4_StaticFramework4.bundle",
         ] {
-            try await XCTAssertProductWithDestinationContainsResource(
+            try await XCTAssertProductWithDestinationDoesNotContainResource(
                 "App.app",
                 destination: "Debug-iphonesimulator",
                 resource: resource
@@ -131,12 +139,12 @@ final class GenerateAcceptanceTestiOSAppWithFrameworkAndResources: TuistAcceptan
             resource: "StaticFramework2Resources-tuist.png"
         )
         try await XCTAssertProductWithDestinationContainsResource(
-            "StaticFramework3_StaticFramework3.bundle",
+            "App.app/Frameworks/StaticFramework3.framework",
             destination: "Debug-iphonesimulator",
             resource: "StaticFramework3Resources-tuist.png"
         )
         try await XCTAssertProductWithDestinationContainsResource(
-            "StaticFramework4_StaticFramework4.bundle",
+            "App.app/Frameworks/StaticFramework4.framework",
             destination: "Debug-iphonesimulator",
             resource: "StaticFramework4Resources-tuist.png"
         )
@@ -299,7 +307,7 @@ final class GenerateAcceptanceTestiOSAppWithFrameworkLinkingStaticFramework: Tui
             "Frameworks/Framework3.framework/Framework3",
             "Frameworks/Framework4.framework/Framework4",
         ] {
-            try await XCTAssertProductWithDestinationDoesNotContainResource(
+            try await XCTAssertProductWithDestinationContainsResource(
                 "App.app",
                 destination: "Debug-iphonesimulator",
                 resource: resource
