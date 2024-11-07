@@ -117,9 +117,9 @@ tuist install
 # Installing Swift Package Manager dependencies. {#installing-swift-package-manager-dependencies}
 ```
 
-눈치채셨겠지만, 저희는 [CocoaPods](https://cocoapods.org)'처럼 의존성 해석을 별도의 명령어로 분리하는 방식을 채택했습니다. This gives control to the users over when they'd like dependencies to be resolved and updated, and allows opening the Xcode in project and have it ready to compile. This is an area where we believe the developer experience provided by Apple's integration with the Swift Package Manager degrates over time as the project grows.
+눈치채셨겠지만, 저희는 [CocoaPods](https://cocoapods.org)'처럼 의존성 해석을 별도의 명령어로 분리하는 방식을 채택했습니다. 이렇게 하면 사용자가 원하는 시점에 의존성을 해석하고 업데이트할 수 있으며, Xcode에서 프로젝트를 열었을 때 바로 컴파일할 수 있는 상태가 됩니다. 이는 프로젝트가 커질수록 Apple이 제공하는 Swift Package Manager 통합 방식에서 개발자 경험이 저하되는 부분입니다.
 
-From your project targets you can then reference those dependencies using the `TargetDependency.external` dependency type:
+프로젝트의 타겟에서 `TargetDependency.external` 의존성 타입을 사용하여 이러한 의존성을 참조할 수 있습니다:
 
 ::: code-group
 
@@ -148,10 +148,10 @@ let project = Project(
 
 :::
 
-> [!NOTE] NO SCHEMES GENERATED FOR EXTERNAL PACKAGES
-> The **schemes** are not automatically created for Swift Package projects to keep the schemes list clean. You can create them via Xcode's UI.
+> [!NOTE] 외부 패키지에 대한 scheme이 생성되지 않음
+> Swift Package 프로젝트의 scheme 목록을 깔끔하게 유지하기 위해 **scheme**이 자동으로 생성되지 않습니다. Xcode의 UI를 통해 생성할 수 있습니다.
 
-#### Xcode's default integration {#xcodes-default-integration}
+#### Xcode의 기본 통합 {#xcodes-default-integration}
 
 If you want to use Xcode's default integration mechanism, you can pass the list `packages` when instantiating a project:
 
