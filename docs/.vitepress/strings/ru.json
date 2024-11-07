@@ -175,7 +175,7 @@
           "text": "Quick start",
           "items": {
             "install-tuist": {
-              "text": "Install Tuist"
+              "text": "Установка Tuist"
             },
             "create-a-project": {
               "text": "Create a project"
