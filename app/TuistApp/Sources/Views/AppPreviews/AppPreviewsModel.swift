@@ -20,7 +20,7 @@ enum AppPreviewsModelError: FatalError, Equatable {
     var description: String {
         switch self {
         case let .previewNotFound(displayName):
-            return "Latest preview for \(displayName) was not found."
+            return "The latest preview for \(displayName) was not found. Has any preview been published?"
         }
     }
 }

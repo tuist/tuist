@@ -40,6 +40,7 @@ final class AppPreviewsViewModelTests: TuistUnitTestCase {
         listPreviewsService = nil
         listProjectsService = nil
         serverURLService = nil
+        appStorage = nil
         subject = nil
 
         super.tearDown()
