@@ -272,7 +272,7 @@ final class DeviceServiceTests: TuistUnitTestCase {
         try await subject.loadDevices()
 
         // When
-        subject.selectDevice(.simulator(iPhone15Pro))
+        await subject.selectDevice(.simulator(iPhone15Pro))
 
         // Then
         XCTAssertEqual(subject.selectedDevice, .simulator(iPhone15Pro))
@@ -297,7 +297,7 @@ final class DeviceServiceTests: TuistUnitTestCase {
         try await subject.loadDevices()
 
         // When
-        subject.selectDevice(.device(myiPhone))
+        await subject.selectDevice(.device(myiPhone))
 
         // Then
         XCTAssertEqual(subject.selectedDevice, .device(myiPhone))
@@ -390,7 +390,7 @@ final class DeviceServiceTests: TuistUnitTestCase {
 
         try await subject.loadDevices()
 
-        subject.selectDevice(.device(myiPhone))
+        await subject.selectDevice(.device(myiPhone))
 
         given(downloadPreviewService)
             .downloadPreview(
@@ -473,7 +473,7 @@ final class DeviceServiceTests: TuistUnitTestCase {
 
         try await subject.loadDevices()
 
-        subject.selectDevice(.device(myiPhone))
+        await subject.selectDevice(.device(myiPhone))
 
         given(downloadPreviewService)
             .downloadPreview(
