@@ -11,6 +11,7 @@
     <a href="https://cal.com/team/tuist/cloud?utm_source=banner&utm_campaign=oss" target="_blank"><img alt="Book us with Cal.com" src="https://cal.com/book-with-cal-dark.svg" width="150"/></a>
   </div>
   <a title="Crowdin" target="_blank" href="https://crowdin.com/project/tuist-documentation"><img src="https://badges.crowdin.net/tuist-documentation/localized.svg"></a>
+  <a href="https://gurubase.io/g/tuist"><img src="https://img.shields.io/badge/Gurubase-Ask%20Tuist%20Guru-006BFF" alt="Tuist Guru on Gurubase.io"></img></a>
 </div>
 
 ## 🕺 What's Tuist
