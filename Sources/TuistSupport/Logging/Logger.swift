@@ -14,6 +14,7 @@ public struct LoggingConfig {
         case detailed
         case osLog
         case json
+        case quiet
     }
 
     public var loggerType: LoggerType
@@ -23,12 +24,15 @@ public struct LoggingConfig {
 extension LoggingConfig {
     public static var `default`: LoggingConfig {
         let env = ProcessInfo.processInfo.environment
-
+        
+        let quiet = env[Constants.EnvironmentVariables.quiet] != nil
         let osLog = env[Constants.EnvironmentVariables.osLog] != nil
         let detailed = env[Constants.EnvironmentVariables.detailedLog] != nil
-        let verbose = env[Constants.EnvironmentVariables.verbose] != nil
-
-        if osLog {
+        let verbose = quiet ? false : env[Constants.EnvironmentVariables.verbose] != nil
+        
+        if quiet {
+            return .init(loggerType: .quiet, verbose: verbose)
+        } else if osLog {
             return .init(loggerType: .osLog, verbose: verbose)
         } else if detailed {
             return .init(loggerType: .detailed, verbose: verbose)
@@ -53,6 +57,9 @@ public enum LogOutput {
             handler = StandardLogHandler.self
         case .json:
             handler = JSONLogHandler.self
+        case .quiet:
+            LoggingSystem.bootstrap(quietLogHandler(label:))
+            return
         }
 
         if config.verbose {
@@ -91,4 +98,8 @@ extension JSONLogHandler: VerboseLogHandler {
     public static func verbose(label: String) -> LogHandler {
         StandardLogHandler(label: label, logLevel: .debug)
     }
+}
+
+private func quietLogHandler(label: String) -> LogHandler {
+    return StandardLogHandler(label: label, logLevel: .warning)
 }

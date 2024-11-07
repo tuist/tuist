@@ -73,6 +73,7 @@ public enum Constants {
         public static let token = "TUIST_CONFIG_TOKEN"
         @available(*, deprecated, message: "Use `token` instead")
         public static let deprecatedToken = "TUIST_CONFIG_CLOUD_TOKEN"
+        public static let quiet = "TUIST_CONFIG_QUIET"
     }
 
     public enum URLs {

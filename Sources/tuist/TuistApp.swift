@@ -12,6 +12,10 @@ private enum TuistServer {
         if CommandLine.arguments.contains("--verbose") {
             try? ProcessEnv.setVar(Constants.EnvironmentVariables.verbose, value: "true")
         }
+        
+        if CommandLine.arguments.contains("--quiet") {
+            try? ProcessEnv.setVar(Constants.EnvironmentVariables.quiet, value: "true")
+        }
 
         let machineReadableCommands = [DumpCommand.self]
         // swiftformat:disable all
