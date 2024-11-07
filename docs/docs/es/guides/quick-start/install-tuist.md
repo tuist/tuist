@@ -15,12 +15,11 @@ If you don't have it installed on your system,
 you can use any of these [installation methods](https://mise.jdx.dev/getting-started.html).
 Remember to add the suggested line to your shell, which will ensure the right version is activated when you choose a Tuist project directory in your terminal session.
 
-::: info
+:::info
 Mise is recommended over alternatives like [Homebrew](https://brew.sh) because it supports scoping and activating versions to directories, ensuring every environment uses the same version of Tuist deterministically.
 :::
 
 Once installed, you can install Tuist through any of the following commands:
-
 
 ```bash
 mise install tuist            # Install the current version specified in .tool-versions/.mise.toml
@@ -53,7 +52,7 @@ brew install --formula tuist@x.y.z
 If you have Tuist **globally installed**,
 you can install shell completions for Bash and Zsh to autocomplete commands and options.
 
-::: warning What is a global installation
+:::warning What is a global installation
 A global installation is an installation that's available in your shell's `$PATH` environment variable. This means you can run `tuist` from any directory in your terminal. This is the default installation method for Homebrew.
 :::
 

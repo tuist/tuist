@@ -1,16 +1,16 @@
 ---
-title: From v3 to v4
+title: 버전 3에서 버전 4로
 titleTemplate: :title · Migrations · References · Tuist
-description: This page documents how to migrate the Tuist CLI from the version 3 to version 4.
+description: 이 페이지에서는 Tuist CLI를 버전 3에서 버전 4로 마이그레이션하는 방법을 설명합니다.
 ---
 
-# From Tuist v3 to v4 {#from-tuist-v3-to-v4}
+# 버전 3에서 버전 4로 {#from-tuist-v3-to-v4}
 
-With the release of [Tuist 4](https://github.com/tuist/tuist/releases/tag/4.0.0), we took the opportunity to introduce some breaking changes to the project, which we believed would make the project easier to use and maintain in the long run. This document outlines the changes you will need to make to your project to upgrade from Tuist 3 to Tuist 4.
+[Tuist 4](https://github.com/tuist/tuist/releases/tag/4.0.0)의 출시와 함께, 프로젝트를 장기적으로 더 쉽게 사용하고 유지보수할 수 있도록 몇 가지 획기적인 변경 사항을 도입했습니다. 이 문서는 Tuist 3에서 Tuist 4로 업그레이드하기 위해 프로젝트에 필요한 변경 사항을 설명합니다.
 
-### Dropped version management through `tuistenv` {#dropped-version-management-through-tuistenv}
+### `tuistenv`를 통한 버전 관리가 삭제되었습니다. {#dropped-version-management-through-tuistenv}
 
-Prior to Tuist 4, the installation script installed a tool, `tuistenv`, that would get renamed to `tuist` at installation time. The tool would take care of installing and activating versions of Tuist ensuring determinism across environments. With the aim of reducing the feature surface of Tuist, we decided to drop `tuistenv` in favor of [Mise](https://mise.jdx.dev/), a tool that does the same job but is more flexible and can be used across different tools. If you were using `tuistenv`, you'll have to uninstall the current version of Tuist by running `curl -Ls https://uninstall.tuist.io | bash` and then install it using the installation method of your choice. We strongly recommend the usage of Mise because it's able to install and activate versions deterministically across environments.
+Tuist 4 이전에는 설치 스크립트가 `tuistenv`라는 도구를 설치했으며, 설치 시 이 도구는 `tuist`로 이름이 변경되었습니다. 이 도구는 Tuist의 버전을 설치하고 활성화하여 환경 간의 일관성을 보장하는 역할을 했습니다. Tuist의 기능 범위를 줄이기 위해, 동일한 작업을 수행하지만 더 유연하고 다양한 도구에서 사용할 수 있는 [Mise](https://mise.jdx.dev/)로 대체하면서 `tuistenv` 지원을 중단하기로 결정했습니다. If you were using `tuistenv`, you'll have to uninstall the current version of Tuist by running `curl -Ls https://uninstall.tuist.io | bash` and then install it using the installation method of your choice. We strongly recommend the usage of Mise because it's able to install and activate versions deterministically across environments.
 
 ::: code-group
 

@@ -14,4 +14,4 @@ We believe teams shouldn't have to worry about setting up and maintaining a serv
 
 > [!TIP] GIVING YOUR PROJECTS AND WORKFLOWS SUPERPOWERS
 > A way of thinking about the server is as a superpower that you can give to your projects and workflows.
-Some superpowers like <LocalizedLink href="/guides/develop/build/cache">binary caching</LocalizedLink> require you to have a <LocalizedLink href="/guides/develop/projects">Tuist project</LocalizedLink> but others just work with vanilla Xcode projects.
+> Some superpowers like <LocalizedLink href="/guides/develop/build/cache">binary caching</LocalizedLink> require you to have a <LocalizedLink href="/guides/develop/projects">Tuist project</LocalizedLink> but others just work with vanilla Xcode projects.
