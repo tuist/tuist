@@ -59,6 +59,9 @@ let project = Project(
                     "CODE_SIGN_STYLE": "Automatic",
                     "CODE_SIGN_IDENTITY": "Apple Development",
                 ],
+                debug: [
+                    "PRODUCT_NAME": "TuistApp",
+                ],
                 release: [
                     // Needed for the app notarization
                     "OTHER_CODE_SIGN_FLAGS": "--timestamp --deep",
