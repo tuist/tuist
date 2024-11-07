@@ -53,7 +53,7 @@ Tuist에 기여하기 위해 최소 요구 사항은 다음과 같습니다:
 
 ![Tuist를 실행 하기위해 작업 디렉토리를 설정하는 예](/images/contributors/scheme-working-directory.png)
 
-> [!WARNING] PROJECTDESCRIPTION COMPILATION\
+> [!WARNING] PROJECTDESCRIPTION COMPILATION
 > `tuist` CLI는 빌드된 디렉토리에 `ProjectDescription` 프레임워크의 존재에 따라 달라집니다. `ProjectDescription` 프레임워크를 찾을 수 없어 `tuist` 실행이 실패하면 먼저 `Tuist-Workspace` 스킴을 빌드합니다.
 
 ### Terminal {#from-the-terminal}
