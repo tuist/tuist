@@ -78,7 +78,6 @@ let project = Project(
             dependencies: tuistAppDependencies() + [
                 .target(name: "TuistApp"),
                 .project(target: "TuistSupportTesting", path: "../"),
-                .external(name: "Mockable"),
             ]
         ),
     ]
