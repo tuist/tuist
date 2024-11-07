@@ -1,6 +1,5 @@
 ---
-title:
-  params.command.fullCommand: null
+title: {params.command.fullCommand}  
 titleTemplate: :title · Интерфейс командной строки (CLI) · Tuist
 ---
 
