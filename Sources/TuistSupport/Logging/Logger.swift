@@ -24,12 +24,12 @@ public struct LoggingConfig {
 extension LoggingConfig {
     public static var `default`: LoggingConfig {
         let env = ProcessInfo.processInfo.environment
-        
+
         let quiet = env[Constants.EnvironmentVariables.quiet] != nil
         let osLog = env[Constants.EnvironmentVariables.osLog] != nil
         let detailed = env[Constants.EnvironmentVariables.detailedLog] != nil
         let verbose = quiet ? false : env[Constants.EnvironmentVariables.verbose] != nil
-        
+
         if quiet {
             return .init(loggerType: .quiet, verbose: verbose)
         } else if osLog {
