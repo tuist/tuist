@@ -54,37 +54,37 @@ The configuration of the service is done at runtime through environment variable
 
 As an on-premise user, you'll receive a license key that you'll need to expose as an environment variable. This key is used to validate the license and ensure that the service is running within the terms of the agreement.
 
-| Environment variable | Description | Required | Default | Example |
-| --- | --- | --- | --- | --- |
-| `TUIST_LICENSE` | The license provided after signing the service level agreement | Yes | | `******` |
+| Environment variable | Description                                                    | Required | Default | Example  |
+| -------------------- | -------------------------------------------------------------- | -------- | ------- | -------- |
+| `TUIST_LICENSE`      | The license provided after signing the service level agreement | Yes      |         | `******` |
 
 > [!IMPORTANT] EXPIRATION DATE
 > Licenses have an expiration date. Users will receive a warning while using Tuist commands that interact with the server if the license expires in less than 30 days. If you are interested in renewing your license, please reach out to [contact@tuist.io](mailto:contact@tuist.io).
 
 ### Base environment configuration {#base-environment-configuration}
 
-| Environment variable | Description | Required | Default | Example |
-| --- | --- | --- | --- | --- |
-| `TUIST_APP_URL` | The base URL to access the instance from the Internet | Yes | | https://cloud.tuist.io |
-| `TUIST_SECRET_KEY_BASE` | The key to use to encrypt information (e.g. sessions in a cookie) | Yes | | | `c5786d9f869239cbddeca645575349a570ffebb332b64400c37256e1c9cb7ec831345d03dc0188edd129d09580d8cbf3ceaf17768e2048c037d9c31da5dcacfa` |
-| `TUIST_SECRET_KEY_PASSWORD` | Pepper to generate hashed passwords | No | `$TUIST_SECRET_KEY_BASE` | |
-| `TUIST_SECRET_KEY_TOKENS` | Secret key to generate random tokens | No | `$TUIST_SECRET_KEY_BASE` | |
-| `TUIST_USE_IPV6` | When `1` it configures the app to use IPv6 addresses | No | `0` | `1`|
-| `TUIST_LOG_LEVEL` | The log level to use for the app | No | `info` | [Log levels](https://hexdocs.pm/logger/1.12.3/Logger.html#module-levels) |
-| `TUIST_GITHUB_APP_PRIVATE_KEY` | The private key used for the GitHub app to unlock extra functionality such as posting automatic PR comments | No | `-----BEGIN RSA...` | |
-| `TUIST_OPS_USER_HANDLES` | A comma-separated list of user handles that have access to the operations URLs | No | | `user1,user2` |
+| Environment variable           | Description                                                                                                          | Required | Default                  | Example                                                                  |                                                                                                                                    |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------------- | -------- | ------------------------ | ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `TUIST_APP_URL`                | The base URL to access the instance from the Internet                                                                | Yes      |                          | https://cloud.tuist.io   |                                                                                                                                    |
+| `TUIST_SECRET_KEY_BASE`        | The key to use to encrypt information (e.g. sessions in a cookie) | Yes      |                          |                                                                          | `c5786d9f869239cbddeca645575349a570ffebb332b64400c37256e1c9cb7ec831345d03dc0188edd129d09580d8cbf3ceaf17768e2048c037d9c31da5dcacfa` |
+| `TUIST_SECRET_KEY_PASSWORD`    | Pepper to generate hashed passwords                                                                                  | No       | `$TUIST_SECRET_KEY_BASE` |                                                                          |                                                                                                                                    |
+| `TUIST_SECRET_KEY_TOKENS`      | Secret key to generate random tokens                                                                                 | No       | `$TUIST_SECRET_KEY_BASE` |                                                                          |                                                                                                                                    |
+| `TUIST_USE_IPV6`               | When `1` it configures the app to use IPv6 addresses                                                                 | No       | `0`                      | `1`                                                                      |                                                                                                                                    |
+| `TUIST_LOG_LEVEL`              | The log level to use for the app                                                                                     | No       | `info`                   | [Log levels](https://hexdocs.pm/logger/1.12.3/Logger.html#module-levels) |                                                                                                                                    |
+| `TUIST_GITHUB_APP_PRIVATE_KEY` | The private key used for the GitHub app to unlock extra functionality such as posting automatic PR comments          | No       | `-----BEGIN RSA...`      |                                                                          |                                                                                                                                    |
+| `TUIST_OPS_USER_HANDLES`       | A comma-separated list of user handles that have access to the operations URLs                                       | No       |                          | `user1,user2`                                                            |                                                                                                                                    |
 
 ### Database configuration {#database-configuration}
 
 The following environment variables are used to configure the database connection:
 
-| Environment variable | Description | Required | Default | Example |
-| --- | --- | --- | --- | --- |
-| `DATABASE_URL` | The URL to access the Postgres database. Note that the URL should contain the authentication information | Yes | | `postgres://username:password@cloud.us-east-2.aws.test.com/production` |
-| `TUIST_USE_SSL_FOR_DATABASE` | When true, it uses [SSL](https://en.wikipedia.org/wiki/Transport_Layer_Security) to connect to the database | No | `1` | `1` |
-| `TUIST_DATABASE_POOL_SIZE` | The number of connections to keep open in the connection pool | No | `10` | `10` |
-| `TUIST_DATABASE_QUEUE_TARGET` | The interval (in miliseconds) for checking if all the connections checked out from the pool took more than the queue interval [(More information)](https://hexdocs.pm/db_connection/DBConnection.html#start_link/2-queue-config) | No | `300` | `300` |
-| `TUIST_DATABASE_QUEUE_INTERVAL` | The threshold time (in miliseconds) in the queue that the pool uses to determine if it should start dropping new connections [(More information)](https://hexdocs.pm/db_connection/DBConnection.html#start_link/2-queue-config) | No | `1000` | `1000` |
+| Environment variable            | Description                                                                                                                                                                                                                                                            | Required | Default | Example                                                                |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ------- | ---------------------------------------------------------------------- |
+| `DATABASE_URL`                  | The URL to access the Postgres database. Note that the URL should contain the authentication information                                                                                                                                               | Yes      |         | `postgres://username:password@cloud.us-east-2.aws.test.com/production` |
+| `TUIST_USE_SSL_FOR_DATABASE`    | When true, it uses [SSL](https://en.wikipedia.org/wiki/Transport_Layer_Security) to connect to the database                                                                                                                                                            | No       | `1`     | `1`                                                                    |
+| `TUIST_DATABASE_POOL_SIZE`      | The number of connections to keep open in the connection pool                                                                                                                                                                                                          | No       | `10`    | `10`                                                                   |
+| `TUIST_DATABASE_QUEUE_TARGET`   | The interval (in miliseconds) for checking if all the connections checked out from the pool took more than the queue interval [(More information)](https://hexdocs.pm/db_connection/DBConnection.html#start_link/2-queue-config) | No       | `300`   | `300`                                                                  |
+| `TUIST_DATABASE_QUEUE_INTERVAL` | The threshold time (in miliseconds) in the queue that the pool uses to determine if it should start dropping new connections [(More information)](https://hexdocs.pm/db_connection/DBConnection.html#start_link/2-queue-config)  | No       | `1000`  | `1000`                                                                 |
 
 ### Authentication environment configuration {#authentication-environment-configuration}
 
@@ -93,18 +93,19 @@ We facilitate authentication through [identity providers (IdP)](https://en.wikip
 #### GitHub {#github}
 
 We recommend authenticating using a [GitHub App](https://docs.github.com/pt/apps/creating-github-apps/about-creating-github-apps/about-creating-github-apps) but you can also use the [OAuth App](https://docs.github.com/pt/apps/oauth-apps/building-oauth-apps/creating-an-oauth-app). Make sure to include all essential environment variables specified by GitHub in the server environment. Absent variables will cause Tuist to overlook the GitHub authentication. To properly set up the GitHub app:
+
 - In the GitHub app's general settings:
-    - Copy the `Client ID` and set it as `TUIST_GITHUB_APP_CLIENT_ID`
-    - Create and copy a new `client secret` and set it as `TUIST_GITHUB_APP_CLIENT_SECRET`
-    - Set the `Callback URL` as `http://YOUR_APP_URL/users/auth/github/callback`. `YOUR_APP_URL` can also be your server's IP address.
+  - Copy the `Client ID` and set it as `TUIST_GITHUB_APP_CLIENT_ID`
+  - Create and copy a new `client secret` and set it as `TUIST_GITHUB_APP_CLIENT_SECRET`
+  - Set the `Callback URL` as `http://YOUR_APP_URL/users/auth/github/callback`. `YOUR_APP_URL` can also be your server's IP address.
 - In the `Permissions and events`'s `Account permissions` section, set the `Email addresses` permission to `Read-only`.
 
 You'll then need to expose the following environment variables in the environment where the Tuist server runs:
 
-| Environment variable | Description | Required | Default | Example |
-| --- | --- | --- | --- | --- |
-| `TUIST_GITHUB_APP_CLIENT_ID` | The client ID of the GitHub application | Yes | | `Iv1.a629723000043722` |
-| `TUIST_GITHUB_APP_CLIENT_SECRET` | The client secret of the application | Yes | | `232f972951033b89799b0fd24566a04d83f44ccc` |
+| Environment variable             | Description                             | Required | Default | Example                                    |
+| -------------------------------- | --------------------------------------- | -------- | ------- | ------------------------------------------ |
+| `TUIST_GITHUB_APP_CLIENT_ID`     | The client ID of the GitHub application | Yes      |         | `Iv1.a629723000043722`                     |
+| `TUIST_GITHUB_APP_CLIENT_SECRET` | The client secret of the application    | Yes      |         | `232f972951033b89799b0fd24566a04d83f44ccc` |
 
 #### Google {#google}
 
@@ -118,42 +119,43 @@ You can set up authentication with Google using [OAuth 2](https://developers.goo
 You can enable authentication with Okta through the [OAuth 2.0](https://oauth.net/2/) protocol. You'll have to [create an app](https://developer.okta.com/docs/en/guides/implement-oauth-for-okta/main/#create-an-oauth-2-0-app-in-okta) on Okta with the following configuration:
 
 - **App integration name:** `Tuist`
-- **Grant type:** Enable *Authorization Code* for *Client acting on behalf of a user*
+- **Grant type:** Enable _Authorization Code_ for _Client acting on behalf of a user_
 - **Sign-in redirect URL:** `{url}/users/auth/okta/callback` where `url` is the public URL your service is accessed through.
 - **Assignments:** This configuration will depend on your security team requirements.
 
 Once the app is created you'll need to set the following environment variables:
 
-| Environment variable | Description | Required | Default | Example |
-| --- | --- | --- | --- | --- |
-| `TUIST_OKTA_SITE` | The URL of your Okta organization | Yes | | `https://your-org.okta.com` |
-| `TUIST_OKTA_CLIENT_ID` | The client ID to authenticate against Okta | Yes | | |
-| `TUIST_OKTA_CLIENT_SECRET` | The client secret to authenticate against Okta | Yes | | |
+| Environment variable       | Description                                    | Required | Default | Example                     |
+| -------------------------- | ---------------------------------------------- | -------- | ------- | --------------------------- |
+| `TUIST_OKTA_SITE`          | The URL of your Okta organization              | Yes      |         | `https://your-org.okta.com` |
+| `TUIST_OKTA_CLIENT_ID`     | The client ID to authenticate against Okta     | Yes      |         |                             |
+| `TUIST_OKTA_CLIENT_SECRET` | The client secret to authenticate against Okta | Yes      |         |                             |
 
 ### Storage environment configuration {#storage-environment-configuration}
 
- Tuist needs storage to house artifacts uploaded through the API. It's **essential to configure one of the supported storage solutions** for Tuist to operate effectively.
+Tuist needs storage to house artifacts uploaded through the API. It's **essential to configure one of the supported storage solutions** for Tuist to operate effectively.
 
 #### S3-compliant storages {#s3compliant-storages}
 
 You can use any S3-compliant storage provider to store artifacts. The following environment variables are required to authenticate and configure the integration with the storage provider:
 
-| Environment variable | Description | Required | Default | Example |
-| --- | --- | --- | --- | --- |
-| `TUIST_ACCESS_KEY_ID` or `AWS_ACCESS_KEY_ID` | The access key ID to authenticate against the storage provider | Yes | | `AKIAIOSFOD` |
-| `TUIST_SECRET_ACCESS_KEY` or `AWS_SECRET_ACCESS_KEY` | The secret access key to authenticate against the storage provider | Yes | | `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY` |
-| `TUIST_S3_REGION` or `AWS_REGION` | The region where the bucket is located | Yes | | `us-west-2` |
-| `TUIST_S3_ENDPOINT` or `AWS_ENDPOINT` | The endpoint of the storage provider | Yes | | `https://s3.us-west-2.amazonaws.com` |
-| `TUIST_S3_BUCKET_NAME` | The name of the bucket where the artifacts will be stored | Yes | | `tuist-artifacts` |
-| `TUIST_S3_REQUEST_TIMEOUT` | The timeout (in seconds) for requests to the storage provider | No | `30` | `30` |
-| `TUIST_S3_POOL_TIMEOUT` | The timeout (in seconds) for the connection pool to the storage provider | No | `5` | `5` |
-| `TUIST_S3_POOL_COUNT` | The number of pools to use for connections to the storage provider | No | `1` | `1` |
-| `TUIST_S3_PROTOCOL` | The protocol to use when connecting to the storage provider (`http1` or `http2`) | No | `http2` | `http2` |
+| Environment variable                                 | Description                                                                                         | Required | Default | Example                                    |
+| ---------------------------------------------------- | --------------------------------------------------------------------------------------------------- | -------- | ------- | ------------------------------------------ |
+| `TUIST_ACCESS_KEY_ID` or `AWS_ACCESS_KEY_ID`         | The access key ID to authenticate against the storage provider                                      | Yes      |         | `AKIAIOSFOD`                               |
+| `TUIST_SECRET_ACCESS_KEY` or `AWS_SECRET_ACCESS_KEY` | The secret access key to authenticate against the storage provider                                  | Yes      |         | `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY` |
+| `TUIST_S3_REGION` or `AWS_REGION`                    | The region where the bucket is located                                                              | Yes      |         | `us-west-2`                                |
+| `TUIST_S3_ENDPOINT` or `AWS_ENDPOINT`                | The endpoint of the storage provider                                                                | Yes      |         | `https://s3.us-west-2.amazonaws.com`       |
+| `TUIST_S3_BUCKET_NAME`                               | The name of the bucket where the artifacts will be stored                                           | Yes      |         | `tuist-artifacts`                          |
+| `TUIST_S3_REQUEST_TIMEOUT`                           | The timeout (in seconds) for requests to the storage provider                    | No       | `30`    | `30`                                       |
+| `TUIST_S3_POOL_TIMEOUT`                              | The timeout (in seconds) for the connection pool to the storage provider         | No       | `5`     | `5`                                        |
+| `TUIST_S3_POOL_COUNT`                                | The number of pools to use for connections to the storage provider                                  | No       | `1`     | `1`                                        |
+| `TUIST_S3_PROTOCOL`                                  | The protocol to use when connecting to the storage provider (`http1` or `http2`) | No       | `http2` | `http2`                                    |
 
 > [!NOTE] AWS authentication with Web Identity Token from environment variables
 > If your storage provider is AWS and you'd like to authenticate using a web identity token, you can set the environment variable `TUIST_S3_AUTHENTICATION_METHOD` to `aws_web_identity_token_from_env_vars`, and Tuist will use that method using the conventional AWS environment variables.
 
 #### Google Cloud Storage {#google-cloud-storage}
+
 For Google Cloud Storage, follow [these docs](https://cloud.google.com/storage/docs/authentication/managing-hmackeys) to get the `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` pair. The `AWS_ENDPOINT` should be set to `https://storage.googleapis.com`. Other environment variables are the same as for any other S3-compliant storage.
 
 ### Git platform configuration {#git-platform-configuration}
@@ -166,9 +168,9 @@ You will need to [create a GitHub app](https://docs.github.com/pt/apps/creating-
 
 On top of the `TUIST_GITHUB_APP_CLIENT_ID` and `TUIST_GITHUB_APP_CLIENT_SECRET`, you will need the following environment variables:
 
-| Environment variable | Description | Required | Default | Example |
-| --- | --- | --- | --- | --- |
-| `TUIST_GITHUB_APP_PRIVATE_KEY` | The private key of the GitHub application | Yes | | `-----BEGIN RSA PRIVATE KEY-----...` |
+| Environment variable           | Description                               | Required | Default | Example                              |
+| ------------------------------ | ----------------------------------------- | -------- | ------- | ------------------------------------ |
+| `TUIST_GITHUB_APP_PRIVATE_KEY` | The private key of the GitHub application | Yes      |         | `-----BEGIN RSA PRIVATE KEY-----...` |
 
 ## Deployment {#deployment}
 

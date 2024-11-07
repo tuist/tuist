@@ -55,7 +55,7 @@ Tuistを**グローバルにインストール**している場合、BashやZsh�
 
 #### Zsh {#zsh}
 
-[oh-my-zsh](https://ohmyz.sh/) がインストールされている場合、自動的に読み込まれる補完スクリプトのディレクトリ `.oh-my-zsh/completions` があります。 新しい補完スクリプトをそのディレクトリに `_tuist` という名前の新しいファイルとしてコピーします。 新しい補完スクリプトをそのディレクトリに `_tuist` という名前の新しいファイルとしてコピーします。
+[oh-my-zsh](https://ohmyz.sh/) がインストールされている場合、自動的に読み込まれる補完スクリプトのディレクトリ `.oh-my-zsh/completions` があります。 新しい補完スクリプトをそのディレクトリに `_tuist` という名前の新しいファイルとしてコピーします。 新しい補完スクリプトをそのディレクトリに `_tuist` という名前の新しいファイルとしてコピーします。 新しい補完スクリプトをそのディレクトリに `_tuist` という名前の新しいファイルとしてコピーします。
 
 ```bash
 tuist --generate-completion-script > ~/.oh-my-zsh/completions/_tuist
@@ -83,7 +83,7 @@ tuist --generate-completion-script > ~/.zsh/completion/_tuist
 tuist --generate-completion-script > /usr/local/etc/bash_completion.d/_tuist
 ```
 
-bash-completion がない場合、補完スクリプトを直接ソースする必要があります。 bash-completion がない場合、補完スクリプトを直接ソースする必要があります。 bash-completion がない場合、補完スクリプトを直接ソースする必要があります。 bash-completionがない場合、補完スクリプトを直接ソースする必要があります。 bash-completionがない場合、補完スクリプトを直接ソースする必要があります。 bash-completionがない場合、補完スクリプトを直接ソースする必要があります。 bash-completionがない場合、補完スクリプトを直接ソースする必要があります。 `~/.bash_completions/` のようなディレクトリにコピーし、次の行を `~/.bash_profile` または `~/.bashrc` に追加します。 `~/.bash_completions/` のようなディレクトリにコピーし、次の行を `~/.bash_profile` または `~/.bashrc` に追加します。
+bash-completion がない場合、補完スクリプトを直接 source で読み込む必要があります。 bash-completion がない場合、補完スクリプトを直接ソースする必要があります。 bash-completion がない場合、補完スクリプトを直接ソースする必要があります。 bash-completion がない場合、補完スクリプトを直接ソースする必要があります。 bash-completionがない場合、補完スクリプトを直接ソースする必要があります。 bash-completionがない場合、補完スクリプトを直接ソースする必要があります。 bash-completionがない場合、補完スクリプトを直接ソースする必要があります。 bash-completionがない場合、補完スクリプトを直接ソースする必要があります。 `~/.bash_completions/` のようなディレクトリにコピーし、次の行を `~/.bash_profile` または `~/.bashrc` に追加します。 `~/.bash_completions/` のようなディレクトリにコピーし、次の行を `~/.bash_profile` または `~/.bashrc` に追加します。
 
 ```bash
 source ~/.bash_completions/example.bash

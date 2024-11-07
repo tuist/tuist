@@ -1,7 +1,6 @@
 import Command
 import FileSystem
 import Foundation
-import PathKit
 import SwiftUI
 import TuistAutomation
 import TuistCore

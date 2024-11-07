@@ -63,13 +63,13 @@ Resources are identified by their name and extension using strings. This is not 
 
 Tuist includes [templates](https://github.com/tuist/tuist/tree/main/Sources/TuistGenerator/Templates) to synthesize accessors for the following resource types by default:
 
-| Resource type | Synthesized file |
-| --- | ---- |
-| Images and colors | `Assets+{Target}.swift` |
-| Strings | `Strings+{Target}.swift` |
-| Plists | `{NameOfPlist}.swift` |
-| Fonts | `Fonts+{Target}.swift` |
-| Files | `Files+{Target}.swift` |
+| Resource type     | Synthesized file         |
+| ----------------- | ------------------------ |
+| Images and colors | `Assets+{Target}.swift`  |
+| Strings           | `Strings+{Target}.swift` |
+| Plists            | `{NameOfPlist}.swift`    |
+| Fonts             | `Fonts+{Target}.swift`   |
+| Files             | `Files+{Target}.swift`   |
 
 > Note: You can disable the synthesizing of resource accessors on a per-project basis by passing the `disableSynthesizedResourceAccessors` option to the project options.
 
@@ -80,17 +80,17 @@ which must be supported by [SwiftGen](https://github.com/SwiftGen/SwiftGen),
 you can create them at `Tuist/ResourceSynthesizers/{name}.stencil`,
 where the name is the camel-case version of the resource.
 
-| Resource | Template name |
-| --- | --- |
-| strings | `Strings.stencil` |
-| assets | `Assets.stencil` |
-| plists | `Plists.stencil` |
-| fonts | `Fonts.stencil` |
-| coreData | `CoreData.stencil` |
+| Resource         | Template name              |
+| ---------------- | -------------------------- |
+| strings          | `Strings.stencil`          |
+| assets           | `Assets.stencil`           |
+| plists           | `Plists.stencil`           |
+| fonts            | `Fonts.stencil`            |
+| coreData         | `CoreData.stencil`         |
 | interfaceBuilder | `InterfaceBuilder.stencil` |
-| json | `JSON.stencil` |
-| yaml | `YAML.stencil` |
-| files | `Files.stencil` |
+| json             | `JSON.stencil`             |
+| yaml             | `YAML.stencil`             |
+| files            | `Files.stencil`            |
 
 If you want to configure the list of resource types to synthesize accessors for,
 you can use the `Project.resourceSynthesizers` property passing the list of resource synthesizers you want to use:

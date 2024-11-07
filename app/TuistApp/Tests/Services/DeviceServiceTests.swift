@@ -7,7 +7,7 @@ import TuistSupport
 import TuistSupportTesting
 import XCTest
 
-@testable import Tuist
+@testable import TuistApp
 
 final class DeviceServiceTests: TuistUnitTestCase {
     private var subject: DeviceService!

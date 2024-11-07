@@ -17,6 +17,7 @@ Prior to Tuist 4, the installation script installed a tool, `tuistenv`, that wou
 ```bash [Uninstall tuistenv]
 curl -Ls https://uninstall.tuist.io | bash
 ```
+
 :::
 
 > [!IMPORTANT] MISE IN CI ENVIRONMENTS AND XCODE PROJECTS
@@ -48,7 +49,6 @@ Before Tuist 4, you could define dependencies in a `Dependencies.swift` file. Th
 
 For brevity, we decided to rename the `tuist cache warm` command to `tuist cache`. If you were using the `tuist cache warm` command, you'll have to update your project to use the `tuist cache` command instead.
 
-
 ### Renamed `tuist cache print-hashes` to `tuist cache --print-hashes` {#renamed-tuist-cache-printhashes-to-tuist-cache-printhashes}
 
 We decided to rename the `tuist cache print-hashes` command to `tuist cache --print-hashes` to make it clear that it's a flag of the `tuist cache` command. If you were using the `tuist cache print-hashes` command, you'll have to update your project to use the `tuist cache --print-hashes` flag instead.
@@ -70,13 +70,15 @@ tuist generate --skip-cache Foo
 ```bash [After]
 tuist generate Foo
 ```
+
 :::
 
 ### [Dropped signing capabilities](https://github.com/tuist/tuist/pull/5716) {#dropped-signing-capabilitieshttpsgithubcomtuisttuistpull5716}
 
 Signing is already solved by community tooling like [Fastlane](https://fastlane.tools/) and Xcode itself, which do a much better job at that. We felt that signing was an stretch goal for Tuist, and that it was better to focus on the core features of the project. If you were using Tuist signing capabilities, which consisted of encrypting the certificates and profiles in the repository and installing them in the right places at generation time, you might want to replicate that logic in your own scripts that run before project generation. In particular:
-  - A script that decrypts the certificates and profiles using a key either stored in the file-system or in an environment variable, and installs certificates in the keychain, and the provisioning profiles in the directory `~/Library/MobileDevice/Provisioning\ Profiles`.
-  - A script that can take an existing profiles and certificates and encrypt them.
+
+- A script that decrypts the certificates and profiles using a key either stored in the file-system or in an environment variable, and installs certificates in the keychain, and the provisioning profiles in the directory `~/Library/MobileDevice/Provisioning\ Profiles`.
+- A script that can take an existing profiles and certificates and encrypt them.
 
 > [!TIP] SIGNING REQUIREMENTS
 > Signing requires the right certificates to be present in the keychain and the provisioning profiles to be present in the directory `~/Library/MobileDevice/Provisioning\ Profiles`. You can use the `security` command-line tool to install certificates in the keychain and the `cp` command to copy the provisioning profiles to the right directory.

@@ -1,5 +1,5 @@
 {
-  "originHash" : "f658526f7e8c043309506bfa0bedb2c4956d1dfe9a6ac8b3262578989797b14a",
+  "originHash" : "c85ee6347ab96b58a231db9d80d3d81eb6554a3e7903028b404ad57c57109954",
   "pins" : [
     {
       "identity" : "aexml",
@@ -51,8 +51,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/FileSystem.git",
       "state" : {
-        "revision" : "4b3a373f356ed2f0ebfe82982a13c4c026a24ec0",
-        "version" : "0.6.11"
+        "revision" : "3da914e10ac1f3075318d54af9446844bcf505a5",
+        "version" : "0.6.13"
       }
     },
     {
@@ -143,6 +143,15 @@
       "state" : {
         "revision" : "e1577acf2b6e90086d01a6d5e2b8efdaae033568",
         "version" : "2.3.0"
+      }
+    },
+    {
+      "identity" : "sparkle",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/sparkle-project/Sparkle.git",
+      "state" : {
+        "revision" : "0ef1ee0220239b3776f433314515fd849025673f",
+        "version" : "2.6.4"
       }
     },
     {

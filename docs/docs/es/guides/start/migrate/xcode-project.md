@@ -63,6 +63,7 @@ let package = Package(
     ]
 )
 ```
+
 :::
 
 `Project.swift` is the manifest file where you'll define your project, and `Package.swift` is the manifest file where you'll define your dependencies. The `Config.swift` file is where you can define project-scoped Tuist settings for your project.
@@ -83,7 +84,6 @@ tuist build -- ...{xcodebuild flags} # or tuist test
 ## Extract the project build settings into `.xcconfig` files {#extract-the-project-build-settings-into-xcconfig-files}
 
 Extract the build settings from the project into an `.xcconfig` file to make the project leaner and easier to migrate. You can use the following command to extract the build settings from the project into an `.xcconfig` file:
-
 
 ```bash
 mkdir -p xcconfigs/
@@ -146,7 +146,6 @@ let package = Package(
 > [!TIP] PRODUCT TYPES
 > You can override the product type for a specific package by adding it to the `productTypes` dictionary in the `PackageSettings` struct. By default, Tuist assumes that all packages are static frameworks.
 
-
 ## Determine the migration order {#determine-the-migration-order}
 
 We recommend migrating the targets from the one that is the most dependent upon to the least. You can use the following command to list the targets of a project, sorted by the number of dependencies:
@@ -156,7 +155,6 @@ tuist migration list-targets -p Project.xcodeproj
 ```
 
 Start migrating the targets from the top of the list, as they are the ones that are the most depended upon.
-
 
 ## Migrate targets {#migrate-targets}
 
