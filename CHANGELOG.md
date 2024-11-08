@@ -1320,7 +1320,7 @@
 
 - Flatten the workspace groups hierarchy for dependencies [#5575](https://github.com/tuist/tuist/pull/5575) by [@pepicrft](https://github.com/pepicrft)
 - Automatically use the github-actions renderer [#5577](https://github.com/tuist/tuist/pull/5577) by [@pepicrft](https://github.com/pepicrft)
-- Config.swift defaults to `https://tuist.dev` as the Tuist Cloud URL [#5581](https://github.com/tuist/tuist/pull/5581) by [@pepicrft](https://github.com/pepicrft)
+- Config.swift defaults to `https://cloud.tuist.io` as the Tuist Cloud URL [#5581](https://github.com/tuist/tuist/pull/5581) by [@pepicrft](https://github.com/pepicrft)
 
 ## 3.33.0 - 2023-11-15
 
