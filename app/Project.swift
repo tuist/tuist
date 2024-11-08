@@ -12,6 +12,7 @@ func tuistAppDependencies() -> [TargetDependency] {
         .external(name: "Sparkle"),
         .external(name: "FileSystem"),
         .external(name: "Mockable"),
+        .external(name: "Collections"),
     ]
 }
 
