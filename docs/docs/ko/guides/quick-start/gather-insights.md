@@ -28,7 +28,7 @@ tuist project create my-handle/MyApp
 
 ## 프로젝트 연결 {#connect-projects}
 
-서버에 프로젝트를 생성한 후에 로컬 프로젝트와 연결해야 합니다. `tuist edit`를 수행하고 프로젝트의 전체 식별자를 포함하기 위해 `Config.swift` 파일을 수정합니다:
+서버에 프로젝트를 생성한 후에 로컬 프로젝트와 연결해야 합니다. Run `tuist edit` and edit the `Tuist.swift` file to include the full handle of the project:
 
 ```swift
 import ProjectDescription
