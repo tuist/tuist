@@ -52,10 +52,12 @@ When instantiating a `Target`, you can pass the `dependencies` argument with any
 
 > [!TIP] ENFORCING EXPLICIT DEPENDENCIES
 > We have an experimental feature to enforce explicit dependencies in Xcode. We recommend enabling it to ensure targets can only import the dependencies that they've explicitly declared.
+>
 > ```swift
 > import ProjectDescription
 > let config = Config(generationOptions: .options(enforceExplicitDependencies: true))
 > ```
+
 <!-- > Warning: We haven't yet solved the problem of targets being able to import dependencies that they shouldn't. Some users have implemented their custom solutions to detect this, but we haven't yet found a solution that we're happy with. We are currently exploring customizing the directory where products are outputted to solve this problem. -->
 
 ## External dependencies {#external-dependencies}
@@ -79,6 +81,7 @@ XcodeProj's integration is more likely to take more time to support new Swift Pa
 To add external dependencies, you'll have to create a `Package.swift` either under `Tuist/` or at the root of the project.
 
 ::: code-group
+
 ```swift [Tuist/Package.swift]
 // swift-tools-version: 5.9
 import PackageDescription
@@ -103,6 +106,7 @@ let package = Package(
     ]
 )
 ```
+
 :::
 
 > [!TIP] PACKAGE SETTINGS
@@ -121,6 +125,7 @@ As you might have noticed, we take an approach similar to [CocoaPods](https://co
 From your project targets you can then reference those dependencies using the `TargetDependency.external` dependency type:
 
 ::: code-group
+
 ```swift [Project.swift]
 import ProjectDescription
 
@@ -143,6 +148,7 @@ let project = Project(
     ]
 )
 ```
+
 :::
 
 > [!NOTE] NO SCHEMES GENERATED FOR EXTERNAL PACKAGES

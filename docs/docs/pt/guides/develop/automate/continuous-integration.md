@@ -26,18 +26,22 @@ mise install # Installs the version from .mise.toml
 # Runs the version of Tuist indicated in the .mise.toml file {#runs-the-version-of-tuist-indicated-in-the-misetoml-file}
 mise x tuist generate
 ```
+
 ```bash [Homebrew]
 #!/bin/sh
 brew install --formula tuist@x.y.z
 
 tuist generate
 ```
+
 :::
+
 ### Codemagic {#codemagic}
 
 In [Codemagic](https://codemagic.io), you can add an additional step to your workflow to install Tuist:
 
 ::: code-group
+
 ```yaml [Mise]
 workflows:
   lint:
@@ -53,6 +57,7 @@ workflows:
       - name: Build
         script: mise x tuist build
 ```
+
 ```yaml [Homebrew]
 workflows:
   lint:
@@ -67,6 +72,7 @@ workflows:
       - name: Build
         script: tuist build
 ```
+
 :::
 
 ### GitHub Actions {#github-actions}
@@ -74,6 +80,7 @@ workflows:
 On [GitHub Actions](https://docs.github.com/pt/actions) you can an additional step to install Tuist, and in the case of managing the installation of Mise, you can use the [mise-action](https://github.com/jdx/mise-action), which abstracts the installation of Mise and Tuist:
 
 ::: code-group
+
 ```yaml [Mise]
 name: Build Application
 on:
@@ -91,6 +98,7 @@ jobs:
       - uses: jdx/mise-action@v2
       - run: tuist build
 ```
+
 ```yaml [Homebrew]
 name: test
 on:
@@ -108,9 +116,10 @@ jobs:
       - run: brew install --formula tuist@x.y.z
       - run: tuist build
 ```
+
 :::
 
-::: tip
+:::tip
 We recommend using `mise use --pin` in your Tuist projects to pin the version of Tuist across environments. The command will create a `.tool-versions` file containing the version of Tuist.
 :::
 

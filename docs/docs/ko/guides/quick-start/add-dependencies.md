@@ -80,7 +80,7 @@ let project = Project(
 
 그런 다음에 `tuist install`을 수행해서 [Swift Package Manager](https://www.swift.org/documentation/package-manager/)를 사용하여 의존성을 해결하고 가져옵니다.
 
-> [!NOTE] 의존성 해결 도구로 SPM\
+> [!NOTE] 의존성 해결 도구로 SPM
 > Tuist는 의존성을 해결하는 데에만 Swift Package Manager (SPM) 을 사용하도록 권장합니다. 그런 다음에 Tuist는 이를 최대한의 구성 가능성과 제어를 위해 Xcode 프로젝트와 타겟으로 변환합니다.
 
 ## 프로젝트 시각화 {#visualize-the-project}

@@ -29,13 +29,13 @@ A module represents an application feature and is a combination of the following
 
 We recommend following a naming convention for targets, something that you can enforce in your project thanks to Tuist's DSL.
 
-| Target | Dependencies | Content |
-| ---- | ---- | ---- |
-| `Feature` | `FeatureInterface` | Source code and resources |
-| `FeatureInterface` | - | Public interface and models |
-| `FeatureTests` | `Feature`, `FeatureTesting` | Unit and integration tests |
-| `FeatureTesting` | `FeatureInterface` | Testing data and mocks |
-| `FeatureExample` | `FeatureTesting`, `Feature` | Example app |
+| Target             | Dependencies                | Content                     |
+| ------------------ | --------------------------- | --------------------------- |
+| `Feature`          | `FeatureInterface`          | Source code and resources   |
+| `FeatureInterface` | -                           | Public interface and models |
+| `FeatureTests`     | `Feature`, `FeatureTesting` | Unit and integration tests  |
+| `FeatureTesting`   | `FeatureInterface`          | Testing data and mocks      |
+| `FeatureExample`   | `FeatureTesting`, `Feature` | Example app                 |
 
 > [!TIP] UI Previews
 > `Feature` can use `FeatureTesting` as a Development Asset to allow for UI previews
@@ -87,7 +87,6 @@ func productType() -> Product {
 }
 ```
 
-
 > [!IMPORTANT] MERGEABLE LIBRARIES
 > Apple attempted to alleviate the cumbersomeness of switching between static and dynamic libraries by introducing [mergeable libraries](https://developer.apple.com/documentation/xcode/configuring-your-project-to-use-mergeable-libraries). However, that introduces build-time non-determinism that makes your build non-reproducible and harder to optimize so we don't recommend using it.
 
@@ -98,7 +97,6 @@ TMA is non-opinionated about the code architecture and patterns for your modules
 - **Leveraging the compiler is great.** Over-leveraging the compiler might end up being non-productive and cause some Xcode features like previews to work unreliably. We recommend using the compiler to enforce good practices and catch errors early, but not to the point that it makes the code harder to read and maintain.
 - **Use Swift Macros sparingly.** They can be very powerful but can also make the code harder to read and maintain.
 - **Embrace the platform and the language, don't abstract them.** Trying to come up with ellaborated abstraction layers might end up being counterproductive. The platform and the language are powerful enough to build great apps without the need for additional abstraction layers. Use good programming and design patterns as a reference to build your features.
-
 
 ## Resources {#resources}
 

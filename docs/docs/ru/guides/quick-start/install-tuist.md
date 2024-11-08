@@ -1,19 +1,18 @@
 ---
-title: Install Tuist
+title: Установка Tuist
 titleTemplate: :title · Quick-start · Guides · Tuist
-description: Learn how to install Tuist in your environment.
+description: Узнайте, как установить Tuist в вашей среде.
 ---
 
-# Install Tuist {#install-tuist}
+# Установка Tuist {#install-tuist}
 
-The Tuist CLI consists of an executable, dynamic frameworks, and a set of resources (for example, templates). Although you could manually build Tuist from [the sources](https://github.com/tuist/tuist), **we recommend using one of the following installation methods to ensure a valid installation.**
+Tuist CLI состоит из исполняемого файла, динамических фреймворков и набора ресурсов (например, шаблонов). Хотя вы можете самостоятельно собрать Tuist из  [исходников](https://github.com/tuist/tuist,  **мы рекомендуем использовать один из следующих методов установки.**
 
-### Recommended: <a href="https://github.com/jdx/mise">Mise</a> {#recommended-mise}
+### Рекомендация: <a href="https://github.com/jdx/mise">Mise</a> {#recommended-mise}
 
-Tuist defaults to [Mise](https://github.com/jdx/mise) as a tool to deterministically manage and activate versions of Tuist.
-If you don't have it installed on your system,
-you can use any of these [installation methods](https://mise.jdx.dev/getting-started.html).
-Remember to add the suggested line to your shell, which will ensure the right version is activated when you choose a Tuist project directory in your terminal session.
+По умолчанию Tuist использует [Mise](https://github.com/jdx/mise) как инструмент для детерминированного управления и активации версий Tuist.
+Если у вас он не установлен в системе, вы можете воспользоваться любым из этих [методов установки](https://mise.jdx.dev/getting-started.html).
+Не забудьте добавить предложенную строку в ваш файл конфигурации оболочки. Это гарантирует, что правильная версия будет активирована, когда вы выберете директорию проекта Tuist в вашей терминальной сессии.
 
 :::info
 Mise is recommended over alternatives like [Homebrew](https://brew.sh) because it supports scoping and activating versions to directories, ensuring every environment uses the same version of Tuist deterministically.
