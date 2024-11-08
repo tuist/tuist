@@ -1,57 +1,57 @@
 ---
 title: The Modular Architecture (TMA)
 titleTemplate: :title · Projects · Develop · Guides · Tuist
-description: Learn about The Modular Architecture (TMA) and how to structure your projects using it.
+description: The Modular Architecture (TMA) 에 대해 배우고, 이를 사용하여 프로젝트를 구조화 하는 방법을 배워봅니다.
 ---
 
 # The Modular Architecture (TMA) {#the-modular-architecture-tma}
 
-TMA is an architectural approach to structure Apple OS applications to enable scalability, optimize build and test cycles, and ensure good practices in your team. Its core idea is to build your apps by building independent features that are interconnected using clear and concise APIs.
+TMA는 Apple OS 애플리케이션을 구조화 하는 아키텍처 접근 방식이고, 확장성을 가지며, 빌드와 테스트 주기를 최적화 하고, 팀 내에 좋은 개발 방식을 보장합니다. 이것의 핵심은 독립적인 기능을 만들고 명확하고 간결한 API를 통해 서로 연결하여 애플리케이션을 만드는 것입니다.
 
-These guidelines introduce the principles of the architecture, helping you identify and organize your application features in different layers. It also introduces tips, tools, and advice if you decide to use this architecture.
+이 가이드라인은 아키텍처의 원칙을 소개하며, 다른 계층의 애플리케이션 기능을 식별하고 연결하는데 도움을 줍니다. 이 아키텍처를 사용하기로 결정한다면, 도움이 되는 팁, 툴, 그리고 충고도 소개합니다.
 
-> [!INFO] µFEATURES
-> This architecture was previously known as µFeatures. We've renamed it to The Modular Architecture (TMA) to better reflect its purpose and the principles behind it.
+> [!INFO] µFEATURES\
+> 이 아키텍처는 이전에 µFeatures로 알려진 아키텍처 입니다. 우리는 이 아키텍처의 목적과 원칙이 더 잘 반영되도록 The Modular Architecture (TMA) 로 이름을 변경했습니다.
 
-## Core principle {#core-principle}
+## 주요 원칙 {#core-principle}
 
-Developers should be able to **build, test, and try** their features fast, independently of the main app, and while ensuring Xcode features like UI previews, code completion, and debugging work reliably.
+개발자는 메인 앱과 독립적으로 기능을 빠르게 **빌드, 테스트, 그리고 실행** 할 수 있어야 하고, Xcode의 UI 프리뷰, 코드 자동 완성, 그리고 디버깅 기능이 잘 동작해야 합니다.
 
-## What is a module {#what-is-a-module}
+## 모듈이란 무엇인가 {#what-is-a-module}
 
-A module represents an application feature and is a combination of the following five targets (where target referts to an Xcode target):
+모듈은 애플리케이션 기능이며, 다음의 다섯가지 타겟 (여기서 타겟은 Xcode 타겟을 의미) 의 조합입니다:
 
-- **Source:** Contains the feature source code (Swift, Objective-C, C++, JavaScript...) and its resources (images, fonts, storyboards, xibs).
-- **Interface:** It's a companion target that contains the public interface and models of the feature.
-- **Tests:** Contains the feature unit and integration tests.
-- **Testing:** Provides testing data that can be used in tests and the example app. It also provides mocks for module classes and protocols that can be used by other features as we'll see later.
-- **Example:** Contains an example app that developers can use to try out the feature under certain conditions (different languages, screen sizes, settings).
+- **Source:** 기능의 소스 코드 (Swift, Objective-C, C++, JavaScript...) 와 리소스 (이미지, 폰트, 스토리보드, xib) 를 포함합니다.
+- **Interface:** 기능의 공개 인터페이스와 모델을 포함하는 보조 타겟입니다.
+- **Tests:** 기능의 단위 테스트와 통합 테스트를 포함합니다.
+- **Testing:** 테스트와 예제 앱에서 사용될 수 있는 테스트 데이터를 제공합니다. 또한, 나중에 볼 수 있듯이 다른 기능에서 사용할 수 있는 모듈 클래스와 프로토콜에 대한 모의 객체 (Mock) 를 제공합니다.
+- **Example:** 개발자가 특정 조건 (다른 언어, 다른 화면 크기, 다른 설정) 에서 기능을 확인하는데 사용할 수 있는 예제 앱을 포함합니다.
 
-We recommend following a naming convention for targets, something that you can enforce in your project thanks to Tuist's DSL.
+타겟에 네이밍 규칙을 따를 것을 권장하며, 이는 Tuist의 DSL 덕분에 프로젝트에 강제로 적용할 수 있습니다.
 
-| Target             | Dependencies                | Content                     |
-| ------------------ | --------------------------- | --------------------------- |
-| `Feature`          | `FeatureInterface`          | Source code and resources   |
-| `FeatureInterface` | -                           | Public interface and models |
-| `FeatureTests`     | `Feature`, `FeatureTesting` | Unit and integration tests  |
-| `FeatureTesting`   | `FeatureInterface`          | Testing data and mocks      |
-| `FeatureExample`   | `FeatureTesting`, `Feature` | Example app                 |
+| Target             | Dependencies                | Content        |
+| ------------------ | --------------------------- | -------------- |
+| `Feature`          | `FeatureInterface`          | 소스 코드와 리소스     |
+| `FeatureInterface` | -                           | 공개 인터페이스와 모델   |
+| `FeatureTests`     | `Feature`, `FeatureTesting` | 단위 테스트와 통합 테스트 |
+| `FeatureTesting`   | `FeatureInterface`          | 테스트 데이터와 모의 객체 |
+| `FeatureExample`   | `FeatureTesting`, `Feature` | 예제 앱           |
 
-> [!TIP] UI Previews
-> `Feature` can use `FeatureTesting` as a Development Asset to allow for UI previews
+> [!TIP] UI 프리뷰\
+> `Feature`는 UI 프리뷰를 사용하기 위해 Development Asset으로 `FeatureTesting`을 사용할 수 있습니다.
 
-> [!IMPORTANT] COMPILER DIRECTIVES INSTEAD OF TESTING TARGETS
-> Alternatively, you can use compiler directives to include test data and mocks in the `Feature` or `FeatureInterface` targets when compiling for `Debug`. You simplify the graph, but you'll end up compiling code that you won't need for running the app.
+> [!IMPORTANT] 테스트 타겟 대신 컴파일러 지시문\
+> 또한, `Debug`로 컴파일할 때 `Feature`나 `FeatureInterface`에 테스트 데이터와 모의 객체를 포함하기 위해 컴파일러 지시문을 사용할 수 있습니다. 그래프를 단순화할 수 있지만, 결국 앱을 실행하는데 필요하지 않은 코드를 컴파일하게 될 수 있습니다.
 
-## Why a module {#why-a-module}
+## 왜 모듈인가 {#why-a-module}
 
-### Clear and concise APIs {#clear-and-concise-apis}
+### 명확하고 간결한 API {#clear-and-concise-apis}
 
-When all the app source code lives in the same target it is very easy to build implicit dependencies in code and end up with the so well-known spaghetti code. Everything is strongly coupled, the state is sometimes unpredictable, and introducing new changes become a nightmare. When we define features in independent targets we need to design public APIs as part of our feature implementation. We need to decide what should be public, how our feature should be consumed, what should remain private. We have more control over how we want our feature clients to use the feature and we can enforce good practices by designing safe APIs.
+모든 앱 소스 코드가 같은 타겟에 있으면 코드에서 암시적 의존성이 쉽게 생기고 결국 잘 알려진 스파게티 코드가 될 수 있습니다. 모든 것이 강하게 결합되어 있고, 상태는 예측하기 힘들어지고, 새로운 변경 사항을 도입하기 힘들어 집니다. 독립적인 타겟에 기능을 정의할 때 기능 구현의 일환으로 공개 API를 설계해야 합니다. 우리는 무엇을 공개할지, 기능이 어떻게 사용되어야 할지, 무엇을 비공개로 남겨야 할지 결정해야 합니다. 우리는 기능 클라이언트가 기능을 어떻게 사용할지에 대해 더 많은 제어를 할 수 있고, 안전한 API 설계로 좋은 개발 방식을 강제할 수 있습니다.
 
-### Small modules {#small-modules}
+### 작은 모듈 {#small-modules}
 
-[Divide and conquer](https://en.wikipedia.org/wiki/Divide_and_conquer). Working in small modules allows you to have more focus and test and try the feature in isolation. Moreover, development cycles are much faster since we have a more selective compilation, compiling only the components that are necessary to get our feature working. The compilation of the whole app is only necessary at the very end of our work, when we need to integrate the feature into the app.
+[분할 정복 (Divide and conquer)](https://en.wikipedia.org/wiki/Divide_and_conquer). 작은 모듈로 작업하면 더 집중할 수 있고 기능을 독립적으로 테스트하고 확인할 수 있습니다. 게다가 개발 주기는 훨씬 더 빨라지는데, 이는 기능을 동작시키기 위해 필요한 컴포넌트만 컴파일하는 선택적 컴파일 덕분입니다. 앱 전체의 컴파일은 작업의 마지막에만 필요하며 이때 앱에 기능을 통합해야 합니다.
 
 ### Reusability {#reusability}
 
