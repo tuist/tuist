@@ -153,7 +153,7 @@ let project = Project(
 
 #### Xcode의 기본 통합 {#xcodes-default-integration}
 
-If you want to use Xcode's default integration mechanism, you can pass the list `packages` when instantiating a project:
+Xcode의 기본 통합 메커니즘을 사용하려면 프로젝트를 생성할 때 `packages` 목록을 전달하면 됩니다:
 
 ```swift
 let project = Project(name: "MyProject", packages: [
@@ -161,7 +161,7 @@ let project = Project(name: "MyProject", packages: [
 ])
 ```
 
-And then reference them from your targets:
+그런 다음 target에서 참조하면 됩니다.
 
 ```swift
 let target = .target(name: "MyTarget", dependencies: [
@@ -169,10 +169,10 @@ let target = .target(name: "MyTarget", dependencies: [
 ])
 ```
 
-For Swift Macros and Build Tool Plugins, you'll need to use the types `.macro` and `.plugin` respectively.
+Swift Macro와 Build Tool Plugin의 경우 각각 `.macro`와 `.plugin` type을 사용해야 합니다.
 
 > [!WARNING] SPM Build Tool Plugins
-> SPM build tool plugins must be declared using [Xcode's default integration](#xcode-s-default-integration) mechanism, even when using Tuist's [XcodeProj-based integration](#tuist-s-xcodeproj-based-integration) for your project dependencies.
+> Tuist의 [XcodeProj 기반 통합](#tuist-s-xcodeproj-based-integration)을 사용해 프로젝트의 의존성을 관리하더라도, SPM build tool plugin은 반드시 [Xcode의 기본 통합](#xcode-s-default-integration) 메커니즘을 통해 선언해야 합니다.
 
 A practical application of an SPM build tool plugin is performing code linting during Xcode's "Run Build Tool Plug-ins" build phase. In a package manifest this is defined as follows:
 
