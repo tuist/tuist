@@ -112,7 +112,8 @@ public final class ServerAuthenticationController: ServerAuthenticationControlli
     }
 
     func isTuistDevURL(_ serverURL: URL) -> Bool {
-        return serverURL == URL(string: "https://tuist.dev")
+        // URL fails if one of the URLs has a trailing slash and the other not.
+        return serverURL.absoluteString.hasPrefix("https://tuist.dev")
     }
 
     private func parseJWT(_ jwt: String) throws -> JWT {
