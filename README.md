@@ -184,11 +184,6 @@ The financial sustainability of the project is possible thanks to the ongoing co
         </a>
       </td>
       <td width="20%" align="center">
-        <a href="https://hh.ru" target="_blank">
-          <img src="assets/companies/hh.svg" alt="hh_logo" height="75"/>
-        </a>
-      </td>
-      <td width="20%" align="center">
         <a href="https://www.trendyol.com" target="_blank">
           <img src="assets/companies/Trendyol.png" alt="trendyol_logo"/>
         </a>
@@ -203,13 +198,13 @@ The financial sustainability of the project is possible thanks to the ongoing co
           <img src="assets/companies/compass.png" alt="compass_logo"/>
         </a>
       </td>
-    </tr>
-    <tr>
       <td width="20%" align="center">
         <a href="https://www.wefox.com" target="_blank">
           <img src="assets/companies/wefox.png" alt="wefox_logo"/>
         </a>
       </td>
+    </tr>
+    <tr>
       <td width="20%" align="center">
         <a href="https://www.hedvig.com" target="_blank">
             <img src="assets/companies/hedvig.svg" alt="hedvig_logo"/>
@@ -228,28 +223,6 @@ The financial sustainability of the project is possible thanks to the ongoing co
       <td width="20%" align="center">
         <a href="https://www.justeattakeaway.com" target="_blank">
           <img src="assets/companies/justeattakeaway.svg" alt="justeattakeaway_logo"/>
-        </a>
-      </td>
-    </tr>
-    <tr>
-      <td width="20%" align="center">
-        <a href="https://www.dodopizza.com" target="_blank">
-          <img src="assets/companies/dodopizza.svg" alt="dodopizza_logo" height="75"/>
-        </a>
-      </td>
-      <td width="20%" align="center">
-        <a href="https://www.olimp.bet" target="_blank">
-          <img src="assets/companies/olimpbet.svg" alt="olimpbet_logo" height="75"/>
-        </a>
-      </td>
-      <td width="20%" align="center">
-        <a href="https://www.vk.company" target="_blank">
-          <img src="assets/companies/vk.svg" alt="vk_logo" height="75"/>
-        </a>
-      </td>
-      <td width="20%" align="center">
-        <a href="https://hd.kinopoisk.ru" target="_blank">
-          <img src="assets/companies/kinopoisk.svg" alt="kinopoisk_logo"/>
         </a>
       </td>
       <td width="20%" align="center">
@@ -280,27 +253,12 @@ The financial sustainability of the project is possible thanks to the ongoing co
         </a>
       </td>
       <td width="20%" align="center">
-        <a href="https://ozon.tech" target="_blank">
-          <img src="assets/companies/ozontech.svg" alt="ozontech_logo" height="75"/>
-        </a>
-      </td>
-    </tr>
-    <tr>
-      <td width="20%" align="center">
-        <a href="https://smlab.digital" target="_blank">
-          <img src="assets/companies/smlab.svg" alt="smlab_logo" height="75"/>
-        </a>
-      </td>
-      <td width="20%" align="center">
         <a href="https://izi.me/kz" target="_blank">
           <img src="assets/companies/izi.svg" alt="izi_logo" height="75"/>
         </a>
       </td>
-      <td width="20%" align="center">
-        <a href="https://travel.yandex.ru" target="_blank">
-          <img src="assets/companies/yandexTravel.svg" alt="yandexTravel_logo" height="75"/>
-        </a>
-      </td>
+    </tr>
+    <tr>
       <td width="20%" align="center">
         <a href="https://wise.com" target="_blank">
           <img src="assets/companies/wise.png" alt="wise_logo" height="75"/>
