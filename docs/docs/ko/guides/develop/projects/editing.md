@@ -24,8 +24,8 @@ tuist edit
 이 명령어는 전역 디렉토리에 Xcode 프로젝트를 생성하고 Xcode에서 이 프로젝트를 엽니다.
 프로젝트는 모든 매니페스트가 유효한지 확인하기 위해 빌드 할 수 있는 `Manifests` 디렉토리를 포함합니다.
 
-> [!INFO] 글로벌 패턴 (GLOB) 으로 해석된 매니페스트\
-> `tuist edit`는 프로젝트의 루트 디렉토리 (`/Tuist` 디렉토리가 포함된 디렉토리) 에서 글로벌 패턴 `**/{Manifest}.swift`를 사용하여 매니페스트를 포함합니다. `/Tuist` 디렉토리에 유효한 `Config.swift`가 포함되어 있는지 확인합니다.
+> [!INFO] GLOB-RESOLVED MANIFESTS
+> `tuist edit` resolves the manifests to be included by using the glob `**/{Manifest}.swift` from the project's root directory (the one containing the `Tuist.swift` file). Make sure there's a valid `Tuist.swift` at the root of the project.
 
 ## 워크플로우 수정과 생성 {#edit-and-generate-workflow}
 
