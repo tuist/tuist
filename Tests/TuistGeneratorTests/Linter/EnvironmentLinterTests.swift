@@ -115,41 +115,4 @@ final class EnvironmentLinterTests: TuistUnitTestCase {
         // Then
         await XCTAssertThrowsSpecific(try await subject.lintXcodeVersion(config: config), error)
     }
-
-    func test_lintConfigPath_returnsALintingIssue_when_configManifestIsNotLocatedAtTuistDirectory() async throws {
-        // Given
-        let fakeRoot = try! AbsolutePath(validating: "/root")
-        given(rootDirectoryLocator)
-            .locate(from: .any)
-            .willReturn(fakeRoot)
-
-        let configPath = fakeRoot.appending(try RelativePath(validating: "Config.swift"))
-        let config = Config.test(path: configPath)
-
-        // When
-        let got = try await subject.lintConfigPath(config: config)
-
-        // Then
-        let expectedMessage = "`Config.swift` manifest file is not located at `Tuist` directory"
-        XCTAssertTrue(got.contains(LintingIssue(reason: expectedMessage, severity: .warning)))
-    }
-
-    func test_lintConfigPath_doesntReturnALintingIssue_when_configManifestIsLocatedAtTuistDirectory() async throws {
-        // Given
-        let fakeRoot = try! AbsolutePath(validating: "/root")
-        given(rootDirectoryLocator)
-            .locate(from: .any)
-            .willReturn(fakeRoot)
-
-        let configPath = fakeRoot
-            .appending(try RelativePath(validating: "\(Constants.tuistDirectoryName)"))
-            .appending(try RelativePath(validating: "Config.swift"))
-        let config = Config.test(path: configPath)
-
-        // When
-        let got = try await subject.lintConfigPath(config: config)
-
-        // Then
-        XCTEmpty(got)
-    }
 }

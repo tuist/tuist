@@ -31,7 +31,7 @@ enum ShareServiceError: Equatable, FatalError {
         case let .multipleAppsSpecified(apps):
             return "You specified multiple apps to share: \(apps.joined(separator: " ")). You cannot specify multiple apps when using `tuist share`."
         case .fullHandleNotFound:
-            return "You are missing full handle in your Config.swift."
+            return "You are missing full handle in your Tuist.swift."
         case let .appBundleInIPANotFound(ipaPath):
             return "No app found in the in the .ipa archive at \(ipaPath). Make sure the .ipa is a valid application archive."
         }

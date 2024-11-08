@@ -39,7 +39,7 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
         let paths = try await createFiles([
             "Module/Project.swift",
             "Project.swift",
-            "Tuist/Config.swift",
+            "Tuist.swift",
         ], content: tuistManifestSignature)
 
         // When
@@ -69,7 +69,7 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
         let paths = try await createFiles([
             "Module/Project.swift",
             "Workspace.swift",
-            "Tuist/Config.swift",
+            "Tuist.swift",
         ], content: tuistManifestSignature)
 
         // When
@@ -98,7 +98,7 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
         let paths = try await createFiles([
             "Workspace.swift",
             "Module/Project.swift",
-            "Tuist/Config.swift",
+            "Tuist.swift",
         ])
 
         // When
@@ -418,7 +418,7 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
 
             "File01.swift",
             "File02.swift",
-            "Tuist/Config.swift",
+            "Tuist.swift",
         ])
 
         // When
@@ -443,12 +443,12 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
 
             "File01.swift",
             "File02.swift",
-            "Tuist/Config.swift",
+            "Tuist.swift",
         ])
         let locatingPath = paths[5] // "Module02/Subdir01/File01.swift"
 
         // When
-        let configPath = try await subject.locateConfig(at: locatingPath)
+        let configPath = try await subject.locateConfig(at: locatingPath.parentDirectory)
 
         // Then
         XCTAssertNotNil(configPath)
@@ -480,10 +480,10 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
 
     func test_locateConfig_where_tuist_file_is_not_a_directory() async throws {
         // Given
-        try await createFiles(["tuist"])
+        let paths = try await createFiles(["tuist"])
 
         // When
-        let configPath = try await subject.locateConfig(at: try temporaryPath())
+        let configPath = try await subject.locateConfig(at: paths[0].parentDirectory)
 
         // Then
         XCTAssertNil(configPath)
@@ -507,7 +507,7 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
         let locatingPath = paths[5] // "Module02/Subdir01/File01.swift"
 
         // When
-        let configPath = try await subject.locateConfig(at: locatingPath)
+        let configPath = try await subject.locateConfig(at: locatingPath.parentDirectory)
 
         // Then
         XCTAssertNil(configPath)
@@ -527,7 +527,7 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
 
             "File01.swift",
             "File02.swift",
-            "Tuist/Config.swift",
+            "Tuist.swift",
             "Package.swift",
         ])
 
@@ -553,7 +553,7 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
 
             "File01.swift",
             "File02.swift",
-            "Tuist/Config.swift",
+            "Tuist.swift",
             "Package.swift",
             "Tuist/Package.swift",
         ])

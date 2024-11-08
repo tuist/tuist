@@ -33,7 +33,7 @@ public protocol ManifestFilesLocating: AnyObject {
         onlyCurrentDirectory: Bool
     ) async throws -> [ManifestFilesLocator.ProjectManifest]
 
-    /// It traverses up the directory hierarchy until it finds a `Config.swift` file.
+    /// It traverses up the directory hierarchy until it finds a `Tuist.swift` file.
     /// - Parameter locatingPath: Path from where to do the lookup.
     func locateConfig(at locatingPath: AbsolutePath) async throws -> AbsolutePath?
 
@@ -192,13 +192,24 @@ public final class ManifestFilesLocator: ManifestFilesLocating {
     }
 
     public func locateConfig(at locatingPath: AbsolutePath) async throws -> AbsolutePath? {
-        guard let tuistDirectory = try await traverseAndLocateTuistDirectory(
-            at: try await fileSystem.exists(locatingPath, isDirectory: true) ? locatingPath : locatingPath.parentDirectory
-        )
-        else { return nil }
-        let configSwiftPath = tuistDirectory.appending(component: Manifest.config.fileName(locatingPath))
-        if try await fileSystem.exists(configSwiftPath) { return configSwiftPath }
-        return nil
+        if let path = try await traverseUpAndLocate(
+            at: locatingPath,
+            appending: [
+                (component: "Tuist.swift", isDirectory: false),
+                (component: Constants.tuistDirectoryName, isDirectory: true),
+            ]
+        ) {
+            if path.basename == "Tuist.swift" {
+                return path
+            } else {
+                // Tuist directory
+                let configSwiftPath = path.appending(component: Manifest.config.fileName(locatingPath))
+                if try await fileSystem.exists(configSwiftPath) { return configSwiftPath }
+                return nil
+            }
+        } else {
+            return nil
+        }
     }
 
     public func locatePackageManifest(at locatingPath: AbsolutePath) async throws -> AbsolutePath? {
@@ -222,24 +233,18 @@ public final class ManifestFilesLocator: ManifestFilesLocating {
 
     // MARK: - Helpers
 
-    private func traverseAndLocateTuistDirectory(at locatingPath: AbsolutePath) async throws -> AbsolutePath? {
-        // swiftlint:disable:next force_try
-        return try await traverseAndLocateDirectory(
-            at: locatingPath,
-            appending: try RelativePath(validating: Constants.tuistDirectoryName)
-        )
-    }
-
-    private func traverseAndLocateDirectory(
+    private func traverseUpAndLocate(
         at locatingPath: AbsolutePath,
-        appending subpath: RelativePath
+        appending subpaths: [(component: String, isDirectory: Bool)]
     ) async throws -> AbsolutePath? {
-        let manifestPath = locatingPath.appending(subpath)
-
-        if try await fileSystem.exists(manifestPath, isDirectory: true) {
-            return manifestPath
-        } else if locatingPath != .root {
-            return try await traverseAndLocateDirectory(at: locatingPath.parentDirectory, appending: subpath)
+        for subpath in subpaths {
+            let checkedPath = locatingPath.appending(try RelativePath(validating: subpath.component))
+            if try await fileSystem.exists(checkedPath, isDirectory: subpath.isDirectory) {
+                return checkedPath
+            }
+        }
+        if locatingPath != .root {
+            return try await traverseUpAndLocate(at: locatingPath.parentDirectory, appending: subpaths)
         } else {
             return nil
         }
