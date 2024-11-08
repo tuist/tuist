@@ -88,7 +88,10 @@ public final class ServerAuthenticationController: ServerAuthenticationControlli
                 return nil
             }
         } else {
-            let credentials = try await credentialsStore.read(serverURL: serverURL)
+            var credentials: ServerCredentials? = try await credentialsStore.read(serverURL: serverURL)
+            if isTuistDevURL(serverURL), credentials == nil {
+                credentials = try await credentialsStore.read(serverURL: URL(string: "https://cloud.tuist.io")!)
+            }
             return try credentials.map {
                 if let refreshToken = $0.refreshToken {
                     return .user(
@@ -106,6 +109,10 @@ public final class ServerAuthenticationController: ServerAuthenticationControlli
                 }
             }
         }
+    }
+
+    func isTuistDevURL(_ serverURL: URL) -> Bool {
+        return serverURL == URL(string: "https://tuist.dev")
     }
 
     private func parseJWT(_ jwt: String) throws -> JWT {
