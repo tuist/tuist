@@ -76,7 +76,7 @@ if [:prod, :stag, :can] |> Enum.member?(env) do
 
   config :tuist, TuistWeb.Endpoint,
     url: [host: app_url_host, port: app_url_port, scheme: app_url_scheme],
-    check_origin: [app_url, "cloud.tuist.io"],
+    check_origin: [app_url, "https://cloud.tuist.io"],
     http: [
       # Enable IPv6 and bind on all interfaces.
       # Set it to  {0, 0, 0, 0, 0, 0, 0, 1} for local network only access.
