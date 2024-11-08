@@ -17,6 +17,7 @@ public protocol PreviewsUploadServicing {
         displayName: String,
         version: String?,
         bundleIdentifier: String?,
+        icon: AbsolutePath?,
         fullHandle: String,
         serverURL: URL
     ) async throws -> Preview
@@ -30,6 +31,7 @@ public struct PreviewsUploadService: PreviewsUploadServicing {
     private let multipartUploadGenerateURLPreviewsService: MultipartUploadGenerateURLPreviewsServicing
     private let multipartUploadArtifactService: MultipartUploadArtifactServicing
     private let multipartUploadCompletePreviewsService: MultipartUploadCompletePreviewsServicing
+    private let uploadPreviewIconService: UploadPreviewIconServicing
 
     public init() {
         self.init(
@@ -41,7 +43,8 @@ public struct PreviewsUploadService: PreviewsUploadServicing {
             MultipartUploadGenerateURLPreviewsService(),
             multipartUploadArtifactService: MultipartUploadArtifactService(),
             multipartUploadCompletePreviewsService:
-            MultipartUploadCompletePreviewsService()
+            MultipartUploadCompletePreviewsService(),
+            uploadPreviewIconService: UploadPreviewIconService()
         )
     }
 
@@ -52,7 +55,8 @@ public struct PreviewsUploadService: PreviewsUploadServicing {
         multipartUploadStartPreviewsService: MultipartUploadStartPreviewsServicing,
         multipartUploadGenerateURLPreviewsService: MultipartUploadGenerateURLPreviewsServicing,
         multipartUploadArtifactService: MultipartUploadArtifactServicing,
-        multipartUploadCompletePreviewsService: MultipartUploadCompletePreviewsServicing
+        multipartUploadCompletePreviewsService: MultipartUploadCompletePreviewsServicing,
+        uploadPreviewIconService: UploadPreviewIconServicing
     ) {
         self.fileSystem = fileSystem
         self.fileArchiver = fileArchiver
@@ -61,6 +65,7 @@ public struct PreviewsUploadService: PreviewsUploadServicing {
         self.multipartUploadGenerateURLPreviewsService = multipartUploadGenerateURLPreviewsService
         self.multipartUploadArtifactService = multipartUploadArtifactService
         self.multipartUploadCompletePreviewsService = multipartUploadCompletePreviewsService
+        self.uploadPreviewIconService = uploadPreviewIconService
     }
 
     public func uploadPreviews(
@@ -68,6 +73,7 @@ public struct PreviewsUploadService: PreviewsUploadServicing {
         displayName: String,
         version: String?,
         bundleIdentifier: String?,
+        icon: AbsolutePath?,
         fullHandle: String,
         serverURL: URL
     ) async throws -> Preview {
@@ -82,7 +88,7 @@ public struct PreviewsUploadService: PreviewsUploadServicing {
             previewType = .appBundle
         }
 
-        return try await retryProvider.runWithRetries {
+        let preview = try await retryProvider.runWithRetries {
             let previewUpload = try await multipartUploadStartPreviewsService.startPreviewsMultipartUpload(
                 type: previewType,
                 displayName: displayName,
@@ -114,5 +120,16 @@ public struct PreviewsUploadService: PreviewsUploadServicing {
                 serverURL: serverURL
             )
         }
+
+        if let icon {
+            try await uploadPreviewIconService.uploadPreviewIcon(
+                icon,
+                preview: preview,
+                serverURL: serverURL,
+                fullHandle: fullHandle
+            )
+        }
+
+        return preview
     }
 }

@@ -226,6 +226,13 @@ internal protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/previews/{preview_id}`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/get(downloadPreview)`.
     func downloadPreview(_ input: Operations.downloadPreview.Input) async throws -> Operations.downloadPreview.Output
+    /// Uploads a preview icon.
+    ///
+    /// The endpoint uploads a preview icon.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/post(uploadPreviewIcon)`.
+    func uploadPreviewIcon(_ input: Operations.uploadPreviewIcon.Input) async throws -> Operations.uploadPreviewIcon.Output
     /// List all project tokens.
     ///
     /// This endpoint returns all tokens for a given project.
@@ -763,6 +770,21 @@ extension APIProtocol {
         headers: Operations.downloadPreview.Input.Headers = .init()
     ) async throws -> Operations.downloadPreview.Output {
         try await downloadPreview(Operations.downloadPreview.Input(
+            path: path,
+            headers: headers
+        ))
+    }
+    /// Uploads a preview icon.
+    ///
+    /// The endpoint uploads a preview icon.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/post(uploadPreviewIcon)`.
+    internal func uploadPreviewIcon(
+        path: Operations.uploadPreviewIcon.Input.Path,
+        headers: Operations.uploadPreviewIcon.Input.Headers = .init()
+    ) async throws -> Operations.uploadPreviewIcon.Output {
+        try await uploadPreviewIcon(Operations.uploadPreviewIcon.Input(
             path: path,
             headers: headers
         ))
@@ -1630,6 +1652,10 @@ internal enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/Preview/display_name`.
             internal var display_name: Swift.String?
+            /// The URL for the icon image of the preview
+            ///
+            /// - Remark: Generated from `#/components/schemas/Preview/icon_url`.
+            internal var icon_url: Swift.String
             /// Unique identifier of the preview.
             ///
             /// - Remark: Generated from `#/components/schemas/Preview/id`.
@@ -1647,18 +1673,21 @@ internal enum Components {
             /// - Parameters:
             ///   - bundle_identifier: The bundle identifier of the preview
             ///   - display_name: The display name of the preview
+            ///   - icon_url: The URL for the icon image of the preview
             ///   - id: Unique identifier of the preview.
             ///   - qr_code_url: The URL for the QR code image to dowload the preview
             ///   - url: The URL to download the preview
             internal init(
                 bundle_identifier: Swift.String? = nil,
                 display_name: Swift.String? = nil,
+                icon_url: Swift.String,
                 id: Swift.String,
                 qr_code_url: Swift.String,
                 url: Swift.String
             ) {
                 self.bundle_identifier = bundle_identifier
                 self.display_name = display_name
+                self.icon_url = icon_url
                 self.id = id
                 self.qr_code_url = qr_code_url
                 self.url = url
@@ -1666,6 +1695,7 @@ internal enum Components {
             internal enum CodingKeys: String, CodingKey {
                 case bundle_identifier
                 case display_name
+                case icon_url
                 case id
                 case qr_code_url
                 case url
@@ -1734,6 +1764,35 @@ internal enum Components {
             }
             internal enum CodingKeys: String, CodingKey {
                 case previews
+            }
+        }
+        /// The URL to upload an artifact.
+        ///
+        /// - Remark: Generated from `#/components/schemas/ArtifactUploadURL`.
+        internal struct ArtifactUploadURL: Codable, Hashable, Sendable {
+            /// The UNIX timestamp when the URL expires.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ArtifactUploadURL/expires_at`.
+            internal var expires_at: Swift.Int
+            /// The URL to upload the artifact.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ArtifactUploadURL/url`.
+            internal var url: Swift.String
+            /// Creates a new `ArtifactUploadURL`.
+            ///
+            /// - Parameters:
+            ///   - expires_at: The UNIX timestamp when the URL expires.
+            ///   - url: The URL to upload the artifact.
+            internal init(
+                expires_at: Swift.Int,
+                url: Swift.String
+            ) {
+                self.expires_at = expires_at
+                self.url = url
+            }
+            internal enum CodingKeys: String, CodingKey {
+                case expires_at
+                case url
             }
         }
         /// Token to authenticate the user with.
@@ -12442,6 +12501,307 @@ internal enum Operations {
             /// - Throws: An error if `self` is not `.notFound`.
             /// - SeeAlso: `.notFound`.
             internal var notFound: Operations.downloadPreview.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        internal enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            internal init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            internal var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            internal static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Uploads a preview icon.
+    ///
+    /// The endpoint uploads a preview icon.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/post(uploadPreviewIcon)`.
+    internal enum uploadPreviewIcon {
+        internal static let id: Swift.String = "uploadPreviewIcon"
+        internal struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/POST/path`.
+            internal struct Path: Sendable, Hashable {
+                /// The handle of the account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/POST/path/account_handle`.
+                internal var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/POST/path/project_handle`.
+                internal var project_handle: Swift.String
+                /// The preview identifier.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/POST/path/preview_id`.
+                internal var preview_id: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the account.
+                ///   - project_handle: The handle of the project.
+                ///   - preview_id: The preview identifier.
+                internal init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String,
+                    preview_id: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                    self.preview_id = preview_id
+                }
+            }
+            internal var path: Operations.uploadPreviewIcon.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/POST/header`.
+            internal struct Headers: Sendable, Hashable {
+                internal var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.uploadPreviewIcon.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                internal init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.uploadPreviewIcon.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            internal var headers: Operations.uploadPreviewIcon.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            internal init(
+                path: Operations.uploadPreviewIcon.Input.Path,
+                headers: Operations.uploadPreviewIcon.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        internal enum Output: Sendable, Hashable {
+            internal struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/POST/responses/200/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/POST/responses/200/content/application\/json`.
+                    case json(Components.Schemas.ArtifactUploadURL)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas.ArtifactUploadURL {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.uploadPreviewIcon.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.uploadPreviewIcon.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The presigned upload URL
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/post(uploadPreviewIcon)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.uploadPreviewIcon.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            internal var ok: Operations.uploadPreviewIcon.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/POST/responses/401/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/POST/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.uploadPreviewIcon.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.uploadPreviewIcon.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/post(uploadPreviewIcon)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.uploadPreviewIcon.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            internal var unauthorized: Operations.uploadPreviewIcon.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/POST/responses/403/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/POST/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.uploadPreviewIcon.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.uploadPreviewIcon.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized to perform this action
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/post(uploadPreviewIcon)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.uploadPreviewIcon.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            internal var forbidden: Operations.uploadPreviewIcon.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/POST/responses/404/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/POST/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.uploadPreviewIcon.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.uploadPreviewIcon.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The project or preview doesn't exist
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/post(uploadPreviewIcon)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.uploadPreviewIcon.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            internal var notFound: Operations.uploadPreviewIcon.Output.NotFound {
                 get throws {
                     switch self {
                     case let .notFound(response):

@@ -261,6 +261,7 @@ struct ShareService {
             displayName: displayName,
             version: appBundle.infoPlist.version.description,
             bundleIdentifier: appBundle.infoPlist.bundleId,
+            icon: iconPaths(for: appBundle).first,
             fullHandle: fullHandle,
             serverURL: serverURL,
             json: json
@@ -288,6 +289,9 @@ struct ShareService {
             displayName: appName,
             version: appBundles.map(\.infoPlist.version.description).first,
             bundleIdentifier: appBundles.map(\.infoPlist.bundleId).first,
+            icon: appBundles
+                .concurrentFlatMap { try await iconPaths(for: $0) }
+                .first,
             fullHandle: fullHandle,
             serverURL: serverURL,
             json: json
@@ -371,6 +375,9 @@ struct ShareService {
                 displayName: app,
                 version: appBundles.first?.infoPlist.version.description,
                 bundleIdentifier: appBundles.first?.infoPlist.bundleId,
+                icon: appBundles
+                    .concurrentFlatMap { try await iconPaths(for: $0) }
+                    .first,
                 fullHandle: fullHandle,
                 serverURL: serverURL,
                 json: json
@@ -378,11 +385,21 @@ struct ShareService {
         }
     }
 
+    private func iconPaths(for appBundle: AppBundle) async throws -> [AbsolutePath] {
+        try await appBundle.infoPlist.bundleIcons?.primaryIcon?.iconFiles
+            // This is a convention for iOS icons. We might need to adjust this for other platforms in the future.
+            .map { appBundle.path.appending(component: $0 + "@2x.png") }
+            .concurrentFilter {
+                try await fileSystem.exists($0)
+            } ?? []
+    }
+
     private func uploadPreviews(
         _ previewUploadType: PreviewUploadType,
         displayName: String,
         version: String?,
         bundleIdentifier: String?,
+        icon: AbsolutePath?,
         fullHandle: String,
         serverURL: URL,
         json: Bool
@@ -393,6 +410,7 @@ struct ShareService {
             displayName: displayName,
             version: version,
             bundleIdentifier: bundleIdentifier,
+            icon: icon,
             fullHandle: fullHandle,
             serverURL: serverURL
         )
