@@ -25,10 +25,10 @@ extension Preview {
     extension Preview {
         public static func test(
             id: String = "preview-id",
-            url: URL = URL(string: "https://cloud.tuist.io/tuist/tuist/previews/preview-id")!,
+            url: URL = URL(string: "https://tuist.dev/tuist/tuist/previews/preview-id")!,
             // swiftlint:disable:this force_try,
             qrCodeURL: URL =
-                URL(string: "https://cloud.tuist.io/tuist/tuist/previews/preview-id/qr-code.svg")!,
+                URL(string: "https://tuist.dev/tuist/tuist/previews/preview-id/qr-code.svg")!,
             // swiftlint:disable:this force_try
             bundleIdentifier: String? = "com.tuist.app",
             displayName: String? = "App"

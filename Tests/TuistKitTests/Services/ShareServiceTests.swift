@@ -516,7 +516,7 @@ final class ShareServiceTests: TuistUnitTestCase {
               "bundleIdentifier": "com.tuist.app",
               "displayName": "App",
               "id": "preview-id",
-              "qrCodeURL": "https://cloud.tuist.io/tuist/tuist/previews/preview-id/qr-code.svg",
+              "qrCodeURL": "https://tuist.dev/tuist/tuist/previews/preview-id/qr-code.svg",
               "url": "https://test.tuist.io"
             }
             """
