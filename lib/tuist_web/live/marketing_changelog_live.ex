@@ -34,6 +34,8 @@ defmodule TuistWeb.MarketingChangelogLive do
      |> assign(:entries, entries)
      |> assign(:head_image, Tuist.Environment.app_url(path: "/images/marketing/og/changelog.jpg"))
      |> assign(:head_title, "Tuist Changelog")
+     |> assign(:head_include_blog_rss_and_atom, false)
+     |> assign(:head_include_changelog_rss_and_atom, true)
      |> assign(:head_twitter_card, "summary_large_image")
      |> assign_structured_data(get_changelog_structured_data(entries))
      |> assign(

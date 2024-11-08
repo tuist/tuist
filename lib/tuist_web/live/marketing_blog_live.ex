@@ -33,6 +33,8 @@ defmodule TuistWeb.MarketingBlogLive do
      |> assign(:posts, posts)
      |> assign(:head_image, Tuist.Environment.app_url(path: "/images/marketing/og/blog.jpg"))
      |> assign(:head_title, "The Tuist Blog")
+     |> assign(:head_include_blog_rss_and_atom, true)
+     |> assign(:head_include_changelog_rss_and_atom, false)
      |> assign(:head_twitter_card, "summary_large_image")
      |> assign_structured_data(get_blog_structured_markup_data(posts))
      |> assign(:head_description, gettext("Read engaging stories and expert insights."))}

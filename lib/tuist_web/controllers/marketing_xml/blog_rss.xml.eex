@@ -4,18 +4,18 @@
     <title><%= gettext("Tuist's blog") %></title>
     <description><%= gettext("Blog posts by the Tuist team.") %></description>
     <link><%= Tuist.Environment.app_url(path: ~p"/blog") %></link>
-    <lastBuildDate><%= @last_build_date |> Timex.format!("{RFC822}") %></lastBuildDate>
-    <pubDate><%= @last_build_date |> Timex.format!("{RFC822}") %></pubDate>
+    <lastBuildDate><%= @last_build_date |> Timex.format!("{RFC1123}") %></lastBuildDate>
+    <pubDate><%= @last_build_date |> Timex.format!("{RFC1123}") %></pubDate>
     <ttl>1800</ttl>
-    <atom:link href="<%= Tuist.Environment.app_url(path: ~p"/blog+rss.xml") %>" rel="self" type="application/rss+xml"/>
+    <atom:link href="<%= Tuist.Environment.app_url(path: ~p"/blog/rss.xml") %>" rel="self" type="application/rss+xml"/>
 
     <%= for post <- @posts do %>
       <item>
-        <title><%= post.title %></title>
-        <description><![CDATA[ <%= post.excerpt %> ]]></description>
+        <title><![CDATA[ <%= post.title %> ]]></title>
+        <description><![CDATA[ <%= post.body %> ]]></description>
         <link><%= Tuist.Environment.app_url(path: post.slug) %></link>
         <guid isPermaLink="false"><%= post.slug %></guid>
-        <pubDate><%= post.date |> Timex.format!("{RFC822}")  %></pubDate>
+        <pubDate><%= post.date |> Timex.format!("{RFC1123}")  %></pubDate>
       </item>
     <% end %>
   </channel>

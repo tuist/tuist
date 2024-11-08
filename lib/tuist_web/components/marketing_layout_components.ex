@@ -237,6 +237,7 @@ defmodule TuistWeb.MarketingLayoutComponents do
           :for={item <- @items}
           href={item.href}
           class="marketing__footer__main__menus__menu_link font-xxs"
+          target={Map.get(item, :target, nil)}
         >
           <%= item.text %>
         </.link>

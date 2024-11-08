@@ -67,10 +67,10 @@ defmodule TuistWeb.Router do
   scope "/" do
     pipe_through [:browser_marketing_feed]
 
-    get "/blog+rss.xml", TuistWeb.MarketingController, :blog_rss
-    get "/blog+atom.xml", TuistWeb.MarketingController, :blog_atom
-    get "/changelog+rss.xml", TuistWeb.MarketingController, :changelog_rss
-    get "/changelog+atom.xml", TuistWeb.MarketingController, :changelog_atom
+    get "/blog/rss.xml", TuistWeb.MarketingController, :blog_rss
+    get "/blog/atom.xml", TuistWeb.MarketingController, :blog_atom
+    get "/changelog/rss.xml", TuistWeb.MarketingController, :changelog_rss
+    get "/changelog/atom.xml", TuistWeb.MarketingController, :changelog_atom
     get "/sitemap.xml", TuistWeb.MarketingController, :sitemap
   end
 

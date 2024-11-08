@@ -3,17 +3,27 @@
   <title><%= gettext("Tuist's blog") %></title>
   <subtitle><%= gettext("Blog posts by the Tuist team.") %></subtitle>
   <link href="<%= Tuist.Environment.app_url(path: ~p"/blog") %>"/>
-  <link href="<%= Tuist.Environment.app_url(path: ~p"/blog+atom.xml") %>" rel="self"/>
+  <link href="<%= Tuist.Environment.app_url(path: ~p"/blog/atom.xml") %>" rel="self"/>
   <id><%= Tuist.Environment.app_url(path: ~p"/blog") %></id>
-  <updated><%= @last_build_date |> Timex.format!("{RFC3339}") %></updated>
+  <updated><%= @last_build_date |> Timex.format!("{RFC1123}") %></updated>
 
   <%= for post <- @posts do %>
     <entry>
-      <title><%= post.title %></title>
+      <title><![CDATA[ <%= post.title %> ]]></title>
+      <% author = Tuist.Blog.get_post_author(post) %>
+      <%= if not is_nil(author) do %>
+      <author>
+        <name><![CDATA[ <%= author["name"] %> ]]></name>
+      </author>
+      <% else %>
+      <author>
+        <name>Tuist</name>
+      </author>
+      <% end %>
       <summary type="html"><![CDATA[ <%= post.excerpt %> ]]></summary>
       <link href="<%= Tuist.Environment.app_url(path: post.slug) %>"/>
       <id><%= Tuist.Environment.app_url(path: post.slug) %></id>
-      <updated><%= post.date |> Timex.format!("{RFC3339}") %></updated>
+      <updated><%= post.date |> Timex.format!("{RFC1123}") %></updated>
       <content type="html"><![CDATA[ <%= post.body %> ]]></content>
     </entry>
   <% end %>
