@@ -65,7 +65,7 @@ defmodule Tuist.MixProject do
       {:uniq, "~> 0.6"},
       {:encrypted_secrets, "~> 0.3.0"},
       {:ex_aws, "~> 2.5.5"},
-      {:ex_aws_s3, "~> 2.5"},
+      {:ex_aws_s3, "~> 2.5.5"},
       {:configparser_ex, "~> 4.0"},
       {:number, "~> 1.0"},
       {:mimic, "~> 1.10.1", only: :test},

@@ -82,6 +82,39 @@ defmodule Tuist.Storage do
     url
   end
 
+  def generate_upload_url(object_key, opts \\ []) do
+    {:ok, url} =
+      ExAws.Config.new(:s3)
+      |> ExAws.S3.presigned_url(:put, Environment.s3_bucket_name(), object_key,
+        query_params: [],
+        expires_in: opts |> Keyword.get(:expires_in, 3600),
+        virtual_host: true
+      )
+
+    :telemetry.execute(
+      Tuist.Telemetry.event_name_storage_generate_upload_presigned_url(),
+      %{},
+      %{object_key: object_key}
+    )
+
+    url
+  end
+
+  def stream_object(object_key) do
+    stream =
+      Environment.s3_bucket_name()
+      |> ExAws.S3.download_file(object_key, :memory)
+      |> ExAws.stream!()
+
+    :telemetry.execute(
+      Tuist.Telemetry.event_name_storage_stream_object(),
+      %{},
+      %{object_key: object_key}
+    )
+
+    stream
+  end
+
   def object_exists?(object_key) do
     {time, exists} =
       Performance.measure_time_in_milliseconds(fn ->

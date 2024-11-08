@@ -25,6 +25,34 @@ defmodule TuistWeb.PreviewController do
     |> send_resp(200, qr_code_image)
   end
 
+  def download_icon(
+        conn,
+        %{
+          "account_handle" => account_handle,
+          "project_handle" => project_handle,
+          "id" => preview_id
+        } = _params
+      ) do
+    conn =
+      conn
+      |> put_resp_content_type("image/png")
+      |> send_chunked(:ok)
+
+    Storage.stream_object(
+      Previews.get_icon_storage_key(%{
+        account_handle: account_handle,
+        project_handle: project_handle,
+        preview_id: preview_id
+      })
+    )
+    |> Enum.reduce_while(conn, fn chunk, conn ->
+      case chunk(conn, chunk) do
+        {:ok, conn} -> {:cont, conn}
+        {:error, _reason} -> {:halt, conn}
+      end
+    end)
+  end
+
   def download_archive(
         conn,
         %{

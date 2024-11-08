@@ -39,4 +39,12 @@ defmodule Tuist.Previews do
       }) do
     "#{account_handle}/#{project_handle}/previews/#{preview_id}.zip"
   end
+
+  def get_icon_storage_key(%{
+        account_handle: account_handle,
+        project_handle: project_handle,
+        preview_id: preview_id
+      }) do
+    "#{account_handle}/#{project_handle}/previews/#{preview_id}/icon.png"
+  end
 end

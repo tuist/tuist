@@ -219,6 +219,22 @@ defmodule Tuist.Storage.PromExPlugin do
         ]
       ),
       Event.build(
+        :tuist_storage_generate_upload_presigned_url,
+        [
+          counter(
+            [
+              :tuist,
+              :storage,
+              :generate_download_presigned_url,
+              :count
+            ],
+            event_name: Telemetry.event_name_storage_generate_upload_presigned_url(),
+            description:
+              "The count of pre-signed URLs that have been generated to upload an object."
+          )
+        ]
+      ),
+      Event.build(
         :tuist_storage_multipart_generate_upload_part_presigned_url,
         [
           counter(
@@ -280,6 +296,21 @@ defmodule Tuist.Storage.PromExPlugin do
             event_name: Telemetry.event_name_storage_multipart_complete_upload(),
             measurement: :parts_count,
             description: "The number of parts a multi-part upload has been completed with."
+          )
+        ]
+      ),
+      Event.build(
+        :tuist_storage_stream_object,
+        [
+          counter(
+            [
+              :tuist,
+              :storage,
+              :stream_object,
+              :count
+            ],
+            event_name: Telemetry.event_name_storage_stream_object(),
+            description: "The count of times that objects have been streamed."
           )
         ]
       )

@@ -1,4 +1,5 @@
 defmodule TuistWeb.API.PreviewsController do
+  alias TuistWeb.API.Schemas.ArtifactUploadURL
   alias TuistWeb.API.Schemas
   alias Tuist.CommandEvents
   alias TuistWeb.API.Schemas.ArtifactDownloadURL
@@ -281,6 +282,7 @@ defmodule TuistWeb.API.PreviewsController do
         url: url(~p"/#{account_handle}/#{project_handle}/previews/#{preview_id}"),
         qr_code_url:
           url(~p"/#{account_handle}/#{project_handle}/previews/#{preview_id}/qr-code.svg"),
+        icon_url: url(~p"/#{account_handle}/#{project_handle}/previews/#{preview_id}/icon.png"),
         bundle_identifier: preview.bundle_identifier,
         display_name: preview.display_name
       })
@@ -497,11 +499,82 @@ defmodule TuistWeb.API.PreviewsController do
             url: url(~p"/#{account_handle}/#{project_handle}/previews/#{&1.preview.id}"),
             qr_code_url:
               url(~p"/#{account_handle}/#{project_handle}/previews/#{&1.preview.id}/qr-code.svg"),
+            icon_url:
+              url(~p"/#{account_handle}/#{project_handle}/previews/#{&1.preview.id}/icon.png"),
             bundle_identifier: &1.preview.bundle_identifier,
             display_name: &1.preview.display_name
           }
         )
     })
+  end
+
+  operation(:upload_icon,
+    summary: "Uploads a preview icon.",
+    description: "The endpoint uploads a preview icon.",
+    operation_id: "uploadPreviewIcon",
+    parameters: [
+      account_handle: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The handle of the account."
+      ],
+      project_handle: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The handle of the project."
+      ],
+      preview_id: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The preview identifier."
+      ]
+    ],
+    responses: %{
+      ok: {"The presigned upload URL", "application/json", ArtifactUploadURL},
+      unauthorized:
+        {"You need to be authenticated to access this resource", "application/json", Error},
+      forbidden:
+        {"The authenticated subject is not authorized to perform this action", "application/json",
+         Error},
+      not_found: {"The project or preview doesn't exist", "application/json", Error}
+    }
+  )
+
+  def upload_icon(
+        %{
+          params: %{
+            account_handle: account_handle,
+            project_handle: project_handle,
+            preview_id: preview_id
+          }
+        } = conn,
+        _params
+      ) do
+    preview = Previews.get_preview_by_id(preview_id)
+
+    if is_nil(preview) do
+      conn
+      |> put_status(:not_found)
+      |> json(%{message: "Preview not found."})
+    else
+      expires_in = 3600
+
+      upload_url =
+        Storage.generate_upload_url(
+          Previews.get_icon_storage_key(%{
+            account_handle: account_handle,
+            project_handle: project_handle,
+            preview_id: preview_id
+          }),
+          expires_in: expires_in
+        )
+
+      conn
+      |> json(%{url: upload_url, expires_at: System.system_time(:second) + expires_in})
+    end
   end
 
   defp valid_git_commit_sha?(hash) do

@@ -23,12 +23,20 @@ defmodule Tuist.Telemetry do
     [:tuist, :storage, :generate_download_presigned_url]
   end
 
+  def event_name_storage_generate_upload_presigned_url() do
+    [:tuist, :storage, :generate_upload_presigned_url]
+  end
+
   def event_name_storage_multipart_complete_upload() do
     [:tuist, :storage, :multipart, :complete_upload]
   end
 
   def event_name_storage_multipart_generate_upload_part_presigned_url() do
     [:tuist, :storage, :multipart, :generate_upload_part_presigned_url]
+  end
+
+  def event_name_storage_stream_object() do
+    [:tuist, :storage, :stream_object]
   end
 
   def event_name_run_command() do

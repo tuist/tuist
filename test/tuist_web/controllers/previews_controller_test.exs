@@ -356,6 +356,8 @@ defmodule TuistWeb.PreviewsControllerTest do
                "url" => url(~p"/#{account.name}/#{project.name}/previews/#{preview.id}"),
                "qr_code_url" =>
                  url(~p"/#{account.name}/#{project.name}/previews/#{preview.id}/qr-code.svg"),
+               "icon_url" =>
+                 url(~p"/#{account.name}/#{project.name}/previews/#{preview.id}/icon.png"),
                "bundle_identifier" => "com.tuist.app",
                "display_name" => "App"
              }
@@ -628,6 +630,8 @@ defmodule TuistWeb.PreviewsControllerTest do
                    url(
                      ~p"/#{account.name}/#{project.name}/previews/#{preview_two.id}/qr-code.svg"
                    ),
+                 "icon_url" =>
+                   url(~p"/#{account.name}/#{project.name}/previews/#{preview_two.id}/icon.png"),
                  "bundle_identifier" => "com.tuist.app",
                  "display_name" => "App"
                }
@@ -1078,6 +1082,92 @@ defmodule TuistWeb.PreviewsControllerTest do
 
       assert response["message"] ==
                "tuist is not authorized to read preview"
+    end
+  end
+
+  describe "PUST /api/projects/:account_handle/:project_handle/previews/:preview_id/icons" do
+    test "return preview upload URL", %{
+      conn: conn,
+      user: user,
+      project: project,
+      account: account
+    } do
+      # Given
+      preview = PreviewsFixtures.preview_fixture(project: project)
+
+      object_key =
+        "#{account.name}/#{project.name}/previews/#{preview.id}/icon.png"
+
+      Storage
+      |> expect(:generate_upload_url, fn ^object_key, expires_in: 3600 ->
+        "https://url.com"
+      end)
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+
+      # When
+      conn =
+        conn
+        |> post(~p"/api/projects/#{account.name}/#{project.name}/previews/#{preview.id}/icons")
+
+      # Then
+      response = json_response(conn, :ok)
+
+      assert response["url"] == "https://url.com"
+    end
+
+    test "returns not_found when project doesn't exist", %{
+      conn: conn,
+      user: user,
+      account: account
+    } do
+      # Given
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+
+      preview = PreviewsFixtures.preview_fixture()
+
+      # When
+      conn =
+        conn
+        |> post(
+          ~p"/api/projects/#{account.name}/non-existing-project/previews/#{preview.id}/icons"
+        )
+
+      # Then
+      response = json_response(conn, :not_found)
+
+      assert response["message"] ==
+               "The project tuist/non-existing-project was not found."
+    end
+
+    test "returns forbidden when user is not authorized to read preview", %{
+      conn: conn,
+      user: user
+    } do
+      # Given
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+
+      organization = AccountsFixtures.organization_fixture()
+      account = Accounts.get_account_from_organization(organization)
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+      preview = PreviewsFixtures.preview_fixture(project: project)
+
+      # When
+      conn =
+        conn
+        |> post(~p"/api/projects/#{account.name}/#{project.name}/previews/#{preview.id}/icons")
+
+      # Then
+      response = json_response(conn, :forbidden)
+
+      assert response["message"] ==
+               "tuist is not authorized to create preview"
     end
   end
 end

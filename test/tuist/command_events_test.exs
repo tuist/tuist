@@ -329,7 +329,7 @@ defmodule Tuist.CommandEventsTest do
           bundle_identifier: "com.example.app-one"
         )
 
-      command_event_one =
+      _command_event_one =
         CommandEventsFixtures.command_event_fixture(
           name: "share",
           project_id: project.id,

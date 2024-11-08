@@ -131,6 +131,7 @@ defmodule TuistWeb.Router do
           post "/start", PreviewsController, :multipart_start
           post "/generate-url", PreviewsController, :multipart_generate_url
           post "/complete", PreviewsController, :multipart_complete
+          post "/:preview_id/icons", PreviewsController, :upload_icon
           get "/:preview_id", PreviewsController, :download
           get "/", PreviewsController, :index
         end
@@ -289,6 +290,16 @@ defmodule TuistWeb.Router do
   end
 
   # Dashboard
+
+  scope "/:account_handle/:project_handle/previews/:id", TuistWeb do
+    pipe_through [
+      :open_api,
+      :browser_app,
+      :analytics
+    ]
+
+    get "/icon.png", PreviewController, :download_icon
+  end
 
   scope "/:account_handle/:project_handle/previews/:id", TuistWeb do
     pipe_through [

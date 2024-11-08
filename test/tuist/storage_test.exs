@@ -178,6 +178,74 @@ defmodule Tuist.StorageTest do
     end
   end
 
+  describe "generate_upload_url/2" do
+    test "generates the upload URL using the ExAws.S3 module and sends the right telemetry event" do
+      # Given
+      event_name =
+        Tuist.Telemetry.event_name_storage_generate_upload_presigned_url()
+
+      event_ref =
+        :telemetry_test.attach_event_handlers(self(), [event_name])
+
+      url = "https://tuist.io/upload-url"
+      object_key = UUIDv7.generate()
+      bucket_name = UUIDv7.generate()
+      Environment |> expect(:s3_bucket_name, fn -> bucket_name end)
+
+      expires_in = 60
+      ExAws.Config |> stub(:new, fn :s3 -> %{} end)
+
+      ExAws.S3
+      |> expect(:presigned_url, fn _,
+                                   :put,
+                                   ^bucket_name,
+                                   ^object_key,
+                                   [query_params: [], expires_in: ^expires_in, virtual_host: true] ->
+        {:ok, url}
+      end)
+
+      # When
+      assert Storage.generate_upload_url(object_key, expires_in: expires_in) == url
+
+      # Then
+      assert_received {^event_name, ^event_ref, %{}, %{object_key: ^object_key}}
+    end
+  end
+
+  describe "stream_object/2" do
+    test "streams object" do
+      # Given
+      event_name =
+        Tuist.Telemetry.event_name_storage_stream_object()
+
+      event_ref =
+        :telemetry_test.attach_event_handlers(self(), [event_name])
+
+      bucket_name = UUIDv7.generate()
+      Environment |> expect(:s3_bucket_name, fn -> bucket_name end)
+
+      object_key = UUIDv7.generate()
+      url = "https://tuist.io/download-url"
+
+      ExAws.S3
+      |> expect(:download_file, fn ^bucket_name, ^object_key, :memory ->
+        {:ok, url}
+      end)
+
+      stream = %Stream{}
+
+      ExAws
+      |> expect(:stream!, fn _ -> stream end)
+
+      # When
+      got = Storage.stream_object(object_key)
+
+      # Then
+      assert got == stream
+      assert_received {^event_name, ^event_ref, %{}, %{object_key: ^object_key}}
+    end
+  end
+
   describe "object_exists?/1" do
     test "generates the download URL using the ExAws.S3 module and sends the right telemetry event" do
       # Given

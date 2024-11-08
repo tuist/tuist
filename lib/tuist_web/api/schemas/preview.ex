@@ -7,7 +7,7 @@ defmodule TuistWeb.API.Schemas.Preview do
 
   OpenApiSpex.schema(%{
     type: :object,
-    required: [:id, :url, :qr_code_url],
+    required: [:id, :url, :qr_code_url, :icon_url],
     properties: %{
       id: %Schema{
         type: :string,
@@ -17,6 +17,10 @@ defmodule TuistWeb.API.Schemas.Preview do
       qr_code_url: %Schema{
         type: :string,
         description: "The URL for the QR code image to dowload the preview"
+      },
+      icon_url: %Schema{
+        type: :string,
+        description: "The URL for the icon image of the preview"
       },
       bundle_identifier: %Schema{
         type: :string,

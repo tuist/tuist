@@ -81,4 +81,24 @@ defmodule Tuist.PreviewsTest do
       assert result == "#{account_handle}/#{project_handle}/previews/#{preview.id}.zip"
     end
   end
+
+  describe "get_icon_storage_key/1" do
+    test "returns the storage key for a preview icon" do
+      # Given
+      preview = %Preview{id: "preview-id"}
+      account_handle = "account-handle"
+      project_handle = "project-handle"
+
+      # When
+      result =
+        Previews.get_icon_storage_key(%{
+          account_handle: account_handle,
+          project_handle: project_handle,
+          preview_id: preview.id
+        })
+
+      # Then
+      assert result == "#{account_handle}/#{project_handle}/previews/#{preview.id}/icon.png"
+    end
+  end
 end
