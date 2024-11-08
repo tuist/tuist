@@ -69,7 +69,7 @@ public struct Config: Codable, Equatable, Sendable {
         compatibleXcodeVersions: CompatibleXcodeVersions = .all,
         cloud: Cloud? = nil,
         fullHandle: String? = nil,
-        url: String = "https://cloud.tuist.io",
+        url: String = "https://tuist.dev",
         swiftVersion: Version? = nil,
         plugins: [PluginLocation] = [],
         generationOptions: GenerationOptions = .options(),

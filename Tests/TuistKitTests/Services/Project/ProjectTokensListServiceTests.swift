@@ -20,7 +20,7 @@ final class ProjectTokensListServiceTests: TuistUnitTestCase {
         listProjectTokensService = .init()
         serverURLService = .init()
         configLoader = .init()
-        serverURL = URL(string: "https://test.cloud.tuist.io")!
+        serverURL = URL(string: "https://test.tuist.dev")!
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(.test(url: serverURL))
