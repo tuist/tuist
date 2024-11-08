@@ -80,7 +80,7 @@ final class RunService {
             buildGraphInspector: BuildGraphInspector(),
             targetBuilder: TargetBuilder(),
             targetRunner: TargetRunner(),
-            configLoader: ConfigLoader(manifestLoader: ManifestLoader()),
+            configLoader: ConfigLoader(manifestLoader: ManifestLoader(), warningController: WarningController.shared),
             downloadPreviewService: DownloadPreviewService(),
             listPreviewsService: ListPreviewsService(),
             fileHandler: FileHandler.shared,

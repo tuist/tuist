@@ -20,7 +20,7 @@ final class OrganizationInviteService: OrganizationInviteServicing {
     init(
         createOrganizationInviteService: CreateOrganizationInviteServicing = CreateOrganizationInviteService(),
         serverURLService: ServerURLServicing = ServerURLService(),
-        configLoader: ConfigLoading = ConfigLoader()
+        configLoader: ConfigLoading = ConfigLoader(warningController: WarningController.shared)
     ) {
         self.createOrganizationInviteService = createOrganizationInviteService
         self.serverURLService = serverURLService

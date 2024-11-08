@@ -76,7 +76,7 @@ struct ShareService {
             xcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectoryLocator(),
             buildGraphInspector: BuildGraphInspector(),
             previewsUploadService: PreviewsUploadService(),
-            configLoader: ConfigLoader(),
+            configLoader: ConfigLoader(warningController: WarningController.shared),
             serverURLService: ServerURLService(),
             manifestLoader: manifestLoader,
             manifestGraphLoader: manifestGraphLoader,

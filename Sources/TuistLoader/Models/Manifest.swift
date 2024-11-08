@@ -20,6 +20,7 @@ public enum Manifest: CaseIterable {
         case .workspace:
             return "Workspace.swift"
         case .config:
+            // NOTE: We are transitioning away from Tuist/Config.swift to Tuist.swift
             return "Config.swift"
         case .template:
             return "\(path.basenameWithoutExt).swift"

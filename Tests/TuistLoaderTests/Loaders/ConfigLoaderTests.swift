@@ -17,13 +17,16 @@ final class ConfigLoaderTests: TuistUnitTestCase {
     private var subject: ConfigLoader!
     private var registeredPaths: [AbsolutePath: Bool] = [:]
     private var registeredConfigs: [AbsolutePath: Result<ProjectDescription.Config, Error>] = [:]
+    private var warningController: MockWarningControlling!
 
     override func setUp() {
         super.setUp()
         rootDirectoryLocator = .init()
         manifestLoader = .init()
+        warningController = MockWarningControlling()
         subject = ConfigLoader(
             manifestLoader: manifestLoader,
+            warningController: warningController,
             rootDirectoryLocator: rootDirectoryLocator,
             fileSystem: fileSystem
         )
@@ -42,6 +45,7 @@ final class ConfigLoaderTests: TuistUnitTestCase {
     override func tearDown() {
         subject = nil
         manifestLoader = nil
+        warningController = nil
         super.tearDown()
     }
 
@@ -60,10 +64,42 @@ final class ConfigLoaderTests: TuistUnitTestCase {
         XCTAssertEqual(result, .default)
     }
 
-    func test_loadConfig_loadConfig() async throws {
+    func test_loadConfig_loadConfig_and_showsAWarning_when_usingConfigSwiftConvention() async throws {
         // Given
         let projectPath = try temporaryPath().appending(component: "project")
         let configPath = projectPath.appending(components: "Tuist", "Config.swift")
+        try await fileSystem.makeDirectory(at: configPath.parentDirectory)
+        try await fileSystem.touch(configPath)
+        stub(path: configPath, exists: true)
+        stub(
+            config: .test(),
+            at: configPath.parentDirectory
+        )
+        stub(rootDirectory: projectPath)
+        given(warningController)
+            .append(warning: .value("Tuist/Config.swift is deprecated. Rename Tuist/Config.swift to Tuist.swift at the root."))
+            .willReturn()
+
+        // When
+        let result = try await subject.loadConfig(path: configPath)
+
+        // Then
+        XCTAssertEqual(result, TuistCore.Config(
+            compatibleXcodeVersions: .all,
+            fullHandle: nil,
+            url: Constants.URLs.production,
+            swiftVersion: nil,
+            plugins: [],
+            generationOptions: .test(),
+            installOptions: .test(),
+            path: configPath
+        ))
+    }
+
+    func test_loadConfig_loadConfig() async throws {
+        // Given
+        let projectPath = try temporaryPath().appending(component: "project")
+        let configPath = projectPath.appending(components: "Tuist.swift")
         try await fileSystem.makeDirectory(at: configPath.parentDirectory)
         try await fileSystem.touch(configPath)
         stub(path: configPath, exists: true)
@@ -92,7 +128,7 @@ final class ConfigLoaderTests: TuistUnitTestCase {
     func test_loadConfig_loadConfigError() async throws {
         // Given
         let projectPath = try temporaryPath().appending(component: "project")
-        let configPath = projectPath.appending(components: "Tuist", "Config.swift")
+        let configPath = projectPath.appending(components: "Tuist.swift")
         try await fileSystem.makeDirectory(at: configPath.parentDirectory)
         try await fileSystem.touch(configPath)
         stub(path: configPath, exists: true)
@@ -106,7 +142,7 @@ final class ConfigLoaderTests: TuistUnitTestCase {
     func test_loadConfig_loadConfigInRootDirectory() async throws {
         // Given
         let projectPath = try temporaryPath().appending(component: "project")
-        let configPath = projectPath.appending(components: "Tuist", "Config.swift")
+        let configPath = projectPath.appending(components: "Tuist.swift")
         try await fileSystem.makeDirectory(at: configPath.parentDirectory)
         try await fileSystem.touch(configPath)
         stub(rootDirectory: projectPath)
@@ -136,7 +172,7 @@ final class ConfigLoaderTests: TuistUnitTestCase {
     func test_loadConfig_with_full_handle_and_url() async throws {
         // Given
         let projectPath = try temporaryPath().appending(component: "project")
-        let configPath = projectPath.appending(components: "Tuist", "Config.swift")
+        let configPath = projectPath.appending(components: "Tuist.swift")
         try await fileSystem.makeDirectory(at: configPath.parentDirectory)
         try await fileSystem.touch(configPath)
         stub(rootDirectory: projectPath)
@@ -167,7 +203,7 @@ final class ConfigLoaderTests: TuistUnitTestCase {
     func test_loadConfig_with_deprecated_cloud() async throws {
         // Given
         let projectPath = try temporaryPath().appending(component: "project")
-        let configPath = projectPath.appending(components: "Tuist", "Config.swift")
+        let configPath = projectPath.appending(components: "Tuist.swift")
         try await fileSystem.makeDirectory(at: configPath.parentDirectory)
         try await fileSystem.touch(configPath)
         stub(rootDirectory: projectPath)
