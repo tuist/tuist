@@ -14,7 +14,7 @@ cd MyApp
 tuist init --name MyApp
 ```
 
-デフォルトでは、**iOSアプリケーション**のプロジェクトが作成されます。プロジェクトのディレクトリには、プロジェクトの設定を記述する `Project.swift`、プロジェクトスコープのTuistの設定を含む `Tuist/Config.swift`、およびアプリケーションのソースコードを含む `MyApp/` ディレクトリが含まれます。
+By default it creates a project that represents an **iOS application.** The project directory will contain a `Project.swift`, which describes the project, a `Tuist.swift`, which contains project-scoped Tuist configuration, and a `MyApp/` directory, which contains the source code of the application.
 
 Xcodeで作業するには、次のコマンドを実行してXcodeプロジェクトを生成できます。
 
