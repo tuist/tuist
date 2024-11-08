@@ -72,7 +72,8 @@ final class AppPreviewsViewModel: Sendable {
                 return AppPreview(
                     fullHandle: project.fullName,
                     displayName: preview.displayName ?? project.fullName,
-                    bundleIdentifier: bundleIdentifier
+                    bundleIdentifier: bundleIdentifier,
+                    iconURL: preview.iconURL
                 )
             }
         }

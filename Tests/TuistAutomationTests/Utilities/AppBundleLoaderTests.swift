@@ -31,16 +31,22 @@ final class AppBundleLoaderTests: TuistUnitTestCase {
         let appBundle = try await subject.load(appBundlePath)
 
         // Then
-        XCTAssertEqual(
+        XCTAssertBetterEqual(
             appBundle,
             AppBundle(
                 path: appBundlePath,
                 infoPlist: AppBundle.InfoPlist(
                     version: Version("1.0"),
                     name: "App",
-                    bundleId: "io.tuist.App",
-                    minimumOSVersion: Version("17.4"),
-                    supportedPlatforms: [.simulator(.iOS)]
+                    bundleId: "io.tuist.MainApp",
+                    minimumOSVersion: Version("17.0"),
+                    supportedPlatforms: [.simulator(.iOS)],
+                    bundleIcons: AppBundle.InfoPlist.BundleIcons(
+                        primaryIcon: AppBundle.InfoPlist.PrimaryBundleIcon(
+                            name: "AppIcon",
+                            iconFiles: ["AppIcon60x60"]
+                        )
+                    )
                 )
             )
         )
@@ -65,7 +71,8 @@ final class AppBundleLoaderTests: TuistUnitTestCase {
                     name: "App",
                     bundleId: "io.tuist.App",
                     minimumOSVersion: Version("17.0"),
-                    supportedPlatforms: [.device(.iOS)]
+                    supportedPlatforms: [.device(.iOS)],
+                    bundleIcons: nil
                 )
             )
         )

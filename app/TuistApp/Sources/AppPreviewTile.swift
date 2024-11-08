@@ -5,7 +5,7 @@ struct AppPreviewTile: View {
 
     var body: some View {
         VStack(spacing: 4) {
-            AsyncImage(url: nil) { image in
+            CachedAsyncImage(url: appPreview.iconURL) { image in
                 image
                     .pinnedApplicationImageStyle()
             } placeholder: {
