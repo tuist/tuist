@@ -387,6 +387,7 @@ struct ShareService {
 
     private func iconPaths(for appBundle: AppBundle) async throws -> [AbsolutePath] {
         try await appBundle.infoPlist.bundleIcons?.primaryIcon?.iconFiles
+            // This is a convention for iOS icons. We might need to adjust this for other platforms in the future.
             .map { appBundle.path.appending(component: $0 + "@2x.png") }
             .concurrentFilter {
                 try await fileSystem.exists($0)
