@@ -46,7 +46,7 @@ let project = Project(
 - **Project:** `package` 인스턴스를 내보내는 대신에 `project` 인스턴스를 내보냅니다.
 - **Xcode 언어:** 프로젝트를 정의하는데 사용하는 기본 요소는 Xcode의 언어를 따르므로 스킴, 타겟, 그리고 Build Phases 등을 찾을 수 있습니다.
 
-그런 다음 아래의 내용으로 `Tuist/Config.swift` 파일을 생성합니다:
+Then create a `Tuist.swift` file with the following content:
 
 ```swift
 import ProjectDescription
@@ -54,7 +54,7 @@ import ProjectDescription
 let config = Config()
 ```
 
-`Config.swift`는 프로젝트와 `Tuist` 디렉토리에 대한 구성이 포함되어 있고 이는 프로젝트의 루트를 결정하는 참조 역할을 합니다. Tuist 프로젝트의 구조에 대해 알아보려면 <LocalizedLink href="/guides/develop/projects/directory-structure">디렉토리 구조</LocalizedLink> 문서에서 확인 가능합니다.
+The `Tuist.swift` contains the configuration for your project and its path serves as a reference to determine the root of your project. Tuist 프로젝트의 구조에 대해 알아보려면 <LocalizedLink href="/guides/develop/projects/directory-structure">디렉토리 구조</LocalizedLink> 문서에서 확인 가능합니다.
 
 ## 프로젝트 수정 {#editing-the-project}
 
