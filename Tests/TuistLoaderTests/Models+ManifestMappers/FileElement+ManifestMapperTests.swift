@@ -41,6 +41,32 @@ final class FileElementManifestMapperTests: TuistUnitTestCase {
         XCTAssertEqual(model, [])
     }
 
+    func test_from_with_hidden_files() async throws {
+        // Given
+        let temporaryPath = try temporaryPath()
+        let rootDirectory = temporaryPath
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: rootDirectory
+        )
+        let files = try await createFiles([
+            "Additional/.hidden.yml",
+        ])
+
+        let manifest = ProjectDescription.FileElement.glob(pattern: "**/.*.yml")
+
+        // When
+        let got = try await XcodeGraph.FileElement.from(
+            manifest: manifest,
+            generatorPaths: generatorPaths,
+            fileSystem: fileSystem,
+            includeFiles: { !FileHandler.shared.isFolder($0) }
+        )
+
+        // Then
+        XCTAssertEqual(got.map(\.path), files)
+    }
+
     func test_from_outputs_a_warning_when_the_folder_reference_is_invalid() async throws {
         // Given
         let temporaryPath = try temporaryPath()

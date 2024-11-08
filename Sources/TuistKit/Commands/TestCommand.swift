@@ -36,6 +36,13 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
     )
     var clean: Bool = false
 
+    @Flag(
+        name: .shortAndLong,
+        help: "When passed, the result necessary for test selection is not persisted to the server.",
+        envKey: .testNoUpload
+    )
+    var noUpload: Bool = false
+
     @Option(
         name: .shortAndLong,
         help: "The path to the directory that contains the project to be tested.",
@@ -236,6 +243,7 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
             runId: runId,
             schemeName: scheme,
             clean: clean,
+            noUpload: noUpload,
             configuration: configuration,
             path: absolutePath,
             deviceName: device,

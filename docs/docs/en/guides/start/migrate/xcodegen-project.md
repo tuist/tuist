@@ -1,5 +1,6 @@
 ---
 title: Migrate an XcodeGen project
+titleTemplate: :title · Migrate· Start · Guides · Tuist
 description: Learn how to migrate your projects from XcodeGen to Tuist.
 ---
 
@@ -42,8 +43,7 @@ XcodeGen's `project.yaml` description file becomes `Project.swift`. Moreover, yo
 
 ```bash [Tuist directory structure]
 /
-  Tuist/
-    Config.swift
+  Tuist.swift
   Project.swift
   Workspace.swift
 ```

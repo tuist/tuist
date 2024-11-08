@@ -86,15 +86,14 @@ extension Target {
 
         for source in sources {
             let sourcePath = try AbsolutePath(validating: source.glob)
-            let base = try AbsolutePath(validating: sourcePath.dirname)
 
             // Paths that should be excluded from sources
             var excluded: [AbsolutePath] = []
             for path in source.excluding {
-                let absolute = try AbsolutePath(validating: path)
+                let path = try AbsolutePath(validating: path)
                 let globs = try await fileSystem.glob(
-                    directory: try AbsolutePath(validating: absolute.dirname),
-                    include: [absolute.basename]
+                    directory: .root,
+                    include: [String(path.pathString.dropFirst())]
                 )
                 .collect()
                 excluded.append(contentsOf: globs)
@@ -104,7 +103,7 @@ extension Target {
 
             do {
                 paths = try await fileSystem
-                    .throwingGlob(directory: base, include: [sourcePath.basename])
+                    .throwingGlob(directory: .root, include: [String(sourcePath.pathString.dropFirst())])
                     .collect()
                     .filter { !$0.isInOpaqueDirectory }
             } catch let GlobError.nonExistentDirectory(invalidGlob) {

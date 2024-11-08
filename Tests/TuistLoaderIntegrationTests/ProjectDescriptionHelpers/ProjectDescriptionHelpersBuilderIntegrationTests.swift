@@ -2,10 +2,10 @@ import FileSystem
 import Foundation
 import Path
 import TuistCore
-import TuistSupport
 import XCTest
 
 @testable import TuistLoader
+@testable import TuistSupport
 @testable import TuistSupportTesting
 
 final class ProjectDescriptionHelpersBuilderIntegrationTests: TuistTestCase {

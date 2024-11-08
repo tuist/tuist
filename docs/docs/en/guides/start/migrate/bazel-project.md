@@ -1,5 +1,6 @@
 ---
 title: Migrate a Bazel project
+titleTemplate: :title · Migrate· Start · Guides · Tuist
 description: Learn how to migrate your projects from Bazel to Tuist.
 ---
 

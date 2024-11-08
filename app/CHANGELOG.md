@@ -1,3 +1,18 @@
+## What's Changed in app@0.4.0
+* feat: add support for downloading latest previews by @fortmarek in [#7001](https://github.com/tuist/tuist/pull/7001)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/app@0.3.5...app@0.4.0
+
+## What's Changed in app@0.3.5
+* fix: when scrolling, scroll only the other devices section by @fortmarek in [#6976](https://github.com/tuist/tuist/pull/6976)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/app@0.3.4...app@0.3.5
+
+## What's Changed in app@0.3.4
+* refactor: migrate AbsolutePath.glob to FileSystem.glob by @fortmarek in [#6936](https://github.com/tuist/tuist/pull/6936)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/app@0.3.3...app@0.3.4
+
 ## What's Changed in app@0.3.3
 * refactor: migrate globs to the new FileSystem utility by @fortmarek in [#6920](https://github.com/tuist/tuist/pull/6920)
 

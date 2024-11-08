@@ -46,14 +46,10 @@ public final class PackageSettingsLoader: PackageSettingsLoading {
             manifestDirectory: path,
             rootDirectory: rootDirectory
         )
-        let swiftToolsVersion = try swiftPackageManagerController.getToolsVersion(
-            at: path
-        )
 
         return try TuistCore.PackageSettings.from(
             manifest: manifest,
-            generatorPaths: generatorPaths,
-            swiftToolsVersion: swiftToolsVersion
+            generatorPaths: generatorPaths
         )
     }
 }

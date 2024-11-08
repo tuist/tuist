@@ -37,6 +37,7 @@ final class WorkspaceManifestMapperTests: TuistUnitTestCase {
             .locate(from: .any)
             .willReturn(workspacePath)
 
+        try await fileSystem.touch(workspacePath.appending(component: "Project.swift"))
         try fileHandler.createFolder(workspacePath.appending(components: ".build", "checkouts"))
 
         // When

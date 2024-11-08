@@ -113,7 +113,30 @@ final class XCFrameworkMetadataProviderTests: TuistUnitTestCase {
                 linking: .dynamic,
                 mergeable: false,
                 status: .required,
-                macroPath: nil
+                macroPath: nil,
+                swiftModules: [
+                    frameworkPath.appending(
+                        components: "ios-arm64",
+                        "MyFramework.framework",
+                        "Modules",
+                        "MyFramework.swiftmodule"
+                    ),
+                    frameworkPath.appending(
+                        components: "ios-x86_64-simulator",
+                        "MyFramework.framework",
+                        "Modules",
+                        "MyFramework.swiftmodule"
+                    ),
+                ],
+                moduleMaps: [
+                    frameworkPath.appending(components: "ios-arm64", "MyFramework.framework", "Modules", "module.modulemap"),
+                    frameworkPath.appending(
+                        components: "ios-x86_64-simulator",
+                        "MyFramework.framework",
+                        "Modules",
+                        "module.modulemap"
+                    ),
+                ]
             )
         )
     }
@@ -152,7 +175,49 @@ final class XCFrameworkMetadataProviderTests: TuistUnitTestCase {
                 linking: .dynamic,
                 mergeable: true,
                 status: .required,
-                macroPath: nil
+                macroPath: nil,
+                swiftModules: [
+                    frameworkPath.appending(
+                        components: "ios-arm64",
+                        "MyMergeableFramework.framework",
+                        "Modules",
+                        "MyMergeableFramework.swiftmodule"
+                    ),
+                    frameworkPath.appending(
+                        components: "ios-arm64",
+                        "MyMergeableFramework.framework",
+                        "Modules",
+                        "MyMergeableFramework.swiftmodule",
+                        "arm64-apple-ios.swiftmodule"
+                    ),
+                    frameworkPath.appending(
+                        components: "ios-x86_64-simulator",
+                        "MyMergeableFramework.framework",
+                        "Modules",
+                        "MyMergeableFramework.swiftmodule"
+                    ),
+                    frameworkPath.appending(
+                        components: "ios-x86_64-simulator",
+                        "MyMergeableFramework.framework",
+                        "Modules",
+                        "MyMergeableFramework.swiftmodule",
+                        "x86_64-apple-ios-simulator.swiftmodule"
+                    ),
+                ],
+                moduleMaps: [
+                    frameworkPath.appending(
+                        components: "ios-arm64",
+                        "MyMergeableFramework.framework",
+                        "Modules",
+                        "module.modulemap"
+                    ),
+                    frameworkPath.appending(
+                        components: "ios-x86_64-simulator",
+                        "MyMergeableFramework.framework",
+                        "Modules",
+                        "module.modulemap"
+                    ),
+                ]
             )
         )
     }
@@ -230,7 +295,23 @@ final class XCFrameworkMetadataProviderTests: TuistUnitTestCase {
                 linking: .dynamic,
                 mergeable: false,
                 status: .required,
-                macroPath: nil
+                macroPath: nil,
+                swiftModules: [
+                    frameworkPath.appending(
+                        components: "ios-arm64",
+                        "MyFrameworkMissingArch.framework",
+                        "Modules",
+                        "MyFramework.swiftmodule"
+                    ),
+                ],
+                moduleMaps: [
+                    frameworkPath.appending(
+                        components: "ios-arm64",
+                        "MyFrameworkMissingArch.framework",
+                        "Modules",
+                        "module.modulemap"
+                    ),
+                ]
             )
         )
 
@@ -308,7 +389,12 @@ final class XCFrameworkMetadataProviderTests: TuistUnitTestCase {
                 linking: .dynamic,
                 mergeable: false,
                 status: .required,
-                macroPath: nil
+                macroPath: nil,
+                moduleMaps: [
+                    frameworkPath.appending(components: "ios-arm64", "Headers", "module.modulemap"),
+                    frameworkPath.appending(components: "ios-arm64_x86_64-simulator", "Headers", "module.modulemap"),
+                    frameworkPath.appending(components: "macos-arm64_x86_64", "Headers", "module.modulemap"),
+                ]
             )
         )
     }

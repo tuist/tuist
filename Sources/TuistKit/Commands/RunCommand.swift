@@ -6,10 +6,13 @@ import TuistSupport
 
 enum Runnable: ExpressibleByArgument, Equatable {
     init?(argument: String) {
+        let specifierComponents = argument.components(separatedBy: "@")
         if argument.starts(with: "http://") || argument.starts(with: "https://"),
            let previewLink = URL(string: argument)
         {
             self = .url(previewLink)
+        } else if specifierComponents.count == 2 {
+            self = .specifier(displayName: specifierComponents[0], specifier: specifierComponents[1])
         } else {
             self = .scheme(argument)
         }
@@ -17,6 +20,7 @@ enum Runnable: ExpressibleByArgument, Equatable {
 
     case url(Foundation.URL)
     case scheme(String)
+    case specifier(displayName: String, specifier: String)
 }
 
 public struct RunCommand: AsyncParsableCommand {
@@ -40,7 +44,7 @@ public struct RunCommand: AsyncParsableCommand {
     }
 
     @Argument(
-        help: "Runnable project scheme or a preview URL.",
+        help: "Runnable project scheme, a preview URL, or app name with a specifier such as App@latest or App@feature-branch.",
         envKey: .runScheme
     )
     var runnable: Runnable

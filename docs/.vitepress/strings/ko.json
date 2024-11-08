@@ -1,4 +1,58 @@
 {
+  "aside": {
+    "translate": {
+      "title": {
+        "text": "Translation 🌍"
+      },
+      "description": {
+        "text": "You can translate or improve the translation of this page."
+      },
+      "cta": {
+        "text": "Contribute"
+      }
+    }
+  },
+  "search": {
+    "placeholder": "Search",
+    "translations": {
+      "button": {
+        "button-text": "Search documentation",
+        "button-aria-label": "Search documentation"
+      },
+      "modal": {
+        "search-box": {
+          "reset-button-title": "Clear query",
+          "reset-button-aria-label": "Clear query",
+          "cancel-button-text": "Cancel",
+          "cancel-button-aria-label": "Cancel"
+        },
+        "start-screen": {
+          "recent-searches-title": "Search history",
+          "no-recent-searches-text": "No search history",
+          "save-recent-search-button-title": "Save to search history",
+          "remove-recent-search-button-title": "Remove from search history",
+          "favorite-searches-title": "Favorites",
+          "remove-favorite-search-button-title": "Remove from favorites"
+        },
+        "error-screen": {
+          "title-text": "Unable to retrieve results",
+          "help-text": "You may need to check your network connection"
+        },
+        "footer": {
+          "select-text": "Select",
+          "navigate-text": "Navigate",
+          "close-text": "Close",
+          "search-by-text": "Search provider"
+        },
+        "no-results-screen": {
+          "no-results-text": "No relevant results found",
+          "suggested-query-text": "You might try querying",
+          "report-missing-results-text": "Do you think this query should have results?",
+          "report-missing-results-link-text": "Click to give feedback"
+        }
+      }
+    }
+  },
   "badges": {
     "coming-soon": "Coming soon",
     "xcodeproj-compatible": "XcodeProj-compatible"
@@ -47,7 +101,7 @@
           "text": "Migrations",
           "items": {
             "from-v3-to-v4": {
-              "text": "From v3 to v4"
+              "text": "버전 3에서 버전 4로"
             }
           }
         }
@@ -63,10 +117,13 @@
           "text": "Issue reporting"
         },
         "code-reviews": {
-          "text": "Code reviwes"
+          "text": "Code reviews"
         },
         "principles": {
           "text": "Principles"
+        },
+        "translate": {
+          "text": "Translate"
         }
       }
     },

@@ -1,6 +1,6 @@
 ---
 title: The Modular Architecture (TMA)
-titleTemplate: :title | Projects | Tuist
+titleTemplate: :title · Projects · Develop · Guides · Tuist
 description: Learn about The Modular Architecture (TMA) and how to structure your projects using it.
 ---
 
@@ -57,7 +57,7 @@ When all the app source code lives in the same target it is very easy to build i
 
 Reusing code across apps and other products like extensions is encouraged using frameworks or libraries. By building modules reusing them is pretty straightforward. We can build an iMessage extension, a Today Extension, or a watchOS application by just combining existing modules and adding _(when necessary)_ platform-specific UI layers.
 
-## Dependencies {#dependencies}
+## 의존성 {#dependencies}
 
 When a module depends on another module, it declares a dependency against its interface target. The benefit of this is two-fold. It prevents the implementation of a module to be coupled to the implementation of another module, and it speeds up clean builds because they only have to compile the implementation of our feature, and the interfaces of direct and transitive dependencies. This approach is inspired by SwiftRock's idea of [Reducing iOS Build Times by using Interface Modules](https://swiftrocks.com/reducing-ios-build-times-by-using-interface-targets).
 
@@ -98,7 +98,7 @@ TMA is non-opinionated about the code architecture and patterns for your modules
 - **Use Swift Macros sparingly.** They can be very powerful but can also make the code harder to read and maintain.
 - **Embrace the platform and the language, don't abstract them.** Trying to come up with ellaborated abstraction layers might end up being counterproductive. The platform and the language are powerful enough to build great apps without the need for additional abstraction layers. Use good programming and design patterns as a reference to build your features.
 
-## Resources {#resources}
+## 리소스 {#resources}
 
 - [Building µFeatures](https://speakerdeck.com/pepibumur/building-ufeatures)
 - [Framework Oriented Programming](https://speakerdeck.com/pepibumur/framework-oriented-programming-mobilization-dot-pl)

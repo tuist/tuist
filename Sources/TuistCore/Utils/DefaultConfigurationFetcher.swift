@@ -31,7 +31,7 @@ enum DefaultConfigurationFetcherError: FatalError, Equatable {
         case let .configurationNotFound(configuration, available):
             return "We couldn't find the configuration \(configuration) in the project. The configurations available are: \(available.joined(separator: ", "))"
         case let .defaultConfigurationNotFound(configuration, available):
-            return "We couldn't find the default configuration \(configuration) specified in your Config.swift in the project. The configurations available are: \(available.joined(separator: ", "))"
+            return "We couldn't find the default configuration \(configuration) specified in your \(Constants.tuistManifestFileName) in the project. The configurations available are: \(available.joined(separator: ", "))"
         }
     }
 }

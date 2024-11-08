@@ -1,21 +1,22 @@
 ---
-title: Gather insights
-description: Learn how to gather insights about your project.
+title: インサイトを収集する
+titleTemplate: :title · クイックスタート · ガイド · Tuist
+description: プロジェクトに関するインサイトを収集する方法を学びます。
 ---
 
-# Gather insights {#gather-insights}
+# インサイトを収集する {#gather-insights}
 
-Tuist can integrate with a server to extend its capabilities. One of those capabilities is gathering insights about your project and builds. All you need is to have an account with a project in the server.
+Tuistはサーバーと統合してその機能を拡張できます。 その機能の一つは、プロジェクトやビルドに関するインサイトを収集することです。 サーバー上にプロジェクトのアカウントを持っているだけで済みます。
 
-First of all, you'll need to authenticate by running:
+まず最初に、次のコマンドを実行して認証を行う必要があります：
 
 ```bash
 tuist auth
 ```
 
-## Create a project {#create-a-project}
+## プロジェクトの作成 {#create-a-project}
 
-You can then create a project by running:
+次に、次のコマンドを実行してプロジェクトを作成できます：
 
 ```bash
 tuist project create my-handle/MyApp
@@ -23,11 +24,11 @@ tuist project create my-handle/MyApp
 # Tuist project my-handle/MyApp was successfully created 🎉 {#tuist-project-myhandlemyapp-was-successfully-created-}
 ```
 
-Copy `my-handle/MyApp`, which represents the full handle of the project.
+`my-handle/MyApp` をコピーします。これはプロジェクトの完全なハンドルを表します。
 
-## Connect projects {#connect-projects}
+## プロジェクトを接続する {#connect-projects}
 
-After creating the project on the server, you'll have to connect it to your local project. Run `tuist edit` and edit the `Config.swift` file to include the full handle of the project:
+サーバー上にプロジェクトを作成した後、ローカルプロジェクトに接続する必要があります。 サーバー上にプロジェクトを作成した後、ローカルプロジェクトに接続する必要があります。 サーバー上にプロジェクトを作成した後、ローカルプロジェクトに接続する必要があります。 `tuist edit` を実行し、`Config.swift` ファイルを編集してプロジェクトの完全なハンドルを含めます：
 
 ```swift
 import ProjectDescription
@@ -35,12 +36,12 @@ import ProjectDescription
 let config = Config(fullHandle: "my-handle/MyApp")
 ```
 
-Voilà! You're now ready to gather insights about your project and builds. Run `tuist test` to run the tests reporting the results to the server.
+ほら！ これで、プロジェクトやビルドに関するインサイトを収集する準備が整いましたよ。 `tuist test` を実行してテストを実行し、結果をサーバーに報告します。
 
 > [!NOTE]
-> Tuist enqueues the results locally and tries to send them without blocking the command. Therefore, they might not be sent immediately after the command finishes. In CI, the results are sent immediately.
+> Tuistは結果をローカルにキューイングし、コマンドをブロックすることなく送信しようとします。 したがって、コマンドが終了した直後に結果が送信されない場合があります。 CIでは結果が即座に送信されます。 したがって、コマンドが終了した直後に結果が送信されない場合があります。 CIでは結果が即座に送信されます。 したがって、コマンドが終了した直後に結果が送信されない場合があります。 CIでは結果が即座に送信されます。
 
 ![An image that shows a list of runs in the server](/images/guides/quick-start/runs.png)
 
-Having data from your projects and builds is crucial in making informed decisions.
-Tuist will continue to extend its capabilities, and you'll benefit from them without having to change your project configuration. Magic, right? 🪄
+プロジェクトやビルドからデータを取得することは、情報に基づいた意思決定を行う上で重要です。
+Tuistはその機能を拡張し続け、プロジェクトの設定を変更することなくその恩恵を受けることができます。 魔法のようですね？ 🪄

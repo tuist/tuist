@@ -1,5 +1,60 @@
 # Changelog
 
+## 4.33.0 - 2024-11-07
+
+### CLI
+
+#### Fixed
+
+- Fix tuist clean hanging [#7007](https://github.com/tuist/tuist/pull/7007) by [@fortmarek](https://github.com/fortmarek)
+
+### CLI (Server features)
+
+- no changes
+
+## 4.32.1 - 2024-11-01
+
+### CLI
+
+#### Changed
+
+- Improve performance by loading Swift tools version directly from Package manifests [#6963](https://github.com/tuist/tuist/pull/6963) by [@fortmarek](https://github.com/fortmarek)
+
+#### Added
+
+- Add support for dependencies on app targets from different projects [#6820](https://github.com/tuist/tuist/pull/6820) by [@TamarMilchtaich](https://github.com/TamarMilchtaich)
+
+#### Fixed
+
+- Fix glob regression for hidden files and excluding sources [#6970](https://github.com/tuist/tuist/pull/6970) by [@fortmarek](https://github.com/fortmarek)
+- Fix running tests on a device specified with -destination xcodebuild argument [#6971](https://github.com/tuist/tuist/pull/6971) by [@fortmarek](https://github.com/fortmarek)
+
+### CLI (Server features)
+
+- no changes
+
+## 4.32.0 - 2024-10-31
+
+### CLI
+
+#### Changed
+
+- Improve globbing performance by using parallelized Swift glob implementation [#6957](https://github.com/tuist/tuist/pull/6957) by [@fortmarek](https://github.com/fortmarek)
+
+#### Added
+
+- Add --no-upload flag to tuist test [#6935](https://github.com/tuist/tuist/pull/6935) by [@fortmarek](https://github.com/fortmarek)
+
+#### Fixed
+
+- Fix SwiftLint warning in generated resource bundle accessors [#6954](https://github.com/tuist/tuist/pull/6954) by [@vldalx](https://github.com/vldalx)
+- Fix tests crashing when accessing SPM dependency resource bundle [#6895](https://github.com/tuist/tuist/pull/6895) by [@rhysm94](https://github.com/rhysm94)
+- Fix running selective tests with a custom result bundle path when all tests are skipped [#6959](https://github.com/tuist/tuist/pull/6959) by [@fortmarek](https://github.com/fortmarek)
+
+### CLI (Server features)
+
+- no changes
+
 ## 4.31.0 - 2024-10-23
 
 ### CLI

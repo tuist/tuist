@@ -16,7 +16,10 @@ extension FileListGlob {
         }
 
         let resolvedPath = try generatorPaths.resolve(path: glob)
-        let resolvedExcluding = try resolvedExcluding(generatorPaths: generatorPaths)
+        let resolvedExcluding = try await resolvedExcluding(
+            generatorPaths: generatorPaths,
+            fileSystem: fileSystem
+        )
         let pattern = String(resolvedPath.pathString.dropFirst())
 
         return try await fileSystem.glob(directory: AbsolutePath.root, include: [pattern]).collect().filter { path in
@@ -30,12 +33,19 @@ extension FileListGlob {
         }
     }
 
-    private func resolvedExcluding(generatorPaths: GeneratorPaths) throws -> Set<AbsolutePath> {
+    private func resolvedExcluding(
+        generatorPaths: GeneratorPaths,
+        fileSystem: FileSysteming
+    ) async throws -> Set<AbsolutePath> {
         guard !excluding.isEmpty else { return [] }
         var result: Set<AbsolutePath> = []
         for path in excluding {
             let resolved = try generatorPaths.resolve(path: path)
-            let globs = try AbsolutePath(validating: resolved.dirname).glob(resolved.basename)
+            let globs = try await fileSystem.glob(
+                directory: .root,
+                include: [String(resolved.pathString.dropFirst())]
+            )
+            .collect()
             result.formUnion(globs)
         }
         return result

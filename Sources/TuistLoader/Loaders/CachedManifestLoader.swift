@@ -122,8 +122,20 @@ public class CachedManifestLoader: ManifestLoading {
     // MARK: - Private
 
     private func load<T: Codable>(manifest: Manifest, at path: AbsolutePath, loader: () async throws -> T) async throws -> T {
-        let manifestPath = path.appending(component: manifest.fileName(path))
-        guard try await fileSystem.exists(manifestPath) else {
+        let manifestPathCandidates = [
+            path.appending(component: manifest.fileName(path)),
+            manifest.alternativeFileName(path).map { path.appending(component: $0) },
+        ].compactMap { $0 }
+        var manifestPath: AbsolutePath!
+
+        for candidateManifestPath in manifestPathCandidates {
+            if try await fileSystem.exists(candidateManifestPath) {
+                manifestPath = candidateManifestPath
+                break
+            }
+        }
+
+        if manifestPath == nil {
             throw ManifestLoaderError.manifestNotFound(manifest, path)
         }
 

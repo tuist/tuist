@@ -967,6 +967,14 @@ final class GenerateAcceptanceTestAppWithGoogleMaps: TuistAcceptanceTestCase {
     }
 }
 
+final class GenerateAcceptanceTestAppWithGlobs: TuistAcceptanceTestCase {
+    func test_app_with_globs() async throws {
+        try await setUpFixture(.appWithGlobs)
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self)
+    }
+}
+
 final class GenerateAcceptanceTestFrameworkWithMacroAndPluginPackages: TuistAcceptanceTestCase {
     func test_framework_with_macro_and_plugin_packages() async throws {
         try await setUpFixture(.frameworkWithMacroAndPluginPackages)
@@ -986,7 +994,7 @@ final class GenerateAcceptanceTestAppWithSPMModuleAliases: TuistAcceptanceTestCa
 }
 
 final class GenerateAcceptanceTesAppWithLocalSPMModuleWithRemoteDependencies: TuistAcceptanceTestCase {
-    func test_app_with_local_spm_module_with_remote_dependencioes() async throws {
+    func test_app_with_local_spm_module_with_remote_dependencies() async throws {
         try await setUpFixture(.appWithLocalSPMModuleWithRemoteDependencies)
         try await run(InstallCommand.self)
         try await run(GenerateCommand.self)
@@ -1001,13 +1009,44 @@ final class GenerateAcceptanceTesAppWithLocalSPMModuleWithRemoteDependencies: Tu
     }
 }
 
+final class GenerateAcceptanceTestAppWithNonLocalAppDependencies: TuistAcceptanceTestCase {
+    func test_app_with_non_local_app_dependencies() async throws {
+        try await setUpFixture(.appWithExecutableNonLocalDependencies)
+        try await run(InstallCommand.self)
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self, "MainApp")
+
+        let xcodeproj = try XcodeProj(
+            pathString: fixturePath.appending(components: "MainApp", "MainApp.xcodeproj").pathString
+        )
+
+        let target = try XCTUnwrapTarget("MainApp", in: xcodeproj)
+        let buildPhases = target.buildPhases
+        XCTAssertTrue(buildPhases.contains(where: { $0.name() == "Dependencies" }))
+
+        let dependenciesBuildPhase = buildPhases.first(where: { $0.name() == "Dependencies" }) as? PBXCopyFilesBuildPhase
+        let targetFileNames = dependenciesBuildPhase?.files?.compactMap { $0.file?.nameOrPath }.sorted()
+        let expectedTargetFileNames = ["AppExtension.appex", "WatchApp.app"]
+        XCTAssertEqual(targetFileNames, expectedTargetFileNames)
+
+        let testTarget = try XCTUnwrapTarget("MainAppTests", in: xcodeproj)
+        let testBuildPhases = testTarget.buildPhases
+        XCTAssertTrue(testBuildPhases.contains(where: { $0.name() == "Dependencies" }))
+
+        let testDependenciesBuildPhase = testBuildPhases.first(where: { $0.name() == "Dependencies" }) as? PBXCopyFilesBuildPhase
+        let testTargetFileNames = testDependenciesBuildPhase?.files?.compactMap { $0.file?.nameOrPath }.sorted()
+        let expectedTestTargetFileNames = ["TestHost.app"]
+        XCTAssertEqual(testTargetFileNames, expectedTestTargetFileNames)
+    }
+}
+
 final class GenerateAcceptanceTestParallelizable: TuistAcceptanceTestCase {
     func test_app_parallelizable_swift_testing_only_from_test_plan() async throws {
         try await setUpFixture(.appWithTestPlan)
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self)
         try await run(BuildCommand.self, "App")
-        
+
         try XCTAssertContainsParallelizable(
             xcodeprojPath: xcodeprojPath,
             scheme: "App",

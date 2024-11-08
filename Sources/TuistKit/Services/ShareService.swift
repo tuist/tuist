@@ -31,7 +31,7 @@ enum ShareServiceError: Equatable, FatalError {
         case let .multipleAppsSpecified(apps):
             return "You specified multiple apps to share: \(apps.joined(separator: " ")). You cannot specify multiple apps when using `tuist share`."
         case .fullHandleNotFound:
-            return "You are missing full handle in your Config.swift."
+            return "You are missing full handle in your \(Constants.tuistManifestFileName)"
         case let .appBundleInIPANotFound(ipaPath):
             return "No app found in the in the .ipa archive at \(ipaPath). Make sure the .ipa is a valid application archive."
         }
@@ -76,7 +76,7 @@ struct ShareService {
             xcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectoryLocator(),
             buildGraphInspector: BuildGraphInspector(),
             previewsUploadService: PreviewsUploadService(),
-            configLoader: ConfigLoader(),
+            configLoader: ConfigLoader(warningController: WarningController.shared),
             serverURLService: ServerURLService(),
             manifestLoader: manifestLoader,
             manifestGraphLoader: manifestGraphLoader,
@@ -246,7 +246,12 @@ struct ShareService {
         guard appPaths.count == 1,
               let ipaPath = appPaths.first else { throw ShareServiceError.multipleAppsSpecified(appPaths.map(\.pathString)) }
 
-        guard let appBundlePath = try fileArchiverFactory.makeFileUnarchiver(for: ipaPath).unzip().glob("**/*.app").first
+        guard let appBundlePath = try await fileSystem.glob(
+            directory: fileArchiverFactory.makeFileUnarchiver(for: ipaPath).unzip(),
+            include: ["**/*.app"]
+        )
+        .collect()
+        .first
         else { throw ShareServiceError.appBundleInIPANotFound(ipaPath) }
         let appBundle = try await appBundleLoader.load(appBundlePath)
         let displayName = appBundle.infoPlist.name
@@ -256,6 +261,7 @@ struct ShareService {
             displayName: displayName,
             version: appBundle.infoPlist.version.description,
             bundleIdentifier: appBundle.infoPlist.bundleId,
+            icon: iconPaths(for: appBundle).first,
             fullHandle: fullHandle,
             serverURL: serverURL,
             json: json
@@ -283,6 +289,9 @@ struct ShareService {
             displayName: appName,
             version: appBundles.map(\.infoPlist.version.description).first,
             bundleIdentifier: appBundles.map(\.infoPlist.bundleId).first,
+            icon: appBundles
+                .concurrentFlatMap { try await iconPaths(for: $0) }
+                .first,
             fullHandle: fullHandle,
             serverURL: serverURL,
             json: json
@@ -353,6 +362,10 @@ struct ShareService {
                 }
                 .uniqued()
 
+            let appBundles = try await appPaths.concurrentMap {
+                try await appBundleLoader.load($0)
+            }
+
             if appPaths.isEmpty {
                 throw ShareServiceError.noAppsFound(app: app, configuration: configuration)
             }
@@ -360,8 +373,11 @@ struct ShareService {
             try await uploadPreviews(
                 .appBundles(appPaths),
                 displayName: app,
-                version: nil,
-                bundleIdentifier: nil,
+                version: appBundles.first?.infoPlist.version.description,
+                bundleIdentifier: appBundles.first?.infoPlist.bundleId,
+                icon: appBundles
+                    .concurrentFlatMap { try await iconPaths(for: $0) }
+                    .first,
                 fullHandle: fullHandle,
                 serverURL: serverURL,
                 json: json
@@ -369,11 +385,21 @@ struct ShareService {
         }
     }
 
+    private func iconPaths(for appBundle: AppBundle) async throws -> [AbsolutePath] {
+        try await appBundle.infoPlist.bundleIcons?.primaryIcon?.iconFiles
+            // This is a convention for iOS icons. We might need to adjust this for other platforms in the future.
+            .map { appBundle.path.appending(component: $0 + "@2x.png") }
+            .concurrentFilter {
+                try await fileSystem.exists($0)
+            } ?? []
+    }
+
     private func uploadPreviews(
         _ previewUploadType: PreviewUploadType,
         displayName: String,
         version: String?,
         bundleIdentifier: String?,
+        icon: AbsolutePath?,
         fullHandle: String,
         serverURL: URL,
         json: Bool
@@ -384,6 +410,7 @@ struct ShareService {
             displayName: displayName,
             version: version,
             bundleIdentifier: bundleIdentifier,
+            icon: icon,
             fullHandle: fullHandle,
             serverURL: serverURL
         )

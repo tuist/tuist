@@ -17,6 +17,8 @@ enum RunServiceError: FatalError, Equatable {
     case invalidDownloadBuildURL(String)
     case invalidPreviewURL(String)
     case appNotFound(String)
+    case missingFullHandle(displayName: String, specifier: String)
+    case previewNotFound(displayName: String, specifier: String)
 
     var description: String {
         switch self {
@@ -34,6 +36,10 @@ enum RunServiceError: FatalError, Equatable {
             return "The preview URL \(previewURL) is invalid."
         case let .appNotFound(url):
             return "The app at \(url) was not found."
+        case let .missingFullHandle(displayName: displayName, specifier: specifier):
+            return "We couldn't run the preview \(displayName)@\(specifier) because the full handle is missing. Make sure to specify it in your \(Constants.tuistManifestFileName) file."
+        case let .previewNotFound(displayName: displayName, specifier: specifier):
+            return "We could not find a preview for \(displayName)@\(specifier). You can create one by running tuist share \(displayName)."
         }
     }
 
@@ -43,7 +49,9 @@ enum RunServiceError: FatalError, Equatable {
              .schemeWithoutRunnableTarget,
              .invalidVersion,
              .appNotFound,
-             .invalidPreviewURL:
+             .invalidPreviewURL,
+             .missingFullHandle,
+             .previewNotFound:
             return .abort
         case .workspaceNotFound, .invalidDownloadBuildURL:
             return .bug
@@ -58,6 +66,7 @@ final class RunService {
     private let targetRunner: TargetRunning
     private let configLoader: ConfigLoading
     private let downloadPreviewService: DownloadPreviewServicing
+    private let listPreviewsService: ListPreviewsServicing
     private let fileHandler: FileHandling
     private let fileSystem: FileSysteming
     private let appRunner: AppRunning
@@ -71,8 +80,9 @@ final class RunService {
             buildGraphInspector: BuildGraphInspector(),
             targetBuilder: TargetBuilder(),
             targetRunner: TargetRunner(),
-            configLoader: ConfigLoader(manifestLoader: ManifestLoader()),
+            configLoader: ConfigLoader(manifestLoader: ManifestLoader(), warningController: WarningController.shared),
             downloadPreviewService: DownloadPreviewService(),
+            listPreviewsService: ListPreviewsService(),
             fileHandler: FileHandler.shared,
             fileSystem: FileSystem(),
             appRunner: AppRunner(),
@@ -89,6 +99,7 @@ final class RunService {
         targetRunner: TargetRunning,
         configLoader: ConfigLoading,
         downloadPreviewService: DownloadPreviewServicing,
+        listPreviewsService: ListPreviewsServicing,
         fileHandler: FileHandling,
         fileSystem: FileSystem,
         appRunner: AppRunning,
@@ -102,6 +113,7 @@ final class RunService {
         self.targetRunner = targetRunner
         self.configLoader = configLoader
         self.downloadPreviewService = downloadPreviewService
+        self.listPreviewsService = listPreviewsService
         self.fileHandler = fileHandler
         self.fileSystem = fileSystem
         self.appRunner = appRunner
@@ -143,8 +155,7 @@ final class RunService {
             try await runPreviewLink(
                 previewLink,
                 device: device,
-                version: osVersion,
-                path: runPath
+                version: osVersion
             )
         case let .scheme(scheme):
             try await runScheme(
@@ -158,14 +169,39 @@ final class RunService {
                 rosetta: rosetta,
                 arguments: arguments
             )
+        case let .specifier(
+            displayName: displayName,
+            specifier: specifier
+        ):
+            let config = try await configLoader.loadConfig(path: runPath)
+            guard let fullHandle = config.fullHandle
+            else {
+                throw RunServiceError.missingFullHandle(
+                    displayName: displayName,
+                    specifier: specifier
+                )
+            }
+            guard let preview = try await listPreviewsService.listPreviews(
+                displayName: displayName,
+                specifier: specifier,
+                page: 1,
+                pageSize: 1,
+                distinctField: nil,
+                fullHandle: fullHandle,
+                serverURL: config.url
+            ).first else { throw RunServiceError.previewNotFound(displayName: displayName, specifier: specifier) }
+            try await runPreviewLink(
+                preview.url,
+                device: device,
+                version: osVersion
+            )
         }
     }
 
     private func runPreviewLink(
         _ previewLink: URL,
         device: String?,
-        version: Version?,
-        path _: AbsolutePath
+        version: Version?
     ) async throws {
         guard let scheme = previewLink.scheme,
               let host = previewLink.host,
@@ -217,14 +253,15 @@ final class RunService {
         let graph: Graph
         let config = try await configLoader.loadConfig(path: path)
         let generator = generatorFactory.defaultGenerator(config: config, sources: [])
-        if try (generate || buildGraphInspector.workspacePath(directory: path) == nil) {
+        let workspacePath = try await buildGraphInspector.workspacePath(directory: path)
+        if generate || workspacePath == nil {
             logger.notice("Generating project for running", metadata: .section)
             graph = try await generator.generateWithGraph(path: path).1
         } else {
             graph = try await generator.load(path: path)
         }
 
-        guard let workspacePath = try buildGraphInspector.workspacePath(directory: path) else {
+        guard let workspacePath = try await buildGraphInspector.workspacePath(directory: path) else {
             throw RunServiceError.workspaceNotFound(path: path.pathString)
         }
 

@@ -90,7 +90,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
         _ target: XcodeBuildTarget,
         scheme: String,
         clean: Bool = false,
-        destination: XcodeBuildDestination,
+        destination: XcodeBuildDestination?,
         rosetta: Bool,
         derivedDataPath: AbsolutePath?,
         resultBundlePath: AbsolutePath?,
@@ -136,6 +136,8 @@ public final class XcodeBuildController: XcodeBuildControlling {
             command.append(contentsOf: ["-destination", value.joined(separator: ",")])
         case .mac:
             command.append(contentsOf: ["-destination", simulatorController.macOSDestination()])
+        case nil:
+            break
         }
 
         // Derived data path

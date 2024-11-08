@@ -1,5 +1,6 @@
 ---
 title: Create a project
+titleTemplate: :title · Quick-start · Guides · Tuist
 description: Learn how to create your first project with Tuist.
 ---
 
@@ -13,7 +14,7 @@ cd MyApp
 tuist init --name MyApp
 ```
 
-By default it creates a project that represents an **iOS application.** The project directory will contain a `Project.swift`, which describes the project, a `Tuist/Config.swift`, which contains project-scoped Tuist configuration, and a `MyApp/` directory, which contains the source code of the application.
+By default it creates a project that represents an **iOS application.** The project directory will contain a `Project.swift`, which describes the project, a `Tuist.swift`, which contains project-scoped Tuist configuration, and a `MyApp/` directory, which contains the source code of the application.
 
 To work on it in Xcode, you can generate an Xcode project by running:
 
@@ -34,7 +35,7 @@ Tuist provides commands for the most common tasks you'll need to perform on your
 tuist build
 ```
 
-Under the hood, this command uses the platform's build system (e.g. `xcodebuild`), enriching it with Tuist's features. 
+Under the hood, this command uses the platform's build system (e.g. `xcodebuild`), enriching it with Tuist's features.
 
 ## Test the app {#test-the-app}
 

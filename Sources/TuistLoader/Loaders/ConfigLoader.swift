@@ -14,10 +14,10 @@ public protocol ConfigLoading {
     ///
     /// - Parameter path: Directory from which look up and load the Config.
     /// - Returns: Loaded Config object.
-    /// - Throws: An error if the Config.swift can't be parsed.
+    /// - Throws: An error if the Tuist.swift can't be parsed.
     func loadConfig(path: AbsolutePath) async throws -> TuistCore.Config
 
-    /// Locates the Config.swift manifest from the given directory.
+    /// Locates the Tuist.swift manifest from the given directory.
     func locateConfig(at: AbsolutePath) async throws -> AbsolutePath?
 }
 
@@ -26,15 +26,18 @@ public final class ConfigLoader: ConfigLoading {
     private let rootDirectoryLocator: RootDirectoryLocating
     private let fileSystem: FileSysteming
     private var cachedConfigs: [AbsolutePath: TuistCore.Config] = [:]
+    private let warningController: WarningControlling
 
     public init(
         manifestLoader: ManifestLoading = ManifestLoader(),
+        warningController: WarningControlling,
         rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator(),
         fileSystem: FileSysteming = FileSystem()
     ) {
         self.manifestLoader = manifestLoader
         self.rootDirectoryLocator = rootDirectoryLocator
         self.fileSystem = fileSystem
+        self.warningController = warningController
     }
 
     public func loadConfig(path: AbsolutePath) async throws -> TuistCore.Config {
@@ -46,6 +49,11 @@ public final class ConfigLoader: ConfigLoading {
             let config = TuistCore.Config.default
             cachedConfigs[path] = config
             return config
+        }
+
+        if configPath.pathString.contains("Config.swift") {
+            warningController
+                .append(warning: "Tuist/Config.swift is deprecated. Rename Tuist/Config.swift to Tuist.swift at the root.")
         }
 
         let manifest = try await manifestLoader.loadConfig(at: configPath.parentDirectory)
@@ -60,20 +68,21 @@ public final class ConfigLoader: ConfigLoading {
     }
 
     public func locateConfig(at path: AbsolutePath) async throws -> AbsolutePath? {
-        // If the Config.swift file exists in the root Tuist/ directory, we load it from there
         if let rootDirectoryPath = try await rootDirectoryLocator.locate(from: path) {
-            // swiftlint:disable:next force_try
-            let relativePath = try! RelativePath(validating: "\(Constants.tuistDirectoryName)/\(Manifest.config.fileName(path))")
-            let configPath = rootDirectoryPath.appending(relativePath)
-            if try await fileSystem.exists(configPath) {
-                return configPath
+            for candidate in [
+                rootDirectoryPath
+                    .appending(
+                        // swiftlint:disable:next force_try
+                        try! RelativePath(validating: "\(Constants.tuistDirectoryName)/\(Manifest.config.fileName(path))")
+                    ),
+                // swiftlint:disable:next force_try
+                rootDirectoryPath.appending(try! RelativePath(validating: Constants.tuistManifestFileName)),
+            ] {
+                if try await fileSystem.exists(candidate) {
+                    return candidate
+                }
             }
         }
-
-        // Otherwise we try to traverse up the directories to find it
-        return try await fileSystem.locateTraversingUp(
-            from: path,
-            relativePath: try RelativePath(validating: Manifest.config.fileName(path))
-        )
+        return nil
     }
 }

@@ -1,5 +1,6 @@
 import Foundation
 import TSCUtility
+import XcodeGraph
 import XCTest
 
 @testable import TuistLoader
@@ -55,7 +56,8 @@ final class PackageInfoTests: XCTestCase {
                 ],
                 cLanguageStandard: nil,
                 cxxLanguageStandard: nil,
-                swiftLanguageVersions: [Version(stringLiteral: "5.4.9")]
+                swiftLanguageVersions: [Version(stringLiteral: "5.4.9")],
+                toolsVersion: Version(5, 4, 9)
             )
         )
     }

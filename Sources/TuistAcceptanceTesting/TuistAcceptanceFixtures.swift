@@ -2,11 +2,13 @@ import Foundation
 
 public enum TuistAcceptanceFixtures {
     case appWithAirshipSDK
+    case appWithAlamofire
     case appWithBuildRules
     case appWithComposableArchitecture
     case appWithCustomDefaultConfiguration
     case appWithCustomScheme
     case appWithFrameworkAndTests
+    case appWithGlobs
     case appWithGoogleMaps
     case appWithPlugins
     case appWithPreviews
@@ -24,6 +26,7 @@ public enum TuistAcceptanceFixtures {
     case frameworkWithMacroAndPluginPackages
     case frameworkWithNativeSwiftMacro
     case frameworkWithSwiftMacro
+    case frameworkWithSPMBundle
     case invalidManifest
     case invalidWorkspaceManifestName
     case iosAppLarge
@@ -83,12 +86,15 @@ public enum TuistAcceptanceFixtures {
     case workspaceWithFileHeaderTemplate
     case workspaceWithInlineFileHeaderTemplate
     case xcodeApp
+    case appWithExecutableNonLocalDependencies
     case custom(String)
 
     public var path: String {
         switch self {
         case .appWithAirshipSDK:
             return "app_with_airship_sdk"
+        case .appWithAlamofire:
+            return "app_with_alamofire"
         case .appWithBuildRules:
             return "app_with_build_rules"
         case .appWithComposableArchitecture:
@@ -99,6 +105,8 @@ public enum TuistAcceptanceFixtures {
             return "app_with_custom_scheme"
         case .appWithFrameworkAndTests:
             return "app_with_framework_and_tests"
+        case .appWithGlobs:
+            return "app_with_globs"
         case .appWithGoogleMaps:
             return "app_with_google_maps"
         case .appWithPlugins:
@@ -133,6 +141,8 @@ public enum TuistAcceptanceFixtures {
             return "framework_with_native_swift_macro"
         case .frameworkWithSwiftMacro:
             return "framework_with_swift_macro"
+        case .frameworkWithSPMBundle:
+            return "framework_with_spm_bundle"
         case .invalidManifest:
             return "invalid_manifest"
         case .invalidWorkspaceManifestName:
@@ -251,6 +261,8 @@ public enum TuistAcceptanceFixtures {
             return "workspace_with_inline_file_header_template"
         case .xcodeApp:
             return "xcode_app"
+        case .appWithExecutableNonLocalDependencies:
+            return "app_with_executable_non_local_dependencies"
         case let .custom(path):
             return path
         }

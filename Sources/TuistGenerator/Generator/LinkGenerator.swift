@@ -116,6 +116,15 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
             fileElements: fileElements
         )
 
+        try generateCopyExecutablesBuildPhase(
+            path: path,
+            target: target,
+            graphTraverser: graphTraverser,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            fileElements: fileElements
+        )
+
         try generatePackages(
             target: target,
             pbxTarget: pbxTarget,
@@ -471,6 +480,8 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
         // "Copy Bundle Resources" phase.
         try generateDependenciesBuildPhase(
             dependencies: dependencies,
+            dstSubfolderSpec: .productsDirectory,
+            buildPhaseName: "Dependencies",
             target: target,
             pbxTarget: pbxTarget,
             pbxproj: pbxproj,
@@ -500,8 +511,31 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
         )
     }
 
+    func generateCopyExecutablesBuildPhase(
+        path: AbsolutePath,
+        target: Target,
+        graphTraverser: GraphTraversing,
+        pbxTarget: PBXTarget,
+        pbxproj: PBXProj,
+        fileElements: ProjectFileElements
+    ) throws {
+        let dependencies = graphTraverser.executableDependencies(path: path, name: target.name).sorted()
+
+        try generateDependenciesBuildPhase(
+            dependencies: dependencies,
+            dstSubfolderSpec: .executables,
+            buildPhaseName: "Executable Dependencies",
+            target: target,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            fileElements: fileElements
+        )
+    }
+
     private func generateDependenciesBuildPhase(
         dependencies: [GraphDependencyReference],
+        dstSubfolderSpec: PBXCopyFilesBuildPhase.SubFolder,
+        buildPhaseName: String,
         target: Target,
         pbxTarget: PBXTarget,
         pbxproj: PBXProj,
@@ -541,8 +575,8 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
 
         let buildPhase = PBXCopyFilesBuildPhase(
             dstPath: nil,
-            dstSubfolderSpec: .productsDirectory,
-            name: "Dependencies",
+            dstSubfolderSpec: dstSubfolderSpec,
+            name: buildPhaseName,
             buildActionMask: 8,
             files: files,
             runOnlyForDeploymentPostprocessing: true

@@ -1,7 +1,7 @@
 ---
 editLink: false
-description:
-  "{ $params.description }": null
+titleTemplate: :title · Examples · References · Tuist
+description: {{ $params.description }}
 ---
 
 <script setup>

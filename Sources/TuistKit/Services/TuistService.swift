@@ -15,7 +15,10 @@ final class TuistService: NSObject {
 
     init(
         pluginService: PluginServicing = PluginService(),
-        configLoader: ConfigLoading = ConfigLoader(manifestLoader: CachedManifestLoader())
+        configLoader: ConfigLoading = ConfigLoader(
+            manifestLoader: CachedManifestLoader(),
+            warningController: WarningController.shared
+        )
     ) {
         self.pluginService = pluginService
         self.configLoader = configLoader

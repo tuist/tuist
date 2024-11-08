@@ -1,57 +1,55 @@
 ---
 title: Dependencies
-titleTemplate: :title | Projects | Tuist
-description: Learn how to declare dependencies in your Tuist project.
+titleTemplate: :title · Projects · Develop · Guides · Tuist
+description: Tuist 프로젝트에서 의존성을 선언하는 방법을 알아보세요.
 ---
 
-# Dependencies {#dependencies}
+# 의존성 {#dependencies}
 
-When a project grows, it's common to split it into multiple targets to share code, define boundaries, and improve build times.
-Multiple targets means defining dependencies between them forming a **dependency graph**, which might include external dependencies as well.
+프로젝트 규모가 커지면 코드를 공유하고, 경계를 명확히 하며, 빌드 시간을 개선하기 위해 여러 타겟으로 나누는 것이 일반적입니다.
+여러 target으로 나누게 되면 이들 사이의 의존 관계를 정의하여 **의존성 그래프**가 만들어지며, 여기에는 외부 의존성도 포함될 수 있습니다.
 
 ## XcodeProj-codified graphs {#xcodeprojcodified-graphs}
 
-Due to Xcode and XcodeProj's design,
-the maintenance of a dependency graph can be a tedious and error-prone task.
-Here are some examples of the problems that you might encounter:
+Xcode와 XcodeProj의 설계 특성상 의존성 그래프를 관리하는 일은 번거롭고 실수하기 쉬운 작업이 될 수 있습니다.
+발생할 수 있는 문제들을 예로 들어보면 다음과 같습니다:
 
-- Because Xcode's build system outputs all the project's products into the same directory in derived data, targets might be able to import products that they shouldn't. Compilations might fail on CI, where clean builds are more common, or later on when a different configuration is used.
-- The transitive dynamic dependencies of a target need to be copied into any of the directories that are part of the `LD_RUNPATH_SEARCH_PATHS` build setting. If they aren't, the target won't be able to find them at runtime. This is easy to think about and set up when the graph is small, but it becomes a problem as the graph grows.
-- When a target links a static [XCFramework](https://developer.apple.com/documentation/xcode/creating-a-multi-platform-binary-framework-bundle), the target needs an additional build phase for Xcode to process the bundle and extract the right binary for the current platform and architecture. This build phase is not added automatically, and it's easy to forget to add it.
+- Xcode의 빌드 시스템은 프로젝트의 모든 산출물을 derived data 내 동일한 디렉터리에 저장하기 때문에, 이로 인해 각 타겟이 원래 사용해서는 안 되는 다른 target의 산출물을 import할 수 있습니다. 클린 빌드가 더 흔하게 사용되는 CI 환경이나, 나중에 다른 구성을 사용할 때 컴파일이 실패할 수 있습니다.
+- 타겟의 전이적 동적 의존성들(transitive dynamic dependencies)은 `LD_RUNPATH_SEARCH_PATHS` 빌드 설정에 포함된 모든 디렉터리에 복사되어야 합니다. 이렇게 해당 의존성들이 복사되지 않으면, 타겟이 런타임에 의존성을 찾을 수 없습니다. 의존성 그래프가 간단할 때는 생각하고 설정하기 쉽지만, 그래프가 복잡해질수록 문제가 됩니다.
+- target이 정적 [XCFramework](https://developer.apple.com/documentation/xcode/creating-a-multi-platform-binary-framework-bundle)를 링크할 때, Xcode가 번들을 처리하고 현재 플랫폼과 아키텍처에 맞는 바이너리를 추출할 수 있도록 추가 빌드 페이즈(Build Phase)가 필요합니다. 이 build phase는 자동으로 추가되지 않으며, 추가하는 것을 쉽게 잊어버릴 수 있습니다.
 
-The above are just a few examples, but there are many more that we've encountered over the years.
-Imagine if you required a team of engineers to maintain a dependency graph and ensure its validity.
-Or even worse,
-that the intricacies were resolved at build-time by a closed-source build system that you can't control or customize.
-Sounds familiar? This is the approach that Apple took with Xcode and XcodeProj and that the Swift Package Manager has inherited.
+위의 내용들은 몇 가지 예시에 불과하며, 우리는 수년간 이보다 더 많은 문제들을 겪어왔습니다.
+의존성 그래프를 관리하고 유효성을 검증하기 위해 엔지니어 팀이 필요하다고 상상해보세요.
+더 안 좋은 경우는, 제어하거나 커스터마이즈할 수 없는 빌드 시스템(closed-source build system)이 빌드 시점에 이러한 복잡한 세부 사항을 해결하는 경우입니다.
+어디서 많이 들어본 것 같지 않나요? 이 방식은 Apple이 Xcode와 XcodeProj에서 채택한 접근 방식이며, Swift Package Manager도 그대로 채택하고 있습니다.
 
-We strongly believe that the dependency graph should be **explicit** and **static** because only then can it be **validated** and **optimized**.
-With Tuist, you focus on describing what depends on what, and we take care of the rest.
-The intricacies and implementation details are abstracted away from you.
+의존성 그래프는 반드시 **명시적**이고 **정적**이어야 합니다. 그래야 **검증**되고 **최적화**될 수 있기 때문이죠.
+Tuist와 함께라면, 의존 관계를 정의하는데만 집중하세요. 나머지는 저희가 알아서 처리할게요.
+복잡한 세부 구현 사항들은 추상화되어 신경 쓸 필요가 없습니다.
 
-In the following sections you'll learn how to declare dependencies in your project.
+다음 섹션에서는 프로젝트에서 의존성을 선언하는 방법을 알아보겠습니다.
 
-> [!TIP] GRAPH VALIDATION
-> Tuist validates the graph when generating the project to ensure that there are no cycles and that all the dependencies are valid. Thanks to this, any team can take part in evolving the dependency graph without worrying about breaking it.
+> [!TIP] 그래프 검증
+> Tuist는 프로젝트를 생성할 때 그래프를 검증하여 순환이 없고 모든 의존성이 유효한지 확인합니다. 덕분에 어떤 팀이든 그래프가 깨질 걱정 없이 의존성 그래프를 발전시킬 수 있습니다.
 
-## Local dependencies {#local-dependencies}
+## 로컬 의존성 {#local-dependencies}
 
-Targets can depend on other targets in the same and different projects, and on binaries.
-When instantiating a `Target`, you can pass the `dependencies` argument with any of the following options:
+Target은 같은 프로젝트나 다른 프로젝트의 타겟, 그리고 바이너리에 의존할 수 있습니다.
+`Target`을 생성할 때, `dependencies ` 아규먼트에 다음과 같은 옵션들을 전달할 수 있습니다:
 
-- `Target`: Declares a dependency with a target within the same project.
-- `Project`: Declares a dependency with a target in a different project.
-- `Framework`: Declares a dependency with a binary framework.
-- `Library`: Declares a dependency with a binary library.
-- `XCFramework`: Declares a dependency with a binary XCFramework.
-- `SDK`: Declares a dependency with a system SDK.
-- `XCTest`: Declares a dependency with XCTest.
+- `Target`: 같은 프로젝트에 있는 타겟을 의존성으로 선언합니다.
+- `Project`: 다른 프로젝트에 있는 타겟을 의존성으로 선언합니다.
+- `Framework`: 바이너리 프레임워크에 대한 의존성을 선언합니다.
+- `Library`: 바이너리 라이브러리에 대한 의존성을 선언합니다.
+- `XCFramework`: 바이너리 XCFramework에 대한 의존성을 선언합니다.
+- `SDK`: 시스템 SDK에 대한 의존성을 선언합니다.
+- `XCTest`: XCTest에 대한 의존성을 선언합니다.
 
-> [!NOTE] DEPENDENCY CONDITIONS
-> Every dependency type accepts a `condition` option to conditionally link the dependency based on the platform. By default, it links the dependency for all platforms the target supports.
+> [!NOTE] 의존성 조건
+> 모든 의존성 유형은 플랫폼에 따라 의존성을 조건부로 연결하기 위한 `condition` 옵션을 허용합니다. 기본적으로, 타겟이 지원하는 모든 플랫폼에 대해 의존성이 연결됩니다.
 
-> [!TIP] ENFORCING EXPLICIT DEPENDENCIES
-> We have an experimental feature to enforce explicit dependencies in Xcode. We recommend enabling it to ensure targets can only import the dependencies that they've explicitly declared.
+> [!TIP] 명시적 의존성 강제하기
+> Xcode에서 명시적 의존성을 강제하는 실험적 기능이 있습니다. 타겟이 명시적으로 선언한 의존성만 import할 수 있도록 이 기능을 활성화하는 것을 권장합니다.
 >
 > ```swift
 > import ProjectDescription
@@ -60,25 +58,24 @@ When instantiating a `Target`, you can pass the `dependencies` argument with any
 
 <!-- > Warning: We haven't yet solved the problem of targets being able to import dependencies that they shouldn't. Some users have implemented their custom solutions to detect this, but we haven't yet found a solution that we're happy with. We are currently exploring customizing the directory where products are outputted to solve this problem. -->
 
-## External dependencies {#external-dependencies}
+## 외부 의존성 {#external-dependencies}
 
-Tuist also allows you to declare external dependencies in your project.
+Tuist는 프로젝트에서 외부 의존성을 선언할 수 있습니다.
 
 ### Swift Packages {#swift-packages}
 
-Swift Packages are our recommended way of declaring dependencies in your project.
-You can integrate them using Xcode's default integration mechanism or using Tuist's XcodeProj-based integration.
+Swift Packages는 프로젝트에서 의존성을 선언하는 권장 방법입니다.
+Xcode의 기본 통합 메커니즘을 사용하거나 Tuist의 XcodeProj 기반 통합을 통해 이를 통합할 수 있습니다.
 
-#### Tuist's XcodeProj-based integration {#tuists-xcodeprojbased-integration}
+#### Tuist의 XcodeProj 기반 통합 {#tuists-xcodeprojbased-integration}
 
-Xcode's default integration while being the most convenient one,
-lacks flexibility and control that's required for medium and large projects.
-To overcome this, Tuist offers an XcodeProj-based integration that allows you to integrate Swift Packages in your project using XcodeProj's targets.
-Thanks to that, we can not only give you more control over the integration but also make it compatible with workflows like <LocalizedLink href="/guides/develop/build/cache">caching</LocalizedLink> and <LocalizedLink href="/guides/develop/test/smart-runner">smart test runs</LocalizedLink>.
+Xcode의 기본 통합이 가장 편리하긴 하지만, 중간 규모 및 대형 프로젝트에서 필요한 유연성과 제어 기능이 부족합니다.
+이를 극복하기 위해 Tuist는 XcodeProj 기반 통합을 제공하여 XcodeProj의 target을 사용해 프로젝트에 Swift 패키지를 통합할 수 있도록 합니다.
+덕분에 통합을 더 잘 제어할 수 있을 뿐만 아니라, <LocalizedLink href="/guides/develop/build/cache">caching</LocalizedLink> 및 <LocalizedLink href="/guides/develop/test/smart-runner">smart test runs</LocalizedLink>과 같은 워크플로우와도 호환되도록 만들 수 있습니다.
 
-XcodeProj's integration is more likely to take more time to support new Swift Package features or handle more package configurations. However, the mapping logic between Swift Packages and XcodeProj targets is open-source and can be contributed to by the community. This is contrary to Xcode's default integration, which is closed-source and maintained by Apple.
+XcodeProj의 통합은 새로운 Swift Package 기능을 지원하거나 더 많은 Package 구성을 처리하는데 시간이 더 걸릴 가능성이 큽니다. 하지만 Swift Packages와 XcodeProj target 간의 매핑 로직은 오픈소스이며, 커뮤니티에서 기여할 수 있습니다. 이는 Apple이 관리하는 비공개 소스인 Xcode의 기본 통합 방식과는 대조됩니다.
 
-To add external dependencies, you'll have to create a `Package.swift` either under `Tuist/` or at the root of the project.
+외부 의존성을 추가하려면 `Tuist/` 디렉터리나 프로젝트 루트에 `Package.swift` 파일을 생성해야 합니다.
 
 ::: code-group
 
@@ -110,9 +107,9 @@ let package = Package(
 :::
 
 > [!TIP] PACKAGE SETTINGS
-> The `PackageSettings` instance wrapped in a compiler directive allows you to configure how packages are integrated. For example, in the example above it's used to override the default product type used for packages. By default, you shouldn't need it.
+> 컴파일러 지시문으로 감싼 `PackageSettings` 인스턴스를 통해 패키지 통합 방식을 설정할 수 있습니다. 예를 들어, 위 예시에서는 packages에 사용되는 기본 product type을 재정의하는 데 사용됩니다. 기본적으로는, 필요하지 않을 것입니다.
 
-The `Package.swift` file is just an interface to declare external dependencies, nothing else. That's why you don't define any targets or products in the package. Once you have the dependencies defined, you can run the following command to resolve and pull the dependencies into the `Tuist/Dependencies` directory:
+`Package.swift` 파일은 외부 의존성을 선언하기 위한 인터페이스일 뿐, 그 외의 역할은 하지 않습니다. 그래서 package에는 target이나 product를 정의하지 않습니다. 의존성을 정의한 후에는, 다음 명령어를 실행하여 의존성을 `Tuist/Dependencies` 디렉터리에 설정하고 가져올 수 있습니다.
 
 ```bash
 tuist install
@@ -120,9 +117,9 @@ tuist install
 # Installing Swift Package Manager dependencies. {#installing-swift-package-manager-dependencies}
 ```
 
-As you might have noticed, we take an approach similar to [CocoaPods](https://cocoapods.org)', where the resolution of dependencies is its own command. This gives control to the users over when they'd like dependencies to be resolved and updated, and allows opening the Xcode in project and have it ready to compile. This is an area where we believe the developer experience provided by Apple's integration with the Swift Package Manager degrates over time as the project grows.
+눈치채셨겠지만, 저희는 [CocoaPods](https://cocoapods.org)'처럼 의존성 해석을 별도의 명령어로 분리하는 방식을 채택했습니다. 이렇게 하면 사용자가 원하는 시점에 의존성을 해석하고 업데이트할 수 있으며, Xcode에서 프로젝트를 열었을 때 바로 컴파일할 수 있는 상태가 됩니다. 이는 프로젝트가 커질수록 Apple이 제공하는 Swift Package Manager 통합 방식에서 개발자 경험이 저하되는 부분입니다.
 
-From your project targets you can then reference those dependencies using the `TargetDependency.external` dependency type:
+프로젝트의 타겟에서 `TargetDependency.external` 의존성 타입을 사용하여 이러한 의존성을 참조할 수 있습니다:
 
 ::: code-group
 
@@ -151,10 +148,10 @@ let project = Project(
 
 :::
 
-> [!NOTE] NO SCHEMES GENERATED FOR EXTERNAL PACKAGES
-> The **schemes** are not automatically created for Swift Package projects to keep the schemes list clean. You can create them via Xcode's UI.
+> [!NOTE] 외부 패키지에 대한 scheme이 생성되지 않음
+> Swift Package 프로젝트의 scheme 목록을 깔끔하게 유지하기 위해 **scheme**이 자동으로 생성되지 않습니다. Xcode의 UI를 통해 생성할 수 있습니다.
 
-#### Xcode's default integration {#xcodes-default-integration}
+#### Xcode의 기본 통합 {#xcodes-default-integration}
 
 If you want to use Xcode's default integration mechanism, you can pass the list `packages` when instantiating a project:
 

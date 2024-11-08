@@ -7,7 +7,8 @@ import TuistServer
 import TuistSupport
 
 struct DevicesView: View, ErrorViewHandling {
-    @State var viewModel = DevicesViewModel()
+    @State var viewModel: DevicesViewModel
+    @EnvironmentObject var deviceService: DeviceService
     @EnvironmentObject var errorHandling: ErrorHandling
 
     @State var isExpanded = false
@@ -23,56 +24,48 @@ struct DevicesView: View, ErrorViewHandling {
 
     private var cancellables = Set<AnyCancellable>()
 
-    init(appDelegate: AppDelegate) {
-        // We can't rely on the SimulatorsView to be rendered before a deeplink is triggered.
-        // Instead, we listen to the deeplink URL through an `AppDelegate` callback
-        // that's eagerly set up in this `init` on startup.
-        let viewModel = viewModel
+    init(
+        viewModel: DevicesViewModel
+    ) {
         let errorHandling = ErrorHandling()
-        Task {
-            do {
-                try await viewModel.onAppear()
-            } catch {
-                errorHandling.handle(error: error)
-            }
+        do {
+            try viewModel.onAppear()
+        } catch {
+            errorHandling.handle(error: error)
         }
-        appDelegate.onChangeOfURLs.sink { urls in
-            Task {
-                do {
-                    try await viewModel.onChangeOfURL(urls.first)
-                } catch {
-                    errorHandling.handle(error: error)
-                }
-            }
-        }
-        .store(in: &cancellables)
+        self.viewModel = viewModel
     }
 
     var body: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 4) {
-                pinnedDevicesSection()
+        VStack(alignment: .leading, spacing: 0) {
+            pinnedDevicesSection()
+                .padding(.horizontal, 8)
+                .padding(.bottom, 4)
 
-                HStack {
-                    Text("Other devices")
-                        .font(.headline)
-                        .fontWeight(.medium)
-                    Spacer()
-                    Image(systemName: "chevron.right")
-                        .rotationEffect(.degrees(isExpanded ? 90 : 0))
-                        .frame(height: 16)
-                }
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    isExpanded.toggle()
-                }
-                .menuItemStyle()
+            HStack {
+                Text("Other devices")
+                    .font(.headline)
+                    .fontWeight(.medium)
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                    .frame(height: 16)
+            }
+            .padding(.vertical, 2)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                isExpanded.toggle()
+            }
+            .menuItemStyle()
+            .padding(.horizontal, 8)
 
-                if isExpanded {
-                    VStack(spacing: 0) {
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    if isExpanded {
                         simulators(viewModel.unpinnedSimulators)
                     }
                 }
+                .padding(.horizontal, 8)
             }
         }
         .frame(height: isExpanded ? NSScreen.main.map { $0.visibleFrame.size.height - 300 } ?? 500 : nil)
@@ -124,6 +117,7 @@ struct DevicesView: View, ErrorViewHandling {
                     simulators(viewModel.pinnedSimulators)
                 }
             }
+            .padding(.bottom, 2)
 
             Divider()
         }

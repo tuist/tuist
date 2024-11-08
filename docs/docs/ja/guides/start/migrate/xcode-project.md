@@ -1,11 +1,12 @@
 ---
 title: Migrate an Xcode project
-description: Learn how to migrate an Xcode project to a Tuist project.
+titleTemplate: :title · Migrate· Start · Guides · Tuist
+description: Xcode プロジェクトを Tuist プロジェクトに移行する方法を学びます
 ---
 
-# Migrate an Xcode project {#migrate-an-xcode-project}
+# Xcode プロジェクトの移行 {#migrate-an-xcode-project}
 
-Unless you <LocalizedLink href="/guides/start/new-project">create a new project using Tuist</LocalizedLink>, in which case you get everything configured automatically, you'll have to define your Xcode projects using Tuist's primitives. How tedious this process is, depends on how complex your projects are.
+Xcode プロジェクトの移行 {#migrate-an-xcode-project} このプロセスがどれほど退屈かは、プロジェクトの複雑さによって異なります。
 
 As you probably know, Xcode projects can become messy and complex over time: groups that don't match the directory structure, files that are shared across targets, or file references that point to nonexisting files (to mention some). All that accumulated complexity makes it hard for us to provide a command that reliably migrates project.
 

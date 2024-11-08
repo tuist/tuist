@@ -1,6 +1,6 @@
 ---
 title: Get started
-titleTemplate: :title - Tuist에 기여하기
+titleTemplate: :title · Contributors · Tuist
 description: 다음 가이드를 통해 Tuist 기여를 시작합니다.
 ---
 
@@ -51,9 +51,10 @@ Tuist에 기여하기 위해 최소 요구 사항은 다음과 같습니다:
 
 또한 생성되는 프로젝트의 루트를 작업 디렉토리로 설정해야 합니다. 모든 명령어를 적용하는 `--path` 인수를 사용할 수도 있고, 아래와 같이 스킴에 작업 디렉토리를 구성할 수도 있습니다:
 
-![Tuist를 실행하기위해 작업 디렉토리를 설정하는 예](/images/contributors/scheme-working-directory.png)
+![Tuist를 실행 하기위해 작업 디렉토리를 설정하는 예](/images/contributors/scheme-working-directory.png)
 
-> [!WARNING] PROJECTDESCRIPTION COMPILATION `tuist` CLI는 빌드된 디렉토리에 `ProjectDescription` 프레임워크의 존재에 따라 달라집니다. `ProjectDescription` 프레임워크를 찾을 수 없어 `tuist` 실행이 실패하면 먼저 `Tuist-Workspace` 스킴을 빌드합니다.
+> [!WARNING] PROJECTDESCRIPTION COMPILATION
+> `tuist` CLI는 빌드된 디렉토리에 `ProjectDescription` 프레임워크의 존재에 따라 달라집니다. `ProjectDescription` 프레임워크를 찾을 수 없어 `tuist` 실행이 실패하면 먼저 `Tuist-Workspace` 스킴을 빌드합니다.
 
 ### Terminal {#from-the-terminal}
 

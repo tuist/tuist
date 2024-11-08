@@ -1,7 +1,7 @@
 ---
 editLink: false
-description:
-  "{ $params.description }": null
+titleTemplate: :title · Examples · References · Tuist
+description: {{ $params.description }}
 ---
 
 <script setup>
@@ -14,4 +14,4 @@ const { params } = useData()
 
 <!-- @content -->
 
-<a :href="params.url" target="blank">Check out example</a>
+<a :href="params.url" target="blank">예제 확인</a>

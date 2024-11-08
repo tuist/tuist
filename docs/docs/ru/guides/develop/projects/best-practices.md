@@ -1,32 +1,32 @@
 ---
-title: Best practices
-titleTemplate: :title | Projects | Tuist
-description: Learn about the best practices for working with Tuist and Xcode projects.
+title: Лучшие практики
+titleTemplate: :title · Projects · Develop · Guides · Tuist
+description: Узнайте о лучших практиках работы с Tuist и проектами Xcode.
 ---
 
-# Best practices {#best-practices}
+# Лучшие практики
 
-Over the years working with different teams and projects, we've identified a set of best practices that we recommend following when working with Tuist and Xcode projects. These practices are not mandatory, but they can help you structure your projects in a way that makes them easier to maintain and scale.
+На протяжении многих лет работы с различными командами и проектами мы выявили набор лучших практик, которые мы рекомендуем соблюдать при работе с Tuist и проектами Xcode. Эти практики не являются обязательными, но они могут помочь вам структурировать ваши проекты таким образом, чтобы их было проще поддерживать и масштабировать.
 
 ## Xcode {#xcode}
 
-### Discouraged patterns {#discouraged-patterns}
+### Нерекомендуемые паттерны {#discouraged-patterns}
 
-#### Configurations to model remote environments {#configurations-to-model-remote-environments}
+#### Конфигурации для моделирования удаленных сред {#configurations-to-model-remote-environments}
 
-Many organizations use build configurations to model different remote environments (e.g., `Debug-Production` or `Release-Canary`), but this approach has some downsides:
+Многие организации используют конфигурации сборки для моделирования различных удаленных сред (например, `Debug-Production` или `Release-Canary`), но у этого подхода есть некоторые недостатки:
 
-- **Inconsistencies:** If there are configuration inconsistencies throughout the graph, the build system might end up using the wrong configuration for some targets.
-- **Complexity:** Projects can end up with a long list of local configurations and remote environments that are hard to reason about and maintain.
+- **Несоответствия:** Если в графе сборки имеются конфигурационные несоответствия, система сборки может в итоге использовать неправильную конфигурацию для некоторых тергитов.
+- **Сложность:** Проекты могут иметь большой список локальных конфигураций и удаленных сред, которые сложно анализировать и поддерживать.
 
-Build configurations were designed to embody different build settings, and projects rarely need more than just `Debug` and `Release`. The need to model different environments can be achieved by using schemes:
+Конфигурации сборки изначально предназначены для представления различных настроек сборки, и проектам редко требуется больше, чем просто `Debug` и `Release`. Необходимость моделировать различные среды может быть удовлетворена с помощью схем:
 
-- Set a scheme environment variable: `REMOTE_ENV=production`.
-- Add a new key to the `Info.plist` of the bundle that will use the environment information (e.g., app bundle): `REMOTE_ENV=${REMOTE_ENV}`.
-- You can then read the value at runtime:
+- Установите переменную окружения схемы: `REMOTE_ENV=production`.
+- Добавьте новый ключ в `Info.plist` пакета, который будет использовать информацию о среде (например, пакет приложения): `REMOTE_ENV=${REMOTE_ENV}`.
+- Вы можете прочитать значение во время исполнения:
 
   ```swift
   let remoteEnvString = Bundle.main.object(forInfoDictionaryKey: "REMOTE_ENV") as? String
   ```
 
-Thanks to the above, you can keep the list of configurations simple, preventing the aforementioned downsides, and give developers the flexibility to customize things like the remote environment via schemes.
+Благодаря вышеописанному, вы можете сохранить список конфигураций простым, избегая упомянутых недостатков, и предоставить разработчикам возможность настраивать такие вещи, как удалённая среда, с помощью схем.

@@ -1,5 +1,6 @@
 ---
 title: Migrate an Xcode project
+titleTemplate: :title · Migrate· Start · Guides · Tuist
 description: Learn how to migrate an Xcode project to a Tuist project.
 ---
 
@@ -19,7 +20,7 @@ First of all, create a scaffold for your project with the following Tuist files:
 
 ::: code-group
 
-```js [Tuist/Config.swift]
+```js [Tuist.swift]
 import ProjectDescription
 
 let config = Config()
@@ -64,7 +65,7 @@ let package = Package(
 ```
 :::
 
-`Project.swift` is the manifest file where you'll define your project, and `Package.swift` is the manifest file where you'll define your dependencies. The `Config.swift` file is where you can define project-scoped Tuist settings for your project.
+`Project.swift` is the manifest file where you'll define your project, and `Package.swift` is the manifest file where you'll define your dependencies. The `Tuist.swift` file is where you can define project-scoped Tuist settings for your project.
 
 > [!TIP] PROJECT NAME WITH -TUIST SUFFIX
 > To prevent conflicts with the existing Xcode project, we recommend adding the `-Tuist` suffix to the project name. You can drop it once you've fully migrated your project to Tuist.

@@ -1,15 +1,15 @@
 ---
 title: Code sharing
-titleTemplate: :title | Projects | Tuist
-description: Learn how to share code across manifest files to reduce duplications and ensure consistency
+titleTemplate: :title · Projects · Develop · Guides · Tuist
+description: manifest 파일 간의 코드 공유를 통해 중복을 줄이고 일관성을 유지하는 방법을 알아보세요
 ---
 
 # Code sharing {#code-sharing}
 
-One of the inconveniences of Xcode when we use it with large projects is that it doesn't allow reusing elements of the projects other than the build settings through `.xcconfig` files. Being able to reuse project definitions is useful for the following reasons:
+Xcode를 대규모 프로젝트에서 사용할 때의 한계점 중 하나는 `.xcconfig` 파일을 통한 빌드 설정 외에는 프로젝트의 다른 요소들을 재사용할 수 없다는 점입니다. 프로젝트 정의를 재사용할 수 있으면 다음과 같은 장점이 있습니다:
 
-- It eases the **maintenance** because changes can be applied in one place and all the projects get the changes automatically.
-- It makes it possible to define **conventions** that new projects can conform to.
+- 변경 사항을 한 곳에서 적용하면 모든 프로젝트에 자동으로 반영되므로 **유지보수**가 수월해집니다.
+- 새로운 프로젝트들이 따를 수 있는 규칙을 정의할 수 있습니다.
 - Projects are more **consistent** and therefore the likelihood of broken builds due inconsistencies is significantly less.
 - Adding a new projects becomes an easy task because we can reuse the existing logic.
 

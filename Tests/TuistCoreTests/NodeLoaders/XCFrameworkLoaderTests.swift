@@ -82,15 +82,13 @@ final class XCFrameworkLoaderTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(
             got,
-            .xcframework(
-                GraphDependency.XCFramework(
-                    path: xcframeworkPath,
-                    infoPlist: infoPlist,
-                    linking: linking,
-                    mergeable: false,
-                    status: .required,
-                    macroPath: nil
-                )
+            .testXCFramework(
+                path: xcframeworkPath,
+                infoPlist: infoPlist,
+                linking: linking,
+                mergeable: false,
+                status: .required,
+                macroPath: nil
             )
         )
     }
