@@ -49,6 +49,7 @@ final class DeviceService: DeviceServicing {
     @Published
     private(set) var simulators: [SimulatorDeviceAndRuntime] = []
 
+    private let taskStatusReporter: any TaskStatusReporting
     private let appStorage: AppStoring
     private let deviceController: DeviceControlling
     private let simulatorController: SimulatorControlling
@@ -59,6 +60,7 @@ final class DeviceService: DeviceServicing {
     private let appBundleLoader: AppBundleLoading
 
     init(
+        taskStatusReporter: any TaskStatusReporting,
         appStorage: AppStoring = AppStorage(),
         deviceController: DeviceControlling = DeviceController(),
         simulatorController: SimulatorControlling = SimulatorController(),
@@ -68,6 +70,7 @@ final class DeviceService: DeviceServicing {
         fileSystem: FileSysteming = FileSystem(),
         appBundleLoader: AppBundleLoading = AppBundleLoader()
     ) {
+        self.taskStatusReporter = taskStatusReporter
         self.appStorage = appStorage
         self.deviceController = deviceController
         self.simulatorController = simulatorController
@@ -126,6 +129,21 @@ final class DeviceService: DeviceServicing {
     ) async throws {
         guard let selectedDevice else { throw SimulatorsViewModelError.noSelectedSimulator }
 
+        let status = TaskStatus(
+            displayName: "Installing preview",
+            initialState: .preparing
+        )
+
+        await taskStatusReporter.add(
+            status: status
+        )
+
+        defer {
+            Task {
+                await status.markAsDone()
+            }
+        }
+
         let downloadURL = try await downloadPreviewService.downloadPreview(
             previewId,
             fullHandle: fullHandle,
@@ -183,6 +201,8 @@ final class DeviceService: DeviceServicing {
                 }
             )
         }
+
+        await status.update(state: .running(message: "Launching preview", progress: .indeterminate))
 
         switch selectedDevice {
         case let .simulator(simulator):
