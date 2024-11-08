@@ -39,7 +39,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         // Given
         let sourceRootPath = try temporaryPath()
         let projectManifestPaths = [sourceRootPath].map { $0.appending(component: "Project.swift") }
-        let configPath = sourceRootPath.appending(components: "Tuist.swift")
+        let configPath = sourceRootPath.appending(components: Constants.tuistManifestFileName)
         let packageManifestPath = sourceRootPath.appending(components: Constants.tuistDirectoryName, "Package.swift")
         let helperPaths = [sourceRootPath].map { $0.appending(component: "Project+Template.swift") }
         let templates = [sourceRootPath].map { $0.appending(component: "template") }
@@ -345,7 +345,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
     func test_tuist_edit_with_more_than_one_manifest() async throws {
         // Given
         let sourceRootPath = try temporaryPath()
-        let configPath = sourceRootPath.appending(components: "Tuist.swift")
+        let configPath = sourceRootPath.appending(components: Constants.tuistManifestFileName)
         let otherProjectPath = "Module"
         let projectManifestPaths = [
             sourceRootPath.appending(component: "Project.swift"),

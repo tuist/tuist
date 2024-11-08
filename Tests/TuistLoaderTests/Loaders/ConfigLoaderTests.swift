@@ -77,7 +77,11 @@ final class ConfigLoaderTests: TuistUnitTestCase {
         )
         stub(rootDirectory: projectPath)
         given(warningController)
-            .append(warning: .value("Tuist/Config.swift is deprecated. Rename Tuist/Config.swift to Tuist.swift at the root."))
+            .append(
+                warning: .value(
+                    "Tuist/Config.swift is deprecated. Rename Tuist/Config.swift to \(Constants.tuistManifestFileName) at the root."
+                )
+            )
             .willReturn()
 
         // When
@@ -99,7 +103,7 @@ final class ConfigLoaderTests: TuistUnitTestCase {
     func test_loadConfig_loadConfig() async throws {
         // Given
         let projectPath = try temporaryPath().appending(component: "project")
-        let configPath = projectPath.appending(components: "Tuist.swift")
+        let configPath = projectPath.appending(components: Constants.tuistManifestFileName)
         try await fileSystem.makeDirectory(at: configPath.parentDirectory)
         try await fileSystem.touch(configPath)
         stub(path: configPath, exists: true)
@@ -128,7 +132,7 @@ final class ConfigLoaderTests: TuistUnitTestCase {
     func test_loadConfig_loadConfigError() async throws {
         // Given
         let projectPath = try temporaryPath().appending(component: "project")
-        let configPath = projectPath.appending(components: "Tuist.swift")
+        let configPath = projectPath.appending(components: Constants.tuistManifestFileName)
         try await fileSystem.makeDirectory(at: configPath.parentDirectory)
         try await fileSystem.touch(configPath)
         stub(path: configPath, exists: true)
@@ -142,7 +146,7 @@ final class ConfigLoaderTests: TuistUnitTestCase {
     func test_loadConfig_loadConfigInRootDirectory() async throws {
         // Given
         let projectPath = try temporaryPath().appending(component: "project")
-        let configPath = projectPath.appending(components: "Tuist.swift")
+        let configPath = projectPath.appending(components: Constants.tuistManifestFileName)
         try await fileSystem.makeDirectory(at: configPath.parentDirectory)
         try await fileSystem.touch(configPath)
         stub(rootDirectory: projectPath)
@@ -172,7 +176,7 @@ final class ConfigLoaderTests: TuistUnitTestCase {
     func test_loadConfig_with_full_handle_and_url() async throws {
         // Given
         let projectPath = try temporaryPath().appending(component: "project")
-        let configPath = projectPath.appending(components: "Tuist.swift")
+        let configPath = projectPath.appending(components: Constants.tuistManifestFileName)
         try await fileSystem.makeDirectory(at: configPath.parentDirectory)
         try await fileSystem.touch(configPath)
         stub(rootDirectory: projectPath)
@@ -203,7 +207,7 @@ final class ConfigLoaderTests: TuistUnitTestCase {
     func test_loadConfig_with_deprecated_cloud() async throws {
         // Given
         let projectPath = try temporaryPath().appending(component: "project")
-        let configPath = projectPath.appending(components: "Tuist.swift")
+        let configPath = projectPath.appending(components: Constants.tuistManifestFileName)
         try await fileSystem.makeDirectory(at: configPath.parentDirectory)
         try await fileSystem.touch(configPath)
         stub(rootDirectory: projectPath)

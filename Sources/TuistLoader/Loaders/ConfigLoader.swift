@@ -76,7 +76,7 @@ public final class ConfigLoader: ConfigLoading {
                         try! RelativePath(validating: "\(Constants.tuistDirectoryName)/\(Manifest.config.fileName(path))")
                     ),
                 // swiftlint:disable:next force_try
-                rootDirectoryPath.appending(try! RelativePath(validating: "Tuist.swift")),
+                rootDirectoryPath.appending(try! RelativePath(validating: Constants.tuistManifestFileName)),
             ] {
                 if try await fileSystem.exists(candidate) {
                     return candidate

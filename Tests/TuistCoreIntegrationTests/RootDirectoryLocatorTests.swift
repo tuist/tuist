@@ -49,7 +49,7 @@ final class RootDirectoryLocatorTests: TuistTestCase {
         // Given
         let temporaryDirectory = try temporaryPath()
         try createFolders(["this/is/a/very/nested/directory"])
-        try await createFiles(["this/is/Tuist.swift"])
+        try await createFiles(["this/is/\(Constants.tuistManifestFileName)"])
 
         // When
         let got = try await subject

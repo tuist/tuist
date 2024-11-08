@@ -39,7 +39,7 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
         let paths = try await createFiles([
             "Module/Project.swift",
             "Project.swift",
-            "Tuist.swift",
+            Constants.tuistManifestFileName,
         ], content: tuistManifestSignature)
 
         // When
@@ -69,7 +69,7 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
         let paths = try await createFiles([
             "Module/Project.swift",
             "Workspace.swift",
-            "Tuist.swift",
+            Constants.tuistManifestFileName,
         ], content: tuistManifestSignature)
 
         // When
@@ -98,7 +98,7 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
         let paths = try await createFiles([
             "Workspace.swift",
             "Module/Project.swift",
-            "Tuist.swift",
+            Constants.tuistManifestFileName,
         ])
 
         // When
@@ -418,7 +418,7 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
 
             "File01.swift",
             "File02.swift",
-            "Tuist.swift",
+            Constants.tuistManifestFileName,
         ])
 
         // When
@@ -443,7 +443,7 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
 
             "File01.swift",
             "File02.swift",
-            "Tuist.swift",
+            Constants.tuistManifestFileName,
         ])
         let locatingPath = paths[5] // "Module02/Subdir01/File01.swift"
 
@@ -527,7 +527,7 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
 
             "File01.swift",
             "File02.swift",
-            "Tuist.swift",
+            Constants.tuistManifestFileName,
             "Package.swift",
         ])
 
@@ -553,7 +553,7 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
 
             "File01.swift",
             "File02.swift",
-            "Tuist.swift",
+            Constants.tuistManifestFileName,
             "Package.swift",
             "Tuist/Package.swift",
         ])

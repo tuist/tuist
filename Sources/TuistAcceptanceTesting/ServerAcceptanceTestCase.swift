@@ -29,7 +29,7 @@ open class ServerAcceptanceTestCase: TuistAcceptanceTestCase {
                 url: "\(ProcessInfo.processInfo.environment["TUIST_URL"] ?? "https://canary.tuist.io")"
             )
             """,
-            path: fixturePath.appending(components: "Tuist.swift"),
+            path: fixturePath.appending(components: Constants.tuistManifestFileName),
             atomically: true
         )
     }
