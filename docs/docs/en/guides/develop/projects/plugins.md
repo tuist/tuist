@@ -102,7 +102,7 @@ If you were using Tuist for distributing tasks, we recommend building your
 
 ## Using plugins {#using-plugins}
 
-To use a plugin, you'll have to add it to your project's <LocalizedLink href="/references/project-description/structs/config">`Config.swift`</LocalizedLink> manifest file:
+To use a plugin, you'll have to add it to your project's <LocalizedLink href="/references/project-description/structs/config">`Tuist.swift`</LocalizedLink> manifest file:
 
 ```swift
 import ProjectDescription
@@ -115,7 +115,7 @@ let config = Config(
 )
 ```
 
-If you want to reuse a plugin across projects that live in different repositories, you can push your plugin to a Git repository and reference it in the `Config.swift` file:
+If you want to reuse a plugin across projects that live in different repositories, you can push your plugin to a Git repository and reference it in the `Tuist.swift` file:
 
 ```swift
 import ProjectDescription
