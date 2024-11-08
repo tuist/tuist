@@ -116,6 +116,10 @@
   font: var(--font-xxl);
 }
 
+.marketing__pricing__plans__plan__price__frequency {
+  font: var(--font-l-strong);
+}
+
 .marketing__pricing__plans__plan__cta__separator {
   background: var(--gray-violet);
   flex: 0 0 2px;
@@ -233,6 +237,28 @@
 .marketing__pricing__features__mobile__feature__price {
   color: var(--dark-violet);
   font: var(--font-xxs);
+}
+
+.marketing__pricing__features__header {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--spacing-8);
+  align-self: stretch;
+}
+
+.marketing__pricing__features__header__title {
+  color: var(--dark-violet);
+  font: var(--font-xxl-strong);
+  margin: 0;
+}
+
+.marketing__pricing__features__header__subtitle {
+  font: var(--font-l);
+  color: var(--dark-violet);
+  margin: 0;
+  text-align: center;
+  text-align: left;
 }
 
 .marketing__pricing__features__desktop {

@@ -3,11 +3,11 @@
 
   <header class="marketing__pricing__header">
     <h1 class="marketing__pricing__header__title">
-      <%= gettext("Pricing plans") %>
+      <%= gettext("Start for free, pay as you benefit") %>
     </h1>
     <p class="marketing__pricing__header__subtitle">
       <%= gettext(
-        "Tuist is designed to grow with you. Only add a card if you need more than the free tier limits or dedicated support."
+        "Get started with Tuist at no cost, and only invest more when you’re ready for higher limits or personalized support."
       ) %>
     </p>
   </header>
@@ -22,6 +22,7 @@
       cta={plan.cta}
       features={plan.features}
       badges={plan.badges}
+      price_frequency={Map.get(plan, :price_frequency)}
     />
   </section>
 
@@ -81,6 +82,15 @@
         <span class="font-xs-strong"><%= price_above_free %>:</span>&nbsp;<%= feature.price %>
       </div>
     </div>
+  </div>
+
+  <div class="marketing__pricing__features__header">
+    <h2 class="marketing__pricing__features__header__title"><%= gettext("Features") %></h2>
+    <p class="marketing__pricing__features__header__subtitle">
+      <%= gettext(
+        "You’re only charged for the features you use, based on your usage, and only after you exceed a usage threshold. Have feedback on our model? Reach out at contact@tuist.io—we’d love to hear from you!"
+      ) %>
+    </p>
   </div>
 
   <table class="marketing__pricing__features__desktop" aria-label="Feature Comparison">

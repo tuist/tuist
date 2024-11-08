@@ -310,6 +310,7 @@ defmodule TuistWeb.MarketingLayoutComponents do
   attr :cta, :any, required: true
   attr :features, :list, required: true
   attr :badges, :list, required: true
+  attr :price_frequency, :string, required: false
 
   def pricing_plan_plan_card(assigns) do
     ~H"""
@@ -323,6 +324,12 @@ defmodule TuistWeb.MarketingLayoutComponents do
       </p>
       <div class="marketing__pricing__plans__plan__price">
         <%= @price %>
+        <span
+          :if={not is_nil(assigns[:price_frequency])}
+          class="marketing__pricing__plans__plan__price__frequency"
+        >
+          <%= @price_frequency %>
+        </span>
       </div>
       <%= case @cta do %>
         <% {:primary, text, href} -> %>

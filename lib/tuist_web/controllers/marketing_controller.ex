@@ -142,6 +142,7 @@ defmodule TuistWeb.MarketingController do
         description:
           gettext("Usage-based pricing beyond the free tier counts toward the base price."),
         price: gettext("$249"),
+        price_frequency: gettext("monthly"),
         cta: {:secondary, gettext("Get started"), Tuist.Environment.get_url(:get_started)},
         features: [
           {gettext("Generous base price"),
