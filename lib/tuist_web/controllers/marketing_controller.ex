@@ -309,7 +309,7 @@ defmodule TuistWeb.MarketingController do
 
   def assign_default_head_tags(conn, _params) do
     conn
-    |> assign(:head_image, Tuist.Environment.app_url(path: "/images/opengraph.png"))
+    |> assign(:head_image, Tuist.Environment.app_url(path: "/images/open-graph.jpeg"))
     |> assign(:head_twitter_card, "summary")
   end
 end
