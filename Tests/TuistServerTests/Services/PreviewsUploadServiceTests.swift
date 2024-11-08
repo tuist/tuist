@@ -16,6 +16,7 @@ final class PreviewsUploadServiceTests: TuistUnitTestCase {
     private var multipartUploadArtifactService: MockMultipartUploadArtifactServicing!
     private var multipartUploadCompletePreviewsService: MockMultipartUploadCompletePreviewsServicing!
     private var multipartUploadCapturedGenerateUploadURLCallback: ((MultipartUploadArtifactPart) async throws -> String)!
+    private var uploadPreviewIconService: MockUploadPreviewIconServicing!
 
     private let serverURL: URL = .test()
     private let shareURL: URL = .test()
@@ -28,6 +29,7 @@ final class PreviewsUploadServiceTests: TuistUnitTestCase {
         multipartUploadGenerateURLPreviewsService = .init()
         multipartUploadArtifactService = .init()
         multipartUploadCompletePreviewsService = .init()
+        uploadPreviewIconService = .init()
 
         subject = PreviewsUploadService(
             fileSystem: fileSystem,
@@ -36,7 +38,8 @@ final class PreviewsUploadServiceTests: TuistUnitTestCase {
             multipartUploadStartPreviewsService: multipartUploadStartPreviewsService,
             multipartUploadGenerateURLPreviewsService: multipartUploadGenerateURLPreviewsService,
             multipartUploadArtifactService: multipartUploadArtifactService,
-            multipartUploadCompletePreviewsService: multipartUploadCompletePreviewsService
+            multipartUploadCompletePreviewsService: multipartUploadCompletePreviewsService,
+            uploadPreviewIconService: uploadPreviewIconService
         )
 
         fileArchiver = MockFileArchiving()
@@ -120,6 +123,7 @@ final class PreviewsUploadServiceTests: TuistUnitTestCase {
             displayName: "App",
             version: nil,
             bundleIdentifier: nil,
+            icon: nil,
             fullHandle: "tuist/tuist",
             serverURL: serverURL
         )
@@ -159,12 +163,20 @@ final class PreviewsUploadServiceTests: TuistUnitTestCase {
 
         let shareURL = URL.test()
 
+        let icon = try temporaryPath().appending(component: "icon.png")
+        try await fileSystem.touch(icon)
+
+        given(uploadPreviewIconService)
+            .uploadPreviewIcon(.any, preview: .any, serverURL: .any, fullHandle: .any)
+            .willReturn()
+
         // When
         let got = try await subject.uploadPreviews(
             .ipa(preview),
             displayName: "App",
             version: "1.0.0",
             bundleIdentifier: "com.my.app",
+            icon: icon,
             fullHandle: "tuist/tuist",
             serverURL: serverURL
         )
@@ -182,5 +194,14 @@ final class PreviewsUploadServiceTests: TuistUnitTestCase {
             contentLength: 20
         ))
         XCTAssertEqual(gotMultipartUploadURL, "https://tuist.dev/upload-url")
+
+        verify(uploadPreviewIconService)
+            .uploadPreviewIcon(
+                .value(icon),
+                preview: .any,
+                serverURL: .any,
+                fullHandle: .any
+            )
+            .called(1)
     }
 }

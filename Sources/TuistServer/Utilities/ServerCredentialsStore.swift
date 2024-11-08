@@ -29,6 +29,18 @@ public struct ServerCredentials: Codable, Equatable {
     }
 }
 
+#if DEBUG
+    extension ServerCredentials {
+        public static func test(
+            token: String? = nil,
+            accessToken: String? = nil,
+            refreshToken: String? = nil
+        ) -> ServerCredentials {
+            return ServerCredentials(token: token, accessToken: accessToken, refreshToken: refreshToken)
+        }
+    }
+#endif
+
 @Mockable
 public protocol ServerCredentialsStoring {
     /// It stores the credentials for the server with the given URL.

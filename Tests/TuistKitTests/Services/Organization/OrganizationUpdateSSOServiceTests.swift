@@ -18,7 +18,7 @@ final class OrganizationUpdateSSOServiceTests: TuistUnitTestCase {
 
         updateOrganizationService = .init()
         configLoader = MockConfigLoading()
-        serverURL = URL(string: "https://test.cloud.tuist.io")!
+        serverURL = URL(string: "https://test.tuist.dev")!
         given(configLoader).loadConfig(path: .any).willReturn(.test(url: serverURL))
 
         subject = OrganizationUpdateSSOService(

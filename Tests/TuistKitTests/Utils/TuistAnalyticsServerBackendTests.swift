@@ -64,7 +64,7 @@ final class TuistAnalyticsServerBackendTests: TuistUnitTestCase {
             .willReturn(
                 .test(
                     id: 10,
-                    url: URL(string: "https://cloud.tuist.io/tuist-org/tuist/runs/10")!
+                    url: URL(string: "https://tuist.dev/tuist-org/tuist/runs/10")!
                 )
             )
 
@@ -72,7 +72,7 @@ final class TuistAnalyticsServerBackendTests: TuistUnitTestCase {
         try await subject.send(commandEvent: event)
 
         // Then
-        XCTAssertPrinterOutputNotContains("You can view a detailed report at: https://cloud.tuist.io/tuist-org/tuist/runs/10")
+        XCTAssertPrinterOutputNotContains("You can view a detailed report at: https://tuist.dev/tuist-org/tuist/runs/10")
     }
 
     func test_send_when_is_ci() async throws {
@@ -93,7 +93,7 @@ final class TuistAnalyticsServerBackendTests: TuistUnitTestCase {
             .willReturn(
                 .test(
                     id: 10,
-                    url: URL(string: "https://cloud.tuist.io/tuist-org/tuist/runs/10")!
+                    url: URL(string: "https://tuist.dev/tuist-org/tuist/runs/10")!
                 )
             )
 
@@ -101,7 +101,7 @@ final class TuistAnalyticsServerBackendTests: TuistUnitTestCase {
         try await subject.send(commandEvent: event)
 
         // Then
-        XCTAssertStandardOutput(pattern: "You can view a detailed report at: https://cloud.tuist.io/tuist-org/tuist/runs/10")
+        XCTAssertStandardOutput(pattern: "You can view a detailed report at: https://tuist.dev/tuist-org/tuist/runs/10")
     }
 
     func test_send_when_is_ci_and_result_bundle_exists() async throws {
@@ -119,7 +119,7 @@ final class TuistAnalyticsServerBackendTests: TuistUnitTestCase {
             .willReturn(
                 .test(
                     id: 10,
-                    url: URL(string: "https://cloud.tuist.io/tuist-org/tuist/runs/10")!
+                    url: URL(string: "https://tuist.dev/tuist-org/tuist/runs/10")!
                 )
             )
 
@@ -146,7 +146,7 @@ final class TuistAnalyticsServerBackendTests: TuistUnitTestCase {
         try await subject.send(commandEvent: event)
 
         // Then
-        XCTAssertStandardOutput(pattern: "You can view a detailed report at: https://cloud.tuist.io/tuist-org/tuist/runs/10")
+        XCTAssertStandardOutput(pattern: "You can view a detailed report at: https://tuist.dev/tuist-org/tuist/runs/10")
         let exists = try await fileSystem.exists(resultBundle)
         XCTAssertFalse(exists)
     }

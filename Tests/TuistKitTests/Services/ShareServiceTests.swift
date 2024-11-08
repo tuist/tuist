@@ -79,6 +79,7 @@ final class ShareServiceTests: TuistUnitTestCase {
                 displayName: .any,
                 version: .any,
                 bundleIdentifier: .any,
+                icon: .any,
                 fullHandle: .any,
                 serverURL: .any
             )
@@ -237,6 +238,7 @@ final class ShareServiceTests: TuistUnitTestCase {
                 displayName: .any,
                 version: .any,
                 bundleIdentifier: .any,
+                icon: .any,
                 fullHandle: .value("tuist/tuist"),
                 serverURL: .value(Constants.URLs.production)
             )
@@ -427,6 +429,7 @@ final class ShareServiceTests: TuistUnitTestCase {
                 displayName: .any,
                 version: .value("1.0.0"),
                 bundleIdentifier: .value("com.tuist.app"),
+                icon: .any,
                 fullHandle: .value("tuist/tuist"),
                 serverURL: .value(Constants.URLs.production)
             )
@@ -515,8 +518,9 @@ final class ShareServiceTests: TuistUnitTestCase {
             {
               "bundleIdentifier": "com.tuist.app",
               "displayName": "App",
+              "iconURL": "https://cloud.tuist.io/tuist/tuist/previews/preview-id/icon.png",
               "id": "preview-id",
-              "qrCodeURL": "https://cloud.tuist.io/tuist/tuist/previews/preview-id/qr-code.svg",
+              "qrCodeURL": "https://tuist.dev/tuist/tuist/previews/preview-id/qr-code.svg",
               "url": "https://test.tuist.io"
             }
             """
@@ -771,6 +775,7 @@ final class ShareServiceTests: TuistUnitTestCase {
                 displayName: .any,
                 version: .any,
                 bundleIdentifier: .any,
+                icon: .any,
                 fullHandle: .value("tuist/tuist"),
                 serverURL: .value(Constants.URLs.production)
             )
@@ -856,11 +861,27 @@ final class ShareServiceTests: TuistUnitTestCase {
         let iosApp = try temporaryPath().appending(components: "iOS", "App.app")
         let visionOSApp = try temporaryPath().appending(components: "visionOs", "App.app")
         try await fileSystem.makeDirectory(at: iosApp)
+        let iosIconPath = iosApp.appending(component: "AppIcon60x60@2x.png")
+        try await fileSystem.touch(iosIconPath)
         try await fileSystem.makeDirectory(at: visionOSApp)
 
         given(appBundleLoader)
             .load(.value(iosApp))
-            .willReturn(.test(infoPlist: .test(name: "App")))
+            .willReturn(
+                .test(
+                    path: iosApp,
+                    infoPlist: .test(
+                        name: "App",
+                        bundleIcons: .test(
+                            primaryIcon: .test(
+                                iconFiles: [
+                                    "AppIcon60x60",
+                                ]
+                            )
+                        )
+                    )
+                )
+            )
 
         given(appBundleLoader)
             .load(.value(visionOSApp))
@@ -886,6 +907,7 @@ final class ShareServiceTests: TuistUnitTestCase {
                 displayName: .value("App"),
                 version: .any,
                 bundleIdentifier: .any,
+                icon: .value(iosIconPath),
                 fullHandle: .value("tuist/tuist"),
                 serverURL: .value(Constants.URLs.production)
             )
@@ -905,9 +927,11 @@ final class ShareServiceTests: TuistUnitTestCase {
         let ipaPath = try temporaryPath().appending(components: "App.ipa")
         let payloadPath = try temporaryPath().appending(components: "Payload")
         let appBundlePath = payloadPath.appending(components: "App.app")
+        let iconPath = appBundlePath.appending(component: "AppIcon60x60@2x.png")
         try await fileSystem.makeDirectory(at: ipaPath)
         try await fileSystem.makeDirectory(at: payloadPath)
         try await fileSystem.makeDirectory(at: appBundlePath)
+        try await fileSystem.touch(iconPath)
         given(fileUnarchiver)
             .unzip()
             .willReturn(payloadPath)
@@ -916,10 +940,18 @@ final class ShareServiceTests: TuistUnitTestCase {
             .load(.value(appBundlePath))
             .willReturn(
                 .test(
+                    path: appBundlePath,
                     infoPlist: .test(
                         version: Version(1, 0, 0),
                         name: "App",
-                        bundleId: "com.tuist.app"
+                        bundleId: "com.tuist.app",
+                        bundleIcons: .test(
+                            primaryIcon: .test(
+                                iconFiles: [
+                                    "AppIcon60x60",
+                                ]
+                            )
+                        )
                     )
                 )
             )
@@ -943,6 +975,7 @@ final class ShareServiceTests: TuistUnitTestCase {
                 displayName: .value("App"),
                 version: .value("1.0.0"),
                 bundleIdentifier: .value("com.tuist.app"),
+                icon: .value(iconPath),
                 fullHandle: .value("tuist/tuist"),
                 serverURL: .value(Constants.URLs.production)
             )

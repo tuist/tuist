@@ -73,6 +73,49 @@ final class ServerAuthenticationControllerTests: TuistUnitTestCase {
         XCTAssertNil(got)
     }
 
+    func test_when_config_token_is_present_and_is_not_ci_and_tuist_dev_credentials_are_missing() async throws {
+        // Given
+        environment.tuistVariables[
+            Constants.EnvironmentVariables.token
+        ] = "project-token"
+        let credentials = ServerCredentials.test(token: "access-token")
+        given(ciChecker)
+            .isCI()
+            .willReturn(false)
+        given(credentialsStore)
+            .read(serverURL: .value(URL(string: "https://tuist.dev")!))
+            .willReturn(nil)
+        given(credentialsStore)
+            .read(serverURL: .value(URL(string: "https://cloud.tuist.io")!))
+            .willReturn(credentials)
+
+        // When
+        let got = try await subject.authenticationToken(serverURL: URL(string: "https://tuist.dev")!)
+
+        // Then
+        XCTAssertEqual(got?.value, credentials.token)
+    }
+
+    func test_when_config_token_is_present_and_is_not_ci_and_tuist_dev_credentials_are_present() async throws {
+        // Given
+        environment.tuistVariables[
+            Constants.EnvironmentVariables.token
+        ] = "project-token"
+        let credentials = ServerCredentials.test(token: "access-token")
+        given(ciChecker)
+            .isCI()
+            .willReturn(false)
+        given(credentialsStore)
+            .read(serverURL: .value(URL(string: "https://tuist.dev")!))
+            .willReturn(credentials)
+
+        // When
+        let got = try await subject.authenticationToken(serverURL: URL(string: "https://tuist.dev")!)
+
+        // Then
+        XCTAssertEqual(got?.value, credentials.token)
+    }
+
     func test_when_deprecated_config_token_is_present_and_is_ci() async throws {
         // Given
         environment.tuistVariables[

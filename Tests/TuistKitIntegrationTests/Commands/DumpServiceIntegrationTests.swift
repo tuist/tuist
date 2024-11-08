@@ -198,7 +198,7 @@ final class DumpServiceTests: TuistTestCase {
           "plugins": [
 
           ],
-          "url": "https://cloud.tuist.io"
+          "url": "https://tuist.dev"
         }
 
         """

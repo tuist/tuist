@@ -77,6 +77,6 @@ public enum Constants {
     }
 
     public enum URLs {
-        public static let production = URL(string: "https://cloud.tuist.io")!
+        public static let production = URL(string: "https://tuist.dev")!
     }
 }

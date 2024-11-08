@@ -29,7 +29,7 @@ public enum DownloadPreviewServiceError: FatalError, Equatable {
     public var description: String {
         switch self {
         case let .unknownError(statusCode):
-            return "The build could not be uploaded due to an unknown Tuist Cloud response of \(statusCode)."
+            return "The preview could not be downloaded due to an unknown Tuist server response of \(statusCode)."
         case let .notFound(message), let .forbidden(message), let .unauthorized(message):
             return message
         }
