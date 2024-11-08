@@ -44,8 +44,7 @@ XcodeGen의 `project.yaml` 파일이 `Project.swift` 파일이 됩니다. 게다
 
 ```bash [Tuist directory structure]
 /
-  Tuist/
-    Config.swift
+  Tuist.swift
   Project.swift
   Workspace.swift
 ```
