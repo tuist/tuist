@@ -28,7 +28,7 @@ tuist project create my-handle/MyApp
 
 ## プロジェクトを接続する {#connect-projects}
 
-サーバー上にプロジェクトを作成した後、ローカルプロジェクトに接続する必要があります。 サーバー上にプロジェクトを作成した後、ローカルプロジェクトに接続する必要があります。 サーバー上にプロジェクトを作成した後、ローカルプロジェクトに接続する必要があります。 サーバー上にプロジェクトを作成した後、ローカルプロジェクトに接続する必要があります。 `tuist edit` を実行し、`Config.swift` ファイルを編集してプロジェクトの完全なハンドルを含めます：
+サーバー上にプロジェクトを作成した後、ローカルプロジェクトに接続する必要があります。 Run `tuist edit` and edit the `Tuist.swift` file to include the full handle of the project:
 
 ```swift
 import ProjectDescription
