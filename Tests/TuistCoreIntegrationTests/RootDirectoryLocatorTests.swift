@@ -6,7 +6,7 @@ import XCTest
 
 @testable import TuistSupportTesting
 
-final class RootDirectoryLocatorIntegrationTests: TuistTestCase {
+final class RootDirectoryLocatorTests: TuistTestCase {
     var subject: RootDirectoryLocator!
 
     override func setUp() {
@@ -36,6 +36,20 @@ final class RootDirectoryLocatorIntegrationTests: TuistTestCase {
         // Given
         let temporaryDirectory = try temporaryPath()
         try createFolders(["this/is/a/very/nested/directory", "this/is/Tuist/"])
+
+        // When
+        let got = try await subject
+            .locate(from: temporaryDirectory.appending(try RelativePath(validating: "this/is/a/very/nested/directory")))
+
+        // Then
+        XCTAssertEqual(got, temporaryDirectory.appending(try RelativePath(validating: "this/is")))
+    }
+
+    func test_locate_when_a_tuist_swift_manifest_file_exists() async throws {
+        // Given
+        let temporaryDirectory = try temporaryPath()
+        try createFolders(["this/is/a/very/nested/directory"])
+        try await createFiles(["this/is/\(Constants.tuistManifestFileName)"])
 
         // When
         let got = try await subject

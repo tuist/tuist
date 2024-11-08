@@ -28,7 +28,7 @@ Copy `my-handle/MyApp`, which represents the full handle of the project.
 
 ## Connect projects {#connect-projects}
 
-After creating the project on the server, you'll have to connect it to your local project. Run `tuist edit` and edit the `Config.swift` file to include the full handle of the project:
+After creating the project on the server, you'll have to connect it to your local project. Run `tuist edit` and edit the `Tuist.swift` file to include the full handle of the project:
 
 ```swift
 import ProjectDescription

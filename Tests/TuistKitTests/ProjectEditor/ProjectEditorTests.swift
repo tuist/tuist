@@ -94,7 +94,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
             ),
         ]
         let tuistPath = try AbsolutePath(validating: ProcessInfo.processInfo.arguments.first!)
-        let configPath = directory.appending(components: "Tuist", "Config.swift")
+        let configPath = directory.appending(components: Constants.tuistManifestFileName)
         let packageManifestPath = directory.appending(components: "Tuist", "Package.swift")
         try FileHandler.shared.createFolder(directory.appending(component: "a folder"))
         try FileHandler.shared.write(

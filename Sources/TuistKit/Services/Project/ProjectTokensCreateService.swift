@@ -20,7 +20,7 @@ final class ProjectTokensCreateService: ProjectTokensCreateServicing {
         self.init(
             createProjectTokenService: CreateProjectTokenService(),
             serverURLService: ServerURLService(),
-            configLoader: ConfigLoader()
+            configLoader: ConfigLoader(warningController: WarningController.shared)
         )
     }
 

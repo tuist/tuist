@@ -46,7 +46,7 @@ public final class BuildService {
         cacheStorageFactory: CacheStorageFactorying,
         buildGraphInspector: BuildGraphInspecting = BuildGraphInspector(),
         targetBuilder: TargetBuilding = TargetBuilder(),
-        configLoader: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader())
+        configLoader: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader(), warningController: WarningController.shared)
     ) {
         self.generatorFactory = generatorFactory
         self.cacheStorageFactory = cacheStorageFactory

@@ -46,7 +46,7 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
         graphMapper: GraphMapping
     ) {
         self.init(
-            configLoader: ConfigLoader(manifestLoader: manifestLoader),
+            configLoader: ConfigLoader(manifestLoader: manifestLoader, warningController: WarningController.shared),
             manifestLoader: manifestLoader,
             recursiveManifestLoader: RecursiveManifestLoader(manifestLoader: manifestLoader),
             converter: ManifestModelConverter(

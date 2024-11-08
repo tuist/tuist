@@ -90,7 +90,7 @@ final class CleanService {
             rootDirectoryLocator: RootDirectoryLocator(),
             cacheDirectoriesProvider: CacheDirectoriesProvider(),
             manifestFilesLocator: ManifestFilesLocator(),
-            configLoader: ConfigLoader(),
+            configLoader: ConfigLoader(warningController: WarningController.shared),
             serverURLService: ServerURLService(),
             cleanCacheService: CleanCacheService(),
             fileSystem: FileSystem()
