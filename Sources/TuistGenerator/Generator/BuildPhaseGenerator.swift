@@ -470,7 +470,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         copySwiftMacrosBuildPhase.inputPaths = executableNames.map { "$BUILD_DIR/$CONFIGURATION/\($0)" }
 
         copySwiftMacrosBuildPhase.outputPaths = executableNames.map { executable in
-            "$BUILD_DIR/Debug-$EFFECTIVE_PLATFORM_NAME/\(executable)"
+            "$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/\(executable)"
         }
 
         pbxproj.add(object: copySwiftMacrosBuildPhase)
