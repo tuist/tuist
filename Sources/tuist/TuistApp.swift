@@ -9,6 +9,14 @@ import TuistSupport
 @_documentation(visibility: private)
 private enum TuistServer {
     static func main() async throws {
+        if CommandLine.arguments.contains("--quiet") && CommandLine.arguments.contains("--verbose") {
+            throw TuistAppError.exclusiveOptionError("quiet", "verbose")
+        }
+
+        if CommandLine.arguments.contains("--quiet") && CommandLine.arguments.contains("--json") {
+            throw TuistAppError.exclusiveOptionError("quiet", "json")
+        }
+
         if CommandLine.arguments.contains("--verbose") {
             try? ProcessEnv.setVar(Constants.EnvironmentVariables.verbose, value: "true")
         }
@@ -33,5 +41,23 @@ private enum TuistServer {
         }
 
         try await TuistCommand.main()
+    }
+}
+
+private enum TuistAppError: FatalError {
+    case exclusiveOptionError(String, String)
+
+    var description: String {
+        switch self {
+        case let .exclusiveOptionError(option1, option2):
+            "Cannot use --\(option1) and --\(option2) at the same time."
+        }
+    }
+
+    var type: ErrorType {
+        switch self {
+        case .exclusiveOptionError:
+            .abort
+        }
     }
 }
