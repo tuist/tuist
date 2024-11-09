@@ -50,16 +50,6 @@ When instantiating a `Target`, you can pass the `dependencies` argument with any
 > [!NOTE] DEPENDENCY CONDITIONS
 > Every dependency type accepts a `condition` option to conditionally link the dependency based on the platform. By default, it links the dependency for all platforms the target supports.
 
-> [!TIP] ENFORCING EXPLICIT DEPENDENCIES
-> We have an experimental feature to enforce explicit dependencies in Xcode. We recommend enabling it to ensure targets can only import the dependencies that they've explicitly declared.
->
-> ```swift
-> import ProjectDescription
-> let config = Config(generationOptions: .options(enforceExplicitDependencies: true))
-> ```
-
-<!-- > Warning: We haven't yet solved the problem of targets being able to import dependencies that they shouldn't. Some users have implemented their custom solutions to detect this, but we haven't yet found a solution that we're happy with. We are currently exploring customizing the directory where products are outputted to solve this problem. -->
-
 ## External dependencies {#external-dependencies}
 
 Tuist also allows you to declare external dependencies in your project.
