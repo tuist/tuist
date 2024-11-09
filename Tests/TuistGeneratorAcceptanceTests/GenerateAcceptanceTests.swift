@@ -313,10 +313,6 @@ final class GenerateAcceptanceTestsiOSAppWithCustomScheme: TuistAcceptanceTestCa
     func test_ios_app_with_custom_scheme() async throws {
         try await setUpFixture(.iosAppWithCustomScheme)
         try await run(GenerateCommand.self)
-        try await run(BuildCommand.self)
-        try await run(BuildCommand.self, "App-Debug")
-        try await run(BuildCommand.self, "App-Release")
-        try await run(BuildCommand.self, "App-Local")
 
         let xcodeprojPath = fixturePath.appending(components: ["App", "MainApp.xcodeproj"])
 
@@ -1041,16 +1037,44 @@ final class GenerateAcceptanceTestAppWithNonLocalAppDependencies: TuistAcceptanc
 }
 
 final class GenerateAcceptanceTestParallelizable: TuistAcceptanceTestCase {
-    func test_app_parallelizable_swift_testing_only_from_test_plan() async throws {
+    func test_app_parallelizable_none_from_app_test_plan() async throws {
         try await setUpFixture(.appWithTestPlan)
         try await run(GenerateCommand.self)
-        try await run(BuildCommand.self)
-        try await run(BuildCommand.self, "App")
+
+        let xcodeprojPath = fixturePath.appending(components: ["App.xcodeproj"])
 
         try XCTAssertContainsParallelizable(
             xcodeprojPath: xcodeprojPath,
-            scheme: "App",
+            scheme: "AppScheme",
             testTarget: "AppTests",
+            parallelizable: .none
+        )
+    }
+    
+    func test_app_parallelizable_all_from_mac_framework_test_plan() async throws {
+        try await setUpFixture(.appWithTestPlan)
+        try await run(GenerateCommand.self)
+        
+        let xcodeprojPath = fixturePath.appending(components: ["App.xcodeproj"])
+
+        try XCTAssertContainsParallelizable(
+            xcodeprojPath: xcodeprojPath,
+            scheme: "MacFrameworkScheme",
+            testTarget: "MacFrameworkTests",
+            parallelizable: .all
+        )
+    }
+    
+    func test_app_parallelizable_swift_testing_only_from_mac_framework_test_plan() async throws {
+        try await setUpFixture(.appWithTestPlan)
+        try await run(GenerateCommand.self)
+        
+        let xcodeprojPath = fixturePath.appending(components: ["App.xcodeproj"])
+
+        try XCTAssertContainsParallelizable(
+            xcodeprojPath: xcodeprojPath,
+            scheme: "MacFrameworkScheme",
+            testTarget: "MacFrameworkParallelizableTests",
             parallelizable: .swiftTestingOnly
         )
     }

@@ -208,7 +208,7 @@ extension TuistAcceptanceTestCase {
         XCTAssertEqual(
             testableTarget.parallelizable,
             parallelizable,
-            "The '\(testableTarget)' testable target doesn't have parallelizable set.",
+            "The '\(testableTarget)' testable target doesn't have the parallelizable option \(parallelizable.rawValue) set.",
             file: file,
             line: line
         )

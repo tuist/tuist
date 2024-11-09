@@ -57,16 +57,35 @@ let project = Project(
                 ]
             )
         ),
+        .target(
+            name: "MacFrameworkParallelizableTests",
+            destinations: [.mac],
+            product: .unitTests,
+            bundleId: "io.tuist.MacFrameworkParallelizableTests",
+            deploymentTargets: .macOS("10.15"),
+            infoPlist: .default,
+            sources: "Targets/MacFramework/Tests/**",
+            dependencies: [
+                .target(name: "MacFramework"),
+            ],
+            settings: .settings(
+                base: [
+                    "CODE_SIGN_IDENTITY": "",
+                    "CODE_SIGNING_REQUIRED": "NO",
+                ]
+            )
+        ),
     ],
     schemes: [
         .scheme(
-            name: "App",
+            name: "AppScheme",
             buildAction: .buildAction(targets: ["App"]),
-            testAction: .testPlans([.relativeToManifest("All.xctestplan")]),
-            runAction: .runAction(
-                configuration: .debug,
-                executable: "App"
-            )
+            testAction: .testPlans([.relativeToManifest("App.xctestplan")])
+        ),
+        .scheme(
+            name: "MacFrameworkScheme",
+            buildAction: .buildAction(targets: ["MacFramework"]),
+            testAction: .testPlans([.relativeToManifest("MacFramework.xctestplan")])
         ),
     ]
 )
