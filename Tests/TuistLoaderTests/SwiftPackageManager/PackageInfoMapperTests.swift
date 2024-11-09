@@ -33,7 +33,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         let basePath = try temporaryPath()
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Sources/Target_1")))
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Sources/Target_2")))
-        let resolvedDependencies = try subject.resolveExternalDependencies(
+        let resolvedDependencies = try await subject.resolveExternalDependencies(
+            path: .current,
             packageInfos: [
                 "Package": .test(
                     name: "Package",
@@ -70,7 +71,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         let basePath = try temporaryPath()
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Sources/Target_1")))
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Sources/Target_2")))
-        let resolvedDependencies = try subject.resolveExternalDependencies(
+        let resolvedDependencies = try await subject.resolveExternalDependencies(
+            path: .current,
             packageInfos: [
                 "Package": .test(
                     name: "Package",
@@ -107,7 +109,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         let basePath = try temporaryPath()
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Sources/Target_1")))
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Sources/Target_2")))
-        let resolvedDependencies = try subject.resolveExternalDependencies(
+        let resolvedDependencies = try await subject.resolveExternalDependencies(
+            path: .current,
             packageInfos: [
                 "Package": .test(
                     name: "Package",
@@ -147,7 +150,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         let basePath = try temporaryPath()
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Sources/Target_1")))
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Sources/Target_2")))
-        let resolvedDependencies = try subject.resolveExternalDependencies(
+        let resolvedDependencies = try await subject.resolveExternalDependencies(
+            path: .current,
             packageInfos: [
                 "Package": .test(
                     name: "Package",
@@ -185,7 +189,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/Target_1")))
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/Target_2")))
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package2/Sources/Target_2")))
-        let resolvedDependencies = try subject.resolveExternalDependencies(
+        let resolvedDependencies = try await subject.resolveExternalDependencies(
+            path: .current,
             packageInfos: [
                 "Package": .test(
                     name: "Package",
@@ -257,7 +262,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         let basePath = try temporaryPath()
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/Target_1")))
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package2/Sources/Target_2")))
-        let resolvedDependencies = try subject.resolveExternalDependencies(
+        let resolvedDependencies = try await subject.resolveExternalDependencies(
+            path: .current,
             packageInfos: [
                 "Package": .test(
                     name: "Package",
@@ -335,7 +341,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/Target_1")))
         try fileHandler
             .createFolder(basePath.appending(try RelativePath(validating: "com.example.dep-1/Sources/com.example.dep-1")))
-        let resolvedDependencies = try subject.resolveExternalDependencies(
+        let resolvedDependencies = try await subject.resolveExternalDependencies(
+            path: .current,
             packageInfos: [
                 "Package": .test(
                     name: "Package",
@@ -408,7 +415,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/Target_1")))
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/Dependency_1")))
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/Dependency_2")))
-        let resolvedDependencies = try subject.resolveExternalDependencies(
+        let resolvedDependencies = try await subject.resolveExternalDependencies(
+            path: .current,
             packageInfos: [
                 "Package": .test(
                     name: "Package",
@@ -458,7 +466,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package_1/Sources/Target_1")))
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package_2/Sources/Target_2")))
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package_2/Sources/Target_3")))
-        let resolvedDependencies = try subject.resolveExternalDependencies(
+        let resolvedDependencies = try await subject.resolveExternalDependencies(
+            path: .current,
             packageInfos: [
                 "Package_1": .test(
                     name: "Package_1",
