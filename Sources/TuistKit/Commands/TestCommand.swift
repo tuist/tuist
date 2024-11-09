@@ -226,7 +226,7 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
         }
 
         defer {
-            var parameters: [String: AnyCodable] = [
+            let parameters: [String: AnyCodable] = [
                 "no_binary_cache": AnyCodable(!binaryCache),
                 "no_selective_testing": AnyCodable(!selectiveTesting),
             ]

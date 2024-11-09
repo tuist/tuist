@@ -101,11 +101,12 @@ public protocol PackageInfoMapping {
     /// Resolves external SwiftPackageManager dependencies.
     /// - Returns: Mapped project
     func resolveExternalDependencies(
+        path: AbsolutePath,
         packageInfos: [String: PackageInfo],
         packageToFolder: [String: AbsolutePath],
         packageToTargetsToArtifactPaths: [String: [String: AbsolutePath]],
         packageModuleAliases: [String: [String: String]]
-    ) throws -> [String: [ProjectDescription.TargetDependency]]
+    ) async throws -> [String: [ProjectDescription.TargetDependency]]
 
     /// Maps a `PackageInfo` to a `ProjectDescription.Project`.
     /// - Returns: Mapped project
@@ -142,11 +143,12 @@ public final class PackageInfoMapper: PackageInfoMapping {
     ///   - packageToTargetsToArtifactPaths: Mapping from a package name its targets' names to artifacts' paths
     /// - Returns: Mapped project
     public func resolveExternalDependencies(
+        path: AbsolutePath,
         packageInfos: [String: PackageInfo],
         packageToFolder: [String: AbsolutePath],
         packageToTargetsToArtifactPaths: [String: [String: AbsolutePath]],
         packageModuleAliases: [String: [String: String]]
-    ) throws -> [String: [ProjectDescription.TargetDependency]] {
+    ) async throws -> [String: [ProjectDescription.TargetDependency]] {
         let targetDependencyToFramework: [String: Path] = try packageInfos.reduce(into: [:]) { result, packageInfo in
             try packageInfo.value.targets.forEach { target in
                 guard target.type == .binary else { return }
@@ -177,7 +179,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
             }
         }
 
-        return try packageInfos
+        var externalDependencies: [String: [ProjectDescription.TargetDependency]] = try packageInfos
             .reduce(into: [:]) { result, packageInfo in
                 let moduleAliases = packageModuleAliases[packageInfo.value.name]
                 for product in packageInfo.value.products {
@@ -209,6 +211,17 @@ public final class PackageInfoMapper: PackageInfoMapping {
                     }
                 }
             }
+        // Include dependencies added as binary targets
+        let remoteXcframeworksPath = path.appending(components: ["artifacts", "tuist"])
+        let rootPath = path.parentDirectory.parentDirectory
+        let remoteXcframeworks = try await fileSystem.glob(directory: remoteXcframeworksPath, include: ["**/*.xcframework"])
+            .collect()
+        for xcframework in remoteXcframeworks {
+            let dependencyName = xcframework.relative(to: remoteXcframeworksPath).basenameWithoutExt
+            let xcframeworkPath = Path.relativeToRoot(xcframework.relative(to: rootPath).pathString)
+            externalDependencies[dependencyName] = [.xcframework(path: xcframeworkPath)]
+        }
+        return externalDependencies
     }
 
     /**

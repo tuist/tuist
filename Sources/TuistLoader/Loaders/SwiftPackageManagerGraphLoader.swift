@@ -174,7 +174,8 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
             }
         }
 
-        let externalDependencies = try packageInfoMapper.resolveExternalDependencies(
+        let externalDependencies = try await packageInfoMapper.resolveExternalDependencies(
+            path: path,
             packageInfos: packageInfoDictionary,
             packageToFolder: packageToFolder,
             packageToTargetsToArtifactPaths: packageToTargetsToArtifactPaths,
