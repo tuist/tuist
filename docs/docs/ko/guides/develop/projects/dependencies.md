@@ -48,16 +48,6 @@ Target은 같은 프로젝트나 다른 프로젝트의 타겟, 그리고 바이
 > [!NOTE] 의존성 조건
 > 모든 의존성 유형은 플랫폼에 따라 의존성을 조건부로 연결하기 위한 `condition` 옵션을 허용합니다. 기본적으로, 타겟이 지원하는 모든 플랫폼에 대해 의존성이 연결됩니다.
 
-> [!TIP] 명시적 의존성 강제하기
-> Xcode에서 명시적 의존성을 강제하는 실험적 기능이 있습니다. 타겟이 명시적으로 선언한 의존성만 import할 수 있도록 이 기능을 활성화하는 것을 권장합니다.
->
-> ```swift
-> import ProjectDescription
-> let config = Config(generationOptions: .options(enforceExplicitDependencies: true))
-> ```
-
-<!-- > Warning: We haven't yet solved the problem of targets being able to import dependencies that they shouldn't. Some users have implemented their custom solutions to detect this, but we haven't yet found a solution that we're happy with. We are currently exploring customizing the directory where products are outputted to solve this problem. -->
-
 ## 외부 의존성 {#external-dependencies}
 
 Tuist는 프로젝트에서 외부 의존성을 선언할 수 있습니다.
