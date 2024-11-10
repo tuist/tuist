@@ -53,15 +53,15 @@ TMA는 Apple OS 애플리케이션을 구조화 하는 아키텍처 접근 방�
 
 [분할 정복 (Divide and conquer)](https://en.wikipedia.org/wiki/Divide_and_conquer). 작은 모듈로 작업하면 더 집중할 수 있고 기능을 독립적으로 테스트하고 확인할 수 있습니다. 게다가 개발 주기는 훨씬 더 빨라지는데, 이는 기능을 동작시키기 위해 필요한 컴포넌트만 컴파일하는 선택적 컴파일 덕분입니다. 앱 전체의 컴파일은 작업의 마지막에만 필요하며 이때 앱에 기능을 통합해야 합니다.
 
-### Reusability {#reusability}
+### 재사용성 {#reusability}
 
-Reusing code across apps and other products like extensions is encouraged using frameworks or libraries. By building modules reusing them is pretty straightforward. We can build an iMessage extension, a Today Extension, or a watchOS application by just combining existing modules and adding _(when necessary)_ platform-specific UI layers.
+코드를 앱과 확장과 같은 다른 결과물에 재사용하는 것은 프레임워크나 라이브러리를 사용하도록 권장합니다. 모듈을 구축하면 코드 재사용이 매우 간단해 집니다. 기존 모듈을 결합하고 _(필요할 때)_ 플랫폼 별 UI 계층을 추가하여 iMessage 확장, Today 확장, 또는 watchOS 애플리케이션을 만들 수 있습니다.
 
 ## 의존성 {#dependencies}
 
-When a module depends on another module, it declares a dependency against its interface target. The benefit of this is two-fold. It prevents the implementation of a module to be coupled to the implementation of another module, and it speeds up clean builds because they only have to compile the implementation of our feature, and the interfaces of direct and transitive dependencies. This approach is inspired by SwiftRock's idea of [Reducing iOS Build Times by using Interface Modules](https://swiftrocks.com/reducing-ios-build-times-by-using-interface-targets).
+모듈이 다른 모듈에 의존할 경우, 해당 모듈은 의존할 모듈의 인터페이스 타겟에 대한 의존성을 선언합니다. 이러면 두 가지 장점이 있습니다. 하나의 모듈 구현이 다른 모듈 구현과 결합되는 것을 방지하고, 기능의 구현만 컴파일하고 직접적인 의존성과 전이적 의존성에 대한 인터페이스만 컴파일하면 되므로 클린 빌드 속도가 빨라집니다. 이 접근 방식은 SwiftRock의 [인터페이스 모듈을 사용하여 iOS 빌드 시간 단축](https://swiftrocks.com/reducing-ios-build-times-by-using-interface-targets)에서 영감을 얻었습니다.
 
-Depending on interfaces requires apps to build the graph of implementations at runtime, and dependency-inject it into the modules that need it. Although TMA is non-opinionated about how to do this, we recommend using dependency-injection solutions or patterns or solutions that don't add built-time indirections or use platform APIs that were not designed for this purpose.
+인터페이스에 의존하는 것은 앱이 실행 시간에 구현의 그래프를 구성하고, 필요한 모듈에 해당 구현을 의존성 주입해야 합니다. TMA는 이를 어떻게 구현할지 강제하지 않지만, 빌드 시간에 불필요한 간접 참조를 추가하거나 이 목적을 위해 설계되지 않은 플랫폼 API를 사용하지 않는 의존성 주입 솔루션이나 패턴을 권장합니다.
 
 ## Product types {#product-types}
 
