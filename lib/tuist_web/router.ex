@@ -5,6 +5,8 @@ defmodule TuistWeb.Router do
   import TuistWeb.Authorization
   import TuistWeb.RateLimit
   import Phoenix.LiveDashboard.Router
+  import Redirect
+
   use ErrorTracker.Web, :router
 
   pipeline :open_api do
@@ -69,6 +71,7 @@ defmodule TuistWeb.Router do
   scope "/" do
     pipe_through [:browser_marketing_feed]
 
+    redirect("/rss.xml", "/blog/rss.xml", :permanent, preserve_query_string: true)
     get "/blog/rss.xml", TuistWeb.MarketingController, :blog_rss
     get "/blog/atom.xml", TuistWeb.MarketingController, :blog_atom
     get "/changelog/rss.xml", TuistWeb.MarketingController, :changelog_rss
