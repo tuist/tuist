@@ -24,7 +24,12 @@ The CLI will automatically look up the credentials when making requests to the s
 
 If you have a Google Workspace organization and you want any developer who signs in with the same Google hosted domain to be added to your Tuist organization, you can set it up with:
 ```bash
-tuist organization update sso my-organization --provider google --organization-id my-domain.com
+tuist organization update sso my-organization --provider google --organization-id my-google-domain.com
+```
+
+For on-premise customers that have Okta set up, you can get the same behavior as for Google by running:
+```bash
+tuist organization update sso my-organization --provider okta --organization-id my-okta-domain.com
 ```
 
 > [!IMPORTANT]
