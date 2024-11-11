@@ -67,9 +67,30 @@ public final class TreeShakePrunedTargetsGraphMapper: GraphMapping {
         sourceTargets: Set<TargetReference>
     ) -> [Target] {
         targets.compactMap { target -> Target? in
-            guard let target = graph.projects[path]?.targets[target.name] else { return nil }
+            guard var target = graph.projects[path]?.targets[target.name] else { return nil }
             let targetReference = TargetReference(projectPath: path, name: target.name)
             guard sourceTargets.contains(targetReference) else { return nil }
+            
+            /**
+             If a target dependency a target depends on is tree-shaked, that dependency should be removed.
+             This happens in scenarios where a external target (iOS and tvOS framework) conditionally depends on
+             framework based on the platform. We have logic to prune unneceessary platforms from the external
+             part of the graph.
+             */
+            
+            target.dependencies = target.dependencies.compactMap({ targetDependency in
+                switch targetDependency {
+                case let .target(dependencyName, _, _):
+                    if sourceTargets.contains(TargetReference(projectPath: path, name: dependencyName)) {
+                        return targetDependency
+                    } else {
+                        return nil
+                    }
+                default:
+                    return targetDependency
+                }
+            })
+            
             return target
         }
     }
