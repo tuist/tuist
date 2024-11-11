@@ -15,19 +15,19 @@ Tuist는 캐싱 기능으로 이 문제를 효과적으로 해결합니다. 이 
 
 ## 워밍 {#warming}
 
-Tuist는 각 타겟에 대한 의존성 그래프 변화를 감지하기 위해 효율적으로 <LocalizedLink href="/guides/develop/projects/hashing">해시를 활용합니다.</LocalizedLink> 이 데이터를 활용하여, Tuist는 타겟의 바이너리에 고유 식별자를 생성하고 할당합니다. 이 데이터를 활용하여, Tuist는 타겟의 바이너리에 고유 식별자를 생성하고 할당합니다. At the time of graph generation, Tuist then seamlessly substitutes the original targets with their corresponding binary versions.
+Tuist는 각 타겟에 대한 의존성 그래프 변화를 감지하기 위해 효율적으로 <LocalizedLink href="/guides/develop/projects/hashing">해시를 활용합니다.</LocalizedLink> 이 데이터를 활용하여, Tuist는 타겟의 바이너리에 고유 식별자를 생성하고 할당합니다. 이 데이터를 활용하여, Tuist는 타겟의 바이너리에 고유 식별자를 생성하고 할당합니다. 그래프가 생성될 때, Tuist는 기존 타겟을 바이너리로 원할하게 대체합니다.
 
-This operation, known as _"warming,"_ produces binaries for local use or for sharing with teammates and CI environments via Tuist. The process of warming the cache is straightforward and can be initiated with a simple command:
+이런 작업을 \*"워밍"\*이라 하며, Tuist를 통해 로컬 사용이나 팀원과 CI 환경에서 공유할 수 있는 바이너리를 생성합니다. 캐시 워밍 과정은 간단하며 단순한 명령어로 시작할 수 있습니다:
 
 ```bash
 tuist cache
 ```
 
-The command re-uses binaries to speed up the process.
+이 명령어는 더 빠르게 진행하기 위해 바이너리를 재사용합니다.
 
-## Usage {#usage}
+## 사용 {#usage}
 
-By default, when Tuist commands necessitate project generation, they automatically substitute dependencies with their binary equivalents from the cache, if available. Additionally, if you specify a list of targets to focus on, Tuist will also replace any dependent targets with their cached binaries, provided they are available. For those who prefer a different approach, there is an option to opt out of this behavior entirely by using a specific flag:
+기본적으로 Tuist 명령어는 프로젝트를 생성할 때, 캐시에 바이너리가 있는 경우 자동으로 의존성을 해당 바이너리로 대체합니다. 추가적으로 특정 타겟을 지정하면 Tuist는 해당 타겟에 의존하는 타겟도 캐시된 바이너리가 있는 경우 대체합니다. 다른 접근 방식을 선호하면, 특정 플래그를 사용하여 해당 동작을 완전히 비활성화 할 수 있습니다:
 
 ::: code-group
 
@@ -44,23 +44,23 @@ tuist test
 
 :::
 
-> [!WARNING]
-> Binary caching is a feature designed for development workflows such as running the app on a simulator or device, or running tests. It is not intended for release builds. When archiving the app, generate a project with the sources by using the `--no-binary-cache` flag.
+> [!WARNING]\
+> 바이너리 캐싱은 시뮬레이터나 디바이스에서 앱을 실행하거나 테스트를 실행하는 등의 개발 워크플로우를 위해 설계된 기능입니다. 이것은 릴리즈 빌드를 위한 기능이 아닙니다. 앱을 아카이브 할 때는, `--no-binary-cache` 플래그를 사용하여 소스가 포함된 프로젝트를 생성해야 합니다.
 
-## Supported products {#supported-products}
+## 지원하는 결과물 {#supported-products}
 
-Only the following target products are cacheable by Tuist:
+다음의 타겟 결과물만 Tuist에 의해 캐시될 수 있습니다:
 
-- Frameworks (static and dynamic) that don't depend on [XCTest](https://developer.apple.com/documentation/xctest)
-- Bundles
+- [XCTest](https://developer.apple.com/documentation/xctest)를 의존하지 않는 프레임워크 (정적 프레임워크와 동적 프레임워크)
+- 번들
 - Swift Macros
 
-We are working on supporting libraries and targets that depend on XCTest.
+현재 XCTest를 의존하는 라이브러리와 타겟을 지원하도록 작업 중입니다.
 
-> [!NOTE] UPSTREAM DEPENDENCIES
-> When a target is non-cacheable it makes the upstream targets non-cacheable too. For example, if you have the dependency graph `A > B`, where A depends on B, if B is non-cacheable, A will also be non-cacheable.
+> [!NOTE] 상위 의존성\
+> 타겟이 캐시가 불가능하면 해당 타겟에 의존하는 타겟도 캐시가 불가능합니다. 예를 들어, A가 B를 의존하고 `A > B`라는 의존성 그래프라면, B가 캐시가 불가능하면 A도 캐시가 불가능합니다.
 
-## Efficiency {#efficiency}
+## 효율성 {#efficiency}
 
 The level of efficiency that can be achieved with binary caching depends strongly on the graph structure. To achieve the best results, we recommend the following:
 
