@@ -18,6 +18,7 @@ final class DeviceServiceTests: TuistUnitTestCase {
     private var appBundleLoader: MockAppBundleLoading!
     private var appStorage: MockAppStoring!
     private var deviceController: MockDeviceControlling!
+    private var taskStatusReporter: MockTaskStatusReporting!
 
     private let previewURL =
         URL(
@@ -53,8 +54,10 @@ final class DeviceServiceTests: TuistUnitTestCase {
         appBundleLoader = .init()
         appStorage = .init()
         deviceController = .init()
+        taskStatusReporter = .init()
 
         subject = DeviceService(
+            taskStatusReporter: taskStatusReporter,
             appStorage: appStorage,
             deviceController: deviceController,
             simulatorController: simulatorController,
@@ -120,6 +123,7 @@ final class DeviceServiceTests: TuistUnitTestCase {
         appBundleLoader = nil
         appStorage = nil
         subject = nil
+        taskStatusReporter = nil
 
         Matcher.reset()
 
@@ -130,6 +134,10 @@ final class DeviceServiceTests: TuistUnitTestCase {
         // Given
         appStorage.reset()
         simulatorController.reset()
+
+        await given(taskStatusReporter)
+            .add(status: .any)
+            .willReturn()
 
         given(appStorage)
             .get(.any as Parameter<PinnedSimulatorsKey.Type>)
@@ -168,6 +176,10 @@ final class DeviceServiceTests: TuistUnitTestCase {
         appStorage.reset()
         simulatorController.reset()
 
+        await given(taskStatusReporter)
+            .add(status: .any)
+            .willReturn()
+
         given(appStorage)
             .get(.any as Parameter<PinnedSimulatorsKey.Type>)
             .willReturn([])
@@ -205,6 +217,10 @@ final class DeviceServiceTests: TuistUnitTestCase {
         // Given
         appStorage.reset()
 
+        await given(taskStatusReporter)
+            .add(status: .any)
+            .willReturn()
+
         given(appStorage)
             .get(.any as Parameter<PinnedSimulatorsKey.Type>)
             .willReturn(
@@ -229,6 +245,10 @@ final class DeviceServiceTests: TuistUnitTestCase {
         // Given
         appStorage.reset()
         deviceController.reset()
+
+        await given(taskStatusReporter)
+            .add(status: .any)
+            .willReturn()
 
         given(appStorage)
             .get(.any as Parameter<PinnedSimulatorsKey.Type>)
@@ -269,6 +289,10 @@ final class DeviceServiceTests: TuistUnitTestCase {
 
     func test_selectSimulator() async throws {
         // Given
+        await given(taskStatusReporter)
+            .add(status: .any)
+            .willReturn()
+
         try await subject.loadDevices()
 
         // When
@@ -286,6 +310,10 @@ final class DeviceServiceTests: TuistUnitTestCase {
 
     func test_selectPhysicalDevice() async throws {
         // Given
+        await given(taskStatusReporter)
+            .add(status: .any)
+            .willReturn()
+
         deviceController.reset()
 
         let myiPhone: PhysicalDevice = .test()
@@ -311,6 +339,10 @@ final class DeviceServiceTests: TuistUnitTestCase {
 
     func test_launchPreviewDeeplink() async throws {
         // Given
+        await given(taskStatusReporter)
+            .add(status: .any)
+            .willReturn()
+
         try await subject.loadDevices()
 
         given(downloadPreviewService)
@@ -383,6 +415,10 @@ final class DeviceServiceTests: TuistUnitTestCase {
 
     func test_launchPreviewDeeplink_when_physical_device_selected() async throws {
         // Given
+        await given(taskStatusReporter)
+            .add(status: .any)
+            .willReturn()
+
         let myiPhone: PhysicalDevice = .test()
         given(deviceController)
             .findAvailableDevices()
@@ -470,6 +506,10 @@ final class DeviceServiceTests: TuistUnitTestCase {
         given(deviceController)
             .findAvailableDevices()
             .willReturn([myiPhone])
+
+        await given(taskStatusReporter)
+            .add(status: .any)
+            .willReturn()
 
         try await subject.loadDevices()
 
@@ -576,6 +616,10 @@ final class DeviceServiceTests: TuistUnitTestCase {
         // Given
         try await subject.loadDevices()
 
+        await given(taskStatusReporter)
+            .add(status: .any)
+            .willReturn()
+
         given(downloadPreviewService)
             .downloadPreview(.any, fullHandle: .any, serverURL: .any)
             .willReturn("https://tuist.io/download-link")
@@ -594,6 +638,10 @@ final class DeviceServiceTests: TuistUnitTestCase {
     func test_launchPreviewDeeplink_when_appNotFound() async throws {
         // Given
         try await subject.loadDevices()
+
+        await given(taskStatusReporter)
+            .add(status: .any)
+            .willReturn()
 
         given(downloadPreviewService)
             .downloadPreview(.any, fullHandle: .any, serverURL: .any)

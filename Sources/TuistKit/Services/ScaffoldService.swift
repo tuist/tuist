@@ -44,7 +44,7 @@ final class ScaffoldService {
         templateLoader: TemplateLoading = TemplateLoader(),
         templatesDirectoryLocator: TemplatesDirectoryLocating = TemplatesDirectoryLocator(),
         templateGenerator: TemplateGenerating = TemplateGenerator(),
-        configLoader: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader()),
+        configLoader: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader(), warningController: WarningController.shared),
         pluginService: PluginServicing = PluginService()
     ) {
         self.templateLoader = templateLoader

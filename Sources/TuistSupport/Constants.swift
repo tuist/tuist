@@ -29,6 +29,8 @@ public enum Constants {
     public static let joinSlackURL: String = "https://slack.tuist.io/"
     public static let tuistGeneratedFileName = ".tuist-generated"
 
+    public static let tuistManifestFileName = "Tuist.swift"
+
     /// The cache version.
     /// This should change only when it changes the logic to map a `XcodeGraph.Target` to a cached build artifact.
     /// Changing this results in changing the target hash and hence forcing a rebuild of its artifact.

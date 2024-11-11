@@ -37,7 +37,7 @@ enum RunServiceError: FatalError, Equatable {
         case let .appNotFound(url):
             return "The app at \(url) was not found."
         case let .missingFullHandle(displayName: displayName, specifier: specifier):
-            return "We couldn't run the preview \(displayName)@\(specifier) because the full handle is missing. Make sure to specify it in your Config.swift file."
+            return "We couldn't run the preview \(displayName)@\(specifier) because the full handle is missing. Make sure to specify it in your \(Constants.tuistManifestFileName) file."
         case let .previewNotFound(displayName: displayName, specifier: specifier):
             return "We could not find a preview for \(displayName)@\(specifier). You can create one by running tuist share \(displayName)."
         }
@@ -80,7 +80,7 @@ final class RunService {
             buildGraphInspector: BuildGraphInspector(),
             targetBuilder: TargetBuilder(),
             targetRunner: TargetRunner(),
-            configLoader: ConfigLoader(manifestLoader: ManifestLoader()),
+            configLoader: ConfigLoader(manifestLoader: ManifestLoader(), warningController: WarningController.shared),
             downloadPreviewService: DownloadPreviewService(),
             listPreviewsService: ListPreviewsService(),
             fileHandler: FileHandler.shared,

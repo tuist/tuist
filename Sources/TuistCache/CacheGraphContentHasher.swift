@@ -12,7 +12,7 @@ public protocol CacheGraphContentHashing {
     /// - Parameters:
     ///     - graph: Graph to hash
     ///     - configuration: Configuration to hash.
-    ///     - config: The `Config.swift` model
+    ///     - config: The `Tuist.swift` model
     ///     - excludedTargets: Targets to be excluded from hashes calculation
     func contentHashes(
         for graph: Graph,

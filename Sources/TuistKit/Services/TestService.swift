@@ -77,7 +77,7 @@ final class TestService { // swiftlint:disable:this type_body_length
     ) {
         let manifestLoaderFactory = ManifestLoaderFactory()
         let manifestLoader = manifestLoaderFactory.createManifestLoader()
-        let configLoader = ConfigLoader(manifestLoader: manifestLoader)
+        let configLoader = ConfigLoader(manifestLoader: manifestLoader, warningController: WarningController.shared)
         self.init(
             generatorFactory: generatorFactory,
             cacheStorageFactory: cacheStorageFactory,

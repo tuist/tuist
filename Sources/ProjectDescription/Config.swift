@@ -1,16 +1,16 @@
 /// The configuration of your environment.
 ///
-/// Tuist can be configured through a shared `Config.swift` manifest.
-/// When Tuist is executed, it traverses up the directories to find a `Tuist` directory containing a `Config.swift` file.
+/// Tuist can be configured through a shared `Tuist.swift` manifest.
+/// When Tuist is executed, it traverses up the directories to find `Tuist.swift` file.
 /// Defining a configuration manifest is not required, but recommended to ensure a consistent behaviour across all the projects
 /// that are part of the repository.
 ///
-/// The example below shows a project that has a global `Config.swift` file that will be used when Tuist is run from any of the
+/// The example below shows a project that has a global `Tuist.swift` file that will be used when Tuist is run from any of the
 /// subdirectories:
 ///
 /// ```bash
 /// /Workspace.swift
-/// /Tuist/Config.swift # Configuration manifest
+/// /Tuist.swift # Configuration manifest
 /// /Framework/Project.swift
 /// /App/Project.swift
 /// ```

@@ -164,9 +164,8 @@ final class DumpServiceTests: TuistTestCase {
             )
         )
         """
-        try fileHandler.createFolder(tmpDir.appending(component: "Tuist"))
         try config.write(
-            toFile: tmpDir.appending(components: "Tuist", "Config.swift").pathString,
+            toFile: tmpDir.appending(components: "Tuist.swift").pathString,
             atomically: true,
             encoding: .utf8
         )
@@ -435,7 +434,6 @@ final class DumpServiceTests: TuistTestCase {
         try await fileHandler.inTemporaryDirectory { tmpDir in
             var expectedDirectory = tmpDir
             if manifest == .config {
-                expectedDirectory = expectedDirectory.appending(component: Constants.tuistDirectoryName)
                 if try await !self.fileSystem.exists(expectedDirectory) {
                     try await self.fileSystem.makeDirectory(at: expectedDirectory)
                 }

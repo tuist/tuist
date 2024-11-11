@@ -9,6 +9,7 @@ struct MenuBarView: View {
     private let deviceService: DeviceService
     private let viewModel: MenuBarViewModel
     private var cancellables = Set<AnyCancellable>()
+    private let taskStatusReporter: TaskStatusReporter
 
     init(
         appDelegate: AppDelegate,
@@ -17,7 +18,12 @@ struct MenuBarView: View {
         viewModel = MenuBarViewModel(
             updater: updaterController.updater
         )
-        let deviceService = DeviceService()
+        let taskStatusRepoter = TaskStatusReporter()
+        taskStatusReporter = taskStatusRepoter
+
+        let deviceService = DeviceService(
+            taskStatusReporter: taskStatusRepoter
+        )
         self.deviceService = deviceService
 
         let errorHandling = ErrorHandling()
@@ -49,12 +55,7 @@ struct MenuBarView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("Tuist")
-                .font(.headline)
-                .fontWeight(.medium)
-                .padding(.top, 4)
-                .padding(.bottom, 8)
-                .padding(.horizontal, 8)
+            MenuHeader()
 
             AppPreviews(
                 viewModel: AppPreviewsViewModel(deviceService: deviceService)
@@ -87,5 +88,6 @@ struct MenuBarView: View {
         .padding(.vertical, 8)
         .environmentObject(errorHandling)
         .environmentObject(deviceService)
+        .environmentObject(taskStatusReporter)
     }
 }
