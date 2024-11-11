@@ -1,7 +1,7 @@
 ---
 title: Cache
 titleTemplate: :title · Build · Develop · Guides · Tuist
-description: 컴파일된 바이너리를 캐싱하고 다양한 환경 간에 공유하여 빌드 시간을 최적화하세요.
+description: 컴파일된 바이너리를 캐싱하고 다양한 환경 간에 공유하여 빌드 시간을 최적화 하세요.
 ---
 
 # Cache {#cache}
@@ -9,13 +9,13 @@ description: 컴파일된 바이너리를 캐싱하고 다양한 환경 간에 �
 > [!IMPORTANT] REMOTE PROJECT 필요
 > 이 기능은 <LocalizedLink href="/server/introduction/accounts-and-projects">remote project</LocalizedLink>가 필요합니다.
 
-Xcode's build system provides [incremental builds](https://en.wikipedia.org/wiki/Incremental_build_model), enhancing efficiency under normal circumstances. However, this feature falls short in [Continuous Integration (CI) environments](https://en.wikipedia.org/wiki/Continuous_integration), where data essential for incremental builds is not shared across different builds. Additionally, **developers often reset this data locally to troubleshoot complex compilation problems**, leading to more frequent clean builds. This results in teams spending excessive time waiting for local builds to finish or for Continuous Integration pipelines to provide feedback on pull requests. Furthermore, the frequent context switching in such an environment compounds this unproductiveness.
+Xcode의 빌드 시스템은 [증분 빌드](https://en.wikipedia.org/wiki/Incremental_build_model)를 제공하여 일반적인 상황에서 효율을 높입니다. 하지만 이 기능은 증분 빌드에 필요한 데이터가 서로 다른 빌드에서 공유되지 않으므로, [Continuous Integration (CI) 환경](https://en.wikipedia.org/wiki/Continuous_integration)에서는 적절하지 않습니다. 게다가 **개발자는 복잡한 컴파일 문제를 해결하기 위해 로컬에서 이 데이터를 초기화 하므로**, 클린 빌드가 자주 발생하게 됩니다. 팀은 이것으로 인해 로컬 빌드가 완료되거나 Continuous Integration 파이프라인이 Pull Request에 대한 피드백을 제공할 때까지 과도한 시간을 기다려야 합니다. 더욱이 이러한 환경에서 빈번한 컨텍스트 전환은 생산성을 더욱 악화시킵니다.
 
-Tuist addresses these challenges effectively with its caching feature. This tool optimizes the build process by caching compiled binaries, significantly reducing build times both in local development and CI environments. This approach not only accelerates feedback loops but also minimizes the need for context switching, ultimately boosting productivity.
+Tuist는 캐싱 기능으로 이 문제를 효과적으로 해결합니다. 이 툴은 컴파일된 바이너리를 캐시 하여 빌드 과정을 최적화하고, 로컬 개발 환경과 CI 환경 모두에서 빌드 시간을 크게 단축 시킵니다. 이 접근 방식은 피드백 순환을 가속화할 뿐만 아니라 컨텍스트 전환을 최소화하여 생산성을 극대화합니다.
 
-## Warming {#warming}
+## 워밍 {#warming}
 
-Tuist efficiently <LocalizedLink href="/guides/develop/projects/hashing">utilizes hashes</LocalizedLink> for each target in the dependency graph to detect changes. Utilizing this data, it builds and assigns unique identifiers to binaries derived from these targets. At the time of graph generation, Tuist then seamlessly substitutes the original targets with their corresponding binary versions.
+Tuist는 각 타겟에 대한 의존성 그래프 변화를 감지하기 위해 효율적으로 <LocalizedLink href="/guides/develop/projects/hashing">해시를 활용합니다.</LocalizedLink> 이 데이터를 활용하여, Tuist는 타겟의 바이너리에 고유 식별자를 생성하고 할당합니다. At the time of graph generation, Tuist then seamlessly substitutes the original targets with their corresponding binary versions.
 
 This operation, known as _"warming,"_ produces binaries for local use or for sharing with teammates and CI environments via Tuist. The process of warming the cache is straightforward and can be initiated with a simple command:
 
