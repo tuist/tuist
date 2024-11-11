@@ -86,7 +86,7 @@ mkdir MyFramework
 cd MyFramework
 ```
 
-Then create a `Tuist.swift` file, which will configure Tuist and is used by Tuist to determine the root directory of the project, and a `Project.swift`, where your project will be declared:
+그런 다음에 Tuist 구성과 프로젝트의 루트 디렉토리를 결정하는 `Tuist.swift` 파일과 프로젝트를 선언하는 `Project.swift` 파일을 생성합니다:
 
 ::: code-group
 
