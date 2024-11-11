@@ -40,7 +40,7 @@ extension AbsolutePath {
     /// I.e.: .xcassets, .xcdatamodeld, etc...
     /// This property returns true when a file is contained in such directory.
     public var isInOpaqueDirectory: Bool {
-        parentDirectory.opaqueParentDirectory() != nil
+        opaqueParentDirectory() != nil
     }
 
     /// An opaque directory is a directory that should be treated like a file, therefore ignoring its content.
