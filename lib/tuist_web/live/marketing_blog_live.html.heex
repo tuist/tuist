@@ -27,12 +27,11 @@
       </div>
     </div>
     <div class="marketing__blog__hero__right">
-      <% hero_post = @posts |> List.first() %>
       <TuistWeb.MarketingLayoutComponents.more_card
-        category={hero_post.category}
-        title={hero_post.title}
-        description={hero_post.excerpt}
-        href={hero_post.slug}
+        category={@hero_post.category}
+        title={@hero_post.title}
+        description={@hero_post.excerpt}
+        href={@hero_post.slug}
         class="marketing__blog__hero__right__card"
       />
     </div>

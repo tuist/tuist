@@ -25,11 +25,13 @@ defmodule TuistWeb.MarketingBlogLive do
   def handle_params(params, _url, socket) do
     posts = Tuist.Blog.get_posts()
     category = params |> Map.get("category")
+    hero_post = posts |> List.first()
 
     posts = if is_nil(category), do: posts, else: posts |> Enum.filter(&(&1.category == category))
 
     {:noreply,
      socket
+     |> assign(:hero_post, hero_post)
      |> assign(:posts, posts)
      |> assign(:head_image, Tuist.Environment.app_url(path: "/images/marketing/og/blog.jpg"))
      |> assign(:head_title, "The Tuist Blog")
