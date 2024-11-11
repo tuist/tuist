@@ -58,7 +58,7 @@ public enum LogOutput {
         case .json:
             handler = JSONLogHandler.self
         case .quiet:
-            LoggingSystem.bootstrap(quietLogHandler(label:))
+            LoggingSystem.bootstrap(quietLogHandler)
             return
         }
 
@@ -101,5 +101,5 @@ extension JSONLogHandler: VerboseLogHandler {
 }
 
 private func quietLogHandler(label: String) -> LogHandler {
-    return StandardLogHandler(label: label, logLevel: .warning)
+    return StandardLogHandler(label: label, logLevel: .notice)
 }
