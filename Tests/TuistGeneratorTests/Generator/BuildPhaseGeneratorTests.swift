@@ -1594,7 +1594,10 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         XCTAssertTrue(buildPhase?.inputPaths.contains("$BUILD_DIR/$CONFIGURATION/\(macroExecutable.productName)") == true)
         XCTAssertEqual(
             buildPhase?.outputPaths,
-            ["$BUILD_DIR/Debug-$EFFECTIVE_PLATFORM_NAME/\(macroExecutable.productName)"]
+            [
+                "$BUILD_DIR/Debug-$EFFECTIVE_PLATFORM_NAME/\(macroExecutable.productName)",
+                "$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/\(macroExecutable.productName)"
+            ]
         )
     }
 
