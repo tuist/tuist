@@ -14,7 +14,7 @@ Swift Package Manager가 프로젝트 관리 역할을 할 수 있다는 점을 
 
 **Apple은 Swift Package Manager를 대규모 프로젝트에 적합하게 만들지는 알 수 없습니다.** 그러나 이런 일은 일어나지 않을 것 같습니다. 실제로, 우리는 그 반대의 상황을 보고 있습니다. Apple은 암시적 구성을 통해 편리함을 추구하는 것과 같이 Xcode에서 영감을 받아 결정 합니다. 이것은 <LocalizedLink href="/guides/develop/projects/cost-of-convenience">아시다시피</LocalizedLink> 대규모 프로젝트에서 복잡성의 원인입니다. 우리는 Apple이 기본 원칙으로 돌아가서 의존성 관리 도구로서 의미가 있지만 프로젝트 관리 도구로는 의미가 없는 몇 가지 결정을 재검증 해야 한다고 생각합니다. 예를 들어 프로젝트 정의하기 위한 인터페이스로 컴파일된 언어를 사용하는 것입니다.
 
-> [!TIP] 의존성 관리 도구로의 SPM
+> [!TIP] 의존성 관리 도구로의 SPM\
 > Tuist는 Swift Package Manager를 의존성 관리 도구로만 취급하고, 의존성 관리 도구로는 아주 훌륭합니다. 우리는 의존성을 해결하고 빌드를 위해 사용합니다. 프로젝트를 정의하는 용도로 설계되지 않았으므로, 그 용도로 사용하지 않습니다.
 
 ## Swift Package Manager를 Tuist로 마이그레이션 {#migrating-from-swift-package-manager-to-tuist}
@@ -46,7 +46,7 @@ let project = Project(
 - **Project:** `package` 인스턴스를 내보내는 대신에 `project` 인스턴스를 내보냅니다.
 - **Xcode 언어:** 프로젝트를 정의하는데 사용하는 기본 요소는 Xcode의 언어를 따르므로 스킴, 타겟, 그리고 Build Phases 등을 찾을 수 있습니다.
 
-그런 다음 아래의 내용으로 `Tuist/Config.swift` 파일을 생성합니다:
+그런 다음에 다음 내용을 가지는 `Tuist.swift` 파일을 생성합니다:
 
 ```swift
 import ProjectDescription
@@ -54,7 +54,7 @@ import ProjectDescription
 let config = Config()
 ```
 
-`Config.swift`는 프로젝트와 `Tuist` 디렉토리에 대한 구성이 포함되어 있고 이는 프로젝트의 루트를 결정하는 참조 역할을 합니다. Tuist 프로젝트의 구조에 대해 알아보려면 <LocalizedLink href="/guides/develop/projects/directory-structure">디렉토리 구조</LocalizedLink> 문서에서 확인 가능합니다.
+`Tuist.swift`는 프로젝트의 구성을 포함하고 해당 파일의 경로는 프로젝트의 루트를 결정하는 기준으로 사용됩니다. Tuist 프로젝트의 구조에 대해 알아보려면 <LocalizedLink href="/guides/develop/projects/directory-structure">디렉토리 구조</LocalizedLink> 문서에서 확인 가능합니다.
 
 ## 프로젝트 수정 {#editing-the-project}
 

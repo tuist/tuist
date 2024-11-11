@@ -121,6 +121,8 @@ extension ProjectAutomation.Target {
                 return .packagePlugin(product: product)
             case .runtime:
                 return .package(product: product)
+            case .runtimeEmbedded:
+                return .package(product: product, embedded: true)
             }
         case let .sdk(name, status, _):
             let projectAutomationStatus: ProjectAutomation.LinkingStatus

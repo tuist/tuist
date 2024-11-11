@@ -10,7 +10,8 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
              let .xcframework(_, _, _, condition),
              let .bundle(_, condition),
              let .product(_, _, _, condition),
-             let .sdk(_, _, _, condition):
+             let .sdk(_, _, _, condition),
+             let .packageProduct(_, condition):
             return condition
         case .macro:
             return nil
@@ -51,6 +52,7 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
         path: AbsolutePath, status: LinkingStatus, source: SDKSource,
         condition: PlatformCondition? = nil
     )
+    case packageProduct(product: String, condition: PlatformCondition? = nil)
 
     init(_ dependency: GraphDependency, condition: PlatformCondition? = nil) {
         switch dependency {
@@ -121,6 +123,7 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
         case framework(path: AbsolutePath, condition: PlatformCondition?)
         case xcframework(path: AbsolutePath, condition: PlatformCondition?)
         case bundle(path: AbsolutePath, condition: PlatformCondition?)
+        case packageProduct(product: String, condition: PlatformCondition?)
 
         init(dependencyReference: GraphDependencyReference) {
             switch dependencyReference {
@@ -151,6 +154,8 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
                 self = .product(target: target, productName: productName, condition: condition)
             case .sdk(let path, status: _, source: _, let condition):
                 self = .sdk(path: path, condition: condition)
+            case let .packageProduct(product, condition):
+                self = .packageProduct(product: product, condition: condition)
             }
         }
     }
