@@ -106,7 +106,8 @@ defmodule Tuist.MixProject do
       {:nimble_publisher, "~> 1.1"},
       {:yaml_elixir, "~> 2.11"},
       {:reading_time, "~> 0.2.0"},
-      {:plug_cowboy, "~> 2.7"}
+      {:plug_cowboy, "~> 2.7"},
+      {:retry, "~> 0.18"}
     ]
   end
 
