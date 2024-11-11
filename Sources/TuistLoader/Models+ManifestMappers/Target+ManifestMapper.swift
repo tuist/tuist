@@ -17,7 +17,7 @@ public enum TargetManifestMapperError: FatalError, Equatable {
         case let .invalidResourcesGlob(targetName: targetName, invalidGlobs: invalidGlobs):
             return "The target \(targetName) has the following invalid resource globs:\n" + invalidGlobs.invalidGlobsDescription
         case let .nonSpecificGeneratedResource(targetName: targetName, generatedSource: generatedSource):
-            return "Generated source files must be explicit. The target \(targetName) has a generated source file at \(generatedSource.pathString) that is not specific."
+            return "Generated source files must be explicit. The target \(targetName) has a generated source file at \(generatedSource.pathString) that has a glob pattern."
         }
     }
 }

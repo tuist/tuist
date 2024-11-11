@@ -36,7 +36,7 @@ final class TargetManifestMapperErrorTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(
             got,
-            "Generated source files must be explicit. The target Target has a generated source file at /path/to/A that is not specific."
+            "Generated source files must be explicit. The target Target has a generated source file at /path/to/A that has a glob pattern."
         )
     }
 }
