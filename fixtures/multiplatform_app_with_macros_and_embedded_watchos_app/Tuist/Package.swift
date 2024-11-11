@@ -2,9 +2,15 @@
 import PackageDescription
 
 #if TUIST
-import ProjectDescription
+    import ProjectDescription
 
-let packageSettings = PackageSettings(baseSettings: .settings(base: ["ENABLE_USER_SCRIPT_SANDBOXING": true]))
+    let packageSettings = PackageSettings(
+        baseSettings: .settings(
+            base: [
+                "ENABLE_USER_SCRIPT_SANDBOXING": true,
+            ]
+        )
+    )
 
 #endif
 
