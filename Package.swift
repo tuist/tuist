@@ -44,7 +44,7 @@ let targets: [Target] = [
             .byName(name: "AnyCodable"),
         ],
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug)),
+            .define("MOCKING", .when(configuration: .debug))
         ]
     ),
     .target(
@@ -88,7 +88,7 @@ let targets: [Target] = [
             .byName(name: "AnyCodable"),
         ],
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug)),
+            .define("MOCKING", .when(configuration: .debug))
         ]
     ),
     .executableTarget(
@@ -122,7 +122,7 @@ let targets: [Target] = [
             "FileSystem",
         ],
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug)),
+            .define("MOCKING", .when(configuration: .debug))
         ]
     ),
     .target(
@@ -167,7 +167,7 @@ let targets: [Target] = [
             "Stencil",
         ],
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug)),
+            .define("MOCKING", .when(configuration: .debug))
         ]
     ),
     .target(
@@ -195,7 +195,7 @@ let targets: [Target] = [
             "FileSystem",
         ],
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug)),
+            .define("MOCKING", .when(configuration: .debug))
         ]
     ),
     .target(
@@ -212,7 +212,7 @@ let targets: [Target] = [
             "Command",
         ],
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug)),
+            .define("MOCKING", .when(configuration: .debug))
         ]
     ),
     .target(
@@ -227,7 +227,7 @@ let targets: [Target] = [
             pathDependency,
         ],
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug)),
+            .define("MOCKING", .when(configuration: .debug))
         ]
     ),
     .target(
@@ -242,7 +242,7 @@ let targets: [Target] = [
             pathDependency,
         ],
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug)),
+            .define("MOCKING", .when(configuration: .debug))
         ]
     ),
     .target(
@@ -258,7 +258,7 @@ let targets: [Target] = [
             "FileSystem",
         ],
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug)),
+            .define("MOCKING", .when(configuration: .debug))
         ]
     ),
     .target(
@@ -274,7 +274,7 @@ let targets: [Target] = [
             "FileSystem",
         ],
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug)),
+            .define("MOCKING", .when(configuration: .debug))
         ]
     ),
     .target(
@@ -303,7 +303,7 @@ let targets: [Target] = [
             pathDependency,
         ],
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug)),
+            .define("MOCKING", .when(configuration: .debug))
         ]
     ),
     .target(
@@ -319,7 +319,7 @@ let targets: [Target] = [
             pathDependency,
         ],
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug)),
+            .define("MOCKING", .when(configuration: .debug))
         ]
     ),
     .target(
@@ -338,7 +338,7 @@ let targets: [Target] = [
         ],
         exclude: ["OpenAPI/server.yml"],
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug)),
+            .define("MOCKING", .when(configuration: .debug))
         ]
     ),
     .target(
@@ -352,7 +352,7 @@ let targets: [Target] = [
             "Mockable",
         ],
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug)),
+            .define("MOCKING", .when(configuration: .debug))
         ]
     ),
     .target(
@@ -367,7 +367,7 @@ let targets: [Target] = [
             "TuistHasher",
         ],
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug)),
+            .define("MOCKING", .when(configuration: .debug))
         ]
     ),
 ]
@@ -510,8 +510,7 @@ let package = Package(
         ),
         .package(url: "https://github.com/tuist/Path", .upToNextMajor(from: "0.3.0")),
         .package(
-            url: "https://github.com/Garfeild/XcodeGraph.git",
-            branch: "feature/embedded-spm-packages"
+            url: "https://github.com/tuist/XcodeGraph.git", .upToNextMajor(from: "0.17.0")
         ),
         .package(url: "https://github.com/tuist/FileSystem.git", .upToNextMajor(from: "0.6.13")),
         .package(url: "https://github.com/tuist/Command.git", exact: "0.8.0"),

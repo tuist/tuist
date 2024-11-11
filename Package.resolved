@@ -310,10 +310,10 @@
     {
       "identity" : "xcodegraph",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/Garfeild/XcodeGraph.git",
+      "location" : "https://github.com/tuist/XcodeGraph.git",
       "state" : {
-        "branch" : "feature/embedded-spm-packages",
-        "revision" : "35d2eb4fd2bad77999bb50378e385645a0030e59"
+        "revision" : "7be8001a127582859dc71528402e178c65e5f28e",
+        "version" : "0.16.0"
       }
     },
     {
