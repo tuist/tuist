@@ -63,11 +63,11 @@ TMA는 Apple OS 애플리케이션을 구조화 하는 아키텍처 접근 방�
 
 인터페이스에 의존하는 것은 앱이 실행 시간에 구현의 그래프를 구성하고, 필요한 모듈에 해당 구현을 의존성 주입해야 합니다. TMA는 이를 어떻게 구현할지 강제하지 않지만, 빌드 시간에 불필요한 간접 참조를 추가하거나 이 목적을 위해 설계되지 않은 플랫폼 API를 사용하지 않는 의존성 주입 솔루션이나 패턴을 권장합니다.
 
-## Product types {#product-types}
+## 결과물 타입 {#product-types}
 
-When building a module, you can choose between **libraries and frameworks**, and **static and dynamic linking** for the targets. Without Tuist, making this decision is a bit more complex because you need to configure the dependency graph manually. However, thanks to Tuist Projects, this is no longer a problem.
+모듈을 구축할 때, 타겟에 대한 **라이브러리와 프레임워크** 및 **정적과 동적 링킹** 중 선택할 수 있습니다. Tuist가 없다면 의존성 그래프를 수동으로 구성해야 하므로 이 결정을 내리는데 더 복잡합니다. 하지만 Tuist 프로젝트 덕분에 이건 아무런 문제가 되지 않습니다.
 
-We recommend using dynamic libraries or frameworks during development using <LocalizedLink href="/guides/develop/projects/synthesized-files#bundle-accessors">bundle accessors</LocalizedLink> to decouple the bundle-accessing logic from the library or framework nature of the target. This is key for fast compilation times and to ensure [SwiftUI Previews](https://developer.apple.com/documentation/swiftui/previews-in-xcode) work reliably. And static libraries or frameworks for the release builds to ensure the app boots fast. You can leverage <LocalizedLink href="/guides/develop/projects/dynamic-configuration#configuration-through-environment-variables">dynamic configuration</LocalizedLink> to change the product type at generation-time:
+타겟의 라이브러리나 프레임워크 특성과 번들 접근 로직을 분리하기 위해 개발 중에는 <LocalizedLink href="/guides/develop/projects/synthesized-files#bundle-accessors">번들 접근자</LocalizedLink>를 사용하여 동적 라이브러리나 동적 프레임워크를 사용하길 권장합니다. 이것은 빠른 컴파일 시간과 [SwiftUI 프리뷰](https://developer.apple.com/documentation/swiftui/previews-in-xcode)가 잘 동작하기 위해 중요한 포인트입니다. 그리고 릴리즈 빌드에서 앱이 더 빠르게 실행되기 위해 정적 라이브러리나 정적 프레임워크를 사용하는 것이 좋습니다. <0>동적 구성</0>을 활용하여 생성 시점에 결과물 타입을 변경할 수 있습니다:
 
 ```bash
 # You'll have to read the value of the variable from the manifest {#youll-have-to-read-the-value-of-the-variable-from-the-manifest}
@@ -87,16 +87,16 @@ func productType() -> Product {
 }
 ```
 
-> [!IMPORTANT] MERGEABLE LIBRARIES
-> Apple attempted to alleviate the cumbersomeness of switching between static and dynamic libraries by introducing [mergeable libraries](https://developer.apple.com/documentation/xcode/configuring-your-project-to-use-mergeable-libraries). However, that introduces build-time non-determinism that makes your build non-reproducible and harder to optimize so we don't recommend using it.
+> [!IMPORTANT] MERGEABLE LIBRARIES\
+> Apple은 [mergeable libraries](https://developer.apple.com/documentation/xcode/configuring-your-project-to-use-mergeable-libraries)를 도입하여 정적 라이브러리와 동적 라이브러리 간 변환의 번거로움을 줄이려고 했습니다. 하지만 이것은 빌드 시 항상 동일한 결과를 가져오지 않고 최적화가 어려워 지기 때문에 권장하지 않습니다.
 
-## Code {#code}
+## 코드 {#code}
 
-TMA is non-opinionated about the code architecture and patterns for your modules. However, we'd like to share some tips based on our experience:
+TMA는 모듈의 코드 아키텍처와 패턴에 대해 강요하지 않습니다. 하지만, 경험을 토대로 몇가지 팁을 공유하려고 합니다:
 
-- **Leveraging the compiler is great.** Over-leveraging the compiler might end up being non-productive and cause some Xcode features like previews to work unreliably. We recommend using the compiler to enforce good practices and catch errors early, but not to the point that it makes the code harder to read and maintain.
-- **Use Swift Macros sparingly.** They can be very powerful but can also make the code harder to read and maintain.
-- **Embrace the platform and the language, don't abstract them.** Trying to come up with ellaborated abstraction layers might end up being counterproductive. The platform and the language are powerful enough to build great apps without the need for additional abstraction layers. Use good programming and design patterns as a reference to build your features.
+- **컴파일러를 활용하는 것은 훌륭합니다.** 그러나 컴파일러를 과도하게 사용하면 비생산적이며 프리뷰와 같은 Xcode의 기능이 원할하게 동작하지 않을 수 있습니다. 우리는 컴파일러를 사용하여 좋은 코드작성 관행과 조기에 오류를 찾도록 권장하지만, 코드를 읽기 어렵고 유지 보수 하기 어렵도록 사용하는 것은 권장하지 않습니다.
+- **Swift Macros는 신중하게 사용해야 합니다.** 이것은 매우 강력하지만 코드를 읽기 어렵고 유지 보수 하기 어렵게 만들 수도 있습니다.
+- **플랫폼과 언어를 받아들이고, 추상화 하지 말아야 합니다.** 복잡한 추상화 계층을 만들면 오히려 비효율적일 수 있습니다. 플랫폼과 언어는 추가적인 추상화 계층없이도 훌륭한 앱을 만들기에 충분합니다. 좋은 프로그래밍과 좋은 설계 패턴을 참조하여 기능을 구축합니다.
 
 ## 리소스 {#resources}
 
