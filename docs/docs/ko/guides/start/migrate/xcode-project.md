@@ -66,7 +66,7 @@ let package = Package(
 
 :::
 
-`Project.swift`는 프로젝트를 정의하는 매니페스트 파일이며, `Package.swift`는 의존성을 정의하는 매니페스트 파일입니다. The `Tuist.swift` file is where you can define project-scoped Tuist settings for your project.
+`Project.swift`는 프로젝트를 정의하는 매니페스트 파일이며, `Package.swift`는 의존성을 정의하는 매니페스트 파일입니다. `Tuist.swift` 파일은 프로젝트의 Tuist 설정을 정의할 수 있습니다.
 
 > [!TIP] -TUIST 접미사가 붙은 프로젝트 이름\
 > 기존에 Xcode 프로젝트의 충돌을 방지하기 위해 프로젝트 이름에 `-Tuist` 접미사를 추가하는 것이 좋습니다. 프로젝트를 Tuist로 완전히 마이그레이션 하면 삭제할 수 있습니다.
