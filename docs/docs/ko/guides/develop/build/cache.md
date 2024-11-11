@@ -15,7 +15,7 @@ Tuist는 캐싱 기능으로 이 문제를 효과적으로 해결합니다. 이 
 
 ## 워밍 {#warming}
 
-Tuist는 각 타겟에 대한 의존성 그래프 변화를 감지하기 위해 효율적으로 <LocalizedLink href="/guides/develop/projects/hashing">해시를 활용합니다.</LocalizedLink> 이 데이터를 활용하여, Tuist는 타겟의 바이너리에 고유 식별자를 생성하고 할당합니다. At the time of graph generation, Tuist then seamlessly substitutes the original targets with their corresponding binary versions.
+Tuist는 각 타겟에 대한 의존성 그래프 변화를 감지하기 위해 효율적으로 <LocalizedLink href="/guides/develop/projects/hashing">해시를 활용합니다.</LocalizedLink> 이 데이터를 활용하여, Tuist는 타겟의 바이너리에 고유 식별자를 생성하고 할당합니다. 이 데이터를 활용하여, Tuist는 타겟의 바이너리에 고유 식별자를 생성하고 할당합니다. At the time of graph generation, Tuist then seamlessly substitutes the original targets with their corresponding binary versions.
 
 This operation, known as _"warming,"_ produces binaries for local use or for sharing with teammates and CI environments via Tuist. The process of warming the cache is straightforward and can be initiated with a simple command:
 
