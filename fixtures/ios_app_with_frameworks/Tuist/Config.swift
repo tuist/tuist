@@ -2,7 +2,7 @@ import ProjectDescription
 
 let config = Config(
     fullHandle: "tuist/ios_app_with_frameworks",
-    url: "https://canary.tuist.io",
+    url: "https://canary.tuist.dev",
     generationOptions: .options(
         optionalAuthentication: true
     )
