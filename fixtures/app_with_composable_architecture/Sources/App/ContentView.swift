@@ -1,16 +1,14 @@
 import SwiftUI
+import A
+import B
+import ComposableArchitecture
 
 public struct ContentView: View {
-    public init() {}
+    let storeA: StoreOf<FeatureAReducer>
+    let storeB: StoreOf<FeatureBReducer>
 
     public var body: some View {
         Text("Hello, World!")
             .padding()
-    }
-}
-
-struct ContentView_Previews: PreviewProvider {
-    static var previews: some View {
-        ContentView()
     }
 }

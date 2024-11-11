@@ -16,10 +16,32 @@ let project = Project(
                     ],
                 ]
             ),
-            sources: ["App/Sources/**"],
+            sources: ["Sources/App/**"],
+            dependencies: [
+                .external(name: "ComposableArchitecture"),
+                .target(name: "A"),
+                .target(name: "B")
+            ]
+        ),
+        .target(
+            name: "A",
+            destinations: .iOS,
+            product: .framework,
+            bundleId: "io.tuist.A",
+            sources: ["Sources/A/**"],
             dependencies: [
                 .external(name: "ComposableArchitecture"),
             ]
         ),
+        .target(
+            name: "B",
+            destinations: .iOS,
+            product: .framework,
+            bundleId: "io.tuist.B",
+            sources: ["Sources/B/**"],
+            dependencies: [
+                .external(name: "ComposableArchitecture"),
+            ]
+        )
     ]
 )

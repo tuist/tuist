@@ -1,27 +1,21 @@
 import ComposableArchitecture
-import SwiftUI
-
-@main
-struct MyApp: App {
-    var body: some Scene {
-        WindowGroup {
-            ContentView()
-        }
-    }
-}
 
 @Reducer
-struct Counter {
-    struct State: Equatable {
+public struct FeatureBReducer {
+    @ObservableState
+    public struct State: Equatable {
         var count = 0
+        public init() {}
     }
 
-    enum Action {
+    public enum Action {
         case decrementButtonTapped
         case incrementButtonTapped
     }
+    
+    public init() {}
 
-    var body: some Reducer<State, Action> {
+    public var body: some Reducer<State, Action> {
         Reduce { state, action in
             switch action {
             case .decrementButtonTapped:
