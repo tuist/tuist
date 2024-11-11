@@ -30,9 +30,9 @@ Workspace.swift
   - **Package.swift:** 이 파일은 Tuist가 구성 가능하고 최적화할 수 있는 Xcode 프로젝트와 타겟 (예: [CocoaPods](https://cococapods)) 을 사용하여 통합하기 위한 Swift Package 의존성을 포함합니다. <LocalizedLink href="/guides/develop/projects/dependencies">여기</LocalizedLink>서 더 알아봅니다.
 
 - **루트 디렉토리**: `Tuist` 디렉토리도 포함하는 프로젝트의 루트 디렉토리 입니다.
-  - <LocalizedLink href="/guides/develop/projects/manifests#tuistswift"><bold>Tuist.swift:</bold></LocalizedLink> This file contains configuration for Tuist that's shared across all the projects, workspaces, and environments. 예를 들어, 스킴의 자동 생성을 비활성화 하거나, 프로젝트의 배포 타겟을 정의할 수 있습니다.
-  - <LocalizedLink href="/guides/develop/projects/manifests#workspace-swift"><bold>Workspace.swift:</bold></LocalizedLink> This manifest represents an Xcode workspace. It's used to group other projects and can also add additional files and schemes.
-  - <LocalizedLink href="/guides/develop/projects/manifests#project-swift"><bold>Project.swift:</bold></LocalizedLink> This manifest represents an Xcode project. It's used to define the targets that are part of the project, and their dependencies.
+  - <LocalizedLink href="/guides/develop/projects/manifests#workspace-swift"><bold>Tuist.swift:</bold></LocalizedLink> 이 파일은 모든 프로젝트, 워크스페이스, 그리고 환경에 공유되는 Tuist에 대한 구성을 포함합니다. 예를 들어, 스킴의 자동 생성을 비활성화 하거나, 프로젝트의 배포 타겟을 정의할 수 있습니다.
+  - <LocalizedLink href="/guides/develop/projects/manifests#workspace-swift"><bold>Workspace.swift:</bold></LocalizedLink> 이 매니페스트는 Xcode 워크스페이스를 나타냅니다. 다른 프로젝트를 그룹화 하고 파일과 스킴을 추가할 수도 있습니다.
+  - <LocalizedLink href="/guides/develop/projects/manifests#project-swift"><bold>Project.swift:</bold></LocalizedLink> 이 매니페스트는 Xcode 프로젝트를 나타냅니다. 프로젝트의 타겟과 의존성을 정의합니다.
 
 위 프로젝트와 상호작용할 때 명령어는 작업 디렉토리나 `--path` 플래그로 나타낸 디렉토리에 `Workspace.swift` 또는 `Project.swift` 파일을 찾습니다. 이 매니페스트는 프로젝트의 루트 인 `Tuist` 디렉토리를 포함하는 디렉토리나 하위 디렉토리에 위치해야 합니다.
 
