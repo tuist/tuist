@@ -13,6 +13,7 @@ defmodule TuistWeb.Router do
 
   pipeline :browser_app do
     plug :accepts, ["html"]
+    plug :disable_robot_indexing_in_non_production
     plug :fetch_session
     plug :fetch_live_flash
     plug :put_root_layout, html: {TuistWeb.Layouts, :app}
@@ -24,6 +25,7 @@ defmodule TuistWeb.Router do
 
   pipeline :browser_marketing do
     plug :accepts, ["html"]
+    plug :disable_robot_indexing_in_non_production
     plug :fetch_session
     plug :fetch_live_flash
     plug :put_root_layout, html: {TuistWeb.Layouts, :marketing}
@@ -75,12 +77,16 @@ defmodule TuistWeb.Router do
   end
 
   scope "/" do
-    pipe_through [:open_api, :browser_marketing, :assign_current_path]
+    pipe_through [
+      :open_api,
+      :browser_marketing,
+      :assign_current_path
+    ]
 
-    get "/", TuistWeb.MarketingController, :home
-    get "/pricing", TuistWeb.MarketingController, :pricing
     live "/blog", TuistWeb.MarketingBlogLive
     live "/changelog", TuistWeb.MarketingChangelogLive
+    get "/", TuistWeb.MarketingController, :home
+    get "/pricing", TuistWeb.MarketingController, :pricing
 
     for %{slug: blog_post_slug} <- Tuist.Blog.get_posts() do
       get blog_post_slug, TuistWeb.MarketingController, :blog_post
@@ -370,5 +376,13 @@ defmodule TuistWeb.Router do
 
   def assign_current_path(conn, _params) do
     conn |> assign(:current_path, conn.request_path)
+  end
+
+  def disable_robot_indexing_in_non_production(conn, _params) do
+    if Tuist.Environment.env() == :prod do
+      conn
+    else
+      conn |> put_resp_header("x-robots-tags", "noindex, nofollow")
+    end
   end
 end

@@ -74,9 +74,20 @@ if [:prod, :stag, :can] |> Enum.member?(env) do
   app_url = Tuist.Environment.app_url([], secrets)
   %{host: app_url_host, port: app_url_port, scheme: app_url_scheme} = URI.parse(app_url)
 
+  # We migrated from {...}.tuist.io to {...}.tuist.dev, so we need to make sure we include
+  # the old origins for a while to avoid breaking the app for users that have the old origins
+  checkable_origins =
+    [app_url] ++
+      case {Tuist.Environment.on_premise?(), Tuist.Environment.env()} do
+        {false, :stag} -> ["https://staging.tuist.io"]
+        {false, :prod} -> ["https://cloud.tuist.io"]
+        {false, :can} -> ["https://canary.tuist.io"]
+        _ -> []
+      end
+
   config :tuist, TuistWeb.Endpoint,
     url: [host: app_url_host, port: app_url_port, scheme: app_url_scheme],
-    check_origin: [app_url, "https://cloud.tuist.io"],
+    check_origin: checkable_origins,
     http: [
       # Enable IPv6 and bind on all interfaces.
       # Set it to  {0, 0, 0, 0, 0, 0, 0, 1} for local network only access.
