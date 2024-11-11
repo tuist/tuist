@@ -86,7 +86,7 @@ mkdir MyFramework
 cd MyFramework
 ```
 
-그런 다음 Tuist를 구성하고 Tuist에서 프로젝트의 루트 디렉토리를 결정하는데 사용되는 `Tuist/Config.swift` 파일과 프로젝트를 선언할 `Project.swift` 파일을 생성합니다:
+그런 다음에 Tuist 구성과 프로젝트의 루트 디렉토리를 결정하는 `Tuist.swift` 파일과 프로젝트를 선언하는 `Project.swift` 파일을 생성합니다:
 
 ::: code-group
 
@@ -108,7 +108,7 @@ let project = Project(
 )
 ```
 
-```swift [Tuist/Config.swift]
+```swift [Tuist.swift]
 import ProjectDescription
 
 let config = Config()
