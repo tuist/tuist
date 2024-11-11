@@ -7,7 +7,8 @@ import TuistServer
 import TuistSupport
 
 struct DevicesView: View, ErrorViewHandling {
-    @State var viewModel = DevicesViewModel()
+    @State var viewModel: DevicesViewModel
+    @EnvironmentObject var deviceService: DeviceService
     @EnvironmentObject var errorHandling: ErrorHandling
 
     @State var isExpanded = false
@@ -23,29 +24,16 @@ struct DevicesView: View, ErrorViewHandling {
 
     private var cancellables = Set<AnyCancellable>()
 
-    init(appDelegate: AppDelegate) {
-        // We can't rely on the SimulatorsView to be rendered before a deeplink is triggered.
-        // Instead, we listen to the deeplink URL through an `AppDelegate` callback
-        // that's eagerly set up in this `init` on startup.
-        let viewModel = viewModel
+    init(
+        viewModel: DevicesViewModel
+    ) {
         let errorHandling = ErrorHandling()
-        Task {
-            do {
-                try await viewModel.onAppear()
-            } catch {
-                errorHandling.handle(error: error)
-            }
+        do {
+            try viewModel.onAppear()
+        } catch {
+            errorHandling.handle(error: error)
         }
-        appDelegate.onChangeOfURLs.sink { urls in
-            Task {
-                do {
-                    try await viewModel.onChangeOfURL(urls.first)
-                } catch {
-                    errorHandling.handle(error: error)
-                }
-            }
-        }
-        .store(in: &cancellables)
+        self.viewModel = viewModel
     }
 
     var body: some View {

@@ -187,4 +187,28 @@ final class GitControllerTests: TuistUnitTestCase {
         // Then
         XCTAssertFalse(isInGitRepository)
     }
+
+    func test_current_branch_when_main() throws {
+        // Given
+        let path = try temporaryPath()
+        system.succeedCommand(["git", "-C", path.pathString, "branch", "--show-current"], output: "main")
+
+        // When
+        let branch = try subject.currentBranch(workingDirectory: path)
+
+        // Then
+        XCTAssertEqual(branch, "main")
+    }
+
+    func test_current_branch_when_empty() throws {
+        // Given
+        let path = try temporaryPath()
+        system.succeedCommand(["git", "-C", path.pathString, "branch", "--show-current"], output: "")
+
+        // When
+        let branch = try subject.currentBranch(workingDirectory: path)
+
+        // Then
+        XCTAssertEqual(branch, nil)
+    }
 }

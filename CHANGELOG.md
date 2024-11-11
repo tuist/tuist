@@ -1,5 +1,17 @@
 # Changelog
 
+## 4.33.0 - 2024-11-07
+
+### CLI
+
+#### Fixed
+
+- Fix tuist clean hanging [#7007](https://github.com/tuist/tuist/pull/7007) by [@fortmarek](https://github.com/fortmarek)
+
+### CLI (Server features)
+
+- no changes
+
 ## 4.32.1 - 2024-11-01
 
 ### CLI

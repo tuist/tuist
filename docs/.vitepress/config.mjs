@@ -32,102 +32,102 @@ function getSearchOptionsForLocale(locale) {
       button: {
         buttonText: localizedString(
           locale,
-          "search.translations.button.buttonText",
+          "search.translations.button.buttonText"
         ),
         buttonAriaLabel: localizedString(
           locale,
-          "search.translations.button.buttonAriaLabel",
+          "search.translations.button.buttonAriaLabel"
         ),
       },
       modal: {
         searchBox: {
           resetButtonTitle: localizedString(
             locale,
-            "search.translations.modal.search-box.reset-button-title",
+            "search.translations.modal.search-box.reset-button-title"
           ),
           resetButtonAriaLabel: localizedString(
             locale,
-            "search.translations.modal.search-box.reset-button-aria-label",
+            "search.translations.modal.search-box.reset-button-aria-label"
           ),
           cancelButtonText: localizedString(
             locale,
-            "search.translations.modal.search-box.cancel-button-text",
+            "search.translations.modal.search-box.cancel-button-text"
           ),
           cancelButtonAriaLabel: localizedString(
             locale,
-            "search.translations.modal.search-box.cancel-button-aria-label",
+            "search.translations.modal.search-box.cancel-button-aria-label"
           ),
         },
         startScreen: {
           recentSearchesTitle: localizedString(
             locale,
-            "search.translations.modal.start-screen.recent-searches-title",
+            "search.translations.modal.start-screen.recent-searches-title"
           ),
           noRecentSearchesText: localizedString(
             locale,
-            "search.translations.modal.start-screen.no-recent-searches-text",
+            "search.translations.modal.start-screen.no-recent-searches-text"
           ),
           saveRecentSearchButtonTitle: localizedString(
             locale,
-            "search.translations.modal.start-screen.save-recent-search-button-title",
+            "search.translations.modal.start-screen.save-recent-search-button-title"
           ),
           removeRecentSearchButtonTitle: localizedString(
             locale,
-            "search.translations.modal.start-screen.remove-recent-search-button-title",
+            "search.translations.modal.start-screen.remove-recent-search-button-title"
           ),
           favoriteSearchesTitle: localizedString(
             locale,
-            "search.translations.modal.start-screen.favorite-searches-title",
+            "search.translations.modal.start-screen.favorite-searches-title"
           ),
           removeFavoriteSearchButtonTitle: localizedString(
             locale,
-            "search.translations.modal.start-screen.remove-favorite-search-button-title",
+            "search.translations.modal.start-screen.remove-favorite-search-button-title"
           ),
         },
         errorScreen: {
           titleText: localizedString(
             locale,
-            "search.translations.modal.error-screen.title-text",
+            "search.translations.modal.error-screen.title-text"
           ),
           helpText: localizedString(
             locale,
-            "search.translations.modal.error-screen.help-text",
+            "search.translations.modal.error-screen.help-text"
           ),
         },
         footer: {
           selectText: localizedString(
             locale,
-            "search.translations.modal.footer.select-text",
+            "search.translations.modal.footer.select-text"
           ),
           navigateText: localizedString(
             locale,
-            "search.translations.modal.footer.navigate-text",
+            "search.translations.modal.footer.navigate-text"
           ),
           closeText: localizedString(
             locale,
-            "search.translations.modal.footer.close-text",
+            "search.translations.modal.footer.close-text"
           ),
           searchByText: localizedString(
             locale,
-            "search.translations.modal.footer.search-by-text",
+            "search.translations.modal.footer.search-by-text"
           ),
         },
         noResultsScreen: {
           noResultsText: localizedString(
             locale,
-            "search.translations.modal.no-results-screen.no-results-text",
+            "search.translations.modal.no-results-screen.no-results-text"
           ),
           suggestedQueryText: localizedString(
             locale,
-            "search.translations.modal.no-results-screen.suggested-query-text",
+            "search.translations.modal.no-results-screen.suggested-query-text"
           ),
           reportMissingResultsText: localizedString(
             locale,
-            "search.translations.modal.no-results-screen.report-missing-results-text",
+            "search.translations.modal.no-results-screen.report-missing-results-text"
           ),
           reportMissingResultsLinkText: localizedString(
             locale,
-            "search.translations.modal.no-results-screen.report-missing-results-link-text",
+            "search.translations.modal.no-results-screen.report-missing-results-link-text"
           ),
         },
       },
@@ -140,6 +140,7 @@ const searchOptionsLocales = {
   ko: getSearchOptionsForLocale("ko"),
   ja: getSearchOptionsForLocale("ja"),
   ru: getSearchOptionsForLocale("ru"),
+  es: getSearchOptionsForLocale("es"),
 };
 
 export default defineConfig({
@@ -168,6 +169,16 @@ export default defineConfig({
       label: "Русский (Russian)",
       lang: "ru",
       themeConfig: await themeConfig("ru"),
+    },
+    es: {
+      label: "Castellano (Spanish)",
+      lang: "es",
+      themeConfig: await themeConfig("es"),
+    },
+    pt: {
+      label: "Português (Portuguese)",
+      lang: "pt",
+      themeConfig: await themeConfig("pt"),
     },
   },
   cleanUrls: true,

@@ -68,6 +68,7 @@ public final class CreateCommandEventService: CreateCommandEventServicing {
                         command_arguments: commandEvent.commandArguments,
                         duration: Double(commandEvent.durationInMs),
                         error_message: errorMessage,
+                        git_branch: commandEvent.gitBranch,
                         git_commit_sha: commandEvent.gitCommitSHA,
                         git_ref: commandEvent.gitRef,
                         git_remote_url_origin: commandEvent.gitRemoteURLOrigin,

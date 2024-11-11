@@ -1,5 +1,5 @@
 {
-  "originHash" : "edab49a0825b6dd9d56df88357edf94d8dffda59661a07e5223dda40fa1a5149",
+  "originHash" : "f7562f7f2e864c3e506d4d8398bebace5a0679bcb3961a22c22a47f969dd4566",
   "pins" : [
     {
       "identity" : "aexml",
@@ -51,8 +51,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/FileSystem.git",
       "state" : {
-        "revision" : "10220eebc5ec8afca8575ae194de09d5b038227a",
-        "version" : "0.6.8"
+        "revision" : "3da914e10ac1f3075318d54af9446844bcf505a5",
+        "version" : "0.6.13"
       }
     },
     {
@@ -146,6 +146,15 @@
       }
     },
     {
+      "identity" : "sparkle",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/sparkle-project/Sparkle.git",
+      "state" : {
+        "revision" : "0ef1ee0220239b3776f433314515fd849025673f",
+        "version" : "2.6.4"
+      }
+    },
+    {
       "identity" : "spectre",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/kylef/Spectre.git",
@@ -195,17 +204,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-collections.git",
       "state" : {
-        "revision" : "3d2dc41a01f9e49d84f0a3925fb858bed64f702d",
-        "version" : "1.1.2"
-      }
-    },
-    {
-      "identity" : "swift-glob",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/tuist/swift-glob",
-      "state" : {
-        "revision" : "6e828ca92cb8b31a15f31bdd4edccc6d30017ee3",
-        "version" : "0.3.9"
+        "revision" : "671108c96644956dddcd89dd59c203dcdb36cec7",
+        "version" : "1.1.4"
       }
     },
     {

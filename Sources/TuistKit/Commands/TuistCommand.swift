@@ -73,7 +73,7 @@ public struct TuistCommand: AsyncParsableCommand {
             path = .current
         }
 
-        let config = try await ConfigLoader().loadConfig(path: path)
+        let config = try await ConfigLoader(warningController: WarningController.shared).loadConfig(path: path)
         let url = try ServerURLService().url(configServerURL: config.url)
         let analyticsEnabled: Bool
         if let fullHandle = config.fullHandle {

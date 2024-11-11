@@ -3,18 +3,21 @@ import ProjectDescription
 func tuistAppDependencies() -> [TargetDependency] {
     [
         .external(name: "Path"),
-        .external(name: "TuistSupport"),
-        .external(name: "TuistCore"),
-        .external(name: "TuistServer"),
-        .external(name: "TuistAutomation"),
+        .project(target: "TuistSupport", path: "../"),
+        .project(target: "TuistCore", path: "../"),
+        .project(target: "TuistServer", path: "../"),
+        .project(target: "TuistAutomation", path: "../"),
         .external(name: "XcodeGraph"),
         .external(name: "Command"),
         .external(name: "Sparkle"),
+        .external(name: "FileSystem"),
+        .external(name: "Mockable"),
+        .external(name: "Collections"),
     ]
 }
 
 let project = Project(
-    name: "Tuist",
+    name: "TuistApp",
     settings: .settings(
         debug: [
             "SWIFT_ACTIVE_COMPILATION_CONDITIONS": "$(inherited) MOCKING",
@@ -22,13 +25,14 @@ let project = Project(
     ),
     targets: [
         .target(
-            name: "Tuist",
+            name: "TuistApp",
             destinations: .macOS,
             product: .app,
             bundleId: "io.tuist.app",
             deploymentTargets: .macOS("14.0.0"),
             infoPlist: .extendingDefault(
                 with: [
+                    "CFBundleDisplayName": "Tuist",
                     "CFBundleURLTypes": [
                         Plist.Value.dictionary(
                             [
@@ -43,8 +47,8 @@ let project = Project(
                     "SUPublicEDKey": "ObyvL/hvYnFyAypkWwYaoeqE/iqB0LK6ioI3SA/Y1+k=",
                     "SUFeedURL":
                         "https://raw.githubusercontent.com/tuist/tuist/main/app/appcast.xml",
-                    "CFBundleShortVersionString": "0.3.5",
-                    "CFBundleVersion": "0.3.5",
+                    "CFBundleShortVersionString": "0.4.0",
+                    "CFBundleVersion": "0.4.0",
                 ]
             ),
             sources: ["TuistApp/Sources/**"],
@@ -56,10 +60,14 @@ let project = Project(
                     "CODE_SIGN_STYLE": "Automatic",
                     "CODE_SIGN_IDENTITY": "Apple Development",
                 ],
+                debug: [
+                    "PRODUCT_NAME": "TuistApp",
+                ],
                 release: [
                     // Needed for the app notarization
                     "OTHER_CODE_SIGN_FLAGS": "--timestamp --deep",
                     "ENABLE_HARDENED_RUNTIME": true,
+                    "PRODUCT_NAME": "Tuist",
                 ]
             )
         ),
@@ -73,9 +81,8 @@ let project = Project(
             sources: ["TuistApp/Tests/**"],
             resources: [],
             dependencies: tuistAppDependencies() + [
-                .target(name: "Tuist"),
-                .external(name: "TuistSupportTesting"),
-                .external(name: "Mockable"),
+                .target(name: "TuistApp"),
+                .project(target: "TuistSupportTesting", path: "../"),
             ]
         ),
     ]

@@ -43,8 +43,7 @@ XcodeGen's `project.yaml` description file becomes `Project.swift`. Moreover, yo
 
 ```bash [Tuist directory structure]
 /
-  Tuist/
-    Config.swift
+  Tuist.swift
   Project.swift
   Workspace.swift
 ```

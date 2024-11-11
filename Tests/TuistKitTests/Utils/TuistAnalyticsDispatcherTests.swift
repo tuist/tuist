@@ -106,6 +106,7 @@ final class TuistAnalyticsDispatcherTests: TuistUnitTestCase {
             gitCommitSHA: "26f4fda1548502c474642ce63db7630307242312",
             gitRef: nil,
             gitRemoteURLOrigin: "https://github.com/tuist/tuist",
+            gitBranch: "main",
             targetHashes: nil,
             graphPath: nil,
             cacheableTargets: [],

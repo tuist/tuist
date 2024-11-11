@@ -65,6 +65,9 @@ public final class RootDirectoryLocator: RootDirectoryLocating {
         } else if try await fileSystem.exists(path.appending(component: Constants.tuistDirectoryName), isDirectory: true) {
             cache(rootDirectory: path, for: source)
             return path
+        } else if try await fileSystem.exists(path.appending(component: Constants.tuistManifestFileName), isDirectory: false) {
+            cache(rootDirectory: path, for: source)
+            return path
         } else if try await fileSystem.exists(path.appending(component: "Plugin.swift")) {
             cache(rootDirectory: path, for: source)
             return path

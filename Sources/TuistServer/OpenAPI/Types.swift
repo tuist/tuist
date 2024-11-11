@@ -191,6 +191,13 @@ internal protocol APIProtocol: Sendable {
     /// - Remark: HTTP `PUT /api/projects/{account_handle}/{project_handle}/cache/clean`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/clean/put(cleanCache)`.
     func cleanCache(_ input: Operations.cleanCache.Input) async throws -> Operations.cleanCache.Output
+    /// List previews.
+    ///
+    /// This endpoint returns a list of previews for a given project.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/previews`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/get(listPreviews)`.
+    func listPreviews(_ input: Operations.listPreviews.Input) async throws -> Operations.listPreviews.Output
     /// It completes a multi-part upload.
     ///
     /// Given the upload ID and all the parts with their ETags, this endpoint completes the multipart upload.
@@ -219,6 +226,13 @@ internal protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/previews/{preview_id}`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/get(downloadPreview)`.
     func downloadPreview(_ input: Operations.downloadPreview.Input) async throws -> Operations.downloadPreview.Output
+    /// Uploads a preview icon.
+    ///
+    /// The endpoint uploads a preview icon.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/post(uploadPreviewIcon)`.
+    func uploadPreviewIcon(_ input: Operations.uploadPreviewIcon.Input) async throws -> Operations.uploadPreviewIcon.Output
     /// List all project tokens.
     ///
     /// This endpoint returns all tokens for a given project.
@@ -677,6 +691,23 @@ extension APIProtocol {
             headers: headers
         ))
     }
+    /// List previews.
+    ///
+    /// This endpoint returns a list of previews for a given project.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/previews`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/get(listPreviews)`.
+    internal func listPreviews(
+        path: Operations.listPreviews.Input.Path,
+        query: Operations.listPreviews.Input.Query = .init(),
+        headers: Operations.listPreviews.Input.Headers = .init()
+    ) async throws -> Operations.listPreviews.Output {
+        try await listPreviews(Operations.listPreviews.Input(
+            path: path,
+            query: query,
+            headers: headers
+        ))
+    }
     /// It completes a multi-part upload.
     ///
     /// Given the upload ID and all the parts with their ETags, this endpoint completes the multipart upload.
@@ -739,6 +770,21 @@ extension APIProtocol {
         headers: Operations.downloadPreview.Input.Headers = .init()
     ) async throws -> Operations.downloadPreview.Output {
         try await downloadPreview(Operations.downloadPreview.Input(
+            path: path,
+            headers: headers
+        ))
+    }
+    /// Uploads a preview icon.
+    ///
+    /// The endpoint uploads a preview icon.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/post(uploadPreviewIcon)`.
+    internal func uploadPreviewIcon(
+        path: Operations.uploadPreviewIcon.Input.Path,
+        headers: Operations.uploadPreviewIcon.Input.Headers = .init()
+    ) async throws -> Operations.uploadPreviewIcon.Output {
+        try await uploadPreviewIcon(Operations.uploadPreviewIcon.Input(
             path: path,
             headers: headers
         ))
@@ -883,110 +929,170 @@ internal enum Servers {
 internal enum Components {
     /// Types generated from the `#/components/schemas` section of the OpenAPI document.
     internal enum Schemas {
-        /// - Remark: Generated from `#/components/schemas/AbsentCacheArtifact`.
-        internal struct AbsentCacheArtifact: Codable, Hashable, Sendable {
-            /// - Remark: Generated from `#/components/schemas/AbsentCacheArtifact/errorPayload`.
-            internal struct errorPayloadPayload: Codable, Hashable, Sendable {
-                /// - Remark: Generated from `#/components/schemas/AbsentCacheArtifact/errorPayload/code`.
-                internal var code: Swift.String?
-                /// - Remark: Generated from `#/components/schemas/AbsentCacheArtifact/errorPayload/message`.
-                internal var message: Swift.String?
-                /// Creates a new `errorPayloadPayload`.
+        /// Represents an action item stored in the cache.
+        ///
+        /// - Remark: Generated from `#/components/schemas/CacheActionItem`.
+        internal struct CacheActionItem: Codable, Hashable, Sendable {
+            /// The hash that uniquely identifies the artifact in the cache.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CacheActionItem/hash`.
+            internal var hash: Swift.String
+            /// Creates a new `CacheActionItem`.
+            ///
+            /// - Parameters:
+            ///   - hash: The hash that uniquely identifies the artifact in the cache.
+            internal init(hash: Swift.String) {
+                self.hash = hash
+            }
+            internal enum CodingKeys: String, CodingKey {
+                case hash
+            }
+        }
+        /// The list of organizations the authenticated subject is part of.
+        ///
+        /// - Remark: Generated from `#/components/schemas/OrganizationList`.
+        internal struct OrganizationList: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/OrganizationList/organizations`.
+            internal var organizations: [Components.Schemas.Organization]
+            /// Creates a new `OrganizationList`.
+            ///
+            /// - Parameters:
+            ///   - organizations:
+            internal init(organizations: [Components.Schemas.Organization]) {
+                self.organizations = organizations
+            }
+            internal enum CodingKeys: String, CodingKey {
+                case organizations
+            }
+        }
+        /// The upload has been initiated and a ID is returned to upload the various parts using multi-part uploads
+        ///
+        /// - Remark: Generated from `#/components/schemas/ArtifactUploadID`.
+        internal struct ArtifactUploadID: Codable, Hashable, Sendable {
+            /// Data that contains ID that's associated with the multipart upload to use when uploading parts
+            ///
+            /// - Remark: Generated from `#/components/schemas/ArtifactUploadID/data`.
+            internal struct dataPayload: Codable, Hashable, Sendable {
+                /// The upload ID
+                ///
+                /// - Remark: Generated from `#/components/schemas/ArtifactUploadID/data/upload_id`.
+                internal var upload_id: Swift.String
+                /// Creates a new `dataPayload`.
                 ///
                 /// - Parameters:
-                ///   - code:
-                ///   - message:
-                internal init(
-                    code: Swift.String? = nil,
-                    message: Swift.String? = nil
-                ) {
-                    self.code = code
-                    self.message = message
+                ///   - upload_id: The upload ID
+                internal init(upload_id: Swift.String) {
+                    self.upload_id = upload_id
                 }
                 internal enum CodingKeys: String, CodingKey {
-                    case code
-                    case message
+                    case upload_id
                 }
             }
-            /// - Remark: Generated from `#/components/schemas/AbsentCacheArtifact/error`.
-            internal typealias errorPayload = [Components.Schemas.AbsentCacheArtifact.errorPayloadPayload]
-            /// - Remark: Generated from `#/components/schemas/AbsentCacheArtifact/error`.
-            internal var error: Components.Schemas.AbsentCacheArtifact.errorPayload?
-            /// Creates a new `AbsentCacheArtifact`.
+            /// Data that contains ID that's associated with the multipart upload to use when uploading parts
+            ///
+            /// - Remark: Generated from `#/components/schemas/ArtifactUploadID/data`.
+            internal var data: Components.Schemas.ArtifactUploadID.dataPayload
+            /// - Remark: Generated from `#/components/schemas/ArtifactUploadID/status`.
+            internal enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case success = "success"
+            }
+            /// - Remark: Generated from `#/components/schemas/ArtifactUploadID/status`.
+            internal var status: Components.Schemas.ArtifactUploadID.statusPayload
+            /// Creates a new `ArtifactUploadID`.
             ///
             /// - Parameters:
-            ///   - error:
-            internal init(error: Components.Schemas.AbsentCacheArtifact.errorPayload? = nil) {
-                self.error = error
+            ///   - data: Data that contains ID that's associated with the multipart upload to use when uploading parts
+            ///   - status:
+            internal init(
+                data: Components.Schemas.ArtifactUploadID.dataPayload,
+                status: Components.Schemas.ArtifactUploadID.statusPayload
+            ) {
+                self.data = data
+                self.status = status
             }
             internal enum CodingKeys: String, CodingKey {
-                case error
+                case data
+                case status
             }
         }
-        /// The URL to download an artifact.
+        /// The category of the cache.
         ///
-        /// - Remark: Generated from `#/components/schemas/ArtifactDownloadURL`.
-        internal struct ArtifactDownloadURL: Codable, Hashable, Sendable {
-            /// The UNIX timestamp when the URL expires.
-            ///
-            /// - Remark: Generated from `#/components/schemas/ArtifactDownloadURL/expires_at`.
-            internal var expires_at: Swift.Int
-            /// The URL to download the artifact.
-            ///
-            /// - Remark: Generated from `#/components/schemas/ArtifactDownloadURL/url`.
-            internal var url: Swift.String
-            /// Creates a new `ArtifactDownloadURL`.
+        /// - Remark: Generated from `#/components/schemas/CacheCategory`.
+        internal enum CacheCategory: String, Codable, Hashable, Sendable, CaseIterable {
+            case tests = "tests"
+            case builds = "builds"
+        }
+        /// The URL to download the artifact from the cache.
+        ///
+        /// - Remark: Generated from `#/components/schemas/CacheArtifactDownloadURL`.
+        internal struct CacheArtifactDownloadURL: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/CacheArtifactDownloadURL/data`.
+            internal struct dataPayload: Codable, Hashable, Sendable {
+                /// The UNIX timestamp when the URL expires.
+                ///
+                /// - Remark: Generated from `#/components/schemas/CacheArtifactDownloadURL/data/expires_at`.
+                internal var expires_at: Swift.Int
+                /// The URL to download the artifact from the cache.
+                ///
+                /// - Remark: Generated from `#/components/schemas/CacheArtifactDownloadURL/data/url`.
+                internal var url: Swift.String
+                /// Creates a new `dataPayload`.
+                ///
+                /// - Parameters:
+                ///   - expires_at: The UNIX timestamp when the URL expires.
+                ///   - url: The URL to download the artifact from the cache.
+                internal init(
+                    expires_at: Swift.Int,
+                    url: Swift.String
+                ) {
+                    self.expires_at = expires_at
+                    self.url = url
+                }
+                internal enum CodingKeys: String, CodingKey {
+                    case expires_at
+                    case url
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/CacheArtifactDownloadURL/data`.
+            internal var data: Components.Schemas.CacheArtifactDownloadURL.dataPayload
+            /// - Remark: Generated from `#/components/schemas/CacheArtifactDownloadURL/status`.
+            internal enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case success = "success"
+            }
+            /// - Remark: Generated from `#/components/schemas/CacheArtifactDownloadURL/status`.
+            internal var status: Components.Schemas.CacheArtifactDownloadURL.statusPayload
+            /// Creates a new `CacheArtifactDownloadURL`.
             ///
             /// - Parameters:
-            ///   - expires_at: The UNIX timestamp when the URL expires.
-            ///   - url: The URL to download the artifact.
+            ///   - data:
+            ///   - status:
             internal init(
-                expires_at: Swift.Int,
-                url: Swift.String
+                data: Components.Schemas.CacheArtifactDownloadURL.dataPayload,
+                status: Components.Schemas.CacheArtifactDownloadURL.statusPayload
             ) {
-                self.expires_at = expires_at
-                self.url = url
+                self.data = data
+                self.status = status
             }
             internal enum CodingKeys: String, CodingKey {
-                case expires_at
-                case url
+                case data
+                case status
             }
         }
-        /// Represents an multipart upload's part identified by the upload id and the part number
+        /// A list of project tokens.
         ///
-        /// - Remark: Generated from `#/components/schemas/ArtifactMultipartUploadPart`.
-        internal struct ArtifactMultipartUploadPart: Codable, Hashable, Sendable {
-            /// The content length of the part.
-            ///
-            /// - Remark: Generated from `#/components/schemas/ArtifactMultipartUploadPart/content_length`.
-            internal var content_length: Swift.Int?
-            /// The part number of the multipart upload.
-            ///
-            /// - Remark: Generated from `#/components/schemas/ArtifactMultipartUploadPart/part_number`.
-            internal var part_number: Swift.Int
-            /// The upload ID.
-            ///
-            /// - Remark: Generated from `#/components/schemas/ArtifactMultipartUploadPart/upload_id`.
-            internal var upload_id: Swift.String
-            /// Creates a new `ArtifactMultipartUploadPart`.
+        /// - Remark: Generated from `#/components/schemas/Tokens`.
+        internal struct Tokens: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/Tokens/tokens`.
+            internal var tokens: [Components.Schemas.ProjectToken]
+            /// Creates a new `Tokens`.
             ///
             /// - Parameters:
-            ///   - content_length: The content length of the part.
-            ///   - part_number: The part number of the multipart upload.
-            ///   - upload_id: The upload ID.
-            internal init(
-                content_length: Swift.Int? = nil,
-                part_number: Swift.Int,
-                upload_id: Swift.String
-            ) {
-                self.content_length = content_length
-                self.part_number = part_number
-                self.upload_id = upload_id
+            ///   - tokens:
+            internal init(tokens: [Components.Schemas.ProjectToken]) {
+                self.tokens = tokens
             }
             internal enum CodingKeys: String, CodingKey {
-                case content_length
-                case part_number
-                case upload_id
+                case tokens
             }
         }
         /// It represents a part that has been uploaded using multipart uploads. The part is identified by its number and the etag
@@ -1045,288 +1151,6 @@ internal enum Components {
                 case upload_id
             }
         }
-        /// The URL to upload a multipart part
-        ///
-        /// - Remark: Generated from `#/components/schemas/ArtifactMultipartUploadURL`.
-        internal struct ArtifactMultipartUploadURL: Codable, Hashable, Sendable {
-            /// - Remark: Generated from `#/components/schemas/ArtifactMultipartUploadURL/data`.
-            internal struct dataPayload: Codable, Hashable, Sendable {
-                /// The URL to upload the part
-                ///
-                /// - Remark: Generated from `#/components/schemas/ArtifactMultipartUploadURL/data/url`.
-                internal var url: Swift.String
-                /// Creates a new `dataPayload`.
-                ///
-                /// - Parameters:
-                ///   - url: The URL to upload the part
-                internal init(url: Swift.String) {
-                    self.url = url
-                }
-                internal enum CodingKeys: String, CodingKey {
-                    case url
-                }
-            }
-            /// - Remark: Generated from `#/components/schemas/ArtifactMultipartUploadURL/data`.
-            internal var data: Components.Schemas.ArtifactMultipartUploadURL.dataPayload
-            /// - Remark: Generated from `#/components/schemas/ArtifactMultipartUploadURL/status`.
-            internal enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                case success = "success"
-            }
-            /// - Remark: Generated from `#/components/schemas/ArtifactMultipartUploadURL/status`.
-            internal var status: Components.Schemas.ArtifactMultipartUploadURL.statusPayload
-            /// Creates a new `ArtifactMultipartUploadURL`.
-            ///
-            /// - Parameters:
-            ///   - data:
-            ///   - status:
-            internal init(
-                data: Components.Schemas.ArtifactMultipartUploadURL.dataPayload,
-                status: Components.Schemas.ArtifactMultipartUploadURL.statusPayload
-            ) {
-                self.data = data
-                self.status = status
-            }
-            internal enum CodingKeys: String, CodingKey {
-                case data
-                case status
-            }
-        }
-        /// The upload has been initiated and a ID is returned to upload the various parts using multi-part uploads
-        ///
-        /// - Remark: Generated from `#/components/schemas/ArtifactUploadID`.
-        internal struct ArtifactUploadID: Codable, Hashable, Sendable {
-            /// Data that contains ID that's associated with the multipart upload to use when uploading parts
-            ///
-            /// - Remark: Generated from `#/components/schemas/ArtifactUploadID/data`.
-            internal struct dataPayload: Codable, Hashable, Sendable {
-                /// The upload ID
-                ///
-                /// - Remark: Generated from `#/components/schemas/ArtifactUploadID/data/upload_id`.
-                internal var upload_id: Swift.String
-                /// Creates a new `dataPayload`.
-                ///
-                /// - Parameters:
-                ///   - upload_id: The upload ID
-                internal init(upload_id: Swift.String) {
-                    self.upload_id = upload_id
-                }
-                internal enum CodingKeys: String, CodingKey {
-                    case upload_id
-                }
-            }
-            /// Data that contains ID that's associated with the multipart upload to use when uploading parts
-            ///
-            /// - Remark: Generated from `#/components/schemas/ArtifactUploadID/data`.
-            internal var data: Components.Schemas.ArtifactUploadID.dataPayload
-            /// - Remark: Generated from `#/components/schemas/ArtifactUploadID/status`.
-            internal enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                case success = "success"
-            }
-            /// - Remark: Generated from `#/components/schemas/ArtifactUploadID/status`.
-            internal var status: Components.Schemas.ArtifactUploadID.statusPayload
-            /// Creates a new `ArtifactUploadID`.
-            ///
-            /// - Parameters:
-            ///   - data: Data that contains ID that's associated with the multipart upload to use when uploading parts
-            ///   - status:
-            internal init(
-                data: Components.Schemas.ArtifactUploadID.dataPayload,
-                status: Components.Schemas.ArtifactUploadID.statusPayload
-            ) {
-                self.data = data
-                self.status = status
-            }
-            internal enum CodingKeys: String, CodingKey {
-                case data
-                case status
-            }
-        }
-        /// A pair of access token to authenticate requests and refresh token to generate new access tokens when they expire.
-        ///
-        /// - Remark: Generated from `#/components/schemas/AuthenticationTokens`.
-        internal struct AuthenticationTokens: Codable, Hashable, Sendable {
-            /// API access token.
-            ///
-            /// - Remark: Generated from `#/components/schemas/AuthenticationTokens/access_token`.
-            internal var access_token: Swift.String
-            /// A token to generate new API access tokens when they expire.
-            ///
-            /// - Remark: Generated from `#/components/schemas/AuthenticationTokens/refresh_token`.
-            internal var refresh_token: Swift.String
-            /// Creates a new `AuthenticationTokens`.
-            ///
-            /// - Parameters:
-            ///   - access_token: API access token.
-            ///   - refresh_token: A token to generate new API access tokens when they expire.
-            internal init(
-                access_token: Swift.String,
-                refresh_token: Swift.String
-            ) {
-                self.access_token = access_token
-                self.refresh_token = refresh_token
-            }
-            internal enum CodingKeys: String, CodingKey {
-                case access_token
-                case refresh_token
-            }
-        }
-        /// Represents an action item stored in the cache.
-        ///
-        /// - Remark: Generated from `#/components/schemas/CacheActionItem`.
-        internal struct CacheActionItem: Codable, Hashable, Sendable {
-            /// The hash that uniquely identifies the artifact in the cache.
-            ///
-            /// - Remark: Generated from `#/components/schemas/CacheActionItem/hash`.
-            internal var hash: Swift.String
-            /// Creates a new `CacheActionItem`.
-            ///
-            /// - Parameters:
-            ///   - hash: The hash that uniquely identifies the artifact in the cache.
-            internal init(hash: Swift.String) {
-                self.hash = hash
-            }
-            internal enum CodingKeys: String, CodingKey {
-                case hash
-            }
-        }
-        /// - Remark: Generated from `#/components/schemas/CacheActionItemUploadParams`.
-        internal struct CacheActionItemUploadParams: Codable, Hashable, Sendable {
-            /// The hash of the cache action item.
-            ///
-            /// - Remark: Generated from `#/components/schemas/CacheActionItemUploadParams/hash`.
-            internal var hash: Swift.String?
-            /// Creates a new `CacheActionItemUploadParams`.
-            ///
-            /// - Parameters:
-            ///   - hash: The hash of the cache action item.
-            internal init(hash: Swift.String? = nil) {
-                self.hash = hash
-            }
-            internal enum CodingKeys: String, CodingKey {
-                case hash
-            }
-        }
-        /// The URL to download the artifact from the cache.
-        ///
-        /// - Remark: Generated from `#/components/schemas/CacheArtifactDownloadURL`.
-        internal struct CacheArtifactDownloadURL: Codable, Hashable, Sendable {
-            /// - Remark: Generated from `#/components/schemas/CacheArtifactDownloadURL/data`.
-            internal struct dataPayload: Codable, Hashable, Sendable {
-                /// The UNIX timestamp when the URL expires.
-                ///
-                /// - Remark: Generated from `#/components/schemas/CacheArtifactDownloadURL/data/expires_at`.
-                internal var expires_at: Swift.Int
-                /// The URL to download the artifact from the cache.
-                ///
-                /// - Remark: Generated from `#/components/schemas/CacheArtifactDownloadURL/data/url`.
-                internal var url: Swift.String
-                /// Creates a new `dataPayload`.
-                ///
-                /// - Parameters:
-                ///   - expires_at: The UNIX timestamp when the URL expires.
-                ///   - url: The URL to download the artifact from the cache.
-                internal init(
-                    expires_at: Swift.Int,
-                    url: Swift.String
-                ) {
-                    self.expires_at = expires_at
-                    self.url = url
-                }
-                internal enum CodingKeys: String, CodingKey {
-                    case expires_at
-                    case url
-                }
-            }
-            /// - Remark: Generated from `#/components/schemas/CacheArtifactDownloadURL/data`.
-            internal var data: Components.Schemas.CacheArtifactDownloadURL.dataPayload
-            /// - Remark: Generated from `#/components/schemas/CacheArtifactDownloadURL/status`.
-            internal enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                case success = "success"
-            }
-            /// - Remark: Generated from `#/components/schemas/CacheArtifactDownloadURL/status`.
-            internal var status: Components.Schemas.CacheArtifactDownloadURL.statusPayload
-            /// Creates a new `CacheArtifactDownloadURL`.
-            ///
-            /// - Parameters:
-            ///   - data:
-            ///   - status:
-            internal init(
-                data: Components.Schemas.CacheArtifactDownloadURL.dataPayload,
-                status: Components.Schemas.CacheArtifactDownloadURL.statusPayload
-            ) {
-                self.data = data
-                self.status = status
-            }
-            internal enum CodingKeys: String, CodingKey {
-                case data
-                case status
-            }
-        }
-        /// The artifact exists in the cache and can be downloaded
-        ///
-        /// - Remark: Generated from `#/components/schemas/CacheArtifactExistence`.
-        internal struct CacheArtifactExistence: Codable, Hashable, Sendable {
-            /// - Remark: Generated from `#/components/schemas/CacheArtifactExistence/data`.
-            internal var data: OpenAPIRuntime.OpenAPIObjectContainer?
-            /// - Remark: Generated from `#/components/schemas/CacheArtifactExistence/status`.
-            internal enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                case success = "success"
-            }
-            /// - Remark: Generated from `#/components/schemas/CacheArtifactExistence/status`.
-            internal var status: Components.Schemas.CacheArtifactExistence.statusPayload?
-            /// Creates a new `CacheArtifactExistence`.
-            ///
-            /// - Parameters:
-            ///   - data:
-            ///   - status:
-            internal init(
-                data: OpenAPIRuntime.OpenAPIObjectContainer? = nil,
-                status: Components.Schemas.CacheArtifactExistence.statusPayload? = nil
-            ) {
-                self.data = data
-                self.status = status
-            }
-            internal enum CodingKeys: String, CodingKey {
-                case data
-                case status
-            }
-        }
-        /// This response confirms that the upload has been completed successfully. The cache will now be able to serve the artifact.
-        ///
-        /// - Remark: Generated from `#/components/schemas/CacheArtifactMultipartUploadCompletion`.
-        internal struct CacheArtifactMultipartUploadCompletion: Codable, Hashable, Sendable {
-            /// - Remark: Generated from `#/components/schemas/CacheArtifactMultipartUploadCompletion/data`.
-            internal var data: OpenAPIRuntime.OpenAPIObjectContainer?
-            /// - Remark: Generated from `#/components/schemas/CacheArtifactMultipartUploadCompletion/status`.
-            internal enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                case success = "success"
-            }
-            /// - Remark: Generated from `#/components/schemas/CacheArtifactMultipartUploadCompletion/status`.
-            internal var status: Components.Schemas.CacheArtifactMultipartUploadCompletion.statusPayload?
-            /// Creates a new `CacheArtifactMultipartUploadCompletion`.
-            ///
-            /// - Parameters:
-            ///   - data:
-            ///   - status:
-            internal init(
-                data: OpenAPIRuntime.OpenAPIObjectContainer? = nil,
-                status: Components.Schemas.CacheArtifactMultipartUploadCompletion.statusPayload? = nil
-            ) {
-                self.data = data
-                self.status = status
-            }
-            internal enum CodingKeys: String, CodingKey {
-                case data
-                case status
-            }
-        }
-        /// The category of the cache.
-        ///
-        /// - Remark: Generated from `#/components/schemas/CacheCategory`.
-        internal enum CacheCategory: String, Codable, Hashable, Sendable, CaseIterable {
-            case tests = "tests"
-            case builds = "builds"
-        }
         /// The schema for the command analytics event.
         ///
         /// - Remark: Generated from `#/components/schemas/CommandEvent`.
@@ -1364,395 +1188,77 @@ internal enum Components {
                 case url
             }
         }
-        /// It represents an artifact that's associated with a command event (e.g. result bundles)
-        ///
-        /// - Remark: Generated from `#/components/schemas/CommandEventArtifact`.
-        internal struct CommandEventArtifact: Codable, Hashable, Sendable {
-            /// The name of the file. It's used only for certain types such as result_bundle_object
+        /// - Remark: Generated from `#/components/schemas/CacheActionItemUploadParams`.
+        internal struct CacheActionItemUploadParams: Codable, Hashable, Sendable {
+            /// The hash of the cache action item.
             ///
-            /// - Remark: Generated from `#/components/schemas/CommandEventArtifact/name`.
-            internal var name: Swift.String?
-            /// The command event artifact type. It can be:
-            /// - result_bundle: A result bundle artifact that represents the whole `.xcresult` bundle
-            /// - invocation_record: An invocation record artifact. This is a root bundle object of the result bundle
-            /// - result_bundle_object: A result bundle object. There are many different bundle objects per result bundle.
-            ///
-            ///
-            /// - Remark: Generated from `#/components/schemas/CommandEventArtifact/type`.
-            internal enum _typePayload: String, Codable, Hashable, Sendable, CaseIterable {
-                case result_bundle = "result_bundle"
-                case invocation_record = "invocation_record"
-                case result_bundle_object = "result_bundle_object"
-            }
-            /// The command event artifact type. It can be:
-            /// - result_bundle: A result bundle artifact that represents the whole `.xcresult` bundle
-            /// - invocation_record: An invocation record artifact. This is a root bundle object of the result bundle
-            /// - result_bundle_object: A result bundle object. There are many different bundle objects per result bundle.
-            ///
-            ///
-            /// - Remark: Generated from `#/components/schemas/CommandEventArtifact/type`.
-            internal var _type: Components.Schemas.CommandEventArtifact._typePayload
-            /// Creates a new `CommandEventArtifact`.
+            /// - Remark: Generated from `#/components/schemas/CacheActionItemUploadParams/hash`.
+            internal var hash: Swift.String?
+            /// Creates a new `CacheActionItemUploadParams`.
             ///
             /// - Parameters:
-            ///   - name: The name of the file. It's used only for certain types such as result_bundle_object
-            ///   - _type: The command event artifact type. It can be:
-            internal init(
-                name: Swift.String? = nil,
-                _type: Components.Schemas.CommandEventArtifact._typePayload
-            ) {
-                self.name = name
-                self._type = _type
-            }
-            internal enum CodingKeys: String, CodingKey {
-                case name
-                case _type = "type"
-            }
-        }
-        /// Token to authenticate the user with.
-        ///
-        /// - Remark: Generated from `#/components/schemas/DeviceCodeAuthenticationTokens`.
-        internal struct DeviceCodeAuthenticationTokens: Codable, Hashable, Sendable {
-            /// A short-lived token to authenticate API requests as user.
-            ///
-            /// - Remark: Generated from `#/components/schemas/DeviceCodeAuthenticationTokens/access_token`.
-            internal var access_token: Swift.String?
-            /// A token to generate new access tokens when they expire.
-            ///
-            /// - Remark: Generated from `#/components/schemas/DeviceCodeAuthenticationTokens/refresh_token`.
-            internal var refresh_token: Swift.String?
-            /// User authentication token
-            ///
-            /// - Remark: Generated from `#/components/schemas/DeviceCodeAuthenticationTokens/token`.
-            @available(*, deprecated)
-            internal var token: Swift.String?
-            /// Creates a new `DeviceCodeAuthenticationTokens`.
-            ///
-            /// - Parameters:
-            ///   - access_token: A short-lived token to authenticate API requests as user.
-            ///   - refresh_token: A token to generate new access tokens when they expire.
-            ///   - token: User authentication token
-            internal init(
-                access_token: Swift.String? = nil,
-                refresh_token: Swift.String? = nil,
-                token: Swift.String? = nil
-            ) {
-                self.access_token = access_token
-                self.refresh_token = refresh_token
-                self.token = token
-            }
-            internal enum CodingKeys: String, CodingKey {
-                case access_token
-                case refresh_token
-                case token
-            }
-        }
-        /// - Remark: Generated from `#/components/schemas/Error`.
-        internal struct _Error: Codable, Hashable, Sendable {
-            /// The error message
-            ///
-            /// - Remark: Generated from `#/components/schemas/Error/message`.
-            internal var message: Swift.String
-            /// Creates a new `_Error`.
-            ///
-            /// - Parameters:
-            ///   - message: The error message
-            internal init(message: Swift.String) {
-                self.message = message
-            }
-            internal enum CodingKeys: String, CodingKey {
-                case message
-            }
-        }
-        /// - Remark: Generated from `#/components/schemas/Invitation`.
-        internal struct Invitation: Codable, Hashable, Sendable {
-            /// The invitation's unique identifier
-            ///
-            /// - Remark: Generated from `#/components/schemas/Invitation/id`.
-            internal var id: Swift.Double
-            /// The email of the invitee
-            ///
-            /// - Remark: Generated from `#/components/schemas/Invitation/invitee_email`.
-            internal var invitee_email: Swift.String
-            /// - Remark: Generated from `#/components/schemas/Invitation/inviter`.
-            internal var inviter: Components.Schemas.User
-            /// The id of the organization the invitee is invited to
-            ///
-            /// - Remark: Generated from `#/components/schemas/Invitation/organization_id`.
-            internal var organization_id: Swift.Double
-            /// The token to accept the invitation
-            ///
-            /// - Remark: Generated from `#/components/schemas/Invitation/token`.
-            internal var token: Swift.String
-            /// Creates a new `Invitation`.
-            ///
-            /// - Parameters:
-            ///   - id: The invitation's unique identifier
-            ///   - invitee_email: The email of the invitee
-            ///   - inviter:
-            ///   - organization_id: The id of the organization the invitee is invited to
-            ///   - token: The token to accept the invitation
-            internal init(
-                id: Swift.Double,
-                invitee_email: Swift.String,
-                inviter: Components.Schemas.User,
-                organization_id: Swift.Double,
-                token: Swift.String
-            ) {
-                self.id = id
-                self.invitee_email = invitee_email
-                self.inviter = inviter
-                self.organization_id = organization_id
-                self.token = token
-            }
-            internal enum CodingKeys: String, CodingKey {
-                case id
-                case invitee_email
-                case inviter
-                case organization_id
-                case token
-            }
-        }
-        /// - Remark: Generated from `#/components/schemas/Module`.
-        internal struct Module: Codable, Hashable, Sendable {
-            /// A hash that represents the module.
-            ///
-            /// - Remark: Generated from `#/components/schemas/Module/hash`.
-            internal var hash: Swift.String
-            /// A name of the module
-            ///
-            /// - Remark: Generated from `#/components/schemas/Module/name`.
-            internal var name: Swift.String
-            /// Project's relative path from the root of the repository
-            ///
-            /// - Remark: Generated from `#/components/schemas/Module/project_identifier`.
-            internal var project_identifier: Swift.String
-            /// Creates a new `Module`.
-            ///
-            /// - Parameters:
-            ///   - hash: A hash that represents the module.
-            ///   - name: A name of the module
-            ///   - project_identifier: Project's relative path from the root of the repository
-            internal init(
-                hash: Swift.String,
-                name: Swift.String,
-                project_identifier: Swift.String
-            ) {
+            ///   - hash: The hash of the cache action item.
+            internal init(hash: Swift.String? = nil) {
                 self.hash = hash
-                self.name = name
-                self.project_identifier = project_identifier
             }
             internal enum CodingKeys: String, CodingKey {
                 case hash
-                case name
-                case project_identifier
             }
         }
-        /// An organization
+        /// Represents an multipart upload's part identified by the upload id and the part number
         ///
-        /// - Remark: Generated from `#/components/schemas/Organization`.
-        internal struct Organization: Codable, Hashable, Sendable {
-            /// The organization's unique identifier
+        /// - Remark: Generated from `#/components/schemas/ArtifactMultipartUploadPart`.
+        internal struct ArtifactMultipartUploadPart: Codable, Hashable, Sendable {
+            /// The content length of the part.
             ///
-            /// - Remark: Generated from `#/components/schemas/Organization/id`.
-            internal var id: Swift.Double
-            /// A list of organization invitations
+            /// - Remark: Generated from `#/components/schemas/ArtifactMultipartUploadPart/content_length`.
+            internal var content_length: Swift.Int?
+            /// The part number of the multipart upload.
             ///
-            /// - Remark: Generated from `#/components/schemas/Organization/invitations`.
-            internal var invitations: [Components.Schemas.Invitation]
-            /// A list of organization members
+            /// - Remark: Generated from `#/components/schemas/ArtifactMultipartUploadPart/part_number`.
+            internal var part_number: Swift.Int
+            /// The upload ID.
             ///
-            /// - Remark: Generated from `#/components/schemas/Organization/members`.
-            internal var members: [Components.Schemas.OrganizationMember]
-            /// The organization's name
-            ///
-            /// - Remark: Generated from `#/components/schemas/Organization/name`.
-            internal var name: Swift.String
-            /// The plan associated with the organization
-            ///
-            /// - Remark: Generated from `#/components/schemas/Organization/plan`.
-            internal enum planPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                case air = "air"
-                case pro = "pro"
-                case enterprise = "enterprise"
-                case none = "none"
-            }
-            /// The plan associated with the organization
-            ///
-            /// - Remark: Generated from `#/components/schemas/Organization/plan`.
-            internal var plan: Components.Schemas.Organization.planPayload
-            /// The organization ID associated with the SSO provider
-            ///
-            /// - Remark: Generated from `#/components/schemas/Organization/sso_organization_id`.
-            internal var sso_organization_id: Swift.String?
-            /// The SSO provider set up for the organization
-            ///
-            /// - Remark: Generated from `#/components/schemas/Organization/sso_provider`.
-            internal enum sso_providerPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                case google = "google"
-            }
-            /// The SSO provider set up for the organization
-            ///
-            /// - Remark: Generated from `#/components/schemas/Organization/sso_provider`.
-            internal var sso_provider: Components.Schemas.Organization.sso_providerPayload?
-            /// Creates a new `Organization`.
+            /// - Remark: Generated from `#/components/schemas/ArtifactMultipartUploadPart/upload_id`.
+            internal var upload_id: Swift.String
+            /// Creates a new `ArtifactMultipartUploadPart`.
             ///
             /// - Parameters:
-            ///   - id: The organization's unique identifier
-            ///   - invitations: A list of organization invitations
-            ///   - members: A list of organization members
-            ///   - name: The organization's name
-            ///   - plan: The plan associated with the organization
-            ///   - sso_organization_id: The organization ID associated with the SSO provider
-            ///   - sso_provider: The SSO provider set up for the organization
+            ///   - content_length: The content length of the part.
+            ///   - part_number: The part number of the multipart upload.
+            ///   - upload_id: The upload ID.
             internal init(
-                id: Swift.Double,
-                invitations: [Components.Schemas.Invitation],
-                members: [Components.Schemas.OrganizationMember],
-                name: Swift.String,
-                plan: Components.Schemas.Organization.planPayload,
-                sso_organization_id: Swift.String? = nil,
-                sso_provider: Components.Schemas.Organization.sso_providerPayload? = nil
+                content_length: Swift.Int? = nil,
+                part_number: Swift.Int,
+                upload_id: Swift.String
             ) {
-                self.id = id
-                self.invitations = invitations
-                self.members = members
-                self.name = name
-                self.plan = plan
-                self.sso_organization_id = sso_organization_id
-                self.sso_provider = sso_provider
+                self.content_length = content_length
+                self.part_number = part_number
+                self.upload_id = upload_id
             }
             internal enum CodingKeys: String, CodingKey {
-                case id
-                case invitations
-                case members
-                case name
-                case plan
-                case sso_organization_id
-                case sso_provider
+                case content_length
+                case part_number
+                case upload_id
             }
         }
-        /// The list of organizations the authenticated subject is part of.
+        /// A new project token.
         ///
-        /// - Remark: Generated from `#/components/schemas/OrganizationList`.
-        internal struct OrganizationList: Codable, Hashable, Sendable {
-            /// - Remark: Generated from `#/components/schemas/OrganizationList/organizations`.
-            internal var organizations: [Components.Schemas.Organization]
-            /// Creates a new `OrganizationList`.
+        /// - Remark: Generated from `#/components/schemas/ProjectFullToken`.
+        internal struct ProjectFullToken: Codable, Hashable, Sendable {
+            /// The generated project token.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ProjectFullToken/token`.
+            internal var token: Swift.String
+            /// Creates a new `ProjectFullToken`.
             ///
             /// - Parameters:
-            ///   - organizations:
-            internal init(organizations: [Components.Schemas.Organization]) {
-                self.organizations = organizations
+            ///   - token: The generated project token.
+            internal init(token: Swift.String) {
+                self.token = token
             }
             internal enum CodingKeys: String, CodingKey {
-                case organizations
-            }
-        }
-        /// An organization member
-        ///
-        /// - Remark: Generated from `#/components/schemas/OrganizationMember`.
-        internal struct OrganizationMember: Codable, Hashable, Sendable {
-            /// The organization member's email
-            ///
-            /// - Remark: Generated from `#/components/schemas/OrganizationMember/email`.
-            internal var email: Swift.String
-            /// The organization member's unique identifier
-            ///
-            /// - Remark: Generated from `#/components/schemas/OrganizationMember/id`.
-            internal var id: Swift.Double
-            /// The organization member's name
-            ///
-            /// - Remark: Generated from `#/components/schemas/OrganizationMember/name`.
-            internal var name: Swift.String
-            /// The organization member's role
-            ///
-            /// - Remark: Generated from `#/components/schemas/OrganizationMember/role`.
-            internal enum rolePayload: String, Codable, Hashable, Sendable, CaseIterable {
-                case admin = "admin"
-                case user = "user"
-            }
-            /// The organization member's role
-            ///
-            /// - Remark: Generated from `#/components/schemas/OrganizationMember/role`.
-            internal var role: Components.Schemas.OrganizationMember.rolePayload
-            /// Creates a new `OrganizationMember`.
-            ///
-            /// - Parameters:
-            ///   - email: The organization member's email
-            ///   - id: The organization member's unique identifier
-            ///   - name: The organization member's name
-            ///   - role: The organization member's role
-            internal init(
-                email: Swift.String,
-                id: Swift.Double,
-                name: Swift.String,
-                role: Components.Schemas.OrganizationMember.rolePayload
-            ) {
-                self.email = email
-                self.id = id
-                self.name = name
-                self.role = role
-            }
-            internal enum CodingKeys: String, CodingKey {
-                case email
-                case id
-                case name
-                case role
-            }
-        }
-        /// The usage of an organization.
-        ///
-        /// - Remark: Generated from `#/components/schemas/OrganizationUsage`.
-        internal struct OrganizationUsage: Codable, Hashable, Sendable {
-            /// The number of remote cache hits in the current month
-            ///
-            /// - Remark: Generated from `#/components/schemas/OrganizationUsage/current_month_remote_cache_hits`.
-            internal var current_month_remote_cache_hits: Swift.Double
-            /// Creates a new `OrganizationUsage`.
-            ///
-            /// - Parameters:
-            ///   - current_month_remote_cache_hits: The number of remote cache hits in the current month
-            internal init(current_month_remote_cache_hits: Swift.Double) {
-                self.current_month_remote_cache_hits = current_month_remote_cache_hits
-            }
-            internal enum CodingKeys: String, CodingKey {
-                case current_month_remote_cache_hits
-            }
-        }
-        /// - Remark: Generated from `#/components/schemas/Preview`.
-        internal struct Preview: Codable, Hashable, Sendable {
-            /// Unique identifier of the preview.
-            ///
-            /// - Remark: Generated from `#/components/schemas/Preview/id`.
-            internal var id: Swift.String
-            /// The URL for the QR code image to dowload the preview
-            ///
-            /// - Remark: Generated from `#/components/schemas/Preview/qr_code_url`.
-            internal var qr_code_url: Swift.String
-            /// The URL to download the preview
-            ///
-            /// - Remark: Generated from `#/components/schemas/Preview/url`.
-            internal var url: Swift.String
-            /// Creates a new `Preview`.
-            ///
-            /// - Parameters:
-            ///   - id: Unique identifier of the preview.
-            ///   - qr_code_url: The URL for the QR code image to dowload the preview
-            ///   - url: The URL to download the preview
-            internal init(
-                id: Swift.String,
-                qr_code_url: Swift.String,
-                url: Swift.String
-            ) {
-                self.id = id
-                self.qr_code_url = qr_code_url
-                self.url = url
-            }
-            internal enum CodingKeys: String, CodingKey {
-                case id
-                case qr_code_url
-                case url
+                case token
             }
         }
         /// The upload has been initiated and preview and upload unique identifier are returned to upload the various parts using multi-part uploads
@@ -1867,23 +1373,332 @@ internal enum Components {
                 case token
             }
         }
-        /// A new project token.
-        ///
-        /// - Remark: Generated from `#/components/schemas/ProjectFullToken`.
-        internal struct ProjectFullToken: Codable, Hashable, Sendable {
-            /// The generated project token.
+        /// - Remark: Generated from `#/components/schemas/Invitation`.
+        internal struct Invitation: Codable, Hashable, Sendable {
+            /// The invitation's unique identifier
             ///
-            /// - Remark: Generated from `#/components/schemas/ProjectFullToken/token`.
+            /// - Remark: Generated from `#/components/schemas/Invitation/id`.
+            internal var id: Swift.Double
+            /// The email of the invitee
+            ///
+            /// - Remark: Generated from `#/components/schemas/Invitation/invitee_email`.
+            internal var invitee_email: Swift.String
+            /// - Remark: Generated from `#/components/schemas/Invitation/inviter`.
+            internal var inviter: Components.Schemas.User
+            /// The id of the organization the invitee is invited to
+            ///
+            /// - Remark: Generated from `#/components/schemas/Invitation/organization_id`.
+            internal var organization_id: Swift.Double
+            /// The token to accept the invitation
+            ///
+            /// - Remark: Generated from `#/components/schemas/Invitation/token`.
             internal var token: Swift.String
-            /// Creates a new `ProjectFullToken`.
+            /// Creates a new `Invitation`.
             ///
             /// - Parameters:
-            ///   - token: The generated project token.
-            internal init(token: Swift.String) {
+            ///   - id: The invitation's unique identifier
+            ///   - invitee_email: The email of the invitee
+            ///   - inviter:
+            ///   - organization_id: The id of the organization the invitee is invited to
+            ///   - token: The token to accept the invitation
+            internal init(
+                id: Swift.Double,
+                invitee_email: Swift.String,
+                inviter: Components.Schemas.User,
+                organization_id: Swift.Double,
+                token: Swift.String
+            ) {
+                self.id = id
+                self.invitee_email = invitee_email
+                self.inviter = inviter
+                self.organization_id = organization_id
                 self.token = token
             }
             internal enum CodingKeys: String, CodingKey {
+                case id
+                case invitee_email
+                case inviter
+                case organization_id
                 case token
+            }
+        }
+        /// The page number to return.
+        ///
+        /// - Remark: Generated from `#/components/schemas/PreviewIndexPage`.
+        internal typealias PreviewIndexPage = Swift.Int
+        /// An organization member
+        ///
+        /// - Remark: Generated from `#/components/schemas/OrganizationMember`.
+        internal struct OrganizationMember: Codable, Hashable, Sendable {
+            /// The organization member's email
+            ///
+            /// - Remark: Generated from `#/components/schemas/OrganizationMember/email`.
+            internal var email: Swift.String
+            /// The organization member's unique identifier
+            ///
+            /// - Remark: Generated from `#/components/schemas/OrganizationMember/id`.
+            internal var id: Swift.Double
+            /// The organization member's name
+            ///
+            /// - Remark: Generated from `#/components/schemas/OrganizationMember/name`.
+            internal var name: Swift.String
+            /// The organization member's role
+            ///
+            /// - Remark: Generated from `#/components/schemas/OrganizationMember/role`.
+            internal enum rolePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case admin = "admin"
+                case user = "user"
+            }
+            /// The organization member's role
+            ///
+            /// - Remark: Generated from `#/components/schemas/OrganizationMember/role`.
+            internal var role: Components.Schemas.OrganizationMember.rolePayload
+            /// Creates a new `OrganizationMember`.
+            ///
+            /// - Parameters:
+            ///   - email: The organization member's email
+            ///   - id: The organization member's unique identifier
+            ///   - name: The organization member's name
+            ///   - role: The organization member's role
+            internal init(
+                email: Swift.String,
+                id: Swift.Double,
+                name: Swift.String,
+                role: Components.Schemas.OrganizationMember.rolePayload
+            ) {
+                self.email = email
+                self.id = id
+                self.name = name
+                self.role = role
+            }
+            internal enum CodingKeys: String, CodingKey {
+                case email
+                case id
+                case name
+                case role
+            }
+        }
+        /// An organization
+        ///
+        /// - Remark: Generated from `#/components/schemas/Organization`.
+        internal struct Organization: Codable, Hashable, Sendable {
+            /// The organization's unique identifier
+            ///
+            /// - Remark: Generated from `#/components/schemas/Organization/id`.
+            internal var id: Swift.Double
+            /// A list of organization invitations
+            ///
+            /// - Remark: Generated from `#/components/schemas/Organization/invitations`.
+            internal var invitations: [Components.Schemas.Invitation]
+            /// A list of organization members
+            ///
+            /// - Remark: Generated from `#/components/schemas/Organization/members`.
+            internal var members: [Components.Schemas.OrganizationMember]
+            /// The organization's name
+            ///
+            /// - Remark: Generated from `#/components/schemas/Organization/name`.
+            internal var name: Swift.String
+            /// The plan associated with the organization
+            ///
+            /// - Remark: Generated from `#/components/schemas/Organization/plan`.
+            internal enum planPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case air = "air"
+                case pro = "pro"
+                case enterprise = "enterprise"
+                case none = "none"
+            }
+            /// The plan associated with the organization
+            ///
+            /// - Remark: Generated from `#/components/schemas/Organization/plan`.
+            internal var plan: Components.Schemas.Organization.planPayload
+            /// The organization ID associated with the SSO provider
+            ///
+            /// - Remark: Generated from `#/components/schemas/Organization/sso_organization_id`.
+            internal var sso_organization_id: Swift.String?
+            /// The SSO provider set up for the organization
+            ///
+            /// - Remark: Generated from `#/components/schemas/Organization/sso_provider`.
+            internal enum sso_providerPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case google = "google"
+            }
+            /// The SSO provider set up for the organization
+            ///
+            /// - Remark: Generated from `#/components/schemas/Organization/sso_provider`.
+            internal var sso_provider: Components.Schemas.Organization.sso_providerPayload?
+            /// Creates a new `Organization`.
+            ///
+            /// - Parameters:
+            ///   - id: The organization's unique identifier
+            ///   - invitations: A list of organization invitations
+            ///   - members: A list of organization members
+            ///   - name: The organization's name
+            ///   - plan: The plan associated with the organization
+            ///   - sso_organization_id: The organization ID associated with the SSO provider
+            ///   - sso_provider: The SSO provider set up for the organization
+            internal init(
+                id: Swift.Double,
+                invitations: [Components.Schemas.Invitation],
+                members: [Components.Schemas.OrganizationMember],
+                name: Swift.String,
+                plan: Components.Schemas.Organization.planPayload,
+                sso_organization_id: Swift.String? = nil,
+                sso_provider: Components.Schemas.Organization.sso_providerPayload? = nil
+            ) {
+                self.id = id
+                self.invitations = invitations
+                self.members = members
+                self.name = name
+                self.plan = plan
+                self.sso_organization_id = sso_organization_id
+                self.sso_provider = sso_provider
+            }
+            internal enum CodingKeys: String, CodingKey {
+                case id
+                case invitations
+                case members
+                case name
+                case plan
+                case sso_organization_id
+                case sso_provider
+            }
+        }
+        /// It represents an artifact that's associated with a command event (e.g. result bundles)
+        ///
+        /// - Remark: Generated from `#/components/schemas/CommandEventArtifact`.
+        internal struct CommandEventArtifact: Codable, Hashable, Sendable {
+            /// The name of the file. It's used only for certain types such as result_bundle_object
+            ///
+            /// - Remark: Generated from `#/components/schemas/CommandEventArtifact/name`.
+            internal var name: Swift.String?
+            /// The command event artifact type. It can be:
+            /// - result_bundle: A result bundle artifact that represents the whole `.xcresult` bundle
+            /// - invocation_record: An invocation record artifact. This is a root bundle object of the result bundle
+            /// - result_bundle_object: A result bundle object. There are many different bundle objects per result bundle.
+            ///
+            ///
+            /// - Remark: Generated from `#/components/schemas/CommandEventArtifact/type`.
+            internal enum _typePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case result_bundle = "result_bundle"
+                case invocation_record = "invocation_record"
+                case result_bundle_object = "result_bundle_object"
+            }
+            /// The command event artifact type. It can be:
+            /// - result_bundle: A result bundle artifact that represents the whole `.xcresult` bundle
+            /// - invocation_record: An invocation record artifact. This is a root bundle object of the result bundle
+            /// - result_bundle_object: A result bundle object. There are many different bundle objects per result bundle.
+            ///
+            ///
+            /// - Remark: Generated from `#/components/schemas/CommandEventArtifact/type`.
+            internal var _type: Components.Schemas.CommandEventArtifact._typePayload
+            /// Creates a new `CommandEventArtifact`.
+            ///
+            /// - Parameters:
+            ///   - name: The name of the file. It's used only for certain types such as result_bundle_object
+            ///   - _type: The command event artifact type. It can be:
+            internal init(
+                name: Swift.String? = nil,
+                _type: Components.Schemas.CommandEventArtifact._typePayload
+            ) {
+                self.name = name
+                self._type = _type
+            }
+            internal enum CodingKeys: String, CodingKey {
+                case name
+                case _type = "type"
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/Module`.
+        internal struct Module: Codable, Hashable, Sendable {
+            /// A hash that represents the module.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Module/hash`.
+            internal var hash: Swift.String
+            /// A name of the module
+            ///
+            /// - Remark: Generated from `#/components/schemas/Module/name`.
+            internal var name: Swift.String
+            /// Project's relative path from the root of the repository
+            ///
+            /// - Remark: Generated from `#/components/schemas/Module/project_identifier`.
+            internal var project_identifier: Swift.String
+            /// Creates a new `Module`.
+            ///
+            /// - Parameters:
+            ///   - hash: A hash that represents the module.
+            ///   - name: A name of the module
+            ///   - project_identifier: Project's relative path from the root of the repository
+            internal init(
+                hash: Swift.String,
+                name: Swift.String,
+                project_identifier: Swift.String
+            ) {
+                self.hash = hash
+                self.name = name
+                self.project_identifier = project_identifier
+            }
+            internal enum CodingKeys: String, CodingKey {
+                case hash
+                case name
+                case project_identifier
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/Preview`.
+        internal struct Preview: Codable, Hashable, Sendable {
+            /// The bundle identifier of the preview
+            ///
+            /// - Remark: Generated from `#/components/schemas/Preview/bundle_identifier`.
+            internal var bundle_identifier: Swift.String?
+            /// The display name of the preview
+            ///
+            /// - Remark: Generated from `#/components/schemas/Preview/display_name`.
+            internal var display_name: Swift.String?
+            /// The URL for the icon image of the preview
+            ///
+            /// - Remark: Generated from `#/components/schemas/Preview/icon_url`.
+            internal var icon_url: Swift.String
+            /// Unique identifier of the preview.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Preview/id`.
+            internal var id: Swift.String
+            /// The URL for the QR code image to dowload the preview
+            ///
+            /// - Remark: Generated from `#/components/schemas/Preview/qr_code_url`.
+            internal var qr_code_url: Swift.String
+            /// The URL to download the preview
+            ///
+            /// - Remark: Generated from `#/components/schemas/Preview/url`.
+            internal var url: Swift.String
+            /// Creates a new `Preview`.
+            ///
+            /// - Parameters:
+            ///   - bundle_identifier: The bundle identifier of the preview
+            ///   - display_name: The display name of the preview
+            ///   - icon_url: The URL for the icon image of the preview
+            ///   - id: Unique identifier of the preview.
+            ///   - qr_code_url: The URL for the QR code image to dowload the preview
+            ///   - url: The URL to download the preview
+            internal init(
+                bundle_identifier: Swift.String? = nil,
+                display_name: Swift.String? = nil,
+                icon_url: Swift.String,
+                id: Swift.String,
+                qr_code_url: Swift.String,
+                url: Swift.String
+            ) {
+                self.bundle_identifier = bundle_identifier
+                self.display_name = display_name
+                self.icon_url = icon_url
+                self.id = id
+                self.qr_code_url = qr_code_url
+                self.url = url
+            }
+            internal enum CodingKeys: String, CodingKey {
+                case bundle_identifier
+                case display_name
+                case icon_url
+                case id
+                case qr_code_url
+                case url
             }
         }
         /// A token to authenticate API requests as a project.
@@ -1915,23 +1730,332 @@ internal enum Components {
                 case inserted_at
             }
         }
-        /// A list of project tokens.
+        /// The usage of an organization.
         ///
-        /// - Remark: Generated from `#/components/schemas/Tokens`.
-        internal struct Tokens: Codable, Hashable, Sendable {
-            /// - Remark: Generated from `#/components/schemas/Tokens/tokens`.
-            internal var tokens: [Components.Schemas.ProjectToken]
-            /// Creates a new `Tokens`.
+        /// - Remark: Generated from `#/components/schemas/OrganizationUsage`.
+        internal struct OrganizationUsage: Codable, Hashable, Sendable {
+            /// The number of remote cache hits in the current month
+            ///
+            /// - Remark: Generated from `#/components/schemas/OrganizationUsage/current_month_remote_cache_hits`.
+            internal var current_month_remote_cache_hits: Swift.Double
+            /// Creates a new `OrganizationUsage`.
             ///
             /// - Parameters:
-            ///   - tokens:
-            internal init(tokens: [Components.Schemas.ProjectToken]) {
-                self.tokens = tokens
+            ///   - current_month_remote_cache_hits: The number of remote cache hits in the current month
+            internal init(current_month_remote_cache_hits: Swift.Double) {
+                self.current_month_remote_cache_hits = current_month_remote_cache_hits
             }
             internal enum CodingKeys: String, CodingKey {
-                case tokens
+                case current_month_remote_cache_hits
             }
         }
+        /// - Remark: Generated from `#/components/schemas/PreviewsIndex`.
+        internal struct PreviewsIndex: Codable, Hashable, Sendable {
+            /// Previews list.
+            ///
+            /// - Remark: Generated from `#/components/schemas/PreviewsIndex/previews`.
+            internal var previews: [Components.Schemas.Preview]
+            /// Creates a new `PreviewsIndex`.
+            ///
+            /// - Parameters:
+            ///   - previews: Previews list.
+            internal init(previews: [Components.Schemas.Preview]) {
+                self.previews = previews
+            }
+            internal enum CodingKeys: String, CodingKey {
+                case previews
+            }
+        }
+        /// The URL to upload an artifact.
+        ///
+        /// - Remark: Generated from `#/components/schemas/ArtifactUploadURL`.
+        internal struct ArtifactUploadURL: Codable, Hashable, Sendable {
+            /// The UNIX timestamp when the URL expires.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ArtifactUploadURL/expires_at`.
+            internal var expires_at: Swift.Int
+            /// The URL to upload the artifact.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ArtifactUploadURL/url`.
+            internal var url: Swift.String
+            /// Creates a new `ArtifactUploadURL`.
+            ///
+            /// - Parameters:
+            ///   - expires_at: The UNIX timestamp when the URL expires.
+            ///   - url: The URL to upload the artifact.
+            internal init(
+                expires_at: Swift.Int,
+                url: Swift.String
+            ) {
+                self.expires_at = expires_at
+                self.url = url
+            }
+            internal enum CodingKeys: String, CodingKey {
+                case expires_at
+                case url
+            }
+        }
+        /// Token to authenticate the user with.
+        ///
+        /// - Remark: Generated from `#/components/schemas/DeviceCodeAuthenticationTokens`.
+        internal struct DeviceCodeAuthenticationTokens: Codable, Hashable, Sendable {
+            /// A short-lived token to authenticate API requests as user.
+            ///
+            /// - Remark: Generated from `#/components/schemas/DeviceCodeAuthenticationTokens/access_token`.
+            internal var access_token: Swift.String?
+            /// A token to generate new access tokens when they expire.
+            ///
+            /// - Remark: Generated from `#/components/schemas/DeviceCodeAuthenticationTokens/refresh_token`.
+            internal var refresh_token: Swift.String?
+            /// User authentication token
+            ///
+            /// - Remark: Generated from `#/components/schemas/DeviceCodeAuthenticationTokens/token`.
+            @available(*, deprecated)
+            internal var token: Swift.String?
+            /// Creates a new `DeviceCodeAuthenticationTokens`.
+            ///
+            /// - Parameters:
+            ///   - access_token: A short-lived token to authenticate API requests as user.
+            ///   - refresh_token: A token to generate new access tokens when they expire.
+            ///   - token: User authentication token
+            internal init(
+                access_token: Swift.String? = nil,
+                refresh_token: Swift.String? = nil,
+                token: Swift.String? = nil
+            ) {
+                self.access_token = access_token
+                self.refresh_token = refresh_token
+                self.token = token
+            }
+            internal enum CodingKeys: String, CodingKey {
+                case access_token
+                case refresh_token
+                case token
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/AbsentCacheArtifact`.
+        internal struct AbsentCacheArtifact: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/AbsentCacheArtifact/errorPayload`.
+            internal struct errorPayloadPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/AbsentCacheArtifact/errorPayload/code`.
+                internal var code: Swift.String?
+                /// - Remark: Generated from `#/components/schemas/AbsentCacheArtifact/errorPayload/message`.
+                internal var message: Swift.String?
+                /// Creates a new `errorPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - code:
+                ///   - message:
+                internal init(
+                    code: Swift.String? = nil,
+                    message: Swift.String? = nil
+                ) {
+                    self.code = code
+                    self.message = message
+                }
+                internal enum CodingKeys: String, CodingKey {
+                    case code
+                    case message
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/AbsentCacheArtifact/error`.
+            internal typealias errorPayload = [Components.Schemas.AbsentCacheArtifact.errorPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/AbsentCacheArtifact/error`.
+            internal var error: Components.Schemas.AbsentCacheArtifact.errorPayload?
+            /// Creates a new `AbsentCacheArtifact`.
+            ///
+            /// - Parameters:
+            ///   - error:
+            internal init(error: Components.Schemas.AbsentCacheArtifact.errorPayload? = nil) {
+                self.error = error
+            }
+            internal enum CodingKeys: String, CodingKey {
+                case error
+            }
+        }
+        /// The URL to download an artifact.
+        ///
+        /// - Remark: Generated from `#/components/schemas/ArtifactDownloadURL`.
+        internal struct ArtifactDownloadURL: Codable, Hashable, Sendable {
+            /// The UNIX timestamp when the URL expires.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ArtifactDownloadURL/expires_at`.
+            internal var expires_at: Swift.Int
+            /// The URL to download the artifact.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ArtifactDownloadURL/url`.
+            internal var url: Swift.String
+            /// Creates a new `ArtifactDownloadURL`.
+            ///
+            /// - Parameters:
+            ///   - expires_at: The UNIX timestamp when the URL expires.
+            ///   - url: The URL to download the artifact.
+            internal init(
+                expires_at: Swift.Int,
+                url: Swift.String
+            ) {
+                self.expires_at = expires_at
+                self.url = url
+            }
+            internal enum CodingKeys: String, CodingKey {
+                case expires_at
+                case url
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/Error`.
+        internal struct _Error: Codable, Hashable, Sendable {
+            /// The error message
+            ///
+            /// - Remark: Generated from `#/components/schemas/Error/message`.
+            internal var message: Swift.String
+            /// Creates a new `_Error`.
+            ///
+            /// - Parameters:
+            ///   - message: The error message
+            internal init(message: Swift.String) {
+                self.message = message
+            }
+            internal enum CodingKeys: String, CodingKey {
+                case message
+            }
+        }
+        /// The artifact exists in the cache and can be downloaded
+        ///
+        /// - Remark: Generated from `#/components/schemas/CacheArtifactExistence`.
+        internal struct CacheArtifactExistence: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/CacheArtifactExistence/data`.
+            internal var data: OpenAPIRuntime.OpenAPIObjectContainer?
+            /// - Remark: Generated from `#/components/schemas/CacheArtifactExistence/status`.
+            internal enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case success = "success"
+            }
+            /// - Remark: Generated from `#/components/schemas/CacheArtifactExistence/status`.
+            internal var status: Components.Schemas.CacheArtifactExistence.statusPayload?
+            /// Creates a new `CacheArtifactExistence`.
+            ///
+            /// - Parameters:
+            ///   - data:
+            ///   - status:
+            internal init(
+                data: OpenAPIRuntime.OpenAPIObjectContainer? = nil,
+                status: Components.Schemas.CacheArtifactExistence.statusPayload? = nil
+            ) {
+                self.data = data
+                self.status = status
+            }
+            internal enum CodingKeys: String, CodingKey {
+                case data
+                case status
+            }
+        }
+        /// The URL to upload a multipart part
+        ///
+        /// - Remark: Generated from `#/components/schemas/ArtifactMultipartUploadURL`.
+        internal struct ArtifactMultipartUploadURL: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/ArtifactMultipartUploadURL/data`.
+            internal struct dataPayload: Codable, Hashable, Sendable {
+                /// The URL to upload the part
+                ///
+                /// - Remark: Generated from `#/components/schemas/ArtifactMultipartUploadURL/data/url`.
+                internal var url: Swift.String
+                /// Creates a new `dataPayload`.
+                ///
+                /// - Parameters:
+                ///   - url: The URL to upload the part
+                internal init(url: Swift.String) {
+                    self.url = url
+                }
+                internal enum CodingKeys: String, CodingKey {
+                    case url
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/ArtifactMultipartUploadURL/data`.
+            internal var data: Components.Schemas.ArtifactMultipartUploadURL.dataPayload
+            /// - Remark: Generated from `#/components/schemas/ArtifactMultipartUploadURL/status`.
+            internal enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case success = "success"
+            }
+            /// - Remark: Generated from `#/components/schemas/ArtifactMultipartUploadURL/status`.
+            internal var status: Components.Schemas.ArtifactMultipartUploadURL.statusPayload
+            /// Creates a new `ArtifactMultipartUploadURL`.
+            ///
+            /// - Parameters:
+            ///   - data:
+            ///   - status:
+            internal init(
+                data: Components.Schemas.ArtifactMultipartUploadURL.dataPayload,
+                status: Components.Schemas.ArtifactMultipartUploadURL.statusPayload
+            ) {
+                self.data = data
+                self.status = status
+            }
+            internal enum CodingKeys: String, CodingKey {
+                case data
+                case status
+            }
+        }
+        /// This response confirms that the upload has been completed successfully. The cache will now be able to serve the artifact.
+        ///
+        /// - Remark: Generated from `#/components/schemas/CacheArtifactMultipartUploadCompletion`.
+        internal struct CacheArtifactMultipartUploadCompletion: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/CacheArtifactMultipartUploadCompletion/data`.
+            internal var data: OpenAPIRuntime.OpenAPIObjectContainer?
+            /// - Remark: Generated from `#/components/schemas/CacheArtifactMultipartUploadCompletion/status`.
+            internal enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case success = "success"
+            }
+            /// - Remark: Generated from `#/components/schemas/CacheArtifactMultipartUploadCompletion/status`.
+            internal var status: Components.Schemas.CacheArtifactMultipartUploadCompletion.statusPayload?
+            /// Creates a new `CacheArtifactMultipartUploadCompletion`.
+            ///
+            /// - Parameters:
+            ///   - data:
+            ///   - status:
+            internal init(
+                data: OpenAPIRuntime.OpenAPIObjectContainer? = nil,
+                status: Components.Schemas.CacheArtifactMultipartUploadCompletion.statusPayload? = nil
+            ) {
+                self.data = data
+                self.status = status
+            }
+            internal enum CodingKeys: String, CodingKey {
+                case data
+                case status
+            }
+        }
+        /// A pair of access token to authenticate requests and refresh token to generate new access tokens when they expire.
+        ///
+        /// - Remark: Generated from `#/components/schemas/AuthenticationTokens`.
+        internal struct AuthenticationTokens: Codable, Hashable, Sendable {
+            /// API access token.
+            ///
+            /// - Remark: Generated from `#/components/schemas/AuthenticationTokens/access_token`.
+            internal var access_token: Swift.String
+            /// A token to generate new API access tokens when they expire.
+            ///
+            /// - Remark: Generated from `#/components/schemas/AuthenticationTokens/refresh_token`.
+            internal var refresh_token: Swift.String
+            /// Creates a new `AuthenticationTokens`.
+            ///
+            /// - Parameters:
+            ///   - access_token: API access token.
+            ///   - refresh_token: A token to generate new API access tokens when they expire.
+            internal init(
+                access_token: Swift.String,
+                refresh_token: Swift.String
+            ) {
+                self.access_token = access_token
+                self.refresh_token = refresh_token
+            }
+            internal enum CodingKeys: String, CodingKey {
+                case access_token
+                case refresh_token
+            }
+        }
+        /// The maximum number of preview to return in a single page.
+        ///
+        /// - Remark: Generated from `#/components/schemas/PreviewIndexPageSize`.
+        internal typealias PreviewIndexPageSize = Swift.Int
         /// A user.
         ///
         /// - Remark: Generated from `#/components/schemas/User`.
@@ -2036,6 +2160,10 @@ internal enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/error_message`.
                     internal var error_message: Swift.String?
+                    /// The git branch.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/git_branch`.
+                    internal var git_branch: Swift.String?
                     /// The commit SHA.
                     ///
                     /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/git_commit_sha`.
@@ -2159,6 +2287,7 @@ internal enum Operations {
                     ///   - command_arguments: The arguments of the command.
                     ///   - duration: The duration of the command.
                     ///   - error_message: The error message of the command.
+                    ///   - git_branch: The git branch.
                     ///   - git_commit_sha: The commit SHA.
                     ///   - git_ref: The git ref. When on CI, the value can be equal to remote reference such as `refs/pull/1234/merge`.
                     ///   - git_remote_url_origin: The git remote URL origin.
@@ -2176,6 +2305,7 @@ internal enum Operations {
                         command_arguments: [Swift.String]? = nil,
                         duration: Swift.Double,
                         error_message: Swift.String? = nil,
+                        git_branch: Swift.String? = nil,
                         git_commit_sha: Swift.String? = nil,
                         git_ref: Swift.String? = nil,
                         git_remote_url_origin: Swift.String? = nil,
@@ -2193,6 +2323,7 @@ internal enum Operations {
                         self.command_arguments = command_arguments
                         self.duration = duration
                         self.error_message = error_message
+                        self.git_branch = git_branch
                         self.git_commit_sha = git_commit_sha
                         self.git_ref = git_ref
                         self.git_remote_url_origin = git_remote_url_origin
@@ -2211,6 +2342,7 @@ internal enum Operations {
                         case command_arguments
                         case duration
                         case error_message
+                        case git_branch
                         case git_commit_sha
                         case git_ref
                         case git_remote_url_origin
@@ -10728,6 +10860,318 @@ internal enum Operations {
             }
         }
     }
+    /// List previews.
+    ///
+    /// This endpoint returns a list of previews for a given project.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/previews`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/get(listPreviews)`.
+    internal enum listPreviews {
+        internal static let id: Swift.String = "listPreviews"
+        internal struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/path`.
+            internal struct Path: Sendable, Hashable {
+                /// The handle of the account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/path/account_handle`.
+                internal var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/path/project_handle`.
+                internal var project_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the account.
+                ///   - project_handle: The handle of the project.
+                internal init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                }
+            }
+            internal var path: Operations.listPreviews.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/query`.
+            internal struct Query: Sendable, Hashable {
+                /// The display name of previews.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/query/display_name`.
+                internal var display_name: Swift.String?
+                /// The preview version specifier. Currently, accepts a commit SHA, branch name, or latest.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/query/specifier`.
+                internal var specifier: Swift.String?
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/query/page_size`.
+                internal var page_size: Swift.Int?
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/query/page`.
+                internal var page: Swift.Int?
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/query/distinct_field`.
+                internal enum distinct_fieldPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case bundle_identifier = "bundle_identifier"
+                }
+                /// Distinct fields – no two previews will be returned with this field having the same value.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/query/distinct_field`.
+                internal var distinct_field: Operations.listPreviews.Input.Query.distinct_fieldPayload?
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - display_name: The display name of previews.
+                ///   - specifier: The preview version specifier. Currently, accepts a commit SHA, branch name, or latest.
+                ///   - page_size:
+                ///   - page:
+                ///   - distinct_field: Distinct fields – no two previews will be returned with this field having the same value.
+                internal init(
+                    display_name: Swift.String? = nil,
+                    specifier: Swift.String? = nil,
+                    page_size: Swift.Int? = nil,
+                    page: Swift.Int? = nil,
+                    distinct_field: Operations.listPreviews.Input.Query.distinct_fieldPayload? = nil
+                ) {
+                    self.display_name = display_name
+                    self.specifier = specifier
+                    self.page_size = page_size
+                    self.page = page
+                    self.distinct_field = distinct_field
+                }
+            }
+            internal var query: Operations.listPreviews.Input.Query
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/header`.
+            internal struct Headers: Sendable, Hashable {
+                internal var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listPreviews.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                internal init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listPreviews.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            internal var headers: Operations.listPreviews.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            internal init(
+                path: Operations.listPreviews.Input.Path,
+                query: Operations.listPreviews.Input.Query = .init(),
+                headers: Operations.listPreviews.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+            }
+        }
+        internal enum Output: Sendable, Hashable {
+            internal struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/responses/200/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/responses/200/content/json`.
+                    internal struct jsonPayload: Codable, Hashable, Sendable {
+                        /// Previews list.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/responses/200/content/json/previews`.
+                        internal var previews: [Components.Schemas.Preview]
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - previews: Previews list.
+                        internal init(previews: [Components.Schemas.Preview]) {
+                            self.previews = previews
+                        }
+                        internal enum CodingKeys: String, CodingKey {
+                            case previews
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/responses/200/content/application\/json`.
+                    case json(Operations.listPreviews.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Operations.listPreviews.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.listPreviews.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.listPreviews.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Successful response for listing previews.
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/get(listPreviews)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.listPreviews.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            internal var ok: Operations.listPreviews.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/responses/401/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.listPreviews.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.listPreviews.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/get(listPreviews)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.listPreviews.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            internal var unauthorized: Operations.listPreviews.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/responses/403/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.listPreviews.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.listPreviews.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized to perform this action
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/get(listPreviews)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.listPreviews.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            internal var forbidden: Operations.listPreviews.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        internal enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            internal init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            internal var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            internal static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
     /// It completes a multi-part upload.
     ///
     /// Given the upload ID and all the parts with their ETags, this endpoint completes the multipart upload.
@@ -11004,7 +11448,7 @@ internal enum Operations {
                     self.body = body
                 }
             }
-            /// The project doesn't exist
+            /// The project or preview doesn't exist
             ///
             /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/complete/post(completePreviewsMultipartUpload)/responses/404`.
             ///
@@ -12057,6 +12501,307 @@ internal enum Operations {
             /// - Throws: An error if `self` is not `.notFound`.
             /// - SeeAlso: `.notFound`.
             internal var notFound: Operations.downloadPreview.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        internal enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            internal init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            internal var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            internal static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Uploads a preview icon.
+    ///
+    /// The endpoint uploads a preview icon.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/post(uploadPreviewIcon)`.
+    internal enum uploadPreviewIcon {
+        internal static let id: Swift.String = "uploadPreviewIcon"
+        internal struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/POST/path`.
+            internal struct Path: Sendable, Hashable {
+                /// The handle of the account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/POST/path/account_handle`.
+                internal var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/POST/path/project_handle`.
+                internal var project_handle: Swift.String
+                /// The preview identifier.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/POST/path/preview_id`.
+                internal var preview_id: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the account.
+                ///   - project_handle: The handle of the project.
+                ///   - preview_id: The preview identifier.
+                internal init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String,
+                    preview_id: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                    self.preview_id = preview_id
+                }
+            }
+            internal var path: Operations.uploadPreviewIcon.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/POST/header`.
+            internal struct Headers: Sendable, Hashable {
+                internal var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.uploadPreviewIcon.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                internal init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.uploadPreviewIcon.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            internal var headers: Operations.uploadPreviewIcon.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            internal init(
+                path: Operations.uploadPreviewIcon.Input.Path,
+                headers: Operations.uploadPreviewIcon.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        internal enum Output: Sendable, Hashable {
+            internal struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/POST/responses/200/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/POST/responses/200/content/application\/json`.
+                    case json(Components.Schemas.ArtifactUploadURL)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas.ArtifactUploadURL {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.uploadPreviewIcon.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.uploadPreviewIcon.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The presigned upload URL
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/post(uploadPreviewIcon)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.uploadPreviewIcon.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            internal var ok: Operations.uploadPreviewIcon.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/POST/responses/401/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/POST/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.uploadPreviewIcon.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.uploadPreviewIcon.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/post(uploadPreviewIcon)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.uploadPreviewIcon.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            internal var unauthorized: Operations.uploadPreviewIcon.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/POST/responses/403/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/POST/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.uploadPreviewIcon.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.uploadPreviewIcon.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized to perform this action
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/post(uploadPreviewIcon)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.uploadPreviewIcon.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            internal var forbidden: Operations.uploadPreviewIcon.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/POST/responses/404/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/POST/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.uploadPreviewIcon.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.uploadPreviewIcon.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The project or preview doesn't exist
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/post(uploadPreviewIcon)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.uploadPreviewIcon.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            internal var notFound: Operations.uploadPreviewIcon.Output.NotFound {
                 get throws {
                     switch self {
                     case let .notFound(response):

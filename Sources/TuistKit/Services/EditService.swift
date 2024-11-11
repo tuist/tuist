@@ -35,7 +35,7 @@ final class EditService {
     init(
         projectEditor: ProjectEditing = ProjectEditor(),
         opener: Opening = Opener(),
-        configLoader: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader()),
+        configLoader: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader(), warningController: WarningController.shared),
         pluginService: PluginServicing = PluginService(),
         cacheDirectoriesProvider: CacheDirectoriesProviding = CacheDirectoriesProvider()
     ) {
@@ -94,7 +94,10 @@ final class EditService {
 
     private func loadPlugins(at path: AbsolutePath) async -> Plugins {
         guard let config = try? await configLoader.loadConfig(path: path) else {
-            logger.warning("Unable to load Config.swift, fix any compiler errors and re-run for plugins to be loaded.")
+            logger
+                .warning(
+                    "Unable to load \(Constants.tuistManifestFileName), fix any compiler errors and re-run for plugins to be loaded."
+                )
             return .none
         }
 

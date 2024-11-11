@@ -9,7 +9,6 @@ description: TuistをSwiftパッケージで使用する方法を学びます。
 Tuist は、`Package.swift` をプロジェクトの DSL として使用することをサポートしており、パッケージのターゲットをネイティブの Xcode プロジェクトおよびターゲットに変換します。
 
 > [!WARNING]
-> この機能の目的は、開発者がSwiftパッケージにTuistを導入する影響を評価するための簡単な方法を提供することです。 [!WARNING]
 > この機能の目的は、開発者がSwiftパッケージにTuistを導入する影響を評価するための簡単な方法を提供することです。 そのため、Swiftパッケージマネージャーの全機能をサポートする予定はなく、<LocalizedLink href="/guides/develop/projects/code-sharing">Project Description Helper</LocalizedLink>のようなTuist特有の機能をパッケージの世界に持ち込むことも計画していません。
 
 > [!NOTE] ROOT DIRECTORY
@@ -37,4 +36,4 @@ After the resolution completes, you can then generate the project:
 tuist generate
 ```
 
-ほら！ ほら！ You have a native Xcode project that you can open and start working on.
+ほら！ ほら！ ほら！ You have a native Xcode project that you can open and start working on.

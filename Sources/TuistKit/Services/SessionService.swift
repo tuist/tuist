@@ -23,7 +23,7 @@ final class SessionService: SessionServicing {
     init(
         serverSessionController: ServerSessionControlling = ServerSessionController(),
         serverURLService: ServerURLServicing = ServerURLService(),
-        configLoader: ConfigLoading = ConfigLoader()
+        configLoader: ConfigLoading = ConfigLoader(warningController: WarningController.shared)
     ) {
         self.serverSessionController = serverSessionController
         self.serverURLService = serverURLService

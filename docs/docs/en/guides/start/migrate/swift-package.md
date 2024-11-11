@@ -46,7 +46,7 @@ Some things to note:
 - **Project:** Instead of exporting a `package` instance, you'll be exporting a `project` instance.
 - **Xcode language:** The primitives that you use to define your project mimic Xcode's language, so you'll find schemes, targets, and build phases among others.
 
-Then create a `Tuist/Config.swift` file with the following content:
+Then create a `Tuist.swift` file with the following content:
 
 ```swift
 import ProjectDescription
@@ -54,7 +54,7 @@ import ProjectDescription
 let config = Config()
 ```
 
-The `Config.swift` contains the configuration for your project and its directory, `Tuist`, serves as a reference to determine the root of your project. You can check out the <LocalizedLink href="/guides/develop/projects/directory-structure">directory structure</LocalizedLink> document to learn more about the structure of Tuist projects.
+The `Tuist.swift` contains the configuration for your project and its path serves as a reference to determine the root of your project. You can check out the <LocalizedLink href="/guides/develop/projects/directory-structure">directory structure</LocalizedLink> document to learn more about the structure of Tuist projects.
 
 ## Editing the project {#editing-the-project}
 

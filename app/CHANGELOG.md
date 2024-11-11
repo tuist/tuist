@@ -1,3 +1,8 @@
+## What's Changed in app@0.4.0
+* feat: add support for downloading latest previews by @fortmarek in [#7001](https://github.com/tuist/tuist/pull/7001)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/app@0.3.5...app@0.4.0
+
 ## What's Changed in app@0.3.5
 * fix: when scrolling, scroll only the other devices section by @fortmarek in [#6976](https://github.com/tuist/tuist/pull/6976)
 
