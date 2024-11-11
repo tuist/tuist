@@ -1595,8 +1595,8 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         XCTAssertEqual(
             buildPhase?.outputPaths,
             [
+                "$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/\(macroExecutable.productName)",
                 "$BUILD_DIR/Debug-$EFFECTIVE_PLATFORM_NAME/\(macroExecutable.productName)",
-                "$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/\(macroExecutable.productName)"
             ]
         )
     }

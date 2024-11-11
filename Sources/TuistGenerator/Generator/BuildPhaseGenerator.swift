@@ -472,7 +472,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         copySwiftMacrosBuildPhase.outputPaths = executableNames.flatMap { executable in
             [
                 "$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/\(executable)",
-                "$BUILD_DIR/Debug-$EFFECTIVE_PLATFORM_NAME/\(executable)"
+                "$BUILD_DIR/Debug-$EFFECTIVE_PLATFORM_NAME/\(executable)",
             ]
         }
 
