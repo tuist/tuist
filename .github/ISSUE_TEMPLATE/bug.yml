@@ -1,0 +1,70 @@
+name: Bug Report
+description: Create a bug with reproducible steps.
+title: "Insert title here"
+labels: ["type:bug"]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for taking the time to fill out this bug report!
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Describe the bug and the expected behavior
+      placeholder: A clear and concise description of what the bug is, and what you expect to happen instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: how-to-reproduce-it
+    attributes:
+      label: How do we reproduce it?
+      description: |
+        It's important that you take the time to explain us how to reproduce it to be able to provide you with a solution faster.
+        Any issue without a sample project and the steps to reproduce will be closed for lack of information.
+      placeholder: |
+        1. Use the attached sample project or the `XXX` fixture
+        2. Run `…`
+        3. See the error
+    validations:
+      required: true
+
+  - type: textarea
+    id: error-log
+    attributes:
+      label: Error log
+      description: The full error message
+      placeholder: |
+        ```sh
+        The full error message
+        ```
+    validations:
+      required: true
+
+  - type: input
+    id: macos-version
+    attributes:
+      label: macOS version
+      description: In which macOS version are you running Tuist?
+      placeholder: "12.0"
+    validations:
+      required: true
+
+  - type: input
+    id: tuist-version
+    attributes:
+      label: Tuist version
+      description: Which version of Tuist are you using?
+      placeholder: "3.0.0"
+    validations:
+      required: true
+
+  - type: input
+    id: xcode-version
+    attributes:
+      label: Xcode version
+      description: Which version of Xcode are you using?
+      placeholder: "14.0.0"
+    validations:
+      required: true
