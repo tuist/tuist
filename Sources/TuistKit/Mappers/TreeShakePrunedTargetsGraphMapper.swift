@@ -77,10 +77,26 @@ public final class TreeShakePrunedTargetsGraphMapper: GraphMapping {
         var treeShakedDependencies: [GraphDependency: Set<GraphDependency>] = [:]
 
         for target in targets {
-            guard let target = graph.projects[path]?.targets[target.name] else { continue }
+            guard var target = graph.projects[path]?.targets[target.name] else { continue }
             let targetReference = TargetReference(projectPath: path, name: target.name)
             guard sourceTargets.contains(targetReference) else { continue }
+
+            /**
+             Since we have target.dependencies and graph.dependencies (duplicated), we have to apply the changes in both sides.
+             Once we refactor the code to only depend on graph.dependencies, we can get rid of these duplications.
+             */
+            target.dependencies = target.dependencies.filter({ dependency in
+                switch dependency {
+                case let .target(targetDependencyName, _, _condition):
+                    return sourceTargets.contains(TargetReference(projectPath: path, name: targetDependencyName))
+                case let .project(targetDependencyName, targetDependencyProjectPath, _status, _condition):
+                    return sourceTargets.contains(TargetReference(projectPath: targetDependencyProjectPath, name: targetDependencyName))
+                default:
+                    return true
+                }
+            })
             treeShakedTargets.append(target)
+
 
             if let targetGraphDependency = dependencies.keys.first(where: { dependency -> Bool in
                 switch dependency {
