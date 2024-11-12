@@ -1520,6 +1520,7 @@ internal enum Components {
             /// - Remark: Generated from `#/components/schemas/Organization/sso_provider`.
             internal enum sso_providerPayload: String, Codable, Hashable, Sendable, CaseIterable {
                 case google = "google"
+                case okta = "okta"
             }
             /// The SSO provider set up for the organization
             ///
@@ -5956,6 +5957,7 @@ internal enum Operations {
                     /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/PATCH/requestBody/json/sso_provider`.
                     internal enum sso_providerPayload: String, Codable, Hashable, Sendable, CaseIterable {
                         case google = "google"
+                        case okta = "okta"
                         case none = "none"
                     }
                     /// The SSO provider to set up for the organization
@@ -6335,6 +6337,7 @@ internal enum Operations {
                     /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/PUT/requestBody/json/sso_provider`.
                     internal enum sso_providerPayload: String, Codable, Hashable, Sendable, CaseIterable {
                         case google = "google"
+                        case okta = "okta"
                         case none = "none"
                     }
                     /// The SSO provider to set up for the organization

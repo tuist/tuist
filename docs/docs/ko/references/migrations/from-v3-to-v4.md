@@ -10,7 +10,7 @@ description: 이 페이지에서는 Tuist CLI를 버전 3에서 버전 4로 마�
 
 ### `tuistenv`를 통한 버전 관리가 삭제되었습니다. {#dropped-version-management-through-tuistenv}
 
-Tuist 4 이전에는 설치 스크립트가 `tuistenv`라는 도구를 설치했으며, 설치 시 이 도구는 `tuist`로 이름이 변경되었습니다. 이 도구는 Tuist의 버전을 설치하고 활성화하여 환경 간의 일관성을 보장하는 역할을 했습니다. Tuist의 기능 범위를 줄이기 위해, 동일한 작업을 수행하지만 더 유연하고 다양한 도구에서 사용할 수 있는 [Mise](https://mise.jdx.dev/)로 대체하면서 `tuistenv` 지원을 중단하기로 결정했습니다. If you were using `tuistenv`, you'll have to uninstall the current version of Tuist by running `curl -Ls https://uninstall.tuist.io | bash` and then install it using the installation method of your choice. We strongly recommend the usage of Mise because it's able to install and activate versions deterministically across environments.
+Tuist 4 이전에는 설치 스크립트가 `tuistenv`라는 도구를 설치했으며, 설치 시 이 도구는 `tuist`로 이름이 변경되었습니다. 이 도구는 Tuist의 버전을 설치하고 활성화하여 환경 간의 일관성을 보장하는 역할을 했습니다. Tuist의 기능 범위를 줄이기 위해, 동일한 작업을 수행하지만 더 유연하고 다양한 도구에서 사용할 수 있는 [Mise](https://mise.jdx.dev/)로 대체하면서 `tuistenv` 지원을 중단하기로 결정했습니다. `tuistenv`를 사용하고 있었다면, 현재 버전의 Tuist를 `curl -Ls https://uninstall.tuist.io | bash` 명령어로 제거한 후, 원하는 설치 방법을 사용하여 다시 설치해야 합니다. 환경 간에 일관된 방식으로 버전을 설치하고 활성화할 수 있기 때문에 Mise 사용을 강력히 권장합니다.
 
 ::: code-group
 
@@ -20,15 +20,15 @@ curl -Ls https://uninstall.tuist.io | bash
 
 :::
 
-> [!IMPORTANT] MISE IN CI ENVIRONMENTS AND XCODE PROJECTS
-> If you decide to embrace the determinism that Mise brings across the board, we recommend checking out the documentation for how to use Mise in [CI environments](https://mise.jdx.dev/continuous-integration.html) and [Xcode projects](https://mise.jdx.dev/ide-integration.html#xcode).
+> [!IMPORTANT] CI 환경과 Xcode 프로젝트에서 Mise 사용
+> Mise가 제공하는 일관성을 활용하기로 했다면, [CI 환경](https://mise.jdx.dev/continuous-integration.html)과 [Xcode 프로젝트](https://mise.jdx.dev/ide-integration.html#xcode)에서 Mise를 사용하는 방법에 대한 문서를 확인해 보시기를 권장합니다.
 
-> [!NOTE] HOMEBREW IS SUPPORTED
-> Note that you can still install Tuist using Homebrew, which is a popular package manager for macOS. You can find the instructions on how to install Tuist using Homebrew in the <LocalizedLink href="/guides/quick-start/install-tuist#alternative-homebrew">installation guide</LocalizedLink>.
+> [!NOTE] Homebrew 지원됨
+> macOS용 인기 패키지 관리자인 Homebrew를 통해 Tuist를 설치할 수 있다는 점을 참고하세요. Homebrew를 사용하여 Tuist를 설치하는 방법은 <LocalizedLink href="/guides/quick-start/install-tuist#alternative-homebrew">설치 가이드</LocalizedLink>에서 확인할 수 있습니다.
 
-### Dropped `init` constructors from `ProjectDescription` models {#dropped-init-constructors-from-projectdescription-models}
+### `ProjectDescription` 모델에서 `init` 생성자가 제거되었습니다. {#dropped-init-constructors-from-projectdescription-models}
 
-With the aim of improving the readability and expressiveness of the APIs, we decided to remove the `init` constructors from all the `ProjectDescription` models. Every model now provides a static constructor that you can use to create instances of the models. If you were using the `init` constructors, you'll have to update your project to use the static constructors instead.
+API의 가독성과 표현력을 높이기 위해, 모든 `ProjectDescription` 모델에서 `init` 생성자를 제거하기로 결정했습니다. 이제 각 모델은 인스턴스를 생성할 수 있는 정적 생성자를 제공합니다. 만약 `init` 생성자를 사용하고 있었다면, 이제 정적 생성자를 사용하도록 프로젝트를 업데이트해야 합니다.
 
 > [!TIP] NAMING CONVENTION
 > The naming convention that we follow is to use the name of the model as the name of the static constructor. For example, the static constructor for the `Target` model is `Target.target`.

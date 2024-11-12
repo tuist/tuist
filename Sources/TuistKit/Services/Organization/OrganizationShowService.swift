@@ -89,6 +89,8 @@ final class OrganizationShowService: OrganizationShowServicing {
             switch ssoOrganization {
             case let .google(organizationId):
                 baseInfo.append("SSO: Google (\(organizationId))")
+            case let .okta(organizationId):
+                baseInfo.append("SSO: Okta (\(organizationId))")
             }
         }
 

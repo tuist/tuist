@@ -1500,6 +1500,8 @@ public class GraphTraverser: GraphTraversing {
             )
         case let .bundle(path):
             return .bundle(path: path, condition: condition)
+        case let .packageProduct(_, product, .runtimeEmbedded):
+            return .packageProduct(product: product, condition: condition)
         case .packageProduct:
             return nil
         case let .sdk(_, path, status, source):

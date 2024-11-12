@@ -48,16 +48,6 @@ Target은 같은 프로젝트나 다른 프로젝트의 타겟, 그리고 바이
 > [!NOTE] 의존성 조건
 > 모든 의존성 유형은 플랫폼에 따라 의존성을 조건부로 연결하기 위한 `condition` 옵션을 허용합니다. 기본적으로, 타겟이 지원하는 모든 플랫폼에 대해 의존성이 연결됩니다.
 
-> [!TIP] 명시적 의존성 강제하기
-> Xcode에서 명시적 의존성을 강제하는 실험적 기능이 있습니다. 타겟이 명시적으로 선언한 의존성만 import할 수 있도록 이 기능을 활성화하는 것을 권장합니다.
->
-> ```swift
-> import ProjectDescription
-> let config = Config(generationOptions: .options(enforceExplicitDependencies: true))
-> ```
-
-<!-- > Warning: We haven't yet solved the problem of targets being able to import dependencies that they shouldn't. Some users have implemented their custom solutions to detect this, but we haven't yet found a solution that we're happy with. We are currently exploring customizing the directory where products are outputted to solve this problem. -->
-
 ## 외부 의존성 {#external-dependencies}
 
 Tuist는 프로젝트에서 외부 의존성을 선언할 수 있습니다.
@@ -117,7 +107,7 @@ tuist install
 # Installing Swift Package Manager dependencies. {#installing-swift-package-manager-dependencies}
 ```
 
-눈치채셨겠지만, 저희는 [CocoaPods](https://cocoapods.org)'처럼 의존성 해석을 별도의 명령어로 분리하는 방식을 채택했습니다. 이렇게 하면 사용자가 원하는 시점에 의존성을 해석하고 업데이트할 수 있으며, Xcode에서 프로젝트를 열었을 때 바로 컴파일할 수 있는 상태가 됩니다. 이는 프로젝트가 커질수록 Apple이 제공하는 Swift Package Manager 통합 방식에서 개발자 경험이 저하되는 부분입니다.
+눈치채셨겠지만, 저희는 [CocoaPods](https://cocoapods.org)'처럼 의존성 해석을 별도의 명령어로 분리하는 방식을 채택했습니다. 이렇게 하면 사용자가 원하는 시점에 의존성을 해석하고 업데이트할 수 있으며, Xcode에서 프로젝트를 열었을 때 바로 컴파일할 수 있는 상태가 됩니다. 이는 프로젝트가 커질수록 Apple이 제공하는 Swift Package Manager 통합 방식에서 개발자 경험이 저하되는 부분입니다.
 
 프로젝트의 타겟에서 `TargetDependency.external` 의존성 타입을 사용하여 이러한 의존성을 참조할 수 있습니다:
 
@@ -153,7 +143,7 @@ let project = Project(
 
 #### Xcode의 기본 통합 {#xcodes-default-integration}
 
-If you want to use Xcode's default integration mechanism, you can pass the list `packages` when instantiating a project:
+Xcode의 기본 통합 메커니즘을 사용하려면 프로젝트를 생성할 때 `packages` 목록을 전달하면 됩니다:
 
 ```swift
 let project = Project(name: "MyProject", packages: [
@@ -161,7 +151,7 @@ let project = Project(name: "MyProject", packages: [
 ])
 ```
 
-And then reference them from your targets:
+그런 다음 target에서 참조하면 됩니다.
 
 ```swift
 let target = .target(name: "MyTarget", dependencies: [
@@ -169,10 +159,10 @@ let target = .target(name: "MyTarget", dependencies: [
 ])
 ```
 
-For Swift Macros and Build Tool Plugins, you'll need to use the types `.macro` and `.plugin` respectively.
+Swift Macro와 Build Tool Plugin의 경우 각각 `.macro`와 `.plugin` type을 사용해야 합니다.
 
 > [!WARNING] SPM Build Tool Plugins
-> SPM build tool plugins must be declared using [Xcode's default integration](#xcode-s-default-integration) mechanism, even when using Tuist's [XcodeProj-based integration](#tuist-s-xcodeproj-based-integration) for your project dependencies.
+> Tuist의 [XcodeProj 기반 통합](#tuist-s-xcodeproj-based-integration)을 사용해 프로젝트의 의존성을 관리하더라도, SPM build tool plugin은 반드시 [Xcode의 기본 통합](#xcode-s-default-integration) 메커니즘을 통해 선언해야 합니다.
 
 A practical application of an SPM build tool plugin is performing code linting during Xcode's "Run Build Tool Plug-ins" build phase. In a package manifest this is defined as follows:
 

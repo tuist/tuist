@@ -92,34 +92,33 @@ TUIST_DYNAMIC=1 tuist generate
 
 ## 명시적, 명시적, 그리고 명시적 {#explicit-explicit-and-explicit}
 
-If there's an important non-written principle that we recommend every developer or organization that wants their development with Xcode to scale, is that they should embrace explicitness. And if explicitness is hard to manage with raw Xcode projects, they should consider something else, either [Tuist](https://tuist.io) or [Bazel](https://bazel.build). **Only then reliability, predicability, and optimizations will be possible.**
+Xcode로 개발을 확장하려는 모든 개발자나 조직에게 권장하는 중요한 비공식 원칙이 있다면, 그것은 명시성을 채택하는 것입니다. 그리고 명시성을 본래 Xcode 프로젝트에서 관리하기 어려워진다면, [Tuist](https://tuist.io)나 [Bazel](https://bazel.build)과 같은 다른 방법을 고려해볼 필요가 있습니다. **그러면 신뢰성, 예측 가능성, 그리고 최적화가 가능해 집니다.**
 
-## Future {#future}
+## 미래 {#future}
 
-Whether Apple will do something to prevent all the above issues is unknown.
-Their continuous decisions embedded into Xcode and the Swift Package Manager don't suggest that they will.
-Once you allow implicit configuration as a valid state,
-**it's hard to move from there without introducing breaking changes.**
-Going back to first principles and rethinking the design of the tools might lead to breaking many Xcode projects that accidentally compiled for years. Imagine the community uproar if that happened.
+Apple의 위의 문제를 해결하기 위해 어떤 조치를 취할지는 알 수 없습니다.
+Xcode와 Swift Package Manager에 반영된 Apple의 지속적인 내용은 Apple은 해당 문제를 해결할 의향이 없음을 시사합니다.
+암시적 구성을 유효한 상태로 허용하면,
+**기존 호환성을 깨는 변경을 도입하지 않으면 이 상태를 벗어나기 어렵습니다.**
+기본 원칙으로 돌아가 툴의 설계를 재구성하면, 여러 해동안 우연히 컴파일이 되던 많은 Xcode 프로젝트가 더이상 정상적으로 동작 하지 않을 수 있습니다. 이런 일이 일어난다면, 커뮤니티에 일어날 소란을 상상해 보시기 바랍니다.
 
-Apple finds itself in a bit of a chicken-and-egg problem.
-Convenience is what helps developers get started quickly and build more apps for their ecosystem.
-But their decisions to make the experience convenience at that scale,
-is making it hard for them to ensure some of the Xcode features work reliably.
+Apple은 닭이 먼저냐, 달걀이 먼저냐의 문제에 직면해 있습니다.
+편리함은 개발자가 빠르게 시작하고 Apple 생태계에서 더 많은 앱을 만들 수 있도록 도와줍니다.
+하지만 편리한 경험을 위한 결정이 Xcode의 일부 기능이 신뢰성 있게 동작하기 어렵게 만듭니다.
 
-Because the future is unknown,
-we try to **be as close as possible to the industry standards and Xcode projects**.
-We prevent the above issues,
-and leverage the knowledge that we have to provide a better developer experience.
-Ideally we wouldn't have to resort to project generation for that,
-but the lack of extensibility of Xcode and the Swift Package Manager make it the only viable option.
-And it's also a safe option because they'll have to break the Xcode projects to break Tuist projects.
+미래는 알 수 없기 때문에,
+우리는 **업계 표준과 Xcode 프로젝트에 최대한 부합하도록** 노력합니다.
+우리는 위의 문제를 방지하고,
+우리가 가진 지식을 활용해 더 나은 개발자 경험을 제공합니다.
+이론적으로는 프로젝트 생성 할 필요가 없지만,
+Xcode와 Swift Package Manager의 확장성 부족으로 인해 프로젝트 생성이 유일한 방법입니다.
+그리고 이런 방법이 Tuist 프로젝트에 문제가 생기면 Xcode 프로젝트도 문제가 생기기 때문에 안전한 방법입니다.
 
-Ideally, **the build system was more extensible**,
-but wouldn't it be a bad idea to have plugins/extensions that contract with a world of implicitness?
-It doesn't seem like a good idea.
-So it seems like we'll need external tools like Tuist or [Bazel](https://bazel.build) to provide a better developer experience.
-Or maybe Apple will surprise us all and make Xcode more extensible and explicit...
+이론적으로는 **빌드 시스템이 더 확장 가능**해야 하지만,
+암묵적인 방식과 결합되는 플러그인/확장을 두는 것이 더 나쁜 아이디어가 아닐까요?
+이것은 좋은 생각이 아닌 것 같습니다.
+그래서 더 나은 개발자 경험을 제공하기 위해 Tuist나 [Bazel](https://bazel.build)과 같은 외부 툴이 필요합니다.
+아니면 Apple이 우리 모두를 놀라게 하고 Xcode를 더 확장 가능하고 명시적으로 만들어 줄지도 모릅니다...
 
-Until that happens, you have to choose whether you want to embrace the convencience of Xcode and take on the debt that comes with it, or trust us on this journey to provide a better developer experience.
-We won't disappoint you.
+그 일이 일어나기 전까지는, Xcode의 편리함을 받아들이고 그에 따르는 부채를 감수할지, 아니면 더 나은 개발자 경험을 제공하기 위해 우리를 믿고 따라올지 결정해야 합니다.
+우린 당신을 실망시키지 않습니다.

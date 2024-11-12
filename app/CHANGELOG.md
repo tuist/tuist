@@ -1,3 +1,14 @@
+## What's Changed in app@0.5.0
+* feat: report status when installing preview by @fortmarek in [#7024](https://github.com/tuist/tuist/pull/7024)
+* feat: add support for preview icons by @fortmarek in [#7021](https://github.com/tuist/tuist/pull/7021)
+* feat: Update the default server URL to `tuist.dev` by @pepicrft in [#7020](https://github.com/tuist/tuist/pull/7020)
+* fix: failing AppTests by @fortmarek in [#7013](https://github.com/tuist/tuist/pull/7013)
+* fix: app release script by @fortmarek in [#7012](https://github.com/tuist/tuist/pull/7012)
+* fix: handle empty state when no latest previews are available by @fortmarek in [#7011](https://github.com/tuist/tuist/pull/7011)
+* refactor: combine Tuist CLI and App workspaces into one by @fortmarek in [#7008](https://github.com/tuist/tuist/pull/7008)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/app@0.4.0...app@0.5.0
+
 ## What's Changed in app@0.4.0
 * feat: add support for downloading latest previews by @fortmarek in [#7001](https://github.com/tuist/tuist/pull/7001)
 
