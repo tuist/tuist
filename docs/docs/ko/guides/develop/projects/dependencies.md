@@ -212,7 +212,7 @@ let project = Project(
 
 ### Carthage {#carthage}
 
-Since [Carthage](https://github.com/carthage/carthage) outputs `frameworks` or `xcframeworks`, you can run `carthage update` to output the dependencies in the `Carthage/Build` directory and then use the `.framework` or `.xcframework` target dependency type to declare the dependency in your target. You can wrap this in a script that you can run before generating the project.
+[Carthage](https://github.com/carthage/carthage)는 `frameworks` 또는 `xcframeworks`를 생성하므로, `carthage update` 명령어를 실행해 `Carthage/Build` 디렉토리에 의존성들을 생성한 후, `.framework` 또는 `.xcframework` target dependency type을 사용하여 대상에서 의존성을 선언할 수 있습니다. 이 과정을 다음과 같이 스크립트로 작성하여 프로젝트 생성 전에 실행할 수 있습니다.
 
 ```bash
 #!/usr/bin/env bash
@@ -221,12 +221,12 @@ carthage update
 tuist generate
 ```
 
-> [!WARNING] BUILD AND TEST
-> If you build and test your project through `tuist build` and `tuist test`, you will similarly need to ensure that the Carthage-resolved dependencies are present by running the `carthage update` command before `tuist build` or `tuist test` are run.
+> [!WARNING] 빌드 및 테스트
+> `tuist build`와 `tuist test`를 통해 프로젝트를 빌드하고 테스트하는 경우, `tuist build` 또는 `tuist build`를 실행하기 전에 `carthage update` 명령어를 실행하여 Carthage로 해결된 의존성들이 존재하는지 확인해야 합니다.
 
 ### CocoaPods {#cocoapods}
 
-[CocoaPods](https://cocoapods.org) expects an Xcode project to integrate the dependencies. You can use Tuist to generate the project, and then run `pod install` to integrate the dependencies by creating a workspace that contains your project and the Pods dependencies. You can wrap this in a script that you can run before generating the project.
+[CocoaPods](https://cocoapods.org)은 의존성을 통합하기 위해 Xcode 프로젝트가 필요합니다. Tuist를 사용하여 프로젝트를 생성한 후, `pod install` 명령어를 실행하여 프로젝트와 Pods 의존성이 포함된 workspace를 생성함으로써 의존성을 통합할 수 있습니다. 이 과정을 다음과 같이 스크립트로 작성하여 프로젝트 생성 전에 실행할 수 있습니다.
 
 ```bash
 #!/usr/bin/env bash
@@ -236,11 +236,11 @@ pod install
 ```
 
 > [!WARNING]
-> CocoaPods dependencies are not compatible with workflows like `build` or `test` that run `xcodebuild` right after generating the project. They are also incompatible with binary caching and selective testing since the fingerprinting logic doesn't account for the Pods dependencies.
+> CocoaPods 의존성은 프로젝트 생성 직후 `xcodebuild`를 실행하는 `build` 또는 `test`와 같은 workflow와 호환되지 않습니다. 또한, Pods 의존성을 fingerprinting logic에서 고려하지 않기 때문에, binary caching 및 selective testing과도 호환되지 않습니다.
 
 ## Static or dynamic {#static-or-dynamic}
 
-Frameworks and libraries can be linked either statically or dynamically, **a choice that has significant implications for aspects like app size and boot time**. Despite its importance, this decision is often made without much consideration.
+Framework와 Library는 정적(static) 또는 동적(dynamic)으로 링크할 수 있으며, **이는 앱 크기와 실행 시간과 같은 부분에 크게 영향을 미칩니다.** Despite its importance, this decision is often made without much consideration.
 
 The **general rule of thumb** is that you want as many things as possible to be statically linked in release builds to achieve fast boot times, and as many things as possible to be dynamically linked in debug builds to achieve fast iteration times.
 
