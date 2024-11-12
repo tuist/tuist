@@ -30,12 +30,12 @@ curl -Ls https://uninstall.tuist.io | bash
 
 API의 가독성과 표현력을 높이기 위해, 모든 `ProjectDescription` 모델에서 `init` 생성자를 제거하기로 결정했습니다. 이제 각 모델은 인스턴스를 생성할 수 있는 정적 생성자를 제공합니다. 만약 `init` 생성자를 사용하고 있었다면, 이제 정적 생성자를 사용하도록 프로젝트를 업데이트해야 합니다.
 
-> [!TIP] NAMING CONVENTION
-> The naming convention that we follow is to use the name of the model as the name of the static constructor. For example, the static constructor for the `Target` model is `Target.target`.
+> [!TIP] 명명 규칙
+> 우리가 따르는 명명 규칙은 모델의 이름을 정적 생성자의 이름으로 사용하는 것입니다. 예를 들어, `Target` 모델의 정적 생성자는 `Target.target`입니다.
 
-### Renamed `--no-cache` to `--no-binary-cache` {#renamed-nocache-to-nobinarycache}
+### `--no-cache` 가 `--no-binary-cache`로 이름이 변경되었습니다. {#renamed-nocache-to-nobinarycache}
 
-Because the `--no-cache` flag was ambiguous, we decided to rename it to `--no-binary-cache` to make it clear that it refers to the binary cache. If you were using the `--no-cache` flag, you'll have to update your project to use the `--no-binary-cache` flag instead.
+왜냐하면 `--no-cache` 플래그가 모호했기 때문에, 이를 `--no-binary-cache`로 변경하여 바이너리 캐시를 의미한다는 점을 명확히 했습니다. 만약 `--no-cache` 플래그를 사용하고 있었다면, 이제 `--no-binary-cache` 플래그를 사용하도록 프로젝트를 업데이트해야 합니다.
 
 ### Renamed `tuist fetch` to `tuist install` {#renamed-tuist-fetch-to-tuist-install}
 
