@@ -319,10 +319,10 @@
     {
       "identity" : "xcodeproj",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/tuist/XcodeProj",
+      "location" : "https://github.com/kelvinharron/XcodeProj",
       "state" : {
-        "revision" : "59b6e3fe9b07e3323b4c4e97b58523bc3c5754a0",
-        "version" : "8.24.4"
+        "branch" : "add-swifttesting-parallelizable-handling",
+        "revision" : "0090f0f2e2cd3f29d38bfa075853ceea338a174d"
       }
     },
     {
