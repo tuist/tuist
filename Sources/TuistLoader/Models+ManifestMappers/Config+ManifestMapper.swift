@@ -36,49 +36,46 @@ extension TuistCore.Config {
         rootDirectory: AbsolutePath,
         at path: AbsolutePath
     ) async throws -> TuistCore.Config {
-        let generatorPaths = GeneratorPaths(manifestDirectory: path, rootDirectory: rootDirectory)
-        var generationOptions = try TuistCore.Config.GenerationOptions.from(
-            manifest: manifest.generationOptions,
-            generatorPaths: generatorPaths
-        )
-        let compatibleXcodeVersions = TuistCore.CompatibleXcodeVersions.from(manifest: manifest.compatibleXcodeVersions)
-        let plugins = try manifest.plugins.map { try PluginLocation.from(manifest: $0, generatorPaths: generatorPaths) }
-        let swiftVersion: TSCUtility.Version?
-        if let configuredVersion = manifest.swiftVersion {
-            swiftVersion = TSCUtility.Version(configuredVersion.major, configuredVersion.minor, configuredVersion.patch)
-        } else {
-            swiftVersion = nil
+        switch manifest.project {
+        case let .tuist(compatibleXcodeVersions, manifestSwiftVersion, plugins, generationOptions, installOptions):
+            let generatorPaths = GeneratorPaths(manifestDirectory: path, rootDirectory: rootDirectory)
+            var generationOptions = try TuistCore.Config.GenerationOptions.from(
+                manifest: generationOptions,
+                generatorPaths: generatorPaths
+            )
+            let compatibleXcodeVersions = TuistCore.CompatibleXcodeVersions.from(manifest: compatibleXcodeVersions)
+            let plugins = try plugins.map { try PluginLocation.from(manifest: $0, generatorPaths: generatorPaths) }
+            let swiftVersion: TSCUtility.Version?
+            if let configuredVersion = manifestSwiftVersion {
+                swiftVersion = TSCUtility.Version(configuredVersion.major, configuredVersion.minor, configuredVersion.patch)
+            } else {
+                swiftVersion = nil
+            }
+
+            let fullHandle = manifest.fullHandle
+            let urlString = manifest.url
+
+            guard let url = URL(string: urlString.dropSuffix("/")) else {
+                throw ConfigManifestMapperError.invalidServerURL(manifest.url)
+            }
+
+            let installOptions = TuistCore.Config.InstallOptions.from(
+                manifest: installOptions
+            )
+
+            return TuistCore.Config(
+                compatibleXcodeVersions: compatibleXcodeVersions,
+                fullHandle: fullHandle,
+                url: url,
+                swiftVersion: swiftVersion.map { .init(stringLiteral: $0.description) },
+                plugins: plugins,
+                generationOptions: generationOptions,
+                installOptions: installOptions,
+                path: path
+            )
+        case .xcode:
+            fatalError("Xcode projects and workspaces are not supported yet.")
         }
-
-        let fullHandle: String?
-        let urlString: String
-        if let manifestCloud = manifest.cloud {
-            fullHandle = manifestCloud.projectId
-            urlString = manifestCloud.url
-            generationOptions.optionalAuthentication = manifestCloud.options.contains(.optional)
-        } else {
-            fullHandle = manifest.fullHandle
-            urlString = manifest.url
-        }
-
-        guard let url = URL(string: urlString.dropSuffix("/")) else {
-            throw ConfigManifestMapperError.invalidServerURL(manifest.url)
-        }
-
-        let installOptions = TuistCore.Config.InstallOptions.from(
-            manifest: manifest.installOptions
-        )
-
-        return TuistCore.Config(
-            compatibleXcodeVersions: compatibleXcodeVersions,
-            fullHandle: fullHandle,
-            url: url,
-            swiftVersion: swiftVersion.map { .init(stringLiteral: $0.description) },
-            plugins: plugins,
-            generationOptions: generationOptions,
-            installOptions: installOptions,
-            path: path
-        )
     }
 }
 

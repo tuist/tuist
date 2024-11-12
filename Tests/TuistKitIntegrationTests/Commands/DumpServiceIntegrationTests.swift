@@ -172,34 +172,37 @@ final class DumpServiceTests: TuistTestCase {
         try await subject.run(path: tmpDir.pathString, manifest: .config)
         let expected = """
         {
-          "compatibleXcodeVersions": {
-            "all": {
-
-            }
-          },
           "fullHandle": "tuist/tuist",
-          "generationOptions": {
-            "disablePackageVersionLocking": false,
-            "enforceExplicitDependencies": false,
-            "optionalAuthentication": false,
-            "resolveDependenciesWithSystemScm": false,
-            "staticSideEffectsWarningTargets": {
-              "all": {
+          "project": {
+            "tuist": {
+              "compatibleXcodeVersions": {
+                "all": {
 
-              }
+                }
+              },
+              "generationOptions": {
+                "disablePackageVersionLocking": false,
+                "enforceExplicitDependencies": false,
+                "optionalAuthentication": false,
+                "resolveDependenciesWithSystemScm": false,
+                "staticSideEffectsWarningTargets": {
+                  "all": {
+
+                  }
+                }
+              },
+              "installOptions": {
+                "passthroughSwiftPackageManagerArguments": [
+                  "--replace-scm-with-registry"
+                ]
+              },
+              "plugins": [
+
+              ]
             }
           },
-          "installOptions": {
-            "passthroughSwiftPackageManagerArguments": [
-              "--replace-scm-with-registry"
-            ]
-          },
-          "plugins": [
-
-          ],
           "url": "https://tuist.dev"
         }
-
         """
 
         XCTAssertPrinterOutputContains(expected)
