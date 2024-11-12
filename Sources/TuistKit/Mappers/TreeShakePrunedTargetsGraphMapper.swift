@@ -85,18 +85,20 @@ public final class TreeShakePrunedTargetsGraphMapper: GraphMapping {
              Since we have target.dependencies and graph.dependencies (duplicated), we have to apply the changes in both sides.
              Once we refactor the code to only depend on graph.dependencies, we can get rid of these duplications.
              */
-            target.dependencies = target.dependencies.filter({ dependency in
+            target.dependencies = target.dependencies.filter { dependency in
                 switch dependency {
                 case let .target(targetDependencyName, _, _condition):
                     return sourceTargets.contains(TargetReference(projectPath: path, name: targetDependencyName))
                 case let .project(targetDependencyName, targetDependencyProjectPath, _status, _condition):
-                    return sourceTargets.contains(TargetReference(projectPath: targetDependencyProjectPath, name: targetDependencyName))
+                    return sourceTargets.contains(TargetReference(
+                        projectPath: targetDependencyProjectPath,
+                        name: targetDependencyName
+                    ))
                 default:
                     return true
                 }
-            })
+            }
             treeShakedTargets.append(target)
-
 
             if let targetGraphDependency = dependencies.keys.first(where: { dependency -> Bool in
                 switch dependency {
@@ -110,14 +112,17 @@ public final class TreeShakePrunedTargetsGraphMapper: GraphMapping {
                     dependencies[targetGraphDependency, default: Set()]
                         .compactMap { dependency in
                             switch dependency {
-                            case let .target(dependencyName, _, _):
+                            case let .target(dependencyName, dependencyProjectPath, _):
                                 /**
                                  If a target dependency a target depends on is tree-shaked, that dependency should be removed.
                                  This happens in scenarios where a external target (iOS and tvOS framework) conditionally depends on
                                  framework based on the platform. We have logic to prune unneceessary platforms from the external
                                  part of the graph.
                                  */
-                                if sourceTargets.contains(TargetReference(projectPath: path, name: dependencyName)) {
+                                if sourceTargets.contains(TargetReference(
+                                    projectPath: dependencyProjectPath,
+                                    name: dependencyName
+                                )) {
                                     return dependency
                                 } else {
                                     return nil
