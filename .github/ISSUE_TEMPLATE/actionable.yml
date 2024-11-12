@@ -1,5 +1,5 @@
 name: Actionable item
-description: Use this to capture an actionable item (e.g. a refactor, small improvements) that any contribute can pick up and work on. If you just had an idea, use the [community forum](https://community.tuist.io/c/ideas/7) for that.
+description: Use this to capture an actionable item (e.g. a refactor, small improvements) that any contributor can pick up and work on. If you just had an idea, use the [community forum](https://community.tuist.io/c/ideas/7) for that.
 title: "Insert title here"
 body:
   - type: markdown
