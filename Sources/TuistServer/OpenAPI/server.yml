@@ -316,6 +316,7 @@ components:
           description: The SSO provider set up for the organization
           enum:
             - google
+            - okta
           type: string
       required:
         - id
@@ -1430,6 +1431,7 @@ paths:
                   description: The SSO provider to set up for the organization
                   enum:
                     - google
+                    - okta
                     - none
                   type: string
               type: object
@@ -1493,6 +1495,7 @@ paths:
                   description: The SSO provider to set up for the organization
                   enum:
                     - google
+                    - okta
                     - none
                   type: string
               type: object
