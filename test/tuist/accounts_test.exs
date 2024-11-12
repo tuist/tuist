@@ -14,6 +14,19 @@ defmodule Tuist.AccountsTest do
 
   use Mimic
 
+  setup do
+    JOSE.JWT
+    |> stub(:peek_payload, fn _ ->
+      %JOSE.JWT{
+        fields: %{
+          "iss" => "https://tuist.okta.com"
+        }
+      }
+    end)
+
+    :ok
+  end
+
   describe "organization_admin?/2" do
     test "organization_admin? returns false if the user is not an admin" do
       # Given
@@ -55,7 +68,41 @@ defmodule Tuist.AccountsTest do
       assert Accounts.organization_user?(user, organization) == true
     end
 
-    test "organization_user? returns true if the user's sso matches the organization's" do
+    test "organization_user? returns true if the user's sso matches the organization's when the sso is Google" do
+      # Given
+      Environment |> stub(:on_premise?, fn -> false end)
+      Billing |> expect(:start_trial, fn %{plan: :air, account: _} -> :ok end)
+
+      user =
+        Accounts.find_or_create_user_from_oauth2(%{
+          provider: :okta,
+          uid: 123,
+          info: %{
+            email: "tuist@tuist.io"
+          },
+          extra: %{
+            raw_info: %{
+              user: %{},
+              token: %OAuth2.AccessToken{
+                other_params: %{
+                  "id_token" => "jwt-token"
+                }
+              }
+            }
+          }
+        })
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          sso_provider: :okta,
+          sso_organization_id: "tuist.okta.com"
+        )
+
+      # When
+      assert Accounts.organization_user?(user, organization) == true
+    end
+
+    test "organization_user? returns true if the user's sso matches the organization's when the sso is Okta" do
       # Given
       Environment |> stub(:on_premise?, fn -> false end)
       Billing |> expect(:start_trial, fn %{plan: :air, account: _} -> :ok end)
@@ -86,7 +133,38 @@ defmodule Tuist.AccountsTest do
       assert Accounts.organization_user?(user, organization) == true
     end
 
-    test "organization_user? returns false if the user's sso does not match the organization's" do
+    test "organization_user? returns false if the user's sso domain matches the organization's but the providers are different" do
+      # Given
+      Environment |> stub(:on_premise?, fn -> false end)
+      Billing |> expect(:start_trial, fn %{plan: :air, account: _} -> :ok end)
+
+      user =
+        Accounts.find_or_create_user_from_oauth2(%{
+          provider: :google,
+          uid: 123,
+          info: %{
+            email: "tuist@tuist.io"
+          },
+          extra: %{
+            raw_info: %{
+              user: %{
+                "hd" => "tuist.io"
+              }
+            }
+          }
+        })
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          sso_provider: :okta,
+          sso_organization_id: "tuist.io"
+        )
+
+      # When
+      assert Accounts.organization_user?(user, organization) == false
+    end
+
+    test "organization_user? returns false if the user's sso does not match the organization's when both are Google" do
       # Given
       Environment |> stub(:on_premise?, fn -> false end)
       Billing |> expect(:start_trial, fn %{plan: :air, account: _} -> :ok end)
@@ -756,7 +834,12 @@ defmodule Tuist.AccountsTest do
         },
         extra: %{
           raw_info: %{
-            user: %{}
+            user: %{},
+            token: %{
+              other_params: %{
+                "id_token" => "jwt-token"
+              }
+            }
           }
         }
       })
@@ -1221,6 +1304,23 @@ defmodule Tuist.AccountsTest do
       assert organization.sso_organization_id == "tuist.io"
       assert organization.sso_provider == :google
     end
+
+    test "updates organization with an okta hosted domain" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: user)
+
+      # When
+      {:ok, organization} =
+        Accounts.update_organization(organization, %{
+          sso_provider: :okta,
+          sso_organization_id: "tuist.okta.com"
+        })
+
+      # Then
+      assert organization.sso_organization_id == "tuist.okta.com"
+      assert organization.sso_provider == :okta
+    end
   end
 
   describe "find_or_create_user_from_oauth2/1" do
@@ -1313,6 +1413,32 @@ defmodule Tuist.AccountsTest do
 
       assert user.email == got.email
       assert Accounts.find_oauth2_identity(%{user: user, provider: :github}) != nil
+    end
+
+    test "updates an existing user with a new okta identity" do
+      user = user_fixture(email: "tuist@tuist.io")
+
+      got =
+        Accounts.find_or_create_user_from_oauth2(%{
+          provider: :okta,
+          uid: 123,
+          info: %{
+            email: "tuist@tuist.io"
+          },
+          extra: %{
+            raw_info: %{
+              user: %{},
+              token: %{
+                other_params: %{
+                  "id_token" => "jwt-token"
+                }
+              }
+            }
+          }
+        })
+
+      assert user.email == got.email
+      assert Accounts.find_oauth2_identity(%{user: user, provider: :okta}) != nil
     end
   end
 
@@ -1539,6 +1665,74 @@ defmodule Tuist.AccountsTest do
           raw_info: %{
             user: %{
               "hd" => "tools.io"
+            }
+          }
+        }
+      })
+
+      # When
+      got = Accounts.get_organization_members(organization, :user)
+
+      # Then
+      assert [user_one.id, user_three.id] == Enum.map(got, & &1.id) |> Enum.sort()
+    end
+
+    test "returns users of an organization with a given okta id" do
+      # Given
+      Environment |> stub(:on_premise?, fn -> false end)
+      Billing |> stub(:start_trial, fn %{plan: :air, account: _} -> :ok end)
+      user_one = AccountsFixtures.user_fixture()
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          sso_provider: :okta,
+          sso_organization_id: "tuist.okta.com"
+        )
+
+      Accounts.add_user_to_organization(user_one, organization, role: :user)
+      AccountsFixtures.user_fixture()
+
+      user_three =
+        Accounts.find_or_create_user_from_oauth2(%{
+          provider: :okta,
+          uid: 123,
+          info: %{
+            email: "tuist@tuist.io"
+          },
+          extra: %{
+            raw_info: %{
+              user: %{},
+              token: %{
+                other_params: %{
+                  "id_token" => "jwt-token"
+                }
+              }
+            }
+          }
+        })
+
+      JOSE.JWT
+      |> stub(:peek_payload, fn _ ->
+        %JOSE.JWT{
+          fields: %{
+            "iss" => "https://different-org.okta.com"
+          }
+        }
+      end)
+
+      Accounts.find_or_create_user_from_oauth2(%{
+        provider: :okta,
+        uid: 1234,
+        info: %{
+          email: "tuist-tools@tools.io"
+        },
+        extra: %{
+          raw_info: %{
+            user: %{},
+            token: %{
+              other_params: %{
+                "id_token" => "different-jwt-token"
+              }
             }
           }
         }

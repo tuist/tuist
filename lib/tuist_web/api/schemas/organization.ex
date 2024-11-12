@@ -35,7 +35,7 @@ defmodule TuistWeb.API.Schemas.Organization do
       },
       sso_provider: %Schema{
         type: :string,
-        enum: ["google"],
+        enum: ["google", "okta"],
         description: "The SSO provider set up for the organization"
       },
       sso_organization_id: %Schema{

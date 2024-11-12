@@ -267,9 +267,19 @@ defmodule Tuist.Accounts do
     provider_organization_id =
       case provider do
         # Google hosted domain. See more at https://developers.google.com/identity/openid-connect/openid-connect#an-id-tokens-payload
-        :google -> auth.extra.raw_info.user["hd"]
-        :github -> nil
-        :okta -> nil
+        :google ->
+          auth.extra.raw_info.user["hd"]
+
+        :github ->
+          nil
+
+        :okta ->
+          auth.extra.raw_info.token.other_params["id_token"]
+          |> JOSE.JWT.peek_payload()
+          |> Map.get(:fields)
+          |> Map.get("iss")
+          |> URI.parse()
+          |> Map.get(:host)
       end
 
     if oauth2_identity do

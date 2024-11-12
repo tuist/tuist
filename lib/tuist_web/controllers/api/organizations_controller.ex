@@ -378,7 +378,7 @@ defmodule TuistWeb.API.OrganizationsController do
          properties: %{
            sso_provider: %Schema{
              type: :string,
-             enum: ["google", "none"],
+             enum: ["google", "okta", "none"],
              description: "The SSO provider to set up for the organization"
            },
            sso_organization_id: %Schema{

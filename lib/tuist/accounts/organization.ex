@@ -9,7 +9,7 @@ defmodule Tuist.Accounts.Organization do
   import Ecto.Changeset
 
   schema "organizations" do
-    field :sso_provider, Ecto.Enum, values: [google: 2]
+    field :sso_provider, Ecto.Enum, values: [okta: 1, google: 2]
     field :sso_organization_id, :string
 
     has_one(:account, Account, foreign_key: :organization_id, on_delete: :delete_all)
@@ -21,7 +21,7 @@ defmodule Tuist.Accounts.Organization do
   def create_changeset(organization, attrs \\ %{}) do
     organization
     |> cast(attrs, [:sso_provider, :sso_organization_id, :created_at])
-    |> validate_inclusion(:sso_provider, [:google])
+    |> validate_inclusion(:sso_provider, [:okta, :google])
     |> unique_constraint([:sso_provider, :sso_organization_id],
       message:
         "SSO provider and SSO organization ID must be unique. Make sure no other organization has the same SSO provider and SSO organization ID."
@@ -31,7 +31,7 @@ defmodule Tuist.Accounts.Organization do
   def update_changeset(organization, attrs) do
     organization
     |> cast(attrs, [:sso_provider, :sso_organization_id])
-    |> validate_inclusion(:sso_provider, [:google])
+    |> validate_inclusion(:sso_provider, [:okta, :google])
     |> unique_constraint([:sso_provider, :sso_organization_id],
       message:
         "SSO provider and SSO organization ID must be unique. Make sure no other organization has the same SSO provider and SSO organization ID."

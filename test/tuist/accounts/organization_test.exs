@@ -40,6 +40,16 @@ defmodule Tuist.OrganizationTest do
 
       assert changeset.valid? == true
     end
+
+    test "changeset is valid when sso_provider is okta" do
+      changeset =
+        Organization.create_changeset(%Organization{}, %{
+          sso_provider: :okta,
+          sso_organization_id: "tuist.okta.com"
+        })
+
+      assert changeset.valid? == true
+    end
   end
 
   describe "update_changeset/2" do
@@ -84,6 +94,16 @@ defmodule Tuist.OrganizationTest do
         Organization.update_changeset(%Organization{}, %{
           sso_provider: :google,
           sso_organization_id: "tuist.io"
+        })
+
+      assert changeset.valid? == true
+    end
+
+    test "changeset is valid when sso_provider is okta" do
+      changeset =
+        Organization.update_changeset(%Organization{}, %{
+          sso_provider: :okta,
+          sso_organization_id: "dev.okta.com"
         })
 
       assert changeset.valid? == true
