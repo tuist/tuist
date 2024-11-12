@@ -30,7 +30,7 @@ You also need to install the [Tuist GitHub app](https://github.com/marketplace/t
 
 Once you integrate with GitHub, Tuist can automatically post your test results and previews that you can run with [a single click](/blog/2024/08/28/tuist-macos-app).
 
-![A screenshot that shows a GitHub comment with some links to run previews and the results from running tests](/images/marketing/blog/2024/09/03/tuist-4.26.0/github-app-comment.png)
+![A screenshot that shows a GitHub comment with some links to run previews and the results from running tests](/marketing/images/blog/2024/09/03/tuist-4.26.0/github-app-comment.png)
 
 ## Implicit dependencies: Developers' worst nightmare
 

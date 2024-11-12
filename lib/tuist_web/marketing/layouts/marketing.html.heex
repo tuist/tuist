@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en" class="[scrollbar-gutter:stable]">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="csrf-token" content={get_csrf_token()} />
+    <.live_title>
+      <%= assigns[:head_title] || "Tuist" %>
+    </.live_title>
+    <TuistWeb.LayoutComponents.head_meta_meta_tags {assigns} />
+    <TuistWeb.LayoutComponents.head_x_meta_tags {assigns} />
+    <% structured_data =
+      TuistWeb.Marketing.StructuredMarkup.get_json_serialized_structured_data(assigns) %>
+    <%= if not is_nil(structured_data) do %>
+      <script type="application/ld+json">
+        <%= raw structured_data %>
+      </script>
+    <% end %>
+    <!-- Import Maps -->
+    <script type="importmap">
+      {
+        "imports": {
+          "phoenix_html": "https://cdn.jsdelivr.net/npm/phoenix_html@4.1.1/+esm",
+          "shiki":  "https://esm.run/shiki@1.0",
+          "phoenix": "https://cdn.jsdelivr.net/npm/phoenix@1.7.14/+esm",
+          "phoenix_live_view": "https://cdn.jsdelivr.net/npm/phoenix_live_view@1.0.0-rc.7/+esm"
+        }
+      }
+    </script>
+    <!-- Assets -->
+    <link phx-track-static rel="stylesheet" href={~p"/marketing/css/marketing.css"} />
+    <script defer phx-track-static type="module" src={~p"/marketing/js/marketing.js"}>
+    </script>
+    <!-- RSS -->
+    <%= if assigns[:head_include_blog_rss_and_atom] do %>
+      <link
+        rel="alternate"
+        type="application/rss+xml"
+        title={gettext("Tuist Blog")}
+        href={~p"/blog/rss.xml"}
+      />
+      <link
+        rel="alternate"
+        type="application/atom+xml"
+        title={gettext("Tuist Blog")}
+        href={~p"/blog/atom.xml"}
+      />
+    <% end %>
+
+    <%= if assigns[:head_include_changelog_rss_and_atom] do %>
+      <link
+        rel="alternate"
+        type="application/rss+xml"
+        title={gettext("Tuist Changelog")}
+        href={~p"/changelog/rss.xml"}
+      />
+      <link
+        rel="alternate"
+        type="application/atom+xml"
+        title={gettext("Tuist Changelog")}
+        href={~p"/changelog/atom.xml"}
+      />
+    <% end %>
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap"
+      rel="stylesheet"
+    />
+
+    <TuistWeb.LayoutComponents.head_analytics_scripts {assigns} />
+  </head>
+  <body data-scrollable="true">
+    <TuistWeb.Marketing.MarketingLayoutComponents.header current_path={@current_path} {assigns} />
+    <%= @inner_content %>
+    <TuistWeb.Marketing.MarketingLayoutComponents.footer />
+  </body>
+</html>

@@ -22,18 +22,20 @@ FROM ${BUILDER_IMAGE} as builder
 
 # install build dependencies
 RUN apt-get update -y && apt-get install -y build-essential git \
-    && apt-get clean && rm -f /var/lib/apt/lists/*_*
+  && apt-get clean && rm -f /var/lib/apt/lists/*_*
 
 # prepare build dir
 WORKDIR /app
 
 # install hex + rebar
 RUN mix local.hex --force && \
-    mix local.rebar --force
+  mix local.rebar --force
 
 # set build ENV
 ARG MIX_ENV=prod
 ENV MIX_ENV=$MIX_ENV
+ARG TUIST_HOSTED=1
+ARG TUIST_HOSTED=$TUIST_HOSTED
 
 # install mix dependencies
 COPY mix.exs mix.lock ./
@@ -55,7 +57,17 @@ COPY assets assets
 # compile assets
 RUN mix assets.deploy
 
+# Delete some directories if TUIST_HOSTED=0
+
+RUN if [ "$TUIST_HOSTED" = "0" ]; then \
+  rm -rf lib/tuist/marketing; \
+  rm -rf lib/tuist_web/marketing; \
+  rm -rf priv/marketing; \
+  rm -rf priv/static/marketing; \
+  fi
+
 # Compile the release
+ENV TUIST_HOSTED=${TUIST_HOSTED}
 RUN mix compile --warnings-as-errors
 
 # Changes to config/runtime.exs don't require recompiling the code
@@ -69,15 +81,15 @@ RUN mix release
 FROM ${RUNNER_IMAGE}
 
 RUN apt-get update -y && \
-    apt-get install -y curl build-essential gcc wget libvips libstdc++6 openssl libncurses5 locales ca-certificates postgresql-client  \
-    && apt-get clean && rm -f /var/lib/apt/lists/*_*
+  apt-get install -y curl build-essential gcc wget libvips libstdc++6 openssl libncurses5 locales ca-certificates postgresql-client  \
+  && apt-get clean && rm -f /var/lib/apt/lists/*_*
 
 # Set the locale
 RUN sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && locale-gen
 
-ENV LANG en_US.UTF-8
-ENV LANGUAGE en_US:en
-ENV LC_ALL en_US.UTF-8
+ENV LANG=en_US.UTF-8
+ENV LANGUAGE=en_US:en
+ENV LC_ALL =n_US.UTF-8
 
 WORKDIR "/app"
 RUN chown nobody /app
@@ -85,15 +97,26 @@ RUN chown nobody /app
 # set runner ENV
 ARG MIX_ENV=prod
 ARG APP_REVISION
+ARG TUIST_HOSTED=1
 ENV MIX_ENV=$MIX_ENV
 ENV TUIST_VERSION=$TUIST_VERSION
 ENV APP_REVISION=$APP_REVISION
+ENV TUIST_HOSTED=$TUIST_HOSTED
 
-# Only copy the final release from the build stage
+# We copy the encrypted secrets
 COPY --from=builder --chown=nobody:root /app/_build/${MIX_ENV}/rel/tuist ./
 COPY priv/secrets/can.yml.enc /app/priv/secrets/can.yml.enc
 COPY priv/secrets/stag.yml.enc /app/priv/secrets/stag.yml.enc
 COPY priv/secrets/prod.yml.enc /app/priv/secrets/prod.yml.enc
+
+# Delete the content that's not needed for the on-premise version
+RUN if [ "$TUIST_HOSTED" = "0" ]; then \
+  echo "TUIST_HOSTED is set to 0, executing specific commands"; \
+  rm -rf /app/priv/secrets/can.yml.enc; \
+  rm -rf /app/priv/secrets/stag.yml.enc; \
+  rm -rf /app/priv/secrets/prod.yml.enc; \
+  fi
+
 ENV SECRETS_DIRECTORY=/app/priv/secrets/
 COPY priv/repo/structure.sql /app/priv/repo/structure.sql
 

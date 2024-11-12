@@ -74,6 +74,7 @@ jobs:
           file: Dockerfile.onpremise
           push: true
           build-args: |
+            TUIST_HOSTED=0
             TUIST_VERSION=${{ steps.version.outputs.version }}
             MIX_ENV=prod
           tags: ${{ steps.meta.outputs.tags }}

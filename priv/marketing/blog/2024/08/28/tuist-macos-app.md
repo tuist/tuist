@@ -10,7 +10,7 @@ A few weeks ago, we [announced](/blog/2024/08/06/url-centric-collaboration) our 
 
 Today, we are excited to announce that the Tuist app for macOS is finally here!
 
-![Screenshot of the Tuist macOS menu bar app](/images/marketing/blog/2024/08/28/tuist-macos-app/menu-bar-app.png)
+![Screenshot of the Tuist macOS menu bar app](/marketing/images/blog/2024/08/28/tuist-macos-app/menu-bar-app.png)
 
 [Download the app](https://tuist.dev/download)
 

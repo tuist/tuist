@@ -52,7 +52,7 @@ Fortunately, Tuist has a great foundation to build upon. Our hashing logic, used
 This happens automatically if you run your tests with [`tuist test`](https://docs.tuist.io/guide/automation/test.html). We recommend adopting this over other abstractions, as it provides access to smart test runs and analytics to understand your projects and make informed decisions.
 With this information, Tuist can provide a list of tests detected as flaky. In this iteration, we just provide the list of tests for which we've noticed inconsistencies. In the future, we plan to include a score indicating how flaky a test is, based on its run history.
 
-![An image that shows the dahboard with a list of tests, some of which have been marked as flaky](/images/marketing/blog/2024/07/10/detecting-flaky-tests/flaky-test.png)
+![An image that shows the dahboard with a list of tests, some of which have been marked as flaky](/marketing/images/blog/2024/07/10/detecting-flaky-tests/flaky-test.png)
 
 ## What's next
 

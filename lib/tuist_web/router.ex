@@ -25,16 +25,18 @@ defmodule TuistWeb.Router do
     plug :fetch_current_user
   end
 
-  pipeline :browser_marketing do
-    plug :accepts, ["html"]
-    plug :disable_robot_indexing_in_non_production
-    plug :fetch_session
-    plug :fetch_live_flash
-    plug :put_root_layout, html: {TuistWeb.Layouts, :marketing}
-    plug :protect_from_forgery
-    plug :put_secure_browser_headers
-    plug Ueberauth
-    plug :fetch_current_user
+  if not Tuist.Environment.on_premise?() do
+    pipeline :browser_marketing do
+      plug :accepts, ["html"]
+      plug :disable_robot_indexing_in_non_production
+      plug :fetch_session
+      plug :fetch_live_flash
+      plug :put_root_layout, html: {TuistWeb.Marketing.Layouts, :marketing}
+      plug :protect_from_forgery
+      plug :put_secure_browser_headers
+      plug Ueberauth
+      plug :fetch_current_user
+    end
   end
 
   pipeline :browser_marketing_feed do
@@ -67,39 +69,44 @@ defmodule TuistWeb.Router do
   end
 
   # Marketing
+  if Tuist.Environment.on_premise?() do
+    scope "/" do
+      live "/", AccountProjectsLive
+    end
+  else
+    scope "/" do
+      pipe_through [:browser_marketing_feed]
 
-  scope "/" do
-    pipe_through [:browser_marketing_feed]
-
-    redirect("/rss.xml", "/blog/rss.xml", :permanent, preserve_query_string: true)
-    get "/blog/rss.xml", TuistWeb.MarketingController, :blog_rss
-    get "/blog/atom.xml", TuistWeb.MarketingController, :blog_atom
-    get "/changelog/rss.xml", TuistWeb.MarketingController, :changelog_rss
-    get "/changelog/atom.xml", TuistWeb.MarketingController, :changelog_atom
-    get "/sitemap.xml", TuistWeb.MarketingController, :sitemap
-  end
-
-  scope "/" do
-    pipe_through [
-      :open_api,
-      :browser_marketing,
-      :assign_current_path
-    ]
-
-    live "/blog", TuistWeb.MarketingBlogLive
-    live "/changelog", TuistWeb.MarketingChangelogLive
-    get "/", TuistWeb.MarketingController, :home
-    get "/pricing", TuistWeb.MarketingController, :pricing
-
-    for %{slug: blog_post_slug} <- Tuist.Blog.get_posts() do
-      get blog_post_slug, TuistWeb.MarketingController, :blog_post
+      redirect("/rss.xml", "/blog/rss.xml", :permanent, preserve_query_string: true)
+      get "/blog/rss.xml", TuistWeb.Marketing.MarketingController, :blog_rss
+      get "/blog/atom.xml", TuistWeb.Marketing.MarketingController, :blog_atom
+      get "/changelog/rss.xml", TuistWeb.Marketing.MarketingController, :changelog_rss
+      get "/changelog/atom.xml", TuistWeb.Marketing.MarketingController, :changelog_atom
+      get "/sitemap.xml", TuistWeb.Marketing.MarketingController, :sitemap
     end
 
-    for %{slug: page_slug} <- Tuist.Pages.get_pages() do
-      get page_slug, TuistWeb.MarketingController, :page
-    end
+    scope "/" do
+      pipe_through [
+        :open_api,
+        :browser_marketing,
+        :assign_current_path
+      ]
 
-    get "/about", TuistWeb.MarketingController, :about
+      live "/blog", TuistWeb.Marketing.MarketingBlogLive
+      live "/changelog", TuistWeb.Marketing.MarketingChangelogLive
+      get "/", TuistWeb.Marketing.MarketingController, :home
+      get "/pricing", TuistWeb.Marketing.MarketingController, :pricing
+
+      for %{slug: blog_post_slug} <- Tuist.Marketing.Blog.get_posts() do
+        get blog_post_slug, TuistWeb.Marketing.MarketingController, :blog_post
+      end
+
+      for %{slug: page_slug} <- Tuist.Marketing.Pages.get_pages() do
+        get page_slug, TuistWeb.Marketing.MarketingController, :page
+      end
+
+      get "/about", TuistWeb.Marketing.MarketingController, :about
+    end
   end
 
   scope "/" do

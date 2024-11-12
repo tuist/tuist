@@ -78,7 +78,7 @@ If you want to see this in action, you can play with one of the Tuist project's 
 
 The following image shows the generated Xcode project where all the dependencies, including the Swift Macros, have been cached:
 
-![Tuist Xcode project with cached Swift Macros](/images/marketing/blog/2024/08/26/swift-macros/cached-swift-macro.png)
+![Tuist Xcode project with cached Swift Macros](/marketing/images/blog/2024/08/26/swift-macros/cached-swift-macro.png)
 
 ## Closing
 

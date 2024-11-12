@@ -20,7 +20,7 @@ Experience XcodeGPT in action [here](https://chat.openai.com/g/g-z9dLWHPID-xcode
 
 Designed with both beginners and experienced users in mind, TuistGPT is your expert guide to all things related to Tuist. It's enriched with Tuist’s detailed documentation and internal resources, enabling it to offer in-depth knowledge about the project.
 
-![An image that shows an example of a question asked to TuistGPT](/images/marketing/blog/2023/11/10/gpts/tuist-gpt.png)
+![An image that shows an example of a question asked to TuistGPT](/marketing/images/blog/2023/11/10/gpts/tuist-gpt.png)
 
 Experience TuistGPT in action [here](https://chat.openai.com/g/g-06dgAxNvw-tuistgpt).
 

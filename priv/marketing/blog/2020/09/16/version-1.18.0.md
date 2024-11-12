@@ -27,7 +27,7 @@ The command generates documentation for the given target using [swift-doc](https
 
 The image below shows an example of auto-generated documentation:
 
-![An image that shows a browser with the auto-generated documentation](/images/marketing/blog/2020/09/16/documentation.png)
+![An image that shows a browser with the auto-generated documentation](/marketing/images/blog/2020/09/16/documentation.png)
 
 You can read more about the feature [here](https://docs.old.tuist.io/commands/documentation/).
 

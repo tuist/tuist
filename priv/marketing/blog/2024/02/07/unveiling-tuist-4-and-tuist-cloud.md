@@ -4,7 +4,7 @@ category: "releases"
 tags: ["tuist", "release", "cloud"]
 excerpt: "In this blog post, we unveil Tuist 4 and Tuist Cloud, marking an inflection point in the project's sustainability. We also discuss the long-term sustainability of the project, the introduction of Tuist Cloud, and the new features in Tuist 4. We also talk about the new logo, our partnership with Codemagic, and our commitment to open-source."
 author: pepicrft
-og_image: /images/marketing/blog/2024/02/07/tuist-4-og.jpg
+og_image: /marketing/images/blog/2024/02/07/tuist-4-og.jpg
 ---
 
 import Calculator from "../../../../../components/Calculator";
@@ -45,7 +45,7 @@ Clean builds, which occur locally when developers clear derived data and commonl
 
 The efficiency of the cache is closely tied to the modular architecture of the project. A highly modular architecture with weak dependencies among nodes can result in **significant reductions in build times, potentially up to 90%.** Additionally, we can cache Swift Macros and multi-platform targets as well.
 
-![A video that shows how binary caching works in practice](/images/marketing/blog/2024/02/07/tuist-cloud-binary-cache.gif)
+![A video that shows how binary caching works in practice](/marketing/images/blog/2024/02/07/tuist-cloud-binary-cache.gif)
 
 ### Selective testing
 
@@ -53,7 +53,7 @@ At some point in the project's journey, building and testing all the targets wit
 
 Tuist Cloud offers a selective testing solution that works seamlessly across different environments. It utilizes the same hashing logic employed by binary caching to uniquely identify binaries in the cache, this time to determine whether a target has changed and, consequently, whether its tests and those of dependent targets need to run. The best part? It operates automatically, requiring no additional configuration or complexity.
 
-![A video that shows selective testing in practice](/images/marketing/blog/2024/02/07/tuist-cloud-selective-testing.gif)
+![A video that shows selective testing in practice](/marketing/images/blog/2024/02/07/tuist-cloud-selective-testing.gif)
 
 ### Return of investment
 

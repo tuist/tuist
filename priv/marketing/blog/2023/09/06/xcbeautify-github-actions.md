@@ -24,11 +24,11 @@ When you use the GitHub Actions renderer, xcbeautify formats output that harness
 
 When you run a pull request check with the GitHub Actions renderer, you'll find all xcodebuild results and feedback in the `Annotations` section of the run summary.
 
-![An image that shows a GitHub Actions run summary with xcbeautify comments.](/images/marketing/blog/2023/09/06/xcbeautify-gh-summary.png)
+![An image that shows a GitHub Actions run summary with xcbeautify comments.](/marketing/images/blog/2023/09/06/xcbeautify-gh-summary.png)
 
 Furthermore, you'll find native inline feedback on PRs. This includes compiler warnings, compiler errors, and test failures.
 
-![An image that shows a GitHub Actions run with an inline xcbeautify comment.](/images/marketing/blog/2023/09/06/xcbeautify-gh-comment.png)
+![An image that shows a GitHub Actions run with an inline xcbeautify comment.](/marketing/images/blog/2023/09/06/xcbeautify-gh-comment.png)
 
 By using this feature, you may avoid the need for additional third-party tools, such as [Danger](https://github.com/danger/swift) and related dependencies, to report a summary of xcodebuild output.
 

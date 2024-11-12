@@ -36,7 +36,7 @@ Furthermore, we undertook exercises in visual hierarchy and storytelling to ensu
 
 The result was accompanied by a Design System that has allowed Tuist to continue scaling and evolving its brand universe.
 
-![An image of the new design system in Figma](/images/marketing/blog/2024/11/06/designing-tuist-website/design.jpeg)
+![An image of the new design system in Figma](/marketing/images/blog/2024/11/06/designing-tuist-website/design.jpeg)
 
 ## Connecting the Product’s Purpose with the Brand
 

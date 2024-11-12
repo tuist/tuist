@@ -21,7 +21,7 @@ Our mobile team is composed of a talented and dedicated group of **140 professio
 
 As the platform team, we provide services to five different channels and support ten distinct teams. Our primary focus is to enhance the developer experience, tooling, and performance for these teams. We consider each team as our valued client, working diligently to meet their specific needs and align with their interests in these areas.
 
-![A diagram that shows Trendyol's team structure. The platform team supports peripheral organizations such as Turkey, International, DolapLite, Grocery, and Meal, which are focused on a specific products.](/images/marketing/blog/2023/09/08/organization.png)
+![A diagram that shows Trendyol's team structure. The platform team supports peripheral organizations such as Turkey, International, DolapLite, Grocery, and Meal, which are focused on a specific products.](/marketing/images/blog/2023/09/08/organization.png)
 
 ## Project architecture
 

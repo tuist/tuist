@@ -12,12 +12,6 @@ defmodule TuistWeb.LayoutComponents do
     <%= if not is_nil(assigns[:head_keywords]) do %>
       <meta name="keywords" content={assigns[:head_keywords] |> Enum.join(", ")} />
     <% end %>
-    <% structured_data = TuistWeb.StructuredMarkup.get_json_serialized_structured_data(assigns) %>
-    <%= if not is_nil(structured_data) do %>
-      <script type="application/ld+json">
-        <%= raw structured_data %>
-      </script>
-    <% end %>
     <meta property="og:url" content={Tuist.Environment.app_url(path: "/")} />
     <meta property="og:type" content="website" />
     <meta property="og:title" content={assigns[:head_title] || "Tuist"} />

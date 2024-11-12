@@ -69,7 +69,7 @@ let workspace = Workspace(
 
 <img class="posts__post-screenshot"
      alt="Workspace with additional files and folder references"
-     src="/images/marketing/blog/2019/04/03/workspace-improvements.png" />
+     src="/marketing/images/blog/2019/04/03/workspace-improvements.png" />
 
 ## Host application for unit & ui tests
 
@@ -120,11 +120,11 @@ The generated project will have the host and target application set to **App** f
 
 <img class="posts__post-screenshot"
      alt="Unit tests target with host application"
-     src="/images/marketing/blog/2019/04/03/unit-tests-host-application.png" />
+     src="/marketing/images/blog/2019/04/03/unit-tests-host-application.png" />
 
 <img class="posts__post-screenshot"
      alt="UI tests target with target application"
-     src="/images/marketing/blog/2019/04/03/ui-tests-target-application.png" />
+     src="/marketing/images/blog/2019/04/03/ui-tests-target-application.png" />
 
 ## What’s next?
 

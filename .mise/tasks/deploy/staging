@@ -3,4 +3,4 @@
 
 set -euo pipefail
 
-cd $MISE_PROJECT_ROOT && flyctl deploy -c $MISE_PROJECT_ROOT/fly.staging.toml --dockerfile $MISE_PROJECT_ROOT/Dockerfile --build-arg MIX_ENV=stag --vm-memory=2048 --wait-timeout 600
+flyctl deploy -c $MISE_PROJECT_ROOT/fly.staging.toml --dockerfile $MISE_PROJECT_ROOT/Dockerfile --build-arg TUIST_HOSTED=1 --build-arg MIX_ENV=stag --vm-memory=2048 --wait-timeout 600
