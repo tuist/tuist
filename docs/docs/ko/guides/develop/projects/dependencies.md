@@ -273,7 +273,7 @@ There are some scenarios where setting the linking entirely to static or dynamic
 
 When making changes to the graph, Tuist will analyze it and display a warning if it detects a "static side effect". This warning is meant to help you identify issues that might arise from linking a target statically that depends transitively on a static target through dynamic targets. These side effects often manifest as increased binary size or, in the worst cases, runtime crashes.
 
-## Troubleshooting {#troubleshooting}
+## 문제 해결 {#troubleshooting}
 
 ### Objective-C Dependencies {#objectivec-dependencies}
 
