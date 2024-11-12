@@ -164,7 +164,7 @@ Swift Macro와 Build Tool Plugin의 경우 각각 `.macro`와 `.plugin` type을
 > [!WARNING] SPM Build Tool Plugins
 > Tuist의 [XcodeProj 기반 통합](#tuist-s-xcodeproj-based-integration)을 사용해 프로젝트의 의존성을 관리하더라도, SPM build tool plugin은 반드시 [Xcode의 기본 통합](#xcode-s-default-integration) 메커니즘을 통해 선언해야 합니다.
 
-A practical application of an SPM build tool plugin is performing code linting during Xcode's "Run Build Tool Plug-ins" build phase. In a package manifest this is defined as follows:
+SPM 빌드 도구 플러그인의 실용적인 활용 사례는 Xcode의 'Run Build Tool Plug-ins' Build Phase에서 코드 린팅을 수행하는 것입니다. package manifest에서는 다음과 같이 정의됩니다:
 
 ```swift
 // swift-tools-version: 5.9
@@ -189,7 +189,7 @@ let package = Package(
 )
 ```
 
-To generate an Xcode project with the build tool plugin intact, you must declare the package in the project manifest's `packages` array, and then include a package with type `.plugin` in a target's dependencies.
+build tool plugin이 포함된 Xcode 프로젝트를 생성하려면, 프로젝트 manifest의 `packages` 배열에 package를 선언하고, target의 dependencies에 `.plugin` 타입의 package를 포함해야 합니다.
 
 ```swift
 import ProjectDescription
