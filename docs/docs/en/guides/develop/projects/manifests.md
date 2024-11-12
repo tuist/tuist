@@ -63,7 +63,7 @@ Tuist provides <LocalizedLink href="/contributors/principles.html#default-to-con
 ```swift
 import ProjectDescription
 
-let config = Config(
-    generationOptions: .options(enforceExplicitDependencies: true)
+let tuist = Tuist(
+    project: .tuist(generationOptions: .options(enforceExplicitDependencies: true))
 )
 ```

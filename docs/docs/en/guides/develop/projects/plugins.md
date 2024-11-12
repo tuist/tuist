@@ -108,10 +108,10 @@ To use a plugin, you'll have to add it to your project's <LocalizedLink href="/r
 import ProjectDescription
 
 
-let config = Config(
-    plugins: [
+let tuist = Tuist(
+    project: .tuist(plugins: [
         .local(path: "/Plugins/MyPlugin")
-    ]
+    ])
 )
 ```
 
@@ -121,11 +121,11 @@ If you want to reuse a plugin across projects that live in different repositorie
 import ProjectDescription
 
 
-let config = Config(
-    plugins: [
+let tuist = Tuist(
+    project: .tuist(plugins: [
         .git(url: "https://url/to/plugin.git", tag: "1.0.0"),
         .git(url: "https://url/to/plugin.git", sha: "e34c5ba")
-    ]
+    ])
 )
 ```
 
