@@ -4,7 +4,7 @@ import Foundation
 import Mockable
 import Path
 import TuistAnalytics
-import TuistAsyncQueueTesting
+import TuistAsyncQueue
 import TuistCore
 import TuistSupport
 import XCTest
@@ -14,36 +14,19 @@ import XCTest
 
 final class TrackableCommandTests: TuistTestCase {
     private var subject: TrackableCommand!
-    private var mockAsyncQueue: MockAsyncQueuer!
+    private var asyncQueue: MockAsyncQueuing!
     private var gitController: MockGitControlling!
 
     override func setUp() {
         super.setUp()
-        mockAsyncQueue = MockAsyncQueuer()
-    }
-
-    override func tearDown() {
-        subject = nil
-        mockAsyncQueue = nil
-        super.tearDown()
-    }
-
-    private func makeSubject(
-        flag: Bool = true,
-        shouldFail: Bool = false,
-        commandArguments: [String] = ["cache", "warm"]
-    ) {
         gitController = MockGitControlling()
-        subject = TrackableCommand(
-            command: TestCommand(flag: flag, shouldFail: shouldFail),
-            commandArguments: commandArguments,
-            clock: WallClock(),
-            commandEventFactory: CommandEventFactory(
-                gitController: gitController
-            ),
-            asyncQueue: mockAsyncQueue
-        )
-
+        asyncQueue = MockAsyncQueuing()
+        given(asyncQueue)
+            .waitIfCI()
+            .willReturn()
+        given(asyncQueue)
+            .dispatch(event: Parameter<CommandEvent>.any)
+            .willReturn()
         given(gitController)
             .isInGitRepository(workingDirectory: .any)
             .willReturn(false)
@@ -51,6 +34,34 @@ final class TrackableCommandTests: TuistTestCase {
         given(gitController)
             .ref(environment: .any)
             .willReturn(nil)
+    }
+
+    override func tearDown() {
+        subject = nil
+        gitController = nil
+        asyncQueue = nil
+        super.tearDown()
+    }
+
+    private func makeSubject(
+        flag: Bool = true,
+        shouldFail: Bool = false,
+        analyticsRequired: Bool = false,
+        commandArguments: [String] = ["cache", "warm"]
+    ) {
+        subject = TrackableCommand(
+            command: TestCommand(
+                flag: flag,
+                shouldFail: shouldFail,
+                analyticsRequired: analyticsRequired
+            ),
+            commandArguments: commandArguments,
+            clock: WallClock(),
+            commandEventFactory: CommandEventFactory(
+                gitController: gitController
+            ),
+            asyncQueue: asyncQueue
+        )
     }
 
     // MARK: - Tests
@@ -64,10 +75,11 @@ final class TrackableCommandTests: TuistTestCase {
         try await subject.run(analyticsEnabled: true)
 
         // Then
-        XCTAssertEqual(mockAsyncQueue.invokedDispatchCount, 1)
-        let event = try XCTUnwrap(mockAsyncQueue.invokedDispatchParameters?.event as? CommandEvent)
-        XCTAssertEqual(event.name, "test")
-        XCTAssertEqual(event.params, expectedParams)
+        verify(asyncQueue)
+            .dispatch(event: Parameter<CommandEvent>.matching { event in
+                event.name == "test" && event.params == expectedParams
+            })
+            .called(1)
     }
 
     func test_whenParamsHaveFlagFalse_dispatchesEventWithExpectedParameters() async throws {
@@ -78,10 +90,11 @@ final class TrackableCommandTests: TuistTestCase {
         try await subject.run(analyticsEnabled: true)
 
         // Then
-        XCTAssertEqual(mockAsyncQueue.invokedDispatchCount, 1)
-        let event = try XCTUnwrap(mockAsyncQueue.invokedDispatchParameters?.event as? CommandEvent)
-        XCTAssertEqual(event.name, "test")
-        XCTAssertEqual(event.params, expectedParams)
+        verify(asyncQueue)
+            .dispatch(event: Parameter<CommandEvent>.matching { event in
+                event.name == "test" && event.params == expectedParams
+            })
+            .called(1)
     }
 
     func test_whenCommandFails_dispatchesEventWithExpectedInfo() async throws {
@@ -91,10 +104,11 @@ final class TrackableCommandTests: TuistTestCase {
         await XCTAssertThrowsSpecific(try await subject.run(analyticsEnabled: true), TestCommand.TestError.commandFailed)
 
         // Then
-        XCTAssertEqual(mockAsyncQueue.invokedDispatchCount, 1)
-        let event = try XCTUnwrap(mockAsyncQueue.invokedDispatchParameters?.event as? CommandEvent)
-        XCTAssertEqual(event.name, "test")
-        XCTAssertEqual(event.status, .failure("Command failed"))
+        verify(asyncQueue)
+            .dispatch(event: Parameter<CommandEvent>.matching { event in
+                event.name == "test" && event.status == .failure("Command failed")
+            })
+            .called(1)
     }
 
     func test_whenPathIsInArguments() async throws {
@@ -105,7 +119,9 @@ final class TrackableCommandTests: TuistTestCase {
         try await subject.run(analyticsEnabled: true)
 
         // Then
-        XCTAssertEqual(mockAsyncQueue.invokedDispatchCount, 1)
+        verify(asyncQueue)
+            .dispatch(event: Parameter<CommandEvent>.any)
+            .called(1)
         verify(gitController)
             .isInGitRepository(workingDirectory: .value(try AbsolutePath(validating: "/my-path")))
             .called(1)
@@ -119,7 +135,9 @@ final class TrackableCommandTests: TuistTestCase {
         try await subject.run(analyticsEnabled: false)
 
         // Then
-        XCTAssertEqual(mockAsyncQueue.invokedDispatchCount, 0)
+        verify(asyncQueue)
+            .dispatch(event: Parameter<CommandEvent>.any)
+            .called(0)
         verify(gitController)
             .isInGitRepository(workingDirectory: .value(try AbsolutePath(validating: "/my-path")))
             .called(0)
@@ -133,14 +151,34 @@ final class TrackableCommandTests: TuistTestCase {
         try await subject.run(analyticsEnabled: true)
 
         // Then
-        XCTAssertEqual(mockAsyncQueue.invokedDispatchCount, 1)
+        verify(asyncQueue)
+            .dispatch(event: Parameter<CommandEvent>.any)
+            .called(1)
         verify(gitController)
             .isInGitRepository(workingDirectory: .value(fileHandler.currentPath))
             .called(1)
     }
+
+    func test_when_command_event_is_required_to_be_uploaded() async throws {
+        // Given
+        given(asyncQueue)
+            .wait()
+            .willReturn()
+        makeSubject(
+            analyticsRequired: true
+        )
+
+        // When
+        try await subject.run(analyticsEnabled: true)
+
+        // Then
+        verify(asyncQueue)
+            .wait()
+            .called(1)
+    }
 }
 
-private struct TestCommand: ParsableCommand, HasTrackableParameters {
+private struct TestCommand: ParsableCommand, HasTrackableParameters, TrackableParsableCommand {
     enum TestError: FatalError, Equatable {
         case commandFailed
 
@@ -162,6 +200,7 @@ private struct TestCommand: ParsableCommand, HasTrackableParameters {
 
     var flag: Bool = false
     var shouldFail: Bool = false
+    var analyticsRequired: Bool = false
 
     static var analyticsDelegate: TrackableParametersDelegate?
     var runId = ""

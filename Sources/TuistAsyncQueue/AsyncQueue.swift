@@ -1,8 +1,10 @@
 import Foundation
+import Mockable
 import Queuer
 import TuistCore
 import TuistSupport
 
+@Mockable
 public protocol AsyncQueuing {
     /// It dispatches the given event.
     /// - Parameter event: Event to be dispatched.
@@ -11,6 +13,9 @@ public protocol AsyncQueuing {
 
     /// Waits for the queue to be fulfilled if on the CI
     func waitIfCI()
+
+    /// Waits for the queue to be fulfilled
+    func wait()
 }
 
 private final class AsyncConcurrentOperation: ConcurrentOperation {
@@ -59,6 +64,10 @@ public class AsyncQueue: AsyncQueuing {
 
     public func waitIfCI() {
         if !ciChecker.isCI() { return }
+        wait()
+    }
+
+    public func wait() {
         queue.waitUntilAllOperationsAreFinished()
     }
 

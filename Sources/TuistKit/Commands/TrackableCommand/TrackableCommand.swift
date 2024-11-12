@@ -137,7 +137,11 @@ public class TrackableCommand: TrackableParametersDelegate {
             path: path
         )
         try asyncQueue.dispatch(event: commandEvent)
-        asyncQueue.waitIfCI()
+        if let command = command as? TrackableParsableCommand, command.analyticsRequired {
+            asyncQueue.wait()
+        } else {
+            asyncQueue.waitIfCI()
+        }
     }
 
     public func addParameters(_ parameters: [String: AnyCodable]) {
