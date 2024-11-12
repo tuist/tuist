@@ -2,82 +2,82 @@
   "aside": {
     "translate": {
       "title": {
-        "text": "Translation 🌍"
+        "text": "번역"
       },
       "description": {
-        "text": "You can translate or improve the translation of this page."
+        "text": "이 페이지를 번역하거나 개선할 수 있습니다."
       },
       "cta": {
-        "text": "Contribute"
+        "text": "기여"
       }
     }
   },
   "search": {
-    "placeholder": "Search",
+    "placeholder": "검색",
     "translations": {
       "button": {
-        "button-text": "Search documentation",
-        "button-aria-label": "Search documentation"
+        "button-text": "문서 검색",
+        "button-aria-label": "문서 검색"
       },
       "modal": {
         "search-box": {
-          "reset-button-title": "Clear query",
-          "reset-button-aria-label": "Clear query",
-          "cancel-button-text": "Cancel",
-          "cancel-button-aria-label": "Cancel"
+          "reset-button-title": "검색어 초기화",
+          "reset-button-aria-label": "검색어 초기화",
+          "cancel-button-text": "취소",
+          "cancel-button-aria-label": "취소"
         },
         "start-screen": {
-          "recent-searches-title": "Search history",
-          "no-recent-searches-text": "No search history",
-          "save-recent-search-button-title": "Save to search history",
-          "remove-recent-search-button-title": "Remove from search history",
-          "favorite-searches-title": "Favorites",
-          "remove-favorite-search-button-title": "Remove from favorites"
+          "recent-searches-title": "검색 이력",
+          "no-recent-searches-text": "검색 이력이 없음",
+          "save-recent-search-button-title": "검색 이력 저장",
+          "remove-recent-search-button-title": "검색 이력 삭제",
+          "favorite-searches-title": "즐겨찾기",
+          "remove-favorite-search-button-title": "즐겨찾기 삭제"
         },
         "error-screen": {
-          "title-text": "Unable to retrieve results",
-          "help-text": "You may need to check your network connection"
+          "title-text": "결과를 받을 수 없음",
+          "help-text": "네트워크 연결을 확인해주세요"
         },
         "footer": {
-          "select-text": "Select",
-          "navigate-text": "Navigate",
-          "close-text": "Close",
-          "search-by-text": "Search provider"
+          "select-text": "선택",
+          "navigate-text": "탐색",
+          "close-text": "닫기",
+          "search-by-text": "검색 제공자"
         },
         "no-results-screen": {
-          "no-results-text": "No relevant results found",
-          "suggested-query-text": "You might try querying",
-          "report-missing-results-text": "Do you think this query should have results?",
-          "report-missing-results-link-text": "Click to give feedback"
+          "no-results-text": "관련된 결과를 찾을 수 없음",
+          "suggested-query-text": "다른 검색어를 입력해보세요",
+          "report-missing-results-text": "검색 결과가 있어야 한다고 생각하나요?",
+          "report-missing-results-link-text": "의견 주기"
         }
       }
     }
   },
   "badges": {
-    "coming-soon": "Coming soon",
-    "xcodeproj-compatible": "XcodeProj-compatible"
+    "coming-soon": "업데이트 예정",
+    "xcodeproj-compatible": "XcodeProj 호환성"
   },
   "navbar": {
     "guides": {
-      "text": "Guides"
+      "text": "안내서"
     },
     "cli": {
       "text": "CLI"
     },
     "server": {
-      "text": "Server"
+      "text": "서버"
     },
     "resources": {
-      "text": "Resources",
+      "text": "리소스",
       "items": {
         "references": {
-          "text": "References"
+          "text": "참고자료"
         },
         "contributors": {
-          "text": "Contributors"
+          "text": "기여자들"
         },
         "changelog": {
-          "text": "Changelog"
+          "text": "수정사항"
         }
       }
     }
@@ -87,18 +87,18 @@
       "text": "CLI",
       "items": {
         "commands": {
-          "text": "Commands"
+          "text": "명령"
         }
       }
     },
     "references": {
-      "text": "References",
+      "text": "참고",
       "items": {
         "examples": {
-          "text": "Examples"
+          "text": "예제"
         },
         "migrations": {
-          "text": "Migrations",
+          "text": "이관",
           "items": {
             "from-v3-to-v4": {
               "text": "버전 3에서 버전 4로"
@@ -108,7 +108,7 @@
       }
     },
     "contributors": {
-      "text": "Contributors",
+      "text": "기여자들",
       "items": {
         "get-started": {
           "text": "Get started"
@@ -130,49 +130,49 @@
     "server": {
       "items": {
         "introduction": {
-          "text": "Introduction",
+          "text": "소개",
           "items": {
             "why-server": {
-              "text": "Why a server?"
+              "text": "왜 서버가 필요한가?"
             },
             "accounts-and-projects": {
-              "text": "Accounts and projects"
+              "text": "계정들과 프로젝트들"
             },
             "authentication": {
-              "text": "Authentication"
+              "text": "인증"
             },
             "integrations": {
-              "text": "Integrations"
+              "text": "통합"
             }
           }
         },
         "on-premise": {
-          "text": "On-premise",
+          "text": "설치형",
           "items": {
             "install": {
-              "text": "Install"
+              "text": "설치"
             },
             "metrics": {
-              "text": "Metrics"
+              "text": "통계"
             }
           }
         },
         "api-documentation": {
-          "text": "API documentation"
+          "text": "API 문서"
         },
         "status": {
-          "text": "Status"
+          "text": "상태"
         },
         "metrics-dashboard": {
-          "text": "Metrics dashboard"
+          "text": "통계 현황판"
         }
       }
     },
     "guides": {
-      "text": "Guides",
+      "text": "안내서",
       "items": {
         "quick-start": {
-          "text": "Quick start",
+          "text": "시작하기",
           "items": {
             "install-tuist": {
               "text": "Install Tuist"
@@ -186,38 +186,38 @@
           }
         },
         "start": {
-          "text": "Start",
+          "text": "시작",
           "items": {
             "new-project": {
               "text": "Create a new project"
             },
             "swift-package": {
-              "text": "Try with a Swift Package"
+              "text": "Swift Package 사용"
             },
             "migrate": {
-              "text": "Migrate",
+              "text": "이관",
               "items": {
                 "xcode-project": {
-                  "text": "An Xcode project"
+                  "text": "Xcode 프로젝트"
                 },
                 "swift-package": {
-                  "text": "A Swift package"
+                  "text": "Swift 패키지"
                 },
                 "xcodegen-project": {
-                  "text": "An XcodeGen project"
+                  "text": "XcodeGen 프로젝트"
                 },
                 "bazel-project": {
-                  "text": "A Bazel project"
+                  "text": "Bazel 프로젝트"
                 }
               }
             }
           }
         },
         "develop": {
-          "text": "Develop",
+          "text": "개발",
           "items": {
             "projects": {
-              "text": "Projects",
+              "text": "프로젝트들",
               "items": {
                 "manifests": {
                   "text": "Manifests"
@@ -253,7 +253,7 @@
                   "text": "The cost of convenience"
                 },
                 "tma-architecture": {
-                  "text": "Modular architecture"
+                  "text": "모듈화 설계"
                 },
                 "best-practices": {
                   "text": "Best practices"
@@ -261,7 +261,7 @@
               }
             },
             "build": {
-              "text": "Build",
+              "text": "빌드",
               "items": {
                 "cache": {
                   "text": "Cache"
@@ -269,7 +269,7 @@
               }
             },
             "test": {
-              "text": "Test",
+              "text": "테스트",
               "items": {
                 "smart-runner": {
                   "text": "Smart runner"
@@ -280,7 +280,7 @@
               }
             },
             "inspect": {
-              "text": "Inspect",
+              "text": "속성",
               "items": {
                 "implicit-imports": {
                   "text": "Implicit imports"
@@ -288,10 +288,10 @@
               }
             },
             "automate": {
-              "text": "Automate",
+              "text": "자동화",
               "items": {
                 "continuous-integration": {
-                  "text": "Continuous integration"
+                  "text": "지속 통합"
                 },
                 "workflows": {
                   "text": "Workflows"
@@ -301,10 +301,10 @@
           }
         },
         "share": {
-          "text": "Share",
+          "text": "공유",
           "items": {
             "previews": {
-              "text": "Previews"
+              "text": "미리보기"
             }
           }
         }
