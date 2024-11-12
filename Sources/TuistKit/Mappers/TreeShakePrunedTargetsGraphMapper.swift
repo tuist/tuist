@@ -6,17 +6,23 @@ import XcodeGraph
 public final class TreeShakePrunedTargetsGraphMapper: GraphMapping {
     public init() {}
 
-    public func map(graph: Graph, environment: MapperEnvironment) throws -> (Graph, [SideEffectDescriptor], MapperEnvironment) {
+    public func map(graph: Graph, environment: MapperEnvironment) throws -> (
+        Graph, [SideEffectDescriptor], MapperEnvironment
+    ) {
         logger.debug("Transforming graph \(graph.name): Tree-shaking nodes")
-        let sourceTargets: Set<TargetReference> = Set(graph.projects.flatMap { projectPath, project -> [TargetReference] in
-            return project.targets.compactMap { _, target -> TargetReference? in
-                if target.prune { return nil }
-                return TargetReference(projectPath: projectPath, name: target.name)
+        let sourceTargets: Set<TargetReference> = Set(
+            graph.projects.flatMap { projectPath, project -> [TargetReference] in
+                return project.targets.compactMap { _, target -> TargetReference? in
+                    if target.prune { return nil }
+                    return TargetReference(projectPath: projectPath, name: target.name)
+                }
             }
-        })
+        )
 
         // If the number of source targets matches the number of targets in the graph there's nothing to be pruned.
-        if sourceTargets.count == graph.projects.values.flatMap(\.targets.values).count { return (graph, [], environment) }
+        if sourceTargets.count == graph.projects.values.flatMap(\.targets.values).count {
+            return (graph, [], environment)
+        }
 
         var treeShakedProjects: [AbsolutePath: Project] = [:]
         var treeShakedDependencies: [GraphDependency: Set<GraphDependency>] = graph.dependencies
@@ -36,7 +42,9 @@ public final class TreeShakePrunedTargetsGraphMapper: GraphMapping {
                 )
                 var project = project
                 project.schemes = schemes
-                project.targets = Dictionary(uniqueKeysWithValues: treeShakedTargets.map { ($0.name, $0) })
+                project.targets = Dictionary(
+                    uniqueKeysWithValues: treeShakedTargets.map { ($0.name, $0) }
+                )
                 treeShakedProjects[projectPath] = project
             }
             for (fromDependency, toDependencies) in projectTreeShakedDependencies {
@@ -57,7 +65,9 @@ public final class TreeShakePrunedTargetsGraphMapper: GraphMapping {
         return (graph, [], environment)
     }
 
-    fileprivate func treeShake(workspace: Workspace, projects: [Project], sourceTargets: Set<TargetReference>) -> Workspace {
+    fileprivate func treeShake(
+        workspace: Workspace, projects: [Project], sourceTargets: Set<TargetReference>
+    ) -> Workspace {
         let projects = workspace.projects.filter { projects.map(\.path).contains($0) }
         let schemes = treeShake(schemes: workspace.schemes, sourceTargets: sourceTargets)
         var workspace = workspace
@@ -87,13 +97,17 @@ public final class TreeShakePrunedTargetsGraphMapper: GraphMapping {
              */
             target.dependencies = target.dependencies.filter { dependency in
                 switch dependency {
-                case let .target(targetDependencyName, _, _condition):
-                    return sourceTargets.contains(TargetReference(projectPath: path, name: targetDependencyName))
-                case let .project(targetDependencyName, targetDependencyProjectPath, _status, _condition):
-                    return sourceTargets.contains(TargetReference(
-                        projectPath: targetDependencyProjectPath,
-                        name: targetDependencyName
-                    ))
+                case let .target(targetDependencyName, _, _):
+                    return sourceTargets.contains(
+                        TargetReference(projectPath: path, name: targetDependencyName)
+                    )
+                case let .project(targetDependencyName, targetDependencyProjectPath, _, _):
+                    return sourceTargets.contains(
+                        TargetReference(
+                            projectPath: targetDependencyProjectPath,
+                            name: targetDependencyName
+                        )
+                    )
                 default:
                     return true
                 }
@@ -119,10 +133,12 @@ public final class TreeShakePrunedTargetsGraphMapper: GraphMapping {
                                  framework based on the platform. We have logic to prune unneceessary platforms from the external
                                  part of the graph.
                                  */
-                                if sourceTargets.contains(TargetReference(
-                                    projectPath: dependencyProjectPath,
-                                    name: dependencyName
-                                )) {
+                                if sourceTargets.contains(
+                                    TargetReference(
+                                        projectPath: dependencyProjectPath,
+                                        name: dependencyName
+                                    )
+                                ) {
                                     return dependency
                                 } else {
                                     return nil
@@ -146,8 +162,12 @@ public final class TreeShakePrunedTargetsGraphMapper: GraphMapping {
             }
 
             if let testAction = scheme.testAction {
-                scheme.testAction?.targets = testAction.targets.filter { sourceTargets.contains($0.target) }
-                scheme.testAction?.codeCoverageTargets = testAction.codeCoverageTargets.filter(sourceTargets.contains)
+                scheme.testAction?.targets = testAction.targets.filter {
+                    sourceTargets.contains($0.target)
+                }
+                scheme.testAction?.codeCoverageTargets = testAction.codeCoverageTargets.filter(
+                    sourceTargets.contains
+                )
             }
 
             let hasBuildTargets = !(scheme.buildAction?.targets ?? []).isEmpty
