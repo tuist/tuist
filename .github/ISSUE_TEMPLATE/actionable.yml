@@ -1,5 +1,5 @@
 name: Actionable item
-description: Use this to capture an actionable item (e.g. a refactor, small improvements) that any contributor can pick up and work on. If you just had an idea, use the [community forum](https://community.tuist.io/c/ideas/7) for that.
+description: Use this to capture actionable items (e.g., refactors, small improvements) for any contributor to pick up. For ideas, please use the [community forum](https://community.tuist.io/c/ideas/7).
 title: "Insert title here"
 body:
   - type: markdown
@@ -10,7 +10,7 @@ body:
     id: need
     attributes:
       label: Why is this needed?
-      description: It's important to understand the problem or need that you're trying to address. This will help us to evaluate the importance of the issue and prioritize it accordingly.
+      description: It's important to understand the problem or need that you're trying to address. This will help us evaluate the importance of the issue and prioritize it accordingly.
       placeholder: Describe why this is needed and the impact it will have on the project or community.
     validations:
       required: true
@@ -19,7 +19,7 @@ body:
     id: steps
     attributes:
       label: Steps to address the need
-      description: What steps need to be taken to address the need? Be as specific as possible. Contributors that have never worked on the project should be able to understand what needs to be done, so try not to assume any prior knowledge.
-      placeholder: Set of steps that need to be taken to address the need.
+      description: What steps need to be taken to address the need? Be as specific as possible. Contributors who have never worked on the project should be able to understand what needs to be done, so try not to assume any prior knowledge.
+      placeholder: List the specific steps needed to address this need in enough detail for new contributors to follow.
     validations:
       required: true
