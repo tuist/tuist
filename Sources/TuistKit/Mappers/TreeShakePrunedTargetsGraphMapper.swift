@@ -18,36 +18,42 @@ public final class TreeShakePrunedTargetsGraphMapper: GraphMapping {
         // If the number of source targets matches the number of targets in the graph there's nothing to be pruned.
         if sourceTargets.count == graph.projects.values.flatMap(\.targets.values).count { return (graph, [], environment) }
 
-        let projects = graph.projects.reduce(into: [AbsolutePath: Project]()) { acc, next in
-            let targets = self.treeShake(
-                targets: Array(next.value.targets.values),
-                path: next.key,
+        var treeShakedProjects: [AbsolutePath: Project] = [:]
+        var treeShakedDependencies: [GraphDependency: Set<GraphDependency>] = graph.dependencies
+
+        for (projectPath, project) in graph.projects {
+            let (treeShakedTargets, projectTreeShakedDependencies) = treeShake(
+                targets: Array(project.targets.values),
+                dependencies: graph.dependencies,
+                path: projectPath,
                 graph: graph,
                 sourceTargets: sourceTargets
             )
-            if targets.isEmpty {
-                return
-            } else {
-                let schemes = self.treeShake(
-                    schemes: next.value.schemes,
+            if !treeShakedTargets.isEmpty {
+                let schemes = treeShake(
+                    schemes: project.schemes,
                     sourceTargets: sourceTargets
                 )
-                var project = next.value
+                var project = project
                 project.schemes = schemes
-                project.targets = Dictionary(uniqueKeysWithValues: targets.map { ($0.name, $0) })
-                acc[next.key] = project
+                project.targets = Dictionary(uniqueKeysWithValues: treeShakedTargets.map { ($0.name, $0) })
+                treeShakedProjects[projectPath] = project
+            }
+            for (fromDependency, toDependencies) in projectTreeShakedDependencies {
+                treeShakedDependencies[fromDependency] = toDependencies
             }
         }
 
         let workspace = treeShake(
             workspace: graph.workspace,
-            projects: Array(projects.values),
+            projects: Array(treeShakedProjects.values),
             sourceTargets: sourceTargets
         )
 
         var graph = graph
         graph.workspace = workspace
-        graph.projects = projects
+        graph.projects = treeShakedProjects
+        graph.dependencies = treeShakedDependencies
         return (graph, [], environment)
     }
 
@@ -62,37 +68,52 @@ public final class TreeShakePrunedTargetsGraphMapper: GraphMapping {
 
     fileprivate func treeShake(
         targets: [Target],
+        dependencies: [GraphDependency: Set<GraphDependency>],
         path: AbsolutePath,
         graph: Graph,
         sourceTargets: Set<TargetReference>
-    ) -> [Target] {
-        targets.compactMap { target -> Target? in
-            guard var target = graph.projects[path]?.targets[target.name] else { return nil }
+    ) -> (targets: [Target], dependencies: [GraphDependency: Set<GraphDependency>]) {
+        var treeShakedTargets: [Target] = []
+        var treeShakedDependencies: [GraphDependency: Set<GraphDependency>] = [:]
+
+        for target in targets {
+            guard let target = graph.projects[path]?.targets[target.name] else { continue }
             let targetReference = TargetReference(projectPath: path, name: target.name)
-            guard sourceTargets.contains(targetReference) else { return nil }
-            
-            /**
-             If a target dependency a target depends on is tree-shaked, that dependency should be removed.
-             This happens in scenarios where a external target (iOS and tvOS framework) conditionally depends on
-             framework based on the platform. We have logic to prune unneceessary platforms from the external
-             part of the graph.
-             */
-            
-            target.dependencies = target.dependencies.compactMap({ targetDependency in
-                switch targetDependency {
-                case let .target(dependencyName, _, _):
-                    if sourceTargets.contains(TargetReference(projectPath: path, name: dependencyName)) {
-                        return targetDependency
-                    } else {
-                        return nil
-                    }
+            guard sourceTargets.contains(targetReference) else { continue }
+            treeShakedTargets.append(target)
+
+            if let targetGraphDependency = dependencies.keys.first(where: { dependency -> Bool in
+                switch dependency {
+                case let .target(dependencyTargetName, dependencyPath, _):
+                    return target.name == dependencyTargetName && path == dependencyPath
                 default:
-                    return targetDependency
+                    return false
                 }
-            })
-            
-            return target
+            }) {
+                treeShakedDependencies[targetGraphDependency] = Set(
+                    dependencies[targetGraphDependency, default: Set()]
+                        .compactMap { dependency in
+                            switch dependency {
+                            case let .target(dependencyName, _, _):
+                                /**
+                                 If a target dependency a target depends on is tree-shaked, that dependency should be removed.
+                                 This happens in scenarios where a external target (iOS and tvOS framework) conditionally depends on
+                                 framework based on the platform. We have logic to prune unneceessary platforms from the external
+                                 part of the graph.
+                                 */
+                                if sourceTargets.contains(TargetReference(projectPath: path, name: dependencyName)) {
+                                    return dependency
+                                } else {
+                                    return nil
+                                }
+                            default:
+                                return dependency
+                            }
+                        }
+                )
+            }
         }
+        return (targets: treeShakedTargets, dependencies: treeShakedDependencies)
     }
 
     fileprivate func treeShake(schemes: [Scheme], sourceTargets: Set<TargetReference>) -> [Scheme] {
