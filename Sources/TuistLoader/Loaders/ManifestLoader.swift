@@ -240,7 +240,6 @@ public class ManifestLoader: ManifestLoading {
         let data = try await loadDataForManifest(manifest, at: manifestPath)
 
         do {
-            print(try decoder.decode(T.self, from: data))
             return try decoder.decode(T.self, from: data)
         } catch {
             guard let error = error as? DecodingError else {
