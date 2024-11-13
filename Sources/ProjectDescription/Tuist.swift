@@ -22,10 +22,8 @@
 /// ```swift
 /// import ProjectDescription
 ///
-/// let config = Config(
-///     compatibleXcodeVersions: ["14.2"],
-///     swiftVersion: "5.9.0"
-/// )
+/// let tuist = Config(project: .tuist(generationOptions: .options(resolveDependenciesWithSystemScm: false)))
+///
 /// ```
 public typealias Config = Tuist
 
@@ -49,7 +47,11 @@ public struct Tuist: Codable, Equatable, Sendable {
     ///   - plugins: A list of plugins to extend Tuist.
     ///   - generationOptions: List of options to use when generating the project.
     ///   - installOptions: List of options to use when running `tuist install`.
-    @available(*, deprecated, message: "Use the new .init(project: .tuist(...)) that nests the property-related attributes into project.")
+    @available(
+        *,
+        deprecated,
+        message: "Use the new .init(project: .tuist(...)) that nests the property-related attributes into project."
+    )
     public init(
         compatibleXcodeVersions: CompatibleXcodeVersions = .all,
         cloud: Cloud? = nil,
@@ -60,14 +62,13 @@ public struct Tuist: Codable, Equatable, Sendable {
         generationOptions: GenerationOptions = .options(),
         installOptions: InstallOptions = .options()
     ) {
-        var fullHandle = fullHandle
-        var url = url
+        var fullHandle = cloud?.projectId ?? fullHandle
+        var url = cloud?.url ?? url
         var generationOptions = generationOptions
         if let cloud {
-            fullHandle = cloud.projectId
-            url = cloud.url
             generationOptions.optionalAuthentication = cloud.options.contains(.optional)
         }
+
         project = TuistProject.tuist(
             compatibleXcodeVersions: compatibleXcodeVersions,
             swiftVersion: swiftVersion,
@@ -81,9 +82,9 @@ public struct Tuist: Codable, Equatable, Sendable {
     }
 
     public init(
-        project: TuistProject,
         fullHandle: String? = nil,
-        url: String = "https://tuist.dev"
+        url: String = "https://tuist.dev",
+        project: TuistProject
     ) {
         self.project = project
         self.fullHandle = fullHandle
