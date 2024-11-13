@@ -37,13 +37,13 @@ API의 가독성과 표현력을 높이기 위해, 모든 `ProjectDescription` �
 
 왜냐하면 `--no-cache` 플래그가 모호했기 때문에, 이를 `--no-binary-cache`로 변경하여 바이너리 캐시를 의미한다는 점을 명확히 했습니다. 만약 `--no-cache` 플래그를 사용하고 있었다면, 이제 `--no-binary-cache` 플래그를 사용하도록 프로젝트를 업데이트해야 합니다.
 
-### Renamed `tuist fetch` to `tuist install` {#renamed-tuist-fetch-to-tuist-install}
+### `tuist fetch`가 `tuist install`로 이름이 변경되었습니다. {#renamed-tuist-fetch-to-tuist-install}
 
-We renamed the `tuist fetch` command to `tuist install` to align with the industry convention. If you were using the `tuist fetch` command, you'll have to update your project to use the `tuist install` command instead.
+업계 표준에 맞추기 위해 `tuist fetch` 명령어를 `tuist install`로 변경했습니다. `tuist fetch` 명령어를 사용하고 있었다면 `tuist install` 명령어를 사용하도록 프로젝트를 업데이트해야 합니다.
 
-### [Adopt `Package.swift` as the DSL for dependencies](https://github.com/tuist/tuist/pull/5862) {#adopt-packageswift-as-the-dsl-for-dependencieshttpsgithubcomtuisttuistpull5862}
+### [종속성을 위한 DSL로 'Package.swift'를 채택합니다](https://github.com/tuist/tuist/pull/5862) {#adopt-packageswift-as-the-dsl-for-dependencieshttpsgithubcomtuisttuistpull5862}
 
-Before Tuist 4, you could define dependencies in a `Dependencies.swift` file. This proprietary format broke the support in tools like [Dependabot](https://github.com/dependabot) or [Renovatebot](https://github.com/renovatebot/renovate) to automatically update dependencies. Moreover, it introduced unnecessary indirections for users. Therefore, we decided to embrace `Package.swift` as the only way to define dependencies in Tuist. If you were using the `Dependencies.swift` file, you'll have to move the content from your `Tuist/Dependencies.swift` to a `Package.swift` at the root, and use the `#if TUIST` directive to configure the integration. You can read more about how to integrate Swift Package dependencies <LocalizedLink href="/guides/develop/projects/dependencies#swift-packages">here</LocalizedLink>
+Tuist 4 이전에는 `Dependencies.swift` 파일에서 종속성을 정의할 수 있었습니다. This proprietary format broke the support in tools like [Dependabot](https://github.com/dependabot) or [Renovatebot](https://github.com/renovatebot/renovate) to automatically update dependencies. Moreover, it introduced unnecessary indirections for users. Therefore, we decided to embrace `Package.swift` as the only way to define dependencies in Tuist. If you were using the `Dependencies.swift` file, you'll have to move the content from your `Tuist/Dependencies.swift` to a `Package.swift` at the root, and use the `#if TUIST` directive to configure the integration. You can read more about how to integrate Swift Package dependencies <LocalizedLink href="/guides/develop/projects/dependencies#swift-packages">here</LocalizedLink>
 
 ### Renamed `tuist cache warm` to `tuist cache` {#renamed-tuist-cache-warm-to-tuist-cache}
 
