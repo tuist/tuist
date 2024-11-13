@@ -1,5 +1,26 @@
 # Changelog
 
+## 4.34.0 - 2024-11-13
+
+### CLI
+
+#### Changed
+
+- Allow configuration-specific settings for individual targets in PackageSettings [#7009](https://github.com/tuist/tuist/pull/7009) by [@Ernest0-Production](https://github.com/Ernest0-Production)
+
+#### Added
+
+- Allow files generated during build to be used as sources. [#6990](https://github.com/tuist/tuist/pull/6990) by [@TamarMilchtaich](https://github.com/TamarMilchtaich)
+
+#### Fixed
+
+- Always wait for command event to be uploaded when running tuist share [#7041](https://github.com/tuist/tuist/pull/7041) by [@fortmarek](https://github.com/fortmarek)
+- Fix caching failing due to tree-shaking logic not pruning dependencies [#7040](https://github.com/tuist/tuist/pull/7040) by [@pepicrft](https://github.com/pepicrft)
+
+### CLI (Server features)
+
+- no changes
+
 ## 4.33.0 - 2024-11-07
 
 ### CLI
