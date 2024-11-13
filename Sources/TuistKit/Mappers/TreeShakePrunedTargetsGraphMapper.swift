@@ -24,18 +24,18 @@ public final class TreeShakePrunedTargetsGraphMapper: GraphMapping {
             return (graph, [], environment)
         }
 
-        var treeShakedProjects: [AbsolutePath: Project] = [:]
-        var treeShakedDependencies: [GraphDependency: Set<GraphDependency>] = graph.dependencies
+        var treeShakenProjects: [AbsolutePath: Project] = [:]
+        var treeShakenDependencies: [GraphDependency: Set<GraphDependency>] = graph.dependencies
 
         for (projectPath, project) in graph.projects {
-            let (treeShakedTargets, projectTreeShakedDependencies) = treeShake(
+            let (treeShakenTargets, projecttreeShakenDependencies) = treeShake(
                 targets: Array(project.targets.values),
                 dependencies: graph.dependencies,
                 path: projectPath,
                 graph: graph,
                 sourceTargets: sourceTargets
             )
-            if !treeShakedTargets.isEmpty {
+            if !treeShakenTargets.isEmpty {
                 let schemes = treeShake(
                     schemes: project.schemes,
                     sourceTargets: sourceTargets
@@ -43,25 +43,25 @@ public final class TreeShakePrunedTargetsGraphMapper: GraphMapping {
                 var project = project
                 project.schemes = schemes
                 project.targets = Dictionary(
-                    uniqueKeysWithValues: treeShakedTargets.map { ($0.name, $0) }
+                    uniqueKeysWithValues: treeShakenTargets.map { ($0.name, $0) }
                 )
-                treeShakedProjects[projectPath] = project
+                treeShakenProjects[projectPath] = project
             }
-            for (fromDependency, toDependencies) in projectTreeShakedDependencies {
-                treeShakedDependencies[fromDependency] = toDependencies
+            for (fromDependency, toDependencies) in projecttreeShakenDependencies {
+                treeShakenDependencies[fromDependency] = toDependencies
             }
         }
 
         let workspace = treeShake(
             workspace: graph.workspace,
-            projects: Array(treeShakedProjects.values),
+            projects: Array(treeShakenProjects.values),
             sourceTargets: sourceTargets
         )
 
         var graph = graph
         graph.workspace = workspace
-        graph.projects = treeShakedProjects
-        graph.dependencies = treeShakedDependencies
+        graph.projects = treeShakenProjects
+        graph.dependencies = treeShakenDependencies
         return (graph, [], environment)
     }
 
@@ -83,8 +83,8 @@ public final class TreeShakePrunedTargetsGraphMapper: GraphMapping {
         graph: Graph,
         sourceTargets: Set<TargetReference>
     ) -> (targets: [Target], dependencies: [GraphDependency: Set<GraphDependency>]) {
-        var treeShakedTargets: [Target] = []
-        var treeShakedDependencies: [GraphDependency: Set<GraphDependency>] = [:]
+        var treeShakenTargets: [Target] = []
+        var treeShakenDependencies: [GraphDependency: Set<GraphDependency>] = [:]
 
         for target in targets {
             guard var target = graph.projects[path]?.targets[target.name] else { continue }
@@ -112,7 +112,7 @@ public final class TreeShakePrunedTargetsGraphMapper: GraphMapping {
                     return true
                 }
             }
-            treeShakedTargets.append(target)
+            treeShakenTargets.append(target)
 
             if let targetGraphDependency = dependencies.keys.first(where: { dependency -> Bool in
                 switch dependency {
@@ -122,7 +122,7 @@ public final class TreeShakePrunedTargetsGraphMapper: GraphMapping {
                     return false
                 }
             }) {
-                treeShakedDependencies[targetGraphDependency] = Set(
+                treeShakenDependencies[targetGraphDependency] = Set(
                     dependencies[targetGraphDependency, default: Set()]
                         .compactMap { dependency in
                             switch dependency {
@@ -150,7 +150,7 @@ public final class TreeShakePrunedTargetsGraphMapper: GraphMapping {
                 )
             }
         }
-        return (targets: treeShakedTargets, dependencies: treeShakedDependencies)
+        return (targets: treeShakenTargets, dependencies: treeShakenDependencies)
     }
 
     fileprivate func treeShake(schemes: [Scheme], sourceTargets: Set<TargetReference>) -> [Scheme] {
@@ -178,13 +178,13 @@ public final class TreeShakePrunedTargetsGraphMapper: GraphMapping {
             }
 
             if let expandVariableFromTarget = scheme.runAction?.expandVariableFromTarget,
-               !sourceTargets.contains(expandVariableFromTarget)
+                !sourceTargets.contains(expandVariableFromTarget)
             {
                 return nil
             }
 
             if let expandVariableFromTarget = scheme.testAction?.expandVariableFromTarget,
-               !sourceTargets.contains(expandVariableFromTarget)
+                !sourceTargets.contains(expandVariableFromTarget)
             {
                 return nil
             }
