@@ -13,7 +13,7 @@ public struct PackageSettings: Equatable, Codable {
     public let baseSettings: Settings
 
     /// The custom `Settings` to be applied to SPM targets
-    public let targetSettings: [String: SettingsDictionary]
+    public let targetSettings: [String: Settings]
 
     /// The custom project options for each project generated from a swift package
     public let projectOptions: [String: XcodeGraph.Project.Options]
@@ -28,7 +28,7 @@ public struct PackageSettings: Equatable, Codable {
         productTypes: [String: Product],
         productDestinations: [String: Destinations],
         baseSettings: Settings,
-        targetSettings: [String: SettingsDictionary],
+        targetSettings: [String: Settings],
         projectOptions: [String: XcodeGraph.Project.Options] = [:]
     ) {
         self.productTypes = productTypes
@@ -45,7 +45,7 @@ public struct PackageSettings: Equatable, Codable {
             productTypes: [String: Product] = [:],
             productDestinations: [String: Destinations] = [:],
             baseSettings: Settings = Settings.default,
-            targetSettings: [String: SettingsDictionary] = [:],
+            targetSettings: [String: Settings] = [:],
             projectOptions: [String: XcodeGraph.Project.Options] = [:]
         ) -> PackageSettings {
             PackageSettings(

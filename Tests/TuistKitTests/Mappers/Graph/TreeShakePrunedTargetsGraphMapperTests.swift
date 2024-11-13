@@ -311,4 +311,76 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(gotGraph.projects.first?.value, expectedProject)
     }
+
+    func test_map_removes_pruned_dependencies() throws {
+        // Given
+        let frameworkBiOS = Target.test(name: "BiOS", destinations: [.iPhone], product: .framework)
+        // This one has been marked to prune by Tuist because it's not needed if we filter down the platforms from the entry-point
+        // nodes of the graph.
+        let frameworkBtvOS = Target.test(name: "BtvOS", destinations: [.appleTv], product: .framework, prune: true)
+        let frameworkA = Target.test(name: "A", destinations: [.iPhone], product: .framework, dependencies: [
+            .target(name: frameworkBiOS.name, status: .required, condition: nil),
+            .target(name: frameworkBtvOS.name, status: .required, condition: nil),
+        ])
+        let app = Target.test(name: "App", destinations: [.iPhone], product: .app, dependencies: [
+            .target(name: frameworkA.name, status: .required, condition: nil),
+        ])
+
+        let project = Project.test(targets: [app, frameworkA, frameworkBiOS, frameworkBtvOS])
+
+        let graph = Graph.test(
+            path: project.path,
+            projects: [project.path: project],
+            dependencies: [
+                .target(name: app.name, path: project.path): Set([.target(name: frameworkA.name, path: project.path)]),
+                .target(name: frameworkA.name, path: project.path): Set([
+                    .target(name: frameworkBiOS.name, path: project.path),
+                    .target(name: frameworkBtvOS.name, path: project.path),
+                ]),
+            ],
+            dependencyConditions: [
+                GraphEdge(
+                    from: .target(name: frameworkA.name, path: project.path),
+                    to: .target(name: frameworkBiOS.name, path: project.path)
+                ): try .test([.ios])!,
+                GraphEdge(
+                    from: .target(name: frameworkA.name, path: project.path),
+                    to: .target(name: frameworkBtvOS.name, path: project.path)
+                ): try .test([.tvos])!,
+            ]
+        )
+
+        // When
+        let (gotGraph, _, _) = try subject.map(graph: graph, environment: MapperEnvironment())
+
+        // Then
+        let expectedFrameworkBiOS = Target.test(name: "BiOS", destinations: [.iPhone], product: .framework)
+        let expectedFrameworkA = Target.test(name: "A", destinations: [.iPhone], product: .framework, dependencies: [
+            .target(name: expectedFrameworkBiOS.name, status: .required, condition: nil),
+        ])
+        let expectedApp = Target.test(name: "App", destinations: [.iPhone], product: .app, dependencies: [
+            .target(name: expectedFrameworkA.name, status: .required, condition: nil),
+        ])
+        let expectedProject = Project.test(targets: [expectedApp, expectedFrameworkA, expectedFrameworkBiOS])
+
+        let expectedGraph = Graph.test(
+            path: expectedProject.path,
+            projects: [expectedProject.path: expectedProject],
+            dependencies: [
+                .target(name: app.name, path: project.path): Set([.target(name: frameworkA.name, path: project.path)]),
+                .target(name: frameworkA.name, path: project.path): Set([.target(name: frameworkBiOS.name, path: project.path)]),
+            ],
+            dependencyConditions: [
+                GraphEdge(
+                    from: .target(name: frameworkA.name, path: project.path),
+                    to: .target(name: frameworkBiOS.name, path: project.path)
+                ): try .test([.ios])!,
+                GraphEdge(
+                    from: .target(name: frameworkA.name, path: project.path),
+                    to: .target(name: frameworkBtvOS.name, path: project.path)
+                ): try .test([.tvos])!,
+            ]
+        )
+        XCTAssertBetterEqual(expectedGraph, gotGraph)
+    }
 }

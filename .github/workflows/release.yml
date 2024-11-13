@@ -108,10 +108,9 @@ jobs:
           TUIST_CONFIG_TOKEN: ${{ secrets.TUIST_APP_CONFIG_TOKEN }}
       - name: Generate Sparkle appcast
         if: env.should-release == 'true'
-        working-directory: app
         env:
           TUIST_APP_PRIVATE_SPARKLE_KEY: ${{ secrets.TUIST_APP_PRIVATE_SPARKLE_KEY }}
-        run: echo "$TUIST_APP_PRIVATE_SPARKLE_KEY" | .build/artifacts/sparkle/Sparkle/bin/generate_appcast --link https://github.com/tuist/tuist/releases --download-url-prefix https://github.com/tuist/tuist/releases/download/${{ steps.next-version.outputs.NEXT_VERSION }}/Tuist.dmg -o appcast.xml build/artifacts --ed-key-file -
+        run: echo "$TUIST_APP_PRIVATE_SPARKLE_KEY" | .build/artifacts/sparkle/Sparkle/bin/generate_appcast --link https://github.com/tuist/tuist/releases --download-url-prefix https://github.com/tuist/tuist/releases/download/${{ steps.next-version.outputs.NEXT_VERSION }}/Tuist.dmg -o app/appcast.xml app/build/artifacts --ed-key-file -
       - name: Commit changes
         id: auto-commit-action
         uses: stefanzweifel/git-auto-commit-action@v5

@@ -102,6 +102,8 @@ extension ServerOrganization {
             switch ssoProvider {
             case .google:
                 ssoOrganization = .google(ssoOrganizationId)
+            case .okta:
+                ssoOrganization = .okta(ssoOrganizationId)
             }
         } else {
             ssoOrganization = nil

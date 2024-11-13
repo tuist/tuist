@@ -88,21 +88,27 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
             graphTraverser: graphTraverser
         )
 
+        try generateLinkingPhase(
+            target: target,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            fileElements: fileElements,
+            path: path,
+            graphTraverser: graphTraverser
+        )
+
+        try generatePackages(
+            target: target,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj
+        )
+
         try generateEmbedPhase(
             target: target,
             pbxTarget: pbxTarget,
             pbxproj: pbxproj,
             fileElements: fileElements,
             sourceRootPath: sourceRootPath,
-            path: path,
-            graphTraverser: graphTraverser
-        )
-
-        try generateLinkingPhase(
-            target: target,
-            pbxTarget: pbxTarget,
-            pbxproj: pbxproj,
-            fileElements: fileElements,
             path: path,
             graphTraverser: graphTraverser
         )
@@ -123,12 +129,6 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
             pbxTarget: pbxTarget,
             pbxproj: pbxproj,
             fileElements: fileElements
-        )
-
-        try generatePackages(
-            target: target,
-            pbxTarget: pbxTarget,
-            pbxproj: pbxproj
         )
     }
 
@@ -220,6 +220,7 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
         )
 
         var frameworkReferences: [GraphDependencyReference] = []
+        let productRefs = pbxproj.buildFiles.compactMap(\.product)
 
         for dependency in embeddableFrameworks {
             switch dependency {
@@ -245,6 +246,17 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
                     settings: ["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]]
                 )
                 buildFile.applyCondition(condition, applicableTo: target)
+                pbxproj.add(object: buildFile)
+                embedPhase.files?.append(buildFile)
+            case let .packageProduct(product, _):
+                guard let productRef = productRefs.first(where: { $0.productName == product }) else {
+                    break
+                }
+
+                let buildFile = PBXBuildFile(
+                    product: productRef,
+                    settings: ["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]]
+                )
                 pbxproj.add(object: buildFile)
                 embedPhase.files?.append(buildFile)
             case .library, .bundle, .sdk, .macro:
@@ -429,7 +441,7 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
                 try addBuildFile(path, condition: condition)
             case let .xcframework(path, _, status, condition):
                 try addBuildFile(path, condition: condition, status: status)
-            case .bundle, .macro:
+            case .bundle, .macro, .packageProduct:
                 break
             case let .product(dependencyTarget, _, status, condition):
                 guard status != .none else { return }
