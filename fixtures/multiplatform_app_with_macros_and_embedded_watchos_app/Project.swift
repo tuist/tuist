@@ -65,6 +65,7 @@ let project = Project(
             product: .macro,
             productName: "ModuleAMacros",
             bundleId: "io.tuist.moduleamacros",
+            deploymentTargets: .macOS("14.0"),
             sources: [
                 "Modules/ModuleA/Macros/**",
             ],
