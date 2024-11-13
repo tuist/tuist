@@ -1,3 +1,9 @@
+## What's Changed in app@0.5.1
+* remove 0.5.0 appcast entry by @fortmarek
+* fix: finding latest update by @fortmarek in [#7046](https://github.com/tuist/tuist/pull/7046)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/app@0.5.0...app@0.5.1
+
 ## What's Changed in app@0.5.0
 * feat: report status when installing preview by @fortmarek in [#7024](https://github.com/tuist/tuist/pull/7024)
 * feat: add support for preview icons by @fortmarek in [#7021](https://github.com/tuist/tuist/pull/7021)
