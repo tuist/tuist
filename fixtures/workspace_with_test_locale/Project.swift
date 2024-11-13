@@ -12,9 +12,10 @@ let project = Project(
     ),
     targets: [
         Target.target(
-        name: "App",
-        destinations: .iOS,
-        product: .app,
-        bundleId: "io.tuist.app"
-    )]
+            name: "App",
+            destinations: .iOS,
+            product: .app,
+            bundleId: "io.tuist.app"
+        ),
+    ]
 )
