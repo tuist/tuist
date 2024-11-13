@@ -43,13 +43,13 @@ public struct Tuist: Codable, Equatable, Sendable {
     /// Creates a tuist configuration.
     ///
     /// - Parameters:
-    ///   - project: The project configuration.
     ///   - compatibleXcodeVersions: List of Xcode versions the project is compatible with.
     ///   - cloud: Cloud configuration.
     ///   - swiftVersion: The version of Swift that will be used by Tuist.
     ///   - plugins: A list of plugins to extend Tuist.
     ///   - generationOptions: List of options to use when generating the project.
     ///   - installOptions: List of options to use when running `tuist install`.
+    @available(*, deprecated, message: "Use the new .init(project: .tuist(...)) that nests the property-related attributes into project.")
     public init(
         compatibleXcodeVersions: CompatibleXcodeVersions = .all,
         cloud: Cloud? = nil,
