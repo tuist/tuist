@@ -384,8 +384,7 @@ let targets: [Target] = [
             "TSCLibc": .staticFramework,
             "ArgumentParser": .staticFramework,
             "Mockable": .staticFramework,
-        ],
-        baseSettings: .settings(base: ["GENERATE_MASTER_OBJECT_FILE": "YES"])
+        ]
     )
 
 #endif
