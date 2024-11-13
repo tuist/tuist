@@ -1292,9 +1292,15 @@ extension PackageInfo {
         settingsDictionary.merge(.from(settingsDictionary: baseSettings.base), uniquingKeysWith: { $1 })
 
         if toolsVersion >= Version(5, 9, 0) {
-            settingsDictionary = settingsDictionary.combine(with: [
-                "OTHER_SWIFT_FLAGS": ["$(inherited)", "-package-name", name.quotedIfContainsSpaces],
-            ])
+            let packageNameValues = ["$(inherited)", "-package-name", name.quotedIfContainsSpaces]
+            settingsDictionary["OTHER_SWIFT_FLAGS"] = switch settingsDictionary["OTHER_SWIFT_FLAGS"] {
+            case let .array(swiftFlags):
+                .array(swiftFlags + packageNameValues)
+            case let .string(swiftFlags):
+                .array(swiftFlags.split(separator: " ").map(String.init) + packageNameValues)
+            case .none:
+                .array(packageNameValues)
+            }
         }
 
         if let cLanguageStandard {
