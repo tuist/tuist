@@ -15,7 +15,7 @@ defmodule TuistWeb.Router do
 
   pipeline :browser_app do
     plug :accepts, ["html"]
-    plug :disable_robot_indexing_in_non_production
+    plug :disable_robot_indexing
     plug :fetch_session
     plug :fetch_live_flash
     plug :put_root_layout, html: {TuistWeb.Layouts, :app}
@@ -28,7 +28,7 @@ defmodule TuistWeb.Router do
   if not Tuist.Environment.on_premise?() do
     pipeline :browser_marketing do
       plug :accepts, ["html"]
-      plug :disable_robot_indexing_in_non_production
+      plug :enable_robot_indexing
       plug :fetch_session
       plug :fetch_live_flash
       plug :put_root_layout, html: {TuistWeb.Marketing.Layouts, :marketing}
@@ -388,11 +388,13 @@ defmodule TuistWeb.Router do
     conn |> assign(:current_path, conn.request_path)
   end
 
-  def disable_robot_indexing_in_non_production(conn, _params) do
-    if Tuist.Environment.env() == :prod do
-      conn
-    else
-      conn |> put_resp_header("x-robots-tags", "noindex, nofollow")
-    end
+  def disable_robot_indexing(conn, _params) do
+    conn |> put_resp_header("x-robots-tags", "noindex, nofollow")
+  end
+
+  defp enable_robot_indexing(conn, _params) do
+    # Once we iterate on the open-graph tags of the dashboard pages for public projects
+    # we should iterate on this to enable indexing for public projects
+    conn |> put_resp_header("x-robots-tags", "index, follow")
   end
 end
