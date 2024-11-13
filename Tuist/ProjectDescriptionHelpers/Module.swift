@@ -478,6 +478,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.generator.testingTargetName!),
                     .target(name: Module.automation.testingTargetName!),
                     .target(name: Module.migration.testingTargetName!),
+                    .target(name: Module.asyncQueue.targetName),
                     .target(name: Module.asyncQueue.testingTargetName!),
                     .target(name: Module.plugin.targetName),
                     .target(name: Module.plugin.testingTargetName!),
