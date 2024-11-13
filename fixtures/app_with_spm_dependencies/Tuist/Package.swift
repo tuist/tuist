@@ -7,6 +7,16 @@
 
     let packageSettings = PackageSettings(
         baseSettings: .targetSettings,
+        targetSettings: [
+            "LookinServer": .settings(
+                configurations: [
+                    .debug(
+                        name: "Debug",
+                        settings: ["ACTIVE_COMPILATION_CONDITIONS": "$(inherited) LOOKIN_SERVER"]
+                    ),
+                ]
+            ),
+        ],
         projectOptions: [
             "LocalSwiftPackage": .options(disableSynthesizedResourceAccessors: false),
         ]
