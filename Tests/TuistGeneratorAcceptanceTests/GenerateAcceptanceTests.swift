@@ -313,6 +313,10 @@ final class GenerateAcceptanceTestsiOSAppWithCustomScheme: TuistAcceptanceTestCa
     func test_ios_app_with_custom_scheme() async throws {
         try await setUpFixture(.iosAppWithCustomScheme)
         try await run(GenerateCommand.self)
+        try await run(BuildCommand.self)
+        try await run(BuildCommand.self, "App-Debug")
+        try await run(BuildCommand.self, "App-Release")
+        try await run(BuildCommand.self, "App-Local")
 
         let xcodeprojPath = fixturePath.appending(components: ["App", "MainApp.xcodeproj"])
 
@@ -1050,11 +1054,11 @@ final class GenerateAcceptanceTestParallelizable: TuistAcceptanceTestCase {
             parallelizable: .none
         )
     }
-    
+
     func test_app_parallelizable_all_from_mac_framework_test_plan() async throws {
         try await setUpFixture(.appWithTestPlan)
         try await run(GenerateCommand.self)
-        
+
         let xcodeprojPath = fixturePath.appending(components: ["App.xcodeproj"])
 
         try XCTAssertContainsParallelizable(
@@ -1064,11 +1068,11 @@ final class GenerateAcceptanceTestParallelizable: TuistAcceptanceTestCase {
             parallelizable: .all
         )
     }
-    
+
     func test_app_parallelizable_swift_testing_only_from_mac_framework_test_plan() async throws {
         try await setUpFixture(.appWithTestPlan)
         try await run(GenerateCommand.self)
-        
+
         let xcodeprojPath = fixturePath.appending(components: ["App.xcodeproj"])
 
         try XCTAssertContainsParallelizable(
@@ -1077,6 +1081,33 @@ final class GenerateAcceptanceTestParallelizable: TuistAcceptanceTestCase {
             testTarget: "MacFrameworkParallelizableTests",
             parallelizable: .swiftTestingOnly
         )
+    }
+}
+
+final class GenerateAcceptanceTestAppWithGeneratedSources: TuistAcceptanceTestCase {
+    func test_app_with_non_local_app_dependencies() async throws {
+        try await setUpFixture(.appWithGeneratedSources)
+        try await run(InstallCommand.self)
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self, "App")
+
+        let xcodeproj = try XcodeProj(
+            pathString: fixturePath.appending(components: "App.xcodeproj").pathString
+        )
+
+        let target = try XCTUnwrapTarget("App", in: xcodeproj)
+        let sourceFiles = try target.sourceFiles()
+        let sourceFilesNames = sourceFiles.compactMap { file in
+            let parent = file.parent?.path ?? ""
+            let path = file.path ?? ""
+            return parent + "/" + path
+        }.sorted()
+        let expectedPathsWithParents = [
+            "$(BUILT_PRODUCTS_DIR)/GeneratedEmptyFile2.swift",
+            "Generated/GeneratedEmptyFile.swift",
+            "Sources/AppDelegate.swift",
+        ]
+        XCTAssertEqual(sourceFilesNames, expectedPathsWithParents)
     }
 }
 
