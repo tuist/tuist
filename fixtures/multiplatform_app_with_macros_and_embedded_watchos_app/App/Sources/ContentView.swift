@@ -1,4 +1,5 @@
 import SwiftUI
+import ModuleA
 
 struct ContentView: View {
     var body: some View {
@@ -7,6 +8,7 @@ struct ContentView: View {
                 .imageScale(.large)
                 .foregroundColor(.accentColor)
             Text("Hello, world!")
+            Text("\(#stringify(1+1))")
         }
     }
 }

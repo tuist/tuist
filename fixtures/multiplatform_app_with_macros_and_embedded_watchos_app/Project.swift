@@ -56,6 +56,21 @@ let project = Project(
             ],
             dependencies: [
                 .external(name: "CasePaths"),
+                .macro(name: "ModuleAMacros"),
+            ]
+        ),
+        .target(
+            name: "ModuleAMacros",
+            destinations: .macOS,
+            product: .macro,
+            productName: "ModuleAMacros",
+            bundleId: "io.tuist.moduleamacros",
+            sources: [
+                "Modules/ModuleA/Macros/**",
+            ],
+            dependencies: [
+                .external(name: "SwiftSyntaxMacros"),
+                .external(name: "SwiftCompilerPlugin")
             ]
         ),
     ]
