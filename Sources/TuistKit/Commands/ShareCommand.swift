@@ -2,9 +2,11 @@ import ArgumentParser
 import Foundation
 import XcodeGraph
 
-public struct ShareCommand: AsyncParsableCommand, HasTrackableParameters {
+public struct ShareCommand: AsyncParsableCommand, HasTrackableParameters, TrackableParsableCommand {
     public static var analyticsDelegate: TrackableParametersDelegate?
     public var runId = UUID().uuidString
+
+    public var analyticsRequired: Bool { true }
 
     public init() {}
 
