@@ -235,7 +235,7 @@ defmodule TuistWeb.Marketing.MarketingController do
       [
         %{
           author: "Garnik Harutyunyan",
-          author_title: "Senior iOS developer at FreeNow",
+          author_title: "Senior iOS developer at FREENOW",
           author_link: "https://www.linkedin.com/in/garnikh/",
           avatar_src: "/marketing/images/testimonials/garnik.jpeg",
           body:
