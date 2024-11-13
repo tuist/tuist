@@ -157,7 +157,7 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
         XCTAssertEqual(product, "MacroPackageProduct")
         XCTAssertEqual(type, .macro)
     }
-    
+
     func test_from_when_package_plugin() throws {
         // Given
         let dependency = ProjectDescription.TargetDependency.package(product: "PluginPackageProduct", type: .plugin)
@@ -201,7 +201,6 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
         XCTAssertEqual(name, "MacroProduct")
         XCTAssertEqual(linkerStatus, .required)
     }
-
 
     func test_from_when_sdkLibrary() throws {
         // Given

@@ -70,7 +70,7 @@ let project = Project(
             ],
             dependencies: [
                 .external(name: "SwiftSyntaxMacros"),
-                .external(name: "SwiftCompilerPlugin")
+                .external(name: "SwiftCompilerPlugin"),
             ]
         ),
     ]
