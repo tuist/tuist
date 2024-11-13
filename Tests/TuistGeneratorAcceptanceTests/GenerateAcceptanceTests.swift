@@ -1040,6 +1040,33 @@ final class GenerateAcceptanceTestAppWithNonLocalAppDependencies: TuistAcceptanc
     }
 }
 
+final class GenerateAcceptanceTestAppWithGeneratedSources: TuistAcceptanceTestCase {
+    func test_app_with_non_local_app_dependencies() async throws {
+        try await setUpFixture(.appWithGeneratedSources)
+        try await run(InstallCommand.self)
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self, "App")
+
+        let xcodeproj = try XcodeProj(
+            pathString: fixturePath.appending(components: "App.xcodeproj").pathString
+        )
+
+        let target = try XCTUnwrapTarget("App", in: xcodeproj)
+        let sourceFiles = try target.sourceFiles()
+        let sourceFilesNames = sourceFiles.compactMap { file in
+            let parent = file.parent?.path ?? ""
+            let path = file.path ?? ""
+            return parent + "/" + path
+        }.sorted()
+        let expectedPathsWithParents = [
+            "$(BUILT_PRODUCTS_DIR)/GeneratedEmptyFile2.swift",
+            "Generated/GeneratedEmptyFile.swift",
+            "Sources/AppDelegate.swift",
+        ]
+        XCTAssertEqual(sourceFilesNames, expectedPathsWithParents)
+    }
+}
+
 // frameworkWithMacroAndPluginPackages
 
 extension TuistAcceptanceTestCase {

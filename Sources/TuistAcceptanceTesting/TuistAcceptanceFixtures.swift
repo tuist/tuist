@@ -87,6 +87,7 @@ public enum TuistAcceptanceFixtures {
     case workspaceWithInlineFileHeaderTemplate
     case xcodeApp
     case appWithExecutableNonLocalDependencies
+    case appWithGeneratedSources
     case custom(String)
 
     public var path: String {
@@ -263,6 +264,8 @@ public enum TuistAcceptanceFixtures {
             return "xcode_app"
         case .appWithExecutableNonLocalDependencies:
             return "app_with_executable_non_local_dependencies"
+        case .appWithGeneratedSources:
+            return "app_with_generated_sources"
         case let .custom(path):
             return path
         }
