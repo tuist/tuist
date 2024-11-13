@@ -15,7 +15,7 @@ defmodule Tuist.GitHub.Releases do
 
   @releases_url "https://api.github.com/repos/tuist/tuist/releases"
   @cache_key "tuist_releases"
-  @ttl :timer.hours(24)
+  @ttl :timer.hours(1)
 
   def releases_url() do
     @releases_url
@@ -32,13 +32,12 @@ defmodule Tuist.GitHub.Releases do
   end
 
   def get_latest_app_release(opts \\ []) do
-    case fetch_releases(opts)
-         |> Enum.find(fn release ->
-           release["name"] |> String.contains?("app@")
-         end) do
-      nil -> nil
-      release -> map_release(release)
-    end
+    fetch_releases(opts)
+    |> Enum.map(&map_release/1)
+    |> Enum.find(fn release ->
+      release.name |> String.contains?("app@") and
+        release.assets |> Enum.find(&String.ends_with?(&1.browser_download_url, "dmg"))
+    end)
   end
 
   defp fetch_releases(opts) do
