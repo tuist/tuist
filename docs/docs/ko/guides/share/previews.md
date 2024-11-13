@@ -73,7 +73,7 @@ To make running Tuist Previews even easier, we developed a Tuist macOS menu bar 
 >
 > Additionally, you need to have Xcode locally installed.
 
-## Pull/merge request comments {#pullmerge-request-comments}
+## Pull/merge request 의견 {#pullmerge-request-comments}
 
 > [!IMPORTANT] INTEGRATION WITH GIT PLATFORM REQUIRED
 > To get automatic pull/merge request comments, integrate your <LocalizedLink href="/server/introduction/accounts-and-projects#projects">remote project</LocalizedLink> with a <LocalizedLink href="/server/introduction/integrations#git-platforms">Git platform</LocalizedLink>.
