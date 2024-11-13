@@ -178,13 +178,13 @@ public final class TreeShakePrunedTargetsGraphMapper: GraphMapping {
             }
 
             if let expandVariableFromTarget = scheme.runAction?.expandVariableFromTarget,
-                !sourceTargets.contains(expandVariableFromTarget)
+               !sourceTargets.contains(expandVariableFromTarget)
             {
                 return nil
             }
 
             if let expandVariableFromTarget = scheme.testAction?.expandVariableFromTarget,
-                !sourceTargets.contains(expandVariableFromTarget)
+               !sourceTargets.contains(expandVariableFromTarget)
             {
                 return nil
             }
