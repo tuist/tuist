@@ -63,22 +63,6 @@ defmodule TuistWeb.LayoutComponents do
     <script>
       !function(t){if(window.ko)return;window.ko=[],["identify","track","removeListeners","open","on","off","qualify","ready"].forEach(function(t){ko[t]=function(){var n=[].slice.call(arguments);return n.unshift(t),ko.push(n),ko}});var n=document.createElement("script");n.async=!0,n.setAttribute("src","https://cdn.getkoala.com/v1/pk_3f80a3529ec2914b714a3f740d10b12642b9/sdk.js"),(document.body || document.head).appendChild(n)}();
     </script>
-    <script>
-      (function(d,t) {
-        var BASE_URL="https://app.chatwoot.com";
-        var g=d.createElement(t),s=d.getElementsByTagName(t)[0];
-        g.src=BASE_URL+"/packs/js/sdk.js";
-        g.defer = true;
-        g.async = true;
-        s.parentNode.insertBefore(g,s);
-        g.onload=function(){
-          window.chatwootSDK.run({
-            websiteToken: 'CuDUmBD5kcMEB26o8w4CJuTJ',
-            baseUrl: BASE_URL
-          })
-        }
-      })(document,"script");
-    </script>
     """
   end
 end
