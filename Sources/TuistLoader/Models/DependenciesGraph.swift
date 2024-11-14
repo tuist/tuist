@@ -2,21 +2,28 @@ import ProjectDescription
 
 /// A directed acyclic graph (DAG) that Tuist uses to represent the dependency tree.
 public struct DependenciesGraph: Equatable, Codable {
+    public struct ExternalProject: Equatable, Codable {
+        public var manifest: ProjectDescription.Project
+        public var hash: String?
+
+        public init(manifest: ProjectDescription.Project, hash: String?) {
+            self.manifest = manifest
+            self.hash = hash
+        }
+    }
+
     /// A dictionary of Platforms to a dictionary where the keys are the names of dependencies, and the values are the
     /// dependencies themselves.
     public let externalDependencies: [String: [TargetDependency]]
 
     /// A dictionary where the keys are the folder of external projects, and the values are the projects themselves.
-    public let externalProjects: [Path: Project]
+    public let externalProjects: [Path: ExternalProject]
 
     /// Create an instance of `DependenciesGraph` model.
-    public init(externalDependencies: [String: [TargetDependency]], externalProjects: [Path: Project]) {
+    public init(externalDependencies: [String: [TargetDependency]], externalProjects: [Path: ExternalProject]) {
         self.externalDependencies = externalDependencies
         self.externalProjects = externalProjects
     }
-
-    /// An empty `DependenciesGraph`.
-    public static let none: DependenciesGraph = .init(externalDependencies: [:], externalProjects: [:])
 }
 
 #if DEBUG
@@ -43,7 +50,7 @@ public struct DependenciesGraph: Equatable, Codable {
 
         public static func test(
             externalDependencies: [String: [TargetDependency]] = [:],
-            externalProjects: [Path: Project] = [:]
+            externalProjects: [Path: ExternalProject] = [:]
         ) -> Self {
             .init(externalDependencies: externalDependencies, externalProjects: externalProjects)
         }
@@ -147,7 +154,7 @@ public struct DependenciesGraph: Equatable, Codable {
             return .init(
                 externalDependencies: externalDependencies,
                 externalProjects: [
-                    packageFolder: .init(
+                    packageFolder: ExternalProject(manifest: Project(
                         name: "test",
                         options: .options(
                             automaticSchemesOptions: .disabled,
@@ -169,7 +176,7 @@ public struct DependenciesGraph: Equatable, Codable {
                         ),
                         targets: targets,
                         resourceSynthesizers: .default
-                    ),
+                    ), hash: nil),
                 ]
             )
         }
@@ -231,7 +238,7 @@ public struct DependenciesGraph: Equatable, Codable {
             return .init(
                 externalDependencies: externalDependencies,
                 externalProjects: [
-                    packageFolder: .init(
+                    packageFolder: ExternalProject(manifest: Project(
                         name: "a-dependency",
                         options: .options(
                             automaticSchemesOptions: .disabled,
@@ -250,7 +257,7 @@ public struct DependenciesGraph: Equatable, Codable {
                         ),
                         targets: targets,
                         resourceSynthesizers: .default
-                    ),
+                    ), hash: nil),
                 ]
             )
         }
@@ -289,7 +296,7 @@ public struct DependenciesGraph: Equatable, Codable {
             return .init(
                 externalDependencies: externalDependencies,
                 externalProjects: [
-                    packageFolder: .init(
+                    packageFolder: ExternalProject(manifest: Project(
                         name: "another-dependency",
                         options: .options(
                             automaticSchemesOptions: .disabled,
@@ -308,7 +315,7 @@ public struct DependenciesGraph: Equatable, Codable {
                         ),
                         targets: targets,
                         resourceSynthesizers: .default
-                    ),
+                    ), hash: nil),
                 ]
             )
         }
@@ -355,7 +362,7 @@ public struct DependenciesGraph: Equatable, Codable {
             return .init(
                 externalDependencies: externalDependencies,
                 externalProjects: [
-                    packageFolder: .init(
+                    packageFolder: ExternalProject(manifest: Project(
                         name: "Alamofire",
                         options: .options(
                             automaticSchemesOptions: .disabled,
@@ -369,7 +376,7 @@ public struct DependenciesGraph: Equatable, Codable {
                         ),
                         targets: targets,
                         resourceSynthesizers: .default
-                    ),
+                    ), hash: nil),
                 ]
             )
         }
@@ -485,7 +492,7 @@ public struct DependenciesGraph: Equatable, Codable {
             return .init(
                 externalDependencies: externalDependencies,
                 externalProjects: [
-                    packageFolder: .init(
+                    packageFolder: ExternalProject(manifest: Project(
                         name: "GoogleAppMeasurement",
                         options: .options(
                             automaticSchemesOptions: .disabled,
@@ -508,7 +515,7 @@ public struct DependenciesGraph: Equatable, Codable {
                         ),
                         targets: targets,
                         resourceSynthesizers: .default
-                    ),
+                    ), hash: nil),
                 ]
             )
         }
@@ -607,7 +614,7 @@ public struct DependenciesGraph: Equatable, Codable {
             return .init(
                 externalDependencies: externalDependencies,
                 externalProjects: [
-                    packageFolder: .init(
+                    packageFolder: ExternalProject(manifest: Project(
                         name: "GoogleUtilities",
                         options: .options(
                             automaticSchemesOptions: .disabled,
@@ -626,7 +633,7 @@ public struct DependenciesGraph: Equatable, Codable {
                         ),
                         targets: targets,
                         resourceSynthesizers: .default
-                    ),
+                    ), hash: nil),
                 ]
             )
         }
@@ -665,7 +672,7 @@ public struct DependenciesGraph: Equatable, Codable {
             return .init(
                 externalDependencies: externalDependencies,
                 externalProjects: [
-                    packageFolder: .init(
+                    packageFolder: ExternalProject(manifest: Project(
                         name: "nanopb",
                         options: .options(
                             automaticSchemesOptions: .disabled,
@@ -684,7 +691,7 @@ public struct DependenciesGraph: Equatable, Codable {
                         ),
                         targets: targets,
                         resourceSynthesizers: .default
-                    ),
+                    ), hash: nil),
                 ]
             )
         }

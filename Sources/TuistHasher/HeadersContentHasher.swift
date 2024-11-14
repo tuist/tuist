@@ -1,7 +1,9 @@
 import Foundation
+import Mockable
 import TuistCore
 import XcodeGraph
 
+@Mockable
 public protocol HeadersContentHashing {
     func hash(headers: Headers) async throws -> String
 }

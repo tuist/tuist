@@ -15,9 +15,10 @@ public protocol ManifestModelConverting {
         path: AbsolutePath,
         plugins: Plugins,
         externalDependencies: [String: [XcodeGraph.TargetDependency]],
-        isExternal: Bool
+        type: XcodeGraph.ProjectType
     ) async throws -> XcodeGraph.Project
-    func convert(manifest: TuistLoader.DependenciesGraph, path: AbsolutePath) async throws -> XcodeGraph.DependenciesGraph
+    func convert(dependenciesGraph: TuistLoader.DependenciesGraph, path: AbsolutePath) async throws -> XcodeGraph
+        .DependenciesGraph
 }
 
 public final class ManifestModelConverter: ManifestModelConverting {
@@ -60,7 +61,7 @@ public final class ManifestModelConverter: ManifestModelConverting {
         path: AbsolutePath,
         plugins: Plugins,
         externalDependencies: [String: [XcodeGraph.TargetDependency]],
-        isExternal: Bool
+        type: XcodeGraph.ProjectType
     ) async throws -> XcodeGraph.Project {
         let rootDirectory: AbsolutePath = try await rootDirectoryLocator.locate(from: path)
         let generatorPaths = GeneratorPaths(
@@ -73,7 +74,7 @@ public final class ManifestModelConverter: ManifestModelConverting {
             plugins: plugins,
             externalDependencies: externalDependencies,
             resourceSynthesizerPathLocator: resourceSynthesizerPathLocator,
-            isExternal: isExternal,
+            type: type,
             fileSystem: fileSystem
         )
     }
@@ -98,11 +99,11 @@ public final class ManifestModelConverter: ManifestModelConverting {
     }
 
     public func convert(
-        manifest: TuistLoader.DependenciesGraph,
+        dependenciesGraph: TuistLoader.DependenciesGraph,
         path: AbsolutePath
     ) async throws -> XcodeGraph.DependenciesGraph {
         let rootDirectory: AbsolutePath = try await rootDirectoryLocator.locate(from: path)
-        let externalDependencies: [String: [XcodeGraph.TargetDependency]] = try manifest.externalDependencies
+        let externalDependencies: [String: [XcodeGraph.TargetDependency]] = try dependenciesGraph.externalDependencies
             .mapValues { targetDependencies in
                 try targetDependencies.flatMap { targetDependencyManifest in
                     try XcodeGraph.TargetDependency.from(
@@ -117,15 +118,15 @@ public final class ManifestModelConverter: ManifestModelConverting {
             }
 
         let externalProjects = try await [AbsolutePath: XcodeGraph.Project](
-            uniqueKeysWithValues: manifest.externalProjects
+            uniqueKeysWithValues: dependenciesGraph.externalProjects
                 .concurrentMap { path, project in
                     let projectPath = try AbsolutePath(validating: path.pathString)
                     var project = try await self.convert(
-                        manifest: project,
+                        manifest: project.manifest,
                         path: projectPath,
                         plugins: .none,
                         externalDependencies: externalDependencies,
-                        isExternal: true
+                        type: .external(hash: project.hash)
                     )
                     // Disable all lastUpgradeCheck related warnings on projects generated from dependencies
                     project.lastUpgradeCheck = Version(99, 9, 9)
