@@ -71,7 +71,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: Dockerfile.onpremise
+          file: Dockerfile
           push: true
           build-args: |
             TUIST_HOSTED=0
