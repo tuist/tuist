@@ -77,6 +77,7 @@ defmodule Tuist.VCS do
     |> URI.parse()
     |> Map.get(:path)
     |> String.replace_leading("/", "")
+    |> String.replace_trailing("/", "")
     |> String.replace_trailing(".git", "")
   end
 

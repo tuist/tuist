@@ -226,6 +226,34 @@ defmodule Tuist.VCSTest do
                   default_branch: "main"
                 }}
     end
+
+    test "returns repository with trailing slash" do
+      # Given
+      repository_url = "https://github.com/tuist/tuist/"
+
+      GitHub.Client
+      |> expect(:get_repository, fn "tuist/tuist" ->
+        {:ok,
+         %VCS.Repositories.Repository{
+           provider: :github,
+           full_handle: "tuist/tuist",
+           default_branch: "main"
+         }}
+      end)
+
+      # When
+      got =
+        VCS.get_repository_from_repository_url(repository_url)
+
+      # Then
+      assert got ==
+               {:ok,
+                %VCS.Repositories.Repository{
+                  provider: :github,
+                  full_handle: "tuist/tuist",
+                  default_branch: "main"
+                }}
+    end
   end
 
   describe "post_vcs_pull_request_comment/1" do
