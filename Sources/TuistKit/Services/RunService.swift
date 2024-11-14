@@ -203,6 +203,7 @@ final class RunService {
         device: String?,
         version: Version?
     ) async throws {
+        logger.notice("Runnning \(previewLink.absoluteString)...")
         guard let scheme = previewLink.scheme,
               let host = previewLink.host,
               let serverURL = URL(string: "\(scheme)://\(host)\(previewLink.port.map { ":" + String($0) } ?? "")"),
@@ -226,7 +227,7 @@ final class RunService {
         try await fileSystem.remove(archivePath)
 
         let apps = try await
-            fileSystem.glob(directory: unarchivedDirectory, include: ["*.app", "*/*.app"])
+            fileSystem.glob(directory: unarchivedDirectory, include: ["*.app", "Payload/*.app"])
             .collect()
             .concurrentMap {
                 try await self.appBundleLoader.load($0)
