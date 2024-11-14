@@ -14,13 +14,13 @@ defmodule Tuist.GitHub.App do
     result =
       Cachex.fetch(cache, @cache_key <> "_#{repository_full_handle}", fn ->
         case refresh_token(repository_full_handle, expires_in: ttl) do
-          {:ok, token} -> {:commit, token, ttl: ttl}
+          {:ok, token} -> {:commit, token, expire: ttl}
           {:error, message} -> {:error, message}
         end
       end)
 
     case result do
-      {:commit, token, _} ->
+      {:commit, token} ->
         {:ok, token}
 
       {:ok, token} ->

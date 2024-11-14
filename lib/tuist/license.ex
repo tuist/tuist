@@ -22,13 +22,13 @@ defmodule Tuist.License do
     result =
       Cachex.fetch(cache, @cache_key, fn ->
         case resolve_license(Tuist.Environment.get_license_key()) do
-          {:ok, license} -> {:commit, license, ttl: ttl}
+          {:ok, license} -> {:commit, license, expire: ttl}
           {:error, error} -> {:error, error}
         end
       end)
 
     case result do
-      {:commit, license, _} -> {:ok, license}
+      {:commit, license} -> {:ok, license}
       {:ok, license} -> {:ok, license}
       {:error, error} -> {:error, error}
     end

@@ -95,7 +95,7 @@ defmodule Tuist.MixProject do
       {:decorator, "~> 1.4"},
       {:jose, "~> 1.11"},
       {:ecto_psql_extras, "~> 0.8.1"},
-      {:cachex, "~> 3.6"},
+      {:cachex, "~> 4.0.2"},
       {:nebulex, "~> 2.6"},
       {:horde, "~> 0.8.0"},
       {:nebulex_adapters_horde, "~> 1.0"},

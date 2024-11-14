@@ -45,9 +45,9 @@ defmodule Tuist.GitHub.Releases do
     ttl = opts |> Keyword.get(:ttl, @ttl)
 
     case Cachex.fetch(cache, @cache_key, fn ->
-           {:commit, req_releases(), ttl: ttl}
+           {:commit, req_releases(), expire: ttl}
          end) do
-      {:commit, releases, _} -> releases
+      {:commit, releases} -> releases
       {:ok, releases} -> releases
     end
   end

@@ -20,11 +20,11 @@ defmodule Tuist.Incidents do
             length(ongoing_incidents) > 0
           end
 
-        {:commit, active_incident?, ttl: ttl}
+        {:commit, active_incident?, expire: ttl}
       end)
 
     case result do
-      {:commit, active_incident?, _} ->
+      {:commit, active_incident?} ->
         active_incident?
 
       {:ok, active_incident?} ->
