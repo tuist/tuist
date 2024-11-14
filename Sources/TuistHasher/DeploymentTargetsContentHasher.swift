@@ -1,7 +1,9 @@
 import Foundation
+import Mockable
 import TuistCore
 import XcodeGraph
 
+@Mockable
 public protocol DeploymentTargetsContentHashing {
     func hash(deploymentTargets: DeploymentTargets) throws -> String
 }

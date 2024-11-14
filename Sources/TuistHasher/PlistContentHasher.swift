@@ -1,7 +1,9 @@
 import Foundation
+import Mockable
 import TuistCore
 import XcodeGraph
 
+@Mockable
 public protocol PlistContentHashing {
     func hash(plist: Plist) async throws -> String
 }
