@@ -1,5 +1,5 @@
 {
-  "originHash" : "9a6e24b070aa78532dbb80a41191cc4ad7642db968e619c88009323d1998c775",
+  "originHash" : "2fe7bf57c30f6c9b922cb028dcc0c2626a880cb72f465fbd21a96226807e3786",
   "pins" : [
     {
       "identity" : "appauth-ios",
@@ -105,8 +105,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/gonzalezreal/NetworkImage",
       "state" : {
-        "revision" : "7aff8d1b31148d32c5933d75557d42f6323ee3d1",
-        "version" : "6.0.0"
+        "revision" : "2849f5323265386e200484b0d0f896e73c3411b9",
+        "version" : "6.0.1"
       }
     },
     {
