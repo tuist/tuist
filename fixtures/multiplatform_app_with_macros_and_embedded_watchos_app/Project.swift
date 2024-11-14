@@ -56,6 +56,7 @@ let project = Project(
             ],
             dependencies: [
                 .target(name: "ModuleAMacros"),
+                .macro(name: "ModuleAMacros"),
             ]
         ),
         .target(
@@ -71,22 +72,6 @@ let project = Project(
             dependencies: [
                 .external(name: "SwiftSyntaxMacros"),
                 .external(name: "SwiftCompilerPlugin"),
-            ]
-        ),
-        .target(
-            name: "ModuleAMacrosTests",
-            destinations: .macOS,
-            product: .unitTests,
-            productName: "ModuleAMacros",
-            bundleId: "io.tuist.moduleamacros.tests",
-            deploymentTargets: .macOS("14.0"),
-            sources: [
-                "Modules/ModuleA/Macros/Tests/**",
-            ],
-            dependencies: [
-                .target(name: "ModuleAMacros"),
-                .external(name: "SwiftSyntaxMacros"),
-                .external(name: "SwiftSyntaxMacrosTestSupport"),
             ]
         ),
     ]
