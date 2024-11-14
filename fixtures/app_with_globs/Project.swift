@@ -25,6 +25,7 @@ let project = Project(
             dependencies: [],
             additionalFiles: [
                 "**/.*.yml",
+                "App/*.{entitlements,xcconfig}",
             ]
         ),
     ]
