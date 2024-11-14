@@ -984,6 +984,15 @@ final class GenerateAcceptanceTestFrameworkWithMacroAndPluginPackages: TuistAcce
     }
 }
 
+final class GenerateAcceptanceTestAppWithRevenueCat: TuistAcceptanceTestCase {
+    func test_app_with_revenue_cat() async throws {
+        try await setUpFixture(.appWithRevenueCat)
+        try await run(InstallCommand.self)
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self)
+    }
+}
+
 final class GenerateAcceptanceTestAppWithSPMModuleAliases: TuistAcceptanceTestCase {
     func test_app_with_spm_module_aliases() async throws {
         try await setUpFixture(.appWithSpmModuleAliases)
