@@ -13,6 +13,7 @@ public enum TuistAcceptanceFixtures {
     case appWithPlugins
     case appWithPreviews
     case appWithRealm
+    case appWithRevenueCat
     case appWithSpmDependencies
     case appWithSpmModuleAliases
     case appWithLocalSPMModuleWithRemoteDependencies
@@ -116,6 +117,8 @@ public enum TuistAcceptanceFixtures {
             return "app_with_previews"
         case .appWithRealm:
             return "app_with_realm"
+        case .appWithRevenueCat:
+            return "app_with_revenue_cat"
         case .appWithSpmDependencies:
             return "app_with_spm_dependencies"
         case .appWithSpmModuleAliases:
