@@ -157,9 +157,7 @@ final class DeviceService: DeviceServicing {
         let fileUnarchiver = try fileArchiverFactory.makeFileUnarchiver(for: archivePath)
         let unarchivedDirectory = try fileUnarchiver.unzip()
 
-        let shallowApps = try await fileSystem.glob(directory: unarchivedDirectory, include: ["*.app"]).collect()
-        let nestedApps = try await fileSystem.glob(directory: unarchivedDirectory, include: ["*/*.app"]).collect()
-        let apps = try await (shallowApps + nestedApps)
+        let apps = try await fileSystem.glob(directory: unarchivedDirectory, include: ["*.app", "Payload/*.app"]).collect()
             .concurrentMap {
                 try await self.appBundleLoader.load($0)
             }
