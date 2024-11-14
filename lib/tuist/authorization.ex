@@ -11,13 +11,22 @@ defmodule Tuist.Authorization do
   alias Tuist.Billing
   alias Tuist.Accounts.{User, Account}
   alias Tuist.Repo
+  use LetMe.Policy
 
-  def can(%User{} = user, :read, %Project{visibility: :private} = project, :cache) do
-    Accounts.owns_account_or_belongs_to_account_organization?(user, %{id: project.account_id})
-  end
+  object :project_cache do
+    action :read do
+      desc "Allows the authenticated subject to read a project's cache if the project is public."
+      allow :public_project
 
-  def can(%User{}, :read, %Project{visibility: :public}, :cache) do
-    true
+      desc "Allows users of a project's account to read the project cache."
+      allow user_role: :user
+
+      desc "Allows the admin of a project's account to read the project cache."
+      allow user_role: :admin
+
+      desc "Allows the authenticated project to read the cache if it matches the project whose cache is being read."
+      allow :matches_authenticated_project
+    end
   end
 
   def can(%User{} = user, :create, %Account{} = account, :project) do
@@ -165,8 +174,8 @@ defmodule Tuist.Authorization do
     Accounts.owns_account_or_belongs_to_account_organization?(user, %{id: project.account_id})
   end
 
-  def can(%Project{} = current_project, :read, %Project{} = project, :cache) do
-    current_project.id == project.id
+  def can(_, :read, %Project{visibility: :public}, :preview) do
+    true
   end
 
   def can(%Project{} = current_project, :create, %Project{} = project, :cache) do
@@ -257,5 +266,9 @@ defmodule Tuist.Authorization do
 
   def can(_, :read, %Project{visibility: :public}, :command_event, _opts) do
     true
+  end
+
+  def can?(action, subject, object) do
+    authorize(action, subject, object) == :ok
   end
 end

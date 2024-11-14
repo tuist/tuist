@@ -108,7 +108,8 @@ defmodule Tuist.MixProject do
       {:reading_time, "~> 0.2.0"},
       {:plug_cowboy, "~> 2.7"},
       {:retry, "~> 0.18"},
-      {:redirect, "~> 0.4.0"}
+      {:redirect, "~> 0.4.0"},
+      {:let_me, "~> 1.2"}
     ]
   end
 

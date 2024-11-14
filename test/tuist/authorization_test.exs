@@ -119,7 +119,7 @@ defmodule Tuist.AuthorizationTest do
     project = ProjectsFixtures.project_fixture()
 
     # When
-    assert Authorization.can(project, :read, project, :cache) == true
+    assert Authorization.can?(:project_cache_read, project, project) == true
   end
 
   test "can.read.project.cache when the subject is not the same project being read" do
@@ -128,7 +128,7 @@ defmodule Tuist.AuthorizationTest do
     another_project = ProjectsFixtures.project_fixture()
 
     # When
-    assert Authorization.can(another_project, :read, project, :cache) == false
+    assert Authorization.can?(:project_cache_read, another_project, project) == false
   end
 
   test "can.create.project.cache when the subject is the same project being read" do
@@ -174,7 +174,7 @@ defmodule Tuist.AuthorizationTest do
     Accounts.add_user_to_organization(user, organization, role: :user)
 
     # When
-    assert Authorization.can(user, :read, project, :cache) == true
+    assert Authorization.can?(:project_cache_read, user, project) == true
   end
 
   test "can.read.project.cache when the subject is a user that doesn't belong to the project organization" do
@@ -185,7 +185,7 @@ defmodule Tuist.AuthorizationTest do
     user = AccountsFixtures.user_fixture()
 
     # When
-    assert Authorization.can(user, :read, project, :cache) == false
+    assert Authorization.can?(:project_cache_read, user, project) == false
   end
 
   test "can.read.project.cache when the subject is a user that doesn't belong to the project organization and the project is public" do
@@ -196,7 +196,7 @@ defmodule Tuist.AuthorizationTest do
     user = AccountsFixtures.user_fixture()
 
     # When
-    assert Authorization.can(user, :read, project, :cache) == true
+    assert Authorization.can?(:project_cache_read, user, project) == true
   end
 
   test "can.create.project.cache when the subject is a user that belongs to the project organization" do

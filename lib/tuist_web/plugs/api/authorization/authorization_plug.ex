@@ -28,7 +28,7 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
       not is_nil(is_ci) and Authorization.can(subject, action, project, category, is_ci: is_ci) ->
         conn
 
-      is_nil(is_ci) and Authorization.can(subject, action, project, category) ->
+      is_nil(is_ci) and authorize(subject, action, project, category) ->
         conn
 
       true ->
@@ -40,6 +40,14 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
         })
         |> halt()
     end
+  end
+
+  def authorize(subject, :read, project, :cache) do
+    Authorization.can?(:project_cache_read, subject, project)
+  end
+
+  def authorize(subject, action, project, category) do
+    Authorization.can(subject, action, project, category)
   end
 
   defp get_action(conn) do
