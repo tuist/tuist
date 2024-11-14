@@ -19,6 +19,22 @@ final class ShareAcceptanceTests: ServerAcceptanceTestCase {
         XCTAssertStandardOutput(pattern: "App was successfully launched 📲")
     }
 
+    func test_share_ios_app_with_appclip() async throws {
+        try await setUpFixture(.iosAppWithAppClip)
+        try await run(BuildCommand.self)
+        try await run(ShareCommand.self, "App")
+        let shareLink = try previewLink("App")
+        try await run(RunCommand.self, shareLink, "-destination", "iPhone 16")
+        XCTAssertStandardOutput(pattern: "Installing and launching App on iPhone 16")
+        XCTAssertStandardOutput(pattern: "App was successfully launched 📲")
+
+        try await run(ShareCommand.self, "AppClip1")
+        let appClipShareLink = try previewLink("AppClip1")
+        try await run(RunCommand.self, appClipShareLink, "-destination", "iPhone 16")
+        XCTAssertStandardOutput(pattern: "Installing and launching AppClip1 on iPhone 16")
+        XCTAssertStandardOutput(pattern: "AppClip1 was successfully launched 📲")
+    }
+
     func test_share_xcode_app() async throws {
         try await setUpFixture(.xcodeApp)
         try System.shared.runAndPrint(
@@ -77,11 +93,11 @@ final class ShareAcceptanceTests: ServerAcceptanceTestCase {
 }
 
 extension ServerAcceptanceTestCase {
-    fileprivate func previewLink() throws -> String {
+    fileprivate func previewLink(_ displayName: String = "App") throws -> String {
         try XCTUnwrap(
             TestingLogHandler.collected[.notice, >=]
                 .components(separatedBy: .newlines)
-                .first(where: { $0.contains("App uploaded – share") })?
+                .first(where: { $0.contains("\(displayName) uploaded – share") })?
                 .components(separatedBy: .whitespaces)
                 .last
         )

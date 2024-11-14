@@ -50,7 +50,7 @@ public struct AppBundle: Equatable {
             public init(from decoder: any Decoder) throws {
                 let container = try decoder.container(keyedBy: CodingKeys.self)
                 name = try container.decode(String.self, forKey: .name)
-                iconFiles = try container.decode([String].self, forKey: .iconFiles)
+                iconFiles = try container.decodeIfPresent([String].self, forKey: .iconFiles) ?? []
             }
         }
 
