@@ -55,7 +55,7 @@ let project = Project(
                 "Modules/ModuleA/Sources/**",
             ],
             dependencies: [
-                .target(name: "ModuleAMacros"),
+                .external(name: "CasePaths"),
                 .macro(name: "ModuleAMacros"),
             ]
         ),
