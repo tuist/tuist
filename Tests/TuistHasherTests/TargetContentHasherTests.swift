@@ -9,18 +9,18 @@ import XCTest
 @testable import TuistHasher
 
 final class TargetContentHasherTests: TuistUnitTestCase {
-    var contentHasher: MockContentHashing!
-    var coreDataModelsContentHasher: MockCoreDataModelsContentHashing!
-    var sourceFilesContentHasher: MockSourceFilesContentHashing!
-    var targetScriptsContentHasher: MockTargetScriptsContentHashing!
-    var resourcesContentHasher: MockResourcesContentHashing!
-    var copyFilesContentHasher: MockCopyFilesContentHashing!
-    var headersContentHasher: MockHeadersContentHashing!
-    var deploymentTargetContentHasher: MockDeploymentTargetsContentHashing!
-    var plistContentHasher: MockPlistContentHashing!
-    var settingsContentHasher: MockSettingsContentHashing!
-    var dependenciesContentHasher: MockDependenciesContentHashing!
-    var subject: TargetContentHasher!
+    private var contentHasher: MockContentHashing!
+    private var coreDataModelsContentHasher: MockCoreDataModelsContentHashing!
+    private var sourceFilesContentHasher: MockSourceFilesContentHashing!
+    private var targetScriptsContentHasher: MockTargetScriptsContentHashing!
+    private var resourcesContentHasher: MockResourcesContentHashing!
+    private var copyFilesContentHasher: MockCopyFilesContentHashing!
+    private var headersContentHasher: MockHeadersContentHashing!
+    private var deploymentTargetContentHasher: MockDeploymentTargetsContentHashing!
+    private var plistContentHasher: MockPlistContentHashing!
+    private var settingsContentHasher: MockSettingsContentHashing!
+    private var dependenciesContentHasher: MockDependenciesContentHashing!
+    private var subject: TargetContentHasher!
 
     override func setUp() async throws {
         try await super.setUp()

@@ -92,8 +92,14 @@ public final class TargetContentHasher: TargetContentHashing {
         hashedPaths: [AbsolutePath: String],
         additionalStrings: [String] = []
     ) async throws -> TargetContentHash {
-        if let projectType = graphTarget.project.type, case let XcodeGraph.ProjectType.external(hash) = projectType, let hash {
-            return TargetContentHash(hash: hash, hashedPaths: [:])
+        let projectHash: String? = switch graphTarget.project.type {
+        case let .external(hash: hash): hash
+        case .local: nil
+        case .none:
+            nil
+        }
+        if let projectHash {
+            return TargetContentHash(hash: projectHash, hashedPaths: [:])
         }
         var hashedPaths = hashedPaths
         let sourcesHash = try await sourceFilesContentHasher.hash(identifier: "sources", sources: graphTarget.target.sources).hash
