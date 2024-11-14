@@ -12,7 +12,6 @@ git-cliff = "2.6.0"
 [plugins]
 sourcedocs = "https://github.com/tuist/asdf-sourcedocs#fix/xcode-16"
 create-dmg = "https://github.com/tuist/asdf-create-dmg.git"
-git-cliff = "https://github.com/jylenhof/asdf-git-cliff"
 
 [settings]
 jobs = 6
