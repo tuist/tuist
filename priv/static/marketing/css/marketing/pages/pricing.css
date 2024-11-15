@@ -351,6 +351,9 @@
   &:hover {
     text-decoration: underline;
   }
+  &:not(:first-child) {
+    margin-top: var(--spacing-16);
+  }
 }
 
 .marketing__pricing__features__desktop__row__feature__name__share_icon {

@@ -31,29 +31,55 @@
   included_title = gettext("Included for free")
   price_above_free = gettext("Price above free tier")
 
-  features = [
+  items = [
     %{
-      name: gettext("Tuist Projects"),
-      description:
-        gettext("Turn projects defined with a Swift-DSL into Xcode workspaces and projects."),
+      features: [
+        %{
+          name: gettext("Tuist Projects"),
+          link: "https://docs.tuist.dev/en/guides/develop/projects",
+          description:
+            gettext("Turn projects defined with a Swift-DSL into Xcode workspaces and projects.")
+        }
+      ],
       metric: gettext("None"),
       included: gettext("Unlimited"),
       price: gettext("$0")
     },
     %{
-      name: gettext("Tuist Cache"),
-      description:
+      features: [
+        %{
+          name: gettext("Tuist Cache"),
+          link: "https://docs.tuist.dev/en/guides/develop/build/cache",
+          description:
+            gettext(
+              "Speed up clean compilations by using binaries for graph targets (including external dependencies)."
+            )
+        },
+        %{
+          name: gettext("Tuist Tests"),
+          link: "https://docs.tuist.dev/en/guides/develop/test/smart-runner",
+          description:
+            gettext(
+              "Speed up test runs by skipping test suites (test targets) whose tests are not impacted by the changes."
+            )
+        }
+      ],
+      metric:
         gettext(
-          "Speed up clean compilations by using binaries for graph targets (including external dependencies)."
+          "Each Tuist CLI command (e.g., generate, build, test) that pulls binaries or selective test results to optimize builds or tests counts as one invocation."
         ),
-      metric: gettext("Project generation with a remote server hit to pull binaries."),
       included: gettext("200"),
       price: gettext("$0.5")
     },
     %{
-      name: gettext("Tuist Previews"),
-      description:
-        gettext("Preview your project apps in simulator or devices with one click/command."),
+      features: [
+        %{
+          name: gettext("Tuist Previews"),
+          link: "https://docs.tuist.dev/en/guides/share/previews",
+          description:
+            gettext("Preview your project apps in simulator or devices with one click/command.")
+        }
+      ],
       metric: gettext("None"),
       included: gettext("Unlimited"),
       price: gettext("$0")
@@ -61,25 +87,28 @@
   ] %>
 
   <div class="marketing__pricing__features__mobile" aria-label="Feature Comparison">
-    <div :for={feature <- features} class="marketing__pricing__features__mobile__feature">
-      <h3 class="marketing__pricing__features__mobile__feature__title">
-        <%= feature.name %>
-        <TuistWeb.Marketing.MarketingIcons.share_icon
-          size={12}
-          class="marketing__pricing__features__mobile__feature__title__share_icon"
-        />
-      </h3>
-      <div class="marketing__pricing__features__mobile__feature__description">
-        <%= feature.description %>
-      </div>
+    <div :for={item <- items} class="marketing__pricing__features__mobile__feature">
+      <%= for feature <- item.features do %>
+        <h3 class="marketing__pricing__features__mobile__feature__title">
+          <%= feature.name %>
+          <TuistWeb.Marketing.MarketingIcons.share_icon
+            size={12}
+            class="marketing__pricing__features__mobile__feature__title__share_icon"
+          />
+        </h3>
+        <div class="marketing__pricing__features__mobile__feature__description">
+          <%= feature.description %>
+        </div>
+      <% end %>
+
       <div class="marketing__pricing__features__mobile__feature__metric">
-        <span class="font-xs-strong"><%= metric_title %>:</span>&nbsp;<%= feature.metric %>
+        <span class="font-xs-strong"><%= metric_title %>:</span>&nbsp;<%= item.metric %>
       </div>
       <div class="marketing__pricing__features__mobile__feature__included">
-        <span class="font-xs-strong"><%= included_title %>:</span>&nbsp;<%= feature.included %>
+        <span class="font-xs-strong"><%= included_title %>:</span>&nbsp;<%= item.included %>
       </div>
       <div class="marketing__pricing__features__mobile__feature__price">
-        <span class="font-xs-strong"><%= price_above_free %>:</span>&nbsp;<%= feature.price %>
+        <span class="font-xs-strong"><%= price_above_free %>:</span>&nbsp;<%= item.price %>
       </div>
     </div>
   </div>
@@ -103,25 +132,27 @@
       </tr>
     </thead>
     <tbody>
-      <tr :for={feature <- features} class="marketing__pricing__features__desktop__row">
+      <tr :for={item <- items} class="marketing__pricing__features__desktop__row">
         <td class="marketing__pricing__features__desktop__row__feature">
-          <.link
-            href="https://docs.tuist.io/en/guides/develop/projects"
-            class="marketing__pricing__features__desktop__row__feature__name"
-          >
-            <%= feature.name %>
-            <TuistWeb.Marketing.MarketingIcons.share_icon
-              size={12}
-              class="marketing__pricing__features__desktop__row__feature__name__share_icon"
-            />
-          </.link>
-          <div class="marketing__pricing__features__desktop__row__feature__description">
-            <%= feature.description %>
-          </div>
+          <%= for feature <- item.features do %>
+            <.link
+              href={feature.link}
+              class="marketing__pricing__features__desktop__row__feature__name"
+            >
+              <%= feature.name %>
+              <TuistWeb.Marketing.MarketingIcons.share_icon
+                size={12}
+                class="marketing__pricing__features__desktop__row__feature__name__share_icon"
+              />
+            </.link>
+            <div class="marketing__pricing__features__desktop__row__feature__description">
+              <%= feature.description %>
+            </div>
+          <% end %>
         </td>
-        <td><%= feature.metric %></td>
-        <td><%= feature.included %></td>
-        <td><%= feature.price %></td>
+        <td><%= item.metric %></td>
+        <td><%= item.included %></td>
+        <td><%= item.price %></td>
       </tr>
     </tbody>
   </table>
