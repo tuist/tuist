@@ -164,6 +164,18 @@ final class GitControllerTests: TuistUnitTestCase {
         XCTAssertEqual(got, "refs/pull/2/merge")
     }
 
+    func test_ref_when_circle_pull_request() throws {
+        // When
+        let got = subject.ref(
+            environment: [
+                "CIRCLE_PULL_REQUEST": "https://github.com/tuist/tuist/pull/6740",
+            ]
+        )
+
+        // Then
+        XCTAssertEqual(got, "refs/pull/6740/merge")
+    }
+
     func test_inGitRepository_when_rev_parse_succeeds() throws {
         // Given
         let path = try temporaryPath()
