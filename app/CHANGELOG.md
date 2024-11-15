@@ -1,3 +1,8 @@
+## What's Changed in app@0.5.2
+* fix: running apps with app clip by @fortmarek in [#7059](https://github.com/tuist/tuist/pull/7059)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/app@0.5.1...app@0.5.2
+
 ## What's Changed in app@0.5.1
 * remove 0.5.0 appcast entry by @fortmarek
 * fix: finding latest update by @fortmarek in [#7046](https://github.com/tuist/tuist/pull/7046)
