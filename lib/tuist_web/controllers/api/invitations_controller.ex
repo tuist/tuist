@@ -152,7 +152,7 @@ defmodule TuistWeb.API.InvitationsController do
          required: [:invitee_email]
        }},
     responses: %{
-      no_content: {"The invitation was cancelled", "application/json", nil},
+      no_content: "The invitation was cancelled",
       not_found:
         {"The invitation with the given invitee email and organization name was not found",
          "application/json", Error},
