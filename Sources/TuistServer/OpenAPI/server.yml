@@ -1562,8 +1562,6 @@ paths:
         required: false
       responses:
         204:
-          content:
-            application/json: {}
           description: The invitation was cancelled
         401:
           content:
