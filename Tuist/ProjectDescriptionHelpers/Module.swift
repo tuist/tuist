@@ -478,6 +478,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.generator.testingTargetName!),
                     .target(name: Module.automation.testingTargetName!),
                     .target(name: Module.migration.testingTargetName!),
+                    .target(name: Module.asyncQueue.targetName),
                     .target(name: Module.asyncQueue.testingTargetName!),
                     .target(name: Module.plugin.targetName),
                     .target(name: Module.plugin.testingTargetName!),
@@ -795,13 +796,6 @@ public enum Module: String, CaseIterable {
         dependencies: [TargetDependency],
         isTestingTarget: Bool
     ) -> Target {
-        let rootFolder: String
-        switch product {
-        case .unitTests:
-            rootFolder = "Tests"
-        default:
-            rootFolder = "Sources"
-        }
         var debugSettings: ProjectDescription.SettingsDictionary = [
             "SWIFT_ACTIVE_COMPILATION_CONDITIONS": "$(inherited) MOCKING",
         ]
@@ -814,6 +808,15 @@ public enum Module: String, CaseIterable {
         if let strictConcurrencySetting, product == .framework {
             debugSettings["SWIFT_STRICT_CONCURRENCY"] = .string(strictConcurrencySetting)
             releaseSettings["SWIFT_STRICT_CONCURRENCY"] = .string(strictConcurrencySetting)
+        }
+
+        let rootFolder: String
+        switch product {
+        case .unitTests:
+            rootFolder = "Tests"
+            debugSettings["CODE_SIGN_IDENTITY"] = ""
+        default:
+            rootFolder = "Sources"
         }
 
         let settings = Settings.settings(

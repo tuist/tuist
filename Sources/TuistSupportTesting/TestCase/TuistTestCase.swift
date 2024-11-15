@@ -179,8 +179,8 @@ open class TuistTestCase: XCTestCase {
     }
 
     public func XCTAssertBetterEqual<T: Equatable>(
-        _ expected: @autoclosure () throws -> T,
         _ received: @autoclosure () throws -> T,
+        _ expected: @autoclosure () throws -> T,
         file: StaticString = #filePath,
         line: UInt = #line
     ) {

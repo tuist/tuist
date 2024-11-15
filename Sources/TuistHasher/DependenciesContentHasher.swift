@@ -1,9 +1,11 @@
 import Foundation
+import Mockable
 import Path
 import TuistCore
 import TuistSupport
 import XcodeGraph
 
+@Mockable
 public protocol DependenciesContentHashing {
     func hash(
         graphTarget: GraphTarget,

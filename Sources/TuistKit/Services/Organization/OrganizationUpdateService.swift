@@ -46,6 +46,8 @@ final class OrganizationUpdateSSOService: OrganizationUpdateSSOServicing {
         switch provider {
         case .google:
             ssoOrganization = .google(organizationId)
+        case .okta:
+            ssoOrganization = .okta(organizationId)
         }
 
         let serverURL = try serverURLService.url(configServerURL: config.url)

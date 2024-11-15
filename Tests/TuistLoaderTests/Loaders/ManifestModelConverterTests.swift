@@ -57,7 +57,7 @@ final class ManifestModelConverterTests: TuistUnitTestCase {
             path: temporaryPath,
             plugins: .none,
             externalDependencies: [:],
-            isExternal: false
+            type: .local
         )
 
         // Then
@@ -92,7 +92,7 @@ final class ManifestModelConverterTests: TuistUnitTestCase {
             path: temporaryPath,
             plugins: .none,
             externalDependencies: [:],
-            isExternal: false
+            type: .local
         )
 
         // Then
@@ -135,7 +135,7 @@ final class ManifestModelConverterTests: TuistUnitTestCase {
             path: temporaryPath,
             plugins: .none,
             externalDependencies: [:],
-            isExternal: false
+            type: .local
         )
 
         // Then
@@ -165,7 +165,7 @@ final class ManifestModelConverterTests: TuistUnitTestCase {
             path: temporaryPath,
             plugins: .none,
             externalDependencies: [:],
-            isExternal: false
+            type: .local
         )
 
         // Then
@@ -193,7 +193,7 @@ final class ManifestModelConverterTests: TuistUnitTestCase {
             path: temporaryPath,
             plugins: .none,
             externalDependencies: [:],
-            isExternal: false
+            type: .local
         )
 
         // Then

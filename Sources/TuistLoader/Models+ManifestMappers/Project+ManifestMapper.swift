@@ -21,7 +21,7 @@ extension XcodeGraph.Project {
         plugins: Plugins,
         externalDependencies: [String: [XcodeGraph.TargetDependency]],
         resourceSynthesizerPathLocator: ResourceSynthesizerPathLocating,
-        isExternal: Bool,
+        type: XcodeGraph.ProjectType,
         fileSystem: FileSysteming
     ) async throws -> XcodeGraph.Project {
         let name = manifest.name
@@ -86,7 +86,7 @@ extension XcodeGraph.Project {
             additionalFiles: additionalFiles,
             resourceSynthesizers: resourceSynthesizers,
             lastUpgradeCheck: nil,
-            isExternal: isExternal
+            type: type
         )
     }
 }

@@ -1520,6 +1520,7 @@ internal enum Components {
             /// - Remark: Generated from `#/components/schemas/Organization/sso_provider`.
             internal enum sso_providerPayload: String, Codable, Hashable, Sendable, CaseIterable {
                 case google = "google"
+                case okta = "okta"
             }
             /// The SSO provider set up for the organization
             ///
@@ -5956,6 +5957,7 @@ internal enum Operations {
                     /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/PATCH/requestBody/json/sso_provider`.
                     internal enum sso_providerPayload: String, Codable, Hashable, Sendable, CaseIterable {
                         case google = "google"
+                        case okta = "okta"
                         case none = "none"
                     }
                     /// The SSO provider to set up for the organization
@@ -6335,6 +6337,7 @@ internal enum Operations {
                     /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/PUT/requestBody/json/sso_provider`.
                     internal enum sso_providerPayload: String, Codable, Hashable, Sendable, CaseIterable {
                         case google = "google"
+                        case okta = "okta"
                         case none = "none"
                     }
                     /// The SSO provider to set up for the organization
@@ -7365,32 +7368,8 @@ internal enum Operations {
         }
         internal enum Output: Sendable, Hashable {
             internal struct NoContent: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/invitations/DELETE/responses/204/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/invitations/DELETE/responses/204/content/application\/json`.
-                    case json(OpenAPIRuntime.OpenAPIValueContainer)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: OpenAPIRuntime.OpenAPIValueContainer {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.cancelInvitation.Output.NoContent.Body
                 /// Creates a new `NoContent`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.cancelInvitation.Output.NoContent.Body) {
-                    self.body = body
-                }
+                internal init() {}
             }
             /// The invitation was cancelled
             ///

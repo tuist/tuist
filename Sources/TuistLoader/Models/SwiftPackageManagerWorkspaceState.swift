@@ -15,11 +15,23 @@ struct SwiftPackageManagerWorkspaceState: Decodable, Equatable {
     }
 
     struct Dependency: Decodable, Equatable {
+        struct State: Decodable, Equatable {
+            struct CheckoutState: Decodable, Equatable {
+                let revision: String?
+            }
+
+            /// The revision a package has been resolved to.
+            let checkoutState: CheckoutState?
+        }
+
         /// The package reference of the dependency
         let packageRef: PackageRef
 
         /// The path of the remote dependency, relative to the checkouts folder
         let subpath: String
+
+        /// The state of the dependency.
+        let state: State?
     }
 
     struct Artifact: Decodable, Equatable {
