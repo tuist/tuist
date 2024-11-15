@@ -913,11 +913,14 @@ defmodule Tuist.CommandEvents do
       # By grouping the case runs by case id and module hash,
       # which takes advantage of the composite index test_case_runs_test_case_id_module_hash_status_index,
       # we speed up the following query, since joins are only done with the identified groups.
+      module_hashes = Enum.map(test_case_runs, & &1.module_hash)
+
       subquery =
         from(
           t in TestCaseRun,
+          where: t.module_hash in ^module_hashes,
           group_by: [t.test_case_id, t.module_hash],
-          having: fragment("count(distinct ?) > 1", t.status),
+          having: count(fragment("distinct ?", t.status)) > 1,
           select: %{test_case_id: t.test_case_id, module_hash: t.module_hash}
         )
 
