@@ -163,7 +163,7 @@ defmodule TuistWeb.Marketing.StructuredMarkup do
       "logo" => Tuist.Environment.app_url(path: "/images/tuist_social.jpeg"),
       "sameAs" => [
         "https://fosstodon.org/@tuist",
-        "https://x.com/tuistio",
+        "https://bsky.app/profile/tuist.dev",
         "https://www.linkedin.com/company/tuistio"
       ]
     }

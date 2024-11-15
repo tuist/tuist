@@ -274,7 +274,9 @@ body {
       display: flex;
       max-height: 1000px;
       opacity: 1;
-      transition: max-height 0.5s ease-in-out, opacity 0.5s ease;
+      transition:
+        max-height 0.5s ease-in-out,
+        opacity 0.5s ease;
     }
   }
   &[data-collapsed="true"] {
@@ -298,7 +300,9 @@ body {
       display: flex;
       max-height: 0;
       overflow: hidden;
-      transition: opacity 0.5s ease, max-height 0.5s ease;
+      transition:
+        opacity 0.5s ease,
+        max-height 0.5s ease;
     }
   }
 }
