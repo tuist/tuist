@@ -51,15 +51,15 @@ Tuist 4 이전에는 `Dependencies.swift` 파일에서 종속성을 정의할 �
 
 ### `tuist cache print-hashes`가 `tuist cache --print-hashes`로 이름이 변경되었습니다. {#renamed-tuist-cache-printhashes-to-tuist-cache-printhashes}
 
-`tuist cache print-hashes` 명령어를 `tuist cache --print-hashes`로 변경하여, 이것이 `tuist cache` 명령어의 플래그임을 명확히 했습니다. If you were using the `tuist cache print-hashes` command, you'll have to update your project to use the `tuist cache --print-hashes` flag instead.
+`tuist cache print-hashes` 명령어를 `tuist cache --print-hashes`로 변경하여, 이것이 `tuist cache` 명령어의 플래그임을 명확히 했습니다. `tuist cache print-hashes` 명령어를 사용하고 있었다면, 이제 `tuist cache --print-hashes` 플래그를 사용하도록 프로젝트를 업데이트해야 합니다.
 
-### Removed caching profiles {#removed-caching-profiles}
+### caching profiles가 제거되었습니다. {#removed-caching-profiles}
 
-Before Tuist 4, you could define caching profiles in `Tuist/Config.swift` which contained a configuration for the cache. We decided to remove this feature because it could lead to confusion when using it in the generation process with a profile other than the one that was used to generate the project. Moreover, it could lead to users using a debug profile to build a release version of the app, which could lead to unexpected results. In its place, we introduced the `--configuration` option, which you can use to specify the configuration you want to use when generating the project. If you were using caching profiles, you'll have to update your project to use the `--configuration` option instead.
+Tuist 4 이전에는 Tuist/Config.swift에 캐시 구성을 포함한 caching profiles를 정의할 수 있었습니다. 이 기능은 다른 프로필을 사용하여 프로젝트를 생성할 때 혼란을 초래할 수 있기 때문에 제거하기로 결정했습니다. 게다가, 이 기능은 사용자가 디버그 프로필을 사용하여 앱의 릴리스 버전을 빌드하는 상황을 초래할 수 있어, 예상치 못한 결과를 발생시킬 수 있습니다. 그 대신, 프로젝트를 생성할 때 사용할 구성을 지정할 수 있는 `--configuration` 옵션을 도입했습니다. caching profiles을 사용하고 있었다면, 이제 `--configuration` 옵션을 대신 사용하도록 프로젝트를 업데이트해야 합니다.
 
-### Removed `--skip-cache` in favor of arguments {#removed-skipcache-in-favor-of-arguments}
+### `--skip-cache` 옵션은 더 이상 사용되지 않으며, 대신 arguments를 사용하도록 변경되었습니다. {#removed-skipcache-in-favor-of-arguments}
 
-We removed the flag `--skip-cache` from the `generate` command in favor of controlling for which targets the binary cache should be skipped by using the arguments. If you were using the `--skip-cache` flag, you'll have to update your project to use the arguments instead.
+`generate` 명령에서 `--skip-cache` 플래그를 제거하고, 대신 arguments를 사용하여 바이너리 캐시를 건너뛰어야 할 대상을 제어하도록 변경되었습니다. `--skip-cache` 플래그를 사용하고 있었다면, 이제 arguments를 사용하도록 프로젝트를 업데이트해야 합니다.
 
 ::: code-group
 
@@ -75,7 +75,7 @@ tuist generate Foo
 
 ### [Dropped signing capabilities](https://github.com/tuist/tuist/pull/5716) {#dropped-signing-capabilitieshttpsgithubcomtuisttuistpull5716}
 
-Signing is already solved by community tooling like [Fastlane](https://fastlane.tools/) and Xcode itself, which do a much better job at that. We felt that signing was an stretch goal for Tuist, and that it was better to focus on the core features of the project. If you were using Tuist signing capabilities, which consisted of encrypting the certificates and profiles in the repository and installing them in the right places at generation time, you might want to replicate that logic in your own scripts that run before project generation. In particular:
+서명 기능은 이미 [Fastlane](https://fastlane.tools/)과 Xcode 자체와 같은 커뮤니티 도구들에 의해 해결되었으며, 이들이 훨씬 더 잘 처리합니다. 우리는 서명 기능이 Tuist의 추가 목표라고 판단했으며, 프로젝트의 핵심 기능에 집중하는 것이 더 좋다고 생각했습니다. If you were using Tuist signing capabilities, which consisted of encrypting the certificates and profiles in the repository and installing them in the right places at generation time, you might want to replicate that logic in your own scripts that run before project generation. In particular:
 
 - A script that decrypts the certificates and profiles using a key either stored in the file-system or in an environment variable, and installs certificates in the keychain, and the provisioning profiles in the directory `~/Library/MobileDevice/Provisioning\ Profiles`.
 - A script that can take an existing profiles and certificates and encrypt them.
