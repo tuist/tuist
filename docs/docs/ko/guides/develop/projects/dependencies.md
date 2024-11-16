@@ -266,10 +266,10 @@ Tuist는 <LocalizedLink href="/guides/develop/projects/cost-of-convenience">비�
 
 ### 시나리오 {#scenarios}
 
-링크 방식을 전부 정적 또는 동적으로만 설정하는 것이 불가능하거나 적절하지 않은 경우가 있습니다. The following is a non-exhaustive list of scenarios where you might need to mix static and dynamic linking:
+링크 방식을 전부 정적 또는 동적으로만 설정하는 것이 불가능하거나 적절하지 않은 경우가 있습니다. 다음은 정적 및 동적 링크를 혼합해야 할 수 있는 상황들의 예입니다:
 
-- **Apps with extensions:** Since apps and their extensions need to share code, you might need to make those targets dynamic. Otherwise, you'll end up with the same code duplicated in both the app and the extension, causing the binary size to increase.
-- **Pre-compiled external dependencies:** Sometimes you are provided with pre-compiled binaries that are either static or dynamic. Static can binaries can be wrapped in dynamic frameworks or libraries to be linked dynamically.
+- **확장 기능이 포함된 앱:** 앱과 확장 기능이 코드를 공유해야 하기 때문에, target들을 동적으로 만들어야할 수 있습니다. 그렇지 않으면, 동일한 코드가 앱과 확장 기능 모두에 중복되어 바이너리 크기가 커지게 됩니다.
+- **사전에 컴파일된 외부 의존성**: 때로는 정적 또는 동적으로 미리 컴파일된 바이너리가 제공되기도 합니다. Static can binaries can be wrapped in dynamic frameworks or libraries to be linked dynamically.
 
 When making changes to the graph, Tuist will analyze it and display a warning if it detects a "static side effect". This warning is meant to help you identify issues that might arise from linking a target statically that depends transitively on a static target through dynamic targets. These side effects often manifest as increased binary size or, in the worst cases, runtime crashes.
 
