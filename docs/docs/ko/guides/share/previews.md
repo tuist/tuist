@@ -13,19 +13,19 @@ description: 앱 미리보기를 생성하고 다른 사람과 공유하는 방�
 > This feature requires a <LocalizedLink href="/server/introduction/accounts-and-projects#projects">remote project</LocalizedLink>.
 
 앱을 개발할 때 다른 사람들의 피드백을 받기 위해 앱을 공유하고 싶을 수 있습니다.
-Traditionally, this is something that teams do by building, signing, and pushing their apps to platforms like Apple's [TestFlight](https://developer.apple.com/testflight/).
-However, this process can be cumbersome and slow, especially when you're just looking for quick feedback from a colleague or a friend.
+전통적으로, 팀들은 앱을 빌드하고 서명한 후 Apple의 [TestFlight](https://developer.apple.com/testflight/)와 같은 플랫폼에 업로드하여 이 작업을 수행해왔습니다.
+하지만, 이 과정은 번거롭고 느릴 수 있으며, 특히 동료나 친구로부터 빠른 피드백을 받고자 할 때는 더욱 그렇습니다.
 
-To make this process more streamlined, Tuist provides a way to generate and share previews of your apps with anyone.
+Tuist는 이러한 과정을 간소화하기 위해 앱 미리보기를 생성하고 다른 사람과 공유할 수 있는 방법을 제공합니다.
 
-> [!IMPORTANT] DEVICE BUILDS NEED TO BE SIGNED
-> When building for device, it is currently your responsibility to ensure the app is signed correctly. We plan to streamline this in the future.
+> [!IMPORTANT] DEVICE(실기기) 빌드 시 서명 필요
+> DEVICE용으로 빌드할 때, 앱이 올바르게 서명되었는지 확인하는 책임은 사용자에게 있습니다. 우리는 향후 이 과정을 더 간소화할 계획입니다.
 
 :::code-group
 
 ```bash [Tuist Project]
-tuist build App # Build the app for the simulator
-tuist build App -- -destination 'generic/platform=iOS' # Build the app for the device
+tuist build App # simulator용 앱 빌드
+tuist build App -- -destination 'generic/platform=iOS' # device용 앱 빌드
 tuist share App
 ```
 
