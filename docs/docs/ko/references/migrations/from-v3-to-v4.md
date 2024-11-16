@@ -47,11 +47,11 @@ Tuist 4 이전에는 `Dependencies.swift` 파일에서 종속성을 정의할 �
 
 ### `tuist cache warm`이 `tuist cache`로 이름이 변경되었습니다. {#renamed-tuist-cache-warm-to-tuist-cache}
 
-For brevity, we decided to rename the `tuist cache warm` command to `tuist cache`. If you were using the `tuist cache warm` command, you'll have to update your project to use the `tuist cache` command instead.
+간결함을 위해 `tuist cache warm` 명령어를 `tuist cache`로 이름 변경하기로 결정했습니다. `tuist cache warm` 명령어를 사용하고 있었다면, 이제 `tuist cache` 명령어를 사용하도록 프로젝트를 업데이트해야 합니다.
 
-### Renamed `tuist cache print-hashes` to `tuist cache --print-hashes` {#renamed-tuist-cache-printhashes-to-tuist-cache-printhashes}
+### `tuist cache print-hashes`가 `tuist cache --print-hashes`로 이름이 변경되었습니다. {#renamed-tuist-cache-printhashes-to-tuist-cache-printhashes}
 
-We decided to rename the `tuist cache print-hashes` command to `tuist cache --print-hashes` to make it clear that it's a flag of the `tuist cache` command. If you were using the `tuist cache print-hashes` command, you'll have to update your project to use the `tuist cache --print-hashes` flag instead.
+`tuist cache print-hashes` 명령어를 `tuist cache --print-hashes`로 변경하여, 이것이 `tuist cache` 명령어의 플래그임을 명확히 했습니다. If you were using the `tuist cache print-hashes` command, you'll have to update your project to use the `tuist cache --print-hashes` flag instead.
 
 ### Removed caching profiles {#removed-caching-profiles}
 
