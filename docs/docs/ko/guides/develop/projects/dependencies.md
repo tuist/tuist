@@ -269,7 +269,7 @@ Tuist는 <LocalizedLink href="/guides/develop/projects/cost-of-convenience">비�
 링크 방식을 전부 정적 또는 동적으로만 설정하는 것이 불가능하거나 적절하지 않은 경우가 있습니다. 다음은 정적 및 동적 링크를 혼합해야 할 수 있는 상황들의 예입니다:
 
 - **확장 기능이 포함된 앱:** 앱과 확장 기능이 코드를 공유해야 하기 때문에, target들을 동적으로 만들어야할 수 있습니다. 그렇지 않으면, 동일한 코드가 앱과 확장 기능 모두에 중복되어 바이너리 크기가 커지게 됩니다.
-- **사전에 컴파일된 외부 의존성**: 때로는 정적 또는 동적으로 미리 컴파일된 바이너리가 제공되기도 합니다. Static can binaries can be wrapped in dynamic frameworks or libraries to be linked dynamically.
+- **사전에 컴파일된 외부 의존성**: 때로는 정적 또는 동적으로 미리 컴파일된 바이너리가 제공되기도 합니다. 정적 바이너리는 동적 프레임워크나 라이브러리로 감싸서 동적으로 링크될 수 있습니다.
 
 그래프를 변경할 때, Tuist는 이를 분석하여 "static side effect"를 감지하면 경고를 표시합니다. 이 경고는 동적 target을 통해 정적 target에 전이적으로 의존하는 target을 정적으로 링크할 때 발생할 수 있는 문제를 식별하는 데 도움을 줍니다. 이러한 side effect는 종종 바이너리 크기 증가로 나타나거나, 최악의 경우 런타임 크래시가 발생할 수 있습니다.
 
@@ -335,9 +335,9 @@ let package = Package(
 ...
 ```
 
-### Transitive static dependencies leaking through `.swiftmodule` {#transitive-static-dependencies-leaking-through-swiftmodule}
+### `.swiftmodule`에서 발생하는 전이적 정적 의존성 문제 {#transitive-static-dependencies-leaking-through-swiftmodule}
 
-When a dynamic framework or library depends on static ones through `import StaticSwiftModule`, the symbols are included in the `.swiftmodule` of the dynamic framework or library, potentially [causing the compilation to fail](https://forums.swift.org/t/compiling-a-dynamic-framework-with-a-statically-linked-library-creates-dependencies-in-swiftmodule-file/22708/1). To prevent that, you'll have to import the static dependency using [`@_implementationOnly`](https://github.com/apple/swift/blob/main/docs/ReferenceGuides/UnderscoredAttributes.md#_implementationonly):
+동적 프레임워브나 라이브러리가 `import StaticSwiftModule`을 통해 정적 라이브러리에 의존하는 경우, 해당 심볼이 동적 프레임워크나 라이브러리의 `.swiftmodule`에 포함되어 [컴파일 실패를 유발할 가능성](https://forums.swift.org/t/compiling-a-dynamic-framework-with-a-statically-linked-library-creates-dependencies-in-swiftmodule-file/22708/1)이 있습니다. 이를 방지하기 위해서는 [`@_implementationOnly`](https://github.com/apple/swift/blob/main/docs/ReferenceGuides/UnderscoredAttributes.md#_implementationonly)를 사용하여 정적 의존성을 import해야 합니다:
 
 ```swift
 @_implementationOnly import StaticModule
