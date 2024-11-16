@@ -10,7 +10,7 @@ Xcode를 대규모 프로젝트에서 사용할 때의 한계점 중 하나는 `
 
 - 변경 사항을 한 곳에서 적용하면 모든 프로젝트에 자동으로 반영되므로 **유지보수**가 수월해집니다.
 - 새로운 프로젝트들이 따를 수 있는 규칙을 정의할 수 있습니다.
-- Projects are more **consistent** and therefore the likelihood of broken builds due inconsistencies is significantly less.
+- 프로젝트가 더 `일관성`을 갖게 되어, 불일치로 인한 빌드 실패의 가능성이 줄어듭니다.
 - Adding a new projects becomes an easy task because we can reuse the existing logic.
 
 Reusing code across manifest files is possible in Tuist thanks to the concept of **project description helpers**.
