@@ -106,7 +106,7 @@ Tuist를 tasks 배포에 사용하고 있었다면, 자체 솔루션을 구축�
 
 ## Using plugins {#using-plugins}
 
-To use a plugin, you'll have to add it to your project's <LocalizedLink href="/references/project-description/structs/config">`Tuist.swift`</LocalizedLink> manifest file:
+plugin을 사용하려면, 프로젝트의 <LocalizedLink href="/references/project-description/structs/config">`Tuist.swift`</LocalizedLink> manifest 파일에 추가해야 합니다:
 
 ```swift
 import ProjectDescription
@@ -119,7 +119,7 @@ let config = Config(
 )
 ```
 
-If you want to reuse a plugin across projects that live in different repositories, you can push your plugin to a Git repository and reference it in the `Tuist.swift` file:
+repository에 있는 프로젝트들 간에 plugin을 재사용하려면, plugin을 Git repository에 push하고 `Tuist.swift` 파일에서 참조할 수 있습니다:
 
 ```swift
 import ProjectDescription
