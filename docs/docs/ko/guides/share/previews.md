@@ -1,18 +1,18 @@
 ---
 title: Previews
 titleTemplate: :title · Share · Guides · Tuist
-description: Learn how to generate and share previews of your apps with anyone.
+description: 앱 미리보기를 생성하고 다른 사람과 공유하는 방법을 알아보세요.
 ---
 
 # Previews {#previews}
 
-> [!IMPORTANT] XCODEPROJ-COMPATIBLE
-> This feature is compatible with raw Xcode projects.
+> [!IMPORTANT] XCODEPROJ 호환가능
+> 이 기능은 순수 Xcode 프로젝트와 호환됩니다.
 
 > [!IMPORTANT] REMOTE PROJECT REQUIRED
 > This feature requires a <LocalizedLink href="/server/introduction/accounts-and-projects#projects">remote project</LocalizedLink>.
 
-When building an app, you may want to share it with others to get feedback.
+앱을 개발할 때 다른 사람들의 피드백을 받기 위해 앱을 공유하고 싶을 수 있습니다.
 Traditionally, this is something that teams do by building, signing, and pushing their apps to platforms like Apple's [TestFlight](https://developer.apple.com/testflight/).
 However, this process can be cumbersome and slow, especially when you're just looking for quick feedback from a colleague or a friend.
 
