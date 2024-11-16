@@ -262,11 +262,11 @@ func productType() -> Product {
 Tuist는 <LocalizedLink href="/guides/develop/projects/cost-of-convenience">비용 문제로 인해 암시적 구성(implicit configuration)을 통한 편의성을 기본값으로 제공하지 않는 점</LocalizedLink>을 참고하세요. 이는 최종 바이너리가 올바르게 생성되기 위해 사용자가 직접 링크 타입과 [`-ObjC` linker flag](https://github.com/pointfreeco/swift-composable-architecture/discussions/1657#discussioncomment-4119184) 같은 추가 빌드 설정을 해야한다는 뜻입니다. 따라서, 우리는 주로 문서 형태의 자료를 제공하여 사용자가 올바른 결정을 내릴 수 있도록 돕는 방식을 취하고 있습니다.
 
 > [!TIP] 예시: COMPOSABLE ARCHITECTURE
-> 많은 프로젝트에서 사용하는 Swift Package로는 [Composable Architecture](https://github.com/pointfreeco/swift-composable-architecture)가 있습니다. As described [here](https://github.com/pointfreeco/swift-composable-architecture/discussions/1657#discussioncomment-4119184) and the [troubleshooting section](#troubleshooting), you'll need to set the `OTHER_LDFLAGS` build setting to `$(inherited) -ObjC` when linking the packages statically, which is Tuist's default linking type. Alternatively, you can override the product type for the package to be dynamic.
+> 많은 프로젝트에서 사용하는 Swift Package로는 [Composable Architecture](https://github.com/pointfreeco/swift-composable-architecture)가 있습니다. [여기](https://github.com/pointfreeco/swift-composable-architecture/discussions/1657#discussioncomment-4119184)와 [troubleshooting section](#troubleshooting)에 설명된 대로, package를 정적으로 링크할 때는 `OTHER_LDFLAGS` 빌드 설정을 `$(inherited) -ObjC`로 설정해야 합니다. Tuist의 기본 링크 방식이 정적 링크이기 때문입니다. 다른 방법으로는, package의 product type을 동적으로 override할 수 있습니다.
 
-### Scenarios {#scenarios}
+### 시나리오 {#scenarios}
 
-There are some scenarios where setting the linking entirely to static or dynamic is not feasible or a good idea. The following is a non-exhaustive list of scenarios where you might need to mix static and dynamic linking:
+링크 방식을 전부 정적 또는 동적으로만 설정하는 것이 불가능하거나 적절하지 않은 경우가 있습니다. The following is a non-exhaustive list of scenarios where you might need to mix static and dynamic linking:
 
 - **Apps with extensions:** Since apps and their extensions need to share code, you might need to make those targets dynamic. Otherwise, you'll end up with the same code duplicated in both the app and the extension, causing the binary size to increase.
 - **Pre-compiled external dependencies:** Sometimes you are provided with pre-compiled binaries that are either static or dynamic. Static can binaries can be wrapped in dynamic frameworks or libraries to be linked dynamically.
