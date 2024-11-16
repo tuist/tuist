@@ -271,11 +271,11 @@ Tuist는 <LocalizedLink href="/guides/develop/projects/cost-of-convenience">비�
 - **확장 기능이 포함된 앱:** 앱과 확장 기능이 코드를 공유해야 하기 때문에, target들을 동적으로 만들어야할 수 있습니다. 그렇지 않으면, 동일한 코드가 앱과 확장 기능 모두에 중복되어 바이너리 크기가 커지게 됩니다.
 - **사전에 컴파일된 외부 의존성**: 때로는 정적 또는 동적으로 미리 컴파일된 바이너리가 제공되기도 합니다. Static can binaries can be wrapped in dynamic frameworks or libraries to be linked dynamically.
 
-그래프를 변경할 때, Tuist는 이를 분석하여 "static side effect"를 감지하면 경고를 표시합니다. This warning is meant to help you identify issues that might arise from linking a target statically that depends transitively on a static target through dynamic targets. These side effects often manifest as increased binary size or, in the worst cases, runtime crashes.
+그래프를 변경할 때, Tuist는 이를 분석하여 "static side effect"를 감지하면 경고를 표시합니다. 이 경고는 동적 target을 통해 정적 target에 전이적으로 의존하는 target을 정적으로 링크할 때 발생할 수 있는 문제를 식별하는 데 도움을 줍니다. 이러한 side effect는 종종 바이너리 크기 증가로 나타나거나, 최악의 경우 런타임 크래시가 발생할 수 있습니다.
 
 ## 문제 해결 {#troubleshooting}
 
-### Objective-C Dependencies {#objectivec-dependencies}
+### Objective-C 의존성 {#objectivec-dependencies}
 
 When integrating Objective-C dependencies, the inclusion of certain flags on the consuming target may be necessary to avoid runtime crashes as detailed in [Apple Technical Q&A QA1490](https://developer.apple.com/library/archive/qa/qa1490/_index.html).
 
