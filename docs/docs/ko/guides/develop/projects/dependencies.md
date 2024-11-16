@@ -277,21 +277,21 @@ Tuist는 <LocalizedLink href="/guides/develop/projects/cost-of-convenience">비�
 
 ### Objective-C 의존성 {#objectivec-dependencies}
 
-When integrating Objective-C dependencies, the inclusion of certain flags on the consuming target may be necessary to avoid runtime crashes as detailed in [Apple Technical Q&A QA1490](https://developer.apple.com/library/archive/qa/qa1490/_index.html).
+Objective-C 의존성을 통합할 때, [Apple Technical Q&A QA1490](https://developer.apple.com/library/archive/qa/qa1490/_index.html)에서 자세히 설명된 대로 런타임 크래시를 방지하기 위해 사용하는 target에 특정 flag를 포함해야 할 수 있습니다.
 
-Since the build system and Tuist have no way of inferring whether the flag is necessary or not, and since the flag comes with potentially undesirable side effects, Tuist will not automatically apply any of these flags, and because Swift Package Manager considers `-ObjC` to be included via an `.unsafeFlag` most packages cannot include it as part of their default linking settings when required.
+빌드 시스템과 Tuist는 flag가 필요한지여부를 추론할 수 없고, 이 flag가 잠재적으로 원치 않는 side effect를 발생시킬 수 있기 때문에, Tuist는 이러한 플래그들을 자동으로 적용하지 않습니다. 또한, Swift Package Manager는 `-ObjC`를 `.unsafeFlag`를 통해 포함되는 것으로 간주하기 때문에, 대부분의 package는 필요한 경우에도 이를 기본 링크 설정의 일부로 포함할 수 없습니다.
 
-Consumers of Objective-C dependencies (or internal Objective-C targets) should apply `-ObjC` or `-force_load` flags when required by setting `OTHER_LDFLAGS` on consuming targets.
+Objective-C 의존성(또는 내부 Objective-C target)을 사용하는 target은 필요할 경우 `OTHER_LDFLAGS`에 `-ObjC` 또는 `-force_load` flag를 설정하여 적용해야 합니다.
 
 ### Firebase & Other Google Libraries {#firebase-other-google-libraries}
 
-Google's open source libraries — while powerful — can be difficult to integrate within Tuist as they often use non-standard architecture and techniques in how they are built.
+Google의 오픈 소스 라이브러리는 강력하지만, 종종 일반적이지 않은 아키텍처와 기술로 빌드되기 때문에 Tuist에 통합하기 어려울 수 있습니다.
 
-Here are a few tips that may be necessary to follow to integrate Firebase and Google's other Apple-platform libraries:
+다음은 Firebase와 Google의 다른 Apple 플랫폼 라이브러리들을 통합하기 위해 필요할 수 있는 몇 가지 팁입니다:
 
-#### Ensure `-ObjC` is added to `OTHER_LDFLAGS` {#ensure-objc-is-added-to-other_ldflags}
+#### `OTHER_LDFLAGS`에 `-ObjC`가 추가되었는지 확인하세요 {#ensure-objc-is-added-to-other_ldflags}
 
-Many of Google's libraries are written in Objective-C. Because of this, any consuming target will need to include the `-ObjC` tag in its `OTHER_LDFLAGS` build setting. This can either be set in an `.xcconfig` file or manually specified in the target's settings within your Tuist manifests. An example:
+Google의 라이브러리 중 다수는 Objective-C로 작성되어 있습니다. 이로 인해, 사용하는 모든 target은 `OTHER_LDFLAGS` 빌드 설정에 `-ObjC` flag를 포함해야 합니다. 이는 `.xcconfig` 파일에서 설정하거나 Tuist manifest 파일에서 내의 target 설정에서 직접 지정할 수 있습니다. 예시:
 
 ```swift
 Target.target(
@@ -303,17 +303,17 @@ Target.target(
 )
 ```
 
-Refer to the [Objective-C Dependencies](#objective-c-dependencies) section above for more details.
+자세한 내용은 [Objective-C Dependencies](#objective-c-dependencies) 섹션을 참고하세요.
 
-#### Set the product type for `FBLPromises` to dynamic framework {#set-the-product-type-for-fblpromises-to-dynamic-framework}
+#### `FBLPromises` product type을 동적 프레임워크로 설정하기 {#set-the-product-type-for-fblpromises-to-dynamic-framework}
 
-Certain Google libraries depend on `FBLPromises`, another of Google's libraries. You may encounter a crash that mentions `FBLPromises`, looking something like this:
+일부 Google 라이브러리는 Google의 또 다른 라이브러리인 `FBLPromises`에 의존합니다. `FBLPromises`와 관련된 다음과 같은 크래시가 발생할 수 있습니다:
 
 ```
 NSInvalidArgumentException. Reason: -[FBLPromise HTTPBody]: unrecognized selector sent to instance 0x600000cb2640.
 ```
 
-Explicitly setting the product type of `FBLPromises` to `.framework` in your `Package.swift` file should fix the issue:
+`Package.swift` 파일에서 `FBLPromises`의 product type을 `.framework`로 명시적으로 설정하면 이 문제가 해결될 것입니다:
 
 ```swift [Tuist/Package.swift]
 // swift-tools-version: 5.10
