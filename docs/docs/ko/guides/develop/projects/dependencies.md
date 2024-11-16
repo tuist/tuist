@@ -271,7 +271,7 @@ Tuist는 <LocalizedLink href="/guides/develop/projects/cost-of-convenience">비�
 - **확장 기능이 포함된 앱:** 앱과 확장 기능이 코드를 공유해야 하기 때문에, target들을 동적으로 만들어야할 수 있습니다. 그렇지 않으면, 동일한 코드가 앱과 확장 기능 모두에 중복되어 바이너리 크기가 커지게 됩니다.
 - **사전에 컴파일된 외부 의존성**: 때로는 정적 또는 동적으로 미리 컴파일된 바이너리가 제공되기도 합니다. Static can binaries can be wrapped in dynamic frameworks or libraries to be linked dynamically.
 
-When making changes to the graph, Tuist will analyze it and display a warning if it detects a "static side effect". This warning is meant to help you identify issues that might arise from linking a target statically that depends transitively on a static target through dynamic targets. These side effects often manifest as increased binary size or, in the worst cases, runtime crashes.
+그래프를 변경할 때, Tuist는 이를 분석하여 "static side effect"를 감지하면 경고를 표시합니다. This warning is meant to help you identify issues that might arise from linking a target statically that depends transitively on a static target through dynamic targets. These side effects often manifest as increased binary size or, in the worst cases, runtime crashes.
 
 ## 문제 해결 {#troubleshooting}
 
