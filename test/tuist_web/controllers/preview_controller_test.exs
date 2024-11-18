@@ -44,6 +44,32 @@ defmodule TuistWeb.PreviewControllerTest do
     end
   end
 
+  describe "download_qr_code_png/2" do
+    test "renders a QR code", %{conn: conn} do
+      # Given
+      preview =
+        PreviewsFixtures.preview_fixture(type: :ipa)
+
+      QRCode
+      |> stub(:create, fn _ ->
+        "qr-code"
+      end)
+
+      QRCode
+      |> stub(:render, fn _, _ ->
+        {:ok, "base64png"}
+      end)
+
+      # When
+      conn =
+        conn
+        |> get(~p"/tuist/ios_app_with_frameworks/previews/#{preview.id}/qr-code.png")
+
+      # Then
+      assert response(conn, 200) =~ "base64png"
+    end
+  end
+
   describe "preview/2" do
     test "renders a download button", %{conn: conn, user: user} do
       # Given

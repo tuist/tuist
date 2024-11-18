@@ -281,7 +281,7 @@ defmodule TuistWeb.API.PreviewsController do
         id: preview_id,
         url: url(~p"/#{account_handle}/#{project_handle}/previews/#{preview_id}"),
         qr_code_url:
-          url(~p"/#{account_handle}/#{project_handle}/previews/#{preview_id}/qr-code.svg"),
+          url(~p"/#{account_handle}/#{project_handle}/previews/#{preview_id}/qr-code.png"),
         icon_url: url(~p"/#{account_handle}/#{project_handle}/previews/#{preview_id}/icon.png"),
         bundle_identifier: preview.bundle_identifier,
         display_name: preview.display_name
@@ -498,7 +498,7 @@ defmodule TuistWeb.API.PreviewsController do
             id: &1.preview.id,
             url: url(~p"/#{account_handle}/#{project_handle}/previews/#{&1.preview.id}"),
             qr_code_url:
-              url(~p"/#{account_handle}/#{project_handle}/previews/#{&1.preview.id}/qr-code.svg"),
+              url(~p"/#{account_handle}/#{project_handle}/previews/#{&1.preview.id}/qr-code.png"),
             icon_url:
               url(~p"/#{account_handle}/#{project_handle}/previews/#{&1.preview.id}/icon.png"),
             bundle_identifier: &1.preview.bundle_identifier,

@@ -355,7 +355,7 @@ defmodule TuistWeb.PreviewsControllerTest do
                "id" => preview.id,
                "url" => url(~p"/#{account.name}/#{project.name}/previews/#{preview.id}"),
                "qr_code_url" =>
-                 url(~p"/#{account.name}/#{project.name}/previews/#{preview.id}/qr-code.svg"),
+                 url(~p"/#{account.name}/#{project.name}/previews/#{preview.id}/qr-code.png"),
                "icon_url" =>
                  url(~p"/#{account.name}/#{project.name}/previews/#{preview.id}/icon.png"),
                "bundle_identifier" => "com.tuist.app",
@@ -628,7 +628,7 @@ defmodule TuistWeb.PreviewsControllerTest do
                  "url" => url(~p"/#{account.name}/#{project.name}/previews/#{preview_two.id}"),
                  "qr_code_url" =>
                    url(
-                     ~p"/#{account.name}/#{project.name}/previews/#{preview_two.id}/qr-code.svg"
+                     ~p"/#{account.name}/#{project.name}/previews/#{preview_two.id}/qr-code.png"
                    ),
                  "icon_url" =>
                    url(~p"/#{account.name}/#{project.name}/previews/#{preview_two.id}/icon.png"),

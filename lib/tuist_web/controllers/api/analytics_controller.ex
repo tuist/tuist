@@ -242,7 +242,7 @@ defmodule TuistWeb.API.AnalyticsController do
         &url(~p"/#{&1.project.account.name}/#{&1.project.name}/previews/#{&1.preview.id}"),
       preview_qr_code_url:
         &url(
-          ~p"/#{&1.project.account.name}/#{&1.project.name}/previews/#{&1.preview.id}/qr-code.svg"
+          ~p"/#{&1.project.account.name}/#{&1.project.name}/previews/#{&1.preview.id}/qr-code.png"
         ),
       command_run_url:
         &url(~p"/#{&1.project.account.name}/#{&1.project.name}/runs/#{&1.command_event.id}")
