@@ -83,7 +83,7 @@ tuist --generate-completion-script > ~/.zsh/completion/_tuist
 tuist --generate-completion-script > /usr/local/etc/bash_completion.d/_tuist
 ```
 
-bash-completion がない場合、補完スクリプトを直接 source で読み込む必要があります。 bash-completion がない場合、補完スクリプトを直接 source で読み込む必要があります。 bash-completion がない場合、補完スクリプトを直接 source で読み込む必要があります。 bash-completion がない場合、補完スクリプトを直接ソースする必要があります。 bash-completion がない場合、補完スクリプトを直接ソースする必要があります。 bash-completion がない場合、補完スクリプトを直接ソースする必要があります。 bash-completionがない場合、補完スクリプトを直接ソースする必要があります。 bash-completionがない場合、補完スクリプトを直接ソースする必要があります。 bash-completionがない場合、補完スクリプトを直接ソースする必要があります。 bash-completionがない場合、補完スクリプトを直接ソースする必要があります。 `~/.bash_completions/` のようなディレクトリにコピーし、次の行を `~/.bash_profile` または `~/.bashrc` に追加します。 `~/.bash_completions/` のようなディレクトリにコピーし、次の行を `~/.bash_profile` または `~/.bashrc` に追加します。
+bash-completion がない場合、補完スクリプトを直接 source で読み込む必要があります。 bash-completion がない場合、補完スクリプトを直接 source で読み込む必要があります。 bash-completion がない場合、補完スクリプトを直接 source で読み込む必要があります。 bash-completion がない場合、補完スクリプトを直接 source で読み込む必要があります。 bash-completion がない場合、補完スクリプトを直接ソースする必要があります。 bash-completion がない場合、補完スクリプトを直接ソースする必要があります。 bash-completion がない場合、補完スクリプトを直接ソースする必要があります。 bash-completionがない場合、補完スクリプトを直接ソースする必要があります。 bash-completionがない場合、補完スクリプトを直接ソースする必要があります。 bash-completionがない場合、補完スクリプトを直接ソースする必要があります。 bash-completionがない場合、補完スクリプトを直接ソースする必要があります。 `~/.bash_completions/` のようなディレクトリにコピーし、次の行を `~/.bash_profile` または `~/.bashrc` に追加します。 `~/.bash_completions/` のようなディレクトリにコピーし、次の行を `~/.bash_profile` または `~/.bashrc` に追加します。
 
 ```bash
 source ~/.bash_completions/example.bash
