@@ -111,7 +111,7 @@ let project = Project(
 ```swift [Tuist.swift]
 import ProjectDescription
 
-let config = Config()
+let tuist = Tuist()
 ```
 
 :::
