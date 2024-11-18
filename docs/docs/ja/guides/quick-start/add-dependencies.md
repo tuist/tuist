@@ -12,7 +12,7 @@ description: 最初のSwiftプロジェクトに依存関係を追加する方�
 tuist edit
 ```
 
-Xcodeプロジェクトが開き、プロジェクトファイルが表示されます。 Package.swiftを編集し、以下を追加します。 Package.swiftを編集し、以下を追加します。 Package.swiftを編集し、以下を追加します。 Package.swiftを編集し、以下を追加します。 Package.swiftを編集し、以下を追加します。
+Xcodeプロジェクトが開き、プロジェクトファイルが表示されます。 Package.swiftを編集し、以下を追加します。
 
 ```swift
 // swift-tools-version: 5.9
