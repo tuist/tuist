@@ -12,7 +12,7 @@ description: 最初のSwiftプロジェクトに依存関係を追加する方�
 tuist edit
 ```
 
-Xcodeプロジェクトが開き、プロジェクトファイルが表示されます。 Package.swiftを編集し、以下を追加します。 Package.swiftを編集し、以下を追加します。 Package.swiftを編集し、以下を追加します。 Package.swiftを編集し、以下を追加します。
+Xcodeプロジェクトが開き、プロジェクトファイルが表示されます。 Package.swiftを編集し、以下を追加します。
 
 ```swift
 // swift-tools-version: 5.9
@@ -81,7 +81,7 @@ let project = Project(
 次に、`tuist install` を実行して、[Swift Package Manager](https://www.swift.org/documentation/package-manager/) を使用して依存関係を解決し、取得します。
 
 > [!NOTE] 依存関係解決ツールとしてのSPM
-> Tuistの推奨する依存関係のアプローチは、依存関係を解決するためにSwift Package Manager (SPM) を使用することです。 TuistはそれらをXcodeプロジェクトとターゲットに変換し、最大限の構成可能性と制御を提供します。 TuistはそれらをXcodeプロジェクトとターゲットに変換し、最大限の構成可能性と制御を提供します。 TuistはそれらをXcodeプロジェクトとターゲットに変換し、最大限の構成可能性と制御を提供します。 TuistはそれらをXcodeプロジェクトとターゲットに変換し、最大限の構成可能性と制御を提供します。
+> Tuistの推奨する依存関係のアプローチは、依存関係を解決するためにSwift Package Manager (SPM) を使用することです。 TuistはそれらをXcodeプロジェクトとターゲットに変換し、最大限の構成可能性と制御を提供します。 TuistはそれらをXcodeプロジェクトとターゲットに変換し、最大限の構成可能性と制御を提供します。 TuistはそれらをXcodeプロジェクトとターゲットに変換し、最大限の構成可能性と制御を提供します。 TuistはそれらをXcodeプロジェクトとターゲットに変換し、最大限の構成可能性と制御を提供します。 TuistはそれらをXcodeプロジェクトとターゲットに変換し、最大限の構成可能性と制御を提供します。
 
 ## プロジェクトの可視化 {#visualize-the-project}
 

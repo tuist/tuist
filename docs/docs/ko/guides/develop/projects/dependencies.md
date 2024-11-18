@@ -164,7 +164,7 @@ Swift Macro와 Build Tool Plugin의 경우 각각 `.macro`와 `.plugin` type을
 > [!WARNING] SPM Build Tool Plugins
 > Tuist의 [XcodeProj 기반 통합](#tuist-s-xcodeproj-based-integration)을 사용해 프로젝트의 의존성을 관리하더라도, SPM build tool plugin은 반드시 [Xcode의 기본 통합](#xcode-s-default-integration) 메커니즘을 통해 선언해야 합니다.
 
-A practical application of an SPM build tool plugin is performing code linting during Xcode's "Run Build Tool Plug-ins" build phase. In a package manifest this is defined as follows:
+SPM 빌드 도구 플러그인의 실용적인 활용 사례는 Xcode의 'Run Build Tool Plug-ins' Build Phase에서 코드 린팅을 수행하는 것입니다. package manifest에서는 다음과 같이 정의됩니다:
 
 ```swift
 // swift-tools-version: 5.9
@@ -189,7 +189,7 @@ let package = Package(
 )
 ```
 
-To generate an Xcode project with the build tool plugin intact, you must declare the package in the project manifest's `packages` array, and then include a package with type `.plugin` in a target's dependencies.
+build tool plugin이 포함된 Xcode 프로젝트를 생성하려면, 프로젝트 manifest의 `packages` 배열에 package를 선언하고, target의 dependencies에 `.plugin` 타입의 package를 포함해야 합니다.
 
 ```swift
 import ProjectDescription
@@ -212,7 +212,7 @@ let project = Project(
 
 ### Carthage {#carthage}
 
-Since [Carthage](https://github.com/carthage/carthage) outputs `frameworks` or `xcframeworks`, you can run `carthage update` to output the dependencies in the `Carthage/Build` directory and then use the `.framework` or `.xcframework` target dependency type to declare the dependency in your target. You can wrap this in a script that you can run before generating the project.
+[Carthage](https://github.com/carthage/carthage)는 `frameworks` 또는 `xcframeworks`를 생성하므로, `carthage update` 명령어를 실행해 `Carthage/Build` 디렉토리에 의존성들을 생성한 후, `.framework` 또는 `.xcframework` target dependency type을 사용하여 대상에서 의존성을 선언할 수 있습니다. 이 과정을 다음과 같이 스크립트로 작성하여 프로젝트 생성 전에 실행할 수 있습니다.
 
 ```bash
 #!/usr/bin/env bash
@@ -221,12 +221,12 @@ carthage update
 tuist generate
 ```
 
-> [!WARNING] BUILD AND TEST
-> If you build and test your project through `tuist build` and `tuist test`, you will similarly need to ensure that the Carthage-resolved dependencies are present by running the `carthage update` command before `tuist build` or `tuist test` are run.
+> [!WARNING] 빌드 및 테스트
+> `tuist build`와 `tuist test`를 통해 프로젝트를 빌드하고 테스트하는 경우, `tuist build` 또는 `tuist build`를 실행하기 전에 `carthage update` 명령어를 실행하여 Carthage로 해결된 의존성들이 존재하는지 확인해야 합니다.
 
 ### CocoaPods {#cocoapods}
 
-[CocoaPods](https://cocoapods.org) expects an Xcode project to integrate the dependencies. You can use Tuist to generate the project, and then run `pod install` to integrate the dependencies by creating a workspace that contains your project and the Pods dependencies. You can wrap this in a script that you can run before generating the project.
+[CocoaPods](https://cocoapods.org)은 의존성을 통합하기 위해 Xcode 프로젝트가 필요합니다. Tuist를 사용하여 프로젝트를 생성한 후, `pod install` 명령어를 실행하여 프로젝트와 Pods 의존성이 포함된 workspace를 생성함으로써 의존성을 통합할 수 있습니다. 이 과정을 다음과 같이 스크립트로 작성하여 프로젝트 생성 전에 실행할 수 있습니다.
 
 ```bash
 #!/usr/bin/env bash
@@ -236,17 +236,17 @@ pod install
 ```
 
 > [!WARNING]
-> CocoaPods dependencies are not compatible with workflows like `build` or `test` that run `xcodebuild` right after generating the project. They are also incompatible with binary caching and selective testing since the fingerprinting logic doesn't account for the Pods dependencies.
+> CocoaPods 의존성은 프로젝트 생성 직후 `xcodebuild`를 실행하는 `build` 또는 `test`와 같은 workflow와 호환되지 않습니다. 또한, Pods 의존성을 fingerprinting logic에서 고려하지 않기 때문에, binary caching 및 selective testing과도 호환되지 않습니다.
 
 ## Static or dynamic {#static-or-dynamic}
 
-Frameworks and libraries can be linked either statically or dynamically, **a choice that has significant implications for aspects like app size and boot time**. Despite its importance, this decision is often made without much consideration.
+Framework와 Library는 정적(static) 또는 동적(dynamic)으로 링크할 수 있으며, **이는 앱 크기와 실행 시간과 같은 부분에 크게 영향을 미칩니다.** 이것은 중요한 결정임에도 불구하고, 대부분은 깊이 고려되지 않고 선택됩니다.
 
-The **general rule of thumb** is that you want as many things as possible to be statically linked in release builds to achieve fast boot times, and as many things as possible to be dynamically linked in debug builds to achieve fast iteration times.
+**일반적인 규칙**은 빠른 실행 시간을 위해 릴리즈 빌드에서는 최대한 많은 항목을 정적으로 링크하고, 빠른 반복 작업을 위해 디버그 빌드에서는 최대한 많은 항목을 동적으로 링크하는 것입니다.
 
-The challenge with changing between static and dynamic linking in a project graph is that is not trivial in Xcode because a change has cascading effect on the entire graph (e.g. libraries can't contain resources, static frameworks don't need to be embedded). Apple tried to solve the problem with compile time solutions like Swift Package Manager's automatic decision between static and dynamic linking, or [Mergeable Libraries](https://developer.apple.com/documentation/xcode/configuring-your-project-to-use-mergeable-libraries). However, this adds new dynamic variables to the compilation graph, adding new sources of non-determinism, and potentially causing some features like Swift Previews that rely on the compilation graph to become unreliable.
+Xcode에서 프로젝트 그래프의 링크 방식(static <-> dynamic)을 변경하는 것은 전체 그래프에 영향을 미치기 때문에 간단하지 않습니다 (예: 라이브러리는 리소스를 포함할 수 없고, 정적 프레임워크는 임베드가 불필요함).  Apple은 Swift Package Manager의 정적 및 동적 링크 자동 결정이나 [Mergeable Libraries](https://developer.apple.com/documentation/xcode/configuring-your-project-to-use-mergeable-libraries)와 같은 컴파일 타임 솔루션을 통해 이 문제를 해결하려고 했습니다. 그러나, 이는 컴파일 그래프에 새로운 동적 변수들을 추가하여 비결정적 요소를 증가시키며, Swift Previews와 같이 컴파일 그래프에 의존하는 기능들이 불안정해질 가능성을 높입니다.
 
-Luckily, Tuist conceptually compresses the complexity associated with changing between static and dynamic and synthesizes <LocalizedLink href="/guides/develop/projects/synthesized-files#bundle-accessors">bundle accessors</LocalizedLink> that are standard across linking types. In combination with <LocalizedLink href="/guides/develop/projects/dynamic-configuration">dynamic configurations via environment variables</LocalizedLink>, you can pass the linking type at invocation time, and use the value in your manifests to set the product type of your targets.
+다행히도, Tuist는 정적 및 동적 링크 간의 변경과 관련된 복잡성을 개념적으로 단순화하고, 링크 타입과 관계없이 표준화된 <LocalizedLink href="/guides/develop/projects/synthesized-files#bundle-accessors">bundle accessors</LocalizedLink>를 생성합니다. <LocalizedLink href="/guides/develop/projects/dynamic-configuration">환경 변수를 통한 동적 구성</LocalizedLink>과 함께 사용하면 호출 시점에 링크 타입을 전달할 수 있으며, 이 값을 manifest에서 사용해 target의 product 타입을 설정할 수 있습니다.
 
 ```swift
 // Use the value returned by this function to set the product type of your targets.
@@ -259,39 +259,39 @@ func productType() -> Product {
 }
 ```
 
-Note that Tuist <LocalizedLink href="/guides/develop/projects/cost-of-convenience">does not default to convenience through implicit configuration due to its costs</LocalizedLink>. What this means is that we rely on you setting the linking type and any additional build settings that are sometimes required, like the [`-ObjC` linker flag](https://github.com/pointfreeco/swift-composable-architecture/discussions/1657#discussioncomment-4119184), to ensure the resulting binaries are correct. Therefore, the stance that we take is providing you with the resources, usually in the shape of documentation, to make the right decisions.
+Tuist는 <LocalizedLink href="/guides/develop/projects/cost-of-convenience">비용 문제로 인해 암시적 구성(implicit configuration)을 통한 편의성을 기본값으로 제공하지 않는 점</LocalizedLink>을 참고하세요. 이는 최종 바이너리가 올바르게 생성되기 위해 사용자가 직접 링크 타입과 [`-ObjC` linker flag](https://github.com/pointfreeco/swift-composable-architecture/discussions/1657#discussioncomment-4119184) 같은 추가 빌드 설정을 해야한다는 뜻입니다. 따라서, 우리는 주로 문서 형태의 자료를 제공하여 사용자가 올바른 결정을 내릴 수 있도록 돕는 방식을 취하고 있습니다.
 
-> [!TIP] EXAMPLE: COMPOSABLE ARCHITECTURE
-> A Swift Package that many projects integrate is [Composable Architecture](https://github.com/pointfreeco/swift-composable-architecture). As described [here](https://github.com/pointfreeco/swift-composable-architecture/discussions/1657#discussioncomment-4119184) and the [troubleshooting section](#troubleshooting), you'll need to set the `OTHER_LDFLAGS` build setting to `$(inherited) -ObjC` when linking the packages statically, which is Tuist's default linking type. Alternatively, you can override the product type for the package to be dynamic.
+> [!TIP] 예시: COMPOSABLE ARCHITECTURE
+> 많은 프로젝트에서 사용하는 Swift Package로는 [Composable Architecture](https://github.com/pointfreeco/swift-composable-architecture)가 있습니다. [여기](https://github.com/pointfreeco/swift-composable-architecture/discussions/1657#discussioncomment-4119184)와 [troubleshooting section](#troubleshooting)에 설명된 대로, package를 정적으로 링크할 때는 `OTHER_LDFLAGS` 빌드 설정을 `$(inherited) -ObjC`로 설정해야 합니다. Tuist의 기본 링크 방식이 정적 링크이기 때문입니다. 다른 방법으로는, package의 product type을 동적으로 override할 수 있습니다.
 
-### Scenarios {#scenarios}
+### 시나리오 {#scenarios}
 
-There are some scenarios where setting the linking entirely to static or dynamic is not feasible or a good idea. The following is a non-exhaustive list of scenarios where you might need to mix static and dynamic linking:
+링크 방식을 전부 정적 또는 동적으로만 설정하는 것이 불가능하거나 적절하지 않은 경우가 있습니다. 다음은 정적 및 동적 링크를 혼합해야 할 수 있는 상황들의 예입니다:
 
-- **Apps with extensions:** Since apps and their extensions need to share code, you might need to make those targets dynamic. Otherwise, you'll end up with the same code duplicated in both the app and the extension, causing the binary size to increase.
-- **Pre-compiled external dependencies:** Sometimes you are provided with pre-compiled binaries that are either static or dynamic. Static can binaries can be wrapped in dynamic frameworks or libraries to be linked dynamically.
+- **확장 기능이 포함된 앱:** 앱과 확장 기능이 코드를 공유해야 하기 때문에, target들을 동적으로 만들어야할 수 있습니다. 그렇지 않으면, 동일한 코드가 앱과 확장 기능 모두에 중복되어 바이너리 크기가 커지게 됩니다.
+- **사전에 컴파일된 외부 의존성**: 때로는 정적 또는 동적으로 미리 컴파일된 바이너리가 제공되기도 합니다. 정적 바이너리는 동적 프레임워크나 라이브러리로 감싸서 동적으로 링크될 수 있습니다.
 
-When making changes to the graph, Tuist will analyze it and display a warning if it detects a "static side effect". This warning is meant to help you identify issues that might arise from linking a target statically that depends transitively on a static target through dynamic targets. These side effects often manifest as increased binary size or, in the worst cases, runtime crashes.
+그래프를 변경할 때, Tuist는 이를 분석하여 "static side effect"를 감지하면 경고를 표시합니다. 이 경고는 동적 target을 통해 정적 target에 전이적으로 의존하는 target을 정적으로 링크할 때 발생할 수 있는 문제를 식별하는 데 도움을 줍니다. 이러한 side effect는 종종 바이너리 크기 증가로 나타나거나, 최악의 경우 런타임 크래시가 발생할 수 있습니다.
 
-## Troubleshooting {#troubleshooting}
+## 문제 해결 {#troubleshooting}
 
-### Objective-C Dependencies {#objectivec-dependencies}
+### Objective-C 의존성 {#objectivec-dependencies}
 
-When integrating Objective-C dependencies, the inclusion of certain flags on the consuming target may be necessary to avoid runtime crashes as detailed in [Apple Technical Q&A QA1490](https://developer.apple.com/library/archive/qa/qa1490/_index.html).
+Objective-C 의존성을 통합할 때, [Apple Technical Q&A QA1490](https://developer.apple.com/library/archive/qa/qa1490/_index.html)에서 자세히 설명된 대로 런타임 크래시를 방지하기 위해 사용하는 target에 특정 flag를 포함해야 할 수 있습니다.
 
-Since the build system and Tuist have no way of inferring whether the flag is necessary or not, and since the flag comes with potentially undesirable side effects, Tuist will not automatically apply any of these flags, and because Swift Package Manager considers `-ObjC` to be included via an `.unsafeFlag` most packages cannot include it as part of their default linking settings when required.
+빌드 시스템과 Tuist는 flag가 필요한지여부를 추론할 수 없고, 이 flag가 잠재적으로 원치 않는 side effect를 발생시킬 수 있기 때문에, Tuist는 이러한 플래그들을 자동으로 적용하지 않습니다. 또한, Swift Package Manager는 `-ObjC`를 `.unsafeFlag`를 통해 포함되는 것으로 간주하기 때문에, 대부분의 package는 필요한 경우에도 이를 기본 링크 설정의 일부로 포함할 수 없습니다.
 
-Consumers of Objective-C dependencies (or internal Objective-C targets) should apply `-ObjC` or `-force_load` flags when required by setting `OTHER_LDFLAGS` on consuming targets.
+Objective-C 의존성(또는 내부 Objective-C target)을 사용하는 target은 필요할 경우 `OTHER_LDFLAGS`에 `-ObjC` 또는 `-force_load` flag를 설정하여 적용해야 합니다.
 
 ### Firebase & Other Google Libraries {#firebase-other-google-libraries}
 
-Google's open source libraries — while powerful — can be difficult to integrate within Tuist as they often use non-standard architecture and techniques in how they are built.
+Google의 오픈 소스 라이브러리는 강력하지만, 종종 일반적이지 않은 아키텍처와 기술로 빌드되기 때문에 Tuist에 통합하기 어려울 수 있습니다.
 
-Here are a few tips that may be necessary to follow to integrate Firebase and Google's other Apple-platform libraries:
+다음은 Firebase와 Google의 다른 Apple 플랫폼 라이브러리들을 통합하기 위해 필요할 수 있는 몇 가지 팁입니다:
 
-#### Ensure `-ObjC` is added to `OTHER_LDFLAGS` {#ensure-objc-is-added-to-other_ldflags}
+#### `OTHER_LDFLAGS`에 `-ObjC`가 추가되었는지 확인하세요 {#ensure-objc-is-added-to-other_ldflags}
 
-Many of Google's libraries are written in Objective-C. Because of this, any consuming target will need to include the `-ObjC` tag in its `OTHER_LDFLAGS` build setting. This can either be set in an `.xcconfig` file or manually specified in the target's settings within your Tuist manifests. An example:
+Google의 라이브러리 중 다수는 Objective-C로 작성되어 있습니다. 이로 인해, 사용하는 모든 target은 `OTHER_LDFLAGS` 빌드 설정에 `-ObjC` flag를 포함해야 합니다. 이는 `.xcconfig` 파일에서 설정하거나 Tuist manifest 파일에서 내의 target 설정에서 직접 지정할 수 있습니다. 예시:
 
 ```swift
 Target.target(
@@ -303,17 +303,17 @@ Target.target(
 )
 ```
 
-Refer to the [Objective-C Dependencies](#objective-c-dependencies) section above for more details.
+자세한 내용은 [Objective-C Dependencies](#objective-c-dependencies) 섹션을 참고하세요.
 
-#### Set the product type for `FBLPromises` to dynamic framework {#set-the-product-type-for-fblpromises-to-dynamic-framework}
+#### `FBLPromises` product type을 동적 프레임워크로 설정하기 {#set-the-product-type-for-fblpromises-to-dynamic-framework}
 
-Certain Google libraries depend on `FBLPromises`, another of Google's libraries. You may encounter a crash that mentions `FBLPromises`, looking something like this:
+일부 Google 라이브러리는 Google의 또 다른 라이브러리인 `FBLPromises`에 의존합니다. `FBLPromises`와 관련된 다음과 같은 크래시가 발생할 수 있습니다:
 
 ```
 NSInvalidArgumentException. Reason: -[FBLPromise HTTPBody]: unrecognized selector sent to instance 0x600000cb2640.
 ```
 
-Explicitly setting the product type of `FBLPromises` to `.framework` in your `Package.swift` file should fix the issue:
+`Package.swift` 파일에서 `FBLPromises`의 product type을 `.framework`로 명시적으로 설정하면 이 문제가 해결될 것입니다:
 
 ```swift [Tuist/Package.swift]
 // swift-tools-version: 5.10
@@ -335,9 +335,9 @@ let package = Package(
 ...
 ```
 
-### Transitive static dependencies leaking through `.swiftmodule` {#transitive-static-dependencies-leaking-through-swiftmodule}
+### `.swiftmodule`에서 발생하는 전이적 정적 의존성 문제 {#transitive-static-dependencies-leaking-through-swiftmodule}
 
-When a dynamic framework or library depends on static ones through `import StaticSwiftModule`, the symbols are included in the `.swiftmodule` of the dynamic framework or library, potentially [causing the compilation to fail](https://forums.swift.org/t/compiling-a-dynamic-framework-with-a-statically-linked-library-creates-dependencies-in-swiftmodule-file/22708/1). To prevent that, you'll have to import the static dependency using [`@_implementationOnly`](https://github.com/apple/swift/blob/main/docs/ReferenceGuides/UnderscoredAttributes.md#_implementationonly):
+동적 프레임워브나 라이브러리가 `import StaticSwiftModule`을 통해 정적 라이브러리에 의존하는 경우, 해당 심볼이 동적 프레임워크나 라이브러리의 `.swiftmodule`에 포함되어 [컴파일 실패를 유발할 가능성](https://forums.swift.org/t/compiling-a-dynamic-framework-with-a-statically-linked-library-creates-dependencies-in-swiftmodule-file/22708/1)이 있습니다. 이를 방지하기 위해서는 [`@_implementationOnly`](https://github.com/apple/swift/blob/main/docs/ReferenceGuides/UnderscoredAttributes.md#_implementationonly)를 사용하여 정적 의존성을 import해야 합니다:
 
 ```swift
 @_implementationOnly import StaticModule
