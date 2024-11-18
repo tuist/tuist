@@ -51,7 +51,7 @@ let project = Project(
 ```swift
 import ProjectDescription
 
-let config = Config()
+let tuist = Tuist()
 ```
 
 `Tuist.swift`는 프로젝트의 구성을 포함하고 해당 파일의 경로는 프로젝트의 루트를 결정하는 기준으로 사용됩니다. Tuist 프로젝트의 구조에 대해 알아보려면 <LocalizedLink href="/guides/develop/projects/directory-structure">디렉토리 구조</LocalizedLink> 문서에서 확인 가능합니다.

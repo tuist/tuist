@@ -57,12 +57,12 @@ Tuist 프로젝트에서는 첫 생성 시간 (Cold generation time) 이 더 빠
 
 ## Tuist.swift {#tuistswift}
 
-Tuist는 프로젝트 구성을 단순화 하기 위해 <LocalizedLink href="/contributors/principles.html#default-to-conventions">기본값 (Sensible defaults)</LocalizedLink>을 제공합니다. 하지만 프로젝트의 루트를 결정하기 위해 Tuist에서 사용되는 <LocalizedLink href="/references/project-description/structs/config">`Tuist.swift`</LocalizedLink>를 정의하여 구성을 사용자화 할 수 있습니다.
+Tuist는 프로젝트 구성을 단순화 하기 위해 <LocalizedLink href="/contributors/principles.html#default-to-conventions">기본값 (Sensible defaults)</LocalizedLink>을 제공합니다. However, you can customize the configuration by defining a <LocalizedLink href="/references/project-description/structs/tuist">`Tuist.swift`</LocalizedLink> at the root of the project, which is used by Tuist to determine the root of the project.
 
 ```swift
 import ProjectDescription
 
-let config = Config(
-    generationOptions: .options(enforceExplicitDependencies: true)
+let tuist = Tuist(
+    project: .tuist(generationOptions: .options(enforceExplicitDependencies: true))
 )
 ```
