@@ -60,7 +60,7 @@ final class LintImplicitImportsServiceTests: TuistUnitTestCase {
         ])
 
         // When
-        await XCTAssertThrowsSpecific({ try await subject.run(path: path.pathString, recursiveSPM: false) }, expectedError)
+        await XCTAssertThrowsSpecific({ try await subject.run(path: path.pathString) }, expectedError)
     }
 
     func test_run_when_external_package_target_is_implicitly_imported() async throws {
@@ -86,10 +86,10 @@ final class LintImplicitImportsServiceTests: TuistUnitTestCase {
         ])
 
         // When / Then
-        await XCTAssertThrowsSpecific({ try await subject.run(path: path.pathString, recursiveSPM: false) }, expectedError)
+        await XCTAssertThrowsSpecific({ try await subject.run(path: path.pathString) }, expectedError)
     }
 
-    func test_run_when_external_package_target_is_implicitly_imported_spm_recursive_true() async throws {
+    func test_run_when_external_package_target_is_explicitly_imported() async throws {
         // Given
         let path = try AbsolutePath(validating: "/project")
         let config = Config.test()
@@ -110,12 +110,40 @@ final class LintImplicitImportsServiceTests: TuistUnitTestCase {
         given(generator).load(path: .value(path)).willReturn(graph)
         given(targetScanner).imports(for: .value(app)).willReturn(Set(["PackageTarget"]))
 
-        let expectedError = InspectImplicitImportsServiceError.implicitImportsFound([
-            InspectImplicitImportsServiceErrorIssue(target: "App", implicitDependencies: Set(["PackageTarget"])),
-        ])
+        // When / Then
+        try await subject.run(path: path.pathString)
+    }
+
+    func test_run_when_external_package_target_is_recursively_imported() async throws {
+        // Given
+        let path = try AbsolutePath(validating: "/project")
+        let config = Config.test()
+        let app = Target.test(name: "App", product: .app)
+        let project = Project.test(path: path, targets: [app])
+        let testTarget = Target.test(name: "PackageTarget", product: .app)
+        let externalTargetDependency = Target.test(name: "PackageTargetDependency", product: .app)
+        let externalProject = Project.test(path: path, targets: [testTarget, externalTargetDependency], isExternal: true)
+        let graph = Graph.test(
+            path: path,
+            projects: [path: project, "/a": externalProject],
+            dependencies: [
+                GraphDependency.target(name: "App", path: path): Set([
+                    GraphDependency.target(name: "PackageTarget", path: "/a")]),
+                GraphDependency
+                    .target(
+                        name: "PackageTarget",
+                        path: "/a"
+                    ): Set([GraphDependency.target(name: "PackageTargetDependency", path: "/a")]),
+            ]
+        )
+
+        given(configLoader).loadConfig(path: .value(path)).willReturn(config)
+        given(generatorFactory).defaultGenerator(config: .value(config), sources: .any).willReturn(generator)
+        given(generator).load(path: .value(path)).willReturn(graph)
+        given(targetScanner).imports(for: .value(app)).willReturn(Set(["PackageTargetDependency"]))
 
         // When / Then
-        try await subject.run(path: path.pathString, recursiveSPM: true)
+        try await subject.run(path: path.pathString)
     }
 
     func test_run_doesntThrowAnyErrors_when_thereAreNoIssues() async throws {
@@ -142,6 +170,6 @@ final class LintImplicitImportsServiceTests: TuistUnitTestCase {
         given(targetScanner).imports(for: .value(framework)).willReturn(Set([]))
 
         // When
-        try await subject.run(path: path.pathString, recursiveSPM: false)
+        try await subject.run(path: path.pathString)
     }
 }

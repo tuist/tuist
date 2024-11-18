@@ -17,17 +17,8 @@ struct InspectImplicitImportsCommand: AsyncParsableCommand {
     )
     var path: String?
 
-    @Flag(
-        help: "Recursive inspecting SPM dependencies.",
-        envKey: .lintImplicitRecursiveSPM
-    )
-    var recursiveSPM: Bool = false
-
     func run() async throws {
         try await InspectImplicitImportsService()
-            .run(
-                path: path,
-                recursiveSPM: recursiveSPM
-            )
+            .run(path: path)
     }
 }
