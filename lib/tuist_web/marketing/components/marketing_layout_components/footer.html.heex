@@ -105,7 +105,12 @@
           %{text: gettext("Pricing"), href: ~p"/pricing"},
           %{text: gettext("Blog"), href: ~p"/blog"},
           %{text: gettext("About"), href: ~p"/about"},
-          %{text: gettext("Imprint"), href: ~p"/imprint"}
+          %{text: gettext("Imprint"), href: ~p"/imprint"},
+          %{
+            text: gettext("Grafana dashboard"),
+            href: Tuist.Environment.get_url(:grafana_dashboard),
+            target: "__blank"
+          }
         ]}
       />
       <.footer_section
