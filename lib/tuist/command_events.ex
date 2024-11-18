@@ -913,7 +913,20 @@ defmodule Tuist.CommandEvents do
       end)
 
     Repo.transaction(fn ->
-      Repo.insert_all(TestCaseRun, test_case_runs)
+      case List.first(test_case_runs) do
+        nil ->
+          :ok
+
+        first_test_case_run ->
+          # 65535 is the maxium that the postgresql protocol can handle
+          # so we divide it by the number of parameters per row, and use that size to determine
+          # the chunk size for the inserts
+          Enum.chunk_every(test_case_runs, div(65_535, map_size(first_test_case_run)))
+          # credo:disable-for-next-line
+          |> Enum.each(fn batch ->
+            Repo.insert_all(TestCaseRun, batch)
+          end)
+      end
 
       module_hashes = Enum.map(test_case_runs, & &1.module_hash)
 
