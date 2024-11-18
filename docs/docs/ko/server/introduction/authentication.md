@@ -34,8 +34,7 @@ On-premise 고객이 Okta를 설정한 경우, Google과 동일한 동작으로 
 tuist organization update sso my-organization --provider okta --organization-id my-okta-domain.com
 ```
 
-> [!IMPORTANT].
-> 조직의 도메인을 설정하려면 해당 조직에 연결된 이메일을 사용하여 Google에 인증되어 있어야 합니다.
+> [!IMPORTANT]. 조직의 도메인을 설정하려면 해당 조직에 연결된 이메일을 사용하여 Google에 인증되어 있어야 합니다.
 
 ## 프로젝트로 인증 {#as-a-project}
 
