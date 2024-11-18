@@ -33,7 +33,7 @@ tuist project create my-handle/MyApp
 ```swift
 import ProjectDescription
 
-let config = Config(fullHandle: "my-handle/MyApp")
+let tuist = Tuist(fullHandle: "my-handle/MyApp")
 ```
 
 ほら！ これで、プロジェクトやビルドに関するインサイトを収集する準備が整いましたよ。 `tuist test` を実行してテストを実行し、結果をサーバーに報告します。
