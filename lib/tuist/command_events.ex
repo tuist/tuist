@@ -155,10 +155,10 @@ defmodule Tuist.CommandEvents do
   end
 
   def get_command_event_by_id(id, opts \\ []) do
-    preloads = opts |> Keyword.get(:preloads, user: :account)
+    preload = opts |> Keyword.get(:preload, user: :account)
 
     Repo.get(Event, id)
-    |> Repo.preload(preloads)
+    |> Repo.preload(preload)
   end
 
   def has_result_bundle?(%Event{} = command_event) do

@@ -7,8 +7,8 @@ defmodule Tuist.Authorization.ChecksTest do
   alias Tuist.ProjectsFixtures
 
   setup do
-    user = AccountsFixtures.user_fixture(preloads: [:account])
-    organization = AccountsFixtures.organization_fixture(preloads: [:account])
+    user = AccountsFixtures.user_fixture(preload: [:account])
+    organization = AccountsFixtures.organization_fixture(preload: [:account])
     %{user: user, organization: organization}
   end
 

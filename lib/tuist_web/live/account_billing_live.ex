@@ -12,7 +12,7 @@ defmodule TuistWeb.AccountBillingLive do
       if is_nil(user_token) do
         nil
       else
-        Accounts.get_user_by_session_token(session["user_token"], preloads: [:account])
+        Accounts.get_user_by_session_token(session["user_token"], preload: [:account])
       end
 
     if not Tuist.Authorization.can(user, :update, owner, :billing) do

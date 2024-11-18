@@ -17,7 +17,7 @@ defmodule Tuist.ProjectsFixtures do
 
     name = Keyword.get(opts, :name, "#{unique_integer()}")
     created_at = Keyword.get(opts, :created_at, DateTime.utc_now())
-    preloads = Keyword.get(opts, :preloads, [])
+    preload = Keyword.get(opts, :preload, [])
 
     Projects.create_project(
       %{
@@ -28,8 +28,8 @@ defmodule Tuist.ProjectsFixtures do
       visibility: Keyword.get(opts, :visibility, :private),
       vcs_provider: Keyword.get(opts, :vcs_provider),
       vcs_repository_full_handle: Keyword.get(opts, :vcs_repository_full_handle),
-      preloads: preloads
+      preload: preload
     )
-    |> Repo.preload(Keyword.get(opts, :preloads, []))
+    |> Repo.preload(Keyword.get(opts, :preload, []))
   end
 end

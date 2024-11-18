@@ -353,7 +353,7 @@ defmodule Tuist.BillingTest do
   describe "update_remote_cache_hit_meter/1" do
     test "sends the right API request to Stripe" do
       # Given
-      user = AccountsFixtures.user_fixture(preloads: [:account])
+      user = AccountsFixtures.user_fixture(preload: [:account])
       customer_id = "customer_id"
 
       account =

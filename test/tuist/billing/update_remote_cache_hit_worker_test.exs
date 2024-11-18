@@ -9,7 +9,7 @@ defmodule Tuist.Billing.UpdateRemoteCacheHitWorkerTest do
 
   test "updates the remote cache hit for accounts with subscriptions" do
     # Given
-    %{account: account} = AccountsFixtures.user_fixture(preloads: [:account])
+    %{account: account} = AccountsFixtures.user_fixture(preload: [:account])
     project = ProjectsFixtures.project_fixture(account_id: account.id)
     customer_id = "customer_id"
 

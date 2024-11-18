@@ -62,7 +62,7 @@ defmodule TuistWeb.API.ProjectTokensController do
 
     project =
       Projects.get_project_by_account_and_project_handles(account_handle, project_handle,
-        preloads: [:account]
+        preload: [:account]
       )
 
     cond do
@@ -141,7 +141,7 @@ defmodule TuistWeb.API.ProjectTokensController do
 
     project =
       Projects.get_project_by_account_and_project_handles(account_handle, project_handle,
-        preloads: [:account]
+        preload: [:account]
       )
 
     cond do
@@ -224,7 +224,7 @@ defmodule TuistWeb.API.ProjectTokensController do
 
     project =
       Projects.get_project_by_account_and_project_handles(account_handle, project_handle,
-        preloads: [:account]
+        preload: [:account]
       )
 
     cond do

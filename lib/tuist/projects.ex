@@ -76,7 +76,7 @@ defmodule Tuist.Projects do
                 where: p.account_id == ^account_id
               )
             )} do
-      project |> Repo.preload(Keyword.get(opts, :preloads, []))
+      project |> Repo.preload(Keyword.get(opts, :preload, []))
     else
       {:account, nil} -> nil
       {:project, nil} -> nil
@@ -150,7 +150,7 @@ defmodule Tuist.Projects do
     token = opts |> Keyword.get(:token, Tuist.Tokens.generate_token())
     created_at = opts |> Keyword.get(:created_at, DateTime.utc_now())
     visibility = opts |> Keyword.get(:visibility, :private)
-    preloads = opts |> Keyword.get(:preloads, [])
+    preload = opts |> Keyword.get(:preload, [])
 
     %Project{}
     |> Project.create_changeset(%{
@@ -163,7 +163,7 @@ defmodule Tuist.Projects do
       vcs_provider: opts |> Keyword.get(:vcs_provider)
     })
     |> Repo.insert!()
-    |> Repo.preload(preloads)
+    |> Repo.preload(preload)
   end
 
   def delete_project(%Project{} = project) do

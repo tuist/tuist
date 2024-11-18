@@ -13,7 +13,7 @@ defmodule TuistWeb.API.ProjectsControllerTest do
   use Mimic
 
   setup do
-    user = AccountsFixtures.user_fixture(email: "tuist@tuist.io", preloads: [:account])
+    user = AccountsFixtures.user_fixture(email: "tuist@tuist.io", preload: [:account])
     Billing |> stub(:start_trial, fn _ -> :ok end)
     %{user: user}
   end

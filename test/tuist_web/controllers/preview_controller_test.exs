@@ -9,7 +9,7 @@ defmodule TuistWeb.PreviewControllerTest do
   alias Tuist.AccountsFixtures
 
   setup %{conn: conn} do
-    user = AccountsFixtures.user_fixture(preloads: [:account])
+    user = AccountsFixtures.user_fixture(preload: [:account])
 
     conn =
       conn

@@ -285,7 +285,7 @@ defmodule Tuist.AuthorizationTest do
       ProjectsFixtures.project_fixture(
         account_id: account.id,
         visibility: :private,
-        preloads: [:account]
+        preload: [:account]
       )
 
     user = AccountsFixtures.user_fixture()
@@ -304,7 +304,7 @@ defmodule Tuist.AuthorizationTest do
       ProjectsFixtures.project_fixture(
         account_id: account.id,
         visibility: :private,
-        preloads: [:account]
+        preload: [:account]
       )
 
     user = AccountsFixtures.user_fixture()
@@ -323,7 +323,7 @@ defmodule Tuist.AuthorizationTest do
       ProjectsFixtures.project_fixture(
         account_id: account.id,
         visibility: :private,
-        preloads: [:account]
+        preload: [:account]
       )
 
     user = AccountsFixtures.user_fixture()
@@ -961,7 +961,7 @@ defmodule Tuist.AuthorizationTest do
 
   test "can.read.account.billing when the subject is interacting with its account and it's on-premise" do
     # Given
-    user = AccountsFixtures.user_fixture(preloads: [:account])
+    user = AccountsFixtures.user_fixture(preload: [:account])
     Environment |> stub(:on_premise?, fn -> true end)
 
     # When
@@ -970,7 +970,7 @@ defmodule Tuist.AuthorizationTest do
 
   test "can.read.account.billing when the subject is interacting with its account and it's not on-premise" do
     # Given
-    user = AccountsFixtures.user_fixture(preloads: [:account])
+    user = AccountsFixtures.user_fixture(preload: [:account])
     Environment |> stub(:on_premise?, fn -> false end)
 
     # When
@@ -979,7 +979,7 @@ defmodule Tuist.AuthorizationTest do
 
   test "can.read.account.billing when the subject is interacting with its account and the account has an open_source subscription" do
     # Given
-    user = AccountsFixtures.user_fixture(preloads: [:account])
+    user = AccountsFixtures.user_fixture(preload: [:account])
 
     BillingFixtures.subscription_fixture(account_id: user.account.id, plan: :open_source)
 
@@ -1599,7 +1599,7 @@ defmodule Tuist.AuthorizationTest do
   test "can.user.read.ops when the environment is not dev and the account handle is not included in the list of super admin handles" do
     # Given
     Environment |> stub(:env, fn -> :prod end)
-    user = AccountsFixtures.user_fixture(preloads: [:account])
+    user = AccountsFixtures.user_fixture(preload: [:account])
     Environment |> stub(:ops_user_handles, fn -> [] end)
 
     # Then
@@ -1609,7 +1609,7 @@ defmodule Tuist.AuthorizationTest do
   test "can.user.read.ops when the environment is not dev and the account handle is included in the list of super admin handles" do
     # Given
     Environment |> stub(:env, fn -> :prod end)
-    user = AccountsFixtures.user_fixture(preloads: [:account])
+    user = AccountsFixtures.user_fixture(preload: [:account])
     Environment |> stub(:ops_user_handles, fn -> [user.account.name] end)
 
     # Then

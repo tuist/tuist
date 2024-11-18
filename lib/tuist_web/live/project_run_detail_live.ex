@@ -16,7 +16,7 @@ defmodule TuistWeb.ProjectRunDetailLive do
       ) do
     command_event =
       CommandEvents.get_command_event_by_id(command_event_id,
-        preloads: [user: :account, project: :account]
+        preload: [user: :account, project: :account]
       )
 
     if is_nil(command_event) do

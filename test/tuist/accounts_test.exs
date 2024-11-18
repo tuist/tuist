@@ -943,7 +943,7 @@ defmodule Tuist.AccountsTest do
   describe "get_account_by_handle/1" do
     test "does case-insensitive searches" do
       # Given
-      %{account: %{name: handle}} = AccountsFixtures.user_fixture(preloads: [:account])
+      %{account: %{name: handle}} = AccountsFixtures.user_fixture(preload: [:account])
 
       # When
       got = Accounts.get_account_by_handle(String.upcase(handle))
@@ -1119,7 +1119,7 @@ defmodule Tuist.AccountsTest do
     end
 
     test "returns user by token with a preloaded account", %{user: user, token: token} do
-      assert session_user = Accounts.get_user_by_session_token(token, preloads: [:account])
+      assert session_user = Accounts.get_user_by_session_token(token, preload: [:account])
       assert session_user.id == user.id
       assert session_user.account == Accounts.get_account_from_user(user)
     end

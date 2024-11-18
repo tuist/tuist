@@ -8,14 +8,14 @@ defmodule TuistWeb.AccountProjectsLiveTest do
   alias Tuist.AccountsFixtures
 
   setup %{conn: conn} do
-    user = AccountsFixtures.user_fixture(preloads: [:account])
+    user = AccountsFixtures.user_fixture(preload: [:account])
 
     organization =
       AccountsFixtures.organization_fixture(
         name: "tuist-org",
         customer_id: "customer_id",
         creator: user,
-        preloads: [:account]
+        preload: [:account]
       )
 
     conn = conn |> log_in_user(user)
@@ -72,7 +72,7 @@ defmodule TuistWeb.AccountProjectsLiveTest do
     organization: organization
   } do
     # Given
-    new_user = AccountsFixtures.user_fixture(preloads: [:account])
+    new_user = AccountsFixtures.user_fixture(preload: [:account])
     conn = build_conn() |> log_in_user(new_user)
 
     # When

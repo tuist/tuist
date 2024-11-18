@@ -7,7 +7,7 @@ defmodule Tuist.Accounts.Workers.UpdateAccountsCurrentMonthRemoteCacheHitsCountW
   use Mimic
 
   setup do
-    user = %{account: user_account} = AccountsFixtures.user_fixture(preloads: [:account])
+    user = %{account: user_account} = AccountsFixtures.user_fixture(preload: [:account])
     project = ProjectsFixtures.project_fixture(account_id: user_account.id)
     %{user: user, project: project, user_account: user_account}
   end

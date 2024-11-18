@@ -16,7 +16,7 @@ defmodule TuistWeb.LayoutLiveTest do
       conn
       |> init_test_session(%{})
 
-    user = AccountsFixtures.user_fixture(preloads: [:account])
+    user = AccountsFixtures.user_fixture(preload: [:account])
     current_url = "https://test.tuist.io/path"
 
     Phoenix.LiveView.Lifecycle
@@ -29,7 +29,7 @@ defmodule TuistWeb.LayoutLiveTest do
       organization =
       AccountsFixtures.organization_fixture(
         name: "tuist-org",
-        preloads: [:account]
+        preload: [:account]
       )
 
     project =
@@ -37,7 +37,7 @@ defmodule TuistWeb.LayoutLiveTest do
         name: "tuist",
         account_id: account.id,
         visibility: :private,
-        preloads: [:account]
+        preload: [:account]
       )
 
     if role = Map.get(context, :user_role, nil) do

@@ -508,7 +508,7 @@ defmodule TuistWeb.API.AnalyticsController do
       end)
 
     command_event =
-      CommandEvents.get_command_event_by_id(run_id, preloads: :project)
+      CommandEvents.get_command_event_by_id(run_id, preload: :project)
 
     test_summary =
       CommandEvents.get_test_summary(command_event)

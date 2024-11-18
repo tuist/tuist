@@ -25,7 +25,7 @@ defmodule TuistWeb.AuthenticationPlugTest do
   test "loads the authenticated project with a legacy token" do
     # Given
     opts = AuthenticationPlug.init(:load_authenticated_subject)
-    project = ProjectsFixtures.project_fixture(preloads: [:account])
+    project = ProjectsFixtures.project_fixture(preload: [:account])
     conn = conn(:get, "/") |> put_req_header("authorization", "Bearer " <> project.token)
 
     # When
@@ -47,7 +47,7 @@ defmodule TuistWeb.AuthenticationPlugTest do
   test "loads the authenticated project with a legacy token without warnings if the version is lower than 4.21.0" do
     # Given
     opts = AuthenticationPlug.init(:load_authenticated_subject)
-    project = ProjectsFixtures.project_fixture(preloads: [:account])
+    project = ProjectsFixtures.project_fixture(preload: [:account])
 
     conn =
       conn(:get, "/")
@@ -67,7 +67,7 @@ defmodule TuistWeb.AuthenticationPlugTest do
   test "loads the authenticated project" do
     # Given
     opts = AuthenticationPlug.init(:load_authenticated_subject)
-    project = ProjectsFixtures.project_fixture(preloads: [:account])
+    project = ProjectsFixtures.project_fixture(preload: [:account])
     token = Projects.create_project_token(project)
     conn = conn(:get, "/") |> put_req_header("authorization", "Bearer " <> token)
 

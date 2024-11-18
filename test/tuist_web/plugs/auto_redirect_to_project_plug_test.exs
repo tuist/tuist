@@ -9,7 +9,7 @@ defmodule TuistWeb.AutoRedirectToProjectPlugTest do
   alias Tuist.Accounts
 
   setup %{conn: conn} do
-    user = AccountsFixtures.user_fixture(preloads: [:account])
+    user = AccountsFixtures.user_fixture(preload: [:account])
 
     %{
       current_user: user,

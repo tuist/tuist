@@ -17,7 +17,7 @@ defmodule TuistWeb.AccountBillingLiveTest do
         name: "tuist-org",
         customer_id: "customer_id",
         creator: user,
-        preloads: [:account],
+        preload: [:account],
         current_month_remote_cache_hits_count: 167
       )
 
@@ -213,7 +213,7 @@ defmodule TuistWeb.AccountBillingLiveTest do
   } do
     # Given
     organization =
-      AccountsFixtures.organization_fixture(preloads: [:account])
+      AccountsFixtures.organization_fixture(preload: [:account])
 
     Accounts.add_user_to_organization(user, organization)
 
@@ -226,7 +226,7 @@ defmodule TuistWeb.AccountBillingLiveTest do
 
   test "raises NotFoundError when the plan is invalid", %{conn: conn, user: user} do
     # Given
-    organization = AccountsFixtures.organization_fixture(creator: user, preloads: [:account])
+    organization = AccountsFixtures.organization_fixture(creator: user, preload: [:account])
 
     # When / Then
     assert_raise TuistWeb.Errors.NotFoundError, fn ->

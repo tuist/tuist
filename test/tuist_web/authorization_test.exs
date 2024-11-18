@@ -14,7 +14,7 @@ defmodule TuistWeb.AuthorizationTest do
   use Mimic
 
   setup %{conn: conn} do
-    %{user: AccountsFixtures.user_fixture(preloads: [:account]), conn: conn}
+    %{user: AccountsFixtures.user_fixture(preload: [:account]), conn: conn}
   end
 
   describe "authorization plug with options [:current_user, :read, :ops]" do

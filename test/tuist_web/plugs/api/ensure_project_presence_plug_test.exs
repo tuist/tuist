@@ -10,7 +10,7 @@ defmodule TuistWeb.API.EnsureProjectPresencePlugTest do
 
   test "loads and assigns the project to the connection if it exists" do
     # Given
-    project = ProjectsFixtures.project_fixture(preloads: [:account])
+    project = ProjectsFixtures.project_fixture(preload: [:account])
     account = Accounts.get_account_by_id(project.account_id)
     opts = EnsureProjectPresencePlug.init([])
     conn = build_conn(:get, ~p"/api/cache", project_id: account.name <> "/" <> project.name)
@@ -24,7 +24,7 @@ defmodule TuistWeb.API.EnsureProjectPresencePlugTest do
 
   test "loads and assigns the project to the connection if the command event and project exist" do
     # Given
-    project = ProjectsFixtures.project_fixture(preloads: [:account])
+    project = ProjectsFixtures.project_fixture(preload: [:account])
     command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
     opts = EnsureProjectPresencePlug.init(:command_event)
 

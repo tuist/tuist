@@ -17,7 +17,7 @@ defmodule TuistWeb.AuthenticationTest do
       |> Map.replace!(:secret_key_base, TuistWeb.Endpoint.config(:secret_key_base))
       |> init_test_session(%{})
 
-    %{user: user_fixture(preloads: [:account]), conn: conn}
+    %{user: user_fixture(preload: [:account]), conn: conn}
   end
 
   describe "log_in_user/3" do

@@ -44,9 +44,9 @@ defmodule Tuist.Accounts do
   Given an id, it returns the organization associated with it.
   """
   def get_organization_by_id(id, attrs \\ []) do
-    preloads = attrs |> Keyword.get(:preloads, [])
+    preload = attrs |> Keyword.get(:preload, [])
 
-    Repo.get(Organization, id) |> Repo.preload(preloads)
+    Repo.get(Organization, id) |> Repo.preload(preload)
   end
 
   def get_organization_account_by_name(name) do
@@ -922,11 +922,11 @@ defmodule Tuist.Accounts do
   Gets the user with the given signed token.
   """
   def get_user_by_session_token(token, opts \\ []) do
-    preloads = opts |> Keyword.get(:preloads, [])
+    preload = opts |> Keyword.get(:preload, [])
     {:ok, query} = UserToken.verify_session_token_query(token)
 
     Repo.one(query)
-    |> Repo.preload(preloads)
+    |> Repo.preload(preload)
   end
 
   @doc """

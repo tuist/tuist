@@ -8,7 +8,7 @@ defmodule TuistWeb.BillingControllerTest do
 
   test "redirects to Stripe when user has permission", %{conn: conn} do
     %{account: account} =
-      user = AccountsFixtures.user_fixture(email: "tuist@tuist.io", preloads: [:account])
+      user = AccountsFixtures.user_fixture(email: "tuist@tuist.io", preload: [:account])
 
     Billing
     |> expect(:create_session, fn _ -> %{url: "https://stripe.com"} end)

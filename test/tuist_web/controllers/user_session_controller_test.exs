@@ -5,7 +5,7 @@ defmodule TuistWeb.UserSessionControllerTest do
   import Tuist.AccountsFixtures
 
   setup do
-    %{user: user_fixture(preloads: [:account])}
+    %{user: user_fixture(preload: [:account])}
   end
 
   describe "POST /users/log_in" do

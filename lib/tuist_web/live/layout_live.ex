@@ -28,7 +28,7 @@ defmodule TuistWeb.LayoutLive do
 
     project =
       Projects.get_project_by_account_and_project_handles(account_handle, project_handle,
-        preloads: [:account]
+        preload: [:account]
       )
 
     if is_nil(project) do
@@ -131,7 +131,7 @@ defmodule TuistWeb.LayoutLive do
       if is_nil(user_token) do
         nil
       else
-        Accounts.get_user_by_session_token(session["user_token"], preloads: [:account])
+        Accounts.get_user_by_session_token(session["user_token"], preload: [:account])
       end
 
     user

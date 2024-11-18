@@ -14,7 +14,7 @@ defmodule TuistWeb.API.ProjectTokensControllerTest do
       project =
         ProjectsFixtures.project_fixture(
           account_id: organization.account.id,
-          preloads: [:account]
+          preload: [:account]
         )
 
       conn =
@@ -57,7 +57,7 @@ defmodule TuistWeb.API.ProjectTokensControllerTest do
     test "returns forbidden when a user can't create a new project access token", %{conn: conn} do
       # Given
       user = AccountsFixtures.user_fixture()
-      project = ProjectsFixtures.project_fixture(preloads: [:account])
+      project = ProjectsFixtures.project_fixture(preload: [:account])
 
       conn =
         conn
@@ -79,7 +79,7 @@ defmodule TuistWeb.API.ProjectTokensControllerTest do
 
     test "returns forbidden when the request is authenticated as a project", %{conn: conn} do
       # Given
-      project = ProjectsFixtures.project_fixture(preloads: [:account])
+      project = ProjectsFixtures.project_fixture(preload: [:account])
 
       conn =
         conn
@@ -109,7 +109,7 @@ defmodule TuistWeb.API.ProjectTokensControllerTest do
       project =
         ProjectsFixtures.project_fixture(
           account_id: organization.account.id,
-          preloads: [:account]
+          preload: [:account]
         )
 
       conn =
@@ -154,7 +154,7 @@ defmodule TuistWeb.API.ProjectTokensControllerTest do
       project =
         ProjectsFixtures.project_fixture(
           account_id: organization.account.id,
-          preloads: [:account]
+          preload: [:account]
         )
 
       conn =
@@ -175,7 +175,7 @@ defmodule TuistWeb.API.ProjectTokensControllerTest do
     test "returns forbidden when a user can't read project tokens", %{conn: conn} do
       # Given
       user = AccountsFixtures.user_fixture()
-      project = ProjectsFixtures.project_fixture(preloads: [:account])
+      project = ProjectsFixtures.project_fixture(preload: [:account])
 
       conn =
         conn
@@ -197,7 +197,7 @@ defmodule TuistWeb.API.ProjectTokensControllerTest do
 
     test "returns forbidden when the request is authenticated as a project", %{conn: conn} do
       # Given
-      project = ProjectsFixtures.project_fixture(preloads: [:account])
+      project = ProjectsFixtures.project_fixture(preload: [:account])
 
       conn =
         conn
@@ -246,7 +246,7 @@ defmodule TuistWeb.API.ProjectTokensControllerTest do
       project =
         ProjectsFixtures.project_fixture(
           account_id: organization.account.id,
-          preloads: [:account]
+          preload: [:account]
         )
 
       conn =
@@ -273,7 +273,7 @@ defmodule TuistWeb.API.ProjectTokensControllerTest do
     test "returns forbidden when a user can't revoke a project token", %{conn: conn} do
       # Given
       user = AccountsFixtures.user_fixture()
-      project = ProjectsFixtures.project_fixture(preloads: [:account])
+      project = ProjectsFixtures.project_fixture(preload: [:account])
 
       conn =
         conn
@@ -303,7 +303,7 @@ defmodule TuistWeb.API.ProjectTokensControllerTest do
 
     test "returns forbidden when the request is authenticated as a project", %{conn: conn} do
       # Given
-      project = ProjectsFixtures.project_fixture(preloads: [:account])
+      project = ProjectsFixtures.project_fixture(preload: [:account])
 
       conn =
         conn
@@ -358,7 +358,7 @@ defmodule TuistWeb.API.ProjectTokensControllerTest do
       project =
         ProjectsFixtures.project_fixture(
           account_id: organization.account.id,
-          preloads: [:account]
+          preload: [:account]
         )
 
       conn =
@@ -390,7 +390,7 @@ defmodule TuistWeb.API.ProjectTokensControllerTest do
       project =
         ProjectsFixtures.project_fixture(
           account_id: organization.account.id,
-          preloads: [:account]
+          preload: [:account]
         )
 
       conn =

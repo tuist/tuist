@@ -18,7 +18,7 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
       user =
       AccountsFixtures.user_fixture(
         current_month_remote_cache_hits_count: current_month_remote_cache_hits_count,
-        preloads: [:account]
+        preload: [:account]
       )
 
     project = ProjectsFixtures.project_fixture(account_id: account.id) |> Repo.preload(:account)

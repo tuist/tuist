@@ -14,7 +14,7 @@ defmodule TuistWeb.UserForgotPasswordLiveTest do
     end
 
     test "redirects if already logged in", %{conn: conn} do
-      user = user_fixture(preloads: [:account])
+      user = user_fixture(preload: [:account])
 
       result =
         conn

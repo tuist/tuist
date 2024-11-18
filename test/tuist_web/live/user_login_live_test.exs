@@ -14,7 +14,7 @@ defmodule TuistWeb.UserLoginLiveTest do
     end
 
     test "redirects if already logged in", %{conn: conn} do
-      user = user_fixture(preloads: [:account])
+      user = user_fixture(preload: [:account])
 
       result =
         conn
@@ -47,7 +47,7 @@ defmodule TuistWeb.UserLoginLiveTest do
   describe "user login" do
     test "redirects if user login with valid credentials", %{conn: conn} do
       password = "123456789abcd"
-      user = user_fixture(password: password, preloads: [:account])
+      user = user_fixture(password: password, preload: [:account])
 
       {:ok, lv, _html} = live(conn, ~p"/users/log_in")
 

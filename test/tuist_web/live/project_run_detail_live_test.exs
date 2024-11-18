@@ -22,7 +22,7 @@ defmodule TuistWeb.ProjectRunDetailLiveTest do
       AccountsFixtures.organization_fixture(
         name: "tuist-org",
         creator: user,
-        preloads: [:account]
+        preload: [:account]
       )
 
     selected_project = ProjectsFixtures.project_fixture(name: "tuist", account_id: account.id)

@@ -13,14 +13,14 @@ defmodule TuistWeb.RouterTest do
   test "app routes are non-indexable and non-followable",
        %{conn: conn} do
     # Given
-    user = AccountsFixtures.user_fixture(preloads: [:account])
+    user = AccountsFixtures.user_fixture(preload: [:account])
 
     %{account: organization_account} =
       AccountsFixtures.organization_fixture(
         name: "tuist-org",
         customer_id: "customer_id",
         creator: user,
-        preloads: [:account]
+        preload: [:account]
       )
 
     # When
