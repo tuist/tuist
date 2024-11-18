@@ -240,11 +240,11 @@ pod install
 
 ## Static or dynamic {#static-or-dynamic}
 
-Framework와 Library는 정적(static) 또는 동적(dynamic)으로 링크할 수 있으며, **이는 앱 크기와 실행 시간과 같은 부분에 크게 영향을 미칩니다.** 이것은 중요한 결정임에도 불구하고, 대부분은 깊이 고려되지 않고 선택됩니다.
+Framework와 Library는 정적(static) 또는 동적(dynamic)으로 링크할 수 있으며, **이는 앱 크기와 실행 시간과 같은 부분에 크게 영향을 미칩니다.** 이것은 중요한 결정임에도 불구하고, 대부분은 깊이 고려되지 않고 선택됩니다. 이것은 중요한 결정임에도 불구하고, 대부분은 깊이 고려되지 않고 선택됩니다.
 
 **일반적인 규칙**은 빠른 실행 시간을 위해 릴리즈 빌드에서는 최대한 많은 항목을 정적으로 링크하고, 빠른 반복 작업을 위해 디버그 빌드에서는 최대한 많은 항목을 동적으로 링크하는 것입니다.
 
-Xcode에서 프로젝트 그래프의 링크 방식(static <-> dynamic)을 변경하는 것은 전체 그래프에 영향을 미치기 때문에 간단하지 않습니다 (예: 라이브러리는 리소스를 포함할 수 없고, 정적 프레임워크는 임베드가 불필요함).  Apple은 Swift Package Manager의 정적 및 동적 링크 자동 결정이나 [Mergeable Libraries](https://developer.apple.com/documentation/xcode/configuring-your-project-to-use-mergeable-libraries)와 같은 컴파일 타임 솔루션을 통해 이 문제를 해결하려고 했습니다. 그러나, 이는 컴파일 그래프에 새로운 동적 변수들을 추가하여 비결정적 요소를 증가시키며, Swift Previews와 같이 컴파일 그래프에 의존하는 기능들이 불안정해질 가능성을 높입니다.
+Xcode에서 프로젝트 그래프의 링크 방식(static <-> dynamic)을 변경하는 것은 전체 그래프에 영향을 미치기 때문에 간단하지 않습니다 (예: 라이브러리는 리소스를 포함할 수 없고, 정적 프레임워크는 임베드가 불필요함). Apple은 Swift Package Manager의 정적 및 동적 링크 자동 결정이나 [Mergeable Libraries](https://developer.apple.com/documentation/xcode/configuring-your-project-to-use-mergeable-libraries)와 같은 컴파일 타임 솔루션을 통해 이 문제를 해결하려고 했습니다. 그러나, 이는 컴파일 그래프에 새로운 동적 변수들을 추가하여 비결정적 요소를 증가시키며, Swift Previews와 같이 컴파일 그래프에 의존하는 기능들이 불안정해질 가능성을 높입니다.
 
 다행히도, Tuist는 정적 및 동적 링크 간의 변경과 관련된 복잡성을 개념적으로 단순화하고, 링크 타입과 관계없이 표준화된 <LocalizedLink href="/guides/develop/projects/synthesized-files#bundle-accessors">bundle accessors</LocalizedLink>를 생성합니다. <LocalizedLink href="/guides/develop/projects/dynamic-configuration">환경 변수를 통한 동적 구성</LocalizedLink>과 함께 사용하면 호출 시점에 링크 타입을 전달할 수 있으며, 이 값을 manifest에서 사용해 target의 product 타입을 설정할 수 있습니다.
 
