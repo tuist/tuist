@@ -1,24 +1,24 @@
 ---
 title: tuist test
 titleTemplate: :title · Develop · Guides · Tuist
-description: Learn how to run tests efficiently with Tuist.
+description: Tuist로 효율적으로 테스트하는 방법을 배웁니다.
 ---
 
 # Test {#test}
 
-Tuist provides a command, <LocalizedLink href="/cli/test">`tuist test`</LocalizedLink> to generate the project if needed, and then run the tests with the the platform-specific build tool (e.g. `xcodebuild` for Apple platforms).
+Tuist는 프로젝트 생성이 필요하면 프로젝트를 생성하고 그런 다음에 플랫폼 별 빌드 툴 (예: Apple 플랫폼의 경우 `xcodebuild`) 로 테스트를 수행하는 <LocalizedLink href="/cli/test">`tuist test`</LocalizedLink> 명령어를 제공합니다.
 
-You might wonder what's the value of using <LocalizedLink href="/cli/test">`tuist test`</LocalizedLink> over generating the project with <LocalizedLink href="/cli/generate">`tuist generate`</LocalizedLink> and running the tests with the platform-specific build tool.
+<LocalizedLink href="/cli/test">`tuist test`</LocalizedLink> 사용하는 것이 <LocalizedLink href="/cli/generate">`tuist generate`</LocalizedLink>로 프로젝트를 생성하고 플랫폼별 빌드 툴로 테스트를 수행하는 것과 어떠한 차이가 있는지 궁금할 수 있습니다.
 
-- **Single command:** <LocalizedLink href="/cli/test">`tuist test`</LocalizedLink> ensures the project is generated if needed before compiling the project.
-- **Beautified output:** Tuist enriches the output using tools like [xcbeautify](https://github.com/cpisciotta/xcbeautify) that make the output more user-friendly.
-- <LocalizedLink href="/guides/develop/build/cache"><bold>Cache:</bold></LocalizedLink> It optimizes the build by deterministically reusing the build artifacts from a remote cache.
-- <LocalizedLink href="/guides/develop/test/smart-runner"><bold>Smart runner:</bold></LocalizedLink> It runs only the tests that need to be run, saving time and resources.
-- <LocalizedLink href="/guides/develop/test/flakiness"><bold>Flakiness:</bold></LocalizedLink> Prevent, detect, and fix flaky tests.
+- **단일 명령어:** <LocalizedLink href="/cli/test">`tuist test`</LocalizedLink>는 프로젝트를 컴파일하기 전에 필요한 경우 프로젝트를 생성하도록 보장합니다.
+- **보기좋은 출력:** Tuist는 출력을 더 사용자 친화적으로 만들어 주는 [xcbeautify](https://github.com/cpisciotta/xcbeautify)와 같은 툴을 사용하여 출력합니다.
+- <0><1>캐시:</1></0> 원격 캐시에서 빌드 artifact를 재사용하여 빌드를 최적화 합니다.
+- <LocalizedLink href="/guides/develop/test/smart-runner"><bold>스마트 러너:</bold></LocalizedLink> 필요한 테스트만 수행하므로 시간과 리소스를 절약할 수 있습니다.
+- <LocalizedLink href="/guides/develop/test/flakiness"><bold>불안정성:</bold></LocalizedLink> 불안정한 테스트를 방지하고, 감지, 그리고 수정할 수 있습니다.
 
-## Usage {#usage}
+## 사용법 {#usage}
 
-To run the tests of a project, you can use the `tuist test` command. This command will generate the project if needed, and then run the tests using the platform-specific build tool. We support the use of the `--` terminator to forward all subsequent arguments directly to the build tool.
+프로젝트의 테스트를 수행하기 위해 `tuist test` 명령어를 사용할 수 있습니다. 이 명령어는 필요한 경우 프로젝트를 생성한 다음에 플랫폼별 빌드 툴을 사용하여 테스트를 수행합니다. `--` 구분자를 사용하여 이후의 모든 인자를 직접 빌드 툴로 전달하는 것을 지원합니다.
 
 ::: code-group
 
@@ -36,11 +36,11 @@ tuist test --no-selective-testing
 
 :::
 
-## Pull/merge request comments {#pullmerge-request-comments}
+## Pull/merge request 의견 {#pullmerge-request-comments}
 
-> [!IMPORTANT] REQUIREMENTS
-> To get automatic pull/merge request comments, integrate your <LocalizedLink href="/server/introduction/accounts-and-projects#projects">remote project</LocalizedLink> with a <LocalizedLink href="/server/introduction/integrations#git-platforms">Git platform</LocalizedLink>.
+> [!IMPORTANT] 요구 사항\
+> Pull/merge request 의견을 자동으로 받으려면 <LocalizedLink href="/server/introduction/accounts-and-projects">원격 프로젝트</LocalizedLink>를 <LocalizedLink href="/server/introduction/integrations#git-platforms">Git 플랫폼</LocalizedLink>과 통합해야 합니다.
 
-When running tests in your CI environments we can correlate the test results with the pull/merge request that triggered the CI build. This allows us to post a comment on the pull/merge request with the test results.
+CI 환경에서 테스트를 수행할 때 트리거된 CI 빌드의 pull/merge request와 테스트 결과를 연동할 수 있습니다. 이를 통해 pull/merge request에 테스트 결과를 게시할 수 있습니다.
 
 ![GitHub App example](/images/contributors/scheme-arguments.png)
