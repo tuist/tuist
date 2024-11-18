@@ -880,39 +880,41 @@ defmodule Tuist.CommandEvents do
         modules: modules,
         command_event: command_event
       }) do
-    map_project_tests(test_summary.project_tests, fn %{
-                                                       project_identifier: project_identifier,
-                                                       module_name: module_name,
-                                                       target_test_summary: target_test_summary
-                                                     } ->
-      tests = target_test_summary.tests
-
-      identifiers = Enum.map(tests, & &1.identifier_url)
-
-      test_case_ids =
-        from(
-          t in TestCase,
-          where: t.identifier in ^identifiers
-        )
-        |> Repo.all()
-        |> Map.new(&{&1.identifier, &1.id})
-
-      test_case_runs =
-        Enum.map(tests, fn test ->
-          %{
-            module_hash: modules[project_identifier][module_name],
-            command_event_id: command_event.id,
-            status: test.test_status,
-            test_case_id: test_case_ids[test.identifier_url],
-            inserted_at: NaiveDateTime.truncate(DateTime.to_naive(Tuist.Time.utc_now()), :second)
-          }
+    test_case_identifier_urls =
+      Enum.flat_map(test_summary.project_tests, fn {_, module_tests} ->
+        Enum.flat_map(module_tests, fn {_, target_test_summary} ->
+          Enum.map(target_test_summary.tests, & &1.identifier_url)
         end)
+      end)
 
+    test_case_ids =
+      from(t in TestCase,
+        where: t.identifier in ^test_case_identifier_urls,
+        select: {t.identifier, t.id}
+      )
+      |> Repo.all()
+      |> Map.new()
+
+    test_case_runs =
+      Enum.flat_map(test_summary.project_tests, fn {project_identifier, module_tests} ->
+        Enum.flat_map(module_tests, fn {module_name, target_test_summary} ->
+          # credo:disable-for-next-line
+          Enum.map(target_test_summary.tests, fn test_case ->
+            %{
+              module_hash: modules[project_identifier][module_name],
+              status: test_case.test_status,
+              command_event_id: command_event.id,
+              test_case_id: test_case_ids[test_case.identifier_url],
+              inserted_at:
+                NaiveDateTime.truncate(DateTime.to_naive(Tuist.Time.utc_now()), :second)
+            }
+          end)
+        end)
+      end)
+
+    Repo.transaction(fn ->
       Repo.insert_all(TestCaseRun, test_case_runs)
 
-      # By grouping the case runs by case id and module hash,
-      # which takes advantage of the composite index test_case_runs_test_case_id_module_hash_status_index,
-      # we speed up the following query, since joins are only done with the identified groups.
       module_hashes = Enum.map(test_case_runs, & &1.module_hash)
 
       subquery =
@@ -921,22 +923,13 @@ defmodule Tuist.CommandEvents do
           where: t.module_hash in ^module_hashes,
           group_by: [t.test_case_id, t.module_hash],
           having: count(fragment("distinct ?", t.status)) > 1,
-          select: %{test_case_id: t.test_case_id, module_hash: t.module_hash}
+          select: t.test_case_id
         )
 
-      from(
-        t1 in TestCaseRun,
-        join: s in subquery(subquery),
-        on: t1.test_case_id == s.test_case_id and t1.module_hash == s.module_hash
+      from(t1 in TestCaseRun,
+        where: t1.test_case_id in subquery(subquery)
       )
       |> Repo.update_all(set: [flaky: true])
-
-      subquery =
-        from(tcr in TestCaseRun,
-          where: tcr.flaky == true,
-          select: tcr.test_case_id,
-          distinct: true
-        )
 
       from(t in TestCase,
         where: t.id in subquery(subquery),
