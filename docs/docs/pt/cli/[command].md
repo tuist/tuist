@@ -1,5 +1,6 @@
 ---
-description: "{{ $params.description }}"
+title:
+  params.command.fullCommand: null
 titleTemplate: :title · CLI · Tuist
 ---
 
