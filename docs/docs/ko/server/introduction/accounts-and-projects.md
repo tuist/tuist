@@ -29,7 +29,7 @@ Tuist 프로젝트든 Xcode 프로젝트든 원격 프로젝트를 통해 계정
 로컬 프로젝트와 원격 프로젝트 간의 연결은 구성 파일을 통해 이루어집니다. 아무런 구성 파일이 없다면 `Tuist.swift` 파일을 생성하고 다음의 내용을 추가합니다:
 
 ```swift
-let config = Config(fullHandle: "{account-handle}/{project-handle}") // e.g. tuist/tuist
+let tuist = Tuist(fullHandle: "{account-handle}/{project-handle}") // e.g. tuist/tuist
 ```
 
 > [!IMPORTANT] TUIST 프로젝트 전용 기능\ <LocalizedLink href="/guides/develop/build/cache">바이너리 캐싱</LocalizedLink>과 같은 기능은 Tuist 프로젝트가 있어야 사용할 수 있습니다. Xcode 프로젝트를 사용한다면 해당 기능을 사용할 수 없습니다.
