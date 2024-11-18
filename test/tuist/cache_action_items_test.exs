@@ -23,6 +23,27 @@ defmodule Tuist.CacheActionItemsTest do
       assert cache_action_item.hash == "somehash"
       assert cache_action_item.project_id == project.id
     end
+
+    test "handles the creation when a cache_action_item with the same hash exists", %{
+      project: project
+    } do
+      # Given
+      CacheActionItems.create_cache_action_item(%{
+        hash: "somehash",
+        project: project
+      })
+
+      # When
+      cache_action_item =
+        CacheActionItems.create_cache_action_item(%{
+          hash: "somehash",
+          project: project
+        })
+
+      # # Then
+      assert cache_action_item.hash == "somehash"
+      assert cache_action_item.project_id == project.id
+    end
   end
 
   describe "get_cache_action_item/1" do

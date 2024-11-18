@@ -11,11 +11,13 @@ defmodule Tuist.CacheActionItems do
         hash: hash,
         project: %Project{id: project_id}
       }) do
-    CacheActionItem.create_changeset(%CacheActionItem{}, %{
-      hash: hash,
-      project_id: project_id
-    })
-    |> Repo.insert!()
+    changeset =
+      CacheActionItem.create_changeset(%CacheActionItem{}, %{
+        hash: hash,
+        project_id: project_id
+      })
+
+    Repo.insert!(changeset, on_conflict: :nothing, conflict_target: [:project_id, :hash])
   end
 
   def get_cache_action_item(%{project: %Project{id: project_id}, hash: hash}) do
