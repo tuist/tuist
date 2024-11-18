@@ -23,7 +23,7 @@ First of all, create a scaffold for your project with the following Tuist files:
 ```js [Tuist.swift]
 import ProjectDescription
 
-let config = Config()
+let tuist = Tuist()
 ```
 
 ```js [Project.swift]

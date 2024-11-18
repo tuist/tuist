@@ -58,12 +58,12 @@ In the Tuist project we lean on mono-projects because the cold generation time i
 
 ## Tuist.swift {#tuistswift}
 
-Tuist provides <LocalizedLink href="/contributors/principles.html#default-to-conventions">sensible defaults</LocalizedLink> to simplify project configuration. However, you can customize the configuration by defining a <LocalizedLink href="/references/project-description/structs/config">`Tuist.swift`</LocalizedLink> at the root of the project, which is used by Tuist to determine the root of the project.
+Tuist provides <LocalizedLink href="/contributors/principles.html#default-to-conventions">sensible defaults</LocalizedLink> to simplify project configuration. However, you can customize the configuration by defining a <LocalizedLink href="/references/project-description/structs/tuist">`Tuist.swift`</LocalizedLink> at the root of the project, which is used by Tuist to determine the root of the project.
 
 ```swift
 import ProjectDescription
 
-let config = Config(
-    generationOptions: .options(enforceExplicitDependencies: true)
+let tuist = Tuist(
+    project: .tuist(generationOptions: .options(enforceExplicitDependencies: true))
 )
 ```
