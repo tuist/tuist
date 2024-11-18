@@ -62,16 +62,20 @@ tuist run App@00dde7f56b1b8795a26b8085a781fb3715e834be # Runs latest App preview
 
 <div style="display: flex; flex-direction: column; align-items: center;">
     <img src="/public/logo.png" style="height: 100px;" />
-    <h1>Tuist</h1><a href="https://cloud.tuist.io/download" style="text-decoration: none;">Download</a><img src="/images/guides/share/menu-bar-app.png" style="width: 300px;" /><img src="/images/guides/share/menu-bar-app.png" style="width: 300px;" />
+    <h1>Tuist</h1>
+    
+    
+    <a href="https://cloud.tuist.io/download" style="text-decoration: none;">Download</a>
+    <img src="/images/guides/share/menu-bar-app.png" style="width: 300px;" />
 </div>
 
-To make running Tuist Previews even easier, we developed a Tuist macOS menu bar app. Instead of running Previews via the Tuist CLI, you can [download](https://cloud.tuist.io/download) the macOS app. When you open a Preview link in the browser, the app will automatically launch on your currently selected device.
+Tuist Previews를 더욱 쉽게 실행할 수 있도록, 우리는 Tuist macOS menu bar 앱을 개발했습니다. Tuist CLI를 통해 Previews를 실행하는 대신, macOS 앱을 [다운로드](https://cloud.tuist.io/download)하여 사용할 수 있습니다. 브라우저에서 Preview 링크를 열면, 앱이 현재 선택된 디바이스에서 자동으로 실행됩니다.
 
-> [!IMPORTANT] REQUIREMENTS
-> To download Previews, you need to first authenticate with the `tuist auth` command.
-> In the future, you will be able to authenticate directly in the app.
+> [!IMPORTANT] 요구 사항
+> Previews를 다운로드하려면, 먼저 `tuist auth` 명령어를 사용해 인증해야 합니다.
+> 앞으로는 앱에서 직접 인증할 수 있게 될 예정입니다.
 >
-> Additionally, you need to have Xcode locally installed.
+> 추가로, 로컬에 Xcode가 설치되어 있어야 합니다.
 
 ## Pull/merge request 의견 {#pullmerge-request-comments}
 
