@@ -939,14 +939,15 @@ defmodule Tuist.CommandEvents do
           select: t.test_case_id
         )
 
+      flaky_test_case_ids = Repo.all(subquery)
+
       from(t1 in TestCaseRun,
-        where: t1.test_case_id in subquery(subquery)
+        where: t1.test_case_id in ^flaky_test_case_ids
       )
       |> Repo.update_all(set: [flaky: true])
 
       from(t in TestCase,
-        where: t.id in subquery(subquery),
-        select: t
+        where: t.id in ^flaky_test_case_ids
       )
       |> Repo.update_all(set: [flaky: true])
     end)
