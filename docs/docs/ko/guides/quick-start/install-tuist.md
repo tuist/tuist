@@ -11,10 +11,10 @@ Tuist CLI는 실행 가능한 동적 프레임워크와 일련의 리소스(예:
 ### <a href="https://github.com/jdx/mise">Mise</a> {#recommended-mise}
 
 :::info
-Mise is a recommended alternative to [Homebrew](https://brew.sh) if you are a team or organization that needs to ensure deterministic versions of tools across different environments.
+Mise는 여러 환경에서 툴의 버전을 일관되게 유지가 필요한 팀이나 조직에 추천되는 [Homebrew](https://brew.sh)의 대안입니다.
 :::
 
-You can install Tuist through any of the following commands:
+다음의 명령어를 통해 Tuist를 설치할 수 있습니다:
 
 ```bash
 mise install tuist # .tool-versions/.mise.toml에 지정된 현재 버전을 설치합니다.
@@ -31,9 +31,9 @@ mise use -g tuist@x.y.z # 시스템의 기본값으로 tuist-x.y.z 사용
 mise use -g tuist@system # 시스템의 tuist를 전역 기본값으로 사용합니다.
 ```
 
-### <a href="https://brew.sh">Homebrew</a> {#recommended-homebrew}
+### <0>Homebrew</0> {#recommended-homebrew}
 
-You can install Tuist using [Homebrew](https://brew.sh) and [our formulas](https://github.com/tuist/homebrew-tuist):
+Tuist는 [Homebrew](https://brew.sh) 및 [우리의 포뮬러](https://github.com/tuist/homebrew-tuist)를 사용하여 설치할 수 있습니다:
 
 ```bash
 brew tap tuist/tuist
@@ -43,8 +43,8 @@ brew install --formula tuist@x.y.z
 
 ### Shell completions {#shell-completions}
 
-If you have Tuist **globally installed** (e.g., via Homebrew),
-you can install shell completions for Bash and Zsh to autocomplete commands and options.
+Tuist가 **전역으로 설치된 경우** (예: Homebrew),
+명령어와 옵션을 자동으로 완성시키기 위해 Bash와 Zsh용 셀 자동 완성을 설치할 수 있습니다.
 
 :::warning Global installation란?
 Global installation는 Shell의 `$PATH` 환경 변수에 포함된 설치를 말합니다. 즉, 터미널의 모든 디렉토리에서 `tuist`를 실행할 수 있습니다.이것은 Homebrew의 기본 설치 방법입니다. 이것은 Homebrew의 기본 설치 방법입니다.
