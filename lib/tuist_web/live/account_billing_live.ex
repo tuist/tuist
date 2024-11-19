@@ -43,6 +43,7 @@ defmodule TuistWeb.AccountBillingLive do
     {
       :ok,
       socket
+      |> assign(:plans, Billing.get_plans())
       |> assign(:head_title, "#{gettext("Billing")} · #{owner.name} · Tuist")
       |> assign(:selected_account, owner)
       |> assign(:plan, plan)
@@ -195,6 +196,7 @@ defmodule TuistWeb.AccountBillingLive do
   attr(:title, :string, required: true)
   attr(:description, :string, required: true)
   attr(:price, :string, default: nil)
+  attr(:price_extra, :string, default: nil)
   attr(:features, :list, required: true)
 
   slot(:inner_block, required: true)
@@ -217,13 +219,9 @@ defmodule TuistWeb.AccountBillingLive do
               <%= @price %>
             </h3>
             <p class="text--medium font--medium color--text-tertiary billing__pricing-tier-card__per-month-label">
-              <%= gettext("per month") %>
-            </p>
-            <p
-              style="white-space: nowrap;"
-              class="text--extraLarge font--medium color--text-secondary"
-            >
-              <%= gettext("+ Usage") %>
+              <%= if not is_nil(assigns[:price_extra]) do %>
+                <%= @price_extra %>
+              <% end %>
             </p>
           <% else %>
             <h3 class="font--semibold color--text-primary"><%= gettext("Custom") %></h3>

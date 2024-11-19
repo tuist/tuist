@@ -121,54 +121,6 @@ defmodule TuistWeb.Marketing.MarketingController do
   end
 
   def pricing(conn, _params) do
-    plans = [
-      %{
-        name: gettext("Air"),
-        popular: true,
-        description: gettext("Get started with no credit card required—try with no commitment."),
-        price: gettext("Free"),
-        cta: {:primary, gettext("Get started"), Tuist.Environment.get_url(:get_started)},
-        features: [
-          {gettext("Generous free monthly tier"), gettext("Usage capped at free tier limits")},
-          {gettext("Like, totally free"), gettext("All features, no credit card required")},
-          {gettext("Community support"), gettext("Support via community forum")}
-        ],
-        badges: [
-          gettext("Update later easily"),
-          gettext("No credit card required")
-        ]
-      },
-      %{
-        name: gettext("Pro"),
-        popular: false,
-        description:
-          gettext("Usage-based pricing beyond the free tier counts toward the base price."),
-        price: gettext("$249"),
-        price_frequency: gettext("monthly"),
-        cta: {:secondary, gettext("Get started"), Tuist.Environment.get_url(:get_started)},
-        features: [
-          {gettext("Generous base price"),
-           gettext("Usage beyond the free tier is included in the base price")},
-          {gettext("Usage-based pricing"), gettext("Pay only for what you use per feature")},
-          {gettext("Standard support"), gettext("Via Slack and email")}
-        ],
-        badges: []
-      },
-      %{
-        name: gettext("Enterprise"),
-        popular: false,
-        description: gettext("Create your plan or self-host your instance."),
-        price: gettext("Custom"),
-        cta: {:secondary, gettext("Contact sales"), "mailto:sales@tuist.io"},
-        features: [
-          {gettext("Custom terms"), gettext("Tailored agreements to meet your specific needs")},
-          {gettext("On-premise"), gettext("Self-host your instance of Tuist")},
-          {gettext("Priority support"), gettext("Via shared Slack channel")}
-        ],
-        badges: []
-      }
-    ]
-
     faqs = [
       {gettext(
          "Why is your pricing model more accessible compared to traditional enterprise models?"
@@ -188,6 +140,8 @@ defmodule TuistWeb.Marketing.MarketingController do
       {gettext("Do you offer discounts for non-profits and open-source?"),
        gettext("Yes, we do. Please reach out to oss@tuist.io for more information.")}
     ]
+
+    plans = Tuist.Billing.get_plans()
 
     conn
     |> assign(:head_title, "Pricing · Plans for every developer · Tuist")

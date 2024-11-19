@@ -350,6 +350,7 @@ defmodule TuistWeb.Router do
     ]
 
     get "/:account_handle/billing/manage", BillingController, :manage
+    get "/:account_handle/billing/upgrade", BillingController, :upgrade
 
     live_session :dashboard,
       layout: {TuistWeb.Layouts, :account},

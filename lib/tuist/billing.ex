@@ -10,8 +10,67 @@ defmodule Tuist.Billing do
   alias Tuist.Accounts
   alias Tuist.Accounts.Account
   alias Tuist.Repo
+  import TuistWeb.Gettext
 
   import Ecto.Query, only: [from: 2]
+
+  @air_thresholds %{remote_cache_hit: 200}
+
+  def get_air_thresholds() do
+    @air_thresholds
+  end
+
+  def get_plans() do
+    [
+      %{
+        id: :air,
+        name: gettext("Air"),
+        popular: true,
+        description: gettext("Get started with no credit card required—try with no commitment."),
+        price: gettext("Free"),
+        cta: {:primary, gettext("Get started"), Tuist.Environment.get_url(:get_started)},
+        features: [
+          {gettext("Generous free monthly tier"), gettext("Usage capped at free tier limits")},
+          {gettext("Like, totally free"), gettext("All features, no credit card required")},
+          {gettext("Community support"), gettext("Support via community forum")}
+        ],
+        badges: [
+          gettext("No credit card required")
+        ]
+      },
+      %{
+        id: :pro,
+        name: gettext("Pro"),
+        popular: false,
+        description: gettext("Usage-based pricing after free tier."),
+        price: gettext("$0"),
+        price_frequency: gettext("and up"),
+        cta: {:secondary, gettext("Get started"), Tuist.Environment.get_url(:get_started)},
+        features: [
+          {gettext("Generous base price"), gettext("Pay nothing if below free tier limits")},
+          {gettext("Usage-based pricing"), gettext("Pay only for what you use per feature")},
+          {gettext("Standard support"), gettext("Via Slack and email")}
+        ],
+        badges: [
+          gettext("Unlimited projects")
+        ]
+      },
+      %{
+        id: :enterprise,
+        name: gettext("Enterprise"),
+        popular: false,
+        description: gettext("Create your plan or self-host your instance."),
+        price: gettext("Custom"),
+        cta: {:secondary, gettext("Contact sales"), "mailto:sales@tuist.io"},
+        features: [
+          {gettext("Custom terms"), gettext("Tailored agreements to meet your specific needs")},
+          {gettext("On-premise"), gettext("Self-host your instance of Tuist")},
+          {gettext("Priority support"), gettext("Via shared Slack channel")}
+        ],
+        badges: []
+      }
+    ]
+  end
 
   def create_customer(%{name: name, email: email}) do
     {:ok, customer} = Stripe.Customer.create(%{name: name, email: email})

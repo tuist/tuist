@@ -27,9 +27,9 @@
   </section>
 
   <% feature_title = gettext("Feature")
-  metric_title = gettext("Metric")
+  metric_title = gettext("Usage unit")
   included_title = gettext("Included for free")
-  price_above_free = gettext("Price above free tier")
+  price_above_free = gettext("Price per unit above free tier")
 
   items = [
     %{
@@ -117,7 +117,7 @@
     <h2 class="marketing__pricing__features__header__title"><%= gettext("Features") %></h2>
     <p class="marketing__pricing__features__header__subtitle">
       <%= gettext(
-        "You’re only charged for the features you use, based on your usage, and only after you exceed a usage threshold. Have feedback on our model? Reach out at contact@tuist.io—we’d love to hear from you!"
+        "You’re only charged for the features you use, based on your usage, and only after you exceed a free threshold. Have feedback on our model? Reach out at contact@tuist.io—we’d love to hear from you!"
       ) %>
     </p>
   </div>
