@@ -309,7 +309,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
                 if isError {
                     logger.error("\(line)")
                 } else {
-                    logger.notice("\(line)")
+                    logger.info("\(line)")
                 }
             }
         }
