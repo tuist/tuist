@@ -8,18 +8,13 @@ description: Learn how to install Tuist in your environment.
 
 The Tuist CLI consists of an executable, dynamic frameworks, and a set of resources (for example, templates). Although you could manually build Tuist from [the sources](https://github.com/tuist/tuist), **we recommend using one of the following installation methods to ensure a valid installation.**
 
-### Recommended: <a href="https://github.com/jdx/mise">Mise</a> {#recommended-mise}
-
-Tuist defaults to [Mise](https://github.com/jdx/mise) as a tool to deterministically manage and activate versions of Tuist.
-If you don't have it installed on your system,
-you can use any of these [installation methods](https://mise.jdx.dev/getting-started.html).
-Remember to add the suggested line to your shell, which will ensure the right version is activated when you choose a Tuist project directory in your terminal session.
+### <a href="https://github.com/jdx/mise">Mise</a> {#recommended-mise}
 
 :::info
-Mise is recommended over alternatives like [Homebrew](https://brew.sh) because it supports scoping and activating versions to directories, ensuring every environment uses the same version of Tuist deterministically.
+Mise is a recommended alternative to [Homebrew](https://brew.sh) if you are a team or organization that needs to ensure deterministic versions of tools across different environments.
 :::
 
-Once installed, you can install Tuist through any of the following commands:
+You can install Tuist through any of the following commands:
 
 ```bash
 mise install tuist            # Install the current version specified in .tool-versions/.mise.toml
@@ -36,10 +31,9 @@ mise use -g tuist@x.y.z       # Use tuist-x.y.z as the global default
 mise use -g tuist@system      # Use the system's tuist as the global default
 ```
 
-### Alternative: <a href="https://brew.sh">Homebrew</a> {#alternative-homebrew}
+### <a href="https://brew.sh">Homebrew</a> {#recommended-homebrew}
 
-If version pinning across environments is not a concern for you,
-you can install Tuist using [Homebrew](https://brew.sh) and [our formulas](https://github.com/tuist/homebrew-tuist):
+You can install Tuist using [Homebrew](https://brew.sh) and [our formulas](https://github.com/tuist/homebrew-tuist):
 
 ```bash
 brew tap tuist/tuist
@@ -49,7 +43,7 @@ brew install --formula tuist@x.y.z
 
 ### Shell completions {#shell-completions}
 
-If you have Tuist **globally installed**,
+If you have Tuist **globally installed** (e.g., via Homebrew),
 you can install shell completions for Bash and Zsh to autocomplete commands and options.
 
 :::warning What is a global installation
