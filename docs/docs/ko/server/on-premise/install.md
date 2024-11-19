@@ -1,24 +1,24 @@
 ---
 title: Installation
 titleTemplate: :title | On-premise | Server | Tuist
-description: Learn how to install Tuist on your infrastructure.
+description: Tuist를 인프라에 설치하는 방법을 배워봅니다.
 ---
 
 # On-premise installation {#onpremise-installation}
 
-We offer a self-hosted version of the Tuist server for organizations that require more control over their infrastructure. This version allows you to host Tuist on your own infrastructure, ensuring that your data remains secure and private.
+인프라에 대한 더 많은 제어를 요구하는 조직을 위해 Tuist 서버의 자체 호스팅 버전을 제공합니다. 이 버전은 Tuist를 자체 인프라에 호스팅하여 사용자의 데이터가 안전하고 비공개로 유지되도록 보장합니다.
 
-> [!IMPORTANT] ENTERPRISE CUSTOMERS ONLY
-> The on-premise version of Tuist is available only for organizations on the Enterprise plan. If you are interested in this version, please reach out to [contact@tuist.io](mailto:contact@tuist.io).
+> [!IMPORTANT] 기업 고객 전용\
+> Tuist의 On-Premise 버전은 Enterprise 플랜을 가입한 조직만 사용 가능합니다. 이 버전에 관심있다면, [contact@tuist.io](mailto:contact@tuist.io)로 연락 바랍니다.
 
-## Release cadence {#release-cadence}
+## 출시 주기 {#release-cadence}
 
-The Tuist server is **released every Monday** and the version name follows the convention name `{MAJOR}.YY.MM.DD`. The date component is used to warn the CLI user if their hosted version is 60 days older than the release date of the CLI. It's crucial that on-premise organizations keep up with Tuist updates to ensure their developers benefit from the most recent improvements and that we can drop deprecated features with the confidence that we are not breaking any of the on-premise setups.
+Tuist 서버는 **매주 월요일에 출시되며** 버전 이름은 `{MAJOR}.YY.MM.DD` 형식을 따릅니다. 날짜 구성 요소는 호스팅된 버전이 CLI의 출시일로부터 60일 이상 지난 경우, CLI 사용자에게 경고를 보내기 위해 사용됩니다. On-premise 조직은 개발자가 최신 개선 사항의 이점을 누릴 수 있도록 Tuist를 최신으로 유지하는 것이 중요하며, On-premise 설정을 손상시키지 않으면서 더이상 사용하지 않는 기능을 제거할 수 있습니다.
 
-The major component of the CLI is used to flag breaking changes in the Tuist server that will require coordination with the on-premise users. You should not expect us to use it, and in case we needed, rest asure we'll work with you in making the transition smooth.
+CLI의 주요 구성 요소는 On-premise 사용자와의 조정이 필요한 Tuist 서버에서의 주요 변경 사항을 표시하는데 사용됩니다. 우리가 이것을 사용할 것이라고 기대해서는 안되며 필요한 경우, 전환이 원활하도록 함께 협력할 것입니다.
 
-> [!NOTE] RELEASE NOTES
-> You'll be given access to a `tuist/registry` repository associated with the registry where images are published. Every new released will be published in that repository as a GitHub release and will contain release notes to inform you about what changes come with it.
+> [!NOTE] 릴리즈 노트\
+> 이미지가 게시되는 레지스트리와 연결된 `tuist/registry` 리포지토리에 연결 권한이 부여됩니다. 모든 릴리즈는 해당 리포지토리의 GitHub 릴리즈에 게시되고 변경 사항은 릴리즈 노트에 포함됩니다.
 
 ## Runtime requirements {#runtime-requirements}
 
