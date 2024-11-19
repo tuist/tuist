@@ -8,17 +8,13 @@ description: 開発環境にTuistをインストールする方法を学びま�
 
 Tuist CLIは、実行可能ファイル、動的フレームワーク、およびリソースのセット (たとえば、テンプレート) で構成されています。 [ソース](https://github.com/tuist/tuist)からTuistを手動でビルドすることもできますが、**有効なインストールを確保するために、以下のインストール方法のいずれかを使用することをお勧めします。**
 
-### 推奨: <a href="https://github.com/jdx/mise">mise</a> {#recommended-mise}
-
-Tuistは、Tuistのバージョンを確実に管理およびアクティベートするツールとして、[mise](https://github.com/jdx/mise)をデフォルトにしています。
-システムにインストールされていない場合は、これらの[インストール方法](https://mise.jdx.dev/getting-started.html)のいずれかを使用できます。
-シェルに提案された行を追加することを忘れないでください。これにより、ターミナルセッションでTuistプロジェクトディレクトリを選択したときに、正しいバージョンがアクティブになります。
+### <a href="https://github.com/jdx/mise">Mise</a> {#recommended-mise}
 
 :::info
-Miseは、[Homebrew](https://brew.sh)のような代替手段よりも推奨されます。なぜなら、ディレクトリ単位で設定して有効にできるため、すべての環境で同じTuistのバージョンを確実に使用することができるからです。
+Mise is a recommended alternative to [Homebrew](https://brew.sh) if you are a team or organization that needs to ensure deterministic versions of tools across different environments.
 :::
 
-インストール後、以下のコマンドのいずれかを使用してTuistをインストールできます。
+You can install Tuist through any of the following commands:
 
 ```bash
 mise install tuist            # .tool-versions/.mise.tomlに指定された現在のバージョンをインストール
@@ -35,9 +31,9 @@ mise use -g tuist@x.y.z       # tuist-x.y.zをグローバルデフォルトと�
 mise use -g tuist@system      # システムのtuistをグローバルデフォルトとして使用
 ```
 
-### 代替: <a href="https://brew.sh">Homebrew</a> {#alternative-homebrew}
+### <a href="https://brew.sh">Homebrew</a> {#recommended-homebrew}
 
-環境間でのバージョンの固定が問題でない場合は、[Homebrew](https://brew.sh)と[私たちのformula](https://github.com/tuist/homebrew-tuist)を使用してTuistをインストールできます。
+You can install Tuist using [Homebrew](https://brew.sh) and [our formulas](https://github.com/tuist/homebrew-tuist):
 
 ```bash
 brew tap tuist/tuist
@@ -47,7 +43,8 @@ brew install --formula tuist@x.y.z
 
 ### シェルの補完 {#shell-completions}
 
-Tuistを**グローバルにインストール**している場合、BashやZshのためのシェル補完をインストールしてコマンドやオプションを自動補完できます。
+If you have Tuist **globally installed** (e.g., via Homebrew),
+you can install shell completions for Bash and Zsh to autocomplete commands and options.
 
 :::warning グローバルインストールとは
 グローバルインストールは、シェルの `$PATH` 環境変数で利用可能なインストールです。 つまり、ターミナルの任意のディレクトリから `tuist` を実行できます。 This is the default installation method for Homebrew.
