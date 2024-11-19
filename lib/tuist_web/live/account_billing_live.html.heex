@@ -43,10 +43,15 @@
                 <% end %>
               </.stack>
               <p class="text--small font--regular color--text-tertiary">
-                <%= if @plan == :none do %>
-                  <%= gettext("You are not subscribed to any plan.") %>
-                <% else %>
-                  <%= Enum.find(@plans, &(&1.id == @plan)) |> Map.get(:description) %>
+                <%= case @plan do %>
+                  <% :air -> %>
+                    <%= gettext("For small projects and personal use to get started with Tuist.") %>
+                  <% :pro -> %>
+                    <%= gettext("For larger teams that need better support.") %>
+                  <% :enterprise -> %>
+                    <%= gettext("Empowering enterprises with custom Tuist solutions.") %>
+                  <% :none -> %>
+                    <%= gettext("You are not subscribed to any plan.") %>
                 <% end %>
               </p>
             </.stack>
@@ -55,7 +60,7 @@
                 <%= if @plan == :air do %>
                   <h3><%= gettext("$0") %></h3>
                 <% else %>
-                  <h3><%= gettext("$0") %></h3>
+                  <h3><%= gettext("$249") %></h3>
                 <% end %>
                 <p class="text--medium font--medium color--text-tertiary billing__overview__plan-card__plan-summary__info__month-label">
                   <%= gettext("per month") %>
@@ -177,64 +182,79 @@
     />
     <div class="billing__pricing__plans">
       <.pricing_tier_card
-        :for={plan <- @plans}
-        price={plan.price}
-        price_extra={plan |> Map.get(:price_frequency)}
-        title={plan.name}
-        features={plan.features |> Enum.map(&"#{elem(&1, 0)}: #{elem(&1, 1)}")}
-        description={plan.description}
+        price={gettext("$0")}
+        title={gettext("Air")}
+        features={[
+          gettext("No minimum commitment")
+        ]}
+        description={gettext("Great for side projects, or projects with a small team.")}
       >
-        <%= if plan.id == :air  do %>
-          <.button
-            size="large"
-            variant="primary"
-            disabled={@plan == :air or @plan == :enterprise}
-            phx-click={show_modal("air-modal")}
-          >
-            <%= case @plan do %>
-              <% :air -> %>
-                <%= gettext("Current plan") %>
-              <% :pro -> %>
-                <%= gettext("Downgrade") %>
-              <% :enterprise -> %>
-                <%= gettext("Downgrade") %>
-              <% :none -> %>
-                <%= gettext("Upgrade") %>
+        <.button
+          size="large"
+          variant="primary"
+          disabled={@plan == :air or @plan == :enterprise}
+          phx-click={show_modal("air-modal")}
+        >
+          <%= case @plan do %>
+            <% :air -> %>
+              <%= gettext("Current plan") %>
+            <% :pro -> %>
+              <%= gettext("Downgrade") %>
+            <% :enterprise -> %>
+              <%= gettext("Downgrade") %>
+            <% :none -> %>
+              <%= gettext("Upgrade") %>
+          <% end %>
+        </.button>
+      </.pricing_tier_card>
+      <.pricing_tier_card
+        price={gettext("$249")}
+        title={gettext("Pro")}
+        features={[
+          gettext("$249 /mo usage included"),
+          gettext("Priority GitHub support"),
+          gettext("Email support")
+        ]}
+        description={gettext("Priority support for teams with complex Tuist needs.")}
+      >
+        <.button
+          size="large"
+          variant="primary"
+          disabled={@plan == :pro or @plan == :enterprise}
+          phx-click={show_modal("pro-modal")}
+        >
+          <%= case @plan do %>
+            <% :air -> %>
+              <%= gettext("Upgrade") %>
+            <% :pro -> %>
+              <%= gettext("Current plan") %>
+            <% :enterprise -> %>
+              <%= gettext("Downgrade") %>
+            <% :none -> %>
+              <%= gettext("Upgrade") %>
+          <% end %>
+        </.button>
+      </.pricing_tier_card>
+      <.pricing_tier_card
+        title={gettext("Enterprise")}
+        features={[
+          gettext("Custom usage included"),
+          gettext("Single sign-on (SSO)"),
+          gettext("On-premise version"),
+          gettext("Emergency support"),
+          gettext("Custom terms")
+        ]}
+        description={gettext("A custom option for organizations at scale.")}
+      >
+        <.link href="mailto:contact@tuist.io?subject=Tuist Enterprise">
+          <.button size="large" variant="primary" disabled={@plan == :enterprise}>
+            <%= if @plan == :enterprise do %>
+              <%= gettext("Current plan") %>
+            <% else %>
+              <%= gettext("Contact sales") %>
             <% end %>
           </.button>
-        <% end %>
-
-        <%= if plan.id == :pro  do %>
-          <.button
-            size="large"
-            variant="primary"
-            disabled={@plan == :pro or @plan == :enterprise}
-            phx-click={show_modal("pro-modal")}
-          >
-            <%= case @plan do %>
-              <% :air -> %>
-                <%= gettext("Upgrade") %>
-              <% :pro -> %>
-                <%= gettext("Current plan") %>
-              <% :enterprise -> %>
-                <%= gettext("Downgrade") %>
-              <% :none -> %>
-                <%= gettext("Upgrade") %>
-            <% end %>
-          </.button>
-        <% end %>
-
-        <%= if plan.id == :enterprise do %>
-          <.link href="mailto:contact@tuist.io?subject=Tuist Enterprise">
-            <.button size="large" variant="primary" disabled={@plan == :enterprise}>
-              <%= if @plan == :enterprise do %>
-                <%= gettext("Current plan") %>
-              <% else %>
-                <%= gettext("Contact sales") %>
-              <% end %>
-            </.button>
-          </.link>
-        <% end %>
+        </.link>
       </.pricing_tier_card>
     </div>
   </.stack>

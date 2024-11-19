@@ -21,23 +21,4 @@ defmodule TuistWeb.BillingController do
             "You don't have permission to access this account."
     end
   end
-
-  def upgrade(conn, %{"account_handle" => account_handle}) do
-    account = Accounts.get_account_by_handle(account_handle)
-    user = Authentication.current_user(conn)
-
-    if Authorization.can(user, :update, account, :billing) do
-      session_url =
-        Billing.update_plan(%{
-          plan: :pro,
-          account: account,
-          success_url: url(~p"/#{account.name}/billing") <> "?new_plan=pro"
-        })
-
-      redirect(conn, external: session_url) |> halt()
-    else
-      raise TuistWeb.Errors.UnauthorizedError,
-            "You don't have permission to access this account."
-    end
-  end
 end

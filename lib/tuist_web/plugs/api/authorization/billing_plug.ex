@@ -5,10 +5,12 @@ defmodule TuistWeb.API.Authorization.BillingPlug do
   use TuistWeb, :controller
   use TuistWeb, :verified_routes
 
+  alias TuistWeb.WarningsHeaderPlug
   alias Tuist.Billing
   alias Tuist.Accounts
   alias TuistWeb.API.EnsureProjectPresencePlug
   alias Tuist.Environment
+  @remote_cache_hits_threshold 200
 
   def init(opts), do: opts
 
@@ -38,62 +40,54 @@ defmodule TuistWeb.API.Authorization.BillingPlug do
   end
 
   def call_tuist_hosted(conn, _) do
-    account =
-      %{current_month_remote_cache_hits_count: current_month_remote_cache_hits_count} =
-      Accounts.get_account_by_id(EnsureProjectPresencePlug.get_project(conn).account_id)
-
+    account = Accounts.get_account_by_id(EnsureProjectPresencePlug.get_project(conn).account_id)
     subscription = Billing.get_current_active_subscription(account)
 
-    thresholds_surpassed =
-      current_month_remote_cache_hits_count >= Billing.get_air_thresholds()[:remote_cache_hit]
-
-    subscription_plan = if(is_nil(subscription), do: :air, else: subscription.plan)
-
-    subscription_active? =
-      if(is_nil(subscription),
-        do: subscription_plan == :air,
-        else: subscription.status == "active"
-      )
-
-    case {subscription_plan, subscription_active?, thresholds_surpassed} do
-      {:air, _, false} ->
-        conn
-
-      {:air, _, true} ->
+    case {subscription, account.current_month_remote_cache_hits_count} do
+      {nil, hits} when hits > @remote_cache_hits_threshold ->
         conn
         |> put_status(:payment_required)
         |> json(%{
           message: ~s"""
-          The account '#{account.name}' has reached the limits of the plan 'Tuist Air' and requires upgrading to the plan 'Tuist Pro'. You can upgrade your plan at #{url(~p"/#{account.name}/billing/upgrade")}.
+          The account '#{account.name}' has reached the limit of remote cache hits #{@remote_cache_hits_threshold} of the 'Tuist Air' plan and requires payment. Manage your billing at #{url(~p"/#{account.name}/billing")}.
           """
         })
         |> halt()
 
-      {:pro, false, _} ->
-        conn
-        |> put_status(:payment_required)
-        |> json(%{
-          message: ~s"""
-          The account '#{account.name}' 'Tuist Pro' plan is not active. You can manage your billing at #{url(~p"/#{account.name}/billing/manage")}.
-          """
-        })
-        |> halt()
-
-      {:pro, true, _} ->
+      {nil, hits} when hits <= @remote_cache_hits_threshold ->
         conn
 
-      {:open_source, false, _} ->
-        conn
-        |> put_status(:payment_required)
-        |> json(%{
-          message: ~s"""
-          The account '#{account.name}' 'Tuist Open Source' plan is not active. You can contact Tuist at contact@tuist.io to renovate it, or upgrade to 'Tuist Pro' at #{url(~p"/#{account.name}/billing/upgrade")}.
-          """
-        })
-        |> halt()
+      {_, _} ->
+        days_until_end_of_trial =
+          if is_nil(subscription.trial_end) do
+            nil
+          else
+            DateTime.diff(subscription.trial_end, Tuist.Time.utc_now(), :day)
+          end
 
-      {:open_source, true, _} ->
-        conn
+        cond do
+          is_nil(days_until_end_of_trial) ->
+            conn
+
+          days_until_end_of_trial == 0 ->
+            conn
+            |> WarningsHeaderPlug.put_warning(
+              "Your trial period ends today. Please update your billing information to avoid service interruption: #{url(~p"/#{account.name}/billing")}"
+            )
+
+          days_until_end_of_trial < 3 ->
+            conn
+            |> WarningsHeaderPlug.put_warning(
+              "Your trial period ends in #{days_until_end_of_trial} days. Please update your billing information to avoid service interruption: #{url(~p"/#{account.name}/billing")}"
+            )
+
+          true ->
+            conn
+        end
     end
+  end
+
+  def remote_cache_hits_threshold do
+    @remote_cache_hits_threshold
   end
 end
