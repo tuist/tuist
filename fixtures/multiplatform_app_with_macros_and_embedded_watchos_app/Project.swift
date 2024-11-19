@@ -56,7 +56,22 @@ let project = Project(
             ],
             dependencies: [
                 .external(name: "CasePaths"),
-                .macro(name: "ModuleAMacros"),
+                .target(name: "ModuleAMacros"),
+            ]
+        ),
+        .target(
+            name: "ModuleATests",
+            destinations: [.iPhone, .appleVision, .appleWatch],
+            product: .unitTests,
+            productName: "ModuleATests",
+            bundleId: "io.tuist.moduleatests",
+            sources: [
+                "Modules/ModuleA/Tests/**",
+            ],
+            dependencies: [
+                .target(name: "ModuleA"),
+                .target(name: "ModuleAMacros_Testable"),
+                .external(name: "SwiftSyntaxMacrosTestSupport")
             ]
         ),
         .target(
@@ -66,6 +81,20 @@ let project = Project(
             productName: "ModuleAMacros",
             bundleId: "io.tuist.moduleamacros",
             deploymentTargets: .macOS("14.0"),
+            sources: [
+                "Modules/ModuleA/Macros/Sources/**",
+            ],
+            dependencies: [
+                .external(name: "SwiftSyntaxMacros"),
+                .external(name: "SwiftCompilerPlugin"),
+            ]
+        ),
+        .target(
+            name: "ModuleAMacros_Testable",
+            destinations: [.iPhone, .appleVision, .appleWatch], // Must match platform of the test target
+            product: .framework, // Must match be a linkable product
+            productName: "ModuleAMacros_testable",
+            bundleId: "io.tuist.moduleamacros.testable",
             sources: [
                 "Modules/ModuleA/Macros/Sources/**",
             ],

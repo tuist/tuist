@@ -1,11 +1,11 @@
-import ModuleA
 import SwiftSyntaxMacros
 import SwiftSyntaxMacrosTestSupport
 import XCTest
+import ModuleAMacros_testable
 
-final class APIv3ModelMacroTests: XCTestCase {
+final class StringifyMacroTests: XCTestCase {
     let testMacros: [String: Macro.Type] = [
-        "Stringify": StringifyMacro.self,
+        "stringify": StringifyMacro.self,
     ]
 
     func testStringifyStruct() throws {
@@ -14,7 +14,7 @@ final class APIv3ModelMacroTests: XCTestCase {
             #stringify(1+1)
             """,
             expandedSource: """
-            (1+1, "1+1")
+            (1 + 1, "1+1")
             """,
             macros: testMacros
         )

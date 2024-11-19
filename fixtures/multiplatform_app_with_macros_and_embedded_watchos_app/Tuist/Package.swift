@@ -7,6 +7,7 @@ import PackageDescription
     let packageSettings = PackageSettings(
         baseSettings: .settings(
             base: [
+                "OTHER_LDFLAGS": "-framework XCTest",
                 "ENABLE_USER_SCRIPT_SANDBOXING": true,
             ]
         )
