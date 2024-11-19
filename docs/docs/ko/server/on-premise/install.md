@@ -20,71 +20,71 @@ CLI의 주요 구성 요소는 On-premise 사용자와의 조정이 필요한 Tu
 > [!NOTE] 릴리즈 노트\
 > 이미지가 게시되는 레지스트리와 연결된 `tuist/registry` 리포지토리에 연결 권한이 부여됩니다. 모든 릴리즈는 해당 리포지토리의 GitHub 릴리즈에 게시되고 변경 사항은 릴리즈 노트에 포함됩니다.
 
-## Runtime requirements {#runtime-requirements}
+## 실행 환경 요구 사항 {#runtime-requirements}
 
-This section outlines the requirements for hosting the Tuist server on your infrastructure.
+이 섹션은 Tuist 서버를 인프라에 호스팅하기 위한 요구 사항을 설명합니다.
 
-### Running Docker-virtualized images {#running-dockervirtualized-images}
+### Docker 가상화 이미지 실행 {#running-dockervirtualized-images}
 
-We distribute the server as a [Docker](https://www.docker.com/) image via [GitHub’s Container Registry](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry).
+우리는 서버를 [GitHub의 Container Registry](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry)를 통해 [Docker](https://www.docker.com/)로 배포합니다.
 
-To run it, your infrastructure must support running Docker images. Note that most infrastructure providers support it because it’s become the standard container for distributing and running software in production environments.
+실행하기 위해 인프라에서는 Docker 이미지 실행을 지원해야 합니다. 대부분의 인프라는 이것을 지원하는데 이는 운영 환경에서 소프트웨어를 배포하고 실행하는 표준 컨테이너로 자리 잡았기 때문입니다.
 
-### Postgres database {#postgres-database}
+### Postgres 데이터베이스 {#postgres-database}
 
-In addition to running the Docker images, you’ll need a [Postgres database](https://www.postgresql.org/) to store relational data. Most infrastructure providers include Posgres databases in their offering (e.g., [AWS](https://aws.amazon.com/rds/postgresql/) & [Google Cloud](https://cloud.google.com/sql/docs/postgres)).
+Docker 이미지를 실행하는 것 외에도, 관계형 데이터를 저장하기 위한 [Postgres 데이터베이스](https://www.postgresql.org/)도 필요합니다. 대부분의 인프라는 Postgres 데이터베이스를 포함하여 제공하고 있습니다 (예: [AWS](https://aws.amazon.com/rds/postgresql/) & [Google Cloud](https://cloud.google.com/sql/docs/postgres)).
 
-For performant analytics, we use a [Timescale Postgres extension](https://www.timescale.com/). You need to make sure that TimescaleDB is installed on the machine running the Postgres database. Follow the installation instructions [here](https://docs.timescale.com/self-hosted/latest/install/) to learn more. If you are unable to install the Timescale extension, you can set up your own dashboard using the Prometheus metrics.
+뛰어난 성능 측정을 위해 우리는 [Timescale Postgres 확장](https://www.timescale.com/)을 사용합니다. Postgres 데이터베이스가 실행되는 머신에 TimescaleDB가 설치되어 있는지 확인해야 합니다. 자세한 설치 방법은 [여기](https://docs.timescale.com/self-hosted/latest/install/)에서 확인할 수 있습니다. Timescale 확장을 설치할 수 없는 경우, Prometheus 메트릭을 사용하여 자체 대시보드를 설정할 수 있습니다.
 
-> [!INFO] MIGRATIONS
-> The Docker image's entrypoint automatically runs any pending schema migrations before starting the service.
+> [!INFO] 마이그레이션\
+> Docker 이미지의 엔트리포인트는 컨테이너가 실행되기 전에 자동으로 대기 중인 스킴 마이그레이션을 실행합니다.
 
-### Storage {#storage}
+### 저장소 {#storage}
 
-You’ll also need a solution to store files (e.g. framework and library binaries). Currently we support any storage that's S3-compliant.
+파일 (예: 프레임워크 및 라이브러리 바이너리) 을 저장하기 위한 솔루션도 필요합니다. 현재 S3 호환 저장소를 모두 지원합니다.
 
 ## 구성 {#configuration}
 
-The configuration of the service is done at runtime through environment variables. Given the sensitive nature of these variables, we advise encrypting and storing them in secure password management solutions. Rest assured, Tuist handles these variables with utmost care, ensuring they are never displayed in logs.
+서비스의 구성은 실행 시 환경 변수를 통해 이루어집니다. 환경 변수는 민감한 정보이므로, 이를 암호화하여 안전한 비밀번호 관리 솔루션에 저장하길 권장합니다. Tuist는 이러한 변수를 최대한 신중하게 처리하고 로그에 절대로 표시되지 않도록 보장하므로 안심할 수 있습니다.
 
-> [!NOTE] LAUNCH CHECKS
-> The necessary variables are verified at startup. If any are missing, the launch will fail and the error message will detail the absent variables.
+> [!NOTE] 시작 검증\
+> 필요한 변수는 시작할 때 검증됩니다. 필요한 변수가 누락되면 실행이 실패하고 오류 메세지에 누락된 변수가 상세히 표시됩니다.
 
-### License configuration {#license-configuration}
+### 라이센스 구성 {#license-configuration}
 
-As an on-premise user, you'll receive a license key that you'll need to expose as an environment variable. This key is used to validate the license and ensure that the service is running within the terms of the agreement.
+On-premise 사용자는 환경 변수로 설정해야 하는 라이센스 키를 받습니다. 이 키는 라이센스를 검증하고 서비스가 계약 조건 내에서 실행되고 있음을 보장합니다.
 
-| Environment variable | Description                                                    | Required | Default | Example  |
-| -------------------- | -------------------------------------------------------------- | -------- | ------- | -------- |
-| `TUIST_LICENSE`      | The license provided after signing the service level agreement | Yes      |         | `******` |
+| 환경 변수           | 설명                                                   | 필수 여부 | 기본값 | 예시       |
+| --------------- | ---------------------------------------------------- | ----- | --- | -------- |
+| `TUIST_LICENSE` | 서비스 수준 계약 (SLA) 을 체결한 후 제공되는 라이센스 | Yes   |     | `******` |
 
 > [!IMPORTANT] EXPIRATION DATE
 > Licenses have an expiration date. Users will receive a warning while using Tuist commands that interact with the server if the license expires in less than 30 days. If you are interested in renewing your license, please reach out to [contact@tuist.io](mailto:contact@tuist.io).
 
 ### Base environment configuration {#base-environment-configuration}
 
-| Environment variable           | Description                                                                                                          | Required | Default                  | Example                                                                  |                                                                                                                                    |
-| ------------------------------ | -------------------------------------------------------------------------------------------------------------------- | -------- | ------------------------ | ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `TUIST_APP_URL`                | The base URL to access the instance from the Internet                                                                | Yes      |                          | https://cloud.tuist.io   |                                                                                                                                    |
-| `TUIST_SECRET_KEY_BASE`        | The key to use to encrypt information (e.g. sessions in a cookie) | Yes      |                          |                                                                          | `c5786d9f869239cbddeca645575349a570ffebb332b64400c37256e1c9cb7ec831345d03dc0188edd129d09580d8cbf3ceaf17768e2048c037d9c31da5dcacfa` |
-| `AWS_ACCESS_KEY_ID`            | Pepper to generate hashed passwords                                                                                  | No       | `$TUIST_SECRET_KEY_BASE` |                                                                          |                                                                                                                                    |
-| `AWS_SECRET_ACCESS_KEY`        | Secret key to generate random tokens                                                                                 | No       | `$TUIST_SECRET_KEY_BASE` |                                                                          |                                                                                                                                    |
-| `TUIST_USE_IPV6`               | When `1` it configures the app to use IPv6 addresses                                                                 | No       | `0`                      | `1`                                                                      |                                                                                                                                    |
-| `AWS_REGION`                   | The log level to use for the app                                                                                     | No       | `info`                   | [Log levels](https://hexdocs.pm/logger/1.12.3/Logger.html#module-levels) |                                                                                                                                    |
-| `TUIST_GITHUB_APP_PRIVATE_KEY` | The private key used for the GitHub app to unlock extra functionality such as posting automatic PR comments          | No       | `-----BEGIN RSA...`      |                                                                          |                                                                                                                                    |
-| `AWS_ENDPOINT`                 | A comma-separated list of user handles that have access to the operations URLs                                       | No       |                          | `user1,user2`                                                            |                                                                                                                                    |
+| 환경 변수                          | Description                                                                                                          | 필수 여부 | 기본값                      | 예시                                                                       |                                                                                                                                    |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------------- | ----- | ------------------------ | ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `TUIST_APP_URL`                | The base URL to access the instance from the Internet                                                                | Yes   |                          | https://cloud.tuist.io   |                                                                                                                                    |
+| `TUIST_SECRET_KEY_BASE`        | The key to use to encrypt information (e.g. sessions in a cookie) | Yes   |                          |                                                                          | `c5786d9f869239cbddeca645575349a570ffebb332b64400c37256e1c9cb7ec831345d03dc0188edd129d09580d8cbf3ceaf17768e2048c037d9c31da5dcacfa` |
+| `AWS_ACCESS_KEY_ID`            | Pepper to generate hashed passwords                                                                                  | No    | `$TUIST_SECRET_KEY_BASE` |                                                                          |                                                                                                                                    |
+| `AWS_SECRET_ACCESS_KEY`        | Secret key to generate random tokens                                                                                 | No    | `$TUIST_SECRET_KEY_BASE` |                                                                          |                                                                                                                                    |
+| `TUIST_USE_IPV6`               | When `1` it configures the app to use IPv6 addresses                                                                 | No    | `0`                      | `1`                                                                      |                                                                                                                                    |
+| `AWS_REGION`                   | The log level to use for the app                                                                                     | No    | `info`                   | [Log levels](https://hexdocs.pm/logger/1.12.3/Logger.html#module-levels) |                                                                                                                                    |
+| `TUIST_GITHUB_APP_PRIVATE_KEY` | The private key used for the GitHub app to unlock extra functionality such as posting automatic PR comments          | No    | `-----BEGIN RSA...`      |                                                                          |                                                                                                                                    |
+| `AWS_ENDPOINT`                 | A comma-separated list of user handles that have access to the operations URLs                                       | No    |                          | `user1,user2`                                                            |                                                                                                                                    |
 
 ### Database configuration {#database-configuration}
 
 The following environment variables are used to configure the database connection:
 
-| Environment variable            | Description                                                                                                                                                                                                                                                            | Required | Default | Example                                                                |
-| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ------- | ---------------------------------------------------------------------- |
-| `DATABASE_URL`                  | The URL to access the Postgres database. Note that the URL should contain the authentication information                                                                                                                                               | Yes      |         | `postgres://username:password@cloud.us-east-2.aws.test.com/production` |
-| `TUIST_USE_SSL_FOR_DATABASE`    | When true, it uses [SSL](https://en.wikipedia.org/wiki/Transport_Layer_Security) to connect to the database                                                                                                                                                            | No       | `1`     | `1`                                                                    |
-| `TUIST_DATABASE_POOL_SIZE`      | The number of connections to keep open in the connection pool                                                                                                                                                                                                          | No       | `10`    | `10`                                                                   |
-| `TUIST_DATABASE_QUEUE_TARGET`   | The interval (in miliseconds) for checking if all the connections checked out from the pool took more than the queue interval [(More information)](https://hexdocs.pm/db_connection/DBConnection.html#start_link/2-queue-config) | No       | `300`   | `300`                                                                  |
-| `TUIST_DATABASE_QUEUE_INTERVAL` | The threshold time (in miliseconds) in the queue that the pool uses to determine if it should start dropping new connections [(More information)](https://hexdocs.pm/db_connection/DBConnection.html#start_link/2-queue-config)  | No       | `1000`  | `1000`                                                                 |
+| 환경 변수                           | Description                                                                                                                                                                                                                                                            | 필수 여부 | 기본값    | 예시                                                                     |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- | ------ | ---------------------------------------------------------------------- |
+| `DATABASE_URL`                  | The URL to access the Postgres database. Note that the URL should contain the authentication information                                                                                                                                               | Yes   |        | `postgres://username:password@cloud.us-east-2.aws.test.com/production` |
+| `TUIST_USE_SSL_FOR_DATABASE`    | When true, it uses [SSL](https://en.wikipedia.org/wiki/Transport_Layer_Security) to connect to the database                                                                                                                                                            | No    | `1`    | `1`                                                                    |
+| `TUIST_DATABASE_POOL_SIZE`      | The number of connections to keep open in the connection pool                                                                                                                                                                                                          | No    | `10`   | `10`                                                                   |
+| `TUIST_DATABASE_QUEUE_TARGET`   | The interval (in miliseconds) for checking if all the connections checked out from the pool took more than the queue interval [(More information)](https://hexdocs.pm/db_connection/DBConnection.html#start_link/2-queue-config) | No    | `300`  | `300`                                                                  |
+| `TUIST_DATABASE_QUEUE_INTERVAL` | The threshold time (in miliseconds) in the queue that the pool uses to determine if it should start dropping new connections [(More information)](https://hexdocs.pm/db_connection/DBConnection.html#start_link/2-queue-config)  | No    | `1000` | `1000`                                                                 |
 
 ### Authentication environment configuration {#authentication-environment-configuration}
 
@@ -102,10 +102,10 @@ We recommend authenticating using a [GitHub App](https://docs.github.com/en/apps
 
 You'll then need to expose the following environment variables in the environment where the Tuist server runs:
 
-| Environment variable             | Description                             | Required | Default | Example                                    |
-| -------------------------------- | --------------------------------------- | -------- | ------- | ------------------------------------------ |
-| `TUIST_GITHUB_APP_CLIENT_ID`     | The client ID of the GitHub application | Yes      |         | `Iv1.a629723000043722`                     |
-| `TUIST_GITHUB_APP_CLIENT_SECRET` | The client secret of the application    | Yes      |         | `232f972951033b89799b0fd24566a04d83f44ccc` |
+| 환경 변수                            | Description                             | 필수 여부 | 기본값 | 예시                                         |
+| -------------------------------- | --------------------------------------- | ----- | --- | ------------------------------------------ |
+| `TUIST_GITHUB_APP_CLIENT_ID`     | The client ID of the GitHub application | Yes   |     | `Iv1.a629723000043722`                     |
+| `TUIST_GITHUB_APP_CLIENT_SECRET` | The client secret of the application    | Yes   |     | `232f972951033b89799b0fd24566a04d83f44ccc` |
 
 #### Google {#google}
 
@@ -125,11 +125,11 @@ You can enable authentication with Okta through the [OAuth 2.0](https://oauth.ne
 
 Once the app is created you'll need to set the following environment variables:
 
-| Environment variable       | Description                                    | Required | Default | Example                     |
-| -------------------------- | ---------------------------------------------- | -------- | ------- | --------------------------- |
-| `TUIST_OKTA_SITE`          | The URL of your Okta organization              | Yes      |         | `https://your-org.okta.com` |
-| `TUIST_OKTA_CLIENT_ID`     | The client ID to authenticate against Okta     | Yes      |         |                             |
-| `TUIST_OKTA_CLIENT_SECRET` | The client secret to authenticate against Okta | Yes      |         |                             |
+| 환경 변수                      | Description                                    | 필수 여부 | 기본값 | 예시                          |
+| -------------------------- | ---------------------------------------------- | ----- | --- | --------------------------- |
+| `TUIST_OKTA_SITE`          | The URL of your Okta organization              | Yes   |     | `https://your-org.okta.com` |
+| `TUIST_OKTA_CLIENT_ID`     | The client ID to authenticate against Okta     | Yes   |     |                             |
+| `TUIST_OKTA_CLIENT_SECRET` | The client secret to authenticate against Okta | Yes   |     |                             |
 
 ### Storage environment configuration {#storage-environment-configuration}
 
@@ -139,17 +139,17 @@ Tuist needs storage to house artifacts uploaded through the API. It's **essentia
 
 You can use any S3-compliant storage provider to store artifacts. The following environment variables are required to authenticate and configure the integration with the storage provider:
 
-| Environment variable                                 | Description                                                                                         | Required | Default | Example                                    |
-| ---------------------------------------------------- | --------------------------------------------------------------------------------------------------- | -------- | ------- | ------------------------------------------ |
-| `TUIST_ACCESS_KEY_ID` or `AWS_ACCESS_KEY_ID`         | The access key ID to authenticate against the storage provider                                      | Yes      |         | `AKIAIOSFOD`                               |
-| `TUIST_SECRET_ACCESS_KEY` or `AWS_SECRET_ACCESS_KEY` | The secret access key to authenticate against the storage provider                                  | Yes      |         | `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY` |
-| `TUIST_S3_REGION` or `AWS_REGION`                    | The region where the bucket is located                                                              | Yes      |         | `us-west-2`                                |
-| `TUIST_S3_ENDPOINT` or `AWS_ENDPOINT`                | The endpoint of the storage provider                                                                | Yes      |         | `https://s3.us-west-2.amazonaws.com`       |
-| `TUIST_S3_BUCKET_NAME`                               | The name of the bucket where the artifacts will be stored                                           | Yes      |         | `tuist-artifacts`                          |
-| `TUIST_S3_REQUEST_TIMEOUT`                           | The timeout (in seconds) for requests to the storage provider                    | No       | `30`    | `30`                                       |
-| `TUIST_S3_POOL_TIMEOUT`                              | The timeout (in seconds) for the connection pool to the storage provider         | No       | `5`     | `5`                                        |
-| `TUIST_S3_POOL_COUNT`                                | The number of pools to use for connections to the storage provider                                  | No       | `1`     | `1`                                        |
-| `TUIST_S3_PROTOCOL`                                  | The protocol to use when connecting to the storage provider (`http1` or `http2`) | No       | `http2` | `http2`                                    |
+| 환경 변수                                                | Description                                                                                         | 필수 여부 | 기본값     | 예시                                         |
+| ---------------------------------------------------- | --------------------------------------------------------------------------------------------------- | ----- | ------- | ------------------------------------------ |
+| `TUIST_ACCESS_KEY_ID` or `AWS_ACCESS_KEY_ID`         | The access key ID to authenticate against the storage provider                                      | Yes   |         | `AKIAIOSFOD`                               |
+| `TUIST_SECRET_ACCESS_KEY` or `AWS_SECRET_ACCESS_KEY` | The secret access key to authenticate against the storage provider                                  | Yes   |         | `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY` |
+| `TUIST_S3_REGION` or `AWS_REGION`                    | The region where the bucket is located                                                              | Yes   |         | `us-west-2`                                |
+| `TUIST_S3_ENDPOINT` or `AWS_ENDPOINT`                | The endpoint of the storage provider                                                                | Yes   |         | `https://s3.us-west-2.amazonaws.com`       |
+| `TUIST_S3_BUCKET_NAME`                               | The name of the bucket where the artifacts will be stored                                           | Yes   |         | `tuist-artifacts`                          |
+| `TUIST_S3_REQUEST_TIMEOUT`                           | The timeout (in seconds) for requests to the storage provider                    | No    | `30`    | `30`                                       |
+| `TUIST_S3_POOL_TIMEOUT`                              | The timeout (in seconds) for the connection pool to the storage provider         | No    | `5`     | `5`                                        |
+| `TUIST_S3_POOL_COUNT`                                | The number of pools to use for connections to the storage provider                                  | No    | `1`     | `1`                                        |
+| `TUIST_S3_PROTOCOL`                                  | The protocol to use when connecting to the storage provider (`http1` or `http2`) | No    | `http2` | `http2`                                    |
 
 > [!NOTE] AWS authentication with Web Identity Token from environment variables
 > If your storage provider is AWS and you'd like to authenticate using a web identity token, you can set the environment variable `TUIST_S3_AUTHENTICATION_METHOD` to `aws_web_identity_token_from_env_vars`, and Tuist will use that method using the conventional AWS environment variables.
@@ -168,9 +168,9 @@ You will need to [create a GitHub app](https://docs.github.com/en/apps/creating-
 
 On top of the `TUIST_GITHUB_APP_CLIENT_ID` and `TUIST_GITHUB_APP_CLIENT_SECRET`, you will need the following environment variables:
 
-| Environment variable           | Description                               | Required | Default | Example                              |
-| ------------------------------ | ----------------------------------------- | -------- | ------- | ------------------------------------ |
-| `TUIST_GITHUB_APP_PRIVATE_KEY` | The private key of the GitHub application | Yes      |         | `-----BEGIN RSA PRIVATE KEY-----...` |
+| 환경 변수                          | Description                               | 필수 여부 | 기본값 | 예시                                   |
+| ------------------------------ | ----------------------------------------- | ----- | --- | ------------------------------------ |
+| `TUIST_GITHUB_APP_PRIVATE_KEY` | The private key of the GitHub application | Yes   |     | `-----BEGIN RSA PRIVATE KEY-----...` |
 
 ## Deployment {#deployment}
 
