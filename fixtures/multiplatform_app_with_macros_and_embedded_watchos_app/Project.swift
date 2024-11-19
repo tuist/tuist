@@ -71,7 +71,7 @@ let project = Project(
             dependencies: [
                 .target(name: "ModuleA"),
                 .target(name: "ModuleAMacros_Testable"),
-                .external(name: "SwiftSyntaxMacrosTestSupport")
+                .external(name: "SwiftSyntaxMacrosTestSupport"),
             ]
         ),
         .target(
