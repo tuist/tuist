@@ -70,82 +70,22 @@ defmodule TuistWeb.PreviewControllerTest do
     end
   end
 
-  describe "preview/2" do
-    test "renders a download button", %{conn: conn, user: user} do
+  describe "download_preview/2" do
+    test "redirects to presigned preview download url", %{conn: conn} do
       # Given
       preview =
-        Previews.create_preview(%{
-          project: ProjectsFixtures.project_fixture(account_id: user.account.id),
-          type: :app_bundle,
-          display_name: "App",
-          version: "1.0.0",
-          bundle_identifier: "com.tuist.app"
-        })
+        PreviewsFixtures.preview_fixture()
+
+      Storage
+      |> stub(:generate_download_url, fn _, _ -> "https://download-url.com" end)
 
       # When
       conn =
         conn
-        |> get(~p"/tuist/ios_app_with_frameworks/previews/#{preview.id}")
+        |> get(~p"/tuist/ios_app_with_frameworks/previews/#{preview.id}/download")
 
       # Then
-      response = html_response(conn, 200)
-
-      assert response =~
-               "Don't have the Tuist app installed? <a style=\"display: inline;\" href=\"/download\">Click here to download it.</a>"
-
-      refute response =~
-               "mobile_preview"
-    end
-
-    test "renders mobile preview when the preview is an archive", %{conn: conn} do
-      # Given
-      preview =
-        Previews.create_preview(%{
-          project: ProjectsFixtures.project_fixture(),
-          type: :ipa,
-          display_name: "App",
-          version: "1.0.0",
-          bundle_identifier: "com.tuist.app"
-        })
-
-      # When
-      conn =
-        conn
-        |> get(~p"/tuist/ios_app_with_frameworks/previews/#{preview.id}")
-
-      # Then
-      response = html_response(conn, 200)
-
-      assert response =~
-               "mobile_preview"
-    end
-
-    test "raises not found error when the preview does not exist", %{conn: conn} do
-      # When / Then
-      assert_raise TuistWeb.Errors.NotFoundError, fn ->
-        conn
-        |> get(~p"/tuist/ios_app_with_frameworks/previews/01911326-4444-771b-8dfa-7d1fc5082eb9")
-      end
-    end
-
-    test "raises not found error when the preview is not accessible by the current user", %{
-      conn: conn
-    } do
-      # Given
-      preview =
-        Previews.create_preview(%{
-          project: ProjectsFixtures.project_fixture(),
-          type: :app_bundle,
-          display_name: "App",
-          version: "1.0.0",
-          bundle_identifier: "com.tuist.app"
-        })
-
-      # When / Then
-      assert_raise TuistWeb.Errors.NotFoundError, fn ->
-        conn
-        |> get(~p"/tuist/ios_app_with_frameworks/previews/#{preview.id}")
-      end
+      assert redirected_to(conn) == "https://download-url.com"
     end
   end
 

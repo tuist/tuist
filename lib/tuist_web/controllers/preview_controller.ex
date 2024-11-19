@@ -140,34 +140,26 @@ defmodule TuistWeb.PreviewController do
     |> send_resp(200, plist_content)
   end
 
-  def preview(
-        %{assigns: %{current_preview: preview}} = conn,
+  def download_preview(
         %{
-          "account_handle" => account_handle,
-          "project_handle" => project_handle,
-          "id" => preview_id
-        } = _params
+          assigns: %{current_preview: preview}
+        } = conn,
+        %{"account_handle" => account_handle, "project_handle" => project_handle} = _params
       ) do
-    conn =
-      conn
-      |> assign(
-        :head_title,
-        gettext("Redirecting...")
-      )
-      |> assign(
-        :preview,
-        preview
-      )
-      |> assign(
-        :preview_download_url,
-        "itms-services://?action=download-manifest&url=#{url(~p"/#{account_handle}/#{project_handle}/previews/#{preview_id}/manifest.plist")}"
-      )
-      |> assign(
-        :deeplink_url,
-        "tuist:open-preview?server_url=#{TuistWeb.Endpoint.url()}&preview_id=#{preview_id}&full_handle=#{account_handle}/#{project_handle}"
+    expires_in = 3600
+
+    url =
+      Storage.generate_download_url(
+        Previews.get_storage_key(%{
+          account_handle: account_handle,
+          project_handle: project_handle,
+          preview_id: preview.id
+        }),
+        expires_in: expires_in
       )
 
-    render(conn, :preview, layout: false)
+    conn
+    |> redirect(external: url)
   end
 
   defp assign_current_preview(%{params: %{"id" => preview_id}} = conn, _opts) do

@@ -237,6 +237,91 @@
   --line-height-text-small: 1.25rem;
   --line-height-text-extraSmall: 1.125rem;
 
+  /* Fonts */
+  --font-inter: "Inter", sans-serif;
+
+  --display-extra-large-regular: normal var(--font-weight-regular) 3.75rem/4.5rem
+    var(--font-inter);
+  --display-extra-large-medium: normal var(--font-weight-medium) 3.75rem/4.5rem
+    var(--font-inter);
+  --display-extra-large-semibold: normal var(--font-weight-semibold) 3.75rem/4.5rem
+    var(--font-inter);
+  --display-extra-large-bold: normal var(--font-weight-bold) 3.75rem/4.5rem
+    var(--font-inter);
+  --display-large-regular: normal var(--font-weight-regular) 3rem/3.75rem
+    var(--font-inter);
+  --display-large-medium: normal var(--font-weight-medium) 3rem/3.75rem
+    var(--font-inter);
+  --display-large-semibold: normal var(--font-weight-semibold) 3rem/3.75rem
+    var(--font-inter);
+  --display-large-bold: normal var(--font-weight-bold) 3rem/3.75rem
+    var(--font-inter);
+  --display-medium-regular: normal var(--font-weight-regular) 2.25rem/2.75rem
+    var(--font-inter);
+  --display-medium-medium: normal var(--font-weight-medium) 2.25rem/2.75rem
+    var(--font-inter);
+  --display-medium-semibold: normal var(--font-weight-semibold) 2.25rem/2.75rem
+    var(--font-inter);
+  --display-medium-bold: normal var(--font-weight-bold) 2.25rem/2.75rem
+    var(--font-inter);
+  --display-small-regular: normal var(--font-weight-regular) 1.875rem/2.375rem
+    var(--font-inter);
+  --display-small-medium: normal var(--font-weight-medium) 1.875rem/2.375rem
+    var(--font-inter);
+  --display-small-semibold: normal var(--font-weight-semibold) 1.875rem/2.375rem
+    var(--font-inter);
+  --display-small-bold: normal var(--font-weight-bold) 1.875rem/2.375rem
+    var(--font-inter);
+  --display-extra-small-regular: normal var(--font-weight-regular) 1.5rem/2rem
+    var(--font-inter);
+  --display-extra-small-medium: normal var(--font-weight-medium) 1.5rem/2rem
+    var(--font-inter);
+  --display-extra-small-semibold: normal var(--font-weight-semibold) 1.5rem/2rem
+    var(--font-inter);
+  --display-extra-small-bold: normal var(--font-weight-bold) 1.5rem/2rem
+    var(--font-inter);
+
+  --text-extra-large-regular: normal var(--font-weight-regular) 1.25rem/1.875rem
+    var(--font-inter);
+  --text-extra-large-medium: normal var(--font-weight-medium) 1.25rem/1.875rem
+    var(--font-inter);
+  --text-extra-large-semibold: normal var(--font-weight-semibold) 1.25rem/1.875rem
+    var(--font-inter);
+  --text-extra-large-bold: normal var(--font-weight-bold) 1.25rem/1.875rem
+    var(--font-inter);
+  --text-large-regular: normal var(--font-weight-regular) 1.125rem/1.75rem
+    var(--font-inter);
+  --text-large-medium: normal var(--font-weight-medium) 1.125rem/1.75rem
+    var(--font-inter);
+  --text-large-semibold: normal var(--font-weight-semibold) 1.125rem/1.75rem
+    var(--font-inter);
+  --text-large-bold: normal var(--font-weight-bold) 1.125rem/1.75rem
+    var(--font-inter);
+  --text-medium-regular: normal var(--font-weight-regular) 1rem/1.5rem
+    var(--font-inter);
+  --text-medium-medium: normal var(--font-weight-medium) 1rem/1.5rem
+    var(--font-inter);
+  --text-medium-semibold: normal var(--font-weight-semibold) 1rem/1.5rem
+    var(--font-inter);
+  --text-medium-bold: normal var(--font-weight-bold) 1rem/1.5rem
+    var(--font-inter);
+  --text-small-regular: normal var(--font-weight-regular) 0.875rem/1.25rem
+    var(--font-inter);
+  --text-small-medium: normal var(--font-weight-medium) 0.875rem/1.25rem
+    var(--font-inter);
+  --text-small-semibold: normal var(--font-weight-semibold) 0.875rem/1.25rem
+    var(--font-inter);
+  --text-small-bold: normal var(--font-weight-bold) 0.875rem/1.25rem
+    var(--font-inter);
+  --text-extra-small-regular: normal var(--font-weight-regular) 0.75rem/1.125rem
+    var(--font-inter);
+  --text-extra-small-medium: normal var(--font-weight-medium) 0.75rem/1.125rem
+    var(--font-inter);
+  --text-extra-small-semibold: normal var(--font-weight-semibold) 0.75rem/1.125rem
+    var(--font-inter);
+  --text-extra-small-bold: normal var(--font-weight-bold) 0.75rem/1.125rem
+    var(--font-inter);
+
   /* Font size */
   --font-size-text-extraExtraLarge: 1.875rem;
   --font-size-text-extraLarge: 1.25rem;

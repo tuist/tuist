@@ -15,6 +15,7 @@ defmodule Tuist.Previews.Preview do
   @primary_key {:id, UUIDv7, autogenerate: true}
   schema "previews" do
     belongs_to :project, Project
+    has_one :command_event, Tuist.CommandEvents.Event
     field :type, Ecto.Enum, values: [app_bundle: 0, ipa: 1]
     field :display_name, :string
     field :bundle_identifier, :string

@@ -35,6 +35,7 @@ Mimic.copy(Tuist.Storage)
 Mimic.copy(Tuist.Time)
 Mimic.copy(Tuist.VCS)
 Mimic.copy(QRCode)
+Mimic.copy(UAParser)
 
 ExUnit.start(exclude: [:skip])
 Ecto.Adapters.SQL.Sandbox.mode(Tuist.Repo, :manual)

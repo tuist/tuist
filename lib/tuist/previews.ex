@@ -28,8 +28,11 @@ defmodule Tuist.Previews do
     |> Repo.insert!()
   end
 
-  def get_preview_by_id(id) do
+  def get_preview_by_id(id, opts \\ []) do
+    preload = Keyword.get(opts, :preload, [])
+
     Repo.get_by(Preview, id: id)
+    |> Repo.preload(preload)
   end
 
   def get_storage_key(%{

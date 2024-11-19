@@ -1,4 +1,6 @@
 defmodule Tuist.PreviewsTest do
+  alias Tuist.PreviewsFixtures
+  alias Tuist.CommandEventsFixtures
   alias Tuist.Previews.Preview
   alias Tuist.Previews
   alias Tuist.ProjectsFixtures
@@ -59,6 +61,26 @@ defmodule Tuist.PreviewsTest do
 
       # Then
       assert result == preview
+    end
+
+    test "returns a preview by id with preloaded command event" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      preview = PreviewsFixtures.preview_fixture(project: project)
+
+      command_event =
+        CommandEventsFixtures.command_event_fixture(
+          name: "share",
+          project_id: project.id,
+          preview_id: preview.id
+        )
+
+      # When
+      result = Previews.get_preview_by_id(preview.id, preload: [:command_event])
+
+      # Then
+      assert result.command_event.id == command_event.id
     end
   end
 

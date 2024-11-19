@@ -1,0 +1,88 @@
+<div class="page preview">
+  <div class="preview__header">
+    <img
+      src={~p"/#{@account_handle}/#{@project_handle}/previews/#{@preview.id}/icon.png"}
+      onerror={"this.src='#{~p"/images/app-icon-placeholder.svg"}';"}
+      alt={gettext("Preview icon")}
+      class="preview__header__icon"
+    />
+    <div class="preview__header__metadata">
+      <p class="preview__header__metadata__title"><%= @preview.display_name %></p>
+      <p class="preview__header__metadata__subtitle">
+        <%= gettext(" Version %{version}", version: @preview.version) %>
+      </p>
+    </div>
+    <div class="preview__header__actions">
+      <.button variant="secondary" size="medium" type="button">
+        <:icon_start>
+          <.download_icon />
+        </:icon_start>
+        <a href={~p"/#{@account_handle}/#{@project_handle}/previews/#{@preview.id}/download"}>
+          <%= gettext("Download") %>
+        </a>
+      </.button>
+      <%= case @user_agent_os_family do %>
+        <% "iOS" -> %>
+          <%= if @preview.type == :ipa do %>
+            <.button variant="secondary" size="medium" type="button">
+              <:icon_start>
+                <.phone_icon />
+              </:icon_start>
+              <a href={@preview_download_device_url}>
+                <%= gettext("Install") %>
+              </a>
+            </.button>
+          <% end %>
+        <% _ -> %>
+          <.button variant="secondary" size="medium" type="button">
+            <:icon_start>
+              <.play_icon />
+            </:icon_start>
+            <a href={"tuist:open-preview?server_url=#{TuistWeb.Endpoint.url()}&preview_id=#{@preview.id}&full_handle=#{@account_handle}/#{@project_handle}"}>
+              <%= gettext("Run") %>
+            </a>
+          </.button>
+      <% end %>
+    </div>
+    <%= if @user_agent_os_family != "iOS" do %>
+      <span class="preview__header__download-text">
+        <%= raw(
+          gettext(
+            "Don't have the Tuist app installed? <a style=\"display: inline;\" href=\"%{app_download_url}\">Click here to download it.</a>",
+            app_download_url: ~p"/download"
+          )
+        ) %>
+      </span>
+    <% end %>
+  </div>
+  <div class="preview__extra-metadata">
+    <.preview_metadata_item
+      title={gettext("Created at")}
+      value={Timex.format!(@preview.inserted_at, "{Mshort} {D}, {YYYY}, {h12}:{m} {AM}")}
+    />
+    <.preview_metadata_item
+      title={gettext("Bundle identifier")}
+      value={@preview.bundle_identifier}
+    />
+    <.preview_metadata_item
+      title={gettext("Branch")}
+      value={@preview.command_event.git_branch || "None"}
+    />
+    <.preview_metadata_item
+      title={gettext("Commit SHA")}
+      value={(@preview.command_event.git_commit_sha || "None") |> String.slice(0, 7)}
+    />
+  </div>
+  <%= if @preview.type == :ipa do %>
+    <div class="preview__qr-code">
+      <img
+        class="preview__qr-code__image"
+        src={~p"/#{@account_handle}/#{@project_handle}/previews/#{@preview.id}/qr-code.svg"}
+        alt={gettext("QR code")}
+      />
+      <p class="preview__qr-code__title">
+        <%= gettext("Scan QR code to install the app on your device") %>
+      </p>
+    </div>
+  <% end %>
+</div>

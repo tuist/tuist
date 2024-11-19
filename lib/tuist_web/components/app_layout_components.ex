@@ -102,6 +102,18 @@ defmodule TuistWeb.AppLayoutComponents do
               <p class="text-md semibold"><%= gettext("Tests") %></p>
             </.link>
           </li>
+
+          <% previews_path = ~p"/#{@selected_account.name}/#{@selected_project.name}/previews" %>
+          <li
+            class="sidebar__navigation-list__item"
+            aria-selected={if previews_path == @current_path, do: "true", else: "false"}
+            aria-current={if previews_path == @current_path, do: "page", else: nil}
+          >
+            <.link patch={previews_path}>
+              <.phone_icon />
+              <p class="text-md semibold"><%= gettext("Previews") %></p>
+            </.link>
+          </li>
         </ul>
         <%= if is_nil(@current_user) do %>
           <.link href={~p"/users/log_in"}>

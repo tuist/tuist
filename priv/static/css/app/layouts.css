@@ -25,6 +25,13 @@
 
 .layout__content {
   flex: 1;
-  padding: var(--spacing-4xl);
   overflow-y: scroll;
+}
+
+.page {
+  padding: var(--spacing-4xl);
+
+  @media (max-width: 1024px) {
+    padding: var(--spacing-4xl) var(--spacing-xl);
+  }
 }

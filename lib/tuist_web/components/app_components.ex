@@ -136,7 +136,7 @@ defmodule TuistWeb.AppComponents do
   """
   attr(:variant, :string, default: "primary")
   attr(:size, :string, default: "medium")
-  attr(:rest, :global, include: ~w(disabled form name value))
+  attr(:rest, :global, include: ~w(disabled form name value id))
   attr(:class, :string, default: "")
   attr(:loading, :boolean, default: false)
 

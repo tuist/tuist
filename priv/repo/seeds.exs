@@ -27,15 +27,6 @@ account =
 
 user = Accounts.get_user_by_email(email)
 
-_tuist_project =
-  case Projects.get_project_by_slug("tuist/tuist") do
-    {:ok, %Project{} = project} ->
-      project
-
-    {:error, _} ->
-      Projects.create_project(%{name: "tuist", account: %{id: account.id}}, token: "tuist")
-  end
-
 _public_project =
   case Projects.get_project_by_slug("tuist/public") do
     {:ok, %Project{} = project} ->
@@ -50,9 +41,13 @@ _public_project =
 
 org_account =
   if Accounts.get_organization_account_by_name("tuist") do
-    Accounts.get_organization_account_by_name("tuist").organization
+    Accounts.get_organization_account_by_name("tuist")
   else
-    Accounts.create_organization(%{name: "tuist", creator: user}, setup_billing: false)
+    organization =
+      Accounts.create_organization(%{name: "tuist", creator: user}, setup_billing: false)
+      |> Tuist.Repo.preload(:account)
+
+    organization.account
   end
 
 tuist_cloud_acceptance_tests_project =
@@ -65,7 +60,7 @@ tuist_cloud_acceptance_tests_project =
 
 _org_project =
   Projects.get_project_by_slug("tuist/tuist") ||
-    Projects.create_project(%{name: "tuist", account: %{id: org_account.id}}, token: "tuist")
+    Projects.create_project(%{name: "tuist", account: %{id: org_account.id}})
 
 for _event <- 1..10000 do
   names = ["build", "test", "cache", "generate"]

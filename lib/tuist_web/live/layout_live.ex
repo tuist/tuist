@@ -12,6 +12,19 @@ defmodule TuistWeb.LayoutLive do
   import TuistWeb.AppLayoutComponents
 
   def on_mount(
+        :optional_project,
+        params,
+        session,
+        socket
+      ) do
+    if TuistWeb.Authentication.authenticated?(socket.assigns) do
+      on_mount(:project, params, session, socket)
+    else
+      {:cont, socket}
+    end
+  end
+
+  def on_mount(
         :project,
         %{"account_handle" => account_handle, "project_handle" => project_handle},
         session,

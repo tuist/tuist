@@ -2,6 +2,9 @@ defmodule Tuist.StubCase do
   @moduledoc ~S"""
   This module shares common setup for stubbing core services like the billing logic.
   """
+  alias TuistWeb.ConnCase
+  alias Tuist.ProjectsFixtures
+  alias Tuist.AccountsFixtures
   use ExUnit.CaseTemplate
 
   using options do
@@ -13,6 +16,31 @@ defmodule Tuist.StubCase do
           Tuist.Billing |> stub(:create_customer, fn _ -> "cust_#{UUIDv7.generate()}" end)
           Tuist.Billing |> stub(:start_trial, fn _ -> :ok end)
           :ok
+        end
+      end
+
+      if unquote(options)[:dashboard_project] do
+        setup %{conn: conn} do
+          user = AccountsFixtures.user_fixture()
+
+          %{account: account} =
+            organization =
+            AccountsFixtures.organization_fixture(
+              name: "tuist-org",
+              creator: user,
+              preload: [:account]
+            )
+
+          selected_project =
+            ProjectsFixtures.project_fixture(name: "tuist", account_id: account.id)
+
+          conn =
+            conn
+            |> assign(:selected_project, selected_project)
+            |> assign(:selected_account, account)
+            |> ConnCase.log_in_user(user)
+
+          %{conn: conn, user: user, project: selected_project, organization: organization}
         end
       end
     end

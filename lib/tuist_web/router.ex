@@ -329,7 +329,15 @@ defmodule TuistWeb.Router do
     get "/app.ipa", PreviewController, :download_archive
     get "/qr-code.svg", PreviewController, :download_qr_code_svg
     get "/qr-code.png", PreviewController, :download_qr_code_png
-    get "/", PreviewController, :preview
+    get "/download", PreviewController, :download_preview
+
+    live_session :preview_detail,
+      on_mount: [
+        {TuistWeb.Authentication, :mount_current_user},
+        {TuistWeb.LayoutLive, :optional_project}
+      ] do
+      live "/", PreviewLive
+    end
   end
 
   scope "/", TuistWeb do
@@ -378,6 +386,7 @@ defmodule TuistWeb.Router do
       live "/runs/:id", ProjectRunDetailLive
       live "/tests", ProjectTestsLive
       live "/tests/cases/:identifier", ProjectTestCaseDetailLive
+      live "/previews", PreviewsLive
       # Used in tuist analytics command
       live "/analytics", ProjectDashboardLive
     end

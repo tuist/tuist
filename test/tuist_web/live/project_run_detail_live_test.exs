@@ -5,8 +5,6 @@ defmodule TuistWeb.ProjectRunDetailLiveTest do
 
   setup :set_mimic_from_context
 
-  use Mimic
-
   import Phoenix.LiveViewTest
   alias Tuist.CommandEventsFixtures
   alias Tuist.Accounts

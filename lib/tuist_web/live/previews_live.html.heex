@@ -1,0 +1,36 @@
+<div class="previews page">
+  <h2 class="previews__title"><%= gettext("Previews") %></h2>
+  <.table
+    id="previews"
+    rows={@command_events}
+    row_link={
+      fn command_event ->
+        ~p"/#{@selected_account.name}/#{@selected_project.name}/previews/#{command_event.preview.id}"
+      end
+    }
+    empty_state_title={gettext("No previews")}
+  >
+    <:col :let={command_event} label={gettext("Name")}>
+      <%= command_event.preview.display_name %>
+    </:col>
+    <:col :let={command_event} label={gettext("Ran by")}>
+      <.command_event_ran_by_badge command_event={command_event} />
+    </:col>
+    <:col :let={command_event} label={gettext("Branch")}>
+      <%= command_event.git_branch || "None" %>
+    </:col>
+    <:col :let={command_event} label={gettext("Commit SHA")}>
+      <%= (command_event.git_commit_sha || "None") |> String.slice(0, 7) %>
+    </:col>
+    <:col :let={command_event} label={gettext("Created at")}>
+      <%= Timex.from_now(command_event.created_at) %>
+    </:col>
+  </.table>
+  <.pagination
+    uri={@uri}
+    has_previous_page={@command_events_meta.has_previous_page?}
+    has_next_page={@command_events_meta.has_next_page?}
+    start_cursor={@command_events_meta.start_cursor}
+    end_cursor={@command_events_meta.end_cursor}
+  />
+</div>
