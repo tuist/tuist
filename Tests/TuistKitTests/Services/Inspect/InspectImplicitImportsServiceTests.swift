@@ -70,7 +70,7 @@ final class LintImplicitImportsServiceTests: TuistUnitTestCase {
         let app = Target.test(name: "App", product: .app)
         let project = Project.test(path: path, targets: [app])
         let testTarget = Target.test(name: "PackageTarget", product: .app)
-        let externalProject = Project.test(path: path, targets: [testTarget], isExternal: true)
+        let externalProject = Project.test(path: path, targets: [testTarget], type: .external(hash: nil))
         let graph = Graph.test(
             path: path,
             projects: [path: project, "/a": externalProject]

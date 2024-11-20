@@ -358,7 +358,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             additionalFiles: [],
             resourceSynthesizers: [],
             lastUpgradeCheck: nil,
-            isExternal: false
+            type: .local
         )
     }
 
@@ -455,7 +455,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             additionalFiles: [],
             resourceSynthesizers: [],
             lastUpgradeCheck: nil,
-            isExternal: false
+            type: .local
         )
     }
 
