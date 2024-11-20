@@ -61,6 +61,7 @@ final class AppPreviewsViewModel: Sendable {
             try await listPreviewsService.listPreviews(
                 displayName: nil,
                 specifier: "latest",
+                supportedPlatforms: [],
                 page: nil,
                 pageSize: nil,
                 distinctField: .bundleIdentifier,
@@ -88,6 +89,7 @@ final class AppPreviewsViewModel: Sendable {
         let previews = try await listPreviewsService.listPreviews(
             displayName: nil,
             specifier: "latest",
+            supportedPlatforms: [deviceService.selectedDevice?.destinationType].compactMap { $0 },
             page: nil,
             pageSize: 1,
             distinctField: nil,

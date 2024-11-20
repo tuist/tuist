@@ -108,6 +108,7 @@ final class PreviewsUploadServiceTests: TuistUnitTestCase {
                 displayName: .value("App"),
                 version: .any,
                 bundleIdentifier: .any,
+                supportedPlatforms: .value([.simulator(.iOS)]),
                 fullHandle: .value("tuist/tuist"),
                 serverURL: .value(serverURL)
             )
@@ -124,6 +125,7 @@ final class PreviewsUploadServiceTests: TuistUnitTestCase {
             version: nil,
             bundleIdentifier: nil,
             icon: nil,
+            supportedPlatforms: [.simulator(.iOS)],
             fullHandle: "tuist/tuist",
             serverURL: serverURL
         )
@@ -154,6 +156,7 @@ final class PreviewsUploadServiceTests: TuistUnitTestCase {
                 displayName: .value("App"),
                 version: .value("1.0.0"),
                 bundleIdentifier: .value("com.my.app"),
+                supportedPlatforms: .value([.device(.iOS)]),
                 fullHandle: .value("tuist/tuist"),
                 serverURL: .value(serverURL)
             )
@@ -177,6 +180,7 @@ final class PreviewsUploadServiceTests: TuistUnitTestCase {
             version: "1.0.0",
             bundleIdentifier: "com.my.app",
             icon: icon,
+            supportedPlatforms: [.device(.iOS)],
             fullHandle: "tuist/tuist",
             serverURL: serverURL
         )
