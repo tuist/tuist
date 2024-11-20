@@ -14,7 +14,7 @@ cd MyApp
 tuist init --name MyApp
 ```
 
-By default it creates a project that represents an **iOS application.** The project directory will contain a `Project.swift`, which describes the project, a `Tuist.swift`, which contains project-scoped Tuist configuration, and a `MyApp/` directory, which contains the source code of the application.
+デフォルトでは、**iOSアプリケーション**のプロジェクトが作成されます。プロジェクトのディレクトリには、プロジェクトの設定を記述する `Project.swift`、プロジェクトスコープのTuistの設定を含む `Tuist/Config.swift`、およびアプリケーションのソースコードを含む `MyApp/` ディレクトリが含まれます。
 
 Xcodeで作業するには、次のコマンドを実行してXcodeプロジェクトを生成できます。
 
@@ -22,7 +22,7 @@ Xcodeで作業するには、次のコマンドを実行してXcodeプロジェ�
 tuist generate
 ```
 
-Xcodeプロジェクトは直接開いて編集できますが、Tuistプロジェクトはマニフェストファイルから生成されます。  そのため、生成されたXcodeプロジェクトを直接編集しないでください。 そのため、生成されたXcodeプロジェクトを直接編集しないでください。 そのため、生成されたXcodeプロジェクトを直接編集しないでください。 そのため、生成されたXcodeプロジェクトを直接編集しないでください。
+Xcodeプロジェクトは直接開いて編集できますが、Tuistプロジェクトはマニフェストファイルから生成されます。  そのため、生成されたXcodeプロジェクトを直接編集しないでください。 そのため、生成されたXcodeプロジェクトを直接編集しないでください。 そのため、生成されたXcodeプロジェクトを直接編集しないでください。 そのため、生成されたXcodeプロジェクトを直接編集しないでください。 そのため、生成されたXcodeプロジェクトを直接編集しないでください。
 
 > [!TIP] コンフリクトのないユーザーフレンドリーな体験
 > Xcodeプロジェクトはコンフリクトが発生しやすく、ユーザーにとって多くの複雑さを伴います。 Tuistはこれらを抽象化し、特にプロジェクトの依存関係グラフの管理において簡素化します。 Tuistはこれらを抽象化し、特にプロジェクトの依存関係グラフの管理において簡素化します。 Tuistはこれらを抽象化し、特にプロジェクトの依存関係グラフの管理において簡素化します。

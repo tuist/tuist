@@ -184,6 +184,8 @@ final class RunService {
             guard let preview = try await listPreviewsService.listPreviews(
                 displayName: displayName,
                 specifier: specifier,
+                // `tuist run` currently supports only simulator builds
+                supportedPlatforms: Platform.allCases.map(DestinationType.simulator),
                 page: 1,
                 pageSize: 1,
                 distinctField: nil,

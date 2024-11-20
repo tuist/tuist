@@ -29,7 +29,7 @@ Projects are identified by a full handle, which is the result of concatenating t
 The binding between the local and the remote project is done through the configuration file. If you don't have any, create it at `Tuist.swift` and add the following content:
 
 ```swift
-let config = Config(fullHandle: "{account-handle}/{project-handle}") // e.g. tuist/tuist
+let tuist = Tuist(fullHandle: "{account-handle}/{project-handle}") // e.g. tuist/tuist
 ```
 
 > [!IMPORTANT] TUIST PROJECT-ONLY FEATURES

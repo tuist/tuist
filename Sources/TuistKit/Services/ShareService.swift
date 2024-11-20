@@ -46,6 +46,7 @@ enum ShareServiceError: Equatable, FatalError {
     }
 }
 
+// swiftlint:disable:next type_body_length
 struct ShareService {
     private let fileHandler: FileHandling
     private let fileSystem: FileSysteming
@@ -262,6 +263,7 @@ struct ShareService {
             version: appBundle.infoPlist.version.description,
             bundleIdentifier: appBundle.infoPlist.bundleId,
             icon: iconPaths(for: appBundle).first,
+            supportedPlatforms: appBundle.infoPlist.supportedPlatforms,
             fullHandle: fullHandle,
             serverURL: serverURL,
             json: json
@@ -292,6 +294,7 @@ struct ShareService {
             icon: appBundles
                 .concurrentFlatMap { try await iconPaths(for: $0) }
                 .first,
+            supportedPlatforms: appBundles.flatMap(\.infoPlist.supportedPlatforms),
             fullHandle: fullHandle,
             serverURL: serverURL,
             json: json
@@ -378,6 +381,7 @@ struct ShareService {
                 icon: appBundles
                     .concurrentFlatMap { try await iconPaths(for: $0) }
                     .first,
+                supportedPlatforms: appBundles.flatMap(\.infoPlist.supportedPlatforms),
                 fullHandle: fullHandle,
                 serverURL: serverURL,
                 json: json
@@ -400,6 +404,7 @@ struct ShareService {
         version: String?,
         bundleIdentifier: String?,
         icon: AbsolutePath?,
+        supportedPlatforms: [DestinationType],
         fullHandle: String,
         serverURL: URL,
         json: Bool
@@ -411,6 +416,7 @@ struct ShareService {
             version: version,
             bundleIdentifier: bundleIdentifier,
             icon: icon,
+            supportedPlatforms: supportedPlatforms,
             fullHandle: fullHandle,
             serverURL: serverURL
         )

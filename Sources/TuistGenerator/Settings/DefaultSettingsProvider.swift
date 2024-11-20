@@ -65,7 +65,6 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
         "TARGETED_DEVICE_FAMILY",
         "EXECUTABLE_PREFIX",
         "COMBINE_HIDPI_IMAGES",
-        "ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES",
         "WRAPPER_EXTENSION",
         "SWIFT_VERSION",
         "TEST_TARGET_NAME",

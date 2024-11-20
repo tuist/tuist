@@ -1,5 +1,5 @@
 ---
-title: {params.command.fullCommand}
+description: "{{ $params.description }}"
 titleTemplate: :title · Интерфейс командной строки (CLI) · Tuist
 ---
 

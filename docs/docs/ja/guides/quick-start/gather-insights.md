@@ -28,12 +28,12 @@ tuist project create my-handle/MyApp
 
 ## プロジェクトを接続する {#connect-projects}
 
-サーバー上にプロジェクトを作成した後、ローカルプロジェクトに接続する必要があります。 Run `tuist edit` and edit the `Tuist.swift` file to include the full handle of the project:
+サーバー上にプロジェクトを作成した後、ローカルプロジェクトに接続する必要があります。 サーバー上にプロジェクトを作成した後、ローカルプロジェクトに接続する必要があります。 Run `tuist edit` and edit the `Tuist.swift` file to include the full handle of the project:
 
 ```swift
 import ProjectDescription
 
-let config = Config(fullHandle: "my-handle/MyApp")
+let tuist = Tuist(fullHandle: "my-handle/MyApp")
 ```
 
 ほら！ これで、プロジェクトやビルドに関するインサイトを収集する準備が整いましたよ。 `tuist test` を実行してテストを実行し、結果をサーバーに報告します。

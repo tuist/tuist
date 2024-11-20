@@ -23,7 +23,7 @@ description: Xcode 프로젝트에서 Tuist 프로젝트로 변환하는 방법�
 ```js [Tuist.swift]
 import ProjectDescription
 
-let config = Config()
+let tuist = Tuist()
 ```
 
 ```js [Project.swift]

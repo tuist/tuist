@@ -22,39 +22,21 @@
 /// ```swift
 /// import ProjectDescription
 ///
-/// let config = Config(
-///     compatibleXcodeVersions: ["14.2"],
-///     swiftVersion: "5.9.0"
-/// )
+/// let tuist = Config(project: .tuist(generationOptions: .options(resolveDependenciesWithSystemScm: false)))
+///
 /// ```
-public struct Config: Codable, Equatable, Sendable {
-    /// Generation options.
-    public let generationOptions: GenerationOptions
+public typealias Config = Tuist
 
-    /// Install options.
-    public let installOptions: InstallOptions
-
-    /// Set the versions of Xcode that the project is compatible with.
-    public let compatibleXcodeVersions: CompatibleXcodeVersions
-
-    /// List of `Plugin`s used to extend Tuist.
-    public let plugins: [PluginLocation]
-
-    /// Cloud configuration.
-    public let cloud: Cloud?
+public struct Tuist: Codable, Equatable, Sendable {
+    /// Configures the project Tuist will interact with.
+    /// When no project is provided, Tuist defaults to the workspace or project in the current directory.
+    public let project: TuistProject
 
     /// The full project handle such as tuist-org/tuist.
     public let fullHandle: String?
 
     /// The base URL that points to the Tuist server.
     public let url: String
-
-    /// The Swift tools versions that will be used by Tuist to fetch external dependencies.
-    /// If `nil` is passed then Tuist will use the environment’s version.
-    /// - Note: This **does not** control the `SWIFT_VERSION` build setting in regular generated projects, for this please use
-    /// `Project.settings`
-    /// or `Target.settings` as needed.
-    public let swiftVersion: Version?
 
     /// Creates a tuist configuration.
     ///
@@ -65,6 +47,11 @@ public struct Config: Codable, Equatable, Sendable {
     ///   - plugins: A list of plugins to extend Tuist.
     ///   - generationOptions: List of options to use when generating the project.
     ///   - installOptions: List of options to use when running `tuist install`.
+    @available(
+        *,
+        deprecated,
+        message: "Use the new .init(project: .tuist(...)) that nests the property-related attributes into project."
+    )
     public init(
         compatibleXcodeVersions: CompatibleXcodeVersions = .all,
         cloud: Cloud? = nil,
@@ -75,14 +62,33 @@ public struct Config: Codable, Equatable, Sendable {
         generationOptions: GenerationOptions = .options(),
         installOptions: InstallOptions = .options()
     ) {
-        self.compatibleXcodeVersions = compatibleXcodeVersions
-        self.plugins = plugins
-        self.generationOptions = generationOptions
-        self.installOptions = installOptions
-        self.cloud = cloud
+        var fullHandle = cloud?.projectId ?? fullHandle
+        var url = cloud?.url ?? url
+        var generationOptions = generationOptions
+        if let cloud {
+            generationOptions.optionalAuthentication = cloud.options.contains(.optional)
+        }
+
+        project = TuistProject.tuist(
+            compatibleXcodeVersions: compatibleXcodeVersions,
+            swiftVersion: swiftVersion,
+            plugins: plugins,
+            generationOptions: generationOptions,
+            installOptions: installOptions
+        )
         self.fullHandle = fullHandle
         self.url = url
-        self.swiftVersion = swiftVersion
+        dumpIfNeeded(self)
+    }
+
+    public init(
+        fullHandle: String? = nil,
+        url: String = "https://tuist.dev",
+        project: TuistProject
+    ) {
+        self.project = project
+        self.fullHandle = fullHandle
+        self.url = url
         dumpIfNeeded(self)
     }
 }
