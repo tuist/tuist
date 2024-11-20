@@ -13,6 +13,9 @@
     <:col :let={command_event} label={gettext("Name")}>
       <%= command_event.preview.display_name %>
     </:col>
+    <:col :let={command_event} label={gettext("Supported platforms")}>
+      <.supported_platforms_badges preview={command_event.preview} />
+    </:col>
     <:col :let={command_event} label={gettext("Ran by")}>
       <.command_event_ran_by_badge command_event={command_event} />
     </:col>

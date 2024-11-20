@@ -21,6 +21,32 @@ defmodule TuistWeb.PreviewLiveTest do
     %{preview: preview}
   end
 
+  test "it shows supported platforms", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    # Given
+    preview =
+      PreviewsFixtures.preview_fixture(project: project, supported_platforms: [:ios, :macos])
+
+    _command_event =
+      CommandEventsFixtures.command_event_fixture(
+        name: "share",
+        project_id: project.id,
+        preview_id: preview.id
+      )
+
+    # When
+    {:ok, lv, _html} =
+      conn
+      |> live(~p"/#{organization.account.name}/#{project.name}/previews/#{preview.id}")
+
+    # Then
+    assert has_element?(lv, "p", "Supported platforms")
+    assert has_element?(lv, "p", "iOS, macOS")
+  end
+
   test "it shows mobile install button when family is iOS and preview_type is :ipa", %{
     conn: conn,
     organization: organization,

@@ -319,6 +319,63 @@ defmodule Tuist.CommandEventsTest do
              ]
     end
 
+    test "returns command events with filtered preview_supported_platforms" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      preview_one =
+        PreviewsFixtures.preview_fixture(
+          project: project,
+          display_name: "App"
+        )
+
+      command_event_one =
+        CommandEventsFixtures.command_event_fixture(
+          name: "share",
+          project_id: project.id,
+          preview_id: preview_one.id,
+          created_at: ~N[2021-01-01 00:00:00],
+          supported_platforms: [:ios, :watchos]
+        )
+
+      preview_two =
+        PreviewsFixtures.preview_fixture(
+          project: project,
+          display_name: "App",
+          supported_platforms: [:macos, :watchos]
+        )
+
+      _command_event_two =
+        CommandEventsFixtures.command_event_fixture(
+          name: "share",
+          project_id: project.id,
+          preview_id: preview_two.id,
+          created_at: ~N[2021-01-01 01:00:00]
+        )
+
+      # When
+      {got_command_events_page, _got_meta_page} =
+        CommandEvents.list_command_events(
+          %{
+            first: 20,
+            filters: [%{field: :project_id, op: :==, value: project.id}],
+            order_by: [:created_at],
+            order_directions: [:desc]
+          },
+          preload: [:preview],
+          preview_supported_platforms: [:ios, :visionos]
+        )
+
+      # Then
+      assert got_command_events_page |> Enum.map(& &1.id) == [
+               command_event_one.id
+             ]
+
+      assert got_command_events_page |> Enum.map(& &1.preview) == [
+               preview_one
+             ]
+    end
+
     test "returns command events with preloaded previews and distinct bundle identifiers" do
       # Given
       project = ProjectsFixtures.project_fixture()

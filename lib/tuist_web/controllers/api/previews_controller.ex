@@ -6,6 +6,7 @@ defmodule TuistWeb.API.PreviewsController do
   alias TuistWeb.API.EnsureProjectPresencePlug
   alias Tuist.Previews
   alias Tuist.Previews.Preview
+  alias Tuist.Projects.Project
   alias TuistWeb.Authentication
 
   alias TuistWeb.API.Schemas.{
@@ -19,6 +20,8 @@ defmodule TuistWeb.API.PreviewsController do
   alias OpenApiSpex.Schema
   use OpenApiSpex.ControllerSpecs
   use TuistWeb, :controller
+
+  plug TuistWeb.Plugs.API.TransformQueryArrayParamsPlug, [:supported_platforms]
 
   plug(OpenApiSpex.Plug.CastAndValidate,
     json_render_error_v2: true,
@@ -68,6 +71,14 @@ defmodule TuistWeb.API.PreviewsController do
            version: %Schema{
              type: :string,
              description: "The version of the preview."
+           },
+           supported_platforms: %Schema{
+             type: :array,
+             items: %Schema{
+               type: :string,
+               enum: Ecto.Enum.values(Preview, :supported_platforms)
+             },
+             description: "The supported platforms of the preview."
            }
          }
        }},
@@ -116,7 +127,8 @@ defmodule TuistWeb.API.PreviewsController do
         type: Map.get(body_params, :type) |> String.to_atom(),
         display_name: Map.get(body_params, :display_name),
         bundle_identifier: Map.get(body_params, :bundle_identifier),
-        version: Map.get(body_params, :version)
+        version: Map.get(body_params, :version),
+        supported_platforms: Map.get(body_params, :supported_platforms, [])
       })
 
     upload_id = Storage.multipart_start(get_object_key(conn, preview_id))
@@ -373,6 +385,17 @@ defmodule TuistWeb.API.PreviewsController do
         description:
           "The preview version specifier. Currently, accepts a commit SHA, branch name, or latest."
       ],
+      supported_platforms: [
+        in: :query,
+        type: %Schema{
+          type: :array,
+          items: %Schema{
+            type: :string,
+            enum: Ecto.Enum.values(Preview, :supported_platforms)
+          },
+          description: "The supported platforms of the preview."
+        }
+      ],
       page_size: [
         in: :query,
         type: %Schema{
@@ -443,32 +466,7 @@ defmodule TuistWeb.API.PreviewsController do
     project =
       EnsureProjectPresencePlug.get_project(conn)
 
-    specifier = Map.get(params, :specifier)
-
-    filters = [
-      %{field: :project_id, op: :==, value: project.id},
-      %{field: :name, op: :==, value: "share"},
-      %{field: :preview_id, op: :not_empty, value: true},
-      %{field: :preview_bundle_identifier, op: :not_empty, value: true}
-    ]
-
-    specifier_filters =
-      cond do
-        is_nil(specifier) -> []
-        specifier == "latest" -> [%{field: :git_branch, op: :==, value: project.default_branch}]
-        valid_git_commit_sha?(specifier) -> [%{field: :git_commit_sha, op: :==, value: specifier}]
-        true -> [%{field: :git_branch, op: :==, value: specifier}]
-      end
-
-    filters = specifier_filters ++ filters
-
-    display_name = Map.get(params, :display_name)
-
-    filters =
-      case display_name do
-        nil -> filters
-        _ -> [%{field: :preview_display_name, op: :==, value: display_name} | filters]
-      end
+    filters = get_filters(project, params)
 
     distinct =
       case Map.get(params, :distinct_field) do
@@ -486,7 +484,8 @@ defmodule TuistWeb.API.PreviewsController do
           order_directions: [:desc]
         },
         preload: [:preview],
-        distinct: distinct
+        distinct: distinct,
+        preview_supported_platforms: Map.get(params, :supported_platforms)
       )
 
     conn
@@ -506,6 +505,35 @@ defmodule TuistWeb.API.PreviewsController do
           }
         )
     })
+  end
+
+  defp get_filters(%Project{} = project, params) do
+    specifier = Map.get(params, :specifier)
+
+    filters = [
+      %{field: :project_id, op: :==, value: project.id},
+      %{field: :name, op: :==, value: "share"},
+      %{field: :preview_id, op: :not_empty, value: true},
+      %{field: :preview_bundle_identifier, op: :not_empty, value: true}
+    ]
+
+    specifier_filters =
+      cond do
+        is_nil(specifier) -> []
+        specifier == "latest" -> [%{field: :git_branch, op: :==, value: project.default_branch}]
+        valid_git_commit_sha?(specifier) -> [%{field: :git_commit_sha, op: :==, value: specifier}]
+        true -> [%{field: :git_branch, op: :==, value: specifier}]
+      end
+
+    filters = specifier_filters ++ filters
+
+    filters =
+      case Map.get(params, :display_name) do
+        nil -> filters
+        display_name -> [%{field: :preview_display_name, op: :==, value: display_name} | filters]
+      end
+
+    filters
   end
 
   operation(:upload_icon,

@@ -77,6 +77,44 @@ defmodule TuistWeb.PreviewsControllerTest do
       assert Repo.all(Preview) |> hd() |> Map.get(:display_name) == "preview-name"
     end
 
+    test "starts multipart upload with supported platforms", %{
+      conn: conn,
+      user: user,
+      project: project,
+      account: account
+    } do
+      # Given
+      upload_id = "upload-id"
+
+      Storage
+      |> expect(:multipart_start, fn _ ->
+        upload_id
+      end)
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/projects/#{account.name}/#{project.name}/previews/start",
+          supported_platforms: ["ios", "watchos"]
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+      assert response["status"] == "success"
+      response_data = response["data"]
+      assert response_data["upload_id"] == upload_id
+
+      assert Repo.all(Preview) |> hd() |> Map.get(:supported_platforms) |> Enum.sort() == [
+               :ios,
+               :watchos
+             ]
+    end
+
     test "starts multipart upload of a bundle preview", %{
       conn: conn,
       user: user,
@@ -636,6 +674,64 @@ defmodule TuistWeb.PreviewsControllerTest do
                  "display_name" => "App"
                }
              ]
+    end
+
+    test "lists a single latest preview for a given display name and supported platform", %{
+      conn: conn,
+      user: user,
+      project: project,
+      account: account
+    } do
+      # Given
+      preview_one =
+        PreviewsFixtures.preview_fixture(
+          project: project,
+          display_name: "App",
+          supported_platforms: [:ios, :macos]
+        )
+
+      _command_event_one =
+        CommandEventsFixtures.command_event_fixture(
+          name: "share",
+          project_id: project.id,
+          preview_id: preview_one.id,
+          created_at: ~N[2021-01-01 00:00:00],
+          git_branch: "main"
+        )
+
+      preview_two =
+        PreviewsFixtures.preview_fixture(
+          project: project,
+          display_name: "App",
+          bundle_identifier: "com.tuist.app",
+          supported_platforms: [:watchos, :macos]
+        )
+
+      _command_event_two =
+        CommandEventsFixtures.command_event_fixture(
+          name: "share",
+          project_id: project.id,
+          preview_id: preview_two.id,
+          created_at: ~N[2021-01-01 01:00:00],
+          git_branch: "main"
+        )
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+
+      # When
+      conn =
+        conn
+        |> get(
+          ~p"/api/projects/#{account.name}/#{project.name}/previews?display_name=App&specifier=latest&page_size=1&supported_platforms=ios"
+        )
+
+      # Then
+      response =
+        json_response(conn, :ok)
+
+      assert response["previews"] |> Enum.map(& &1["id"]) == [preview_one.id]
     end
 
     test "lists no previews when no preview for latest is available", %{

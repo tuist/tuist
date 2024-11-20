@@ -54,5 +54,43 @@ defmodule Tuist.Previews.PreviewTest do
       # Then
       assert got.valid?
     end
+
+    test "is valid when type is ipa and contains valid platforms" do
+      # Given
+      preview = %Preview{}
+
+      # When
+      got =
+        Preview.create_changeset(preview, %{
+          project_id: 1,
+          type: :ipa,
+          display_name: "App",
+          version: "1.0.0",
+          bundle_identifier: "com.tuist.app",
+          supported_platforms: [:ios, :ios_simulator]
+        })
+
+      # Then
+      assert got.valid?
+    end
+
+    test "is invalid when contains invalid platforms" do
+      # Given
+      preview = %Preview{}
+
+      # When
+      got =
+        Preview.create_changeset(preview, %{
+          project_id: 1,
+          type: :ipa,
+          display_name: "App",
+          version: "1.0.0",
+          bundle_identifier: "com.tuist.app",
+          supported_platforms: [:invalid]
+        })
+
+      # Then
+      refute got.valid?
+    end
   end
 end

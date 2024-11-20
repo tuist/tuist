@@ -33,7 +33,12 @@ defmodule TuistWeb.PreviewsLiveTest do
     project: project
   } do
     # Given
-    preview_one = PreviewsFixtures.preview_fixture(project: project, display_name: "AppOne")
+    preview_one =
+      PreviewsFixtures.preview_fixture(
+        project: project,
+        display_name: "AppOne",
+        supported_platforms: [:ios, :macos]
+      )
 
     _command_event_one =
       CommandEventsFixtures.command_event_fixture(
@@ -42,7 +47,12 @@ defmodule TuistWeb.PreviewsLiveTest do
         preview_id: preview_one.id
       )
 
-    preview_two = PreviewsFixtures.preview_fixture(project: project, display_name: "AppTwo")
+    preview_two =
+      PreviewsFixtures.preview_fixture(
+        project: project,
+        display_name: "AppTwo",
+        supported_platforms: []
+      )
 
     _command_event_two =
       CommandEventsFixtures.command_event_fixture(
@@ -51,7 +61,12 @@ defmodule TuistWeb.PreviewsLiveTest do
         preview_id: preview_two.id
       )
 
-    _preview_three = PreviewsFixtures.preview_fixture(project: project, display_name: "App")
+    _preview_three =
+      PreviewsFixtures.preview_fixture(
+        project: project,
+        display_name: "App",
+        supported_platforms: [:ios, :macos]
+      )
 
     _command_event_three =
       CommandEventsFixtures.command_event_fixture(
@@ -61,13 +76,15 @@ defmodule TuistWeb.PreviewsLiveTest do
       )
 
     # When
-    {:ok, _lv, html} =
+    {:ok, lv, html} =
       conn
       |> live(~p"/#{organization.account.name}/#{project.name}/previews")
 
     # Then
     assert html =~ "AppOne"
     assert html =~ "AppTwo"
+    has_element?(lv, "span", "iOS")
+    has_element?(lv, "span", "Unknown")
   end
 
   test "raises not found error when the project does not exist", %{conn: conn} do

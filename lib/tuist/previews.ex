@@ -12,7 +12,8 @@ defmodule Tuist.Previews do
           type: type,
           display_name: display_name,
           bundle_identifier: bundle_identifier,
-          version: version
+          version: version,
+          supported_platforms: supported_platforms
         },
         opts \\ []
       ) do
@@ -23,6 +24,7 @@ defmodule Tuist.Previews do
       display_name: display_name,
       bundle_identifier: bundle_identifier,
       version: version,
+      supported_platforms: supported_platforms,
       inserted_at: Keyword.get(opts, :inserted_at)
     })
     |> Repo.insert!()
@@ -49,5 +51,28 @@ defmodule Tuist.Previews do
         preview_id: preview_id
       }) do
     "#{account_handle}/#{project_handle}/previews/#{preview_id}/icon.png"
+  end
+
+  def get_supported_platforms_case_values(%Preview{supported_platforms: supported_platforms}) do
+    if is_nil(supported_platforms) do
+      []
+    else
+      supported_platforms |> Enum.map(&supported_platform_strings/1)
+    end
+  end
+
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
+  defp supported_platform_strings(supported_platform) do
+    case supported_platform do
+      :ios -> "iOS"
+      :ios_simulator -> "iOS Simulator"
+      :tvos -> "tvOS"
+      :tvos_simulator -> "tvOS Simulator"
+      :watchos -> "watchOS"
+      :watchos_simulator -> "watchOS Simulator"
+      :visionos -> "visionOS"
+      :visionos_simulator -> "visionOS Simulator"
+      :macos -> "macOS"
+    end
   end
 end

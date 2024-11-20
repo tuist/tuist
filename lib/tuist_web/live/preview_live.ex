@@ -59,6 +59,13 @@ defmodule TuistWeb.PreviewLive do
           %UAParser.UA{os: %UAParser.OperatingSystem{family: family}} -> family
           _ -> nil
         end
+      )
+      |> assign(
+        :supported_platforms,
+        case Previews.get_supported_platforms_case_values(preview) do
+          [] -> gettext("Unknown")
+          supported_platforms -> supported_platforms |> Enum.join(", ")
+        end
       ),
       layout: layout
     }

@@ -56,13 +56,14 @@
     <% end %>
   </div>
   <div class="preview__extra-metadata">
-    <.preview_metadata_item
-      title={gettext("Created at")}
-      value={Timex.format!(@preview.inserted_at, "{Mshort} {D}, {YYYY}, {h12}:{m} {AM}")}
-    />
+    <.preview_metadata_item title={gettext("Supported platforms")} value={@supported_platforms} />
     <.preview_metadata_item
       title={gettext("Bundle identifier")}
       value={@preview.bundle_identifier}
+    />
+    <.preview_metadata_item
+      title={gettext("Created at")}
+      value={Timex.format!(@preview.inserted_at, "{Mshort} {D}, {YYYY}, {h12}:{m} {AM}")}
     />
     <.preview_metadata_item
       title={gettext("Branch")}

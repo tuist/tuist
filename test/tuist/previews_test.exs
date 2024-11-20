@@ -13,13 +13,13 @@ defmodule Tuist.PreviewsTest do
 
       # When
       preview =
-        Previews.create_preview(%{
+        PreviewsFixtures.preview_fixture(
           project: project,
           type: :app_bundle,
           display_name: "App",
           version: nil,
           bundle_identifier: nil
-        })
+        )
 
       # Then
       assert Repo.all(Preview) == [preview]
@@ -31,13 +31,13 @@ defmodule Tuist.PreviewsTest do
 
       # When
       preview =
-        Previews.create_preview(%{
+        PreviewsFixtures.preview_fixture(
           project: project,
           type: :ipa,
           display_name: "App",
           version: "1.0.0",
           bundle_identifier: "com.tuist.app"
-        })
+        )
 
       # Then
       assert Repo.all(Preview) == [preview]
@@ -48,13 +48,13 @@ defmodule Tuist.PreviewsTest do
     test "returns a preview by id" do
       # Given
       preview =
-        Previews.create_preview(%{
+        PreviewsFixtures.preview_fixture(
           project: ProjectsFixtures.project_fixture(),
           type: :app_bundle,
           display_name: "App",
           version: nil,
           bundle_identifier: nil
-        })
+        )
 
       # When
       result = Previews.get_preview_by_id(preview.id)
@@ -121,6 +121,41 @@ defmodule Tuist.PreviewsTest do
 
       # Then
       assert result == "#{account_handle}/#{project_handle}/previews/#{preview.id}/icon.png"
+    end
+  end
+
+  describe "get_supported_platforms_case_values/1" do
+    test "returns the supported platform case values" do
+      # Given
+      preview = %Preview{supported_platforms: [:ios, :macos]}
+
+      # When
+      result = Previews.get_supported_platforms_case_values(preview)
+
+      # Then
+      assert result == ["iOS", "macOS"]
+    end
+
+    test "returns an empty list when supported platforms are nil" do
+      # Given
+      preview = %Preview{supported_platforms: nil}
+
+      # When
+      result = Previews.get_supported_platforms_case_values(preview)
+
+      # Then
+      assert result == []
+    end
+
+    test "returns an empty list when supported platforms are empty" do
+      # Given
+      preview = %Preview{supported_platforms: []}
+
+      # When
+      result = Previews.get_supported_platforms_case_values(preview)
+
+      # Then
+      assert result == []
     end
   end
 end

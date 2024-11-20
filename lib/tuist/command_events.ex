@@ -113,9 +113,33 @@ defmodule Tuist.CommandEvents do
 
     query =
       if preload_preview do
-        query |> join(:left, [e], p in assoc(e, :preview), as: :preview) |> preload(:preview)
+        query
+        |> join(:left, [e], p in assoc(e, :preview), as: :preview)
+        |> preload(:preview)
       else
         query
+      end
+
+    preview_supported_platforms = opts |> Keyword.get(:preview_supported_platforms, nil)
+
+    query =
+      if not preload_preview or is_nil(preview_supported_platforms) do
+        query
+      else
+        query
+        # We're using a fragment here as Ecto doesn't have first-party support for the && operator.
+        # && operator finds rows where arrays have any elements in common.
+        # You can find the docs for the && operator here: https://www.postgresql.org/docs/current/functions-array.html
+        # Because the arrays are enums and we're using a fragment, we also need to map the preview_supported_platforms to raw integer values.
+        |> where(
+          [e, p],
+          fragment(
+            "? && ?",
+            p.supported_platforms,
+            ^(preview_supported_platforms
+              |> Enum.map(&Ecto.Enum.mappings(Tuist.Previews.Preview, :supported_platforms)[&1]))
+          )
+        )
       end
 
     distinct_preview_bundle_identifier =

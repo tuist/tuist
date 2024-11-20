@@ -1,4 +1,5 @@
 defmodule TuistWeb.PreviewsLive do
+  alias Tuist.Previews
   use TuistWeb, :live_view
 
   alias Tuist.Projects
@@ -94,5 +95,20 @@ defmodule TuistWeb.PreviewsLive do
       end
 
     CommandEvents.list_command_events(options, preload: [:preview])
+  end
+
+  attr(:preview, :map, required: true)
+
+  def supported_platforms_badges(assigns) do
+    ~H"""
+    <%= supported_platforms = @preview |> Previews.get_supported_platforms_case_values()
+    if is_nil(@preview) or Enum.empty?(supported_platforms) do %>
+      <.badge title={gettext("Unknown")} kind={:neutral}></.badge>
+    <% else %>
+      <%= for platform <- supported_platforms do %>
+        <.badge title={platform} kind={:neutral}></.badge>
+      <% end %>
+    <% end %>
+    """
   end
 end

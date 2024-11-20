@@ -4,7 +4,6 @@ defmodule TuistWeb.PreviewControllerTest do
 
   alias Tuist.PreviewsFixtures
   alias Tuist.Storage
-  alias Tuist.Previews
   alias Tuist.ProjectsFixtures
   alias Tuist.AccountsFixtures
 
@@ -93,13 +92,13 @@ defmodule TuistWeb.PreviewControllerTest do
     test "returns manifest.plist", %{conn: conn} do
       # Given
       preview =
-        Previews.create_preview(%{
+        PreviewsFixtures.preview_fixture(
           project: ProjectsFixtures.project_fixture(),
           type: :ipa,
           display_name: "App",
           version: "1.0.0",
           bundle_identifier: "com.tuist.app"
-        })
+        )
 
       # When
       conn =
@@ -128,13 +127,13 @@ defmodule TuistWeb.PreviewControllerTest do
     test "returns archive object", %{conn: conn} do
       # Given
       preview =
-        Previews.create_preview(%{
+        PreviewsFixtures.preview_fixture(
           project: ProjectsFixtures.project_fixture(),
           type: :ipa,
           display_name: "App",
           version: "1.0.0",
           bundle_identifier: "com.tuist.app"
-        })
+        )
 
       Storage
       |> stub(:get_object_as_string, fn _ -> "ipa-contents" end)

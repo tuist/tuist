@@ -14,6 +14,7 @@ defmodule Tuist.PreviewsFixtures do
     display_name = Keyword.get(opts, :display_name, "App")
     bundle_identifier = Keyword.get(opts, :bundle_identifier, "com.tuist.app")
     version = Keyword.get(opts, :version, "1.0.0")
+    supported_platforms = Keyword.get(opts, :supported_platforms, [:ios])
     inserted_at = Keyword.get(opts, :inserted_at)
 
     Previews.create_preview(
@@ -22,7 +23,8 @@ defmodule Tuist.PreviewsFixtures do
         type: type,
         display_name: display_name,
         bundle_identifier: bundle_identifier,
-        version: version
+        version: version,
+        supported_platforms: supported_platforms
       },
       inserted_at: inserted_at
     )
