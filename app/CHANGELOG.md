@@ -1,3 +1,8 @@
+## What's Changed in app@0.6.0
+* feat: when running latest preview, filter supported platforms by @fortmarek in [#7077](https://github.com/tuist/tuist/pull/7077)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/app@0.5.2...app@0.6.0
+
 ## What's Changed in app@0.5.2
 * fix: running apps with app clip by @fortmarek in [#7059](https://github.com/tuist/tuist/pull/7059)
 
