@@ -1039,7 +1039,6 @@ final class TestServiceTests: TuistUnitTestCase {
                 configuration: .any,
                 ignoreBinaryCache: .any,
                 ignoreSelectiveTesting: .any,
-                runAllTests: .any,
                 cacheStorage: .any
             )
             .willReturn(generator)
@@ -1719,7 +1718,6 @@ final class TestServiceTests: TuistUnitTestCase {
                 configuration: .any,
                 ignoreBinaryCache: .any,
                 ignoreSelectiveTesting: .any,
-                runAllTests: .any,
                 cacheStorage: .any
             )
             .willReturn(generator)
@@ -1743,7 +1741,6 @@ final class TestServiceTests: TuistUnitTestCase {
         testTargets: [TestIdentifier] = [],
         skipTestTargets: [TestIdentifier] = [],
         testPlanConfiguration: TestPlanConfiguration? = nil,
-        runAllTests: Bool = false,
         generateOnly: Bool = false,
         passthroughXcodeBuildArguments: [String] = []
     ) async throws {
@@ -1767,7 +1764,6 @@ final class TestServiceTests: TuistUnitTestCase {
             testPlanConfiguration: testPlanConfiguration,
             ignoreBinaryCache: false,
             ignoreSelectiveTesting: false,
-            runAllTests: runAllTests,
             generateOnly: generateOnly,
             passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
             analyticsDelegate: analyticsDelegate

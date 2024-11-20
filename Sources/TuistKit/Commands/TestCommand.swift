@@ -161,16 +161,10 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
     var binaryCache: Bool = true
 
     @Flag(
-        help: "Enable or disable selective testing feature. When selective testing is disabled, all tests will be run and no selective test results will be stored.",
+        help: "When --no-selective-testing is passed, tuist runs all tests without using selective testing.",
         envKey: .testSelectiveTesting
     )
     var selectiveTesting: Bool = true
-
-    @Flag(
-        help: "Run all tests instead of selectively test only those that have changed since the last successful test run.",
-        envKey: .testRunAllTests
-    )
-    var runAllTests: Bool = false
 
     @Flag(
         name: .long,
@@ -275,7 +269,6 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
             validateTestTargetsParameters: false,
             ignoreBinaryCache: !binaryCache,
             ignoreSelectiveTesting: !selectiveTesting,
-            runAllTests: runAllTests,
             generateOnly: generateOnly,
             passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
             analyticsDelegate: TestCommand.analyticsDelegate

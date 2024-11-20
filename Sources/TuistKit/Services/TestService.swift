@@ -179,7 +179,6 @@ final class TestService { // swiftlint:disable:this type_body_length
         validateTestTargetsParameters: Bool = true,
         ignoreBinaryCache: Bool,
         ignoreSelectiveTesting: Bool,
-        runAllTests: Bool,
         generateOnly: Bool,
         passthroughXcodeBuildArguments: [String],
         analyticsDelegate: TrackableParametersDelegate?
@@ -203,7 +202,6 @@ final class TestService { // swiftlint:disable:this type_body_length
             configuration: configuration,
             ignoreBinaryCache: ignoreBinaryCache,
             ignoreSelectiveTesting: ignoreSelectiveTesting,
-            runAllTests: runAllTests,
             cacheStorage: cacheStorage
         )
 

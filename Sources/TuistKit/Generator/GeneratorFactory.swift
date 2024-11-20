@@ -29,7 +29,6 @@ public protocol GeneratorFactorying {
         configuration: String?,
         ignoreBinaryCache: Bool,
         ignoreSelectiveTesting: Bool,
-        runAllTests: Bool,
         cacheStorage: CacheStoring
     ) -> Generating
 
@@ -85,7 +84,6 @@ public class GeneratorFactory: GeneratorFactorying {
         configuration _: String?,
         ignoreBinaryCache _: Bool,
         ignoreSelectiveTesting _: Bool,
-        runAllTests _: Bool,
         cacheStorage _: CacheStoring
     ) -> Generating {
         let contentHasher = ContentHasher()
