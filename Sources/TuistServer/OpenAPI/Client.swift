@@ -3909,6 +3909,13 @@ internal struct Client: APIProtocol {
                     in: &request,
                     style: .form,
                     explode: true,
+                    name: "supported_platforms",
+                    value: input.query.supported_platforms
+                )
+                try converter.setQueryItemAsURI(
+                    in: &request,
+                    style: .form,
+                    explode: true,
                     name: "page_size",
                     value: input.query.page_size
                 )

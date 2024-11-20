@@ -80,6 +80,7 @@ final class ShareServiceTests: TuistUnitTestCase {
                 version: .any,
                 bundleIdentifier: .any,
                 icon: .any,
+                supportedPlatforms: .any,
                 fullHandle: .any,
                 serverURL: .any
             )
@@ -239,6 +240,7 @@ final class ShareServiceTests: TuistUnitTestCase {
                 version: .any,
                 bundleIdentifier: .any,
                 icon: .any,
+                supportedPlatforms: .any,
                 fullHandle: .value("tuist/tuist"),
                 serverURL: .value(Constants.URLs.production)
             )
@@ -407,7 +409,8 @@ final class ShareServiceTests: TuistUnitTestCase {
                 .test(
                     infoPlist: .test(
                         version: Version(1, 0, 0),
-                        bundleId: "com.tuist.app"
+                        bundleId: "com.tuist.app",
+                        supportedPlatforms: [.simulator(.iOS)]
                     )
                 )
             )
@@ -430,6 +433,7 @@ final class ShareServiceTests: TuistUnitTestCase {
                 version: .value("1.0.0"),
                 bundleIdentifier: .value("com.tuist.app"),
                 icon: .any,
+                supportedPlatforms: .value([.simulator(.iOS)]),
                 fullHandle: .value("tuist/tuist"),
                 serverURL: .value(Constants.URLs.production)
             )
@@ -776,6 +780,7 @@ final class ShareServiceTests: TuistUnitTestCase {
                 version: .any,
                 bundleIdentifier: .any,
                 icon: .any,
+                supportedPlatforms: .any,
                 fullHandle: .value("tuist/tuist"),
                 serverURL: .value(Constants.URLs.production)
             )
@@ -908,6 +913,7 @@ final class ShareServiceTests: TuistUnitTestCase {
                 version: .any,
                 bundleIdentifier: .any,
                 icon: .value(iosIconPath),
+                supportedPlatforms: .any,
                 fullHandle: .value("tuist/tuist"),
                 serverURL: .value(Constants.URLs.production)
             )
@@ -976,6 +982,7 @@ final class ShareServiceTests: TuistUnitTestCase {
                 version: .value("1.0.0"),
                 bundleIdentifier: .value("com.tuist.app"),
                 icon: .value(iconPath),
+                supportedPlatforms: .any,
                 fullHandle: .value("tuist/tuist"),
                 serverURL: .value(Constants.URLs.production)
             )

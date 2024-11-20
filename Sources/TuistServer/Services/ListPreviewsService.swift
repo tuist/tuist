@@ -1,5 +1,6 @@
 import Foundation
 import Mockable
+import TuistCore
 import TuistSupport
 
 public enum ListPreviewsDistinctField {
@@ -11,6 +12,7 @@ public protocol ListPreviewsServicing {
     func listPreviews(
         displayName: String?,
         specifier: String?,
+        supportedPlatforms: [DestinationType],
         page: Int?,
         pageSize: Int?,
         distinctField: ListPreviewsDistinctField?,
@@ -61,6 +63,7 @@ public final class ListPreviewsService: ListPreviewsServicing {
     public func listPreviews(
         displayName: String?,
         specifier: String?,
+        supportedPlatforms: [DestinationType],
         page: Int?,
         pageSize: Int?,
         distinctField: ListPreviewsDistinctField?,
@@ -78,6 +81,7 @@ public final class ListPreviewsService: ListPreviewsServicing {
                 query: .init(
                     display_name: displayName,
                     specifier: specifier,
+                    supported_platforms: supportedPlatforms.map(Components.Schemas.PreviewSupportedPlatform.init),
                     page_size: pageSize,
                     page: page,
                     distinct_field: distinctField.map {
@@ -106,6 +110,39 @@ public final class ListPreviewsService: ListPreviewsServicing {
             switch unauthorized.body {
             case let .json(error):
                 throw ListPreviewsServiceError.unauthorized(error.message)
+            }
+        }
+    }
+}
+
+extension Components.Schemas.PreviewSupportedPlatform {
+    init(_ supportedPlatform: DestinationType) {
+        switch supportedPlatform {
+        case let .device(platform):
+            switch platform {
+            case .iOS:
+                self = .ios
+            case .macOS:
+                self = .macos
+            case .tvOS:
+                self = .tvos
+            case .watchOS:
+                self = .watchos
+            case .visionOS:
+                self = .visionos
+            }
+        case let .simulator(platform):
+            switch platform {
+            case .iOS:
+                self = .ios_simulator
+            case .macOS:
+                self = .macos
+            case .tvOS:
+                self = .tvos_simulator
+            case .watchOS:
+                self = .watchos_simulator
+            case .visionOS:
+                self = .visionos_simulator
             }
         }
     }

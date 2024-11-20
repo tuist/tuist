@@ -31,6 +31,16 @@ final class AppPreviewsViewModelTests: TuistUnitTestCase {
             appStorage: appStorage
         )
 
+        given(deviceService)
+            .selectedDevice
+            .willReturn(
+                .device(
+                    .test(
+                        platform: .iOS
+                    )
+                )
+            )
+
         given(serverURLService)
             .serverURL()
             .willReturn(.test())
@@ -76,6 +86,7 @@ final class AppPreviewsViewModelTests: TuistUnitTestCase {
             .listPreviews(
                 displayName: .any,
                 specifier: .any,
+                supportedPlatforms: .any,
                 page: .any,
                 pageSize: .any,
                 distinctField: .any,
@@ -131,6 +142,7 @@ final class AppPreviewsViewModelTests: TuistUnitTestCase {
             .listPreviews(
                 displayName: .any,
                 specifier: .any,
+                supportedPlatforms: .any,
                 page: .any,
                 pageSize: .any,
                 distinctField: .any,
@@ -159,6 +171,7 @@ final class AppPreviewsViewModelTests: TuistUnitTestCase {
             .listPreviews(
                 displayName: .any,
                 specifier: .any,
+                supportedPlatforms: .any,
                 page: .any,
                 pageSize: .any,
                 distinctField: .any,
@@ -186,6 +199,19 @@ final class AppPreviewsViewModelTests: TuistUnitTestCase {
         verify(deviceService)
             .launchPreview(
                 with: .value("preview-id"),
+                fullHandle: .any,
+                serverURL: .any
+            )
+            .called(1)
+
+        verify(listPreviewsService)
+            .listPreviews(
+                displayName: .any,
+                specifier: .any,
+                supportedPlatforms: .value([.device(.iOS)]),
+                page: .any,
+                pageSize: .any,
+                distinctField: .any,
                 fullHandle: .any,
                 serverURL: .any
             )
