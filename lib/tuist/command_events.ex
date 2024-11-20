@@ -900,81 +900,89 @@ defmodule Tuist.CommandEvents do
   end
 
   def create_test_case_runs(%{
-        test_summary: test_summary,
-        modules: modules,
-        command_event: command_event
+        test_summary: _test_summary,
+        modules: _modules,
+        command_event: _command_event
       }) do
-    test_case_identifier_urls =
-      Enum.flat_map(test_summary.project_tests, fn {_, module_tests} ->
-        Enum.flat_map(module_tests, fn {_, target_test_summary} ->
-          Enum.map(target_test_summary.tests, & &1.identifier_url)
-        end)
-      end)
+    # Note:
+    # This is currently disabled due to slow performance inserting thousands of test case runs.
+    # Here are some ideas that we could execute on incrementally to get performance gains.
+    #
+    # 1. Reduce the table size and have a window of two weeks for flakiness detection.
+    # 2. Remove foreign keys and keep the indexes to the minimum.
+    # 3. Make flakiness flagging a daily job so at API-hit time, it's only the insert time.
+    #
+    # test_case_identifier_urls =
+    #   Enum.flat_map(test_summary.project_tests, fn {_, module_tests} ->
+    #     Enum.flat_map(module_tests, fn {_, target_test_summary} ->
+    #       Enum.map(target_test_summary.tests, & &1.identifier_url)
+    #     end)
+    #   end)
 
-    test_case_ids =
-      from(t in TestCase,
-        where: t.identifier in ^test_case_identifier_urls,
-        select: {t.identifier, t.id}
-      )
-      |> Repo.all()
-      |> Map.new()
+    # test_case_ids =
+    #   from(t in TestCase,
+    #     where: t.identifier in ^test_case_identifier_urls,
+    #     select: {t.identifier, t.id}
+    #   )
+    #   |> Repo.all()
+    #   |> Map.new()
 
-    test_case_runs =
-      Enum.flat_map(test_summary.project_tests, fn {project_identifier, module_tests} ->
-        Enum.flat_map(module_tests, fn {module_name, target_test_summary} ->
-          # credo:disable-for-next-line
-          Enum.map(target_test_summary.tests, fn test_case ->
-            %{
-              module_hash: modules[project_identifier][module_name],
-              status: test_case.test_status,
-              command_event_id: command_event.id,
-              test_case_id: test_case_ids[test_case.identifier_url],
-              inserted_at:
-                NaiveDateTime.truncate(DateTime.to_naive(Tuist.Time.utc_now()), :second)
-            }
-          end)
-        end)
-      end)
+    # test_case_runs =
+    #   Enum.flat_map(test_summary.project_tests, fn {project_identifier, module_tests} ->
+    #     Enum.flat_map(module_tests, fn {module_name, target_test_summary} ->
+    #       # credo:disable-for-next-line
+    #       Enum.map(target_test_summary.tests, fn test_case ->
+    #         %{
+    #           module_hash: modules[project_identifier][module_name],
+    #           status: test_case.test_status,
+    #           command_event_id: command_event.id,
+    #           test_case_id: test_case_ids[test_case.identifier_url],
+    #           inserted_at:
+    #             NaiveDateTime.truncate(DateTime.to_naive(Tuist.Time.utc_now()), :second)
+    #         }
+    #       end)
+    #     end)
+    #   end)
 
-    Repo.transaction(fn ->
-      case List.first(test_case_runs) do
-        nil ->
-          :ok
+    # Repo.transaction(fn ->
+    #   case List.first(test_case_runs) do
+    #     nil ->
+    #       :ok
 
-        first_test_case_run ->
-          # 65535 is the maxium that the postgresql protocol can handle
-          # so we divide it by the number of parameters per row, and use that size to determine
-          # the chunk size for the inserts
-          Enum.chunk_every(test_case_runs, div(65_535, map_size(first_test_case_run)))
-          # credo:disable-for-next-line
-          |> Enum.each(fn batch ->
-            Repo.insert_all(TestCaseRun, batch)
-          end)
-      end
+    #     first_test_case_run ->
+    #       # 65535 is the maxium that the postgresql protocol can handle
+    #       # so we divide it by the number of parameters per row, and use that size to determine
+    #       # the chunk size for the inserts
+    #       Enum.chunk_every(test_case_runs, div(65_535, map_size(first_test_case_run)))
+    #       # credo:disable-for-next-line
+    #       |> Enum.each(fn batch ->
+    #         Repo.insert_all(TestCaseRun, batch)
+    #       end)
+    #   end
 
-      module_hashes = Enum.map(test_case_runs, & &1.module_hash)
+    #   module_hashes = Enum.map(test_case_runs, & &1.module_hash)
 
-      subquery =
-        from(
-          t in TestCaseRun,
-          where: t.module_hash in ^module_hashes,
-          group_by: [t.test_case_id, t.module_hash],
-          having: count(fragment("distinct ?", t.status)) > 1,
-          select: t.test_case_id
-        )
+    #   subquery =
+    #     from(
+    #       t in TestCaseRun,
+    #       where: t.module_hash in ^module_hashes,
+    #       group_by: [t.test_case_id, t.module_hash],
+    #       having: count(fragment("distinct ?", t.status)) > 1,
+    #       select: t.test_case_id
+    #     )
 
-      flaky_test_case_ids = Repo.all(subquery)
+    #   flaky_test_case_ids = Repo.all(subquery)
 
-      from(t1 in TestCaseRun,
-        where: t1.test_case_id in ^flaky_test_case_ids
-      )
-      |> Repo.update_all(set: [flaky: true])
+    #   from(t1 in TestCaseRun,
+    #     where: t1.test_case_id in ^flaky_test_case_ids
+    #   )
+    #   |> Repo.update_all(set: [flaky: true])
 
-      from(t in TestCase,
-        where: t.id in ^flaky_test_case_ids
-      )
-      |> Repo.update_all(set: [flaky: true])
-    end)
+    #   from(t in TestCase,
+    #     where: t.id in ^flaky_test_case_ids
+    #   )
+    #   |> Repo.update_all(set: [flaky: true])
+    # end)
   end
 
   defp map_project_tests(project_tests, map_f) do

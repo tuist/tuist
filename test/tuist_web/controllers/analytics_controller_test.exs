@@ -559,25 +559,27 @@ defmodule TuistWeb.AnalyticsControllerTest do
       response = json_response(conn, :no_content)
       assert response == %{}
 
-      test_case_runs =
-        from(
-          t in TestCaseRun,
-          where: t.command_event_id == ^command_event.id
-        )
-        |> Repo.all()
-        |> Repo.preload(:test_case)
-        |> Enum.map(& &1.test_case.identifier)
-        |> Enum.sort()
+      # The insertion of test case runs is disabled
 
-      assert length(test_case_runs) == 5
+      # test_case_runs =
+      #   from(
+      #     t in TestCaseRun,
+      #     where: t.command_event_id == ^command_event.id
+      #   )
+      #   |> Repo.all()
+      #   |> Repo.preload(:test_case)
+      #   |> Enum.map(& &1.test_case.identifier)
+      #   |> Enum.sort()
 
-      assert test_case_runs == [
-               "test://com.apple.xcode/Framework1/Framework1Tests/Framework1Tests/testHello",
-               "test://com.apple.xcode/Framework1/Framework1Tests/Framework1Tests/testHelloFromFramework2",
-               "test://com.apple.xcode/Framework2/Framework2Tests/Framework2Tests/testHello",
-               "test://com.apple.xcode/Framework2/Framework2Tests/MyPublicClassTests/testHello",
-               "test://com.apple.xcode/MainApp/AppTests/AppDelegateTests/testHello"
-             ]
+      # assert length(test_case_runs) == 5
+
+      # assert test_case_runs == [
+      #          "test://com.apple.xcode/Framework1/Framework1Tests/Framework1Tests/testHello",
+      #          "test://com.apple.xcode/Framework1/Framework1Tests/Framework1Tests/testHelloFromFramework2",
+      #          "test://com.apple.xcode/Framework2/Framework2Tests/Framework2Tests/testHello",
+      #          "test://com.apple.xcode/Framework2/Framework2Tests/MyPublicClassTests/testHello",
+      #          "test://com.apple.xcode/MainApp/AppTests/AppDelegateTests/testHello"
+      #        ]
     end
 
     test "noops when test_summary is missing", %{conn: conn} do

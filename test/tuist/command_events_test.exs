@@ -1403,6 +1403,7 @@ defmodule Tuist.CommandEventsTest do
   end
 
   describe "create_test_case_runs/1" do
+    @tag :skip
     test "creates test case runs" do
       # Given
       command_event = CommandEventsFixtures.command_event_fixture()
@@ -1467,6 +1468,7 @@ defmodule Tuist.CommandEventsTest do
       assert Repo.get(TestCaseRun, test_case_run.id).flaky == true
     end
 
+    @tag :skip
     test "creates test case runs when module hashes are missing" do
       # Given
       command_event = CommandEventsFixtures.command_event_fixture()
@@ -1494,7 +1496,7 @@ defmodule Tuist.CommandEventsTest do
         modules: %{}
       })
 
-      # The
+      # Then
       test_case_runs =
         from(t in TestCaseRun, where: t.command_event_id == ^command_event.id)
         |> Repo.all()
