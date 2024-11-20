@@ -95,8 +95,7 @@ public final class TargetContentHasher: TargetContentHashing {
         let projectHash: String? = switch graphTarget.project.type {
         case let .external(hash: hash): hash
         case .local: nil
-        case .none:
-            nil
+        case .none: nil
         }
         if let projectHash {
             return TargetContentHash(hash: projectHash, hashedPaths: [:])
