@@ -87,8 +87,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
             sideEffects.append(sideEffect)
         }
 
-        if project.isExternal,
-           target.supportsSources,
+        if target.supportsSources,
            target.sources.containsObjcFiles,
            target.resources.containsBundleAccessedResources,
            !target.supportsResources
@@ -102,7 +101,11 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
             let gccPrefixHeader = "$(SRCROOT)/\(headerFile.path.relative(to: project.path).pathString)"
             var settings = modifiedTarget.settings?.base ?? SettingsDictionary()
             settings["GCC_PREFIX_HEADER"] = .string(gccPrefixHeader)
-            modifiedTarget.settings = modifiedTarget.settings?.with(base: settings)
+            if modifiedTarget.settings?.base["GCC_PREFIX_HEADER"] != nil {
+                modifiedTarget.settings!.base.combine(with: settings)
+            } else {
+                modifiedTarget.settings = modifiedTarget.settings?.with(base: settings)
+            }
 
             sideEffects.append(headerSideEffect)
 
