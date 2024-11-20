@@ -165,7 +165,7 @@ final class TestModelGenerator {
             additionalFiles: try createAdditionalFiles(path: path),
             resourceSynthesizers: [],
             lastUpgradeCheck: nil,
-            isExternal: false
+            type: .local
         )
     }
 

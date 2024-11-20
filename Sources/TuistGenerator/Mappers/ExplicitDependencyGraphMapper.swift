@@ -71,7 +71,7 @@ public struct ExplicitDependencyGraphMapper: GraphMapping {
             "BUILT_PRODUCTS_DIR": "$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/$(PRODUCT_NAME)",
         ]
 
-        if graphTarget.project.isExternal {
+        if case .external = graphTarget.project.type {
             additionalSettings["FRAMEWORK_SEARCH_PATHS"] = .array(["$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)"])
         } else if !frameworkSearchPaths.isEmpty {
             additionalSettings["FRAMEWORK_SEARCH_PATHS"] = .array(frameworkSearchPaths)
