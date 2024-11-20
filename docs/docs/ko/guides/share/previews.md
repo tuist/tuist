@@ -37,14 +37,14 @@ tuist share App --configuration Debug --platforms iOS
 
 :::
 
-The command will generate a link that you can share with anyone to run the app – either on a simulator or an actual device. All they'll need to do is to run the command below:
+이 명령어는 앱을 시뮬레이터나 실기기에서 실행할 수 있는 공유 가능한 링크를 생성합니다. 사용자가 해야 할 일은 아래 명령어를 실행하는 것뿐입니다:
 
 ```bash
 tuist run {url}
-tuist run {url} --device "My iPhone" # Run the app on a specific device
+tuist run {url} --device "My iPhone" # 특정 기기에서 앱 실행하기
 ```
 
-When sharing an `.ipa` file, you can download the app directly from the mobile device using the Preview link.
+Preview 링크를 통해 모바일 기기에서 직접 `.ipa` 파일을 다운로드하여 앱을 설치할 수 있습니다.
 The links to `.ipa` previews are by default _public_. In the future, you will have an option to make them private, so that the recipient of the link would need to authenticate with their Tuist account to download the app.
 
 `tuist run` also enables you to run a latest preview based on a specifier such as `latest`, branch name, or a specific commit hash:
@@ -77,12 +77,12 @@ Tuist Previews를 더욱 쉽게 실행할 수 있도록, 우리는 Tuist macOS m
 >
 > 추가로, 로컬에 Xcode가 설치되어 있어야 합니다.
 
-## Pull/merge request 의견 {#pullmerge-request-comments}
+## Pull/merge request 코멘트 {#pullmerge-request-comments}
 
-> [!IMPORTANT] INTEGRATION WITH GIT PLATFORM REQUIRED
-> To get automatic pull/merge request comments, integrate your <LocalizedLink href="/server/introduction/accounts-and-projects#projects">remote project</LocalizedLink> with a <LocalizedLink href="/server/introduction/integrations#git-platforms">Git platform</LocalizedLink>.
+> [!IMPORTANT] Git 플랫폼 연동 필요
+> 자동으로 pull/merge request에 대한 코멘트를 받으려면, <LocalizedLink href="/server/introduction/accounts-and-projects">remote project</LocalizedLink>를 <LocalizedLink href="/server/introduction/integrations#git-platforms"> Git 플랫폼</LocalizedLink>과 연동해야 합니다.
 
-Testing new functionality should be a part of any code review. But having to build an app locally adds unnecessary friction, often leading to developers skipping testing functionality on their device at all. But _what if each pull request contained a link to the build that would automatically run the app on a device you selected in the Tuist macOS app?_
+새로운 기능에 대한 테스트는 모든 코드 리뷰에서 필수 과정이어야 합니다. 그러나 앱을 로컬에서 빌드하는 과정은 번거로워 개발자들이 실기기에서 기능을 전혀 테스트하지 않게 되는 경우가 많습니다. But _what if each pull request contained a link to the build that would automatically run the app on a device you selected in the Tuist macOS app?_
 
 Once your Tuist project is connected with your Git platform such as [GitHub](https://github.com), add a <LocalizedLink href="/cli/share">`tuist share MyApp`</LocalizedLink> to your CI workflow. Tuist will then post a Preview link directly in your pull requests:
 ![GitHub app comment with a Tuist Preview link](/images/guides/share/github-app-with-preview.png)
