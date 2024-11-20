@@ -4,7 +4,7 @@ titleTemplate: :title | On-premise | Server | Tuist
 description: 컴파일된 바이너리를 캐싱하고 다양한 환경 간에 공유하여 빌드 시간을 최적화하세요.
 ---
 
-# Metrics {#metrics}
+# 지표 {#metrics}
 
 You can ingest metrics gathered by the Tuist server using [Prometheus](https://prometheus.io/) and a visualization tool such as [Grafana](https://grafana.com/) to create a custom dashboard tailored to your needs. The Prometheus metrics are served via the `/metrics` endpoint on port 9091. The Prometheus' [scrape_interval](https://prometheus.io/docs/introduction/first_steps/#configuring-prometheus) should be set as less than 10_000 seconds (we recommend keeping the default of 15 seconds).
 
