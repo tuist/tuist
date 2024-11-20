@@ -266,7 +266,7 @@ defmodule Tuist.BillingTest do
         Billing.update_plan(%{plan: :pro, account: account, success_url: "success_url"})
 
       # Then
-      assert session_url == "session_url"
+      assert session_url == {:ok, {:external_redirect, "session_url"}}
     end
 
     test "updates a subscription to the pro plan if the current active plan is air" do
@@ -306,7 +306,7 @@ defmodule Tuist.BillingTest do
         Billing.update_plan(%{plan: :pro, account: account, success_url: "success_url"})
 
       # Then
-      assert session_url == nil
+      assert session_url == :ok
     end
 
     test "updates a subscription to the air plan if the current active plan is pro" do
@@ -346,7 +346,7 @@ defmodule Tuist.BillingTest do
         Billing.update_plan(%{plan: :air, account: account, success_url: "success_url"})
 
       # Then
-      assert session_url == nil
+      assert session_url == :ok
     end
   end
 

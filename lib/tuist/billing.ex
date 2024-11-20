@@ -133,7 +133,7 @@ defmodule Tuist.Billing do
           customer: customer_id
         })
 
-      session.url
+      {:ok, {:external_redirect, session.url}}
     else
       {:ok, stripe_subscription} =
         Stripe.Subscription.retrieve(current_subscription.subscription_id)
@@ -145,7 +145,7 @@ defmodule Tuist.Billing do
           items: item_to_delete ++ subscription_items
         })
 
-      nil
+      :ok
     end
   end
 

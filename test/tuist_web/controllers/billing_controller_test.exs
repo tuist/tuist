@@ -7,7 +7,8 @@ defmodule TuistWeb.BillingControllerTest do
   use Mimic
 
   describe "upgrade" do
-    test "redirects to Stripe when user has permission", %{conn: conn} do
+    test "redirects to Stripe when user has permission and billing returns an external redirect request",
+         %{conn: conn} do
       %{account: account} =
         user = AccountsFixtures.user_fixture(email: "tuist@tuist.io", preload: [:account])
 
@@ -19,7 +20,7 @@ defmodule TuistWeb.BillingControllerTest do
                                    account: ^account,
                                    success_url: ^success_url
                                  } ->
-        "https://stripe.com"
+        {:ok, {:external_redirect, "https://stripe.com"}}
       end)
 
       conn =
@@ -28,6 +29,31 @@ defmodule TuistWeb.BillingControllerTest do
         |> get("/#{account.name}/billing/upgrade")
 
       assert redirected_to(conn) == "https://stripe.com"
+    end
+
+    test "redirects to Stripe when user has permission and billing returns a success", %{
+      conn: conn
+    } do
+      %{account: account} =
+        user = AccountsFixtures.user_fixture(email: "tuist@tuist.io", preload: [:account])
+
+      success_url = url(~p"/#{account.name}/billing") <> "?new_plan=pro"
+
+      Billing
+      |> expect(:update_plan, fn %{
+                                   plan: :pro,
+                                   account: ^account,
+                                   success_url: ^success_url
+                                 } ->
+        :ok
+      end)
+
+      conn =
+        conn
+        |> log_in_user(user)
+        |> get("/#{account.name}/billing/upgrade")
+
+      assert redirected_to(conn) == ~p"/#{account.name}/billing"
     end
 
     test "raises UnauthorizedError when user does not have permission", %{conn: conn} do
