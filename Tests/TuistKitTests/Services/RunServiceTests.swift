@@ -422,6 +422,7 @@ final class RunServiceTests: TuistUnitTestCase {
             .listPreviews(
                 displayName: .value("App"),
                 specifier: .value("latest"),
+                supportedPlatforms: .any,
                 page: .value(1),
                 pageSize: .value(1),
                 distinctField: .any,
@@ -470,6 +471,7 @@ final class RunServiceTests: TuistUnitTestCase {
             .listPreviews(
                 displayName: .value("App"),
                 specifier: .value("latest"),
+                supportedPlatforms: .any,
                 page: .value(1),
                 pageSize: .value(1),
                 distinctField: .any,
