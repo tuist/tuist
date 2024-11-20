@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Path
 import ProjectDescription
@@ -20,8 +21,9 @@ extension XcodeGraph.Project {
         plugins: Plugins,
         externalDependencies: [String: [XcodeGraph.TargetDependency]],
         resourceSynthesizerPathLocator: ResourceSynthesizerPathLocating,
-        isExternal: Bool
-    ) throws -> XcodeGraph.Project {
+        type: XcodeGraph.ProjectType,
+        fileSystem: FileSysteming
+    ) async throws -> XcodeGraph.Project {
         let name = manifest.name
         let xcodeProjectName = manifest.options.xcodeProjectName ?? name
         let organizationName = manifest.organizationName
@@ -31,22 +33,34 @@ extension XcodeGraph.Project {
         let options = XcodeGraph.Project.Options.from(manifest: manifest.options)
         let settings = try manifest.settings.map { try XcodeGraph.Settings.from(manifest: $0, generatorPaths: generatorPaths) }
 
-        let targets = try manifest.targets.map {
-            try XcodeGraph.Target.from(
+        let targets = try await manifest.targets.concurrentMap {
+            try await XcodeGraph.Target.from(
                 manifest: $0,
                 generatorPaths: generatorPaths,
-                externalDependencies: externalDependencies
+                externalDependencies: externalDependencies,
+                fileSystem: fileSystem
             )
         }
 
-        let schemes = try manifest.schemes.map { try XcodeGraph.Scheme.from(manifest: $0, generatorPaths: generatorPaths) }
-        let additionalFiles = try manifest.additionalFiles
-            .flatMap { try XcodeGraph.FileElement.from(manifest: $0, generatorPaths: generatorPaths) }
+        let schemes = try await manifest.schemes.concurrentMap { try await XcodeGraph.Scheme.from(
+            manifest: $0,
+            generatorPaths: generatorPaths
+        ) }
+        let additionalFiles = try await manifest.additionalFiles
+            .concurrentMap {
+                try await XcodeGraph.FileElement.from(
+                    manifest: $0,
+                    generatorPaths: generatorPaths,
+                    fileSystem: fileSystem
+                )
+            }
+            .flatMap { $0 }
+            .sorted(by: { $0.path < $1.path })
         let packages = try manifest.packages.map { try XcodeGraph.Package.from(manifest: $0, generatorPaths: generatorPaths) }
         let ideTemplateMacros = try manifest.fileHeaderTemplate
             .map { try IDETemplateMacros.from(manifest: $0, generatorPaths: generatorPaths) }
-        let resourceSynthesizers = try manifest.resourceSynthesizers.map {
-            try XcodeGraph.ResourceSynthesizer.from(
+        let resourceSynthesizers = try await manifest.resourceSynthesizers.concurrentMap {
+            try await XcodeGraph.ResourceSynthesizer.from(
                 manifest: $0,
                 generatorPaths: generatorPaths,
                 plugins: plugins,
@@ -72,7 +86,7 @@ extension XcodeGraph.Project {
             additionalFiles: additionalFiles,
             resourceSynthesizers: resourceSynthesizers,
             lastUpgradeCheck: nil,
-            isExternal: isExternal
+            type: type
         )
     }
 }

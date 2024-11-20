@@ -2,6 +2,7 @@ import Path
 import ProjectDescription
 import TSCUtility
 import TuistSupport
+import struct XcodeGraph.Version
 
 // MARK: - PackageInfo
 
@@ -30,10 +31,10 @@ public struct PackageInfo: Hashable {
     /// The supported swift language standard to use for compiling Swift sources in the package.
     public let swiftLanguageVersions: [TSCUtility.Version]?
 
-    // Ignored fields
+    /// The tools version declared in the manifest.
+    let toolsVersion: Version
 
-    // /// The tools version declared in the manifest.
-    // let toolsVersion: ToolsVersion
+    // Ignored fields
 
     // /// The pkg-config name of a system package.
     // let pkgConfig: String?
@@ -54,7 +55,8 @@ public struct PackageInfo: Hashable {
         platforms: [Platform],
         cLanguageStandard: String?,
         cxxLanguageStandard: String?,
-        swiftLanguageVersions: [TSCUtility.Version]?
+        swiftLanguageVersions: [TSCUtility.Version]?,
+        toolsVersion: Version
     ) {
         self.name = name
         self.products = products
@@ -63,6 +65,7 @@ public struct PackageInfo: Hashable {
         self.cLanguageStandard = cLanguageStandard
         self.cxxLanguageStandard = cxxLanguageStandard
         self.swiftLanguageVersions = swiftLanguageVersions
+        self.toolsVersion = toolsVersion
     }
 }
 
@@ -371,6 +374,7 @@ extension PackageInfo.Target {
 
         /// The name of the build setting.
         public enum SettingName: String, Codable, Hashable {
+            case swiftLanguageMode
             case headerSearchPath
             case define
             case linkedLibrary
@@ -419,6 +423,7 @@ extension PackageInfo.Target {
 
             // Xcode 14 format
             private enum Kind: Codable, Equatable {
+                case swiftLanguageMode(String)
                 case headerSearchPath(String)
                 case define(String)
                 case linkedLibrary(String)
@@ -456,6 +461,9 @@ extension PackageInfo.Target {
                     case let .enableExperimentalFeature(value):
                         name = .enableExperimentalFeature
                         self.value = [value]
+                    case let .swiftLanguageMode(value):
+                        name = .swiftLanguageMode
+                        self.value = [value]
                     }
                 } else {
                     name = try container.decode(SettingName.self, forKey: .name)
@@ -483,6 +491,8 @@ extension PackageInfo.Target {
                     try container.encode(Kind.enableUpcomingFeature(value.first!), forKey: .kind)
                 case .enableExperimentalFeature:
                     try container.encode(Kind.enableExperimentalFeature(value.first!), forKey: .kind)
+                case .swiftLanguageMode:
+                    try container.encode(Kind.swiftLanguageMode(value.first!), forKey: .kind)
                 }
             }
         }
@@ -492,8 +502,13 @@ extension PackageInfo.Target {
 // MARK: Codable conformances
 
 extension PackageInfo: Codable {
+    private struct ToolsVersion: Codable {
+        // swiftlint:disable:next identifier_name
+        let _version: String
+    }
+
     private enum CodingKeys: String, CodingKey {
-        case name, products, targets, platforms, cLanguageStandard, cxxLanguageStandard, swiftLanguageVersions
+        case name, products, targets, platforms, cLanguageStandard, cxxLanguageStandard, swiftLanguageVersions, toolsVersion
     }
 
     public init(from decoder: Decoder) throws {
@@ -507,6 +522,31 @@ extension PackageInfo: Codable {
         swiftLanguageVersions = try values
             .decodeIfPresent([String].self, forKey: .swiftLanguageVersions)?
             .compactMap { TSCUtility.Version(unformattedString: $0) }
+
+        let versionString = try values.decode(ToolsVersion.self, forKey: .toolsVersion)._version
+        guard let toolsVersion = Version(
+            string: versionString
+        ) else {
+            throw DecodingError.dataCorrupted(
+                DecodingError.Context(
+                    codingPath: decoder.codingPath,
+                    debugDescription: "Invalid Swift tools version string \(versionString)"
+                )
+            )
+        }
+        self.toolsVersion = toolsVersion
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(name, forKey: .name)
+        try container.encode(products, forKey: .products)
+        try container.encode(targets, forKey: .targets)
+        try container.encode(platforms, forKey: .platforms)
+        try container.encodeIfPresent(cLanguageStandard, forKey: .cLanguageStandard)
+        try container.encodeIfPresent(cxxLanguageStandard, forKey: .cxxLanguageStandard)
+        try container.encodeIfPresent(swiftLanguageVersions, forKey: .swiftLanguageVersions)
+        try container.encode(ToolsVersion(_version: toolsVersion.description), forKey: .toolsVersion)
     }
 }
 
@@ -678,7 +718,8 @@ extension PackageInfo.Target.TargetType {
             platforms: [Platform] = [],
             cLanguageStandard: String? = nil,
             cxxLanguageStandard: String? = nil,
-            swiftLanguageVersions: [TSCUtility.Version]? = nil
+            swiftLanguageVersions: [TSCUtility.Version]? = nil,
+            toolsVersion: Version = Version(5, 9, 0)
         ) -> Self {
             .init(
                 name: name,
@@ -687,7 +728,8 @@ extension PackageInfo.Target.TargetType {
                 platforms: platforms,
                 cLanguageStandard: cLanguageStandard,
                 cxxLanguageStandard: cxxLanguageStandard,
-                swiftLanguageVersions: swiftLanguageVersions
+                swiftLanguageVersions: swiftLanguageVersions,
+                toolsVersion: toolsVersion
             )
         }
 
@@ -1353,7 +1395,8 @@ extension PackageInfo.Target.TargetType {
                 ],
                 cLanguageStandard: "c99",
                 cxxLanguageStandard: nil,
-                swiftLanguageVersions: nil
+                swiftLanguageVersions: nil,
+                toolsVersion: Version(5, 1, 0)
             )
         }
 
@@ -1400,7 +1443,8 @@ extension PackageInfo.Target.TargetType {
                 ],
                 cLanguageStandard: nil,
                 cxxLanguageStandard: nil,
-                swiftLanguageVersions: nil
+                swiftLanguageVersions: nil,
+                toolsVersion: Version(5, 9, 0)
             )
         }
 
@@ -1432,7 +1476,8 @@ extension PackageInfo.Target.TargetType {
                 ],
                 cLanguageStandard: nil,
                 cxxLanguageStandard: nil,
-                swiftLanguageVersions: nil
+                swiftLanguageVersions: nil,
+                toolsVersion: Version(5, 9, 0)
             )
         }
     }
@@ -1615,7 +1660,8 @@ extension PackageInfo.Target.TargetType {
                 ],
                 cLanguageStandard: nil,
                 cxxLanguageStandard: nil,
-                swiftLanguageVersions: ["5.0.0"]
+                swiftLanguageVersions: ["5.0.0"],
+                toolsVersion: Version(5, 1, 0)
             )
         }
     }
@@ -2068,7 +2114,8 @@ extension PackageInfo.Target.TargetType {
                 ],
                 cLanguageStandard: "c99",
                 cxxLanguageStandard: "gnu++14",
-                swiftLanguageVersions: nil
+                swiftLanguageVersions: nil,
+                toolsVersion: Version(5, 3, 0)
             )
         }
 
@@ -2140,7 +2187,8 @@ extension PackageInfo.Target.TargetType {
                 ],
                 cLanguageStandard: nil,
                 cxxLanguageStandard: nil,
-                swiftLanguageVersions: nil
+                swiftLanguageVersions: nil,
+                toolsVersion: Version(5, 9, 0)
             )
         }
 
@@ -2170,7 +2218,8 @@ extension PackageInfo.Target.TargetType {
                 ],
                 cLanguageStandard: nil,
                 cxxLanguageStandard: nil,
-                swiftLanguageVersions: nil
+                swiftLanguageVersions: nil,
+                toolsVersion: Version(5, 9, 0)
             )
         }
     }

@@ -147,28 +147,28 @@ public final class TargetBuilder: TargetBuilding {
         configuration: String
     ) async throws {
         let xcodeSchemeBuildPath = try xcodeProjectBuildDirectoryLocator.locate(
-            platform: platform,
+            destinationType: .simulator(platform),
             projectPath: projectPath,
             derivedDataPath: derivedDataPath,
             configuration: configuration
         )
-        guard FileHandler.shared.exists(xcodeSchemeBuildPath) else {
+        guard try await fileSystem.exists(xcodeSchemeBuildPath) else {
             throw TargetBuilderError.buildProductsNotFound(path: xcodeSchemeBuildPath.pathString)
         }
 
         let buildOutputPath = outputPath.appending(component: xcodeSchemeBuildPath.basename)
-        if !FileHandler.shared.exists(buildOutputPath) {
+        if try await !fileSystem.exists(buildOutputPath) {
             try FileHandler.shared.createFolder(buildOutputPath)
         }
         logger.log(level: .notice, "Copying build products to \(buildOutputPath.pathString)", metadata: .subsection)
 
         for product in try FileHandler.shared.contentsOfDirectory(xcodeSchemeBuildPath) {
             let productOutputPath = buildOutputPath.appending(component: product.basename)
-            if FileHandler.shared.exists(productOutputPath) {
+            if try await fileSystem.exists(productOutputPath) {
                 try await fileSystem.remove(productOutputPath)
             }
 
-            try FileHandler.shared.copy(from: product, to: productOutputPath)
+            try await fileSystem.copy(product, to: productOutputPath)
         }
     }
 }

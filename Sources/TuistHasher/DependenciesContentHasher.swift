@@ -1,15 +1,22 @@
 import Foundation
+import Mockable
 import Path
 import TuistCore
 import TuistSupport
 import XcodeGraph
 
+@Mockable
 public protocol DependenciesContentHashing {
     func hash(
         graphTarget: GraphTarget,
-        hashedTargets: inout [GraphHashedTarget: String],
-        hashedPaths: inout [AbsolutePath: String]
-    ) throws -> String
+        hashedTargets: [GraphHashedTarget: String],
+        hashedPaths: [AbsolutePath: String]
+    ) async throws -> DependenciesContentHash
+}
+
+public struct DependenciesContentHash {
+    public let hashedPaths: [AbsolutePath: String]
+    public let hash: String
 }
 
 enum DependenciesContentHasherError: FatalError, Equatable {
@@ -57,12 +64,27 @@ public final class DependenciesContentHasher: DependenciesContentHashing {
 
     public func hash(
         graphTarget: GraphTarget,
-        hashedTargets: inout [GraphHashedTarget: String],
-        hashedPaths: inout [AbsolutePath: String]
-    ) throws -> String {
-        let hashes = try graphTarget.target.dependencies
-            .map { try hash(graphTarget: graphTarget, dependency: $0, hashedTargets: &hashedTargets, hashedPaths: &hashedPaths) }
-        return hashes.sorted().compactMap { $0 }.joined()
+        hashedTargets: [GraphHashedTarget: String],
+        hashedPaths: [AbsolutePath: String]
+    ) async throws -> DependenciesContentHash {
+        let hashedTargets = hashedTargets
+        var hashedPaths = hashedPaths
+        var hashes: [String] = []
+
+        for dependency in graphTarget.target.dependencies {
+            let result = try await hash(
+                graphTarget: graphTarget,
+                dependency: dependency,
+                hashedTargets: hashedTargets,
+                hashedPaths: hashedPaths
+            )
+            hashes.append(result.hash)
+            hashedPaths.merge(result.hashedPaths, uniquingKeysWith: { _, newValue in newValue })
+        }
+        return DependenciesContentHash(
+            hashedPaths: hashedPaths,
+            hash: hashes.sorted().compactMap { $0 }.joined()
+        )
     }
 
     // MARK: - Private
@@ -70,11 +92,12 @@ public final class DependenciesContentHasher: DependenciesContentHashing {
     private func hash(
         graphTarget: GraphTarget,
         dependency: TargetDependency,
-        hashedTargets: inout [GraphHashedTarget: String],
-        hashedPaths: inout [AbsolutePath: String]
-    ) throws -> String {
+        hashedTargets: [GraphHashedTarget: String],
+        hashedPaths: [AbsolutePath: String]
+    ) async throws -> DependenciesContentHash {
+        var hashedPaths = hashedPaths
         switch dependency {
-        case let .target(targetName, _):
+        case let .target(targetName, _, _):
             guard let dependencyHash = hashedTargets[GraphHashedTarget(projectPath: graphTarget.path, targetName: targetName)]
             else {
                 throw DependenciesContentHasherError.missingTargetHash(
@@ -83,8 +106,11 @@ public final class DependenciesContentHasher: DependenciesContentHashing {
                     dependencyTargetName: targetName
                 )
             }
-            return dependencyHash
-        case let .project(targetName, projectPath, _):
+            return DependenciesContentHash(
+                hashedPaths: hashedPaths,
+                hash: dependencyHash
+            )
+        case let .project(targetName, projectPath, _, _):
             guard let dependencyHash = hashedTargets[GraphHashedTarget(projectPath: projectPath, targetName: targetName)] else {
                 throw DependenciesContentHasherError.missingProjectTargetHash(
                     sourceProjectPath: graphTarget.path,
@@ -93,34 +119,61 @@ public final class DependenciesContentHasher: DependenciesContentHashing {
                     dependencyTargetName: targetName
                 )
             }
-            return dependencyHash
+            return DependenciesContentHash(
+                hashedPaths: hashedPaths,
+                hash: dependencyHash
+            )
         case let .framework(path, _, _), let .xcframework(path, _, _):
-            return try cachedHash(path: path, hashedPaths: &hashedPaths)
-        case let .library(path, publicHeaders, swiftModuleMap, _):
-            let libraryHash = try cachedHash(path: path, hashedPaths: &hashedPaths)
-            let publicHeadersHash = try contentHasher.hash(path: publicHeaders)
-            if let swiftModuleMap {
-                let swiftModuleHash = try contentHasher.hash(path: swiftModuleMap)
-                return try contentHasher.hash("library-\(libraryHash)-\(publicHeadersHash)-\(swiftModuleHash)")
+            if let pathHash = hashedPaths[path] {
+                return DependenciesContentHash(
+                    hashedPaths: hashedPaths,
+                    hash: pathHash
+                )
             } else {
-                return try contentHasher.hash("library-\(libraryHash)-\(publicHeadersHash)")
+                let pathHash = try await contentHasher.hash(path: path)
+                hashedPaths[path] = pathHash
+                return DependenciesContentHash(
+                    hashedPaths: hashedPaths,
+                    hash: pathHash
+                )
+            }
+        case let .library(path, publicHeaders, swiftModuleMap, _):
+            let libraryHash: String
+            if let pathHash = hashedPaths[path] {
+                libraryHash = pathHash
+            } else {
+                let pathHash = try await contentHasher.hash(path: path)
+                hashedPaths[path] = pathHash
+                libraryHash = pathHash
+            }
+            let publicHeadersHash = try await contentHasher.hash(path: publicHeaders)
+            if let swiftModuleMap {
+                let swiftModuleHash = try await contentHasher.hash(path: swiftModuleMap)
+                return DependenciesContentHash(
+                    hashedPaths: hashedPaths,
+                    hash: try contentHasher.hash("library-\(libraryHash)-\(publicHeadersHash)-\(swiftModuleHash)")
+                )
+            } else {
+                return DependenciesContentHash(
+                    hashedPaths: hashedPaths,
+                    hash: try contentHasher.hash("library-\(libraryHash)-\(publicHeadersHash)")
+                )
             }
         case let .package(product, type, _):
-            return try contentHasher.hash("package-\(product)-\(type.rawValue)")
+            return DependenciesContentHash(
+                hashedPaths: hashedPaths,
+                hash: try contentHasher.hash("package-\(product)-\(type.rawValue)")
+            )
         case let .sdk(name, status, _):
-            return try contentHasher.hash("sdk-\(name)-\(status)")
+            return DependenciesContentHash(
+                hashedPaths: hashedPaths,
+                hash: try contentHasher.hash("sdk-\(name)-\(status)")
+            )
         case .xctest:
-            return try contentHasher.hash("xctest")
-        }
-    }
-
-    private func cachedHash(path: AbsolutePath, hashedPaths: inout [AbsolutePath: String]) throws -> String {
-        if let pathHash = hashedPaths[path] {
-            return pathHash
-        } else {
-            let pathHash = try contentHasher.hash(path: path)
-            hashedPaths[path] = pathHash
-            return pathHash
+            return DependenciesContentHash(
+                hashedPaths: hashedPaths,
+                hash: try contentHasher.hash("xctest")
+            )
         }
     }
 }

@@ -4,7 +4,7 @@ import TuistSupport
 
 @Mockable
 public protocol ServerAuthenticationControlling: Sendable {
-    func authenticationToken(serverURL: URL) throws -> AuthenticationToken?
+    func authenticationToken(serverURL: URL) async throws -> AuthenticationToken?
 }
 
 public enum AuthenticationToken: CustomStringConvertible, Equatable {
@@ -74,7 +74,7 @@ public final class ServerAuthenticationController: ServerAuthenticationControlli
         self.environment = environment
     }
 
-    public func authenticationToken(serverURL: URL) throws -> AuthenticationToken? {
+    public func authenticationToken(serverURL: URL) async throws -> AuthenticationToken? {
         if ciChecker.isCI() {
             if let configToken = environment.tuistVariables[Constants.EnvironmentVariables.token] {
                 return .project(configToken)
@@ -88,7 +88,10 @@ public final class ServerAuthenticationController: ServerAuthenticationControlli
                 return nil
             }
         } else {
-            let credentials = try credentialsStore.read(serverURL: serverURL)
+            var credentials: ServerCredentials? = try await credentialsStore.read(serverURL: serverURL)
+            if isTuistDevURL(serverURL), credentials == nil {
+                credentials = try await credentialsStore.read(serverURL: URL(string: "https://cloud.tuist.io")!)
+            }
             return try credentials.map {
                 if let refreshToken = $0.refreshToken {
                     return .user(
@@ -106,6 +109,11 @@ public final class ServerAuthenticationController: ServerAuthenticationControlli
                 }
             }
         }
+    }
+
+    func isTuistDevURL(_ serverURL: URL) -> Bool {
+        // URL fails if one of the URLs has a trailing slash and the other not.
+        return serverURL.absoluteString.hasPrefix("https://tuist.dev")
     }
 
     private func parseJWT(_ jwt: String) throws -> JWT {

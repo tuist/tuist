@@ -19,7 +19,7 @@ final class ProjectCreateService: ProjectCreateServicing {
     init(
         createProjectService: CreateProjectServicing = CreateProjectService(),
         serverURLService: ServerURLServicing = ServerURLService(),
-        configLoader: ConfigLoading = ConfigLoader()
+        configLoader: ConfigLoading = ConfigLoader(warningController: WarningController.shared)
     ) {
         self.createProjectService = createProjectService
         self.serverURLService = serverURLService

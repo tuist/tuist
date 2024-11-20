@@ -24,7 +24,7 @@ final class WorkspaceGeneratorIntegrationTests: TuistTestCase {
 
     // MARK: - Tests
 
-    func test_generate_stressTest() throws {
+    func test_generate_stressTest() async throws {
         // Given
         let temporaryPath = try temporaryPath()
         let projects: [AbsolutePath: Project] = (0 ..< 20).reduce(into: [:]) { acc, index in
@@ -48,7 +48,7 @@ final class WorkspaceGeneratorIntegrationTests: TuistTestCase {
 
         // When / Then
         for _ in 0 ..< 50 {
-            _ = try subject.generate(graphTraverser: graphTraverser)
+            _ = try await subject.generate(graphTraverser: graphTraverser)
         }
     }
 }

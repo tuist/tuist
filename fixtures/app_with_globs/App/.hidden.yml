@@ -1,0 +1,11 @@
+example:
+  name: Sample YAML
+  description: This is an example of a YAML file.
+  version: 1.0
+  items:
+    - id: 1
+      name: Item One
+      price: 10.99
+    - id: 2
+      name: Item Two
+      price: 20.99

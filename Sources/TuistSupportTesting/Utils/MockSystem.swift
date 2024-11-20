@@ -8,18 +8,20 @@ public final class MockSystem: Systeming {
     public var env: [String: String] = [:]
 
     // swiftlint:disable:next large_tuple
-    public var stubs: [String: (stderror: String?, stdout: String?, exitstatus: Int?)] = [:]
-    private var calls: [String] = []
+    public var defaultCaptureStubs: (stderror: String?, stdout: String?, exitstatus: Int?)?
+    // swiftlint:disable:next large_tuple
+    public private(set) var captureStubs: [String: (stderror: String?, stdout: String?, exitstatus: Int?)] = [:]
+    public private(set) var calls: [String] = []
     public var whichStub: ((String) throws -> String?)?
 
     public init() {}
 
     public func succeedCommand(_ arguments: [String], output: String? = nil) {
-        stubs[arguments.joined(separator: " ")] = (stderror: nil, stdout: output, exitstatus: 0)
+        captureStubs[arguments.joined(separator: " ")] = (stderror: nil, stdout: output, exitstatus: 0)
     }
 
     public func errorCommand(_ arguments: [String], error: String? = nil) {
-        stubs[arguments.joined(separator: " ")] = (stderror: error, stdout: nil, exitstatus: 1)
+        captureStubs[arguments.joined(separator: " ")] = (stderror: error, stdout: nil, exitstatus: 1)
     }
 
     public func called(_ args: [String]) -> Bool {
@@ -37,7 +39,7 @@ public final class MockSystem: Systeming {
 
     public func capture(_ arguments: [String], verbose _: Bool, environment _: [String: String]) throws -> String {
         let command = arguments.joined(separator: " ")
-        guard let stub = stubs[command] else {
+        guard let stub = captureStubs[command] ?? defaultCaptureStubs else {
             throw TuistSupport.SystemError.terminated(command: arguments.first!, code: 1, standardError: Data())
         }
         if stub.exitstatus != 0 {
@@ -70,7 +72,7 @@ public final class MockSystem: Systeming {
 
     public func runAndCollectOutput(_ arguments: [String]) async throws -> SystemCollectedOutput {
         let command = arguments.joined(separator: " ")
-        guard let stub = stubs[command] else {
+        guard let stub = captureStubs[command] else {
             throw TuistSupport.SystemError
                 .terminated(command: arguments.first!, code: 1, standardError: Data())
         }
@@ -88,7 +90,7 @@ public final class MockSystem: Systeming {
 
     public func async(_ arguments: [String]) throws {
         let command = arguments.joined(separator: " ")
-        guard let stub = stubs[command] else {
+        guard let stub = captureStubs[command] else {
             throw TuistSupport.SystemError.terminated(command: arguments.first!, code: 1, standardError: Data())
         }
         if stub.exitstatus != 0 {

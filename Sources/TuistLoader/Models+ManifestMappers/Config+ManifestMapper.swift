@@ -31,8 +31,12 @@ extension TuistCore.Config {
     /// - Parameters:
     ///   - manifest: Manifest representation of Tuist config.
     ///   - path: The path of the config file.
-    static func from(manifest: ProjectDescription.Config, at path: AbsolutePath) throws -> TuistCore.Config {
-        let generatorPaths = GeneratorPaths(manifestDirectory: path)
+    static func from(
+        manifest: ProjectDescription.Config,
+        rootDirectory: AbsolutePath,
+        at path: AbsolutePath
+    ) async throws -> TuistCore.Config {
+        let generatorPaths = GeneratorPaths(manifestDirectory: path, rootDirectory: rootDirectory)
         var generationOptions = try TuistCore.Config.GenerationOptions.from(
             manifest: manifest.generationOptions,
             generatorPaths: generatorPaths
@@ -61,6 +65,10 @@ extension TuistCore.Config {
             throw ConfigManifestMapperError.invalidServerURL(manifest.url)
         }
 
+        let installOptions = TuistCore.Config.InstallOptions.from(
+            manifest: manifest.installOptions
+        )
+
         return TuistCore.Config(
             compatibleXcodeVersions: compatibleXcodeVersions,
             fullHandle: fullHandle,
@@ -68,6 +76,7 @@ extension TuistCore.Config {
             swiftVersion: swiftVersion.map { .init(stringLiteral: $0.description) },
             plugins: plugins,
             generationOptions: generationOptions,
+            installOptions: installOptions,
             path: path
         )
     }
@@ -98,6 +107,19 @@ extension TuistCore.Config.GenerationOptions {
             enforceExplicitDependencies: manifest.enforceExplicitDependencies,
             defaultConfiguration: manifest.defaultConfiguration,
             optionalAuthentication: manifest.optionalAuthentication
+        )
+    }
+}
+
+extension TuistCore.Config.InstallOptions {
+    /// Maps a ProjectDescription.Config.InstallOptions instance into a TuistCore.Config.InstallOptions model.
+    /// - Parameters:
+    ///   - manifest: Manifest representation of Tuist config generation options
+    static func from(
+        manifest: ProjectDescription.Config.InstallOptions
+    ) -> TuistCore.Config.InstallOptions {
+        return .init(
+            passthroughSwiftPackageManagerArguments: manifest.passthroughSwiftPackageManagerArguments
         )
     }
 }

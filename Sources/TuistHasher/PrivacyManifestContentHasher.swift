@@ -4,7 +4,7 @@ import TuistCore
 import XcodeGraph
 
 public protocol PrivacyManifestContentHashing {
-    func hash(_ privacyManifest: PrivacyManifest) throws -> String
+    func hash(identifier: String, privacyManifest: PrivacyManifest) throws -> MerkleNode
 }
 
 public final class PrivacyManifestContentHasher: PrivacyManifestContentHashing {
@@ -14,15 +14,21 @@ public final class PrivacyManifestContentHasher: PrivacyManifestContentHashing {
         self.contentHasher = contentHasher
     }
 
-    public func hash(_ privacyManifest: PrivacyManifest) throws -> String {
-        var hashes: [String] = []
+    public func hash(identifier: String, privacyManifest: PrivacyManifest) throws -> MerkleNode {
+        var children: [MerkleNode] = []
 
-        hashes.append(try contentHasher.hash(privacyManifest.tracking ? "1" : "0"))
-        hashes.append(try contentHasher.hash(privacyManifest.trackingDomains))
-        hashes.append(try contentHasher.hash(privacyManifest.collectedDataTypes.asJSONString()))
-        hashes.append(try contentHasher.hash(privacyManifest.accessedApiTypes.asJSONString()))
+        children.append(MerkleNode(hash: try contentHasher.hash(privacyManifest.tracking), identifier: "tracking"))
+        children.append(MerkleNode(hash: try contentHasher.hash(privacyManifest.trackingDomains), identifier: "trackingDomains"))
+        children.append(MerkleNode(
+            hash: try contentHasher.hash(privacyManifest.collectedDataTypes.asJSONString()),
+            identifier: "collectedDataTypes"
+        ))
+        children.append(MerkleNode(
+            hash: try contentHasher.hash(privacyManifest.accessedApiTypes.asJSONString()),
+            identifier: "accessedApiTypes"
+        ))
 
-        return try contentHasher.hash(hashes)
+        return MerkleNode(hash: try contentHasher.hash(children.map(\.hash)), identifier: identifier, children: children)
     }
 }
 

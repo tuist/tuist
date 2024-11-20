@@ -15,7 +15,10 @@ final class TuistService: NSObject {
 
     init(
         pluginService: PluginServicing = PluginService(),
-        configLoader: ConfigLoading = ConfigLoader(manifestLoader: CachedManifestLoader())
+        configLoader: ConfigLoading = ConfigLoader(
+            manifestLoader: CachedManifestLoader(),
+            warningController: WarningController.shared
+        )
     ) {
         self.pluginService = pluginService
         self.configLoader = configLoader
@@ -41,7 +44,7 @@ final class TuistService: NSObject {
 
         let config = try await configLoader.loadConfig(path: path)
 
-        var pluginPaths = try pluginService.remotePluginPaths(using: config)
+        var pluginPaths = try await pluginService.remotePluginPaths(using: config)
             .compactMap(\.releasePath)
 
         if let pluginPath: String = ProcessInfo.processInfo.environment["TUIST_CONFIG_PLUGIN_BINARY_PATH"] {

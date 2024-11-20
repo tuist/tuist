@@ -1,13 +1,22 @@
 import Foundation
 
 public enum TuistAcceptanceFixtures {
+    case appWithAirshipSDK
+    case appWithAlamofire
     case appWithBuildRules
+    case appWithComposableArchitecture
     case appWithCustomDefaultConfiguration
+    case appWithCustomScheme
     case appWithFrameworkAndTests
+    case appWithGlobs
     case appWithGoogleMaps
     case appWithPlugins
     case appWithPreviews
+    case appWithRealm
+    case appWithRevenueCat
     case appWithSpmDependencies
+    case appWithSpmModuleAliases
+    case appWithLocalSPMModuleWithRemoteDependencies
     case appWithTestPlan
     case appWithTests
     case commandLineToolBasic
@@ -18,6 +27,7 @@ public enum TuistAcceptanceFixtures {
     case frameworkWithMacroAndPluginPackages
     case frameworkWithNativeSwiftMacro
     case frameworkWithSwiftMacro
+    case frameworkWithSPMBundle
     case invalidManifest
     case invalidWorkspaceManifestName
     case iosAppLarge
@@ -41,10 +51,12 @@ public enum TuistAcceptanceFixtures {
     case iosAppWithLocalBinarySwiftPackage
     case iosAppWithLocalSwiftPackage
     case iosAppWithMultiConfigs
+    case iosAppWithNoneLinkingStatusFramework
     case iosAppWithOnDemandResources
     case iosAppWithPluginsAndTemplates
     case iosAppWithPrivacyManifest
     case iosAppWithSpmDependencies
+    case iosAppWithSpmDependenciesForceResolvedVersions
     case iosAppWithRemoteBinarySwiftPackage
     case iosAppWithRemoteSwiftPackage
     case iosAppWithStaticFrameworks
@@ -54,6 +66,7 @@ public enum TuistAcceptanceFixtures {
     case iosAppWithTests
     case iosAppWithTransitiveFramework
     case iosAppWithWatchapp2
+    case iosAppWithWeaklyLinkedFramework
     case iosAppWithXcframeworks
     case iosWorkspaceWithDependencyCycle
     case iosWorkspaceWithMicrofeatureArchitecture
@@ -74,24 +87,44 @@ public enum TuistAcceptanceFixtures {
     case workspaceWithFileHeaderTemplate
     case workspaceWithInlineFileHeaderTemplate
     case xcodeApp
+    case appWithExecutableNonLocalDependencies
+    case appWithGeneratedSources
     case custom(String)
 
     public var path: String {
         switch self {
+        case .appWithAirshipSDK:
+            return "app_with_airship_sdk"
+        case .appWithAlamofire:
+            return "app_with_alamofire"
         case .appWithBuildRules:
             return "app_with_build_rules"
+        case .appWithComposableArchitecture:
+            return "app_with_composable_architecture"
         case .appWithCustomDefaultConfiguration:
             return "app_with_custom_default_configuration"
+        case .appWithCustomScheme:
+            return "app_with_custom_scheme"
         case .appWithFrameworkAndTests:
             return "app_with_framework_and_tests"
+        case .appWithGlobs:
+            return "app_with_globs"
         case .appWithGoogleMaps:
             return "app_with_google_maps"
         case .appWithPlugins:
             return "app_with_plugins"
         case .appWithPreviews:
             return "app_with_previews"
+        case .appWithRealm:
+            return "app_with_realm"
+        case .appWithRevenueCat:
+            return "app_with_revenue_cat"
         case .appWithSpmDependencies:
             return "app_with_spm_dependencies"
+        case .appWithSpmModuleAliases:
+            return "app_with_spm_module_aliases"
+        case .appWithLocalSPMModuleWithRemoteDependencies:
+            return "app_with_local_spm_module_with_remote_dependencies"
         case .appWithTestPlan:
             return "app_with_test_plan"
         case .appWithTests:
@@ -112,6 +145,8 @@ public enum TuistAcceptanceFixtures {
             return "framework_with_native_swift_macro"
         case .frameworkWithSwiftMacro:
             return "framework_with_swift_macro"
+        case .frameworkWithSPMBundle:
+            return "framework_with_spm_bundle"
         case .invalidManifest:
             return "invalid_manifest"
         case .invalidWorkspaceManifestName:
@@ -158,10 +193,14 @@ public enum TuistAcceptanceFixtures {
             return "ios_app_with_local_swift_package"
         case .iosAppWithMultiConfigs:
             return "ios_app_with_multi_configs"
+        case .iosAppWithNoneLinkingStatusFramework:
+            return "ios_app_with_none_linking_status_framework"
         case .iosAppWithOnDemandResources:
             return "ios_app_with_on_demand_resources"
         case .iosAppWithSpmDependencies:
             return "ios_app_with_spm_dependencies"
+        case .iosAppWithSpmDependenciesForceResolvedVersions:
+            return "ios_app_with_spm_dependencies_forced_resolved_versions"
         case .iosAppWithPluginsAndTemplates:
             return "ios_app_with_plugins_and_templates"
         case .iosAppWithPrivacyManifest:
@@ -184,6 +223,8 @@ public enum TuistAcceptanceFixtures {
             return "ios_app_with_transitive_framework"
         case .iosAppWithWatchapp2:
             return "ios_app_with_watchapp2"
+        case .iosAppWithWeaklyLinkedFramework:
+            return "ios_app_with_weakly_linked_framework"
         case .iosAppWithXcframeworks:
             return "ios_app_with_xcframeworks"
         case .iosWorkspaceWithDependencyCycle:
@@ -224,6 +265,10 @@ public enum TuistAcceptanceFixtures {
             return "workspace_with_inline_file_header_template"
         case .xcodeApp:
             return "xcode_app"
+        case .appWithExecutableNonLocalDependencies:
+            return "app_with_executable_non_local_dependencies"
+        case .appWithGeneratedSources:
+            return "app_with_generated_sources"
         case let .custom(path):
             return path
         }

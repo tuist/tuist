@@ -1,6 +1,5 @@
 import FileSystem
 import Mockable
-import MockableTest
 import TuistCore
 import TuistServer
 import TuistSupport
@@ -15,27 +14,28 @@ final class TuistAnalyticsDispatcherTests: TuistUnitTestCase {
     private var subject: TuistAnalyticsDispatcher!
     private var createCommandEventService: MockCreateCommandEventServicing!
     private var ciChecker: MockCIChecking!
-    private var cacheDirectoriesProviderFactory: MockCacheDirectoriesProviderFactoring!
+    private var cacheDirectoriesProvider: MockCacheDirectoriesProviding!
     private var analyticsArtifactUploadService: MockAnalyticsArtifactUploadServicing!
 
     override func setUp() {
         super.setUp()
         createCommandEventService = .init()
         ciChecker = .init()
-        cacheDirectoriesProviderFactory = .init()
+        cacheDirectoriesProvider = .init()
         analyticsArtifactUploadService = .init()
+        cacheDirectoriesProvider = MockCacheDirectoriesProviding()
     }
 
     override func tearDown() {
         subject = nil
         createCommandEventService = nil
         ciChecker = nil
-        cacheDirectoriesProviderFactory = nil
+        cacheDirectoriesProvider = nil
         analyticsArtifactUploadService = nil
         super.tearDown()
     }
 
-    func testDispatch_whenAnalyticsIsEnabled_sendsToServer() throws {
+    func testDispatch_sendsToServer() throws {
         // Given
         let fullHandle = "project"
         let url = URL.test()
@@ -45,7 +45,7 @@ final class TuistAnalyticsDispatcherTests: TuistUnitTestCase {
             createCommandEventService: createCommandEventService,
             fileHandler: fileHandler,
             ciChecker: ciChecker,
-            cacheDirectoriesProviderFactory: cacheDirectoriesProviderFactory,
+            cacheDirectoriesProvider: cacheDirectoriesProvider,
             analyticsArtifactUploadService: analyticsArtifactUploadService,
             fileSystem: FileSystem()
         )
@@ -76,12 +76,6 @@ final class TuistAnalyticsDispatcherTests: TuistUnitTestCase {
             )
             .willReturn(())
 
-        let cacheDirectoriesProvider = MockCacheDirectoriesProviding()
-
-        given(cacheDirectoriesProviderFactory)
-            .cacheDirectories()
-            .willReturn(cacheDirectoriesProvider)
-
         given(cacheDirectoriesProvider)
             .cacheDirectory(for: .value(.runs))
             .willReturn(try temporaryPath())
@@ -108,7 +102,19 @@ final class TuistAnalyticsDispatcherTests: TuistUnitTestCase {
             macOSVersion: "12.0",
             machineHardwareName: "arm64",
             isCI: false,
-            status: .success
+            status: .success,
+            gitCommitSHA: "26f4fda1548502c474642ce63db7630307242312",
+            gitRef: nil,
+            gitRemoteURLOrigin: "https://github.com/tuist/tuist",
+            gitBranch: "main",
+            targetHashes: nil,
+            graphPath: nil,
+            cacheableTargets: [],
+            localCacheTargetHits: [],
+            remoteCacheTargetHits: [],
+            testTargets: [],
+            localTestTargetHits: [],
+            remoteTestTargetHits: []
         )
     }
 

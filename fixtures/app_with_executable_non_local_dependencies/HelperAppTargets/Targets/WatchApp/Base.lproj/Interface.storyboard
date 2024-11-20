@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<document type="com.apple.InterfaceBuilder.WatchKit.Storyboard" version="3.0" toolsVersion="15400" targetRuntime="watchKit" propertyAccessControl="none" useAutolayout="YES" useTraitCollections="YES" colorMatched="YES" initialViewController="AgC-eL-Hgc">
+    <device id="watch38"/>
+    <dependencies>
+        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="15404"/>
+        <plugIn identifier="com.apple.InterfaceBuilder.IBWatchKitPlugin" version="15400"/>
+    </dependencies>
+    <scenes>
+        <!--Interface Controller-->
+        <scene sceneID="aou-V4-d1y">
+            <objects>
+                <controller id="AgC-eL-Hgc" customClass="InterfaceController" customModule="WatchApp" customModuleProvider="target">
+                    <items>
+                        <group width="1" alignment="left" id="0z5-lt-vg9">
+                            <items>
+                                <label alignment="left" text="Hello World" id="bWh-a9-duM"/>
+                            </items>
+                        </group>
+                        <activity alignment="left" id="YbW-9z-b71"/>
+                    </items>
+                </controller>
+            </objects>
+            <point key="canvasLocation" x="159" y="117"/>
+        </scene>
+    </scenes>
+</document>

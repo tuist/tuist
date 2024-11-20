@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Path
 import ProjectDescription
@@ -14,16 +15,22 @@ extension XcodeGraph.Workspace {
         manifest: ProjectDescription.Workspace,
         path: AbsolutePath,
         generatorPaths: GeneratorPaths,
-        manifestLoader: ManifestLoading
-    ) throws -> XcodeGraph.Workspace {
-        func globProjects(_ path: Path) throws -> [AbsolutePath] {
+        manifestLoader _: ManifestLoading,
+        fileSystem: FileSysteming
+    ) async throws -> XcodeGraph.Workspace {
+        func globProjects(_ path: Path) async throws -> [AbsolutePath] {
             let resolvedPath = try generatorPaths.resolve(path: path)
-            let projects = FileHandler.shared.glob(AbsolutePath.root, glob: String(resolvedPath.pathString.dropFirst()))
-                .filter(FileHandler.shared.isFolder)
-                .filter { $0.basename != Constants.tuistDirectoryName && !$0.pathString.contains(".build/checkouts") }
-                .filter {
-                    manifestLoader.manifests(at: $0).contains(where: { $0 == .package || $0 == .project })
-                }
+            let projects = try await fileSystem.glob(
+                directory: AbsolutePath.root,
+                include: [
+                    String(resolvedPath.appending(component: Manifest.package.fileName(resolvedPath)).pathString.dropFirst()),
+                    String(resolvedPath.appending(component: Manifest.project.fileName(resolvedPath)).pathString.dropFirst()),
+                ]
+            )
+            .collect()
+            .map(\.parentDirectory)
+            .filter { $0.basename != Constants.tuistDirectoryName && !$0.pathString.contains(".build/checkouts") }
+            .uniqued()
 
             if projects.isEmpty {
                 // FIXME: This should be done in a linter.
@@ -35,11 +42,20 @@ extension XcodeGraph.Workspace {
             return Array(projects)
         }
 
-        let additionalFiles = try manifest.additionalFiles.flatMap {
-            try XcodeGraph.FileElement.from(manifest: $0, generatorPaths: generatorPaths)
-        }
+        let additionalFiles = try await manifest.additionalFiles
+            .concurrentFlatMap {
+                try await XcodeGraph.FileElement.from(
+                    manifest: $0,
+                    generatorPaths: generatorPaths,
+                    fileSystem: fileSystem
+                )
+            }
+            .sorted(by: { $0.path < $1.path })
 
-        let schemes = try manifest.schemes.map { try XcodeGraph.Scheme.from(manifest: $0, generatorPaths: generatorPaths) }
+        let schemes = try await manifest.schemes.concurrentMap { try await XcodeGraph.Scheme.from(
+            manifest: $0,
+            generatorPaths: generatorPaths
+        ) }
 
         let generationOptions: GenerationOptions = try .from(manifest: manifest.generationOptions, generatorPaths: generatorPaths)
 
@@ -50,7 +66,7 @@ extension XcodeGraph.Workspace {
             path: path,
             xcWorkspacePath: path.appending(component: "\(manifest.name).xcworkspace"),
             name: manifest.name,
-            projects: try manifest.projects.flatMap(globProjects),
+            projects: try await manifest.projects.concurrentFlatMap(globProjects),
             schemes: schemes,
             generationOptions: generationOptions,
             ideTemplateMacros: ideTemplateMacros,

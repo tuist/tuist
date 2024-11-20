@@ -37,7 +37,7 @@ final class TargetImportsScanner: TargetImportsScanning {
         return imports
     }
 
-    private func matchPattern(at path: AbsolutePath) async throws -> [String] {
+    private func matchPattern(at path: AbsolutePath) async throws -> Set<String> {
         let language: ProgrammingLanguage
         switch path.extension {
         case "swift":

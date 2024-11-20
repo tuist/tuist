@@ -1,9 +1,11 @@
 import Foundation
+import Mockable
 import TuistCore
 import XcodeGraph
 
+@Mockable
 public protocol PlistContentHashing {
-    func hash(plist: Plist) throws -> String
+    func hash(plist: Plist) async throws -> String
 }
 
 /// `PlistContentHasher`
@@ -19,14 +21,14 @@ public final class PlistContentHasher: PlistContentHashing {
 
     // MARK: - PlistContentHashing
 
-    public func hash(plist: Plist) throws -> String {
+    public func hash(plist: Plist) async throws -> String {
         switch plist {
         case let .infoPlist(infoPlist):
             switch infoPlist {
             case let .file(path):
-                return try contentHasher.hash(path: path)
+                return try await contentHasher.hash(path: path)
             case let .dictionary(dictionary), let .extendingDefault(dictionary):
-                var dictionaryString: String = ""
+                var dictionaryString = ""
                 for key in dictionary.keys.sorted() {
                     let value = dictionary[key, default: "nil"]
                     dictionaryString += "\(key)=\(value);"
@@ -40,9 +42,9 @@ public final class PlistContentHasher: PlistContentHashing {
             case let .variable(variable):
                 return try contentHasher.hash(variable)
             case let .file(path):
-                return try contentHasher.hash(path: path)
+                return try await contentHasher.hash(path: path)
             case let .dictionary(dictionary):
-                var dictionaryString: String = ""
+                var dictionaryString = ""
                 for key in dictionary.keys.sorted() {
                     let value = dictionary[key, default: "nil"]
                     dictionaryString += "\(key)=\(value);"

@@ -1,4 +1,6 @@
+import Foundation
 import Path
+import TuistCore
 import TuistSupport
 import XcodeGraph
 
@@ -28,6 +30,51 @@ public struct AppBundle: Equatable {
     }
 
     public struct InfoPlist: Codable, Equatable {
+        public struct PrimaryBundleIcon: Codable, Equatable {
+            enum CodingKeys: String, CodingKey {
+                case name = "CFBundleIconName"
+                case iconFiles = "CFBundleIconFiles"
+            }
+
+            public let name: String
+            public let iconFiles: [String]
+
+            public init(
+                name: String,
+                iconFiles: [String]
+            ) {
+                self.name = name
+                self.iconFiles = iconFiles
+            }
+
+            public init(from decoder: any Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                name = try container.decode(String.self, forKey: .name)
+                iconFiles = try container.decodeIfPresent([String].self, forKey: .iconFiles) ?? []
+            }
+        }
+
+        public struct BundleIcons: Codable, Equatable {
+            enum CodingKeys: String, CodingKey {
+                case primaryIcon = "CFBundlePrimaryIcon"
+            }
+
+            /// The app’s primary icon for display on the Home Screen, in the Settings app, and many other places throughout the
+            /// system.
+            public let primaryIcon: PrimaryBundleIcon?
+
+            public init(
+                primaryIcon: PrimaryBundleIcon?
+            ) {
+                self.primaryIcon = primaryIcon
+            }
+
+            public init(from decoder: any Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                primaryIcon = try container.decodeIfPresent(PrimaryBundleIcon.self, forKey: .primaryIcon)
+            }
+        }
+
         /// App version number (e.g. 10.3)
         public let version: Version
 
@@ -40,27 +87,26 @@ public struct AppBundle: Equatable {
         /// Minimum OS version
         public let minimumOSVersion: Version
 
-        /// Supported simulator platforms.
-        /// Device is currently not supported.
-        public let supportedPlatforms: [SupportedPlatform]
+        /// Supported destination platforms.
+        public let supportedPlatforms: [DestinationType]
+
+        /// Information about all of the icons used by the app.
+        public let bundleIcons: BundleIcons?
 
         init(
             version: Version,
             name: String,
             bundleId: String,
             minimumOSVersion: Version,
-            supportedPlatforms: [SupportedPlatform]
+            supportedPlatforms: [DestinationType],
+            bundleIcons: BundleIcons?
         ) {
             self.version = version
             self.name = name
             self.bundleId = bundleId
             self.minimumOSVersion = minimumOSVersion
             self.supportedPlatforms = supportedPlatforms
-        }
-
-        public enum SupportedPlatform: Codable, Equatable {
-            case simulator(Platform)
-            case device(Platform)
+            self.bundleIcons = bundleIcons
         }
 
         enum CodingKeys: String, CodingKey {
@@ -69,6 +115,7 @@ public struct AppBundle: Equatable {
             case bundleId = "CFBundleIdentifier"
             case minimumOSVersion = "MinimumOSVersion"
             case supportedPlatforms = "CFBundleSupportedPlatforms"
+            case bundleIcons = "CFBundleIcons"
         }
 
         public init(from decoder: any Decoder) throws {
@@ -85,7 +132,9 @@ public struct AppBundle: Equatable {
             )
             supportedPlatforms = try container.decode([String].self, forKey: AppBundle.InfoPlist.CodingKeys.supportedPlatforms)
                 .map { platformSDK in
-                    if let platform = Platform(commandLineValue: platformSDK) {
+                    if let platform = Platform.allCases
+                        .first(where: { platformSDK.lowercased() == $0.xcodeDeviceSDK })
+                    {
                         return .device(platform)
                     } else if let platform = Platform.allCases
                         .first(where: { platformSDK.lowercased() == $0.xcodeSimulatorSDK })
@@ -95,6 +144,10 @@ public struct AppBundle: Equatable {
                         throw InfoPlistError.unknownPlatform(platform: platformSDK, app: name)
                     }
                 }
+            bundleIcons = try container.decodeIfPresent(
+                BundleIcons.self,
+                forKey: .bundleIcons
+            )
         }
     }
 }
@@ -118,14 +171,38 @@ public struct AppBundle: Equatable {
             name: String = "App",
             bundleId: String = "io.tuist.App",
             minimumOSVersion: Version = Version("17.4"),
-            supportedPlatforms: [SupportedPlatform] = [.simulator(.iOS)]
+            supportedPlatforms: [DestinationType] = [.simulator(.iOS)],
+            bundleIcons: BundleIcons = .test()
         ) -> Self {
             .init(
                 version: version,
                 name: name,
                 bundleId: bundleId,
                 minimumOSVersion: minimumOSVersion,
-                supportedPlatforms: supportedPlatforms
+                supportedPlatforms: supportedPlatforms,
+                bundleIcons: bundleIcons
+            )
+        }
+    }
+
+    extension AppBundle.InfoPlist.BundleIcons {
+        public static func test(
+            primaryIcon: AppBundle.InfoPlist.PrimaryBundleIcon = .test()
+        ) -> Self {
+            .init(
+                primaryIcon: primaryIcon
+            )
+        }
+    }
+
+    extension AppBundle.InfoPlist.PrimaryBundleIcon {
+        public static func test(
+            name: String = "AppIcon",
+            iconFiles: [String] = ["AppIcon60x60"]
+        ) -> Self {
+            .init(
+                name: name,
+                iconFiles: iconFiles
             )
         }
     }

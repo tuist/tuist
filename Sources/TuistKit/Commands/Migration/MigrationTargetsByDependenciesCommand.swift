@@ -3,7 +3,7 @@ import Foundation
 import Path
 import TuistSupport
 
-public struct MigrationTargetsByDependenciesCommand: ParsableCommand {
+public struct MigrationTargetsByDependenciesCommand: AsyncParsableCommand {
     public init() {}
 
     public static var configuration: CommandConfiguration {
@@ -22,8 +22,8 @@ public struct MigrationTargetsByDependenciesCommand: ParsableCommand {
     )
     var xcodeprojPath: String
 
-    public func run() throws {
-        try MigrationTargetsByDependenciesService()
+    public func run() async throws {
+        try await MigrationTargetsByDependenciesService()
             .run(xcodeprojPath: try AbsolutePath(validating: xcodeprojPath, relativeTo: FileHandler.shared.currentPath))
     }
 }

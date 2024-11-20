@@ -1,4 +1,5 @@
 import CryptoKit
+import FileSystem
 import Foundation
 import Path
 import TuistSupport
@@ -7,12 +8,17 @@ import TuistSupport
 /// is the single source of truth for hashing content.
 /// It uses md5 checksum to uniquely hash strings and data
 /// Consider using CacheContentHasher to avoid computing the same hash twice
-public final class ContentHasher: ContentHashing {
+public struct ContentHasher: ContentHashing {
     private let fileHandler: FileHandling
+    private let fileSystem: FileSysteming
     private let filesFilter = HashingFilesFilter()
 
-    public init(fileHandler: FileHandling = FileHandler.shared) {
+    public init(
+        fileHandler: FileHandling = FileHandler.shared,
+        fileSystem: FileSysteming = FileSystem()
+    ) {
         self.fileHandler = fileHandler
+        self.fileSystem = fileSystem
     }
 
     // MARK: - ContentHashing
@@ -20,6 +26,10 @@ public final class ContentHasher: ContentHashing {
     public func hash(_ data: Data) -> String {
         Insecure.MD5.hash(data: data)
             .compactMap { String(format: "%02x", $0) }.joined()
+    }
+
+    public func hash(_ boolean: Bool) throws -> String {
+        return try hash(boolean ? "1" : "0")
     }
 
     public func hash(_ string: String) throws -> String {
@@ -47,19 +57,19 @@ public final class ContentHasher: ContentHashing {
         return try hash(dictString)
     }
 
-    public func hash(path filePath: AbsolutePath) throws -> String {
-        if fileHandler.isFolder(filePath) {
-            return try fileHandler.contentsOfDirectory(filePath)
+    public func hash(path filePath: AbsolutePath) async throws -> String {
+        if try await fileSystem.exists(filePath, isDirectory: true) {
+            return try await fileHandler.contentsOfDirectory(filePath)
                 .filter { filesFilter($0) }
-                .sorted(by: { $0 < $1 })
-                .map { try hash(path: $0) }
+                .concurrentMap(maxConcurrentTasks: 100) { try await hash(path: $0) }
+                .sorted()
                 .joined(separator: "-")
         }
 
-        guard fileHandler.exists(filePath) else {
+        guard try await fileSystem.exists(filePath) else {
             throw FileHandlerError.fileNotFound(filePath)
         }
-        guard let sourceData = try? fileHandler.readFile(filePath) else {
+        guard let sourceData = try? await fileSystem.readFile(at: filePath) else {
             throw ContentHashingError.failedToReadFile(filePath)
         }
 

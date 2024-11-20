@@ -1,4 +1,4 @@
-import MockableTest
+import Mockable
 import Path
 import TuistAutomationTesting
 import TuistCore
@@ -157,13 +157,13 @@ final class TargetBuilderTests: TuistUnitTestCase {
         let xcodeBuildPath = path.appending(components: "Xcode", "DerivedData", "MyProject-hash", "Debug")
         given(xcodeProjectBuildDirectoryLocator)
             .locate(
-                platform: .any,
+                destinationType: .any,
                 projectPath: .any,
                 derivedDataPath: .any,
                 configuration: .any
             )
             .willReturn(xcodeBuildPath)
-        try createFiles([
+        try await createFiles([
             "Xcode/DerivedData/MyProject-hash/Debug/App.app",
             "Xcode/DerivedData/MyProject-hash/Debug/App.swiftmodule",
         ])
@@ -248,13 +248,13 @@ final class TargetBuilderTests: TuistUnitTestCase {
         let xcodeBuildPath = path.appending(components: "Xcode", "DerivedData", "MyProject-hash", configuration)
         given(xcodeProjectBuildDirectoryLocator)
             .locate(
-                platform: .any,
+                destinationType: .any,
                 projectPath: .any,
                 derivedDataPath: .any,
                 configuration: .any
             )
             .willReturn(xcodeBuildPath)
-        try createFiles([
+        try await createFiles([
             "Xcode/DerivedData/MyProject-hash/\(configuration)/App.app",
             "Xcode/DerivedData/MyProject-hash/\(configuration)/App.swiftmodule",
         ])

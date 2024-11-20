@@ -1,5 +1,5 @@
 import Foundation
-import MockableTest
+import Mockable
 import Path
 import TuistCore
 import TuistSupport
@@ -26,7 +26,7 @@ final class EnvironmentLinterTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_lintXcodeVersion_doesntReturnIssues_theVersionsOfXcodeAreCompatible() throws {
+    func test_lintXcodeVersion_doesntReturnIssues_theVersionsOfXcodeAreCompatible() async throws {
         // Given
         let configs = [
             Config.test(compatibleXcodeVersions: "4.3.2"),
@@ -41,13 +41,13 @@ final class EnvironmentLinterTests: TuistUnitTestCase {
             .willReturn(.test(infoPlist: .test(version: "4.3.2")))
 
         // When
-        let got = try configs.flatMap { try subject.lintXcodeVersion(config: $0) }
+        let got = try await configs.concurrentMap { try await self.subject.lintXcodeVersion(config: $0) }.flatMap { $0 }
 
         // Then
         XCTEmpty(got)
     }
 
-    func test_lintXcodeVersion_returnsALintingIssue_when_theVersionsOfXcodeAreIncompatible() throws {
+    func test_lintXcodeVersion_returnsALintingIssue_when_theVersionsOfXcodeAreIncompatible() async throws {
         // Given
         let configs = [
             Config.test(compatibleXcodeVersions: "4.3.1"),
@@ -66,7 +66,7 @@ final class EnvironmentLinterTests: TuistUnitTestCase {
 
         for config in configs {
             // When
-            let got = try subject.lintXcodeVersion(config: config)
+            let got = try await subject.lintXcodeVersion(config: config)
 
             // Then
             let expectedMessage =
@@ -75,7 +75,7 @@ final class EnvironmentLinterTests: TuistUnitTestCase {
         }
     }
 
-    func test_lintXcodeVersion_doesntReturnIssues_whenAllVersionsAreSupported() throws {
+    func test_lintXcodeVersion_doesntReturnIssues_whenAllVersionsAreSupported() async throws {
         // Given
         let config = Config.test(compatibleXcodeVersions: .all)
         given(xcodeController)
@@ -83,13 +83,13 @@ final class EnvironmentLinterTests: TuistUnitTestCase {
             .willReturn(.test(infoPlist: .test(version: "4.3.2")))
 
         // When
-        let got = try subject.lintXcodeVersion(config: config)
+        let got = try await subject.lintXcodeVersion(config: config)
 
         // Then
         XCTEmpty(got)
     }
 
-    func test_lintXcodeVersion_doesntReturnIssues_whenThereIsNoSelectedXcode() throws {
+    func test_lintXcodeVersion_doesntReturnIssues_whenThereIsNoSelectedXcode() async throws {
         // Given
         let config = Config.test(compatibleXcodeVersions: .list(["3.2.1"]))
 
@@ -98,13 +98,13 @@ final class EnvironmentLinterTests: TuistUnitTestCase {
             .willReturn(nil)
 
         // When
-        let got = try subject.lintXcodeVersion(config: config)
+        let got = try await subject.lintXcodeVersion(config: config)
 
         // Then
         XCTEmpty(got)
     }
 
-    func test_lintXcodeVersion_throws_when_theSelectedXcodeCantBeObtained() throws {
+    func test_lintXcodeVersion_throws_when_theSelectedXcodeCantBeObtained() async throws {
         // Given
         let config = Config.test(compatibleXcodeVersions: .list(["3.2.1"]))
         let error = NSError.test()
@@ -113,45 +113,6 @@ final class EnvironmentLinterTests: TuistUnitTestCase {
             .willThrow(error)
 
         // Then
-        XCTAssertThrowsError(try subject.lintXcodeVersion(config: config)) {
-            XCTAssertEqual($0 as NSError, error)
-        }
-    }
-
-    func test_lintConfigPath_returnsALintingIssue_when_configManifestIsNotLocatedAtTuistDirectory() throws {
-        // Given
-        let fakeRoot = try! AbsolutePath(validating: "/root")
-        given(rootDirectoryLocator)
-            .locate(from: .any)
-            .willReturn(fakeRoot)
-
-        let configPath = fakeRoot.appending(try RelativePath(validating: "Config.swift"))
-        let config = Config.test(path: configPath)
-
-        // When
-        let got = try subject.lintConfigPath(config: config)
-
-        // Then
-        let expectedMessage = "`Config.swift` manifest file is not located at `Tuist` directory"
-        XCTAssertTrue(got.contains(LintingIssue(reason: expectedMessage, severity: .warning)))
-    }
-
-    func test_lintConfigPath_doesntReturnALintingIssue_when_configManifestIsLocatedAtTuistDirectory() throws {
-        // Given
-        let fakeRoot = try! AbsolutePath(validating: "/root")
-        given(rootDirectoryLocator)
-            .locate(from: .any)
-            .willReturn(fakeRoot)
-
-        let configPath = fakeRoot
-            .appending(try RelativePath(validating: "\(Constants.tuistDirectoryName)"))
-            .appending(try RelativePath(validating: "Config.swift"))
-        let config = Config.test(path: configPath)
-
-        // When
-        let got = try subject.lintConfigPath(config: config)
-
-        // Then
-        XCTEmpty(got)
+        await XCTAssertThrowsSpecific(try await subject.lintXcodeVersion(config: config), error)
     }
 }

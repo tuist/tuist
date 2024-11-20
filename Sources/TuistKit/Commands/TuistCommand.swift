@@ -3,6 +3,7 @@ import Foundation
 import OpenAPIRuntime
 import Path
 import TuistAnalytics
+import TuistCore
 import TuistLoader
 import TuistServer
 import TuistSupport
@@ -72,18 +73,22 @@ public struct TuistCommand: AsyncParsableCommand {
             path = .current
         }
 
-        let backend: TuistAnalyticsBackend?
-        let config = try await ConfigLoader().loadConfig(path: path)
+        let config = try await ConfigLoader(warningController: WarningController.shared).loadConfig(path: path)
+        let url = try ServerURLService().url(configServerURL: config.url)
+        let analyticsEnabled: Bool
         if let fullHandle = config.fullHandle {
-            backend = TuistAnalyticsServerBackend(
+            let backend = TuistAnalyticsServerBackend(
                 fullHandle: fullHandle,
-                url: config.url
+                url: url
             )
+            let dispatcher = TuistAnalyticsDispatcher(backend: backend)
+            try TuistAnalytics.bootstrap(dispatcher: dispatcher)
+            analyticsEnabled = true
         } else {
-            backend = nil
+            analyticsEnabled = false
         }
-        let dispatcher = TuistAnalyticsDispatcher(backend: backend)
-        try TuistAnalytics.bootstrap(dispatcher: dispatcher)
+
+        try await CacheDirectoriesProvider.bootstrap()
 
         let errorHandler = ErrorHandler()
         let executeCommand: () async throws -> Void
@@ -102,7 +107,9 @@ public struct TuistCommand: AsyncParsableCommand {
                     command: command,
                     commandArguments: processedArguments
                 )
-                try await trackableCommand.run()
+                try await trackableCommand.run(
+                    analyticsEnabled: analyticsEnabled
+                )
             }
         } catch {
             parsedError = error

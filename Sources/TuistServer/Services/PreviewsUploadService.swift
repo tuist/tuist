@@ -1,30 +1,41 @@
+import FileSystem
 import Foundation
 import Mockable
 import Path
 import TuistSupport
 import XcodeGraph
 
+public enum PreviewUploadType: Equatable {
+    case ipa(AbsolutePath)
+    case appBundles([AbsolutePath])
+}
+
 @Mockable
 public protocol PreviewsUploadServicing {
     func uploadPreviews(
-        _ previewPaths: [AbsolutePath],
+        _ previewUploadType: PreviewUploadType,
+        displayName: String,
+        version: String?,
+        bundleIdentifier: String?,
+        icon: AbsolutePath?,
         fullHandle: String,
         serverURL: URL
-    ) async throws -> URL
+    ) async throws -> Preview
 }
 
-public final class PreviewsUploadService: PreviewsUploadServicing {
-    private let fileHandler: FileHandling
+public struct PreviewsUploadService: PreviewsUploadServicing {
+    private let fileSystem: FileSysteming
     private let fileArchiver: FileArchivingFactorying
     private let retryProvider: RetryProviding
     private let multipartUploadStartPreviewsService: MultipartUploadStartPreviewsServicing
     private let multipartUploadGenerateURLPreviewsService: MultipartUploadGenerateURLPreviewsServicing
     private let multipartUploadArtifactService: MultipartUploadArtifactServicing
     private let multipartUploadCompletePreviewsService: MultipartUploadCompletePreviewsServicing
+    private let uploadPreviewIconService: UploadPreviewIconServicing
 
-    public convenience init() {
+    public init() {
         self.init(
-            fileHandler: FileHandler.shared,
+            fileSystem: FileSystem(),
             fileArchiver: FileArchivingFactory(),
             retryProvider: RetryProvider(),
             multipartUploadStartPreviewsService: MultipartUploadStartPreviewsService(),
@@ -32,50 +43,71 @@ public final class PreviewsUploadService: PreviewsUploadServicing {
             MultipartUploadGenerateURLPreviewsService(),
             multipartUploadArtifactService: MultipartUploadArtifactService(),
             multipartUploadCompletePreviewsService:
-            MultipartUploadCompletePreviewsService()
+            MultipartUploadCompletePreviewsService(),
+            uploadPreviewIconService: UploadPreviewIconService()
         )
     }
 
     init(
-        fileHandler: FileHandling,
+        fileSystem: FileSysteming,
         fileArchiver: FileArchivingFactorying,
         retryProvider: RetryProviding,
         multipartUploadStartPreviewsService: MultipartUploadStartPreviewsServicing,
         multipartUploadGenerateURLPreviewsService: MultipartUploadGenerateURLPreviewsServicing,
         multipartUploadArtifactService: MultipartUploadArtifactServicing,
-        multipartUploadCompletePreviewsService: MultipartUploadCompletePreviewsServicing
+        multipartUploadCompletePreviewsService: MultipartUploadCompletePreviewsServicing,
+        uploadPreviewIconService: UploadPreviewIconServicing
     ) {
-        self.fileHandler = fileHandler
+        self.fileSystem = fileSystem
         self.fileArchiver = fileArchiver
         self.retryProvider = retryProvider
         self.multipartUploadStartPreviewsService = multipartUploadStartPreviewsService
         self.multipartUploadGenerateURLPreviewsService = multipartUploadGenerateURLPreviewsService
         self.multipartUploadArtifactService = multipartUploadArtifactService
         self.multipartUploadCompletePreviewsService = multipartUploadCompletePreviewsService
+        self.uploadPreviewIconService = uploadPreviewIconService
     }
 
     public func uploadPreviews(
-        _ previewPaths: [AbsolutePath],
+        _ previewUploadType: PreviewUploadType,
+        displayName: String,
+        version: String?,
+        bundleIdentifier: String?,
+        icon: AbsolutePath?,
         fullHandle: String,
         serverURL: URL
-    ) async throws -> URL {
-        let buildPath = try fileArchiver.makeFileArchiver(for: previewPaths).zip(name: "previews.zip")
+    ) async throws -> Preview {
+        let previewType: PreviewType
+        let buildPath: AbsolutePath
+        switch previewUploadType {
+        case let .ipa(ipaPath):
+            buildPath = ipaPath
+            previewType = .ipa
+        case let .appBundles(previewPaths):
+            buildPath = try await fileArchiver.makeFileArchiver(for: previewPaths).zip(name: "previews.zip")
+            previewType = .appBundle
+        }
 
-        return try await retryProvider.runWithRetries { [self] in
+        let preview = try await retryProvider.runWithRetries {
             let previewUpload = try await multipartUploadStartPreviewsService.startPreviewsMultipartUpload(
+                type: previewType,
+                displayName: displayName,
+                version: version,
+                bundleIdentifier: bundleIdentifier,
                 fullHandle: fullHandle,
                 serverURL: serverURL
             )
 
             let parts = try await multipartUploadArtifactService.multipartUploadArtifact(
                 artifactPath: buildPath,
-                generateUploadURL: { partNumber in
-                    try await self.multipartUploadGenerateURLPreviewsService.uploadPreviews(
+                generateUploadURL: { part in
+                    try await multipartUploadGenerateURLPreviewsService.uploadPreviews(
                         previewUpload.previewId,
-                        partNumber: partNumber,
+                        partNumber: part.number,
                         uploadId: previewUpload.uploadId,
                         fullHandle: fullHandle,
-                        serverURL: serverURL
+                        serverURL: serverURL,
+                        contentLength: part.contentLength
                     )
                 }
             )
@@ -88,5 +120,16 @@ public final class PreviewsUploadService: PreviewsUploadServicing {
                 serverURL: serverURL
             )
         }
+
+        if let icon {
+            try await uploadPreviewIconService.uploadPreviewIcon(
+                icon,
+                preview: preview,
+                serverURL: serverURL,
+                fullHandle: fullHandle
+            )
+        }
+
+        return preview
     }
 }

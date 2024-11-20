@@ -1,9 +1,11 @@
 import Foundation
+import Mockable
 import TuistCore
 import XcodeGraph
 
+@Mockable
 public protocol SourceFilesContentHashing {
-    func hash(identifier: String, sources: [SourceFile]) throws -> MerkleNode
+    func hash(identifier: String, sources: [SourceFile]) async throws -> MerkleNode
 }
 
 /// `SourceFilesContentHasher`
@@ -29,7 +31,7 @@ public final class SourceFilesContentHasher: SourceFilesContentHashing {
     /// are always sorted the same way.
     /// Then it hashes again all partial hashes to get a unique identifier that represents a group of source files together with
     /// their compiler flags
-    public func hash(identifier: String, sources: [SourceFile]) throws -> MerkleNode {
+    public func hash(identifier: String, sources: [SourceFile]) async throws -> MerkleNode {
         var children: [MerkleNode] = []
 
         for source in sources.sorted(by: { $0.path < $1.path }) {
@@ -42,7 +44,7 @@ public final class SourceFilesContentHasher: SourceFilesContentHashing {
             } else {
                 var sourceChildren: [MerkleNode] = []
                 sourceChildren.append(MerkleNode(
-                    hash: try contentHasher.hash(path: source.path),
+                    hash: try await contentHasher.hash(path: source.path),
                     identifier: "content",
                     children: []
                 ))

@@ -445,7 +445,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
 
         let executableNames = directSwiftMacroExecutables.compactMap {
             switch $0 {
-            case let .product(_, productName, _):
+            case let .product(_, productName, _, _):
                 return productName
             default:
                 return nil
@@ -469,8 +469,11 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
 
         copySwiftMacrosBuildPhase.inputPaths = executableNames.map { "$BUILD_DIR/$CONFIGURATION/\($0)" }
 
-        copySwiftMacrosBuildPhase.outputPaths = executableNames.map { executable in
-            "$BUILD_DIR/Debug-$EFFECTIVE_PLATFORM_NAME/\(executable)"
+        copySwiftMacrosBuildPhase.outputPaths = executableNames.flatMap { executable in
+            [
+                "$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/\(executable)",
+                "$BUILD_DIR/Debug-$EFFECTIVE_PLATFORM_NAME/\(executable)",
+            ]
         }
 
         pbxproj.add(object: copySwiftMacrosBuildPhase)
@@ -573,7 +576,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                 let buildFile = PBXBuildFile(file: fileElements.file(path: path))
                 buildFile.applyCondition(condition, applicableTo: target)
                 return buildFile
-            case let .product(target: targetName, _, condition: condition):
+            case let .product(target: targetName, _, _, condition: condition):
                 let buildFile = PBXBuildFile(file: fileElements.product(target: targetName))
                 buildFile.applyCondition(condition, applicableTo: target)
                 return buildFile

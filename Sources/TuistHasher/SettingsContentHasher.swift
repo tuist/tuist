@@ -1,9 +1,11 @@
 import Foundation
+import Mockable
 import TuistCore
 import XcodeGraph
 
+@Mockable
 public protocol SettingsContentHashing {
-    func hash(settings: Settings) throws -> String
+    func hash(settings: Settings) async throws -> String
 }
 
 /// `SettingsContentHasher`
@@ -19,20 +21,20 @@ public final class SettingsContentHasher: SettingsContentHashing {
 
     // MARK: - SettingsContentHashing
 
-    public func hash(settings: Settings) throws -> String {
+    public func hash(settings: Settings) async throws -> String {
         let baseSettingsHash = try hash(settings.base)
-        let configurationHash = try hash(settings.configurations)
+        let configurationHash = try await hash(settings.configurations)
         let defaultSettingsHash = try hash(settings.defaultSettings)
         return try contentHasher.hash([baseSettingsHash, configurationHash, defaultSettingsHash])
     }
 
-    private func hash(_ configurations: [BuildConfiguration: Configuration?]) throws -> String {
+    private func hash(_ configurations: [BuildConfiguration: Configuration?]) async throws -> String {
         var configurationHashes: [String] = []
         for buildConfiguration in configurations.keys.sorted() {
             var configurationHash = buildConfiguration.name + buildConfiguration.variant.rawValue
             if let configuration = configurations[buildConfiguration] {
                 if let configuration {
-                    configurationHash += try hash(configuration)
+                    configurationHash += try await hash(configuration)
                 }
             }
             configurationHashes.append(configurationHash)
@@ -47,10 +49,10 @@ public final class SettingsContentHasher: SettingsContentHashing {
         return try contentHasher.hash(sortedAndNormalizedSettings)
     }
 
-    private func hash(_ configuration: Configuration) throws -> String {
+    private func hash(_ configuration: Configuration) async throws -> String {
         var configurationHash = try hash(configuration.settings)
         if let xcconfigPath = configuration.xcconfig {
-            let xcconfigHash = try contentHasher.hash(path: xcconfigPath)
+            let xcconfigHash = try await contentHasher.hash(path: xcconfigPath)
             configurationHash += xcconfigHash
         }
         return configurationHash

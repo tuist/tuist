@@ -1,5 +1,5 @@
 import Foundation
-import MockableTest
+import Mockable
 import Path
 import TuistCore
 import TuistCoreTesting
@@ -23,7 +23,7 @@ final class LogoutServiceTests: TuistUnitTestCase {
         super.setUp()
         serverSessionController = MockServerSessionControlling()
         configLoader = MockConfigLoading()
-        serverURL = URL(string: "https://test.cloud.tuist.io")!
+        serverURL = URL(string: "https://test.tuist.dev")!
         given(configLoader).loadConfig(path: .any).willReturn(.test(url: serverURL))
         subject = LogoutService(
             serverSessionController: serverSessionController,

@@ -1,6 +1,6 @@
 import FileSystem
 import Foundation
-import MockableTest
+import Mockable
 import Path
 import struct TSCUtility.Version
 import TuistAutomation
@@ -47,6 +47,7 @@ final class RunServiceTests: TuistUnitTestCase {
     private var targetRunner: MockTargetRunner!
     private var configLoader: MockConfigLoading!
     private var downloadPreviewService: MockDownloadPreviewServicing!
+    private var listPreviewsService: MockListPreviewsServicing!
     private var serverURLService: MockServerURLServicing!
     private var appRunner: MockAppRunning!
     private var subject: RunService!
@@ -68,6 +69,7 @@ final class RunServiceTests: TuistUnitTestCase {
         targetRunner = MockTargetRunner()
         configLoader = .init()
         downloadPreviewService = .init()
+        listPreviewsService = .init()
         appRunner = .init()
         remoteArtifactDownloader = .init()
         appBundleLoader = .init()
@@ -79,6 +81,7 @@ final class RunServiceTests: TuistUnitTestCase {
             targetRunner: targetRunner,
             configLoader: configLoader,
             downloadPreviewService: downloadPreviewService,
+            listPreviewsService: listPreviewsService,
             fileHandler: fileHandler,
             fileSystem: FileSystem(),
             appRunner: appRunner,
@@ -93,6 +96,8 @@ final class RunServiceTests: TuistUnitTestCase {
         buildGraphInspector = nil
         targetBuilder = nil
         targetRunner = nil
+        downloadPreviewService = nil
+        listPreviewsService = nil
         subject = nil
         generatorFactory = nil
         super.tearDown()
@@ -340,6 +345,175 @@ final class RunServiceTests: TuistUnitTestCase {
             .willReturn(unarchivedPath)
 
         try fileHandler.touch(unarchivedPath.appending(component: "App.app"))
+
+        given(appRunner)
+            .runApp(
+                .any,
+                version: .any,
+                device: .any
+            )
+            .willReturn()
+
+        let appBundle: AppBundle = .test()
+        given(appBundleLoader)
+            .load(.any)
+            .willReturn(appBundle)
+
+        // When
+        try await subject.run(runnable: .url(URL(string: "https://tuist.io/tuist/tuist/preview/some-id")!))
+
+        // Then
+        verify(appRunner)
+            .runApp(
+                .value([appBundle]),
+                version: .value(nil),
+                device: .value(nil)
+            )
+            .called(1)
+    }
+
+    func test_run_preview_with_specifier_runs_app() async throws {
+        // Given
+        given(downloadPreviewService)
+            .downloadPreview(
+                .any,
+                fullHandle: .any,
+                serverURL: .any
+            )
+            .willReturn("https://example.com")
+
+        let downloadedArchive = try temporaryPath().appending(component: "archive")
+
+        given(remoteArtifactDownloader)
+            .download(url: .any)
+            .willReturn(downloadedArchive)
+
+        let fileUnarchiver = MockFileUnarchiving()
+        given(fileArchiverFactory)
+            .makeFileUnarchiver(for: .any)
+            .willReturn(fileUnarchiver)
+
+        let unarchivedPath = try temporaryPath().appending(component: "unarchived")
+
+        given(fileUnarchiver)
+            .unzip()
+            .willReturn(unarchivedPath)
+
+        try fileHandler.touch(unarchivedPath.appending(component: "App.app"))
+
+        given(appRunner)
+            .runApp(
+                .any,
+                version: .any,
+                device: .any
+            )
+            .willReturn()
+
+        let appBundle: AppBundle = .test()
+        given(appBundleLoader)
+            .load(.any)
+            .willReturn(appBundle)
+
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(fullHandle: "tuist/tuist"))
+
+        given(listPreviewsService)
+            .listPreviews(
+                displayName: .value("App"),
+                specifier: .value("latest"),
+                page: .value(1),
+                pageSize: .value(1),
+                distinctField: .any,
+                fullHandle: .any,
+                serverURL: .any
+            )
+            .willReturn(
+                [
+                    .test(),
+                ]
+            )
+
+        // When
+        try await subject.run(runnable: .specifier(displayName: "App", specifier: "latest"))
+
+        // Then
+        verify(appRunner)
+            .runApp(
+                .value([appBundle]),
+                version: .value(nil),
+                device: .value(nil)
+            )
+            .called(1)
+    }
+
+    func test_run_preview_with_specifier_when_full_handle_is_missing() async throws {
+        // Given
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(fullHandle: nil))
+
+        // When / Then
+        await XCTAssertThrowsSpecific(
+            try await subject.run(runnable: .specifier(displayName: "App", specifier: "latest")),
+            RunServiceError.missingFullHandle(displayName: "App", specifier: "latest")
+        )
+    }
+
+    func test_run_preview_with_specifier_when_preview_is_not_found() async throws {
+        // Given
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(fullHandle: "tuist/tuist"))
+
+        given(listPreviewsService)
+            .listPreviews(
+                displayName: .value("App"),
+                specifier: .value("latest"),
+                page: .value(1),
+                pageSize: .value(1),
+                distinctField: .any,
+                fullHandle: .any,
+                serverURL: .any
+            )
+            .willReturn([])
+
+        // When / Then
+        await XCTAssertThrowsSpecific(
+            try await subject.run(runnable: .specifier(displayName: "App", specifier: "latest")),
+            RunServiceError.previewNotFound(displayName: "App", specifier: "latest")
+        )
+    }
+
+    func test_run_share_link_runs_ipa() async throws {
+        // Given
+        given(downloadPreviewService)
+            .downloadPreview(
+                .any,
+                fullHandle: .any,
+                serverURL: .any
+            )
+            .willReturn("https://example.com")
+
+        let downloadedArchive = try temporaryPath().appending(component: "archive")
+
+        given(remoteArtifactDownloader)
+            .download(url: .any)
+            .willReturn(downloadedArchive)
+
+        let fileUnarchiver = MockFileUnarchiving()
+        given(fileArchiverFactory)
+            .makeFileUnarchiver(for: .any)
+            .willReturn(fileUnarchiver)
+
+        let unarchivedPath = try temporaryPath().appending(component: "unarchived")
+
+        given(fileUnarchiver)
+            .unzip()
+            .willReturn(unarchivedPath)
+
+        // The `.app` bundle is nested in an `Payload` directory in the `.ipa` archive
+        try fileHandler.touch(unarchivedPath.appending(components: "Payload", "App.app"))
 
         given(appRunner)
             .runApp(

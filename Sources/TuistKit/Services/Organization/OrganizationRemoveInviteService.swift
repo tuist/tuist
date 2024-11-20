@@ -20,7 +20,7 @@ final class OrganizationRemoveInviteService: OrganizationRemoveInviteServicing {
     init(
         cancelOrganizationRemoveInviteService: CancelOrganizationInviteServicing = CancelOrganizationInviteService(),
         serverURLService: ServerURLServicing = ServerURLService(),
-        configLoader: ConfigLoading = ConfigLoader()
+        configLoader: ConfigLoading = ConfigLoader(warningController: WarningController.shared)
     ) {
         self.cancelOrganizationRemoveInviteService = cancelOrganizationRemoveInviteService
         self.serverURLService = serverURLService

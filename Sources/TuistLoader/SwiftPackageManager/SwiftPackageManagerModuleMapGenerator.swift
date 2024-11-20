@@ -1,3 +1,4 @@
+import FileSystem
 import Path
 import TuistCore
 import TuistSupport
@@ -40,14 +41,19 @@ public protocol SwiftPackageManagerModuleMapGenerating {
         packageDirectory: AbsolutePath,
         moduleName: String,
         publicHeadersPath: AbsolutePath
-    ) throws -> ModuleMap
+    ) async throws -> ModuleMap
 }
 
 public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerModuleMapGenerating {
     private let contentHasher: ContentHashing
+    private let fileSystem: FileSysteming
 
-    public init(contentHasher: ContentHashing = ContentHasher()) {
+    public init(
+        contentHasher: ContentHashing = ContentHasher(),
+        fileSystem: FileSysteming = FileSystem()
+    ) {
         self.contentHasher = contentHasher
+        self.fileSystem = fileSystem
     }
 
     // swiftlint:disable:next function_body_length
@@ -55,12 +61,12 @@ public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerMod
         packageDirectory: AbsolutePath,
         moduleName: String,
         publicHeadersPath: AbsolutePath
-    ) throws -> ModuleMap {
+    ) async throws -> ModuleMap {
         let sanitizedModuleName = moduleName.sanitizedModuleName
         let umbrellaHeaderPath = publicHeadersPath.appending(component: sanitizedModuleName + ".h")
         let nestedUmbrellaHeaderPath = publicHeadersPath
             .appending(components: sanitizedModuleName, sanitizedModuleName + ".h")
-        let customModuleMapPath = try Self.customModuleMapPath(publicHeadersPath: publicHeadersPath)
+        let customModuleMapPath = try await customModuleMapPath(publicHeadersPath: publicHeadersPath)
         let generatedModuleMapPath: AbsolutePath
 
         if publicHeadersPath.pathString.contains("\(Constants.SwiftPackageManager.packageBuildDirectoryName)/checkouts") {
@@ -78,15 +84,15 @@ public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerMod
             )
         }
 
-        if !FileHandler.shared.exists(generatedModuleMapPath.parentDirectory) {
+        if try await !fileSystem.exists(generatedModuleMapPath.parentDirectory) {
             try FileHandler.shared.createFolder(generatedModuleMapPath.parentDirectory)
         }
 
-        if FileHandler.shared.exists(umbrellaHeaderPath) {
+        if try await fileSystem.exists(umbrellaHeaderPath) {
             if let customModuleMapPath {
                 return .custom(customModuleMapPath, umbrellaHeaderPath: umbrellaHeaderPath)
             }
-            try writeIfDifferent(
+            try await writeIfDifferent(
                 moduleMapContent: umbrellaHeaderModuleMap(
                     umbrellaHeaderPath: umbrellaHeaderPath,
                     sanitizedModuleName: sanitizedModuleName
@@ -96,11 +102,11 @@ public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerMod
             )
             // If 'PublicHeadersDir/ModuleName.h' exists, then use it as the umbrella header.
             return .header(umbrellaHeaderPath, moduleMapPath: generatedModuleMapPath)
-        } else if FileHandler.shared.exists(nestedUmbrellaHeaderPath) {
+        } else if try await fileSystem.exists(nestedUmbrellaHeaderPath) {
             if let customModuleMapPath {
                 return .custom(customModuleMapPath, umbrellaHeaderPath: nestedUmbrellaHeaderPath)
             }
-            try writeIfDifferent(
+            try await writeIfDifferent(
                 moduleMapContent: umbrellaHeaderModuleMap(
                     umbrellaHeaderPath: nestedUmbrellaHeaderPath,
                     sanitizedModuleName: sanitizedModuleName
@@ -113,8 +119,8 @@ public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerMod
         } else if let customModuleMapPath {
             // User defined modulemap exists, use it
             return .custom(customModuleMapPath, umbrellaHeaderPath: nil)
-        } else if FileHandler.shared.exists(publicHeadersPath) {
-            if FileHandler.shared.glob(publicHeadersPath, glob: "**/*.h").isEmpty {
+        } else if try await fileSystem.exists(publicHeadersPath) {
+            if try await fileSystem.glob(directory: publicHeadersPath, include: ["**/*.h", "*.h"]).collect().isEmpty {
                 return .none
             }
             // Consider the public headers folder as umbrella directory
@@ -125,7 +131,7 @@ public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerMod
                     export *
                 }
                 """
-            try writeIfDifferent(moduleMapContent: generatedModuleMapContent, to: generatedModuleMapPath, atomically: true)
+            try await writeIfDifferent(moduleMapContent: generatedModuleMapContent, to: generatedModuleMapPath, atomically: true)
 
             return .directory(moduleMapPath: generatedModuleMapPath, umbrellaDirectory: publicHeadersPath)
         } else {
@@ -140,16 +146,16 @@ public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerMod
     ///   - moduleMapContent: contents of the moduleMap file to write
     ///   - path: destination to write file contents to
     ///   - atomically: whether to write atomically
-    func writeIfDifferent(moduleMapContent: String, to path: AbsolutePath, atomically: Bool) throws {
+    func writeIfDifferent(moduleMapContent: String, to path: AbsolutePath, atomically: Bool) async throws {
         let newContentHash = try contentHasher.hash(moduleMapContent)
-        let currentContentHash = try? contentHasher.hash(path: path)
+        let currentContentHash = try? await contentHasher.hash(path: path)
         if currentContentHash != newContentHash {
             try FileHandler.shared.write(moduleMapContent, path: path, atomically: true)
         }
     }
 
-    static func customModuleMapPath(publicHeadersPath: AbsolutePath) throws -> AbsolutePath? {
-        guard FileHandler.shared.exists(publicHeadersPath) else { return nil }
+    private func customModuleMapPath(publicHeadersPath: AbsolutePath) async throws -> AbsolutePath? {
+        guard try await fileSystem.exists(publicHeadersPath) else { return nil }
 
         let moduleMapPath = try RelativePath(validating: ModuleMap.filename)
         let publicHeadersFolderContent = try FileHandler.shared.contentsOfDirectory(publicHeadersPath)
@@ -159,7 +165,7 @@ public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerMod
         } else if publicHeadersFolderContent.count == 1,
                   let nestedHeadersPath = publicHeadersFolderContent.first,
                   FileHandler.shared.isFolder(nestedHeadersPath),
-                  FileHandler.shared.exists(nestedHeadersPath.appending(moduleMapPath))
+                  try await fileSystem.exists(nestedHeadersPath.appending(moduleMapPath))
         {
             return nestedHeadersPath.appending(moduleMapPath)
         } else {

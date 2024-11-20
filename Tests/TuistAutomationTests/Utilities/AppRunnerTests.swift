@@ -1,5 +1,5 @@
 import Foundation
-import MockableTest
+import Mockable
 import struct TSCUtility.Version
 import TuistCore
 import TuistSupport
@@ -11,15 +11,18 @@ import XCTest
 final class AppRunnerTests: TuistUnitTestCase {
     private var subject: AppRunner!
     private var simulatorController: MockSimulatorControlling!
+    private var deviceController: MockDeviceControlling!
     private var userInputReader: MockUserInputReading!
 
     override func setUp() {
         super.setUp()
 
         simulatorController = .init()
+        deviceController = .init()
         userInputReader = .init()
         subject = AppRunner(
             simulatorController: simulatorController,
+            deviceController: deviceController,
             userInputReader: userInputReader
         )
 
@@ -35,6 +38,10 @@ final class AppRunnerTests: TuistUnitTestCase {
             .booted(device: .any)
             .willProduce { $0 }
 
+        given(deviceController)
+            .findAvailableDevices()
+            .willReturn([])
+
         Matcher.register([SimulatorDeviceAndRuntime].self)
     }
 
@@ -42,6 +49,7 @@ final class AppRunnerTests: TuistUnitTestCase {
         subject = nil
         userInputReader = nil
         simulatorController = nil
+        deviceController = nil
 
         Matcher.reset()
 
@@ -345,6 +353,123 @@ final class AppRunnerTests: TuistUnitTestCase {
                 bundleId: .value(appBundleTwo.infoPlist.bundleId),
                 device: .value(simulatorDeviceAndRuntime.device),
                 arguments: .value([])
+            )
+            .called(1)
+    }
+
+    func test_run_mutliple_app_bundles_with_physical_device_when_no_matching_bundle_exists() async throws {
+        // Given
+        let iosSimulatorAppBundle: AppBundle = .test(
+            infoPlist: .test(
+                supportedPlatforms: [
+                    .simulator(.iOS),
+                ]
+            )
+        )
+        let visionOSSimulatorAppBundle: AppBundle = .test(
+            infoPlist: .test(
+                supportedPlatforms: [
+                    .simulator(.visionOS),
+                ]
+            )
+        )
+
+        deviceController.reset()
+
+        let myVisionPro: PhysicalDevice = .test(
+            name: "My Vision Pro",
+            platform: .visionOS
+        )
+        given(deviceController)
+            .findAvailableDevices()
+            .willReturn(
+                [
+                    myVisionPro,
+                ]
+            )
+
+        // When / Then
+        await XCTAssertThrowsSpecific(
+            try await subject.runApp(
+                [
+                    iosSimulatorAppBundle,
+                    visionOSSimulatorAppBundle,
+                ],
+                version: nil,
+                device: "My Vision Pro"
+            ),
+            AppRunnerError.appNotFoundForPhysicalDevice(myVisionPro)
+        )
+    }
+
+    func test_run_mutliple_app_bundles_with_physical_device() async throws {
+        // Given
+        let iosSimulatorAppBundle: AppBundle = .test(
+            infoPlist: .test(
+                supportedPlatforms: [
+                    .simulator(.iOS),
+                ]
+            )
+        )
+        let visionOSSimulatorAppBundle: AppBundle = .test(
+            infoPlist: .test(
+                supportedPlatforms: [
+                    .simulator(.visionOS),
+                ]
+            )
+        )
+        let visionOSDeviceAppBundle: AppBundle = .test(
+            infoPlist: .test(
+                supportedPlatforms: [
+                    .device(.visionOS),
+                ]
+            )
+        )
+
+        deviceController.reset()
+
+        let myVisionPro: PhysicalDevice = .test(
+            name: "My Vision Pro",
+            platform: .visionOS
+        )
+        given(deviceController)
+            .findAvailableDevices()
+            .willReturn(
+                [
+                    myVisionPro,
+                ]
+            )
+        given(deviceController)
+            .installApp(at: .any, device: .any)
+            .willReturn()
+
+        given(deviceController)
+            .launchApp(bundleId: .any, device: .any)
+            .willReturn()
+
+        // When
+        try await subject.runApp(
+            [
+                iosSimulatorAppBundle,
+                visionOSSimulatorAppBundle,
+                visionOSDeviceAppBundle,
+            ],
+            version: nil,
+            device: "My Vision Pro"
+        )
+
+        // Then
+        verify(deviceController)
+            .installApp(
+                at: .value(visionOSDeviceAppBundle.path),
+                device: .value(myVisionPro)
+            )
+            .called(1)
+
+        verify(deviceController)
+            .launchApp(
+                bundleId: .value(visionOSDeviceAppBundle.infoPlist.bundleId),
+                device: .value(myVisionPro)
             )
             .called(1)
     }

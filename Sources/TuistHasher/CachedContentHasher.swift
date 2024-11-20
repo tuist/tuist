@@ -1,6 +1,7 @@
 import Foundation
 import Path
 import TuistCore
+import TuistSupport
 
 /// `CachedContentHasher`
 /// is a wrapper on top of `ContentHasher` that adds an in-memory cache to avoid re-computing the same hashes
@@ -8,7 +9,7 @@ public final class CachedContentHasher: ContentHashing {
     private let contentHasher: ContentHashing
 
     // In memory cache for files that have already been hashed
-    private var hashesCache: [AbsolutePath: String] = [:]
+    private var hashesCache: ThreadSafe<[AbsolutePath: String]> = ThreadSafe([:])
 
     public init(contentHasher: ContentHashing = ContentHasher()) {
         self.contentHasher = contentHasher
@@ -22,6 +23,10 @@ public final class CachedContentHasher: ContentHashing {
         try contentHasher.hash(string)
     }
 
+    public func hash(_ boolean: Bool) throws -> String {
+        try contentHasher.hash(boolean)
+    }
+
     public func hash(_ strings: [String]) throws -> String {
         try contentHasher.hash(strings)
     }
@@ -30,12 +35,12 @@ public final class CachedContentHasher: ContentHashing {
         try contentHasher.hash(dictionary)
     }
 
-    public func hash(path filePath: AbsolutePath) throws -> String {
-        if let cachedHash = hashesCache[filePath] {
+    public func hash(path filePath: AbsolutePath) async throws -> String {
+        if let cachedHash = hashesCache.value[filePath] {
             return cachedHash
         }
-        let hash = try contentHasher.hash(path: filePath)
-        hashesCache[filePath] = hash
+        let hash = try await contentHasher.hash(path: filePath)
+        hashesCache.mutate { $0[filePath] = hash }
         return hash
     }
 }

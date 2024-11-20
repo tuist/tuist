@@ -1,6 +1,9 @@
 blank_issues_enabled: false
 
 contact_links:
-  - name: Get help in GitHub Discussions
-    url: https://github.com/tuist/tuist/discussions/
-    about: Have a question? Not sure if your issue affects everyone reproducibly? The quickest way to get help is on Tuist's GitHub Discussions!
+  - name: Trouble-shooting & how-to
+    url: https://community.tuist.io/c/troubleshooting-how-to/6
+    about: Ask questions or report issues.
+  - name: Ideas & feature-request
+    url: https://community.tuist.io/c/ideas/7
+    about: Share ideas or request new features.

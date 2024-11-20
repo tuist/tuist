@@ -14,7 +14,7 @@ public class TuistAnalyticsServerBackend: TuistAnalyticsBackend {
     private let createCommandEventService: CreateCommandEventServicing
     private let fileHandler: FileHandling
     private let ciChecker: CIChecking
-    private let cacheDirectoriesProviderFactory: CacheDirectoriesProviderFactoring
+    private let cacheDirectoriesProvider: CacheDirectoriesProviding
     private let analyticsArtifactUploadService: AnalyticsArtifactUploadServicing
     private let fileSystem: FileSystem
 
@@ -28,7 +28,7 @@ public class TuistAnalyticsServerBackend: TuistAnalyticsBackend {
             createCommandEventService: CreateCommandEventService(),
             fileHandler: FileHandler.shared,
             ciChecker: CIChecker(),
-            cacheDirectoriesProviderFactory: CacheDirectoriesProviderFactory(),
+            cacheDirectoriesProvider: CacheDirectoriesProvider(),
             analyticsArtifactUploadService: AnalyticsArtifactUploadService(),
             fileSystem: FileSystem()
         )
@@ -40,7 +40,7 @@ public class TuistAnalyticsServerBackend: TuistAnalyticsBackend {
         createCommandEventService: CreateCommandEventServicing,
         fileHandler: FileHandling,
         ciChecker: CIChecking,
-        cacheDirectoriesProviderFactory: CacheDirectoriesProviderFactoring,
+        cacheDirectoriesProvider: CacheDirectoriesProviding,
         analyticsArtifactUploadService: AnalyticsArtifactUploadServicing,
         fileSystem: FileSystem
     ) {
@@ -49,46 +49,46 @@ public class TuistAnalyticsServerBackend: TuistAnalyticsBackend {
         self.createCommandEventService = createCommandEventService
         self.fileHandler = fileHandler
         self.ciChecker = ciChecker
-        self.cacheDirectoriesProviderFactory = cacheDirectoriesProviderFactory
+        self.cacheDirectoriesProvider = cacheDirectoriesProvider
         self.analyticsArtifactUploadService = analyticsArtifactUploadService
         self.fileSystem = fileSystem
     }
 
     public func send(commandEvent: CommandEvent) async throws {
-        let cloudCommandEvent = try await createCommandEventService.createCommandEvent(
+        let serverCommandEvent = try await createCommandEventService.createCommandEvent(
             commandEvent: commandEvent,
             projectId: fullHandle,
             serverURL: url
         )
 
-        let runDirectory = try cacheDirectoriesProviderFactory.cacheDirectories()
+        let runDirectory = try cacheDirectoriesProvider
             .cacheDirectory(for: .runs)
             .appending(component: commandEvent.runId)
 
         let resultBundle = runDirectory
             .appending(component: "\(Constants.resultBundleName).xcresult")
 
-        if fileHandler.exists(resultBundle),
-           let targetHashes = commandEvent.params["target_hashes"]?.value as? [GraphTarget: String],
-           let graphPath = commandEvent.params["graph_path"]?.value as? AbsolutePath
+        if try await fileSystem.exists(resultBundle),
+           let targetHashes = commandEvent.targetHashes,
+           let graphPath = commandEvent.graphPath
         {
             try await analyticsArtifactUploadService.uploadResultBundle(
                 resultBundle,
                 targetHashes: targetHashes,
                 graphPath: graphPath,
-                commandEventId: cloudCommandEvent.id,
+                commandEventId: serverCommandEvent.id,
                 serverURL: url
             )
         }
 
-        if fileHandler.exists(runDirectory) {
+        if try await fileSystem.exists(runDirectory) {
             try await fileSystem.remove(runDirectory)
         }
 
         if #available(macOS 13.0, *), ciChecker.isCI() {
             logger
                 .info(
-                    "You can view a detailed report at: \(cloudCommandEvent.url.absoluteString)"
+                    "You can view a detailed report at: \(serverCommandEvent.url.absoluteString)"
                 )
         }
     }

@@ -1,4 +1,4 @@
-import MockableTest
+import Mockable
 import Path
 import TuistCore
 import TuistSupport
@@ -61,7 +61,7 @@ final class CachedContentHasherTests: TuistUnitTestCase {
             .called(1)
     }
 
-    func test_hashpath_callsContentHasherWithExpectedPath() throws {
+    func test_hashpath_callsContentHasherWithExpectedPath() async throws {
         // Given
         let path = try AbsolutePath(validating: "/foo")
         given(contentHasher)
@@ -69,7 +69,7 @@ final class CachedContentHasherTests: TuistUnitTestCase {
             .willReturn("foo-hash")
 
         // When
-        _ = try subject.hash(path: path)
+        _ = try await subject.hash(path: path)
 
         // Then
         verify(contentHasher)
@@ -77,7 +77,7 @@ final class CachedContentHasherTests: TuistUnitTestCase {
             .called(1)
     }
 
-    func test_hashpath_secondTime_doesntCallContentHasher() throws {
+    func test_hashpath_secondTime_doesntCallContentHasher() async throws {
         // Given
         let path = try AbsolutePath(validating: "/foo")
         given(contentHasher)
@@ -85,8 +85,8 @@ final class CachedContentHasherTests: TuistUnitTestCase {
             .willReturn("foo-hash")
 
         // When
-        let hash = try subject.hash(path: path)
-        let cachedHash = try subject.hash(path: path)
+        let hash = try await subject.hash(path: path)
+        let cachedHash = try await subject.hash(path: path)
 
         // Then
         verify(contentHasher)

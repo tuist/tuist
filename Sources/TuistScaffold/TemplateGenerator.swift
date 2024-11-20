@@ -1,5 +1,6 @@
 import FileSystem
 import Foundation
+import Mockable
 import Path
 import PathKit
 import StencilSwiftKit
@@ -7,6 +8,7 @@ import TuistCore
 import TuistSupport
 
 /// Interface for generating content defined in template manifest
+@Mockable
 public protocol TemplateGenerating {
     /// Generate files for template manifest at `path`
     /// - Parameters:
@@ -37,7 +39,7 @@ public final class TemplateGenerator: TemplateGenerating {
             template: template,
             attributes: attributes
         )
-        try generateDirectories(
+        try await generateDirectories(
             renderedItems: renderedItems,
             destinationPath: destinationPath
         )
@@ -92,16 +94,16 @@ public final class TemplateGenerator: TemplateGenerating {
     private func generateDirectories(
         renderedItems: [Template.Item],
         destinationPath: AbsolutePath
-    ) throws {
-        try renderedItems
+    ) async throws {
+        for item in try renderedItems
             .map(\.path)
-            .map {
+            .map({
                 destinationPath.appending(try RelativePath(validating: $0.dirname))
-            }
-            .forEach {
-                guard !FileHandler.shared.exists($0) else { return }
-                try FileHandler.shared.createFolder($0)
-            }
+            })
+        {
+            guard try await !fileSystem.exists(item) else { return }
+            try await fileSystem.makeDirectory(at: item)
+        }
     }
 
     /// Generate all `renderedItems`
@@ -136,13 +138,13 @@ public final class TemplateGenerator: TemplateGenerating {
                     .appending(try RelativePath(validating: renderedItem.path.pathString))
                     .appending(component: path.basename)
                 // workaround for creating folder tree of destinationDirectoryPath
-                if !FileHandler.shared.exists(destinationDirectoryPath.parentDirectory) {
-                    try FileHandler.shared.createFolder(destinationDirectoryPath.parentDirectory)
+                if try await !fileSystem.exists(destinationDirectoryPath.parentDirectory) {
+                    try await fileSystem.makeDirectory(at: destinationDirectoryPath.parentDirectory)
                 }
-                if FileHandler.shared.exists(destinationDirectoryPath) {
+                if try await fileSystem.exists(destinationDirectoryPath) {
                     try await fileSystem.remove(destinationDirectoryPath)
                 }
-                try FileHandler.shared.copy(from: path, to: destinationDirectoryPath)
+                try await fileSystem.copy(path, to: destinationDirectoryPath)
                 renderedContents = nil
             }
             // Generate file only when it has some content, unless it is a `.gitkeep` file
@@ -150,10 +152,13 @@ public final class TemplateGenerator: TemplateGenerating {
                !rendered.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
                renderedItem.path.basename == ".gitkeep"
             {
-                try FileHandler.shared.write(
+                let contentsPath = destinationPath.appending(renderedItem.path)
+                if try await !fileSystem.exists(contentsPath.parentDirectory) {
+                    try await fileSystem.makeDirectory(at: contentsPath.parentDirectory)
+                }
+                try await fileSystem.writeText(
                     rendered,
-                    path: destinationPath.appending(renderedItem.path),
-                    atomically: true
+                    at: destinationPath.appending(renderedItem.path)
                 )
             }
         }

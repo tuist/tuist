@@ -12,7 +12,10 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
     override func setUp() {
         super.setUp()
 
-        subject = SwiftPackageManagerController(system: system, fileHandler: fileHandler)
+        subject = SwiftPackageManagerController(
+            system: system,
+            fileSystem: fileSystem
+        )
     }
 
     override func tearDown() {
@@ -29,11 +32,18 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
             "package",
             "--package-path",
             path.pathString,
+            "--replace-scm-with-registry",
             "resolve",
         ])
 
         // When / Then
-        XCTAssertNoThrow(try subject.resolve(at: path, printOutput: false))
+        XCTAssertNoThrow(
+            try subject.resolve(
+                at: path,
+                arguments: ["--replace-scm-with-registry"],
+                printOutput: false
+            )
+        )
     }
 
     func test_update() throws {
@@ -44,11 +54,18 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
             "package",
             "--package-path",
             path.pathString,
+            "--replace-scm-with-registry",
             "update",
         ])
 
         // When / Then
-        XCTAssertNoThrow(try subject.update(at: path, printOutput: false))
+        XCTAssertNoThrow(
+            try subject.update(
+                at: path,
+                arguments: ["--replace-scm-with-registry"],
+                printOutput: false
+            )
+        )
     }
 
     func test_setToolsVersion_specificVersion() throws {
@@ -69,7 +86,7 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
         XCTAssertNoThrow(try subject.setToolsVersion(at: path, to: version!))
     }
 
-    func test_buildFatReleaseBinary() throws {
+    func test_buildFatReleaseBinary() async throws {
         // Given
         let packagePath = try temporaryPath()
         let product = "my-product"
@@ -102,7 +119,7 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
         ])
 
         // When
-        try subject.buildFatReleaseBinary(
+        try await subject.buildFatReleaseBinary(
             packagePath: packagePath,
             product: product,
             buildPath: buildPath,

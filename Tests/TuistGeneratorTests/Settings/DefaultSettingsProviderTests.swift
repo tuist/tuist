@@ -1,4 +1,4 @@
-import MockableTest
+import Mockable
 import struct TSCUtility.Version
 import TuistCore
 import TuistCoreTesting
@@ -153,7 +153,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func testProjectSettings_whenExcludingEssentialDebug() throws {
+    func testProjectSettings_whenExcludingEssentialDebug() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .debug
         let settings = Settings(
@@ -168,7 +168,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
             .willReturn(Version(15, 0, 0))
 
         // When
-        let got = try subject.projectSettings(
+        let got = try await subject.projectSettings(
             project: project,
             buildConfiguration: buildConfiguration
         )
@@ -178,7 +178,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         XCTAssertNil(got["CLANG_CXX_LIBRARY"])
     }
 
-    func testProjectSettings_whenEssentialDebug() throws {
+    func testProjectSettings_whenEssentialDebug() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .debug
         let settings = Settings(
@@ -193,7 +193,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
             .willReturn(Version(15, 0, 0))
 
         // When
-        let got = try subject.projectSettings(
+        let got = try await subject.projectSettings(
             project: project,
             buildConfiguration: buildConfiguration
         )
@@ -202,7 +202,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         XCTAssertEqual(got, projectEssentialDebugSettings)
     }
 
-    func testProjectSettings_whenEssentialRelease_iOS() throws {
+    func testProjectSettings_whenEssentialRelease_iOS() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .release
         let settings = Settings(
@@ -217,7 +217,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
             .willReturn(Version(15, 0, 0))
 
         // When
-        let got = try subject.projectSettings(
+        let got = try await subject.projectSettings(
             project: project,
             buildConfiguration: buildConfiguration
         )
@@ -226,21 +226,23 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         XCTAssertEqual(got, projectEssentialReleaseSettings)
     }
 
-    func testTargetSettings_whenBinaryAllowsToBeMerged() throws {
+    func testTargetSettings_whenBinaryAllowsToBeMerged() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .debug
         let project = Project.test()
         let target = Target.test(product: .dynamicLibrary, mergeable: true)
+        let graph = Graph.test(path: project.path)
 
         given(xcodeController)
             .selectedVersion()
             .willReturn(Version(15, 0, 0))
 
         // When
-        let got = try subject.targetSettings(
+        let got = try await subject.targetSettings(
             target: target,
             project: project,
-            buildConfiguration: buildConfiguration
+            buildConfiguration: buildConfiguration,
+            graphTraverser: GraphTraverser(graph: graph)
         )
 
         // Then
@@ -248,63 +250,69 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         XCTAssertEqual(got["MERGEABLE_LIBRARY"], "YES")
     }
 
-    func testTargetSettings_whenBinaryDoesNotMergeDependencies() throws {
+    func testTargetSettings_whenBinaryDoesNotMergeDependencies() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .debug
         let project = Project.test()
         let target = Target.test(product: .app)
+        let graph = Graph.test(path: project.path)
 
         given(xcodeController)
             .selectedVersion()
             .willReturn(Version(15, 0, 0))
 
         // When
-        let got = try subject.targetSettings(
+        let got = try await subject.targetSettings(
             target: target,
             project: project,
-            buildConfiguration: buildConfiguration
+            buildConfiguration: buildConfiguration,
+            graphTraverser: GraphTraverser(graph: graph)
         )
 
         // Then
         XCTAssertNil(got["MERGED_BINARY_TYPE"])
     }
 
-    func testTargetSettings_whenAppMergesDependencies_automatic() throws {
+    func testTargetSettings_whenAppMergesDependencies_automatic() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .debug
         let project = Project.test()
         let target = Target.test(product: .app, mergedBinaryType: .automatic)
+        let graph = Graph.test(path: project.path)
 
         given(xcodeController)
             .selectedVersion()
             .willReturn(Version(15, 0, 0))
 
         // When
-        let got = try subject.targetSettings(
+        let got = try await subject.targetSettings(
             target: target,
             project: project,
-            buildConfiguration: buildConfiguration
+            buildConfiguration: buildConfiguration,
+            graphTraverser: GraphTraverser(graph: graph)
         )
 
         // Then
         XCTAssertEqual(got["MERGED_BINARY_TYPE"], "automatic")
     }
 
-    func testTargetSettings_whenAppMergesDependencies_manualDebug() throws {
+    func testTargetSettings_whenAppMergesDependencies_manualDebug() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .debug
         let project = Project.test()
         let target = Target.test(product: .app, mergedBinaryType: .manual(mergeableDependencies: Set(["Sample"])))
+        let graph = Graph.test(path: project.path)
 
         given(xcodeController)
             .selectedVersion()
             .willReturn(Version(15, 0, 0))
 
         // When
-        let got = try subject.targetSettings(
+        let got = try await subject.targetSettings(
             target: target,
             project: project,
-            buildConfiguration: buildConfiguration
+            buildConfiguration: buildConfiguration,
+            graphTraverser: GraphTraverser(graph: graph)
         )
 
         // Then
@@ -312,21 +320,23 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         XCTAssertEqual(got["OTHER_LDFLAGS"], "-Wl,-reexport_framework,Sample")
     }
 
-    func testTargetSettings_whenAppMergesDependencies_manualRelease() throws {
+    func testTargetSettings_whenAppMergesDependencies_manualRelease() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .release
         let project = Project.test()
         let target = Target.test(product: .app, mergedBinaryType: .manual(mergeableDependencies: Set(["Sample"])))
+        let graph = Graph.test(path: project.path)
 
         given(xcodeController)
             .selectedVersion()
             .willReturn(Version(15, 0, 0))
 
         // When
-        let got = try subject.targetSettings(
+        let got = try await subject.targetSettings(
             target: target,
             project: project,
-            buildConfiguration: buildConfiguration
+            buildConfiguration: buildConfiguration,
+            graphTraverser: GraphTraverser(graph: graph)
         )
 
         // Then
@@ -334,7 +344,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         XCTAssertEqual(got["OTHER_LDFLAGS"], "-Wl,-merge_framework,Sample")
     }
 
-    func testTargetSettings_whenEssentialDebug_App() throws {
+    func testTargetSettings_whenEssentialDebug_App() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .debug
         let settings = Settings(
@@ -344,23 +354,25 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         )
         let project = Project.test()
         let target = Target.test(product: .app, settings: settings)
+        let graph = Graph.test(path: project.path)
 
         given(xcodeController)
             .selectedVersion()
             .willReturn(Version(15, 0, 0))
 
         // When
-        let got = try subject.targetSettings(
+        let got = try await subject.targetSettings(
             target: target,
             project: project,
-            buildConfiguration: buildConfiguration
+            buildConfiguration: buildConfiguration,
+            graphTraverser: GraphTraverser(graph: graph)
         )
 
         // Then
         XCTAssertEqual(got, appTargetEssentialDebugSettings)
     }
 
-    func testTargetSettings_whenEssentialDebug_Framework() throws {
+    func testTargetSettings_whenEssentialDebug_Framework() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .debug
         let settings = Settings(
@@ -370,23 +382,25 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         )
         let project = Project.test()
         let target = Target.test(product: .framework, settings: settings)
+        let graph = Graph.test(path: project.path)
 
         given(xcodeController)
             .selectedVersion()
             .willReturn(Version(15, 0, 0))
 
         // When
-        let got = try subject.targetSettings(
+        let got = try await subject.targetSettings(
             target: target,
             project: project,
-            buildConfiguration: buildConfiguration
+            buildConfiguration: buildConfiguration,
+            graphTraverser: GraphTraverser(graph: graph)
         )
 
         // Then
         XCTAssertEqual(got, frameworkTargetEssentialDebugSettings)
     }
 
-    func testTargetSettings_whenEssentialRelease_Framework() throws {
+    func testTargetSettings_whenEssentialRelease_Framework() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .release
         let settings = Settings(
@@ -396,23 +410,25 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         )
         let project = Project.test()
         let target = Target.test(product: .framework, settings: settings)
+        let graph = Graph.test(path: project.path)
 
         given(xcodeController)
             .selectedVersion()
             .willReturn(Version(15, 0, 0))
 
         // When
-        let got = try subject.targetSettings(
+        let got = try await subject.targetSettings(
             target: target,
             project: project,
-            buildConfiguration: buildConfiguration
+            buildConfiguration: buildConfiguration,
+            graphTraverser: GraphTraverser(graph: graph)
         )
 
         // Then
         XCTAssertEqual(got, frameworkTargetEssentialReleaseSettings)
     }
 
-    func testProjectSettings_whenRecommendedDebug() throws {
+    func testProjectSettings_whenRecommendedDebug() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .debug
         let settings = Settings(
@@ -427,7 +443,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
             .willReturn(Version(15, 0, 0))
 
         // When
-        let got = try subject.projectSettings(
+        let got = try await subject.projectSettings(
             project: project,
             buildConfiguration: buildConfiguration
         )
@@ -438,7 +454,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         XCTAssertEqual(got.count, 50)
     }
 
-    func testProjectSettings_whenRecommendedRelease() throws {
+    func testProjectSettings_whenRecommendedRelease() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .release
         let settings = Settings(
@@ -453,7 +469,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
             .willReturn(Version(15, 0, 0))
 
         // When
-        let got = try subject.projectSettings(
+        let got = try await subject.projectSettings(
             project: project,
             buildConfiguration: buildConfiguration
         )
@@ -463,7 +479,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         XCTAssertEqual(got.count, 47)
     }
 
-    func testProjectSettings_whenNoneDebug() throws {
+    func testProjectSettings_whenNoneDebug() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .debug
         let settings = Settings(
@@ -478,7 +494,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
             .willReturn(Version(15, 0, 0))
 
         // When
-        let got = try subject.projectSettings(
+        let got = try await subject.projectSettings(
             project: project,
             buildConfiguration: buildConfiguration
         )
@@ -487,7 +503,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         XCTAssertEqual(got.count, 0)
     }
 
-    func testProjectSettings_whenNoneRelease() throws {
+    func testProjectSettings_whenNoneRelease() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .release
         let settings = Settings(
@@ -502,7 +518,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
             .willReturn(Version(15, 0, 0))
 
         // When
-        let got = try subject.projectSettings(
+        let got = try await subject.projectSettings(
             project: project,
             buildConfiguration: buildConfiguration
         )
@@ -511,7 +527,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         XCTAssertEqual(got.count, 0)
     }
 
-    func testTargetSettings_whenRecommendedDebug() throws {
+    func testTargetSettings_whenRecommendedDebug() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .debug
         let settings = Settings(
@@ -521,15 +537,18 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         )
         let project = Project.test()
         let target = Target.test(settings: settings)
+        let graph = Graph.test(path: project.path)
+
         given(xcodeController)
             .selectedVersion()
             .willReturn(Version(11, 0, 0))
 
         // When
-        let got = try subject.targetSettings(
+        let got = try await subject.targetSettings(
             target: target,
             project: project,
-            buildConfiguration: buildConfiguration
+            buildConfiguration: buildConfiguration,
+            graphTraverser: GraphTraverser(graph: graph)
         )
 
         // Then
@@ -537,27 +556,29 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         XCTAssertEqual(got.count, 10)
     }
 
-    func testTargetSettings_inheritsProjectDefaultSettings_when_targetBuildSettings_are_nil() throws {
+    func testTargetSettings_inheritsProjectDefaultSettings_when_targetBuildSettings_are_nil() async throws {
         // Given
         let project = Project.test(settings: .test(defaultSettings: .essential))
         let target = Target.test(settings: nil)
+        let graph = Graph.test(path: project.path)
 
         given(xcodeController)
             .selectedVersion()
             .willReturn(Version(15, 0, 0))
 
         // When
-        let got = try subject.targetSettings(
+        let got = try await subject.targetSettings(
             target: target,
             project: project,
-            buildConfiguration: .debug
+            buildConfiguration: .debug,
+            graphTraverser: GraphTraverser(graph: graph)
         )
 
         // Then
         XCTAssertSettings(got, containsAll: appTargetEssentialDebugSettings)
     }
 
-    func testTargetSettings_whenXcode10() throws {
+    func testTargetSettings_whenXcode10() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .debug
         let settings = Settings(
@@ -567,23 +588,25 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         )
         let target = Target.test(settings: settings)
         let project = Project.test()
+        let graph = Graph.test(path: project.path)
 
         given(xcodeController)
             .selectedVersion()
             .willReturn(Version(10, 0, 0))
 
         // When
-        let got = try subject.targetSettings(
+        let got = try await subject.targetSettings(
             target: target,
             project: project,
-            buildConfiguration: buildConfiguration
+            buildConfiguration: buildConfiguration,
+            graphTraverser: GraphTraverser(graph: graph)
         )
 
         // Then
         XCTAssertFalse(got.keys.contains(where: { $0 == "ENABLE_PREVIEWS" }))
     }
 
-    func testTargetSettings_whenXcode11() throws {
+    func testTargetSettings_whenXcode11() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .debug
         let settings = Settings(
@@ -593,22 +616,25 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         )
         let target = Target.test(settings: settings)
         let project = Project.test()
+        let graph = Graph.test(path: project.path)
+
         given(xcodeController)
             .selectedVersion()
             .willReturn(Version(11, 0, 0))
 
         // When
-        let got = try subject.targetSettings(
+        let got = try await subject.targetSettings(
             target: target,
             project: project,
-            buildConfiguration: buildConfiguration
+            buildConfiguration: buildConfiguration,
+            graphTraverser: GraphTraverser(graph: graph)
         )
 
         // Then
         XCTAssertTrue(got.keys.contains(where: { $0 == "ENABLE_PREVIEWS" }))
     }
 
-    func testTargetSettings_whenRecommended_containsDefaultSwiftVersion() throws {
+    func testTargetSettings_whenRecommended_containsDefaultSwiftVersion() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .release
         let settings = Settings(
@@ -618,23 +644,25 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         )
         let target = Target.test(product: .app, settings: settings)
         let project = Project.test()
+        let graph = Graph.test(path: project.path)
 
         given(xcodeController)
             .selectedVersion()
             .willReturn(Version(15, 0, 0))
 
         // When
-        let got = try subject.targetSettings(
+        let got = try await subject.targetSettings(
             target: target,
             project: project,
-            buildConfiguration: buildConfiguration
+            buildConfiguration: buildConfiguration,
+            graphTraverser: GraphTraverser(graph: graph)
         )
 
         // Then
         XCTAssertEqual(got["SWIFT_VERSION"], .string("5.0"))
     }
 
-    func testTargetSettings_whenRecommendedAndSpecifiedInProject_doesNotContainDefaultSwiftVersion() throws {
+    func testTargetSettings_whenRecommendedAndSpecifiedInProject_doesNotContainDefaultSwiftVersion() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .release
         let settings = Settings(
@@ -650,23 +678,25 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
                 ]
             )
         )
+        let graph = Graph.test(path: project.path)
 
         given(xcodeController)
             .selectedVersion()
             .willReturn(Version(15, 0, 0))
 
         // When
-        let got = try subject.targetSettings(
+        let got = try await subject.targetSettings(
             target: target,
             project: project,
-            buildConfiguration: buildConfiguration
+            buildConfiguration: buildConfiguration,
+            graphTraverser: GraphTraverser(graph: graph)
         )
 
         // Then
         XCTAssertNil(got["SWIFT_VERSION"])
     }
 
-    func testTargetSettings_whenEssential_containsDefaultSwiftVersion() throws {
+    func testTargetSettings_whenEssential_containsDefaultSwiftVersion() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .release
         let settings = Settings(
@@ -676,23 +706,25 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         )
         let target = Target.test(product: .app, settings: settings)
         let project = Project.test()
+        let graph = Graph.test(path: project.path)
 
         given(xcodeController)
             .selectedVersion()
             .willReturn(Version(15, 0, 0))
 
         // When
-        let got = try subject.targetSettings(
+        let got = try await subject.targetSettings(
             target: target,
             project: project,
-            buildConfiguration: buildConfiguration
+            buildConfiguration: buildConfiguration,
+            graphTraverser: GraphTraverser(graph: graph)
         )
 
         // Then
         XCTAssertEqual(got["SWIFT_VERSION"], .string("5.0"))
     }
 
-    func testTargetSettings_whenNone_doesNotContainDefaultSwiftVersion() throws {
+    func testTargetSettings_whenNone_doesNotContainDefaultSwiftVersion() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .release
         let settings = Settings(
@@ -702,19 +734,21 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         )
         let target = Target.test(product: .app, settings: settings)
         let project = Project.test()
+        let graph = Graph.test(path: project.path)
 
         // When
-        let got = try subject.targetSettings(
+        let got = try await subject.targetSettings(
             target: target,
             project: project,
-            buildConfiguration: buildConfiguration
+            buildConfiguration: buildConfiguration,
+            graphTraverser: GraphTraverser(graph: graph)
         )
 
         // Then
         XCTAssertNil(got["SWIFT_VERSION"])
     }
 
-    func testTargetSettings_whenRecommendedRelease_App() throws {
+    func testTargetSettings_whenRecommendedRelease_App() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .release
         let settings = Settings(
@@ -727,12 +761,14 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         given(xcodeController)
             .selectedVersion()
             .willReturn(Version(11, 0, 0))
+        let graph = Graph.test(path: project.path)
 
         // When
-        let got = try subject.targetSettings(
+        let got = try await subject.targetSettings(
             target: target,
             project: project,
-            buildConfiguration: buildConfiguration
+            buildConfiguration: buildConfiguration,
+            graphTraverser: GraphTraverser(graph: graph)
         )
 
         // Then
@@ -740,7 +776,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         XCTAssertEqual(got.count, 9)
     }
 
-    func testTargetSettings_whenRecommendedDebug_Framework() throws {
+    func testTargetSettings_whenRecommendedDebug_Framework() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .debug
         let settings = Settings(
@@ -750,16 +786,18 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         )
         let project = Project.test()
         let target = Target.test(product: .framework, settings: settings)
+        let graph = Graph.test(path: project.path)
 
         given(xcodeController)
             .selectedVersion()
             .willReturn(Version(15, 0, 0))
 
         // When
-        let got = try subject.targetSettings(
+        let got = try await subject.targetSettings(
             target: target,
             project: project,
-            buildConfiguration: buildConfiguration
+            buildConfiguration: buildConfiguration,
+            graphTraverser: GraphTraverser(graph: graph)
         )
 
         // Then
@@ -767,7 +805,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         XCTAssertEqual(got.count, 18)
     }
 
-    func testTargetSettings_whenRecommendedRelease_Framework() throws {
+    func testTargetSettings_whenRecommendedRelease_Framework() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .release
         let settings = Settings(
@@ -777,16 +815,18 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         )
         let project = Project.test()
         let target = Target.test(product: .framework, settings: settings)
+        let graph = Graph.test(path: project.path)
 
         given(xcodeController)
             .selectedVersion()
             .willReturn(Version(15, 0, 0))
 
         // When
-        let got = try subject.targetSettings(
+        let got = try await subject.targetSettings(
             target: target,
             project: project,
-            buildConfiguration: buildConfiguration
+            buildConfiguration: buildConfiguration,
+            graphTraverser: GraphTraverser(graph: graph)
         )
 
         // Then
@@ -794,7 +834,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         XCTAssertEqual(got.count, 17)
     }
 
-    func testTargetSettings_whenNoneDebug_Framework() throws {
+    func testTargetSettings_whenNoneDebug_Framework() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .debug
         let settings = Settings(
@@ -804,23 +844,25 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         )
         let project = Project.test()
         let target = Target.test(product: .framework, settings: settings)
+        let graph = Graph.test(path: project.path)
 
         given(xcodeController)
             .selectedVersion()
             .willReturn(Version(15, 0, 0))
 
         // When
-        let got = try subject.targetSettings(
+        let got = try await subject.targetSettings(
             target: target,
             project: project,
-            buildConfiguration: buildConfiguration
+            buildConfiguration: buildConfiguration,
+            graphTraverser: GraphTraverser(graph: graph)
         )
 
         // Then
         XCTAssertEqual(got.count, 0)
     }
 
-    func testTargetSettings_whenNoneRelease_Framework() throws {
+    func testTargetSettings_whenNoneRelease_Framework() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .release
         let settings = Settings(
@@ -830,19 +872,21 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         )
         let project = Project.test()
         let target = Target.test(product: .framework, settings: settings)
+        let graph = Graph.test(path: project.path)
 
         // When
-        let got = try subject.targetSettings(
+        let got = try await subject.targetSettings(
             target: target,
             project: project,
-            buildConfiguration: buildConfiguration
+            buildConfiguration: buildConfiguration,
+            graphTraverser: GraphTraverser(graph: graph)
         )
 
         // Then
         XCTAssertEqual(got.count, 0)
     }
 
-    func testTargetSettings_whenRecommendedDebug_UnitTests() throws {
+    func testTargetSettings_whenRecommendedDebug_UnitTests() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .debug
         let settings = Settings(
@@ -852,23 +896,25 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         )
         let project = Project.test()
         let target = Target.test(product: .unitTests, settings: settings)
+        let graph = Graph.test(path: project.path)
 
         given(xcodeController)
             .selectedVersion()
             .willReturn(Version(15, 0, 0))
 
         // When
-        let got = try subject.targetSettings(
+        let got = try await subject.targetSettings(
             target: target,
             project: project,
-            buildConfiguration: buildConfiguration
+            buildConfiguration: buildConfiguration,
+            graphTraverser: GraphTraverser(graph: graph)
         )
 
         // Then
         XCTAssertSettings(got, containsAll: testTargetEssentialDebugSettings)
     }
 
-    func testTargetSettings_whenRecommendedDebug_UITests() throws {
+    func testTargetSettings_whenRecommendedDebug_UITests() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .debug
         let settings = Settings(
@@ -878,23 +924,25 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         )
         let project = Project.test()
         let target = Target.test(product: .uiTests, settings: settings)
+        let graph = Graph.test(path: project.path)
 
         given(xcodeController)
             .selectedVersion()
             .willReturn(Version(15, 0, 0))
 
         // When
-        let got = try subject.targetSettings(
+        let got = try await subject.targetSettings(
             target: target,
             project: project,
-            buildConfiguration: buildConfiguration
+            buildConfiguration: buildConfiguration,
+            graphTraverser: GraphTraverser(graph: graph)
         )
 
         // Then
         XCTAssertSettings(got, containsAll: testTargetEssentialDebugSettings)
     }
 
-    func testTargetSettings_whenEssentialDebug_UnitTests() throws {
+    func testTargetSettings_whenEssentialDebug_UnitTests() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .debug
         let settings = Settings(
@@ -904,23 +952,25 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         )
         let project = Project.test()
         let target = Target.test(product: .unitTests, settings: settings)
+        let graph = Graph.test(path: project.path)
 
         given(xcodeController)
             .selectedVersion()
             .willReturn(Version(15, 0, 0))
 
         // When
-        let got = try subject.targetSettings(
+        let got = try await subject.targetSettings(
             target: target,
             project: project,
-            buildConfiguration: buildConfiguration
+            buildConfiguration: buildConfiguration,
+            graphTraverser: GraphTraverser(graph: graph)
         )
 
         // Then
         XCTAssertEqual(got, testTargetEssentialDebugSettings)
     }
 
-    func testTargetSettings_whenEssentialDebug_UITests() throws {
+    func testTargetSettings_whenEssentialDebug_UITests() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .debug
         let settings = Settings(
@@ -930,23 +980,25 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         )
         let project = Project.test()
         let target = Target.test(product: .uiTests, settings: settings)
+        let graph = Graph.test(path: project.path)
 
         given(xcodeController)
             .selectedVersion()
             .willReturn(Version(15, 0, 0))
 
         // When
-        let got = try subject.targetSettings(
+        let got = try await subject.targetSettings(
             target: target,
             project: project,
-            buildConfiguration: buildConfiguration
+            buildConfiguration: buildConfiguration,
+            graphTraverser: GraphTraverser(graph: graph)
         )
 
         // Then
         XCTAssertEqual(got, testTargetEssentialDebugSettings)
     }
 
-    func testTargetSettings_whenEssentialDebug_MultiplatformFramework() throws {
+    func testTargetSettings_whenEssentialDebug_MultiplatformFramework() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .debug
         let settings = Settings(
@@ -960,16 +1012,18 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
             product: .framework,
             settings: settings
         )
+        let graph = Graph.test(path: project.path)
 
         given(xcodeController)
             .selectedVersion()
             .willReturn(Version(15, 0, 0))
 
         // When
-        let got = try subject.targetSettings(
+        let got = try await subject.targetSettings(
             target: target,
             project: project,
-            buildConfiguration: buildConfiguration
+            buildConfiguration: buildConfiguration,
+            graphTraverser: GraphTraverser(graph: graph)
         )
 
         // Then
@@ -1009,7 +1063,7 @@ final class DefaultSettingsProvider_MacosTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func testTargetSettings_whenEssentialDebug_Macro() throws {
+    func testTargetSettings_whenEssentialDebug_Macro() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .debug
         let settings = Settings(
@@ -1023,19 +1077,21 @@ final class DefaultSettingsProvider_MacosTests: TuistUnitTestCase {
             product: .macro,
             settings: settings
         )
+        let graph = Graph.test(path: project.path)
 
         // When
-        let got = try subject.targetSettings(
+        let got = try await subject.targetSettings(
             target: target,
             project: project,
-            buildConfiguration: buildConfiguration
+            buildConfiguration: buildConfiguration,
+            graphTraverser: GraphTraverser(graph: graph)
         )
 
         // Then
         XCTAssertEqual(got, macroTargetEssentialDebugSettings)
     }
 
-    func testTargetSettings_whenEssentialRelease_Macro() throws {
+    func testTargetSettings_whenEssentialRelease_Macro() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .release
         let settings = Settings(
@@ -1049,12 +1105,14 @@ final class DefaultSettingsProvider_MacosTests: TuistUnitTestCase {
             product: .macro,
             settings: settings
         )
+        let graph = Graph.test(path: project.path)
 
         // When
-        let got = try subject.targetSettings(
+        let got = try await subject.targetSettings(
             target: target,
             project: project,
-            buildConfiguration: buildConfiguration
+            buildConfiguration: buildConfiguration,
+            graphTraverser: GraphTraverser(graph: graph)
         )
 
         // Then

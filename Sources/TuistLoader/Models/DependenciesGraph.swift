@@ -2,21 +2,28 @@ import ProjectDescription
 
 /// A directed acyclic graph (DAG) that Tuist uses to represent the dependency tree.
 public struct DependenciesGraph: Equatable, Codable {
+    public struct ExternalProject: Equatable, Codable {
+        public var manifest: ProjectDescription.Project
+        public var hash: String?
+
+        public init(manifest: ProjectDescription.Project, hash: String?) {
+            self.manifest = manifest
+            self.hash = hash
+        }
+    }
+
     /// A dictionary of Platforms to a dictionary where the keys are the names of dependencies, and the values are the
     /// dependencies themselves.
     public let externalDependencies: [String: [TargetDependency]]
 
     /// A dictionary where the keys are the folder of external projects, and the values are the projects themselves.
-    public let externalProjects: [Path: Project]
+    public let externalProjects: [Path: ExternalProject]
 
     /// Create an instance of `DependenciesGraph` model.
-    public init(externalDependencies: [String: [TargetDependency]], externalProjects: [Path: Project]) {
+    public init(externalDependencies: [String: [TargetDependency]], externalProjects: [Path: ExternalProject]) {
         self.externalDependencies = externalDependencies
         self.externalProjects = externalProjects
     }
-
-    /// An empty `DependenciesGraph`.
-    public static let none: DependenciesGraph = .init(externalDependencies: [:], externalProjects: [:])
 }
 
 #if DEBUG
@@ -43,7 +50,7 @@ public struct DependenciesGraph: Equatable, Codable {
 
         public static func test(
             externalDependencies: [String: [TargetDependency]] = [:],
-            externalProjects: [Path: Project] = [:]
+            externalProjects: [Path: ExternalProject] = [:]
         ) -> Self {
             .init(externalDependencies: externalDependencies, externalProjects: externalProjects)
         }
@@ -111,7 +118,7 @@ public struct DependenciesGraph: Equatable, Codable {
                         ),
                         .sdk(name: "WatchKit", type: .framework, status: .required, condition: .when([.watchos])),
                     ],
-                    settings: Self.spmSettings(packageName: "Tuist", with: [
+                    settings: Self.spmProductSettings(with: [
                         "HEADER_SEARCH_PATHS": [
                             "$(SRCROOT)/customPath/cSearchPath",
                             "$(SRCROOT)/customPath/cxxSearchPath",
@@ -140,14 +147,14 @@ public struct DependenciesGraph: Equatable, Codable {
                             path: Self.packageFolder(spmFolder: spmFolder, packageName: "another-dependency")
                         ),
                     ],
-                    settings: Self.spmSettings(packageName: "TuistKit")
+                    settings: Self.spmProductSettings()
                 ),
             ]
 
             return .init(
                 externalDependencies: externalDependencies,
                 externalProjects: [
-                    packageFolder: .init(
+                    packageFolder: ExternalProject(manifest: Project(
                         name: "test",
                         options: .options(
                             automaticSchemesOptions: .disabled,
@@ -155,18 +162,21 @@ public struct DependenciesGraph: Equatable, Codable {
                             disableSynthesizedResourceAccessors: true,
                             textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
                         ),
-                        settings: .settings(
-                            base: [
-                                "GCC_C_LANGUAGE_STANDARD": "c99",
-                            ],
-                            configurations: [
-                                .debug(name: .debug),
-                                .release(name: .release),
-                            ]
+                        settings: Self.spmProjectSettings(
+                            packageName: "tuist",
+                            baseSettings: .settings(
+                                base: [
+                                    "GCC_C_LANGUAGE_STANDARD": "c99",
+                                ],
+                                configurations: [
+                                    .debug(name: .debug),
+                                    .release(name: .release),
+                                ]
+                            )
                         ),
                         targets: targets,
                         resourceSynthesizers: .default
-                    ),
+                    ), hash: nil),
                 ]
             )
         }
@@ -208,7 +218,7 @@ public struct DependenciesGraph: Equatable, Codable {
                             name: "ALibraryUtils"
                         ),
                     ],
-                    settings: Self.spmSettings(packageName: "ALibrary")
+                    settings: Self.spmProductSettings()
                 ),
                 .target(
                     name: "ALibraryUtils",
@@ -221,14 +231,14 @@ public struct DependenciesGraph: Equatable, Codable {
                     sources: [
                         "\(packageFolder.pathString)/Sources/ALibraryUtils/**",
                     ],
-                    settings: Self.spmSettings(packageName: "ALibraryUtils")
+                    settings: Self.spmProductSettings()
                 ),
             ]
 
             return .init(
                 externalDependencies: externalDependencies,
                 externalProjects: [
-                    packageFolder: .init(
+                    packageFolder: ExternalProject(manifest: Project(
                         name: "a-dependency",
                         options: .options(
                             automaticSchemesOptions: .disabled,
@@ -236,15 +246,18 @@ public struct DependenciesGraph: Equatable, Codable {
                             disableSynthesizedResourceAccessors: true,
                             textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
                         ),
-                        settings: .settings(
-                            configurations: [
-                                .debug(name: .debug),
-                                .release(name: .release),
-                            ]
+                        settings: Self.spmProjectSettings(
+                            packageName: "a-dependency",
+                            baseSettings: .settings(
+                                configurations: [
+                                    .debug(name: .debug),
+                                    .release(name: .release),
+                                ]
+                            )
                         ),
                         targets: targets,
                         resourceSynthesizers: .default
-                    ),
+                    ), hash: nil),
                 ]
             )
         }
@@ -276,14 +289,14 @@ public struct DependenciesGraph: Equatable, Codable {
                     sources: [
                         "\(packageFolder.pathString)/Sources/AnotherLibrary/**",
                     ],
-                    settings: Self.spmSettings(packageName: "AnotherLibrary")
+                    settings: Self.spmProductSettings()
                 ),
             ]
 
             return .init(
                 externalDependencies: externalDependencies,
                 externalProjects: [
-                    packageFolder: .init(
+                    packageFolder: ExternalProject(manifest: Project(
                         name: "another-dependency",
                         options: .options(
                             automaticSchemesOptions: .disabled,
@@ -291,15 +304,18 @@ public struct DependenciesGraph: Equatable, Codable {
                             disableSynthesizedResourceAccessors: true,
                             textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
                         ),
-                        settings: .settings(
-                            configurations: [
-                                .debug(name: .debug),
-                                .release(name: .release),
-                            ]
+                        settings: Self.spmProjectSettings(
+                            packageName: "another-dependency",
+                            baseSettings: .settings(
+                                configurations: [
+                                    .debug(name: .debug),
+                                    .release(name: .release),
+                                ]
+                            )
                         ),
                         targets: targets,
                         resourceSynthesizers: .default
-                    ),
+                    ), hash: nil),
                 ]
             )
         }
@@ -339,14 +355,14 @@ public struct DependenciesGraph: Equatable, Codable {
                             condition: .when([.ios, .macos, .tvos, .watchos])
                         ),
                     ],
-                    settings: Self.spmSettings(packageName: "Alamofire")
+                    settings: Self.spmProductSettings()
                 ),
             ]
 
             return .init(
                 externalDependencies: externalDependencies,
                 externalProjects: [
-                    packageFolder: .init(
+                    packageFolder: ExternalProject(manifest: Project(
                         name: "Alamofire",
                         options: .options(
                             automaticSchemesOptions: .disabled,
@@ -354,10 +370,13 @@ public struct DependenciesGraph: Equatable, Codable {
                             disableSynthesizedResourceAccessors: true,
                             textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
                         ),
-                        settings: .settings(base: ["SWIFT_VERSION": "5.0.0"]),
+                        settings: Self.spmProjectSettings(
+                            packageName: "Alamofire",
+                            baseSettings: .settings(base: ["SWIFT_VERSION": "5.0.0"])
+                        ),
                         targets: targets,
                         resourceSynthesizers: .default
-                    ),
+                    ), hash: nil),
                 ]
             )
         }
@@ -424,7 +443,7 @@ public struct DependenciesGraph: Equatable, Codable {
                         .sdk(name: "z", type: .library, status: .required),
                         .sdk(name: "StoreKit", type: .framework, status: .required),
                     ],
-                    settings: Self.spmSettings(packageName: "GoogleAppMeasurementTarget")
+                    settings: Self.spmProductSettings()
                 ),
                 .target(
                     name: "GoogleAppMeasurementWithoutAdIdSupportTarget",
@@ -466,14 +485,14 @@ public struct DependenciesGraph: Equatable, Codable {
                         .sdk(name: "z", type: .library, status: .required),
                         .sdk(name: "StoreKit", type: .framework, status: .required),
                     ],
-                    settings: Self.spmSettings(packageName: "GoogleAppMeasurementWithoutAdIdSupportTarget")
+                    settings: Self.spmProductSettings()
                 ),
             ]
 
             return .init(
                 externalDependencies: externalDependencies,
                 externalProjects: [
-                    packageFolder: .init(
+                    packageFolder: ExternalProject(manifest: Project(
                         name: "GoogleAppMeasurement",
                         options: .options(
                             automaticSchemesOptions: .disabled,
@@ -481,19 +500,22 @@ public struct DependenciesGraph: Equatable, Codable {
                             disableSynthesizedResourceAccessors: true,
                             textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
                         ),
-                        settings: .settings(
-                            base: [
-                                "GCC_C_LANGUAGE_STANDARD": "c99",
-                                "CLANG_CXX_LANGUAGE_STANDARD": "gnu++14",
-                            ],
-                            configurations: [
-                                .debug(name: .debug),
-                                .release(name: .release),
-                            ]
+                        settings: Self.spmProjectSettings(
+                            packageName: "GoogleAppMeasurement",
+                            baseSettings: .settings(
+                                base: [
+                                    "GCC_C_LANGUAGE_STANDARD": "c99",
+                                    "CLANG_CXX_LANGUAGE_STANDARD": "gnu++14",
+                                ],
+                                configurations: [
+                                    .debug(name: .debug),
+                                    .release(name: .release),
+                                ]
+                            )
                         ),
                         targets: targets,
                         resourceSynthesizers: .default
-                    ),
+                    ), hash: nil),
                 ]
             )
         }
@@ -545,7 +567,7 @@ public struct DependenciesGraph: Equatable, Codable {
                     sources: [
                         "\(packageFolder.pathString)/Sources/GULAppDelegateSwizzler/**",
                     ],
-                    settings: Self.spmSettings(packageName: "GULAppDelegateSwizzler")
+                    settings: Self.spmProductSettings()
                 ),
                 .target(
                     name: "GULMethodSwizzler",
@@ -558,7 +580,7 @@ public struct DependenciesGraph: Equatable, Codable {
                     sources: [
                         "\(packageFolder.pathString)/Sources/GULMethodSwizzler/**",
                     ],
-                    settings: Self.spmSettings(packageName: "GULMethodSwizzler")
+                    settings: Self.spmProductSettings()
                 ),
 
                 .target(
@@ -572,7 +594,7 @@ public struct DependenciesGraph: Equatable, Codable {
                     sources: [
                         "\(packageFolder.pathString)/Sources/GULNSData/**",
                     ],
-                    settings: Self.spmSettings(packageName: "GULNSData")
+                    settings: Self.spmProductSettings()
                 ),
                 .target(
                     name: "GULNetwork",
@@ -585,14 +607,14 @@ public struct DependenciesGraph: Equatable, Codable {
                     sources: [
                         "\(packageFolder.pathString)/Sources/GULNetwork/**",
                     ],
-                    settings: Self.spmSettings(packageName: "GULNetwork")
+                    settings: Self.spmProductSettings()
                 ),
             ]
 
             return .init(
                 externalDependencies: externalDependencies,
                 externalProjects: [
-                    packageFolder: .init(
+                    packageFolder: ExternalProject(manifest: Project(
                         name: "GoogleUtilities",
                         options: .options(
                             automaticSchemesOptions: .disabled,
@@ -600,15 +622,18 @@ public struct DependenciesGraph: Equatable, Codable {
                             disableSynthesizedResourceAccessors: true,
                             textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
                         ),
-                        settings: .settings(
-                            configurations: [
-                                .debug(name: .debug),
-                                .release(name: .release),
-                            ]
+                        settings: Self.spmProjectSettings(
+                            packageName: "GoogleUtilities",
+                            baseSettings: .settings(
+                                configurations: [
+                                    .debug(name: .debug),
+                                    .release(name: .release),
+                                ]
+                            )
                         ),
                         targets: targets,
                         resourceSynthesizers: .default
-                    ),
+                    ), hash: nil),
                 ]
             )
         }
@@ -640,14 +665,14 @@ public struct DependenciesGraph: Equatable, Codable {
                     sources: [
                         "\(packageFolder.pathString)/Sources/nanopb/**",
                     ],
-                    settings: Self.spmSettings(packageName: "nanopb")
+                    settings: Self.spmProductSettings()
                 ),
             ]
 
             return .init(
                 externalDependencies: externalDependencies,
                 externalProjects: [
-                    packageFolder: .init(
+                    packageFolder: ExternalProject(manifest: Project(
                         name: "nanopb",
                         options: .options(
                             automaticSchemesOptions: .disabled,
@@ -655,15 +680,18 @@ public struct DependenciesGraph: Equatable, Codable {
                             disableSynthesizedResourceAccessors: true,
                             textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
                         ),
-                        settings: .settings(
-                            configurations: [
-                                .debug(name: .debug),
-                                .release(name: .release),
-                            ]
+                        settings: Self.spmProjectSettings(
+                            packageName: "nanopb",
+                            baseSettings: .settings(
+                                configurations: [
+                                    .debug(name: .debug),
+                                    .release(name: .release),
+                                ]
+                            )
                         ),
                         targets: targets,
                         resourceSynthesizers: .default
-                    ),
+                    ), hash: nil),
                 ]
             )
         }
@@ -678,11 +706,10 @@ public struct DependenciesGraph: Equatable, Codable {
             Path("\(spmFolder.pathString)/checkouts/\(packageName)")
         }
 
-        static func spmSettings(
+        public static func spmProjectSettings(
             packageName: String,
             baseSettings: Settings = .settings(),
-            with customSettings: SettingsDictionary = [:],
-            moduleMap: String? = nil
+            with customSettings: SettingsDictionary = [:]
         ) -> Settings {
             let defaultSpmSettings: SettingsDictionary = [
                 "ALWAYS_SEARCH_USER_PATHS": "YES",
@@ -697,10 +724,6 @@ public struct DependenciesGraph: Equatable, Codable {
                 "OTHER_SWIFT_FLAGS": ["-package-name", packageName.quotedIfContainsSpaces],
             ]
             var settingsDictionary = defaultSpmSettings.combine(with: customSettings)
-
-            if let moduleMap {
-                settingsDictionary["MODULEMAP_FILE"] = .string(moduleMap)
-            }
 
             if case let .array(headerSearchPaths) = settingsDictionary["HEADER_SEARCH_PATHS"] {
                 settingsDictionary["HEADER_SEARCH_PATHS"] = .array(["$(inherited)"] + headerSearchPaths)
@@ -717,9 +740,9 @@ public struct DependenciesGraph: Equatable, Codable {
 
             if case let .string(swiftDefinitions) = settingsDictionary["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] {
                 settingsDictionary["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] =
-                    .string("$(inherited) SWIFT_PACKAGE \(swiftDefinitions)")
+                    .array(["$(inherited)", "SWIFT_PACKAGE", swiftDefinitions])
             } else {
-                settingsDictionary["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] = .string("$(inherited) SWIFT_PACKAGE")
+                settingsDictionary["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] = .array(["$(inherited)", "SWIFT_PACKAGE"])
             }
 
             if case let .array(cFlags) = settingsDictionary["OTHER_CFLAGS"] {
@@ -736,6 +759,24 @@ public struct DependenciesGraph: Equatable, Codable {
 
             if case let .array(linkerFlags) = settingsDictionary["OTHER_LDFLAGS"] {
                 settingsDictionary["OTHER_LDFLAGS"] = .array(["$(inherited)"] + linkerFlags)
+            }
+
+            return .settings(
+                base: baseSettings.base.combine(with: settingsDictionary),
+                configurations: baseSettings.configurations,
+                defaultSettings: baseSettings.defaultSettings
+            )
+        }
+
+        public static func spmProductSettings(
+            baseSettings: Settings = .settings(),
+            with customSettings: SettingsDictionary = [:],
+            moduleMap: String? = nil
+        ) -> Settings {
+            var settingsDictionary = customSettings
+
+            if let moduleMap {
+                settingsDictionary["MODULEMAP_FILE"] = .string(moduleMap)
             }
 
             return .settings(

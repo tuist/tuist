@@ -157,7 +157,7 @@ final class GenerateAcceptanceTestiOSAppWithFrameworkAndResources: TuistAcceptan
                 "TuistBundle+StaticFramework3.swift",
             ]
         )
-        try XCTAssertProductWithDestinationDoesNotContainHeaders(
+        try await XCTAssertProductWithDestinationDoesNotContainHeaders(
             "App.app",
             destination: "Debug-iphonesimulator"
         )
@@ -305,7 +305,7 @@ final class GenerateAcceptanceTestiOSAppWithFrameworkLinkingStaticFramework: Tui
                 resource: resource
             )
         }
-        try XCTAssertProductWithDestinationDoesNotContainHeaders("App.app", destination: "Debug-iphonesimulator")
+        try await XCTAssertProductWithDestinationDoesNotContainHeaders("App.app", destination: "Debug-iphonesimulator")
     }
 }
 
@@ -496,6 +496,17 @@ final class GenerateAcceptanceTestiOSAppWithExtensions: TuistAcceptanceTestCase 
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self, "App")
 
+        let xcodeproj = try XcodeProj(
+            pathString: xcodeprojPath.pathString
+        )
+        let target = try XCTUnwrapTarget("App", in: xcodeproj)
+        let sourceFileNames = try target.sourceFiles().compactMap(\.path)
+
+        XCTAssertTrue(
+            sourceFileNames.contains(where: { $0.hasSuffix("Documentation.docc") }),
+            "Expected Documentation to be included in generated project"
+        )
+
         try await XCTAssertProductWithDestinationContainsExtension(
             "App.app",
             destination: "Debug-iphonesimulator",
@@ -511,7 +522,7 @@ final class GenerateAcceptanceTestiOSAppWithExtensions: TuistAcceptanceTestCase 
             destination: "Debug-iphonesimulator",
             extension: "AppIntentExtension"
         )
-        try XCTAssertProductWithDestinationDoesNotContainHeaders(
+        try await XCTAssertProductWithDestinationDoesNotContainHeaders(
             "App.app",
             destination: "Debug-iphonesimulator"
         )
@@ -534,7 +545,7 @@ final class GenerateAcceptanceTestiOSAppWithExtensions: TuistAcceptanceTestCase 
 //            destination: "Debug-appletvsimulator",
 //            extension: "TopShelfExtension"
 //        )
-//        try XCTAssertProductWithDestinationDoesNotContainHeaders(
+//        try await XCTAssertProductWithDestinationDoesNotContainHeaders(
 //            "App.app",
 //            destination: "Debug-appletvsimulator"
 //        )
@@ -556,11 +567,11 @@ final class GenerateAcceptanceTestiOSAppWithWatchApp2: TuistAcceptanceTestCase {
             destination: "Debug-watchsimulator",
             extension: "WatchAppExtension"
         )
-        try XCTAssertProductWithDestinationDoesNotContainHeaders(
+        try await XCTAssertProductWithDestinationDoesNotContainHeaders(
             "App.app",
             destination: "Debug-iphonesimulator"
         )
-        try XCTAssertProductWithDestinationDoesNotContainHeaders(
+        try await XCTAssertProductWithDestinationDoesNotContainHeaders(
             "WatchApp.app",
             destination: "Debug-watchsimulator"
         )
@@ -619,7 +630,6 @@ final class GenerateAcceptanceTestiOSAppWithCoreData: TuistAcceptanceTestCase {
             "Users.momd",
             "Unversioned.momd",
             "UsersAutoDetect.momd",
-            "1_2.cdm",
         ] {
             try await XCTAssertProductWithDestinationContainsResource(
                 "App.app",
@@ -627,17 +637,16 @@ final class GenerateAcceptanceTestiOSAppWithCoreData: TuistAcceptanceTestCase {
                 resource: resource
             )
         }
-        XCTAssertTrue(
-            FileHandler.shared.exists(
-                fixturePath.appending(
-                    components: [
-                        "Derived",
-                        "Sources",
-                        "TuistCoreData+App.swift",
-                    ]
-                )
+        let exists = try await fileSystem.exists(
+            fixturePath.appending(
+                components: [
+                    "Derived",
+                    "Sources",
+                    "TuistCoreData+App.swift",
+                ]
             )
         )
+        XCTAssertTrue(exists)
     }
 }
 
@@ -745,16 +754,15 @@ final class GenerateAcceptanceTestProjectWithFileHeaderTemplate: TuistAcceptance
     func test_project_with_file_header_template() async throws {
         try await setUpFixture(.projectWithFileHeaderTemplate)
         try await run(GenerateCommand.self)
-        XCTAssertTrue(
-            FileHandler.shared.exists(
-                xcodeprojPath.appending(
-                    components: [
-                        "xcshareddata",
-                        "IDETemplateMacros.plist",
-                    ]
-                )
+        let exists = try await fileSystem.exists(
+            xcodeprojPath.appending(
+                components: [
+                    "xcshareddata",
+                    "IDETemplateMacros.plist",
+                ]
             )
         )
+        XCTAssertTrue(exists)
     }
 }
 
@@ -762,16 +770,15 @@ final class GenerateAcceptanceTestProjectWithInlineFileHeaderTemplate: TuistAcce
     func test_project_with_inline_file_header_template() async throws {
         try await setUpFixture(.projectWithInlineFileHeaderTemplate)
         try await run(GenerateCommand.self)
-        XCTAssertTrue(
-            FileHandler.shared.exists(
-                xcodeprojPath.appending(
-                    components: [
-                        "xcshareddata",
-                        "IDETemplateMacros.plist",
-                    ]
-                )
+        let exists = try await fileSystem.exists(
+            xcodeprojPath.appending(
+                components: [
+                    "xcshareddata",
+                    "IDETemplateMacros.plist",
+                ]
             )
         )
+        XCTAssertTrue(exists)
     }
 }
 
@@ -779,16 +786,15 @@ final class GenerateAcceptanceTestWorkspaceWithFileHeaderTemplate: TuistAcceptan
     func test_workspace_with_file_header_template() async throws {
         try await setUpFixture(.workspaceWithFileHeaderTemplate)
         try await run(GenerateCommand.self)
-        XCTAssertTrue(
-            FileHandler.shared.exists(
-                workspacePath.appending(
-                    components: [
-                        "xcshareddata",
-                        "IDETemplateMacros.plist",
-                    ]
-                )
+        let exists = try await fileSystem.exists(
+            workspacePath.appending(
+                components: [
+                    "xcshareddata",
+                    "IDETemplateMacros.plist",
+                ]
             )
         )
+        XCTAssertTrue(exists)
     }
 }
 
@@ -796,16 +802,15 @@ final class GenerateAcceptanceTestWorkspaceWithInlineFileHeaderTemplate: TuistAc
     func test_workspace_with_inline_file_header_template() async throws {
         try await setUpFixture(.workspaceWithInlineFileHeaderTemplate)
         try await run(GenerateCommand.self)
-        XCTAssertTrue(
-            FileHandler.shared.exists(
-                workspacePath.appending(
-                    components: [
-                        "xcshareddata",
-                        "IDETemplateMacros.plist",
-                    ]
-                )
+        let exists = try await fileSystem.exists(
+            workspacePath.appending(
+                components: [
+                    "xcshareddata",
+                    "IDETemplateMacros.plist",
+                ]
             )
         )
+        XCTAssertTrue(exists)
     }
 }
 
@@ -813,42 +818,39 @@ final class GenerateAcceptanceTestiOSAppWithFrameworkAndDisabledResources: Tuist
     func test_ios_app_with_framework_and_disabled_resources() async throws {
         try await setUpFixture(.iosAppWithFrameworkAndDisabledResources)
         try await run(GenerateCommand.self)
-        XCTAssertFalse(
-            FileHandler.shared.exists(
-                fixturePath.appending(
-                    components: [
-                        "App",
-                        "Derived",
-                        "Sources",
-                        "TuistBundle+App.swift",
-                    ]
-                )
+        let appExists = try await fileSystem.exists(
+            fixturePath.appending(
+                components: [
+                    "App",
+                    "Derived",
+                    "Sources",
+                    "TuistBundle+App.swift",
+                ]
             )
         )
-        XCTAssertFalse(
-            FileHandler.shared.exists(
-                fixturePath.appending(
-                    components: [
-                        "Framework1",
-                        "Derived",
-                        "Sources",
-                        "TuistBundle+Framework1.swift",
-                    ]
-                )
+        XCTAssertFalse(appExists)
+        let frameworkOneExists = try await fileSystem.exists(
+            fixturePath.appending(
+                components: [
+                    "Framework1",
+                    "Derived",
+                    "Sources",
+                    "TuistBundle+Framework1.swift",
+                ]
             )
         )
-        XCTAssertFalse(
-            FileHandler.shared.exists(
-                fixturePath.appending(
-                    components: [
-                        "StaticFramework",
-                        "Derived",
-                        "Sources",
-                        "TuistBundle+StaticFramework.swift",
-                    ]
-                )
+        XCTAssertFalse(frameworkOneExists)
+        let staticFrameworkExists = try await fileSystem.exists(
+            fixturePath.appending(
+                components: [
+                    "StaticFramework",
+                    "Derived",
+                    "Sources",
+                    "TuistBundle+StaticFramework.swift",
+                ]
             )
         )
+        XCTAssertFalse(staticFrameworkExists)
     }
 }
 
@@ -863,7 +865,7 @@ final class GenerateAcceptanceTestmacOSAppWithExtensions: TuistAcceptanceTestCas
                     "WorkflowExtensionsSDK.pkg",
                 ]
             )
-        if try !FileHandler.shared.exists(
+        if try await !fileSystem.exists(
             AbsolutePath(validating: "/Library/Developer/SDKs/WorkflowExtensionSDK.sdk")
         ) {
             try System.shared.run(["sudo", "installer", "-package", sdkPkgPath.pathString, "-target", "/"])
@@ -874,19 +876,44 @@ final class GenerateAcceptanceTestmacOSAppWithExtensions: TuistAcceptanceTestCas
     }
 }
 
-final class GenerateAcceptanceTestiOSAppWithImplicitDependencies: TuistAcceptanceTestCase {
-    func test_ios_app_with_implicit_dependencies() async throws {
-        try await setUpFixture(.iosAppWithImplicitDependencies)
+final class GenerateAcceptanceTestiOSAppWithNoneLinkingStatusFramework: TuistAcceptanceTestCase {
+    func test_ios_app_with_none_linking_status_framework() async throws {
+        try await setUpFixture(.iosAppWithNoneLinkingStatusFramework)
         try await run(GenerateCommand.self)
-        try await run(BuildCommand.self, "FrameworkC")
-        do {
-            try await run(BuildCommand.self, "App")
-            XCTFail("Building app should fail as FrameworkA has an implicit dependency on FrameworkB")
-        } catch let error as FatalError {
-            XCTAssertTrue(
-                error.description.contains("The 'xcodebuild' command exited with error code 65 and message")
-            )
+        try await run(BuildCommand.self, "App")
+
+        let xcodeproj = try XcodeProj(
+            pathString: xcodeprojPath.pathString
+        )
+        let target = try XCTUnwrapTarget("App", in: xcodeproj)
+        let frameworksBuildPhase = try target.frameworksBuildPhase()
+        guard let frameworkFiles = frameworksBuildPhase?.files else {
+            XCTFail("A linking dependencies phase should exist even though empty")
+            return
         }
+        XCTAssertEmpty(frameworkFiles)
+    }
+}
+
+final class GenerateAcceptanceTestiOSAppWithWeaklyLinkedFramework: TuistAcceptanceTestCase {
+    func test_ios_app_with_weakly_linked_framework() async throws {
+        try await setUpFixture(.iosAppWithWeaklyLinkedFramework)
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self, "App")
+
+        let xcodeproj = try XcodeProj(
+            pathString: xcodeprojPath.pathString
+        )
+        let target = try XCTUnwrapTarget("App", in: xcodeproj)
+        let frameworksBuildPhase = try target.frameworksBuildPhase()
+        guard let frameworkFiles = frameworksBuildPhase?.files,
+              let frameworkFile = frameworkFiles.first,
+              let settings = frameworkFile.settings
+        else {
+            XCTFail("App target should have a linked framework with settings")
+            return
+        }
+        XCTAssertEqualDictionaries(settings, ["ATTRIBUTES": ["Weak"]])
     }
 }
 
@@ -912,10 +939,37 @@ final class GenerateAcceptanceTestAppWithDefaultConfiguration: TuistAcceptanceTe
     }
 }
 
+final class GenerateAcceptanceTestAppWithCustomScheme: TuistAcceptanceTestCase {
+    func test_app_with_custom_scheme() async throws {
+        try await setUpFixture(.appWithCustomScheme)
+        try await run(GenerateCommand.self)
+
+        let xcodeproj = try XcodeProj(
+            pathString: xcodeprojPath.pathString
+        )
+
+        let scheme = try XCTUnwrap(xcodeproj.sharedData?.schemes.first)
+        XCTAssertEqual(scheme.name, "App")
+
+        let buildAction = try XCTUnwrap(scheme.buildAction)
+        XCTAssertFalse(buildAction.buildImplicitDependencies)
+
+        try await run(BuildCommand.self)
+    }
+}
+
 final class GenerateAcceptanceTestAppWithGoogleMaps: TuistAcceptanceTestCase {
     func test_app_with_google_maps() async throws {
         try await setUpFixture(.appWithGoogleMaps)
         try await run(InstallCommand.self)
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self)
+    }
+}
+
+final class GenerateAcceptanceTestAppWithGlobs: TuistAcceptanceTestCase {
+    func test_app_with_globs() async throws {
+        try await setUpFixture(.appWithGlobs)
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self)
     }
@@ -930,6 +984,98 @@ final class GenerateAcceptanceTestFrameworkWithMacroAndPluginPackages: TuistAcce
     }
 }
 
+final class GenerateAcceptanceTestAppWithRevenueCat: TuistAcceptanceTestCase {
+    func test_app_with_revenue_cat() async throws {
+        try await setUpFixture(.appWithRevenueCat)
+        try await run(InstallCommand.self)
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self)
+    }
+}
+
+final class GenerateAcceptanceTestAppWithSPMModuleAliases: TuistAcceptanceTestCase {
+    func test_app_with_spm_module_aliases() async throws {
+        try await setUpFixture(.appWithSpmModuleAliases)
+        try await run(InstallCommand.self)
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self)
+    }
+}
+
+final class GenerateAcceptanceTesAppWithLocalSPMModuleWithRemoteDependencies: TuistAcceptanceTestCase {
+    func test_app_with_local_spm_module_with_remote_dependencies() async throws {
+        try await setUpFixture(.appWithLocalSPMModuleWithRemoteDependencies)
+        try await run(InstallCommand.self)
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self)
+
+        let workspacePackageResolved = try workspacePath
+            .appending(RelativePath(validating: "xcshareddata/swiftpm/Package.resolved"))
+        let fixturePackageResolved = try fixturePath.appending(RelativePath(validating: ".package.resolved"))
+        let workspacePackageResolvedData = try Data(contentsOf: workspacePackageResolved.url)
+        let fixturePackageResolvedData = try Data(contentsOf: fixturePackageResolved.url)
+        XCTAssertEqual(workspacePackageResolvedData, fixturePackageResolvedData)
+    }
+}
+
+final class GenerateAcceptanceTestAppWithNonLocalAppDependencies: TuistAcceptanceTestCase {
+    func test_app_with_non_local_app_dependencies() async throws {
+        try await setUpFixture(.appWithExecutableNonLocalDependencies)
+        try await run(InstallCommand.self)
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self, "MainApp")
+
+        let xcodeproj = try XcodeProj(
+            pathString: fixturePath.appending(components: "MainApp", "MainApp.xcodeproj").pathString
+        )
+
+        let target = try XCTUnwrapTarget("MainApp", in: xcodeproj)
+        let buildPhases = target.buildPhases
+        XCTAssertTrue(buildPhases.contains(where: { $0.name() == "Dependencies" }))
+
+        let dependenciesBuildPhase = buildPhases.first(where: { $0.name() == "Dependencies" }) as? PBXCopyFilesBuildPhase
+        let targetFileNames = dependenciesBuildPhase?.files?.compactMap { $0.file?.nameOrPath }.sorted()
+        let expectedTargetFileNames = ["AppExtension.appex", "WatchApp.app"]
+        XCTAssertEqual(targetFileNames, expectedTargetFileNames)
+
+        let testTarget = try XCTUnwrapTarget("MainAppTests", in: xcodeproj)
+        let testBuildPhases = testTarget.buildPhases
+        XCTAssertTrue(testBuildPhases.contains(where: { $0.name() == "Dependencies" }))
+
+        let testDependenciesBuildPhase = testBuildPhases.first(where: { $0.name() == "Dependencies" }) as? PBXCopyFilesBuildPhase
+        let testTargetFileNames = testDependenciesBuildPhase?.files?.compactMap { $0.file?.nameOrPath }.sorted()
+        let expectedTestTargetFileNames = ["TestHost.app"]
+        XCTAssertEqual(testTargetFileNames, expectedTestTargetFileNames)
+    }
+}
+
+final class GenerateAcceptanceTestAppWithGeneratedSources: TuistAcceptanceTestCase {
+    func test_app_with_non_local_app_dependencies() async throws {
+        try await setUpFixture(.appWithGeneratedSources)
+        try await run(InstallCommand.self)
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self, "App")
+
+        let xcodeproj = try XcodeProj(
+            pathString: fixturePath.appending(components: "App.xcodeproj").pathString
+        )
+
+        let target = try XCTUnwrapTarget("App", in: xcodeproj)
+        let sourceFiles = try target.sourceFiles()
+        let sourceFilesNames = sourceFiles.compactMap { file in
+            let parent = file.parent?.path ?? ""
+            let path = file.path ?? ""
+            return parent + "/" + path
+        }.sorted()
+        let expectedPathsWithParents = [
+            "$(BUILT_PRODUCTS_DIR)/GeneratedEmptyFile2.swift",
+            "Generated/GeneratedEmptyFile.swift",
+            "Sources/AppDelegate.swift",
+        ]
+        XCTAssertEqual(sourceFilesNames, expectedPathsWithParents)
+    }
+}
+
 // frameworkWithMacroAndPluginPackages
 
 extension TuistAcceptanceTestCase {
@@ -937,9 +1083,9 @@ extension TuistAcceptanceTestCase {
         for productName: String,
         destination: String,
         resource: String
-    ) throws -> AbsolutePath {
-        let productPath = try productPath(for: productName, destination: destination)
-        if let resource = FileHandler.shared.glob(productPath, glob: "**/\(resource)").first {
+    ) async throws -> AbsolutePath {
+        let productPath = try await productPath(for: productName, destination: destination)
+        if let resource = try await fileSystem.glob(directory: productPath, include: ["**/\(resource)"]).collect().first {
             return resource
         } else {
             XCTFail("Could not find resource \(resource) for product \(productName) and destination \(destination)")
@@ -987,13 +1133,13 @@ extension TuistAcceptanceTestCase {
         file: StaticString = #file,
         line: UInt = #line
     ) async throws {
-        let productPath = try productPath(
+        let productPath = try await productPath(
             for: product,
             destination: destination
         )
 
-        guard let appClipPath = FileHandler.shared.glob(productPath, glob: "AppClips/\(appClip).app").first,
-              FileHandler.shared.exists(appClipPath)
+        let appClipPath = productPath.appending(components: ["AppClips", "\(appClip).app"])
+        guard try await fileSystem.exists(appClipPath)
         else {
             XCTFail(
                 "App clip \(appClip) not found for product \(product) and destination \(destination)",
@@ -1019,13 +1165,13 @@ extension TuistAcceptanceTestCase {
         file: StaticString = #file,
         line: UInt = #line
     ) async throws {
-        let productPath = try productPath(
+        let productPath = try await productPath(
             for: product,
             destination: destination
         )
 
-        guard let extensionPath = FileHandler.shared.glob(productPath, glob: "Plugins/\(`extension`).appex").first,
-              FileHandler.shared.exists(extensionPath)
+        let extensionPath = productPath.appending(components: ["Plugins", "\(`extension`).appex"])
+        guard try await fileSystem.exists(extensionPath)
         else {
             XCTFail(
                 "Extension \(`extension`) not found for product \(product) and destination \(destination)",
@@ -1043,13 +1189,13 @@ extension TuistAcceptanceTestCase {
         file: StaticString = #file,
         line: UInt = #line
     ) async throws {
-        let productPath = try productPath(
+        let productPath = try await productPath(
             for: product,
             destination: destination
         )
 
-        guard let extensionPath = FileHandler.shared.glob(productPath, glob: "Extensions/\(`extension`).appex").first,
-              FileHandler.shared.exists(extensionPath)
+        let extensionPath = productPath.appending(components: ["Extensions", "\(`extension`).appex"])
+        guard try await fileSystem.exists(extensionPath)
         else {
             XCTFail(
                 "ExtensionKit \(`extension`) not found for product \(product) and destination \(destination)",
@@ -1067,13 +1213,13 @@ extension TuistAcceptanceTestCase {
         file: StaticString = #file,
         line: UInt = #line
     ) async throws {
-        let resourcePath = try resourcePath(
+        let resourcePath = try await resourcePath(
             for: product,
             destination: destination,
             resource: resource
         )
 
-        if !FileHandler.shared.exists(resourcePath) {
+        if try await !fileSystem.exists(resourcePath) {
             XCTFail(
                 "Resource \(resource) not found for product \(product) and destination \(destination)",
                 file: file,
@@ -1089,8 +1235,8 @@ extension TuistAcceptanceTestCase {
         file: StaticString = #file,
         line: UInt = #line
     ) async throws {
-        let productPath = try productPath(for: product, destination: destination)
-        if !FileHandler.shared.glob(productPath, glob: "**/\(resource)").isEmpty {
+        let productPath = try await productPath(for: product, destination: destination)
+        if try await !fileSystem.glob(directory: productPath, include: ["**/\(resource)"]).collect().isEmpty {
             XCTFail("Resource \(resource) found for product \(product) and destination \(destination)", file: file, line: line)
         }
     }
@@ -1102,7 +1248,7 @@ extension TuistAcceptanceTestCase {
         file: StaticString = #file,
         line: UInt = #line
     ) async throws {
-        let infoPlistPath = try resourcePath(
+        let infoPlistPath = try await resourcePath(
             for: product,
             destination: destination,
             resource: "Info.plist"

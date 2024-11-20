@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Path
 import TuistSupport
@@ -7,25 +8,28 @@ import XCTest
 @testable import TuistSupportTesting
 
 final class FrameworkMetadataProviderIntegrationTests: TuistTestCase {
-    var subject: FrameworkMetadataProvider!
+    private var subject: FrameworkMetadataProvider!
+    private var fileSystem: FileSysteming!
 
     override func setUp() {
         super.setUp()
         subject = FrameworkMetadataProvider()
+        fileSystem = FileSystem()
     }
 
     override func tearDown() {
         subject = nil
+        fileSystem = nil
         super.tearDown()
     }
 
-    func test_bcsymbolmapPaths() throws {
+    func test_bcsymbolmapPaths() async throws {
         // Given
-        let testPath = try temporaryFixture("PrebuiltFramework/")
-        let frameworkPath = FileHandler.shared.glob(testPath, glob: "*.framework").first!
+        let testPath = try await temporaryFixture("PrebuiltFramework/")
+        let frameworkPath = try await fileSystem.glob(directory: testPath, include: ["*.framework"]).collect().first!
 
         // When
-        let got = try subject.bcsymbolmapPaths(frameworkPath: frameworkPath).sorted()
+        let got = try await subject.bcsymbolmapPaths(frameworkPath: frameworkPath).sorted()
 
         // Then
         XCTAssertEqual(got, [
@@ -34,13 +38,13 @@ final class FrameworkMetadataProviderIntegrationTests: TuistTestCase {
         ])
     }
 
-    func test_dsymPath() throws {
+    func test_dsymPath() async throws {
         // Given
-        let testPath = try temporaryFixture("PrebuiltFramework/")
-        let frameworkPath = FileHandler.shared.glob(testPath, glob: "*.framework").first!
+        let testPath = try await temporaryFixture("PrebuiltFramework/")
+        let frameworkPath = try await fileSystem.glob(directory: testPath, include: ["*.framework"]).collect().first!
 
         // When
-        let got = try subject.dsymPath(frameworkPath: frameworkPath)
+        let got = try await subject.dsymPath(frameworkPath: frameworkPath)
 
         // Then
         XCTAssertEqual(got, testPath.appending(component: "\(frameworkPath.basename).dSYM"))

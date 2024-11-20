@@ -21,7 +21,7 @@ final class XcodeProjectBuildDirectoryLocatorTests: TuistTestCase {
         super.tearDown()
     }
 
-    func test_locate_WHEN_platform_IS_macOS() throws {
+    func test_locate_WHEN_destination_platform_IS_device_macOS() throws {
         // GIVEN
         let projectName = "TestProject"
         let projectPath = try AbsolutePath(validating: "/Project/\(projectName)")
@@ -30,7 +30,7 @@ final class XcodeProjectBuildDirectoryLocatorTests: TuistTestCase {
 
         // WHEN
         let path = try subject.locate(
-            platform: .macOS,
+            destinationType: .device(.macOS),
             projectPath: projectPath,
             derivedDataPath: nil,
             configuration: configuration
@@ -41,7 +41,7 @@ final class XcodeProjectBuildDirectoryLocatorTests: TuistTestCase {
         XCTAssertEqual(path, expectedPath)
     }
 
-    func test_locate_WHEN_platform_IS_iOS() throws {
+    func test_locate_WHEN_destination_platform_IS_simulator_iOS() throws {
         // GIVEN
         let projectName = "TestProject"
         let projectPath = try AbsolutePath(validating: "/Project/\(projectName)")
@@ -51,7 +51,29 @@ final class XcodeProjectBuildDirectoryLocatorTests: TuistTestCase {
 
         // WHEN
         let path = try subject.locate(
-            platform: .iOS,
+            destinationType: .simulator(.iOS),
+            projectPath: projectPath,
+            derivedDataPath: nil,
+            configuration: configuration
+        )
+
+        // THEN
+        let expectedPath =
+            try AbsolutePath(validating: "/Xcode/DerivedData/\(projectName)/Build/Products/\(configuration)-\(sdk)")
+        XCTAssertEqual(path, expectedPath)
+    }
+
+    func test_locate_WHEN_destination_platform_IS_device_iOS() throws {
+        // GIVEN
+        let projectName = "TestProject"
+        let projectPath = try AbsolutePath(validating: "/Project/\(projectName)")
+        derivedDataLocator.locateStub = { _ in try AbsolutePath(validating: "/Xcode/DerivedData/\(projectName)") }
+        let configuration = "Release"
+        let sdk = "iphoneos"
+
+        // WHEN
+        let path = try subject.locate(
+            destinationType: .device(.iOS),
             projectPath: projectPath,
             derivedDataPath: nil,
             configuration: configuration

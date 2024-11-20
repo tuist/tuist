@@ -2,97 +2,28 @@
 components:
   responses: {}
   schemas:
-    AbsentCacheArtifact:
+    CacheActionItem:
+      description: Represents an action item stored in the cache.
       properties:
-        error:
+        hash:
+          description: The hash that uniquely identifies the artifact in the cache.
+          type: string
+      required:
+        - hash
+      title: CacheActionItem
+      type: object
+      x-struct: Elixir.TuistWeb.API.Schemas.CacheActionItem
+    OrganizationList:
+      description: The list of organizations the authenticated subject is part of.
+      properties:
+        organizations:
           items:
-            properties:
-              code:
-                default: not_found
-                type: string
-              message:
-                type: string
-            type: object
+            $ref: '#/components/schemas/Organization'
           type: array
-      title: AbsentCacheArtifact
-      type: object
-    ArtifactDownloadURL:
-      description: The URL to download an artifact.
-      properties:
-        expires_at:
-          description: The UNIX timestamp when the URL expires.
-          type: integer
-        url:
-          description: The URL to download the artifact.
-          type: string
       required:
-        - url
-        - expires_at
-      title: ArtifactDownloadURL
+        - organizations
+      title: OrganizationList
       type: object
-      x-struct: Elixir.TuistWeb.API.Schemas.ArtifactDownloadURL
-    ArtifactMultipartUploadPart:
-      description: Represents an multipart upload's part identified by the upload id and the part number
-      properties:
-        part_number:
-          description: The part number of the multipart upload.
-          type: integer
-        upload_id:
-          description: The upload ID.
-          type: string
-      required:
-        - part_number
-        - upload_id
-      title: ArtifactMultipartUploadPart
-      x-struct: Elixir.TuistWeb.API.Schemas.ArtifactMultipartUploadPart
-    ArtifactMultipartUploadParts:
-      description: It represents a part that has been uploaded using multipart uploads. The part is identified by its number and the etag
-      properties:
-        parts:
-          items:
-            properties:
-              etag:
-                description: The ETag of the part
-                type: string
-              part_number:
-                description: The part number
-                type: integer
-            required:
-              - part_number
-              - etag
-            type: object
-          type: array
-        upload_id:
-          description: The upload ID
-          type: string
-      required:
-        - upload_id
-        - parts
-      title: ArtifactMultipartUploadParts
-      type: object
-      x-struct: Elixir.TuistWeb.API.Schemas.ArtifactMultipartUploadParts
-    ArtifactMultipartUploadURL:
-      description: The URL to upload a multipart part
-      properties:
-        data:
-          properties:
-            url:
-              description: The URL to upload the part
-              type: string
-          required:
-            - url
-          type: object
-        status:
-          default: success
-          enum:
-            - success
-          type: string
-      required:
-        - status
-        - data
-      title: ArtifactMultipartUploadURL
-      type: object
-      x-struct: Elixir.TuistWeb.API.Schemas.ArtifactMultipartUploadUrl
     ArtifactUploadID:
       description: The upload has been initiated and a ID is returned to upload the various parts using multi-part uploads
       properties:
@@ -116,21 +47,15 @@ components:
       title: ArtifactUploadID
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.ArtifactUploadId
-    AuthenticationTokens:
-      description: A pair of access token to authenticate requests and refresh token to generate new access tokens when they expire.
-      properties:
-        access_token:
-          description: API access token.
-          type: string
-        refresh_token:
-          description: A token to generate new API access tokens when they expire.
-          type: string
-      required:
-        - access_token
-        - refresh_token
-      title: AuthenticationTokens
-      type: object
-      x-struct: Elixir.TuistWeb.API.Schemas.AuthenticationTokens
+    CacheCategory:
+      default: builds
+      description: The category of the cache.
+      enum:
+        - tests
+        - builds
+      title: CacheCategory
+      type: string
+      x-struct: Elixir.TuistWeb.API.Schemas.CacheCategory
     CacheArtifactDownloadURL:
       description: The URL to download the artifact from the cache.
       properties:
@@ -157,41 +82,43 @@ components:
       title: CacheArtifactDownloadURL
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.CacheArtifactDownloadURL
-    CacheArtifactExistence:
-      description: The artifact exists in the cache and can be downloaded
+    Tokens:
+      description: A list of project tokens.
       properties:
-        data:
-          properties: {}
-          type: object
-        status:
-          default: success
-          enum:
-            - success
-          type: string
-      title: CacheArtifactExistence
+        tokens:
+          items:
+            $ref: '#/components/schemas/ProjectToken'
+          type: array
+      required:
+        - tokens
+      title: Tokens
       type: object
-    CacheArtifactMultipartUploadCompletion:
-      description: This response confirms that the upload has been completed successfully. The cache will now be able to serve the artifact.
+    ArtifactMultipartUploadParts:
+      description: It represents a part that has been uploaded using multipart uploads. The part is identified by its number and the etag
       properties:
-        data:
-          properties: {}
-          type: object
-        status:
-          default: success
-          enum:
-            - success
+        parts:
+          items:
+            properties:
+              etag:
+                description: The ETag of the part
+                type: string
+              part_number:
+                description: The part number
+                type: integer
+            required:
+              - part_number
+              - etag
+            type: object
+          type: array
+        upload_id:
+          description: The upload ID
           type: string
-      title: CacheArtifactMultipartUploadCompletion
+      required:
+        - upload_id
+        - parts
+      title: ArtifactMultipartUploadParts
       type: object
-    CacheCategory:
-      default: builds
-      description: The category of the cache.
-      enum:
-        - tests
-        - builds
-      title: CacheCategory
-      type: string
-      x-struct: Elixir.TuistWeb.API.Schemas.CacheCategory
+      x-struct: Elixir.TuistWeb.API.Schemas.ArtifactMultipartUploadParts
     CommandEvent:
       description: The schema for the command analytics event.
       properties:
@@ -211,52 +138,93 @@ components:
       title: CommandEvent
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.CommandEvent
-    CommandEventArtifact:
-      description: It represents an artifact that's associated with a command event (e.g. result bundles)
+    CacheActionItemUploadParams:
       properties:
-        name:
-          description: The name of the file. It's used only for certain types such as result_bundle_object
+        hash:
+          description: The hash of the cache action item.
           type: string
-        type:
-          description: |
-            The command event artifact type. It can be:
-            - result_bundle: A result bundle artifact that represents the whole `.xcresult` bundle
-            - invocation_record: An invocation record artifact. This is a root bundle object of the result bundle
-            - result_bundle_object: A result bundle object. There are many different bundle objects per result bundle.
-          enum:
-            - result_bundle
-            - invocation_record
-            - result_bundle_object
+      title: CacheActionItemUploadParams
+      type: object
+    ArtifactMultipartUploadPart:
+      description: Represents an multipart upload's part identified by the upload id and the part number
+      properties:
+        content_length:
+          description: The content length of the part.
+          type: integer
+        part_number:
+          description: The part number of the multipart upload.
+          type: integer
+        upload_id:
+          description: The upload ID.
           type: string
       required:
-        - type
-      title: CommandEventArtifact
-      x-struct: Elixir.TuistWeb.API.Schemas.CommandEventArtifact
-    DeviceCodeAuthenticationTokens:
-      description: Token to authenticate the user with.
+        - part_number
+        - upload_id
+      title: ArtifactMultipartUploadPart
+      x-struct: Elixir.TuistWeb.API.Schemas.ArtifactMultipartUploadPart
+    ProjectFullToken:
+      description: A new project token.
       properties:
-        access_token:
-          description: A short-lived token to authenticate API requests as user.
+        token:
+          description: The generated project token.
           type: string
-        refresh_token:
-          description: A token to generate new access tokens when they expire.
+      required:
+        - token
+      title: ProjectFullToken
+      type: object
+    PreviewArtifactUpload:
+      description: The upload has been initiated and preview and upload unique identifier are returned to upload the various parts using multi-part uploads
+      properties:
+        data:
+          description: Data that contains preview and upload unique identifier associated with the multipart upload to use when uploading parts
+          properties:
+            preview_id:
+              description: The id of the preview.
+              type: string
+            upload_id:
+              description: The upload ID
+              type: string
+          required:
+            - upload_id
+            - preview_id
+          type: object
+        status:
+          default: success
+          enum:
+            - success
+          type: string
+      required:
+        - status
+        - data
+      title: PreviewArtifactUpload
+      type: object
+    Project:
+      properties:
+        default_branch:
+          description: The default branch of the project.
+          example: main
+          type: string
+        full_name:
+          description: The full name of the project (e.g. tuist/tuist)
+          type: string
+        id:
+          description: ID of the project
+          type: number
+        repository_url:
+          description: The URL of the connected git repository, such as https://github.com/tuist/tuist or https://github.com/tuist/tuist.git
           type: string
         token:
           deprecated: true
-          description: User authentication token
-          type: string
-      title: DeviceCodeAuthenticationTokens
-      type: object
-    Error:
-      properties:
-        message:
-          description: The error message
+          description: The token that should be used to authenticate the project. For CI only.
           type: string
       required:
-        - message
-      title: Error
+        - id
+        - full_name
+        - token
+        - default_branch
+      title: Project
       type: object
-      x-struct: Elixir.TuistWeb.API.Schemas.Error
+      x-struct: Elixir.TuistWeb.API.Schemas.Project
     Invitation:
       properties:
         id:
@@ -282,24 +250,38 @@ components:
       title: Invitation
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Invitation
-    Module:
+    PreviewIndexPage:
+      default: 1
+      description: The page number to return.
+      minimum: 1
+      title: PreviewIndexPage
+      type: integer
+    OrganizationMember:
+      description: An organization member
       properties:
-        hash:
-          description: A hash that represents the module.
+        email:
+          description: The organization member's email
           type: string
+        id:
+          description: The organization member's unique identifier
+          type: number
         name:
-          description: A name of the module
+          description: The organization member's name
           type: string
-        project_identifier:
-          description: Project's relative path from the root of the repository
+        role:
+          description: The organization member's role
+          enum:
+            - admin
+            - user
           type: string
       required:
+        - id
+        - email
         - name
-        - project_identifier
-        - hash
-      title: Module
+        - role
+      title: OrganizationMember
       type: object
-      x-struct: Elixir.TuistWeb.API.Schemas.Module
+      x-struct: Elixir.TuistWeb.API.Schemas.OrganizationMember
     Organization:
       description: An organization
       properties:
@@ -334,6 +316,7 @@ components:
           description: The SSO provider set up for the organization
           enum:
             - google
+            - okta
           type: string
       required:
         - id
@@ -344,124 +327,73 @@ components:
       title: Organization
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Organization
-    OrganizationList:
-      description: The list of organizations the authenticated subject is part of.
+    CommandEventArtifact:
+      description: It represents an artifact that's associated with a command event (e.g. result bundles)
       properties:
-        organizations:
-          items:
-            $ref: '#/components/schemas/Organization'
-          type: array
+        name:
+          description: The name of the file. It's used only for certain types such as result_bundle_object
+          type: string
+        type:
+          description: |
+            The command event artifact type. It can be:
+            - result_bundle: A result bundle artifact that represents the whole `.xcresult` bundle
+            - invocation_record: An invocation record artifact. This is a root bundle object of the result bundle
+            - result_bundle_object: A result bundle object. There are many different bundle objects per result bundle.
+          enum:
+            - result_bundle
+            - invocation_record
+            - result_bundle_object
+          type: string
       required:
-        - organizations
-      title: OrganizationList
-      type: object
-    OrganizationMember:
-      description: An organization member
+        - type
+      title: CommandEventArtifact
+      x-struct: Elixir.TuistWeb.API.Schemas.CommandEventArtifact
+    Module:
       properties:
-        email:
-          description: The organization member's email
+        hash:
+          description: A hash that represents the module.
+          type: string
+        name:
+          description: A name of the module
+          type: string
+        project_identifier:
+          description: Project's relative path from the root of the repository
+          type: string
+      required:
+        - name
+        - project_identifier
+        - hash
+      title: Module
+      type: object
+      x-struct: Elixir.TuistWeb.API.Schemas.Module
+    Preview:
+      properties:
+        bundle_identifier:
+          description: The bundle identifier of the preview
+          type: string
+        display_name:
+          description: The display name of the preview
+          type: string
+        icon_url:
+          description: The URL for the icon image of the preview
           type: string
         id:
-          description: The organization member's unique identifier
-          type: number
-        name:
-          description: The organization member's name
+          description: Unique identifier of the preview.
           type: string
-        role:
-          description: The organization member's role
-          enum:
-            - admin
-            - user
+        qr_code_url:
+          description: The URL for the QR code image to dowload the preview
           type: string
-      required:
-        - id
-        - email
-        - name
-        - role
-      title: OrganizationMember
-      type: object
-      x-struct: Elixir.TuistWeb.API.Schemas.OrganizationMember
-    OrganizationUsage:
-      description: The usage of an organization.
-      properties:
-        current_month_remote_cache_hits:
-          description: The number of remote cache hits in the current month
-          type: number
-      required:
-        - current_month_remote_cache_hits
-      title: OrganizationUsage
-      type: object
-      x-struct: Elixir.TuistWeb.API.Schemas.OrganizationUsage
-    PreviewArtifactUpload:
-      description: The upload has been initiated and preview and upload unique identifier are returned to upload the various parts using multi-part uploads
-      properties:
-        data:
-          description: Data that contains preview and upload unique identifier associated with the multipart upload to use when uploading parts
-          properties:
-            preview_id:
-              description: The id of the preview.
-              type: string
-            upload_id:
-              description: The upload ID
-              type: string
-          required:
-            - upload_id
-            - preview_id
-          type: object
-        status:
-          default: success
-          enum:
-            - success
-          type: string
-      required:
-        - status
-        - data
-      title: PreviewArtifactUpload
-      type: object
-    PreviewUploadCompletion:
-      description: The preview multipart upload has been completed
-      properties:
         url:
           description: The URL to download the preview
           type: string
       required:
-        - url
-      title: PreviewUploadCompletion
-      type: object
-    Project:
-      properties:
-        default_branch:
-          description: The default branch of the project.
-          example: main
-          type: string
-        full_name:
-          description: The full name of the project (e.g. tuist/tuist)
-          type: string
-        id:
-          description: ID of the project
-          type: number
-        token:
-          deprecated: true
-          description: The token that should be used to authenticate the project. For CI only.
-          type: string
-      required:
         - id
-        - full_name
-        - token
-        - default_branch
-      title: Project
+        - url
+        - qr_code_url
+        - icon_url
+      title: Preview
       type: object
-      x-struct: Elixir.TuistWeb.API.Schemas.Project
-    ProjectFullToken:
-      description: A new project token.
-      properties:
-        token:
-          description: The generated project token.
-          type: string
-      required:
-        - token
-      title: ProjectFullToken
-      type: object
+      x-struct: Elixir.TuistWeb.API.Schemas.Preview
     ProjectToken:
       description: A token to authenticate API requests as a project.
       properties:
@@ -478,17 +410,167 @@ components:
       title: ProjectToken
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.ProjectToken
-    Tokens:
-      description: A list of project tokens.
+    OrganizationUsage:
+      description: The usage of an organization.
       properties:
-        tokens:
+        current_month_remote_cache_hits:
+          description: The number of remote cache hits in the current month
+          type: number
+      required:
+        - current_month_remote_cache_hits
+      title: OrganizationUsage
+      type: object
+      x-struct: Elixir.TuistWeb.API.Schemas.OrganizationUsage
+    PreviewsIndex:
+      properties:
+        previews:
+          description: Previews list.
           items:
-            $ref: '#/components/schemas/ProjectToken'
+            $ref: '#/components/schemas/Preview'
           type: array
       required:
-        - tokens
-      title: Tokens
+        - previews
+      title: PreviewsIndex
       type: object
+    ArtifactUploadURL:
+      description: The URL to upload an artifact.
+      properties:
+        expires_at:
+          description: The UNIX timestamp when the URL expires.
+          type: integer
+        url:
+          description: The URL to upload the artifact.
+          type: string
+      required:
+        - url
+        - expires_at
+      title: ArtifactUploadURL
+      type: object
+      x-struct: Elixir.TuistWeb.API.Schemas.ArtifactUploadURL
+    DeviceCodeAuthenticationTokens:
+      description: Token to authenticate the user with.
+      properties:
+        access_token:
+          description: A short-lived token to authenticate API requests as user.
+          type: string
+        refresh_token:
+          description: A token to generate new access tokens when they expire.
+          type: string
+        token:
+          deprecated: true
+          description: User authentication token
+          type: string
+      title: DeviceCodeAuthenticationTokens
+      type: object
+    AbsentCacheArtifact:
+      properties:
+        error:
+          items:
+            properties:
+              code:
+                default: not_found
+                type: string
+              message:
+                type: string
+            type: object
+          type: array
+      title: AbsentCacheArtifact
+      type: object
+    ArtifactDownloadURL:
+      description: The URL to download an artifact.
+      properties:
+        expires_at:
+          description: The UNIX timestamp when the URL expires.
+          type: integer
+        url:
+          description: The URL to download the artifact.
+          type: string
+      required:
+        - url
+        - expires_at
+      title: ArtifactDownloadURL
+      type: object
+      x-struct: Elixir.TuistWeb.API.Schemas.ArtifactDownloadURL
+    Error:
+      properties:
+        message:
+          description: The error message
+          type: string
+      required:
+        - message
+      title: Error
+      type: object
+      x-struct: Elixir.TuistWeb.API.Schemas.Error
+    CacheArtifactExistence:
+      description: The artifact exists in the cache and can be downloaded
+      properties:
+        data:
+          properties: {}
+          type: object
+        status:
+          default: success
+          enum:
+            - success
+          type: string
+      title: CacheArtifactExistence
+      type: object
+    ArtifactMultipartUploadURL:
+      description: The URL to upload a multipart part
+      properties:
+        data:
+          properties:
+            url:
+              description: The URL to upload the part
+              type: string
+          required:
+            - url
+          type: object
+        status:
+          default: success
+          enum:
+            - success
+          type: string
+      required:
+        - status
+        - data
+      title: ArtifactMultipartUploadURL
+      type: object
+      x-struct: Elixir.TuistWeb.API.Schemas.ArtifactMultipartUploadUrl
+    CacheArtifactMultipartUploadCompletion:
+      description: This response confirms that the upload has been completed successfully. The cache will now be able to serve the artifact.
+      properties:
+        data:
+          properties: {}
+          type: object
+        status:
+          default: success
+          enum:
+            - success
+          type: string
+      title: CacheArtifactMultipartUploadCompletion
+      type: object
+    AuthenticationTokens:
+      description: A pair of access token to authenticate requests and refresh token to generate new access tokens when they expire.
+      properties:
+        access_token:
+          description: API access token.
+          type: string
+        refresh_token:
+          description: A token to generate new API access tokens when they expire.
+          type: string
+      required:
+        - access_token
+        - refresh_token
+      title: AuthenticationTokens
+      type: object
+      x-struct: Elixir.TuistWeb.API.Schemas.AuthenticationTokens
+    PreviewIndexPageSize:
+      default: 10
+      description: The maximum number of preview to return in a single page.
+      maximum: 20
+      minimum: 1
+      title: PreviewIndexPageSize
+      type: integer
     User:
       description: A user.
       properties:
@@ -521,7 +603,7 @@ info:
   version: 0.1.0
   x-logo:
     altText: Tuist logo
-    url: http://localhost:8080/
+    url: http://localhost:8080/images/open-graph.png
 openapi: 3.0.0
 paths:
   /api/analytics:
@@ -553,6 +635,18 @@ paths:
                   type: number
                 error_message:
                   description: The error message of the command.
+                  type: string
+                git_branch:
+                  description: The git branch.
+                  type: string
+                git_commit_sha:
+                  description: The commit SHA.
+                  type: string
+                git_ref:
+                  description: The git ref. When on CI, the value can be equal to remote reference such as `refs/pull/1234/merge`.
+                  type: string
+                git_remote_url_origin:
+                  description: The git remote URL origin.
                   type: string
                 is_ci:
                   description: Whether the command was run in a CI environment.
@@ -597,6 +691,9 @@ paths:
                         type: string
                       type: array
                   type: object
+                preview_id:
+                  description: The preview identifier.
+                  type: string
                 status:
                   description: The status of the command.
                   enum:
@@ -1030,6 +1127,12 @@ paths:
           required: false
           schema:
             $ref: '#/components/schemas/CacheCategory'
+        - description: The size in bytes of the part that will be uploaded. It's used to generate the signed URL.
+          in: query
+          name: content_length
+          required: false
+          schema:
+            type: integer
         - description: The project identifier '{account_name}/{project_name}'.
           in: query
           name: project_id
@@ -1328,6 +1431,7 @@ paths:
                   description: The SSO provider to set up for the organization
                   enum:
                     - google
+                    - okta
                     - none
                   type: string
               type: object
@@ -1391,6 +1495,7 @@ paths:
                   description: The SSO provider to set up for the organization
                   enum:
                     - google
+                    - okta
                     - none
                   type: string
               type: object
@@ -1457,8 +1562,6 @@ paths:
         required: false
       responses:
         204:
-          content:
-            application/json: {}
           description: The invitation was cancelled
         401:
           content:
@@ -1823,7 +1926,7 @@ paths:
         - Projects
     put:
       callbacks: {}
-      description: Updates an project with given parameters.
+      description: Updates a project with given parameters.
       operationId: updateProject
       parameters:
         - description: The handle of the project's account.
@@ -1846,6 +1949,9 @@ paths:
                 default_branch:
                   description: The default branch for the project.
                   type: string
+                repository_url:
+                  description: The repository URL for the project.
+                  type: string
               type: object
         description: Project update params
         required: false
@@ -1856,6 +1962,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Project'
           description: The updated project
+        400:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The request is invalid, for example when attempting to link the project to a repository the authenticated user doesn't have access to.
         401:
           content:
             application/json:
@@ -1877,6 +1989,140 @@ paths:
       summary: Updates a project
       tags:
         - Projects
+  /api/projects/{account_handle}/{project_handle}/cache/ac:
+    post:
+      callbacks: {}
+      description: The endpoint caches a given action item without uploading a file. To upload files, use the multipart upload instead.
+      operationId: uploadCacheActionItem
+      parameters:
+        - description: The name of the account that the project belongs to.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+        - description: The name of the project to clean cache for
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                hash:
+                  description: The hash of the cache action item.
+                  type: string
+              title: CacheActionItemUploadParams
+              type: object
+        description: Cache action item upload params
+        required: false
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CacheActionItem'
+          description: The request is valid but the cache action item already exists
+        201:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CacheActionItem'
+          description: The action item was cached
+        400:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The request has missing or invalid parameters
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        402:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The account has an invalid plan
+        403:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        404:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The project doesn't exist
+      summary: It uploads a given cache action item.
+      tags:
+        - Cache
+  /api/projects/{account_handle}/{project_handle}/cache/ac/{hash}:
+    get:
+      callbacks: {}
+      description: This endpoint gets an item from the action cache.
+      operationId: getCacheActionItem
+      parameters:
+        - description: The name of the account that the project belongs to.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+        - description: The name of the project the cache action item belongs to.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+        - description: The hash that uniquely identifies an item in the action cache.
+          in: path
+          name: hash
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CacheActionItem'
+          description: The item exists in the action cache
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        402:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The account has an invalid plan
+        403:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        404:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The item doesn't exist in the actino cache
+      summary: Get a cache action item.
+      tags:
+        - Cache
   /api/projects/{account_handle}/{project_handle}/cache/clean:
     put:
       callbacks: {}
@@ -1918,6 +2164,96 @@ paths:
       summary: Cleans cache for a given project
       tags:
         - Cache
+  /api/projects/{account_handle}/{project_handle}/previews:
+    get:
+      callbacks: {}
+      description: This endpoint returns a list of previews for a given project.
+      operationId: listPreviews
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+        - description: The display name of previews.
+          in: query
+          name: display_name
+          required: false
+          schema:
+            type: string
+        - description: The preview version specifier. Currently, accepts a commit SHA, branch name, or latest.
+          in: query
+          name: specifier
+          required: false
+          schema:
+            type: string
+        - description: ''
+          in: query
+          name: page_size
+          required: false
+          schema:
+            default: 10
+            description: The maximum number of preview to return in a single page.
+            maximum: 20
+            minimum: 1
+            title: PreviewIndexPageSize
+            type: integer
+        - description: ''
+          in: query
+          name: page
+          required: false
+          schema:
+            default: 1
+            description: The page number to return.
+            minimum: 1
+            title: PreviewIndexPage
+            type: integer
+        - description: Distinct fields – no two previews will be returned with this field having the same value.
+          in: query
+          name: distinct_field
+          required: false
+          schema:
+            enum:
+              - bundle_identifier
+            type: string
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                properties:
+                  previews:
+                    description: Previews list.
+                    items:
+                      $ref: '#/components/schemas/Preview'
+                    type: array
+                required:
+                  - previews
+                title: PreviewsIndex
+                type: object
+          description: Successful response for listing previews.
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        403:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+      summary: List previews.
+      tags:
+        - Previews
   /api/projects/{account_handle}/{project_handle}/previews/complete:
     post:
       callbacks: {}
@@ -1958,15 +2294,7 @@ paths:
           content:
             application/json:
               schema:
-                description: The preview multipart upload has been completed
-                properties:
-                  url:
-                    description: The URL to download the preview
-                    type: string
-                required:
-                  - url
-                title: PreviewUploadCompletion
-                type: object
+                $ref: '#/components/schemas/Preview'
           description: The upload has been completed
         401:
           content:
@@ -1985,9 +2313,10 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: The project doesn't exist
+          description: The project or preview doesn't exist
       summary: It completes a multi-part upload.
-      tags: []
+      tags:
+        - Previews
   /api/projects/{account_handle}/{project_handle}/previews/generate-url:
     post:
       callbacks: {}
@@ -2048,7 +2377,8 @@ paths:
                 $ref: '#/components/schemas/Error'
           description: The project doesn't exist
       summary: It generates a signed URL for uploading a part.
-      tags: []
+      tags:
+        - Previews
   /api/projects/{account_handle}/{project_handle}/previews/start:
     post:
       callbacks: {}
@@ -2067,6 +2397,30 @@ paths:
           required: true
           schema:
             type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                bundle_identifier:
+                  description: The bundle identifier of the preview.
+                  type: string
+                display_name:
+                  description: The display name of the preview.
+                  type: string
+                type:
+                  default: app_bundle
+                  description: The type of the preview to upload.
+                  enum:
+                    - app_bundle
+                    - ipa
+                  type: string
+                version:
+                  description: The version of the preview.
+                  type: string
+              type: object
+        description: Preview upload request params
+        required: false
       responses:
         200:
           content:
@@ -2117,7 +2471,8 @@ paths:
                 $ref: '#/components/schemas/Error'
           description: The project doesn't exist
       summary: It initiates a multipart upload for a preview artifact.
-      tags: []
+      tags:
+        - Previews
   /api/projects/{account_handle}/{project_handle}/previews/{preview_id}:
     get:
       callbacks: {}
@@ -2168,7 +2523,60 @@ paths:
                 $ref: '#/components/schemas/Error'
           description: The build doesn't exist
       summary: Downloads a preview.
-      tags: []
+      tags:
+        - Previews
+  /api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons:
+    post:
+      callbacks: {}
+      description: The endpoint uploads a preview icon.
+      operationId: uploadPreviewIcon
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+        - description: The preview identifier.
+          in: path
+          name: preview_id
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArtifactUploadURL'
+          description: The presigned upload URL
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        403:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        404:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The project or preview doesn't exist
+      summary: Uploads a preview icon.
+      tags:
+        - Previews
   /api/projects/{account_handle}/{project_handle}/tokens:
     get:
       callbacks: {}
@@ -2413,6 +2821,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The project doesn't exist
+        500:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: An internal server error occurred
       summary: It completes a multi-part upload.
       tags:
         - Analytics

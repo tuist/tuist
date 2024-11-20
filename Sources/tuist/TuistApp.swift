@@ -28,8 +28,6 @@ private enum TuistServer {
             TuistSupport.LogOutput.bootstrap()
         }
 
-        try TuistSupport.Environment.shared.bootstrap()
-
         try await TuistCommand.main()
     }
 }

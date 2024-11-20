@@ -62,7 +62,7 @@ extension XcodeGraph.Graph {
 extension GraphDependency {
     fileprivate func isExternal(_ projects: [Path.AbsolutePath: XcodeGraph.Project]) -> Bool {
         switch self {
-        case let .target(_, path):
+        case let .target(_, path, _):
             return projects[path]?.isExternal ?? false
         case .framework, .xcframework, .library, .bundle, .packageProduct, .sdk, .macro:
             return true

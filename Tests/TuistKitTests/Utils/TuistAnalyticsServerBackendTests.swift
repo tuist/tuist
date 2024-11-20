@@ -1,5 +1,5 @@
 import FileSystem
-import MockableTest
+import Mockable
 import TuistAnalytics
 import TuistCore
 import TuistCoreTesting
@@ -14,28 +14,24 @@ final class TuistAnalyticsServerBackendTests: TuistUnitTestCase {
     private var fullHandle = "tuist-org/tuist"
     private var createCommandEventService: MockCreateCommandEventServicing!
     private var ciChecker: MockCIChecking!
-    private var cacheDirectoriesProviderFactory: MockCacheDirectoriesProviderFactoring!
-    private var analyticsArtifactUploadService: MockAnalyticsArtifactUploadServicing!
     private var cacheDirectoriesProvider: MockCacheDirectoriesProviding!
+    private var analyticsArtifactUploadService: MockAnalyticsArtifactUploadServicing!
     private var subject: TuistAnalyticsServerBackend!
 
     override func setUpWithError() throws {
         super.setUp()
         createCommandEventService = .init()
         ciChecker = .init()
-        cacheDirectoriesProviderFactory = .init()
+        cacheDirectoriesProvider = .init()
         analyticsArtifactUploadService = .init()
         cacheDirectoriesProvider = .init()
-        given(cacheDirectoriesProviderFactory)
-            .cacheDirectories()
-            .willReturn(cacheDirectoriesProvider)
         subject = TuistAnalyticsServerBackend(
             fullHandle: fullHandle,
             url: Constants.URLs.production,
             createCommandEventService: createCommandEventService,
             fileHandler: fileHandler,
             ciChecker: ciChecker,
-            cacheDirectoriesProviderFactory: cacheDirectoriesProviderFactory,
+            cacheDirectoriesProvider: cacheDirectoriesProvider,
             analyticsArtifactUploadService: analyticsArtifactUploadService,
             fileSystem: FileSystem()
         )
@@ -44,7 +40,7 @@ final class TuistAnalyticsServerBackendTests: TuistUnitTestCase {
     override func tearDown() {
         createCommandEventService = nil
         ciChecker = nil
-        cacheDirectoriesProviderFactory = nil
+        cacheDirectoriesProvider = nil
         analyticsArtifactUploadService = nil
         subject = nil
         super.tearDown()
@@ -68,7 +64,7 @@ final class TuistAnalyticsServerBackendTests: TuistUnitTestCase {
             .willReturn(
                 .test(
                     id: 10,
-                    url: URL(string: "https://cloud.tuist.io/tuist-org/tuist/runs/10")!
+                    url: URL(string: "https://tuist.dev/tuist-org/tuist/runs/10")!
                 )
             )
 
@@ -76,7 +72,7 @@ final class TuistAnalyticsServerBackendTests: TuistUnitTestCase {
         try await subject.send(commandEvent: event)
 
         // Then
-        XCTAssertPrinterOutputNotContains("You can view a detailed report at: https://cloud.tuist.io/tuist-org/tuist/runs/10")
+        XCTAssertPrinterOutputNotContains("You can view a detailed report at: https://tuist.dev/tuist-org/tuist/runs/10")
     }
 
     func test_send_when_is_ci() async throws {
@@ -97,7 +93,7 @@ final class TuistAnalyticsServerBackendTests: TuistUnitTestCase {
             .willReturn(
                 .test(
                     id: 10,
-                    url: URL(string: "https://cloud.tuist.io/tuist-org/tuist/runs/10")!
+                    url: URL(string: "https://tuist.dev/tuist-org/tuist/runs/10")!
                 )
             )
 
@@ -105,7 +101,7 @@ final class TuistAnalyticsServerBackendTests: TuistUnitTestCase {
         try await subject.send(commandEvent: event)
 
         // Then
-        XCTAssertStandardOutput(pattern: "You can view a detailed report at: https://cloud.tuist.io/tuist-org/tuist/runs/10")
+        XCTAssertStandardOutput(pattern: "You can view a detailed report at: https://tuist.dev/tuist-org/tuist/runs/10")
     }
 
     func test_send_when_is_ci_and_result_bundle_exists() async throws {
@@ -123,7 +119,7 @@ final class TuistAnalyticsServerBackendTests: TuistUnitTestCase {
             .willReturn(
                 .test(
                     id: 10,
-                    url: URL(string: "https://cloud.tuist.io/tuist-org/tuist/runs/10")!
+                    url: URL(string: "https://tuist.dev/tuist-org/tuist/runs/10")!
                 )
             )
 
@@ -150,7 +146,8 @@ final class TuistAnalyticsServerBackendTests: TuistUnitTestCase {
         try await subject.send(commandEvent: event)
 
         // Then
-        XCTAssertStandardOutput(pattern: "You can view a detailed report at: https://cloud.tuist.io/tuist-org/tuist/runs/10")
-        XCTAssertFalse(fileHandler.exists(resultBundle))
+        XCTAssertStandardOutput(pattern: "You can view a detailed report at: https://tuist.dev/tuist-org/tuist/runs/10")
+        let exists = try await fileSystem.exists(resultBundle)
+        XCTAssertFalse(exists)
     }
 }

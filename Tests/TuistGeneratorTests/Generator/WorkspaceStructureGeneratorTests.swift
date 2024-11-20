@@ -401,14 +401,6 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
             []
         }
 
-        func throwingGlob(_: AbsolutePath, glob _: String) throws -> [AbsolutePath] {
-            []
-        }
-
-        func resolveSymlinks(_ path: AbsolutePath) -> AbsolutePath {
-            path
-        }
-
         func fileAttributes(at _: AbsolutePath) throws -> [FileAttributeKey: Any] {
             [:]
         }
@@ -469,10 +461,6 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
 
         func fileSize(path _: AbsolutePath) throws -> UInt64 {
             0
-        }
-
-        func changeExtension(path: AbsolutePath, to newExtension: String) throws -> AbsolutePath {
-            path.removingLastComponent().appending(component: "\(path.basenameWithoutExt).\(newExtension)")
         }
 
         func zipItem(at _: AbsolutePath, to _: AbsolutePath) throws {}

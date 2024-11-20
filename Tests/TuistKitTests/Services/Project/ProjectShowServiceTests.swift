@@ -1,5 +1,5 @@
 import Foundation
-import MockableTest
+import Mockable
 import TuistCore
 import TuistLoader
 import TuistServer
@@ -114,6 +114,37 @@ final class ProjectShowServiceTests: TuistUnitTestCase {
         XCTAssertStandardOutput(
             pattern: """
             Full handle: tuist/tuist
+            Default branch: main
+            """
+        )
+    }
+
+    func test_run_when_repositoryURL_is_defined() async throws {
+        // Given
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test())
+        given(getProjectService)
+            .getProject(
+                fullHandle: .value("tuist/tuist"),
+                serverURL: .any
+            )
+            .willReturn(
+                .test(
+                    fullName: "tuist/tuist",
+                    defaultBranch: "main",
+                    repositoryURL: "https://github.com/tuist/tuist"
+                )
+            )
+
+        // When
+        try await subject.run(fullHandle: "tuist/tuist", web: false, path: nil)
+
+        // Then
+        XCTAssertStandardOutput(
+            pattern: """
+            Full handle: tuist/tuist
+            Repository: https://github.com/tuist/tuist
             Default branch: main
             """
         )

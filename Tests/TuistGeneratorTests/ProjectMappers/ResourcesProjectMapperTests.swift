@@ -1,5 +1,5 @@
 import Foundation
-import MockableTest
+import Mockable
 import Path
 import TuistCore
 import TuistSupport
@@ -82,7 +82,9 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         XCTAssertEqual(resourcesTarget.filesGroup, target.filesGroup)
         XCTAssertEqual(resourcesTarget.resources.resources, resources)
         XCTAssertEqual(resourcesTarget.settings?.base, [
+            "SKIP_INSTALL": "YES",
             "CODE_SIGNING_ALLOWED": "NO",
+            "GENERATE_MASTER_OBJECT_FILE": "NO",
         ])
     }
 

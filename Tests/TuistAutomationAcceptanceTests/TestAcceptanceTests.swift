@@ -16,6 +16,17 @@ final class TestAcceptanceTests: TuistAcceptanceTestCase {
         try await run(TestCommand.self, "App", "--", "-testLanguage", "en")
     }
 
+    func test_with_ios_app_with_frameworks() async throws {
+        try await setUpFixture(.iosAppWithFrameworks)
+        try await run(TestCommand.self)
+    }
+
+    func test_with_framework_with_spm_bundle() async throws {
+        try await setUpFixture(.frameworkWithSPMBundle)
+        try await run(InstallCommand.self)
+        try await run(TestCommand.self)
+    }
+
     func test_with_app_with_test_plan() async throws {
         try await setUpFixture(.appWithTestPlan)
         try await run(TestCommand.self)

@@ -1,5 +1,6 @@
+import FileSystem
 import Foundation
-import MockableTest
+import Mockable
 import Path
 import TuistCore
 import TuistSupport
@@ -11,102 +12,141 @@ import XCTest
 
 final class CopyFilesContentHasherTests: TuistUnitTestCase {
     private var subject: CopyFilesContentHasher!
-    private var contentHasher: MockContentHashing!
-    private var temporaryDirectory: TemporaryDirectory!
 
     override func setUp() {
         super.setUp()
-        contentHasher = .init()
-        subject = CopyFilesContentHasher(contentHasher: contentHasher)
-
-        given(contentHasher)
-            .hash(Parameter<[String]>.any)
-            .willProduce { $0.joined(separator: ";") }
-
-        do {
-            temporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
-        } catch {
-            XCTFail("Error while creating temporary directory")
-        }
+        let contentHasher = ContentHasher()
+        subject = CopyFilesContentHasher(
+            contentHasher: contentHasher,
+            platformConditionContentHasher: PlatformConditionContentHasher(contentHasher: contentHasher)
+        )
     }
 
     override func tearDown() {
         subject = nil
-        temporaryDirectory = nil
-        contentHasher = nil
-
         super.tearDown()
-    }
-
-    private func makeCopyFilesAction(
-        name: String = "Copy Fonts",
-        destination: CopyFilesAction.Destination = .resources,
-        subpath: String? = "Fonts",
-        files: [CopyFileElement] = [.file(path: "/file1.ttf"), .file(path: "/file2.ttf")]
-    ) -> CopyFilesAction {
-        CopyFilesAction(
-            name: name,
-            destination: destination,
-            subpath: subpath,
-            files: files
-        )
     }
 
     // MARK: - Tests
 
-    func test_hash_copyFilesAction_callsMockHasherWithExpectedStrings() throws {
+    func test_hash_isDeterministicAcrossRuns() async throws {
         // Given
-        let file1Hash = "file1-content-hash"
-        let file2Hash = "file2-content-hash"
-        let copyFilesAction = makeCopyFilesAction()
-        given(contentHasher)
-            .hash(path: .value(try AbsolutePath(validating: "/file1.ttf")))
-            .willReturn(file1Hash)
-        given(contentHasher)
-            .hash(path: .value(try AbsolutePath(validating: "/file2.ttf")))
-            .willReturn(file2Hash)
+        let fileSystem = FileSystem()
+        let temporaryDirectory = try temporaryPath()
+        let filePath = temporaryDirectory.appending(component: "file")
+        try await fileSystem.touch(filePath)
+        let copyFilesAction = CopyFilesAction(
+            name: "action",
+            destination: .resources,
+            subpath: "sub-directory",
+            files: [
+                CopyFileElement.file(
+                    path: filePath,
+                    condition: .when(Set([.macos])),
+                    codeSignOnCopy: true
+                ),
+            ]
+        )
+        var results: Set<String> = Set()
 
         // When
-        _ = try subject.hash(copyFiles: [copyFilesAction])
+        for _ in 0 ... 100 {
+            results.insert(try await subject.hash(identifier: "copyFilesActions", copyFiles: [copyFilesAction]).hash)
+        }
 
         // Then
-        verify(contentHasher)
-            .hash(.value(["file1-content-hash", "file2-content-hash", "Copy Fonts", "resources", "Fonts"]))
-            .called(1)
-        verify(contentHasher)
-            .hash(Parameter<[String]>.any)
-            .called(1)
-        verify(contentHasher)
-            .hash(path: .any)
-            .called(2)
+        XCTAssertEqual(results.count, 1)
     }
 
-    func test_hash__copyFilesAction_valuesAreNotHarcoded() throws {
+    func test_hash_returnsTheRightContent() async throws {
         // Given
-        let file1Hash = "file1-content-hash"
-        let copyFilesAction = makeCopyFilesAction(
-            name: "Copy Templates",
-            destination: .sharedSupport,
-            subpath: "Templates",
-            files: [.file(path: "/file1.template")]
+        let fileSystem = FileSystem()
+        let temporaryDirectory = try temporaryPath()
+        let filePath = temporaryDirectory.appending(component: "file")
+        try await fileSystem.touch(filePath)
+        let copyFilesAction = CopyFilesAction(
+            name: "action",
+            destination: .resources,
+            subpath: "sub-directory",
+            files: [
+                CopyFileElement.file(
+                    path: filePath,
+                    condition: .when(Set([.macos])),
+                    codeSignOnCopy: true
+                ),
+            ]
         )
 
-        given(contentHasher)
-            .hash(path: .value(try AbsolutePath(validating: "/file1.template")))
-            .willReturn(file1Hash)
-
         // When
-        _ = try subject.hash(copyFiles: [copyFilesAction])
+        let got = try await subject.hash(identifier: "copyFilesActions", copyFiles: [copyFilesAction])
 
         // Then
-        verify(contentHasher)
-            .hash(.value(["file1-content-hash", "Copy Templates", "sharedSupport", "Templates"]))
-            .called(1)
-        verify(contentHasher)
-            .hash(Parameter<[String]>.any)
-            .called(1)
-        verify(contentHasher)
-            .hash(path: .any)
-            .called(1)
+        XCTAssertEqual(got, MerkleNode(
+            hash: "bee08a6b2a62c3722cd4f95b4e6366e2",
+
+            identifier: "copyFilesActions",
+            children: [
+                MerkleNode(
+                    hash: "b2bae3352cca3429a35d6321df8faa83",
+                    identifier: "action",
+                    children: [
+                        MerkleNode(
+                            hash: "418c5509e2171d55b0aee5c2ea4442b5",
+                            identifier: "name",
+                            children: []
+                        ),
+                        MerkleNode(
+                            hash: "55b558c7ef820e6e00e5993b9e55d93b",
+                            identifier: "destination",
+                            children: []
+                        ),
+                        MerkleNode(
+                            hash: "a513dff02e1d54f35f36556fb1dd6e88",
+                            identifier: "files",
+                            children: [
+                                MerkleNode(
+                                    hash: "7178d66b2f9f58b50207c4ac3eef73d4",
+                                    identifier: filePath.pathString,
+                                    children: [
+                                        MerkleNode(
+                                            hash: "d41d8cd98f00b204e9800998ecf8427e",
+                                            identifier: "content",
+
+                                            children: []
+                                        ),
+                                        MerkleNode(
+                                            hash: "cfcd208495d565ef66e7dff9f98764da",
+                                            identifier: "isReference",
+                                            children: []
+                                        ),
+                                        MerkleNode(
+                                            hash: "c4ca4238a0b923820dcc509a6f75849b",
+                                            identifier: "codeSignOnCopy",
+                                            children: []
+                                        ),
+                                        MerkleNode(
+                                            hash: "4ed91b7e02b960dc31256de17f3f131f",
+                                            identifier: "condition",
+                                            children: [
+                                                MerkleNode(
+                                                    hash: "43b9d8ea18c48c3a64c4e37338fc668f",
+                                                    identifier: "macos",
+                                                    children: []
+                                                ),
+                                            ]
+                                        ),
+                                    ]
+                                ),
+                            ]
+                        ),
+                        MerkleNode(
+                            hash: "d18d3d91d86b6429bf6cc4cf4ec5b99a",
+                            identifier: "subpath",
+                            children: []
+                        ),
+                    ]
+                ),
+            ]
+        ))
     }
 }

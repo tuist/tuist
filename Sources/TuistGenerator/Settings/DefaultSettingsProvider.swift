@@ -1,4 +1,5 @@
 import Foundation
+import Path
 import struct TSCUtility.Version
 import TuistCore
 import TuistSupport
@@ -9,13 +10,14 @@ public protocol DefaultSettingsProviding {
     func projectSettings(
         project: Project,
         buildConfiguration: BuildConfiguration
-    ) throws -> SettingsDictionary
+    ) async throws -> SettingsDictionary
 
     func targetSettings(
         target: Target,
         project: Project,
-        buildConfiguration: BuildConfiguration
-    ) throws -> SettingsDictionary
+        buildConfiguration: BuildConfiguration,
+        graphTraverser: GraphTraversing
+    ) async throws -> SettingsDictionary
 }
 
 public final class DefaultSettingsProvider: DefaultSettingsProviding {
@@ -66,6 +68,9 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
         "ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES",
         "WRAPPER_EXTENSION",
         "SWIFT_VERSION",
+        "TEST_TARGET_NAME",
+        "TEST_HOST",
+        "BUNDLE_LOADER",
     ]
 
     // These are not needed or are computed elsewhere so we exclude them
@@ -104,13 +109,13 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
     public func projectSettings(
         project: Project,
         buildConfiguration: BuildConfiguration
-    ) throws -> SettingsDictionary {
+    ) async throws -> SettingsDictionary {
         let settingsHelper = SettingsHelper()
         let defaultSettings = project.settings.defaultSettings
         let variant = settingsHelper.variant(buildConfiguration)
         let projectDefaultAll = try BuildSettingsProvider.projectDefault(variant: .all).toSettings()
         let projectDefaultVariant = try BuildSettingsProvider.projectDefault(variant: variant).toSettings()
-        let filter = try createFilter(
+        let filter = try await createFilter(
             defaultSettings: defaultSettings,
             essentialKeys: DefaultSettingsProvider.essentialProjectSettings
         )
@@ -124,17 +129,19 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
     public func targetSettings(
         target: Target,
         project: Project,
-        buildConfiguration: BuildConfiguration
-    ) throws -> SettingsDictionary {
+        buildConfiguration: BuildConfiguration,
+        graphTraverser: GraphTraversing
+    ) async throws -> SettingsDictionary {
         var settings: SettingsDictionary = [:]
         if target.isMultiplatform {
             // Loop over platforms in a deterministic order.
             for platform in Platform.allCases where target.supports(platform) {
-                let platformSetting = try targetSettings(
+                let platformSetting = try await targetSettings(
                     target: target,
                     project: project,
                     platform: platform,
-                    buildConfiguration: buildConfiguration
+                    buildConfiguration: buildConfiguration,
+                    graphTraverser: graphTraverser
                 )
 
                 let filteredSettings = platformSetting
@@ -143,11 +150,12 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
                 settings.overlay(with: filteredSettings, for: platform)
             }
         } else if let platform = target.supportedPlatforms.first {
-            settings = try targetSettings(
+            settings = try await targetSettings(
                 target: target,
                 project: project,
                 platform: platform,
-                buildConfiguration: buildConfiguration
+                buildConfiguration: buildConfiguration,
+                graphTraverser: graphTraverser
             )
         }
 
@@ -158,8 +166,9 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
         target: Target,
         project: Project,
         platform: Platform,
-        buildConfiguration: BuildConfiguration
-    ) throws -> SettingsDictionary {
+        buildConfiguration: BuildConfiguration,
+        graphTraverser: GraphTraversing
+    ) async throws -> SettingsDictionary {
         let settingsHelper = SettingsHelper()
         let defaultSettings = target.settings?.defaultSettings ?? project.settings.defaultSettings
         let product = settingsHelper.settingsProviderProduct(target)
@@ -178,7 +187,7 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
             product: product,
             swift: true
         ).toSettings()
-        let filter = try createFilter(
+        let filter = try await createFilter(
             defaultSettings: defaultSettings,
             essentialKeys: DefaultSettingsProvider.essentialTargetSettings,
             newXcodeKeys: DefaultSettingsProvider.xcodeVersionSpecificSettings
@@ -190,6 +199,10 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
         settingsHelper.extend(buildSettings: &settings, with: targetDefaultVariant)
         settingsHelper.extend(buildSettings: &settings, with: mergeableSettings)
         settingsHelper.extend(buildSettings: &settings, with: projectOverridableTargetDefaultSettings(for: project))
+        settingsHelper.extend(
+            buildSettings: &settings,
+            with: testBundleTargetDerivedSettings(target: target, graphTraverser: graphTraverser, projectPath: project.path)
+        )
         return settings.filter(filter)
     }
 
@@ -215,12 +228,12 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
         defaultSettings: DefaultSettings,
         essentialKeys: Set<String>,
         newXcodeKeys: [Version: Set<String>] = [:]
-    ) throws -> (String, SettingValue) -> Bool {
+    ) async throws -> (String, SettingValue) -> Bool {
         switch defaultSettings {
         case let .essential(excludedKeys):
             return { key, _ in essentialKeys.contains(key) && !excludedKeys.contains(key) }
         case let .recommended(excludedKeys):
-            let xcodeVersion = try xcodeController.selectedVersion()
+            let xcodeVersion = try await xcodeController.selectedVersion()
             return { key, _ in
                 // Filter keys that are from higher Xcode version than current (otherwise return true)
                 !newXcodeKeys
@@ -260,6 +273,35 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
         } else {
             return [:]
         }
+    }
+
+    private func testBundleTargetDerivedSettings(
+        target: Target,
+        graphTraverser: GraphTraversing,
+        projectPath: AbsolutePath
+    ) -> SettingsDictionary {
+        guard target.product.testsBundle else {
+            return [:]
+        }
+
+        let targetDependencies = graphTraverser.directLocalTargetDependencies(path: projectPath, name: target.name).sorted()
+        let appDependency = targetDependencies.first { $0.target.product.canHostTests() }
+
+        guard let app = appDependency else {
+            return [:]
+        }
+
+        var settings: SettingsDictionary = [:]
+        settings["TEST_TARGET_NAME"] = .string("\(app.target.name)")
+        if target.product == .unitTests {
+            settings["TEST_HOST"] =
+                .string(
+                    "$(BUILT_PRODUCTS_DIR)/\(app.target.productNameWithExtension)/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/\(app.target.productName)"
+                )
+            settings["BUNDLE_LOADER"] = "$(TEST_HOST)"
+        }
+
+        return settings
     }
 }
 
