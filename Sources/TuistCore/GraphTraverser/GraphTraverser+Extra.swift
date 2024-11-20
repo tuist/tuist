@@ -6,8 +6,8 @@ extension GraphTraversing {
     public func filterIncludedTargets(
         basedOn targets: some Collection<GraphTarget>,
         testPlan: String?,
-        includedTargets: Set<TargetPattern>,
-        excludedTargets: Set<TargetPattern>,
+        includedTargets: Set<TargetQuery>,
+        excludedTargets: Set<TargetQuery>,
         excludingExternalTargets: Bool = false
     ) -> Set<GraphTarget> {
         let allTestPlansTargetNames: Set<String>?

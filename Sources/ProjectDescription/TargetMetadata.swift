@@ -1,5 +1,5 @@
 public struct TargetMetadata: Codable, Equatable, Sendable {
-    public var tags: Set<String>
+    public var tags: [String]
 
     public static var `default`: TargetMetadata {
         .metadata()
@@ -11,7 +11,7 @@ public struct TargetMetadata: Codable, Equatable, Sendable {
     ///   - tags: The list of tags to use. Used to select focused targets when generating the project.
     /// - Returns: Target metadata
     public static func metadata(
-        tags: Set<String> = []
+        tags: [String] = []
     ) -> TargetMetadata {
         TargetMetadata(
             tags: tags
