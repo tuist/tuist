@@ -106,7 +106,7 @@ Tuist를 tasks 배포에 사용하고 있었다면, 자체 솔루션을 구축�
 
 ## Using plugins {#using-plugins}
 
-To use a plugin, you'll have to add it to your project's <LocalizedLink href="/references/project-description/structs/tuist">`Tuist.swift`</LocalizedLink> manifest file:
+plugin을 사용하려면, 프로젝트의 <LocalizedLink href="/references/project-description/structs/tuist">`Tuist.swift`</LocalizedLink> manifest 파일에 추가해야 합니다:
 
 ```swift
 import ProjectDescription
