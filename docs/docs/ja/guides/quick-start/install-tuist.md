@@ -11,10 +11,10 @@ Tuist CLIは、実行可能ファイル、動的フレームワーク、およ�
 ### <a href="https://github.com/jdx/mise">Mise</a> {#recommended-mise}
 
 :::info
-Mise is a recommended alternative to [Homebrew](https://brew.sh) if you are a team or organization that needs to ensure deterministic versions of tools across different environments.
+Miseは、異なる環境でツールの決定的なバージョンを確保する必要があるチームや組織にとって、推奨される[Homebrew](https://brew.sh)の代替手段です。
 :::
 
-You can install Tuist through any of the following commands:
+Tuist は以下のコマンドのいずれかを使用してインストールできます。
 
 ```bash
 mise install tuist            # .tool-versions/.mise.tomlに指定された現在のバージョンをインストール
@@ -33,7 +33,7 @@ mise use -g tuist@system      # システムのtuistをグローバルデフォ�
 
 ### <a href="https://brew.sh">Homebrew</a> {#recommended-homebrew}
 
-You can install Tuist using [Homebrew](https://brew.sh) and [our formulas](https://github.com/tuist/homebrew-tuist):
+Tuist は [Homebrew](https://brew.sh) と私達の [formulas](https://github.com/tuist/homebrew-tuist) を使用してインストールできます:
 
 ```bash
 brew tap tuist/tuist
@@ -43,8 +43,7 @@ brew install --formula tuist@x.y.z
 
 ### シェルの補完 {#shell-completions}
 
-If you have Tuist **globally installed** (e.g., via Homebrew),
-you can install shell completions for Bash and Zsh to autocomplete commands and options.
+Tuistを**グローバルにインストールしている**場合 (例えば、Homebrew経由で)、BashやZsh用のシェル補完をインストールして、コマンドやオプションを自動補完できます。
 
 :::warning グローバルインストールとは
 グローバルインストールは、シェルの `$PATH` 環境変数で利用可能なインストールです。 つまり、ターミナルの任意のディレクトリから `tuist` を実行できます。 This is the default installation method for Homebrew.
@@ -52,7 +51,7 @@ you can install shell completions for Bash and Zsh to autocomplete commands and 
 
 #### Zsh {#zsh}
 
-[oh-my-zsh](https://ohmyz.sh/) がインストールされている場合、自動的に読み込まれる補完スクリプトのディレクトリ `.oh-my-zsh/completions` があります。 新しい補完スクリプトをそのディレクトリに `_tuist` という名前の新しいファイルとしてコピーします。 新しい補完スクリプトをそのディレクトリに `_tuist` という名前の新しいファイルとしてコピーします。
+[oh-my-zsh](https://ohmyz.sh/) がインストールされている場合、自動的に読み込まれる補完スクリプトのディレクトリ `.oh-my-zsh/completions` があります。 新しい補完スクリプトをそのディレクトリに `_tuist` という名前の新しいファイルとしてコピーします。
 
 ```bash
 tuist --generate-completion-script > ~/.oh-my-zsh/completions/_tuist
