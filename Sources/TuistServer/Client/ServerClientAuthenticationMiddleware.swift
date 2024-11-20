@@ -27,13 +27,15 @@ struct ServerClientAuthenticationMiddleware: ClientMiddleware {
     private let serverCredentialsStore: ServerCredentialsStoring
     private let refreshAuthTokenService: RefreshAuthTokenServicing
     private let dateService: DateServicing
+    private let cachedValueStore: CachedValueStoring
 
     init() {
         self.init(
             serverAuthenticationController: ServerAuthenticationController(),
             serverCredentialsStore: ServerCredentialsStore(),
             refreshAuthTokenService: RefreshAuthTokenService(),
-            dateService: DateService()
+            dateService: DateService(),
+            cachedValueStore: CachedValueStore.shared
         )
     }
 
@@ -41,12 +43,14 @@ struct ServerClientAuthenticationMiddleware: ClientMiddleware {
         serverAuthenticationController: ServerAuthenticationControlling,
         serverCredentialsStore: ServerCredentialsStoring,
         refreshAuthTokenService: RefreshAuthTokenServicing,
-        dateService: DateServicing
+        dateService: DateServicing,
+        cachedValueStore: CachedValueStoring
     ) {
         self.serverAuthenticationController = serverAuthenticationController
         self.serverCredentialsStore = serverCredentialsStore
         self.refreshAuthTokenService = refreshAuthTokenService
         self.dateService = dateService
+        self.cachedValueStore = cachedValueStore
     }
 
     func intercept(
@@ -75,27 +79,10 @@ struct ServerClientAuthenticationMiddleware: ClientMiddleware {
                     .timeIntervalSince(dateService.now()) < 30
 
                 if isExpired {
-                    do {
-                        let newTokens = try await RetryProvider()
-                            .runWithRetries {
-                                return try await refreshAuthTokenService.refreshTokens(
-                                    serverURL: baseURL,
-                                    refreshToken: refreshToken.token
-                                )
-                            }
-                        try await serverCredentialsStore
-                            .store(
-                                credentials: ServerCredentials(
-                                    token: nil,
-                                    accessToken: newTokens.accessToken,
-                                    refreshToken: newTokens.refreshToken
-                                ),
-                                serverURL: baseURL
-                            )
-                        tokenValue = newTokens.accessToken
-                    } catch {
-                        throw ServerClientAuthenticationError.notAuthenticated
+                    tokenValue = try await cachedValueStore.getValue(key: refreshToken.token) {
+                        try await refreshTokens(baseURL: baseURL, refreshToken: refreshToken)
                     }
+                    .accessToken
                 } else {
                     tokenValue = accessToken.token
                 }
@@ -108,5 +95,32 @@ struct ServerClientAuthenticationMiddleware: ClientMiddleware {
             name: .authorization, value: "Bearer \(tokenValue)"
         ))
         return try await next(request, body, baseURL)
+    }
+
+    private func refreshTokens(
+        baseURL: URL,
+        refreshToken: JWT
+    ) async throws -> ServerAuthenticationTokens {
+        do {
+            let newTokens = try await RetryProvider()
+                .runWithRetries {
+                    return try await refreshAuthTokenService.refreshTokens(
+                        serverURL: baseURL,
+                        refreshToken: refreshToken.token
+                    )
+                }
+            try await serverCredentialsStore
+                .store(
+                    credentials: ServerCredentials(
+                        token: nil,
+                        accessToken: newTokens.accessToken,
+                        refreshToken: newTokens.refreshToken
+                    ),
+                    serverURL: baseURL
+                )
+            return newTokens
+        } catch {
+            throw ServerClientAuthenticationError.notAuthenticated
+        }
     }
 }
