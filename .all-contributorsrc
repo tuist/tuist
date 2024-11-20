@@ -1636,6 +1636,15 @@
       "contributions": [
         "doc"
       ]
+    },
+    {
+      "login": "yungu0010",
+      "name": "Yunseo Kang",
+      "avatar_url": "https://avatars.githubusercontent.com/u/65678579?v=4",
+      "profile": "https://medium.com/@dbstj169",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,

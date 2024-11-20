@@ -50,7 +50,7 @@ final class FocusTargetsGraphMappersTests: TuistUnitTestCase {
         let projectPath = try temporaryPath().appending(component: "Project")
         let externalProjectPath = try temporaryPath().appending(component: "ExternalProject")
         let project = Project.test(path: projectPath, targets: [aTarget, bTarget, cTarget])
-        let externalProject = Project.test(path: externalProjectPath, targets: [dTarget, eTarget], isExternal: true)
+        let externalProject = Project.test(path: externalProjectPath, targets: [dTarget, eTarget], type: .external(hash: nil))
         let graph = Graph.test(
             projects: [
                 project.path: project,

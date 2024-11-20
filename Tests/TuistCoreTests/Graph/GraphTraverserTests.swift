@@ -343,7 +343,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let externalProject = Project.test(
             path: try! AbsolutePath(validating: "/ExternalProject"),
             targets: [staticLibrary, bundle],
-            isExternal: true
+            type: .external(hash: nil)
         )
 
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
@@ -394,7 +394,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let externalProject = Project.test(
             path: try! AbsolutePath(validating: "/ExternalProject"),
             targets: [staticLibrary, bundle],
-            isExternal: true
+            type: .external(hash: nil)
         )
 
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
@@ -4669,7 +4669,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
             path: try! AbsolutePath(validating: "/Package"),
             name: "Package",
             targets: [directPackageProduct, transitivePackageProduct, packageDevProduct],
-            isExternal: true
+            type: .external(hash: nil)
         )
         let directPackageProductDependency = GraphDependency.target(name: directPackageProduct.name, path: packageProject.path)
         let transitivePackageProductDependency = GraphDependency.target(
@@ -4707,7 +4707,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
             path: try! AbsolutePath(validating: "/Package"),
             name: "Package",
             targets: [directPackageProduct],
-            isExternal: true
+            type: .external(hash: nil)
         )
         let directPackageProductDependency = GraphDependency.target(
             name: directPackageProduct.name,
@@ -4759,7 +4759,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
             path: try! AbsolutePath(validating: "/Package"),
             name: "Package",
             targets: [directPackageProduct],
-            isExternal: true
+            type: .external(hash: nil)
         )
         let directPackageProductDependency = GraphDependency.target(name: directPackageProduct.name, path: packageProject.path)
 
@@ -4792,7 +4792,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
             path: try! AbsolutePath(validating: "/Package"),
             name: "Package",
             targets: [directPackageProduct],
-            isExternal: true
+            type: .external(hash: nil)
         )
         let directPackageProductDependency = GraphDependency.target(name: directPackageProduct.name, path: packageProject.path)
 
@@ -4833,7 +4833,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let externalProject = Project.test(
             path: packagesDirectory,
             targets: [externalPackage, externalPackageTargetB],
-            isExternal: true
+            type: .external(hash: nil)
         )
 
         let appTargetDependency = GraphDependency.target(name: appTarget.name, path: project.path)
@@ -4890,7 +4890,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let externalProject = Project.test(
             path: packagesDirectory,
             targets: [directExternalPackage, transitiveExternalPackage],
-            isExternal: true
+            type: .external(hash: nil)
         )
 
         let appTargetDependency = GraphDependency.target(name: appTarget.name, path: project.path)
@@ -4943,7 +4943,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let externalProject = Project.test(
             path: packagesDirectory,
             targets: [externalMacroFramework, externalMacroExecutable],
-            isExternal: true
+            type: .external(hash: nil)
         )
 
         let appTargetDependency = GraphDependency.target(name: appTarget.name, path: project.path)
@@ -4998,7 +4998,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let externalProject = Project.test(
             path: packagesDirectory,
             targets: [externalFramework],
-            isExternal: true
+            type: .external(hash: nil)
         )
 
         let appTargetDependency = GraphDependency.target(name: appTarget.name, path: project.path)
