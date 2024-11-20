@@ -1563,6 +1563,20 @@ internal enum Components {
                 case sso_provider
             }
         }
+        /// The supported platforms of the preview.
+        ///
+        /// - Remark: Generated from `#/components/schemas/PreviewSupportedPlatform`.
+        internal enum PreviewSupportedPlatform: String, Codable, Hashable, Sendable, CaseIterable {
+            case ios = "ios"
+            case ios_simulator = "ios_simulator"
+            case tvos = "tvos"
+            case tvos_simulator = "tvos_simulator"
+            case watchos = "watchos"
+            case watchos_simulator = "watchos_simulator"
+            case visionos = "visionos"
+            case visionos_simulator = "visionos_simulator"
+            case macos = "macos"
+        }
         /// It represents an artifact that's associated with a command event (e.g. result bundles)
         ///
         /// - Remark: Generated from `#/components/schemas/CommandEventArtifact`.
@@ -10884,6 +10898,10 @@ internal enum Operations {
                 internal var specifier: Swift.String?
                 ///
                 ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/query/supported_platforms`.
+                internal var supported_platforms: [Components.Schemas.PreviewSupportedPlatform]?
+                ///
+                ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/query/page_size`.
                 internal var page_size: Swift.Int?
                 ///
@@ -10903,18 +10921,21 @@ internal enum Operations {
                 /// - Parameters:
                 ///   - display_name: The display name of previews.
                 ///   - specifier: The preview version specifier. Currently, accepts a commit SHA, branch name, or latest.
+                ///   - supported_platforms:
                 ///   - page_size:
                 ///   - page:
                 ///   - distinct_field: Distinct fields – no two previews will be returned with this field having the same value.
                 internal init(
                     display_name: Swift.String? = nil,
                     specifier: Swift.String? = nil,
+                    supported_platforms: [Components.Schemas.PreviewSupportedPlatform]? = nil,
                     page_size: Swift.Int? = nil,
                     page: Swift.Int? = nil,
                     distinct_field: Operations.listPreviews.Input.Query.distinct_fieldPayload? = nil
                 ) {
                     self.display_name = display_name
                     self.specifier = specifier
+                    self.supported_platforms = supported_platforms
                     self.page_size = page_size
                     self.page = page
                     self.distinct_field = distinct_field
@@ -11866,6 +11887,10 @@ internal enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/requestBody/json/display_name`.
                     internal var display_name: Swift.String?
+                    /// The supported platforms of the preview.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/requestBody/json/supported_platforms`.
+                    internal var supported_platforms: [Components.Schemas.PreviewSupportedPlatform]?
                     /// The type of the preview to upload.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/requestBody/json/type`.
@@ -11886,22 +11911,26 @@ internal enum Operations {
                     /// - Parameters:
                     ///   - bundle_identifier: The bundle identifier of the preview.
                     ///   - display_name: The display name of the preview.
+                    ///   - supported_platforms: The supported platforms of the preview.
                     ///   - _type: The type of the preview to upload.
                     ///   - version: The version of the preview.
                     internal init(
                         bundle_identifier: Swift.String? = nil,
                         display_name: Swift.String? = nil,
+                        supported_platforms: [Components.Schemas.PreviewSupportedPlatform]? = nil,
                         _type: Operations.startPreviewsMultipartUpload.Input.Body.jsonPayload._typePayload? = nil,
                         version: Swift.String? = nil
                     ) {
                         self.bundle_identifier = bundle_identifier
                         self.display_name = display_name
+                        self.supported_platforms = supported_platforms
                         self._type = _type
                         self.version = version
                     }
                     internal enum CodingKeys: String, CodingKey {
                         case bundle_identifier
                         case display_name
+                        case supported_platforms
                         case _type = "type"
                         case version
                     }

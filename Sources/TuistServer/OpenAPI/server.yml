@@ -327,6 +327,21 @@ components:
       title: Organization
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Organization
+    PreviewSupportedPlatform:
+      description: The supported platforms of the preview.
+      enum:
+        - ios
+        - ios_simulator
+        - tvos
+        - tvos_simulator
+        - watchos
+        - watchos_simulator
+        - visionos
+        - visionos_simulator
+        - macos
+      title: PreviewSupportedPlatform
+      type: string
+      x-struct: Elixir.TuistWeb.API.Schemas.PreviewSupportedPlatform
     CommandEventArtifact:
       description: It represents an artifact that's associated with a command event (e.g. result bundles)
       properties:
@@ -2196,6 +2211,15 @@ paths:
             type: string
         - description: ''
           in: query
+          name: supported_platforms
+          required: false
+          schema:
+            description: The supported platforms of the preview.
+            items:
+              $ref: '#/components/schemas/PreviewSupportedPlatform'
+            type: array
+        - description: ''
+          in: query
           name: page_size
           required: false
           schema:
@@ -2408,6 +2432,11 @@ paths:
                 display_name:
                   description: The display name of the preview.
                   type: string
+                supported_platforms:
+                  description: The supported platforms of the preview.
+                  items:
+                    $ref: '#/components/schemas/PreviewSupportedPlatform'
+                  type: array
                 type:
                   default: app_bundle
                   description: The type of the preview to upload.
