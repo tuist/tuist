@@ -157,6 +157,11 @@ defmodule TuistWeb.PreviewControllerTest do
       icon_content = "icon-content"
 
       Storage
+      |> stub(:object_exists?, fn _ ->
+        true
+      end)
+
+      Storage
       |> stub(:stream_object, fn _ ->
         Stream.map([icon_content], fn chunk -> chunk end)
       end)
@@ -169,6 +174,25 @@ defmodule TuistWeb.PreviewControllerTest do
       # Then
       assert response(conn, 200) =~ icon_content
       assert get_resp_header(conn, "content-type") == ["image/png; charset=utf-8"]
+    end
+
+    test "returns 404 when the icon does not exist", %{conn: conn} do
+      # Given
+      preview =
+        PreviewsFixtures.preview_fixture(type: :ipa)
+
+      Storage
+      |> stub(:object_exists?, fn _ ->
+        false
+      end)
+
+      # When
+      conn =
+        conn
+        |> get(~p"/tuist/ios_app_with_frameworks/previews/#{preview.id}/icon.png")
+
+      # Then
+      assert response(conn, 404) =~ ""
     end
 
     test "raises not found error when the preview does not exist", %{conn: conn} do

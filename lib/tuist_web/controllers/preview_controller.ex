@@ -51,18 +51,25 @@ defmodule TuistWeb.PreviewController do
           "id" => preview_id
         } = _params
       ) do
-    conn =
-      conn
-      |> put_resp_content_type("image/png")
-      |> send_chunked(:ok)
-
-    Storage.stream_object(
+    object_key =
       Previews.get_icon_storage_key(%{
         account_handle: account_handle,
         project_handle: project_handle,
         preview_id: preview_id
       })
-    )
+
+    if Storage.object_exists?(object_key) do
+      conn
+      |> put_resp_content_type("image/png")
+      |> send_chunked(:ok)
+      |> stream_object(object_key)
+    else
+      conn |> send_resp(404, "")
+    end
+  end
+
+  defp stream_object(conn, object_key) do
+    Storage.stream_object(object_key)
     |> Enum.reduce_while(conn, fn chunk, conn ->
       case chunk(conn, chunk) do
         {:ok, conn} -> {:cont, conn}
