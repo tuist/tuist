@@ -689,7 +689,8 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
             "TARGETED_DEVICE_FAMILY": "1,2",
             "SUPPORTED_PLATFORMS": "iphoneos iphonesimulator macosx",
             "LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]": ["$(inherited)", "@executable_path/../Frameworks"],
-            "LD_RUNPATH_SEARCH_PATHS": ["$(inherited)", "@executable_path/Frameworks"],
+            "LD_RUNPATH_SEARCH_PATHS[sdk=iphoneos*]": ["$(inherited)", "@executable_path/Frameworks"],
+            "LD_RUNPATH_SEARCH_PATHS[sdk=iphonesimulator*]": ["$(inherited)", "@executable_path/Frameworks"],
         ]
 
         assert(config: debugConfig, contains: expectedSettings)
