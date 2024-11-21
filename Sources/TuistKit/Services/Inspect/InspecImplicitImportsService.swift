@@ -91,15 +91,15 @@ final class InspectImplicitImportsService {
             .directTargetDependencies(path: target.project.path, name: target.target.name)
 
         let explicitTargetDependencies = targetDependencies.map { targetDependency in
-            if targetDependency.graphTarget.project.isExternal {
+            if targetDependency.graphTarget.project.type == .external() {
                 return graphTraverser
-                    .recursiveTargetDependencies(path: target.project.path, name: target.target.name)
+                    .allTargetDependencies(path: target.project.path, name: target.target.name)
             } else {
-                return Set(arrayLiteral: targetDependency)
+                return Set(arrayLiteral: targetDependency.graphTarget)
             }
         }
         .flatMap { $0 }
-        .map(\.graphTarget.target.productName)
+        .map(\.target.productName)
         return Set(explicitTargetDependencies)
     }
 

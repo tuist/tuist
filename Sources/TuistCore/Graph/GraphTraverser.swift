@@ -187,25 +187,10 @@ public class GraphTraverser: GraphTraversing {
         return Set(convertToGraphTargetReferences(localTargetDependencies, for: target))
     }
 
-    public func recursiveTargetDependencies(path: Path.AbsolutePath, name: String) -> Set<GraphTargetReference> {
-        let target = target(path: path, name: name)
-        guard let target else { return [] }
-        return allTargetsConnectedWith(target: GraphTargetReference(target: target))
-    }
-
     /// Returns all direct target dependencies where the target is in another project.
     private func directNonLocalTargetDependencies(path: Path.AbsolutePath, name: String) -> Set<GraphTargetReference> {
         let dependencies = directTargetDependencies(path: path, name: name)
         return dependencies.subtracting(directLocalTargetDependencies(path: path, name: name))
-    }
-
-    func allTargetsConnectedWith(target: GraphTargetReference) -> Set<GraphTargetReference> {
-        var connected = Set<GraphTargetReference>()
-        connected = connected.union(directTargetDependencies(path: target.graphTarget.path, name: target.target.name))
-        let recursiveConnections = connected.map {
-            allTargetsConnectedWith(target: $0)
-        }
-        return connected.union(recursiveConnections.flatMap { $0 })
     }
 
     func convertToGraphTargetReferences(

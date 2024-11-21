@@ -3948,13 +3948,13 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let subject = GraphTraverser(graph: graph)
 
         // When
-        let got = subject.recursiveTargetDependencies(path: project.path, name: "A")
+        let got: Set<GraphTarget> = subject.allTargetDependencies(path: project.path, name: "A")
 
         // Then
         XCTAssertEqual(got.sorted(), [
-            GraphTargetReference(target: graphTargetB),
-            GraphTargetReference(target: graphTargetC),
-            GraphTargetReference(target: graphTargetD),
+            graphTargetB,
+            graphTargetC,
+            graphTargetD,
         ])
     }
 
