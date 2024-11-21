@@ -122,6 +122,24 @@ defmodule Tuist.PreviewsTest do
       # Then
       assert result == "#{account_handle}/#{project_handle}/previews/#{preview.id}/icon.png"
     end
+
+    test "returns the storage key for a preview icon with downcased account and project handles" do
+      # Given
+      preview = %Preview{id: "preview-id"}
+      account_handle = "AccountHandle"
+      project_handle = "ProjectHandle"
+
+      # When
+      result =
+        Previews.get_icon_storage_key(%{
+          account_handle: account_handle,
+          project_handle: project_handle,
+          preview_id: preview.id
+        })
+
+      # Then
+      assert result == "accounthandle/projecthandle/previews/#{preview.id}/icon.png"
+    end
   end
 
   describe "get_supported_platforms_case_values/1" do
