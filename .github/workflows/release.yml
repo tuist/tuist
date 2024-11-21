@@ -33,6 +33,7 @@ jobs:
           experimental: true
         env:
           MISE_HTTP_TIMEOUT: 300
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Check if there are releasable changes
         id: is-releasable
         working-directory: app
