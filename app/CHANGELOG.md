@@ -1,3 +1,8 @@
+## What's Changed in app@0.6.1
+* fix: be less aggresive truncating longer app names by @fortmarek in [#7091](https://github.com/tuist/tuist/pull/7091)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/app@0.6.0...app@0.6.1
+
 ## What's Changed in app@0.6.0
 * feat: when running latest preview, filter supported platforms by @fortmarek in [#7077](https://github.com/tuist/tuist/pull/7077)
 
