@@ -28,6 +28,7 @@ struct ServerClientAuthenticationMiddleware: ClientMiddleware {
     private let refreshAuthTokenService: RefreshAuthTokenServicing
     private let dateService: DateServicing
     private let cachedValueStore: CachedValueStoring
+    private let envVariables: [String: String]
 
     init() {
         self.init(
@@ -35,7 +36,8 @@ struct ServerClientAuthenticationMiddleware: ClientMiddleware {
             serverCredentialsStore: ServerCredentialsStore(),
             refreshAuthTokenService: RefreshAuthTokenService(),
             dateService: DateService(),
-            cachedValueStore: CachedValueStore.shared
+            cachedValueStore: CachedValueStore.shared,
+            envVariables: ProcessInfo.processInfo.environment
         )
     }
 
@@ -44,13 +46,15 @@ struct ServerClientAuthenticationMiddleware: ClientMiddleware {
         serverCredentialsStore: ServerCredentialsStoring,
         refreshAuthTokenService: RefreshAuthTokenServicing,
         dateService: DateServicing,
-        cachedValueStore: CachedValueStoring
+        cachedValueStore: CachedValueStoring,
+        envVariables: [String: String]
     ) {
         self.serverAuthenticationController = serverAuthenticationController
         self.serverCredentialsStore = serverCredentialsStore
         self.refreshAuthTokenService = refreshAuthTokenService
         self.dateService = dateService
         self.cachedValueStore = cachedValueStore
+        self.envVariables = envVariables
     }
 
     func intercept(
@@ -61,6 +65,12 @@ struct ServerClientAuthenticationMiddleware: ClientMiddleware {
         next: (HTTPRequest, HTTPBody?, URL) async throws -> (HTTPResponse, HTTPBody?)
     ) async throws -> (HTTPResponse, HTTPBody?) {
         var request = request
+
+        /// Cirrus environments don't require authentication so we skip in these cases
+        if envVariables[Constants.EnvironmentVariables.cirrusTuistCacheURL] != nil {
+            return try await next(request, body, baseURL)
+        }
+
         guard let token = try await serverAuthenticationController.authenticationToken(serverURL: baseURL)
         else {
             throw ServerClientAuthenticationError.notAuthenticated
