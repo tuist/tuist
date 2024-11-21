@@ -4,7 +4,6 @@ category: "learn"
 tags: ["Releases"]
 excerpt: "Xcode becomes more powerful yet more unreliable as capabilities are added and projects grow. We explore the challenges of scaling development in Xcode and share some thoughts on how Apple could improve the developer experience."
 author: pepicrft
-highlighted: true
 ---
 
 You have an idea for an app—perhaps something for the exciting new [visionOS platform](https://developer.apple.com/visionos/). You open [Xcode](https://developer.apple.com/xcode/), the official development environment for Apple platforms, create a new project, hit run, and voilà, a "Hello World" is up and running in the simulator. That initial moment, from conceiving an idea to seeing it come to life, is crucial in keeping your motivation high. Apple has done a fantastic job making that process swift and seamless. But that first line of Swift code marks the beginning of a much longer journey, and as your app grows, the initial burst of enthusiasm can quickly fade as the complexity of development increases.
