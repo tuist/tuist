@@ -37,3 +37,5 @@ npm-debug.log
 
 .DS_Store
 priv/secrets/*.key
+
+priv/static/marketing/images/og/generated/

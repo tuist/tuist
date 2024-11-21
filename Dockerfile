@@ -58,12 +58,16 @@ COPY assets assets
 RUN mix assets.deploy
 
 # Delete some directories if TUIST_HOSTED=0
-
 RUN if [ "$TUIST_HOSTED" = "0" ]; then \
   rm -rf lib/tuist/marketing; \
   rm -rf lib/tuist_web/marketing; \
   rm -rf priv/marketing; \
   rm -rf priv/static/marketing; \
+  fi
+
+# We generate the open graph marketing images when it's Tuist-hosted
+RUN if [ "$TUIST_HOSTED" = "1" ]; then \
+  mix marketing.generate_og_images; \
   fi
 
 # Compile the release

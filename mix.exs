@@ -111,7 +111,8 @@ defmodule Tuist.MixProject do
       {:redirect, "~> 0.4.0"},
       {:let_me, "~> 1.2"},
       {:ua_parser, "~> 1.8"},
-      {:money, "~> 1.12"}
+      {:money, "~> 1.12"},
+      {:image, "~> 0.54.4"}
     ]
   end
 

@@ -105,6 +105,11 @@ defmodule TuistWeb.Marketing.MarketingController do
       |> assign(:head_title, post.title)
       |> assign(:head_description, post.excerpt)
       |> assign(:head_keywords, post.tags)
+      |> assign(
+        :head_image,
+        Tuist.Environment.app_url(path: "/marketing/images/og/generated#{post.slug}.jpg")
+      )
+      |> assign(:head_twitter_card, "summary_large_image")
       |> assign_structured_data(get_blog_post_structured_markup_data(post))
       |> assign_structured_data(
         get_breadcrumbs_structured_data([
@@ -174,6 +179,14 @@ defmodule TuistWeb.Marketing.MarketingController do
     conn
     |> assign(:head_title, "Tuist #{page.title}")
     |> assign(:head_description, page.excerpt)
+    |> assign(
+      :head_image,
+      Tuist.Environment.app_url(
+        path:
+          "/marketing/images/og/generated/#{page.slug |> String.split("/") |> List.last()}.jpg"
+      )
+    )
+    |> assign(:head_twitter_card, "summary_large_image")
     |> assign_structured_data(
       get_breadcrumbs_structured_data([
         {gettext("Tuist"), Tuist.Environment.app_url(path: ~p"/")},
