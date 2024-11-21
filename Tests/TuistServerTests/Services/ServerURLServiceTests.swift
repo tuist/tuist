@@ -1,6 +1,7 @@
 import Foundation
 import Mockable
 import Testing
+import TuistSupport
 @testable import TuistServer
 
 struct ServerURLServiceTests {
@@ -21,7 +22,7 @@ struct ServerURLServiceTests {
         // Given
         let tuistURLString = "https://cirrus.dev"
         let tuistURL = URL(string: tuistURLString)!
-        let envVariables = ["CIRRUS_TUIST_CACHE_URL": tuistURLString]
+        let envVariables = [Constants.EnvironmentVariables.cirrusTuistCacheURL: tuistURLString]
         let configURL = URL(string: "https://tuist.config")!
 
         // When

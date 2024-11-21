@@ -28,7 +28,8 @@ final class ServerClientAuthenticationMiddlewareTests: TuistUnitTestCase {
             serverCredentialsStore: serverCredentialsStore,
             refreshAuthTokenService: refreshAuthTokenService,
             dateService: dateService,
-            cachedValueStore: CachedValueStore()
+            cachedValueStore: CachedValueStore(),
+            envVariables: [:]
         )
     }
 
@@ -39,6 +40,42 @@ final class ServerClientAuthenticationMiddlewareTests: TuistUnitTestCase {
         dateService = nil
         subject = nil
         super.tearDown()
+    }
+
+    func test_when_cirrus_env_variable_is_present() async throws {
+        // Given
+        subject = .init(
+            serverAuthenticationController: serverAuthenticationController,
+            serverCredentialsStore: serverCredentialsStore,
+            refreshAuthTokenService: refreshAuthTokenService,
+            dateService: dateService,
+            cachedValueStore: CachedValueStore(),
+            envVariables: [Constants.EnvironmentVariables.cirrusTuistCacheURL: "https://cirrus.dev"]
+        )
+        let url = URL(string: "https://test.tuist.io")!
+        let request = HTTPRequest(method: .get, scheme: nil, authority: nil, path: "/")
+        let response = HTTPResponse(
+            status: 200
+        )
+        var gotRequest: HTTPRequest!
+
+        // When
+        let (gotResponse, _) = try await subject.intercept(
+            request,
+            body: nil,
+            baseURL: url,
+            operationID: "123"
+        ) { request, body, _ in
+            gotRequest = request
+            return (response, body)
+        }
+
+        // Then
+        XCTAssertEqual(gotResponse, response)
+        XCTAssertEqual(
+            gotRequest.headerFields,
+            [:]
+        )
     }
 
     func test_when_authentication_token_is_nil() async throws {
