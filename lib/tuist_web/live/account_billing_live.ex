@@ -27,11 +27,17 @@ defmodule TuistWeb.AccountBillingLive do
     customer = Billing.get_customer_by_id(owner.customer_id)
 
     payment_method =
-      if is_nil(subscription) do
-        nil
+      with {:subscription, subscription} when not is_nil(subscription) <-
+             {:subscription, subscription},
+           {:payment_method_id, payment_method_id} when not is_nil(payment_method_id) <-
+             {:payment_method_id,
+              Billing.get_payment_method_id_from_subscription_id(subscription.subscription_id)},
+           {:payment_method, payment_method} <-
+             {:payment_method, Billing.get_payment_method_by_id(payment_method_id)} do
+        payment_method
       else
-        Billing.get_payment_method_id_from_subscription_id(subscription.subscription_id)
-        |> Billing.get_payment_method_by_id()
+        {:subscription, nil} -> nil
+        {:payment_method_id, nil} -> nil
       end
 
     current_month_remote_cache_hits_count = owner.current_month_remote_cache_hits_count

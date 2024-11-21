@@ -22,7 +22,8 @@ config :tuist, TuistWeb.Endpoint,
 
 config :tuist, :urls,
   contact: "mailto:contact@tuist.io",
-  grafana_dashboard: "https://tuist.grafana.net/d/cdx0eoxtsb5dsc/tuist-server",
+  grafana_dashboard:
+    "https://tuist.grafana.net/public-dashboards/1f85f1c3895e48febd02cc7350ade2d9",
   slack: "https://slack.tuist.io",
   bluesky: "https://bsky.app/profile/tuist.dev",
   github: "https://github.com/tuist",
