@@ -48,6 +48,10 @@ final class TargetContentHasherTests: TuistUnitTestCase {
             settingsContentHasher: settingsContentHasher,
             dependenciesContentHasher: dependenciesContentHasher
         )
+
+        given(contentHasher)
+            .hash(Parameter<[String]>.any)
+            .willProduce { $0.joined(separator: "-") }
     }
 
     override func tearDown() async throws {
@@ -74,5 +78,21 @@ final class TargetContentHasherTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(got.hash, "hash")
+    }
+
+    func test_hash_when_targetBelongsToExternalProjectWithHash_with_additional_string() async throws {
+        // Given
+        let target = GraphTarget.test(project: .test(type: .external(hash: "hash")))
+
+        // When
+        let got = try await subject.contentHash(
+            for: target,
+            hashedTargets: [:],
+            hashedPaths: [:],
+            additionalStrings: ["additional_string_one", "additional_string_two"]
+        )
+
+        // Then
+        XCTAssertEqual(got.hash, "hash-additional_string_one-additional_string_two")
     }
 }
