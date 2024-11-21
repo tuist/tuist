@@ -63,7 +63,7 @@ On-premise 사용자는 환경 변수로 설정해야 하는 라이센스 키�
 
 ### 기본 환경 구성 {#base-environment-configuration}
 
-| 환경 변수                          | Description                                                           | 필수 여부 | 기본값                                                                                   | 예시                                                                       |                                                                                                                                    |
+| 환경 변수                          | 설명                                                                    | 필수 여부 | 기본값                                                                                   | 예시                                                                       |                                                                                                                                    |
 | ------------------------------ | --------------------------------------------------------------------- | ----- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
 | `TUIST_APP_URL`                | 인터넷에서 인스턴스에 접근하기 위한 기본 URL                                            | Yes   |                                                                                       | https://cloud.tuist.io   |                                                                                                                                    |
 | `TUIST_SECRET_KEY_BASE`        | 정보를 암호화 하는데 사용되는 키 (예: 쿠키에 저장된 세션) | Yes   |                                                                                       |                                                                          | `c5786d9f869239cbddeca645575349a570ffebb332b64400c37256e1c9cb7ec831345d03dc0188edd129d09580d8cbf3ceaf17768e2048c037d9c31da5dcacfa` |
@@ -78,7 +78,7 @@ On-premise 사용자는 환경 변수로 설정해야 하는 라이센스 키�
 
 다음의 환경 변수는 데이터베이스 연결을 구성하기 위해 사용됩니다:
 
-| 환경 변수                           | Description                                                                                                                                                                          | 필수 여부 | 기본값    | 예시                                                                     |
+| 환경 변수                           | 설명                                                                                                                                                                                   | 필수 여부 | 기본값    | 예시                                                                     |
 | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----- | ------ | ---------------------------------------------------------------------- |
 | `DATABASE_URL`                  | Postgres 데이터베이스 접근을 위한 URL 입니다. URL에는 인증 정보가 포함되어야 합니다.                                                                                              | Yes   |        | `postgres://username:password@cloud.us-east-2.aws.test.com/production` |
 | `TUIST_USE_SSL_FOR_DATABASE`    | true 이면 데이터베이스에 접속하기 위해 [SSL](https://en.wikipedia.org/wiki/Transport_Layer_Security)을 사용                                                                                            | No    | `1`    | `1`                                                                    |
@@ -86,116 +86,116 @@ On-premise 사용자는 환경 변수로 설정해야 하는 라이센스 키�
 | `TUIST_DATABASE_QUEUE_TARGET`   | 풀에서 체크아웃된 모든 연결이 큐 대기 시간보다 더 오래 걸렸는지 확인하는 범위 (밀리초 단위) [(자세한 정보)](https://hexdocs.pm/db_connection/DBConnection.html#start_link/2-queue-config) | No    | `300`  | `300`                                                                  |
 | `TUIST_DATABASE_QUEUE_INTERVAL` | 풀에서 새로운 연결을 끊기위해 필요한 큐에서의 임계 시간 (밀리초 단위) [(자세한 정보)](https://hexdocs.pm/db_connection/DBConnection.html#start_link/2-queue-config)              | No    | `1000` | `1000`                                                                 |
 
-### Authentication environment configuration {#authentication-environment-configuration}
+### 인증 환경 구성 {#authentication-environment-configuration}
 
-We facilitate authentication through [identity providers (IdP)](https://en.wikipedia.org/wiki/Identity_provider). To utilize this, ensure all necessary environment variables for the chosen provider are present in the server's environment. **Missing variables** will result in Tuist bypassing that provider.
+우리는 [아이덴티티 제공자 (IdP)](https://en.wikipedia.org/wiki/Identity_provider) 를 통해 인증을 지원합니다. 이를 활용하려면, 선택한 제공자에 필요한 환경 변수가 서버의 환경에 설정되어 있는지 확인해야 합니다. **누락된 변수**가 있으면 Tuist는 해당 제공자를 건너뜁니다.
 
 #### GitHub {#github}
 
-We recommend authenticating using a [GitHub App](https://docs.github.com/en/apps/creating-github-apps/about-creating-github-apps/about-creating-github-apps) but you can also use the [OAuth App](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/creating-an-oauth-app). Make sure to include all essential environment variables specified by GitHub in the server environment. Absent variables will cause Tuist to overlook the GitHub authentication. To properly set up the GitHub app:
+우리는 [GitHub App](https://docs.github.com/en/apps/creating-github-apps/about-creating-github-apps/about-creating-github-apps)을 사용하여 인증하는 것을 권장하지만 [OAuth App](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/creating-an-oauth-app)을 사용할 수도 있습니다. GitHub에서 지정한 필수 환경 변수를 모두 서버 환경에 포함시켜야 합니다. 변수가 없으면 Tuist는 GitHub 인증을 무시합니다. GitHub 앱을 올바르게 설정하려면 다음과 같습니다:
 
-- In the GitHub app's general settings:
-  - Copy the `Client ID` and set it as `TUIST_GITHUB_APP_CLIENT_ID`
-  - Create and copy a new `client secret` and set it as `TUIST_GITHUB_APP_CLIENT_SECRET`
-  - Set the `Callback URL` as `http://YOUR_APP_URL/users/auth/github/callback`. `YOUR_APP_URL` can also be your server's IP address.
-- In the `Permissions and events`'s `Account permissions` section, set the `Email addresses` permission to `Read-only`.
+- GitHub 앱의 일반 설정:
+  - `Client ID`를 복사하고 `TUIST_GITHUB_APP_CLIENT_ID`로 설정합니다.
+  - 새로운 `client secret`을 생성하고 복사한 다음에 `TUIST_GITHUB_APP_CLIENT_SECRET`로 설정합니다.
+  - `Callback URL`을 `http://YOUR_APP_URL/users/auth/github/callback`으로 설정합니다. `YOUR_APP_URL`은 서버의 IP 주소도 사용할 수 있습니다.
+- `Permissions and events`의 `Account permissions` 섹션에서 `Email addresses` 권한을 `Read-only`로 설정합니다.
 
-You'll then need to expose the following environment variables in the environment where the Tuist server runs:
+그런 다음, Tuist 서버가 실행되는 환경에서 다음 환경 변수를 노출시킵니다:
 
-| 환경 변수                            | Description                             | 필수 여부 | 기본값 | 예시                                         |
-| -------------------------------- | --------------------------------------- | ----- | --- | ------------------------------------------ |
-| `TUIST_GITHUB_APP_CLIENT_ID`     | The client ID of the GitHub application | Yes   |     | `Iv1.a629723000043722`                     |
-| `TUIST_GITHUB_APP_CLIENT_SECRET` | The client secret of the application    | Yes   |     | `232f972951033b89799b0fd24566a04d83f44ccc` |
+| 환경 변수                            | 설명                      | 필수 여부 | 기본값 | 예시                                         |
+| -------------------------------- | ----------------------- | ----- | --- | ------------------------------------------ |
+| `TUIST_GITHUB_APP_CLIENT_ID`     | GitHub 애플리케이션의 클라이언트 ID | Yes   |     | `Iv1.a629723000043722`                     |
+| `TUIST_GITHUB_APP_CLIENT_SECRET` | 애플리케이션의 클라이언트 비밀키       | Yes   |     | `232f972951033b89799b0fd24566a04d83f44ccc` |
 
 #### Google {#google}
 
-You can set up authentication with Google using [OAuth 2](https://developers.google.com/identity/protocols/oauth2). For that, you'll need to create a new credential of type OAuth client ID. When creating the credentials, select "Web Application" as application type, name it `Tuist`, and set the redirect URI to `{base_url}/users/auth/google/callback` where `base_url` is the URL your hosted-service is running at. Once you create the app, copy the client ID and secret and set them as environment variables `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` respectively.
+[OAuth 2](https://developers.google.com/identity/protocols/oauth2)를 사용하여 Google 인증을 설정할 수 있습니다. 이를 위해, OAuth 클라이언트 ID 타입의 새로운 자격 증명을 생성해야 합니다. 자격 증명을 생성할 때, 애플리케이션 타입으로 "Web Application"을 선택하고, 이름을 `Tuist`로 설정하고, 리다이렉트 URI를 호스팅되는 서비스가 실행되는 `base_url`을 활용하여 `{base_url}/users/auth/google/callback`으로 설정합니다. 앱을 생성한 후에 클라이언트 ID와 클라이언트 비밀키를 복사하고 각각 환경 변수 `GOOGLE_CLIENT_ID`와 `GOOGLE_CLIENT_SECRET`로 설정합니다.
 
-> [!NOTE] CONSENT SCREEN SCOPES
-> You might need to create a consent screen. When you do so, make sure to add the `userinfo.email` and `openid` scopes and mark the app as internal.
+> [!NOTE] 동의 화면 범위\
+> 동의 화면을 생성해야 할 수도 있습니다. 그렇게 할 때, `userinfo.email`과 `openid` 범위를 추가하고 내부 앱으로 표시해야 합니다.
 
 #### Okta {#okta}
 
-You can enable authentication with Okta through the [OAuth 2.0](https://oauth.net/2/) protocol. You'll have to [create an app](https://developer.okta.com/docs/en/guides/implement-oauth-for-okta/main/#create-an-oauth-2-0-app-in-okta) on Okta with the following configuration:
+[OAuth 2.0](https://oauth.net/2/) 프로토콜을 통해 Okta 인증을 활성화할 수 있습니다. 다음 구성으로 Okta에서 [앱을 생성](https://developer.okta.com/docs/en/guides/implement-oauth-for-okta/main/#create-an-oauth-2-0-app-in-okta)해야 합니다:
 
-- **App integration name:** `Tuist`
-- **Grant type:** Enable _Authorization Code_ for _Client acting on behalf of a user_
-- **Sign-in redirect URL:** `{url}/users/auth/okta/callback` where `url` is the public URL your service is accessed through.
-- **Assignments:** This configuration will depend on your security team requirements.
+- **앱 통합 이름:** `Tuist`
+- **승인 타입:** 사용자를 대신하여 행동하는 Client에 대해 _Authorization Code_ 활성화
+- **로그인 리다이렉트 URL:** 서비스에 접근하는 공개 URL을 `url`라고 하면 `{url}/users/auth/okta/callback`
+- **할당:** 이 구성은 보안팀 요구 사항에 따라 달라집니다.
 
-Once the app is created you'll need to set the following environment variables:
+앱이 생성되면, 다음의 환경 변수를 설정해야 합니다:
 
-| 환경 변수                      | Description                                    | 필수 여부 | 기본값 | 예시                          |
-| -------------------------- | ---------------------------------------------- | ----- | --- | --------------------------- |
-| `TUIST_OKTA_SITE`          | The URL of your Okta organization              | Yes   |     | `https://your-org.okta.com` |
-| `TUIST_OKTA_CLIENT_ID`     | The client ID to authenticate against Okta     | Yes   |     |                             |
-| `TUIST_OKTA_CLIENT_SECRET` | The client secret to authenticate against Okta | Yes   |     |                             |
+| 환경 변수                      | 설명                    | 필수 여부 | 기본값 | 예시                          |
+| -------------------------- | --------------------- | ----- | --- | --------------------------- |
+| `TUIST_OKTA_SITE`          | Okta 조직의 URL          | Yes   |     | `https://your-org.okta.com` |
+| `TUIST_OKTA_CLIENT_ID`     | Okta 인증을 위한 클라이언트 ID  | Yes   |     |                             |
+| `TUIST_OKTA_CLIENT_SECRET` | Okta 인증을 위한 클라이언트 비밀키 | Yes   |     |                             |
 
-### Storage environment configuration {#storage-environment-configuration}
+### 저장소 환경 구성 {#storage-environment-configuration}
 
-Tuist needs storage to house artifacts uploaded through the API. It's **essential to configure one of the supported storage solutions** for Tuist to operate effectively.
+Tuist는 API를 통해 업로드된 산출물을 저장하기 위한 저장소가 필요합니다. Tuist가 원할하게 동작하려면 **지원되는 저장소 솔루션 중 하나를 구성하는 것이 필수입니다**.
 
-#### S3-compliant storages {#s3compliant-storages}
+#### S3 호환 저장소 {#s3compliant-storages}
 
-You can use any S3-compliant storage provider to store artifacts. The following environment variables are required to authenticate and configure the integration with the storage provider:
+산출물을 저장하기 위해 S3 호환 저장소 제공자를 사용할 수 있습니다. 저장소 제공자와의 인증과 통합 구성을 위해 다음의 환경 변수가 필요합니다:
 
-| 환경 변수                                                | Description                                                                                         | 필수 여부 | 기본값     | 예시                                         |
-| ---------------------------------------------------- | --------------------------------------------------------------------------------------------------- | ----- | ------- | ------------------------------------------ |
-| `TUIST_ACCESS_KEY_ID` or `AWS_ACCESS_KEY_ID`         | The access key ID to authenticate against the storage provider                                      | Yes   |         | `AKIAIOSFOD`                               |
-| `TUIST_SECRET_ACCESS_KEY` or `AWS_SECRET_ACCESS_KEY` | The secret access key to authenticate against the storage provider                                  | Yes   |         | `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY` |
-| `TUIST_S3_REGION` or `AWS_REGION`                    | The region where the bucket is located                                                              | Yes   |         | `us-west-2`                                |
-| `TUIST_S3_ENDPOINT` or `AWS_ENDPOINT`                | The endpoint of the storage provider                                                                | Yes   |         | `https://s3.us-west-2.amazonaws.com`       |
-| `TUIST_S3_BUCKET_NAME`                               | The name of the bucket where the artifacts will be stored                                           | Yes   |         | `tuist-artifacts`                          |
-| `TUIST_S3_REQUEST_TIMEOUT`                           | The timeout (in seconds) for requests to the storage provider                    | No    | `30`    | `30`                                       |
-| `TUIST_S3_POOL_TIMEOUT`                              | The timeout (in seconds) for the connection pool to the storage provider         | No    | `5`     | `5`                                        |
-| `TUIST_S3_POOL_COUNT`                                | The number of pools to use for connections to the storage provider                                  | No    | `1`     | `1`                                        |
-| `TUIST_S3_PROTOCOL`                                  | The protocol to use when connecting to the storage provider (`http1` or `http2`) | No    | `http2` | `http2`                                    |
+| 환경 변수                                                | 설명                                                               | 필수 여부 | 기본값     | 예시                                         |
+| ---------------------------------------------------- | ---------------------------------------------------------------- | ----- | ------- | ------------------------------------------ |
+| `TUIST_ACCESS_KEY_ID` 또는 `AWS_ACCESS_KEY_ID`         | 저장소 제공자 인증을 위한 접근 키 ID                                           | Yes   |         | `AKIAIOSFOD`                               |
+| `TUIST_SECRET_ACCESS_KEY` 또는 `AWS_SECRET_ACCESS_KEY` | 저장소 제공자 인증을 위한 비밀 접근 키                                           | Yes   |         | `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY` |
+| `TUIST_S3_REGION` 또는 `AWS_REGION`                    | 버킷이 위치한 지역                                                       | Yes   |         | `us-west-2`                                |
+| `TUIST_S3_ENDPOINT` 또는 `AWS_ENDPOINT`                | 저장소 제공자의 엔드포인트                                                   | Yes   |         | `https://s3.us-west-2.amazonaws.com`       |
+| `TUIST_S3_BUCKET_NAME`                               | 산출물이 저장될 버킷의 이름                                                  | Yes   |         | `tuist-artifacts`                          |
+| `TUIST_S3_REQUEST_TIMEOUT`                           | 저장소 제공자 요청에 대한 타임아웃 (초 단위)                    | No    | `30`    | `30`                                       |
+| `TUIST_S3_POOL_TIMEOUT`                              | 저장소 제공자에 대한 연결 풀의 타임아웃 (초 단위)                 | No    | `5`     | `5`                                        |
+| `TUIST_S3_POOL_COUNT`                                | 저장소 제공자와의 연결 풀의 수                                                | No    | `1`     | `1`                                        |
+| `TUIST_S3_PROTOCOL`                                  | 저장소 제공자와 연결할 때 사용하는 프로토콜 (`http1` 또는 `http2`) | No    | `http2` | `http2`                                    |
 
-> [!NOTE] AWS authentication with Web Identity Token from environment variables
-> If your storage provider is AWS and you'd like to authenticate using a web identity token, you can set the environment variable `TUIST_S3_AUTHENTICATION_METHOD` to `aws_web_identity_token_from_env_vars`, and Tuist will use that method using the conventional AWS environment variables.
+> [!NOTE] 환경 변수에서 Web Identity Token을 사용한 AWS 인증\
+> 저장소 제공자가 AWS이고 웹 아이덴티티 토큰을 사용하여 인증하려는 경우에 환경 변수 `TUIST_S3_AUTHENTICATION_METHOD`를 `aws_web_identity_token_from_env_vars`로 설정할 수 있습니다. 그러면 Tuist는 기존의 AWS 환경 변수를 사용하여 인증을 진행할 수 있습니다.
 
 #### Google Cloud Storage {#google-cloud-storage}
 
-For Google Cloud Storage, follow [these docs](https://cloud.google.com/storage/docs/authentication/managing-hmackeys) to get the `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` pair. The `AWS_ENDPOINT` should be set to `https://storage.googleapis.com`. Other environment variables are the same as for any other S3-compliant storage.
+Google Cloud Storage의 경우, [이 문서](https://cloud.google.com/storage/docs/authentication/managing-hmackeys)를 참고하여 `AWS_ACCESS_KEY_ID`와 `AWS_SECRET_ACCESS_KEY` 쌍을 얻어야 합니다. `AWS_ENDPOINT`는 `https://storage.googleapis.com`으로 설정해야 합니다. 다른 환경 변수는 모든 S3 호환 저장소와 동일합니다.
 
-### Git platform configuration {#git-platform-configuration}
+### Git 플랫폼 구성 {#git-platform-configuration}
 
-Tuist can <LocalizedLink href="/server/introduction/integrations#git-platforms">integrate with Git platforms</LocalizedLink> to provide extra features such as automatically posting comments in your pull requests.
+Tuist는 Pull Request에 자동으로 댓글을 게시하는 등의 추가 기능을 제공하기 위해 <LocalizedLink href="/server/introduction/integrations#git-platforms">Git 플랫폼과 통합</LocalizedLink>할 수 있습니다.
 
 #### GitHub {#platform-github}
 
-You will need to [create a GitHub app](https://docs.github.com/en/apps/creating-github-apps/about-creating-github-apps/about-creating-github-apps). You can reuse the one you created for authentication, unless you created an OAuth GitHub app. In the `Permissions and events`'s `Repository permissions` section, you will need to additionally set the `Pull requests` permission to `Read and write`.
+[GitHub 앱을 생성](https://docs.github.com/en/apps/creating-github-apps/about-creating-github-apps/about-creating-github-apps)해야 합니다. 인증을 위해 생성한 GitHub 앱을 재사용할 수 있지만, OAuth GitHub 앱을 생성한 경우는 제외입니다. `Permissions and events`의 `Repository permissions` 섹션에서 `Pull requests` 권한을 `Read and write`로 설정해야 합니다.
 
-On top of the `TUIST_GITHUB_APP_CLIENT_ID` and `TUIST_GITHUB_APP_CLIENT_SECRET`, you will need the following environment variables:
+`TUIST_GITHUB_APP_CLIENT_ID`와 `TUIST_GITHUB_APP_CLIENT_SECRET` 외에도 다음의 환경 변수가 필요합니다:
 
-| 환경 변수                          | Description                               | 필수 여부 | 기본값 | 예시                                   |
-| ------------------------------ | ----------------------------------------- | ----- | --- | ------------------------------------ |
-| `TUIST_GITHUB_APP_PRIVATE_KEY` | The private key of the GitHub application | Yes   |     | `-----BEGIN RSA PRIVATE KEY-----...` |
+| 환경 변수                          | 설명                   | 필수 여부 | 기본값 | 예시                                   |
+| ------------------------------ | -------------------- | ----- | --- | ------------------------------------ |
+| `TUIST_GITHUB_APP_PRIVATE_KEY` | GitHub 애플리케이션의 비공개 키 | Yes   |     | `-----BEGIN RSA PRIVATE KEY-----...` |
 
-## Deployment {#deployment}
+## 배포 {#deployment}
 
-On-premise users are granted access to the repository located at [tuist/registry](https://github.com/cloud/registry) which has a linked container registry for pulling images. Currently, the container registry allows authentication only as an individual user. Therefore, users with repository access must generate a **personal access token** within the Tuist organization, ensuring they have the necessary permissions to read packages. After submission, we will promptly approve this token.
+On-premise 사용자는 이미지를 가져올 수 있는 컨테이너 레지스트리를 가지는 [tuist/registry](https://github.com/cloud/registry)에 위치한 리포지토리에 대한 접근 권한을 부여 받습니다. 현재 컨테이너 레지스트리는 개인 사용자에게만 인증을 허용합니다. 따라서 리포지토리 접근 권한이 있는 사용자는 Tuist 조직 내에서 **개인 접근 토큰**을 생성해야 하고 패키지를 읽을 수 있는 권한이 있는지 확인해야 합니다. 제출 하면 우리는 이 토큰을 빠르게 승인할 것입니다.
 
-> [!IMPORTANT] USER VS ORGANIZATION-SCOPED TOKENS
-> Using a personal access token presents a challenge because it's associated with an individual who might eventually depart from the enterprise organization. GitHub recognizes this limitation and is actively developing a solution to allow GitHub apps to authenticate with app-generated tokens.
+> [!IMPORTANT] 사용자 토큰 VS 조직 범위 토큰\
+> 개인이 기업 조직을 떠난 경우 개인 접근 토큰은 개인과 연결되어 있으므로, 개인 접근 토큰을 사용하는 것이 문제가 될 수 있습니다. GitHub은 이런 문제를 인지하고 있으며, GitHub 앱에서 생성한 토큰을 사용하여 인증할 수 있는 해결책을 적극적으로 개발 중입니다.
 
-### Pulling the Docker image {#pulling-the-docker-image}
+### Docker 이미지 가져오기 {#pulling-the-docker-image}
 
-After generating the token, you can retrieve the image by executing the following command:
+토큰을 생성한 후에 다음 명령어를 실행하여 이미지를 가져올 수 있습니다:
 
 ```bash
 echo $TOKEN | docker login ghcr.io -u USERNAME --password-stdin
 docker pull ghcr.io/tuist/tuist:latest
 ```
 
-### Deploying the Docker image {#deploying-the-docker-image}
+### Docker 이미지 배포 {#deploying-the-docker-image}
 
-The deployment process for the Docker image will differ based on your chosen cloud provider and your organization's continuous deployment approach. Since most cloud solutions and tools, like [Kubernetes](https://kubernetes.io/), utilize Docker images as fundamental units, the examples in this section should align well with your existing setup.
+Docker 이미지 배포 과정은 선택한 클라우드 제공 업체와 조직의 지속적인 배포 방식에 따라 달라집니다. [Kubernetes](https://kubernetes.io/)와 같은 대부분의 클라우드 솔루션 및 툴은 Docker 이미지를 기본 단위로 사용하므로, 이 섹션의 예시는 기존 설정과 잘 맞습니다.
 
-We recommend establishing a deployment pipeline that that runs **every Tuesday**, pulling and deploying fresh images. This ensures you consistently benefit from the latest improvements.
+우리는 **매주 화요일**에 새로운 이미지를 가져와 배포하는 파이프라인을 구축하는 것을 권장합니다. 이렇게 하면 최신 개선 사항을 계속해서 활용할 수 있습니다.
 
 > [!IMPORTANT]
-> If your deployment pipeline needs to validate that the server is up and running, you can send a `GET` HTTP request to `/ready` and assert a `200` status code in the response.
+> 배포 파이프라인에서 서버가 정상적으로 동작하는지 확인해야 하는 경우에 `/ready`에 `GET` HTTP 요청을 보내고 응답에서 `200` 코드를 확인할 수 있습니다.
 
 #### Fly {#fly}
 
