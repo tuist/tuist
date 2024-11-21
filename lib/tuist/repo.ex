@@ -18,4 +18,8 @@ defmodule Tuist.Repo do
       %{rows: [[false]]} -> false
     end
   end
+
+  def running?() do
+    Ecto.Repo.all_running() |> Enum.member?(__MODULE__)
+  end
 end

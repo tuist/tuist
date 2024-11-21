@@ -41,18 +41,22 @@ defmodule Tuist.Accounts.PromExPlugin do
   end
 
   def execute_accounts_users_count_telemetry_event() do
-    :telemetry.execute(
-      Telemetry.event_name_accounts_users_count(),
-      %{total: Accounts.get_users_count()},
-      %{}
-    )
+    if Tuist.Repo.running?() do
+      :telemetry.execute(
+        Telemetry.event_name_accounts_users_count(),
+        %{total: Accounts.get_users_count()},
+        %{}
+      )
+    end
   end
 
   def execute_accounts_organizations_count_telemetry_event() do
-    :telemetry.execute(
-      Telemetry.event_name_accounts_organizations_count(),
-      %{total: Accounts.get_organizations_count()},
-      %{}
-    )
+    if Tuist.Repo.running?() do
+      :telemetry.execute(
+        Telemetry.event_name_accounts_organizations_count(),
+        %{total: Accounts.get_organizations_count()},
+        %{}
+      )
+    end
   end
 end

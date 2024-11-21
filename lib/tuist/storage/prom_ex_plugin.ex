@@ -225,7 +225,7 @@ defmodule Tuist.Storage.PromExPlugin do
             [
               :tuist,
               :storage,
-              :generate_download_presigned_url,
+              :generate_upload_presigned_url,
               :count
             ],
             event_name: Telemetry.event_name_storage_generate_upload_presigned_url(),
