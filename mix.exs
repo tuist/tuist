@@ -110,7 +110,8 @@ defmodule Tuist.MixProject do
       {:retry, "~> 0.18"},
       {:redirect, "~> 0.4.0"},
       {:let_me, "~> 1.2"},
-      {:ua_parser, "~> 1.8"}
+      {:ua_parser, "~> 1.8"},
+      {:money, "~> 1.12"}
     ]
   end
 

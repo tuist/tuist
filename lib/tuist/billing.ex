@@ -2,7 +2,6 @@ defmodule Tuist.Billing do
   @moduledoc """
   A module for operations related to billing.
   """
-
   alias Tuist.Billing.Card
   alias Tuist.Billing.Customer
   alias Tuist.Billing.PaymentMethod
@@ -14,10 +13,18 @@ defmodule Tuist.Billing do
 
   import Ecto.Query, only: [from: 2]
 
-  @air_thresholds %{remote_cache_hit: 200}
+  # Unfortunately, this data can't be obtained and cached
+  # from the Stripe's API, so we have to make sure it's in sync
+  # with the values on Stripe.
+  @payment_thresholds %{remote_cache_hits: 200}
+  @unit_prices %{remote_cache_hit: Money.new(50, :USD)}
 
-  def get_air_thresholds() do
-    @air_thresholds
+  def get_payment_thresholds() do
+    @payment_thresholds
+  end
+
+  def get_unit_prices() do
+    @unit_prices
   end
 
   def get_plans() do
@@ -251,6 +258,44 @@ defmodule Tuist.Billing do
       id: customer.id,
       email: customer.email
     }
+  end
+
+  def get_estimated_next_payment(%{
+        current_month_remote_cache_hits_count: current_month_remote_cache_hits_count
+      }) do
+    remote_cache_hits_threshold = get_payment_thresholds()[:remote_cache_hits]
+
+    if current_month_remote_cache_hits_count < remote_cache_hits_threshold do
+      Money.new(0, :USD) |> Money.to_string()
+    else
+      Money.multiply(
+        get_unit_prices()[:remote_cache_hit],
+        current_month_remote_cache_hits_count - remote_cache_hits_threshold
+      )
+      |> Money.to_string()
+    end
+  end
+
+  def get_subscription_current_period_end(subscription_id) do
+    {:ok, %{current_period_end: current_period_end}} =
+      Stripe.Subscription.retrieve(subscription_id)
+
+    DateTime.from_unix!(current_period_end)
+  end
+
+  def get_payment_method_id_from_subscription_id(subscription_id) do
+    with {:ok, %{default_payment_method: nil, customer: customer_id}} <-
+           Stripe.Subscription.retrieve(subscription_id),
+         {:ok, %{invoice_settings: %{default_payment_method: payment_method}}} <-
+           Stripe.Customer.retrieve(customer_id) do
+      payment_method
+    else
+      {:ok, %{default_payment_method: payment_method}} when not is_nil(payment_method) ->
+        payment_method
+
+      _ ->
+        nil
+    end
   end
 
   def get_payment_method_by_id(payment_method_id) do

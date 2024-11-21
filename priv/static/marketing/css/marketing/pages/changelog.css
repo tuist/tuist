@@ -155,3 +155,11 @@
   border-radius: var(--radius-full);
   padding: var(--spacing-4) var(--spacing-8);
 }
+
+.marketing__changelog__body__entry__body {
+  padding-bottom: var(--spacing-72);
+
+  @media (max-width: 1024px) {
+    padding-bottom: 0;
+  }
+}

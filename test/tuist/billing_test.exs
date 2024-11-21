@@ -37,6 +37,110 @@ defmodule Tuist.BillingTest do
     :ok
   end
 
+  describe "get_payment_method_id_from_subscription_id/1" do
+    test "returns the default payment method from the subscription if it exists" do
+      # Given
+      subscription_id = "subscription_id"
+      payment_method_id = "payment_method_id"
+
+      Stripe.Subscription
+      |> stub(:retrieve, fn ^subscription_id ->
+        {:ok, %{default_payment_method: payment_method_id}}
+      end)
+
+      # When
+      got = Billing.get_payment_method_id_from_subscription_id(subscription_id)
+
+      # Then
+      assert got == payment_method_id
+    end
+
+    test "returns the customer's invoice settings default payment method when the subscription has no default payment method" do
+      # Given
+      subscription_id = "subscription_id"
+      payment_method_id = "payment_method_id"
+      customer_id = "customer_id"
+
+      Stripe.Subscription
+      |> stub(:retrieve, fn ^subscription_id ->
+        {:ok, %{default_payment_method: nil, customer: customer_id}}
+      end)
+
+      Stripe.Customer
+      |> stub(:retrieve, fn ^customer_id ->
+        {:ok, %{invoice_settings: %{default_payment_method: payment_method_id}}}
+      end)
+
+      # When
+      got = Billing.get_payment_method_id_from_subscription_id(subscription_id)
+
+      # Then
+      assert got == payment_method_id
+    end
+
+    test "returns nil when the payment method id can't be obtained from neither the subscription nor the customer invoice settings" do
+      # Given
+      subscription_id = "subscription_id"
+      customer_id = "customer_id"
+
+      Stripe.Subscription
+      |> stub(:retrieve, fn ^subscription_id ->
+        {:ok, %{default_payment_method: nil, customer: customer_id}}
+      end)
+
+      Stripe.Customer
+      |> stub(:retrieve, fn ^customer_id ->
+        {:ok, %{invoice_settings: %{default_payment_method: nil}}}
+      end)
+
+      # When
+      got = Billing.get_payment_method_id_from_subscription_id(subscription_id)
+
+      # Then
+      assert got == nil
+    end
+  end
+
+  describe "get_estimated_next_payment/1" do
+    test "when current_month_remote_cache_hits_count is under the threshold" do
+      # Given
+      remote_cache_hit_threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
+      current_month_remote_cache_hits_count = round(remote_cache_hit_threshold / 2)
+
+      # When
+      got =
+        Billing.get_estimated_next_payment(%{
+          current_month_remote_cache_hits_count: current_month_remote_cache_hits_count
+        })
+
+      # Then
+      assert got == "$0.00"
+    end
+
+    test "when current_month_remote_cache_hits_count is above the threshold" do
+      # Given
+      remote_cache_hit_threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
+      current_month_remote_cache_hits_count = round(remote_cache_hit_threshold * 2)
+
+      # When
+      got =
+        Billing.get_estimated_next_payment(%{
+          current_month_remote_cache_hits_count: current_month_remote_cache_hits_count
+        })
+
+      # Then
+      assert got ==
+               Money.multiply(
+                 Money.new(
+                   50,
+                   :USD
+                 ),
+                 current_month_remote_cache_hits_count - remote_cache_hit_threshold
+               )
+               |> Money.to_string()
+    end
+  end
+
   describe "on_subscription_change/1" do
     test "when it's a new trial air subscription" do
       # Given

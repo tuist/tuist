@@ -22,43 +22,33 @@
             <.stack gap="xs" class="billing__overview__plan-card__plan-summary__info">
               <.stack gap="md" direction="horizontal">
                 <p class="text--large font--semibold color--text-primary">
-                  <%= if @plan == :none do %>
-                    <%= gettext("No plan") %>
-                  <% else %>
-                    <%= gettext("%{plan} plan",
-                      plan: @plan |> Atom.to_string() |> String.capitalize()
-                    ) %>
-                  <% end %>
+                  <%= gettext("%{plan} plan",
+                    plan: @plan |> Atom.to_string() |> String.capitalize()
+                  ) %>
                 </p>
-                <%= if not is_nil(@trial_days_left) do %>
-                  <.badge kind={:neutral} title={gettext("Trial")} />
-                  <.badge
-                    kind={:neutral}
-                    title={
-                      gettext("%{trial_days_left} days left",
-                        trial_days_left: @trial_days_left
-                      )
-                    }
-                  />
-                <% end %>
               </.stack>
               <p class="text--small font--regular color--text-tertiary">
-                <%= if @plan == :none do %>
-                  <%= gettext("You are not subscribed to any plan.") %>
-                <% else %>
-                  <%= Enum.find(@plans, &(&1.id == @plan)) |> Map.get(:description) %>
-                <% end %>
+                <%= Enum.find(@plans, &(&1.id == @plan)) |> Map.get(:description) %>
               </p>
             </.stack>
             <%= if @plan == :air or @plan == :pro do %>
-              <.stack gap="sm" direction="horizontal" align="end">
-                <%= if @plan == :air do %>
-                  <h3><%= gettext("$0") %></h3>
-                <% else %>
-                  <h3><%= gettext("$0") %></h3>
-                <% end %>
+              <.stack gap="sm" direction="vertical" align="end">
+                <h3><%= @estimated_next_payment %></h3>
+
                 <p class="text--medium font--medium color--text-tertiary billing__overview__plan-card__plan-summary__info__month-label">
-                  <%= gettext("per month") %>
+                  <%= if @plan == :air do %>
+                    <%= gettext("per month") %>
+                  <% else %>
+                    <%= if not is_nil(@subscription_current_period_end) do %>
+                      <%= gettext("Charged on %{charge_date}",
+                        charge_date:
+                          Timex.format!(
+                            @subscription_current_period_end,
+                            "{WDshort}, {D} {Mshort}"
+                          )
+                      ) %>
+                    <% end %>
+                  <% end %>
                 </p>
               </.stack>
             <% end %>
@@ -67,37 +57,74 @@
             <% end %>
           </.stack>
           <.stack gap="lg" class="billing__overview__plan-card__usage">
-            <% include_remote_cache_hits_count =
-              case @plan do
-                :air -> 200
-                :pro -> 2000
-                :enterprise -> :unlimited
-                :none -> 0
-              end %>
-            <p class="text--small font--medium color--text-primary">
-              <%= gettext(
-                "%{current_remote_cache_hits_count} of %{include_remote_cache_hits_count} remote cache hits",
-                current_remote_cache_hits_count: @current_month_remote_cache_hits,
-                include_remote_cache_hits_count: include_remote_cache_hits_count
+            <%= if Enum.member?([:pro, :air], @plan) do %>
+              <% remote_cache_hit_threshold =
+                Tuist.Billing.get_payment_thresholds()[:remote_cache_hits] %>
+              <p class="text--small font--medium color--text-primary">
+                <%= if @plan == :pro do %>
+                  <%= if @current_month_remote_cache_hits_count < remote_cache_hit_threshold do %>
+                    <%= gettext(
+                      "%{current_remote_cache_hits_count} of %{remote_cache_hit_threshold} free remote cache hits",
+                      current_remote_cache_hits_count: @current_month_remote_cache_hits_count,
+                      remote_cache_hit_threshold: remote_cache_hit_threshold
+                    ) %>
+                  <% else %>
+                    <%= gettext(
+                      "%{remote_cache_hits_above_threshold} above the %{remote_cache_hit_threshold} free remote cache hits",
+                      remote_cache_hits_above_threshold:
+                        @current_month_remote_cache_hits_count - remote_cache_hit_threshold,
+                      remote_cache_hit_threshold: remote_cache_hit_threshold
+                    ) %>
+                  <% end %>
+                <% else %>
+                  <%= gettext(
+                    "%{current_remote_cache_hits_count} of %{remote_cache_hit_threshold} remote cache hits",
+                    current_remote_cache_hits_count: @current_month_remote_cache_hits_count,
+                    remote_cache_hit_threshold: remote_cache_hit_threshold
+                  ) %>
+                <% end %>
+              </p>
+              <p :if={@plan == :pro} class="text--small font--regular color--text-tertiary">
+                <%= gettext(
+                  "%{remote_cache_hit_unit_price} x (%{current_month_remote_cache_hits_count} - %{remote_cache_hit_threshold})",
+                  remote_cache_hit_unit_price: @remote_cache_hit_unit_price,
+                  current_month_remote_cache_hits_count: @current_month_remote_cache_hits_count,
+                  remote_cache_hit_threshold: remote_cache_hit_threshold
+                ) %>
+              </p>
+              <progress
+                class="billing__overview__plan-card__usage__progress"
+                max="1"
+                value={
+                  case @plan do
+                    :air ->
+                      @current_month_remote_cache_hits_count / remote_cache_hit_threshold
+
+                    :pro ->
+                      @current_month_remote_cache_hits_count / (remote_cache_hit_threshold * 15)
+
+                    :enterprise ->
+                      0
+                  end
+                }
+              >
+              </progress>
+            <% end %>
+            <p
+              :if={[:enterprise, :pro] |> Enum.member?(@plan)}
+              class="billing__overview__plan-card__usage__progress-label"
+            >
+              <%= raw(
+                gettext("Visit our %{pricing_page} to learn how we measure and price usage.",
+                  pricing_page:
+                    "<a href=\"#{~p"/pricing#features-section"}\" style=\"display: inline;\">#{gettext("pricing page")}</a>"
+                )
               ) %>
             </p>
-            <progress
-              class="billing__overview__plan-card__usage__progress"
-              max="1"
-              value={
-                case @plan do
-                  :none -> 1
-                  :air -> @current_month_remote_cache_hits / include_remote_cache_hits_count
-                  :pro -> @current_month_remote_cache_hits / include_remote_cache_hits_count
-                  :enterprise -> 0
-                end
-              }
-            >
-            </progress>
           </.stack>
         </.stack>
       </.card>
-      <.card class="billing__overview__payment-card">
+      <.card :if={not (@plan == :air)} class="billing__overview__payment-card">
         <.stack gap="2xl">
           <.stack gap="xs">
             <p class="text--large font--semibold color--text-primary">
@@ -168,74 +195,83 @@
               </.button>
             </.link>
           </.card>
+          <p
+            :if={[:enterprise, :pro] |> Enum.member?(@plan)}
+            class="billing__overview__payment-card__manage-subscription"
+          >
+            <%= raw(
+              gettext("%{manage} your subscription on Stripe",
+                manage:
+                  "<a href=\"#{~p"/#{@selected_account.name}/billing/manage"}\" target=\"__blank\" style=\"display: inline;\">#{gettext("Manage")}</a>"
+              )
+            ) %>
+          </p>
         </.stack>
       </.card>
     </div>
-    <.section_header
-      title={gettext("Account plans")}
-      subtitle={gettext("Pick an account plan that fits your workflow.")}
-    />
-    <div class="billing__pricing__plans">
-      <.pricing_tier_card
-        :for={plan <- @plans}
-        price={plan.price}
-        price_extra={plan |> Map.get(:price_frequency)}
-        title={plan.name}
-        features={plan.features |> Enum.map(&"#{elem(&1, 0)}: #{elem(&1, 1)}")}
-        description={plan.description}
-      >
-        <%= if plan.id == :air  do %>
-          <.button
-            size="large"
-            variant="primary"
-            disabled={@plan == :air or @plan == :enterprise}
-            phx-click={show_modal("air-modal")}
-          >
-            <%= case @plan do %>
-              <% :air -> %>
-                <%= gettext("Current plan") %>
-              <% :pro -> %>
-                <%= gettext("Downgrade") %>
-              <% :enterprise -> %>
-                <%= gettext("Downgrade") %>
-              <% :none -> %>
-                <%= gettext("Upgrade") %>
-            <% end %>
-          </.button>
-        <% end %>
-
-        <%= if plan.id == :pro  do %>
-          <.button
-            size="large"
-            variant="primary"
-            disabled={@plan == :pro or @plan == :enterprise}
-            phx-click={show_modal("pro-modal")}
-          >
-            <%= case @plan do %>
-              <% :air -> %>
-                <%= gettext("Upgrade") %>
-              <% :pro -> %>
-                <%= gettext("Current plan") %>
-              <% :enterprise -> %>
-                <%= gettext("Downgrade") %>
-              <% :none -> %>
-                <%= gettext("Upgrade") %>
-            <% end %>
-          </.button>
-        <% end %>
-
-        <%= if plan.id == :enterprise do %>
-          <.link href="mailto:contact@tuist.io?subject=Tuist Enterprise">
-            <.button size="large" variant="primary" disabled={@plan == :enterprise}>
-              <%= if @plan == :enterprise do %>
-                <%= gettext("Current plan") %>
-              <% else %>
-                <%= gettext("Contact sales") %>
+    <%= if Enum.member?([:air, :pro], @plan) do %>
+      <.section_header
+        title={gettext("Account plans")}
+        subtitle={gettext("Pick an account plan that fits your workflow.")}
+      />
+      <div class="billing__pricing__plans">
+        <.pricing_tier_card
+          :for={plan <- @plans}
+          price={plan.price}
+          price_extra={plan |> Map.get(:price_frequency)}
+          title={plan.name}
+          features={plan.features |> Enum.map(&"#{elem(&1, 0)}: #{elem(&1, 1)}")}
+          description={plan.description}
+        >
+          <%= if plan.id == :air  do %>
+            <.button
+              size="large"
+              variant="primary"
+              disabled={@plan == :air or @plan == :enterprise}
+              phx-click={show_modal("air-modal")}
+            >
+              <%= case @plan do %>
+                <% :air -> %>
+                  <%= gettext("Current plan") %>
+                <% :pro -> %>
+                  <%= gettext("Downgrade") %>
+                <% :enterprise -> %>
+                  <%= gettext("Downgrade") %>
               <% end %>
             </.button>
-          </.link>
-        <% end %>
-      </.pricing_tier_card>
-    </div>
+          <% end %>
+
+          <%= if plan.id == :pro  do %>
+            <.button
+              size="large"
+              variant="primary"
+              disabled={@plan == :pro or @plan == :enterprise}
+              phx-click={show_modal("pro-modal")}
+            >
+              <%= case @plan do %>
+                <% :air -> %>
+                  <%= gettext("Upgrade") %>
+                <% :pro -> %>
+                  <%= gettext("Current plan") %>
+                <% :enterprise -> %>
+                  <%= gettext("Downgrade") %>
+              <% end %>
+            </.button>
+          <% end %>
+
+          <%= if plan.id == :enterprise do %>
+            <.link href="mailto:contact@tuist.io?subject=Tuist Enterprise">
+              <.button size="large" variant="primary" disabled={@plan == :enterprise}>
+                <%= if @plan == :enterprise do %>
+                  <%= gettext("Current plan") %>
+                <% else %>
+                  <%= gettext("Contact sales") %>
+                <% end %>
+              </.button>
+            </.link>
+          <% end %>
+        </.pricing_tier_card>
+      </div>
+    <% end %>
   </.stack>
 </div>

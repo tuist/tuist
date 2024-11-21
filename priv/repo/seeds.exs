@@ -1,7 +1,10 @@
 alias Tuist.Accounts
 alias Tuist.Projects
 alias Tuist.Projects.Project
+alias Tuist.Billing.Subscription
 alias Tuist.CommandEvents
+alias Tuist.Repo
+
 import Ecto.Query, only: [from: 2]
 
 # Stubs
@@ -17,8 +20,18 @@ account =
       Accounts.create_user(email,
         password: password,
         confirmed_at: NaiveDateTime.utc_now(),
-        setup_billing: false
+        setup_billing: false,
+        customer_id: "cus_RFlTyvSVonyndv"
       )
+
+    Subscription.create_changeset(%Subscription{}, %{
+      plan: :pro,
+      subscription_id: "sub_1QNEs2LWue9IBlPSsKtuPQ5L",
+      status: "active",
+      account_id: account.id,
+      default_payment_method: "pmc_1QNBBVLWue9IBlPSH2tnx4hH"
+    })
+    |> Repo.insert!()
 
     account
   else

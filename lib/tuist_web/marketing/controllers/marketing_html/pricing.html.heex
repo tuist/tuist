@@ -114,7 +114,9 @@
   </div>
 
   <div class="marketing__pricing__features__header">
-    <h2 class="marketing__pricing__features__header__title"><%= gettext("Features") %></h2>
+    <h2 class="marketing__pricing__features__header__title" id="features-section">
+      <%= gettext("Features") %>
+    </h2>
     <p class="marketing__pricing__features__header__subtitle">
       <%= gettext(
         "You’re only charged for the features you use, based on your usage, and only after you exceed a free threshold. Have feedback on our model? Reach out at contact@tuist.io—we’d love to hear from you!"
@@ -157,7 +159,7 @@
     </tbody>
   </table>
 
-  <section class="marketing__pricing__faq" aria-label="Frequently Asked Questions">
+  <section class="marketing__pricing__faq" id="faq" aria-label="Frequently Asked Questions">
     <h2 class="marketing__pricing__faq__title"><%= gettext("FAQ") %></h2>
     <div class="marketing__pricing__faq__questions">
       <%= for {{question, answer}, index} <- Enum.with_index(@faqs) do %>

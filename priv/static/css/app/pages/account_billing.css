@@ -123,3 +123,13 @@
 .billing__overview__plan-card__usage__progress {
   width: 100%;
 }
+
+.billing__overview__plan-card__usage__progress-label {
+  font: var(----text-small-regular);
+  color: var(--text-tertiary);
+}
+
+.billing__overview__payment-card__manage-subscription {
+  font: var(----text-small-regular);
+  color: var(--text-tertiary);
+}

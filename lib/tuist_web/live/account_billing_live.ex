@@ -27,35 +27,47 @@ defmodule TuistWeb.AccountBillingLive do
     customer = Billing.get_customer_by_id(owner.customer_id)
 
     payment_method =
-      if is_nil(subscription) or is_nil(subscription.default_payment_method) do
+      if is_nil(subscription) do
         nil
       else
-        Billing.get_payment_method_by_id(subscription.default_payment_method)
+        Billing.get_payment_method_id_from_subscription_id(subscription.subscription_id)
+        |> Billing.get_payment_method_by_id()
       end
 
-    trial_days_left =
-      if is_nil(subscription) or is_nil(subscription.trial_end) do
+    current_month_remote_cache_hits_count = owner.current_month_remote_cache_hits_count
+
+    remote_cache_hit_unit_price = Billing.get_unit_prices()[:remote_cache_hit]
+
+    estimated_next_payment =
+      Billing.get_estimated_next_payment(%{
+        current_month_remote_cache_hits_count: current_month_remote_cache_hits_count
+      })
+
+    subscription_current_period_end =
+      if is_nil(subscription) do
         nil
       else
-        DateTime.diff(subscription.trial_end, Tuist.Time.utc_now(), :day)
+        Billing.get_subscription_current_period_end(subscription.subscription_id)
       end
 
     {
       :ok,
       socket
       |> assign(:plans, Billing.get_plans())
+      |> assign(:remote_cache_hit_unit_price, remote_cache_hit_unit_price)
       |> assign(:head_title, "#{gettext("Billing")} · #{owner.name} · Tuist")
       |> assign(:selected_account, owner)
       |> assign(:plan, plan)
       |> assign(:new_plan, nil)
       |> assign(:customer, customer)
       |> assign(:payment_method, payment_method)
+      |> assign(:subscription_current_period_end, subscription_current_period_end)
       |> assign(
-        :current_month_remote_cache_hits,
-        owner.current_month_remote_cache_hits_count
+        :current_month_remote_cache_hits_count,
+        current_month_remote_cache_hits_count
       )
+      |> assign(:estimated_next_payment, estimated_next_payment)
       |> assign(:new_plan_period, :monthly)
-      |> assign(:trial_days_left, trial_days_left)
     }
   end
 
@@ -66,13 +78,13 @@ defmodule TuistWeb.AccountBillingLive do
           String.to_atom(params["new_plan"])
 
         is_nil(subscription) ->
-          :none
+          :air
 
         true ->
           subscription.plan
       end
 
-    if not Enum.member?([:air, :pro, :enterprise, :open_source, :none], plan) do
+    if not Enum.member?([:air, :pro, :enterprise, :open_source], plan) do
       raise TuistWeb.Errors.NotFoundError,
             gettext("Invalid plan")
     end
@@ -107,20 +119,19 @@ defmodule TuistWeb.AccountBillingLive do
           }
         } = socket
       ) do
-    session_url =
-      Billing.update_plan(%{
-        plan: new_plan,
-        period: new_plan_period,
-        account: selected_account,
-        success_url: uri <> "?new_plan=#{new_plan}"
-      })
-
     socket =
-      if is_nil(session_url) do
-        socket
-      else
-        socket
-        |> redirect(external: session_url)
+      case Billing.update_plan(%{
+             plan: new_plan,
+             period: new_plan_period,
+             account: selected_account,
+             success_url: uri <> "?new_plan=#{new_plan}"
+           }) do
+        {:ok, {:external_redirect, session_url}} ->
+          socket
+          |> redirect(external: session_url)
+
+        :ok ->
+          socket
       end
 
     send(self(), :hide_modal)

@@ -46,7 +46,8 @@ defmodule TuistWeb.API.Authorization.BillingPlug do
     subscription = Billing.get_current_active_subscription(account)
 
     thresholds_surpassed =
-      current_month_remote_cache_hits_count >= Billing.get_air_thresholds()[:remote_cache_hit]
+      current_month_remote_cache_hits_count >=
+        Billing.get_payment_thresholds()[:remote_cache_hits]
 
     subscription_plan = if(is_nil(subscription), do: :air, else: subscription.plan)
 

@@ -3,7 +3,6 @@ defmodule TuistWeb.AccountBillingLiveTest do
   use Tuist.LiveCase
   use Mimic
 
-  import TuistWeb.Gettext
   import Phoenix.LiveViewTest
   alias Tuist.Billing
   alias Tuist.Accounts
@@ -27,6 +26,11 @@ defmodule TuistWeb.AccountBillingLiveTest do
         id: "customer_id",
         email: "customer_email"
       }
+    end)
+
+    Billing
+    |> stub(:get_subscription_current_period_end, fn _ ->
+      DateTime.now!("UTC") |> DateTime.shift(day: 3)
     end)
 
     Billing
@@ -59,154 +63,6 @@ defmodule TuistWeb.AccountBillingLiveTest do
     assert html =~ "Billing · tuist-org · Tuist"
   end
 
-  test "renders billing when a user has no active plan", %{conn: conn} do
-    # When
-    {:ok, lv, _html} =
-      conn
-      |> live(~p"/tuist-org/billing")
-
-    # Then
-    assert has_element?(lv, ".billing__overview__plan-card__plan-summary__info", "No plan")
-    refute has_element?(lv, "button", "Downgrade")
-    assert has_element?(lv, "button", "Upgrade")
-    refute has_element?(lv, "button", "Current plan")
-  end
-
-  test "renders billing when a user has the air plan", %{conn: conn} do
-    # Given
-    Billing
-    |> stub(:get_current_active_subscription, fn _ ->
-      %{
-        plan: :air,
-        status: "active",
-        default_payment_method: "payment_method_id",
-        trial_end: nil
-      }
-    end)
-
-    # When
-    {:ok, lv, _html} =
-      conn
-      |> live(~p"/tuist-org/billing")
-
-    # Then
-    assert has_element?(lv, ".billing__overview__plan-card__plan-summary__info", "Air plan")
-    refute has_element?(lv, "button", "Downgrade")
-    assert has_element?(lv, "button", "Upgrade")
-    assert has_element?(lv, "button", "Current plan")
-    assert has_element?(lv, "p", "167 of 200 remote cache hits")
-  end
-
-  test "renders when that a payment method needs to be added when it's absent", %{conn: conn} do
-    # Given
-    Billing
-    |> stub(:get_current_active_subscription, fn _ ->
-      nil
-    end)
-
-    # When
-    {:ok, lv, _html} =
-      conn
-      |> live(~p"/tuist-org/billing")
-
-    # Then
-    assert has_element?(
-             lv,
-             ".billing__overview__payment-card__billing-details__labels",
-             gettext("Add a payment method to continue using Tuist")
-           )
-  end
-
-  test "renders billing when a user has the air plan with trial", %{conn: conn} do
-    # Given
-    Billing
-    |> stub(:get_current_active_subscription, fn _ ->
-      %{
-        plan: :air,
-        status: "trialing",
-        default_payment_method: "payment_method_id",
-        trial_end: ~U[2024-07-31 13:42:09Z]
-      }
-    end)
-
-    Tuist.Time
-    |> stub(:utc_now, fn -> ~U[2024-07-28 13:42:09Z] end)
-
-    # When
-    {:ok, lv, _html} =
-      conn
-      |> live(~p"/tuist-org/billing")
-
-    # Then
-    assert has_element?(lv, ".billing__overview__plan-card__plan-summary__info", "Air plan")
-    assert has_element?(lv, ".billing__overview__plan-card__plan-summary__info .badge", "Trial")
-
-    assert has_element?(
-             lv,
-             ".billing__overview__plan-card__plan-summary__info .badge",
-             "3 days left"
-           )
-
-    refute has_element?(lv, "button", "Downgrade")
-    assert has_element?(lv, "button", "Upgrade")
-    assert has_element?(lv, "button", "Current plan")
-    assert has_element?(lv, "p", "167 of 200 remote cache hits")
-  end
-
-  test "renders billing when a user has the pro plan", %{conn: conn} do
-    # Given
-    Billing
-    |> stub(:get_current_active_subscription, fn _ ->
-      %{
-        plan: :pro,
-        status: "active",
-        default_payment_method: "payment_method_id",
-        trial_end: nil
-      }
-    end)
-
-    # When
-    {:ok, lv, _html} =
-      conn
-      |> live(~p"/tuist-org/billing")
-
-    # Then
-    assert has_element?(lv, ".billing__overview__plan-card__plan-summary__info", "Pro plan")
-    assert has_element?(lv, "button", "Downgrade")
-    refute has_element?(lv, "button", "Upgrade")
-    assert has_element?(lv, "button", "Current plan")
-    assert has_element?(lv, "p", "167 of 2000 remote cache hits")
-  end
-
-  test "renders billing when a user has the enterprise plan", %{conn: conn} do
-    # Given
-    Billing
-    |> stub(:get_current_active_subscription, fn _ ->
-      %{
-        plan: :enterprise,
-        status: "active",
-        default_payment_method: "payment_method_id",
-        trial_end: nil
-      }
-    end)
-
-    # When
-    {:ok, lv, _html} =
-      conn
-      |> live(~p"/tuist-org/billing")
-
-    # Then
-    assert has_element?(
-             lv,
-             ".billing__overview__plan-card__plan-summary__info",
-             "Enterprise plan"
-           )
-
-    assert has_element?(lv, "button", "Downgrade")
-    refute has_element?(lv, "button", "Upgrade")
-    assert has_element?(lv, "button", "Current plan")
-  end
-
   test "raises UnauthorizedError when the user is not authorized to update billing", %{
     conn: conn,
     user: user
@@ -232,6 +88,110 @@ defmodule TuistWeb.AccountBillingLiveTest do
     assert_raise TuistWeb.Errors.NotFoundError, fn ->
       conn
       |> live(~p"/#{organization.account.name}/billing?new_plan=invalid")
+    end
+  end
+
+  describe "no active plan" do
+    test "renders the correct information", %{conn: conn} do
+      # When
+      {:ok, lv, _html} =
+        conn
+        |> live(~p"/tuist-org/billing")
+
+      # Then
+      assert has_element?(lv, ".billing__overview__plan-card", "Air plan")
+      refute has_element?(lv, "billing__pricing__plans button > button", "Current plan")
+      refute has_element?(lv, "billing__pricing__plans button > button", "Upgrade")
+      refute has_element?(lv, "billing__pricing__plans button > button", "Contact sales")
+    end
+  end
+
+  describe "when air plan" do
+    test "renders the correct information", %{conn: conn} do
+      # Given
+      Billing
+      |> stub(:get_current_active_subscription, fn _ ->
+        %{
+          plan: :air,
+          status: "active",
+          default_payment_method: "payment_method_id",
+          trial_end: nil,
+          subscription_id: "subscription_id"
+        }
+      end)
+
+      # When
+      {:ok, lv, _html} =
+        conn
+        |> live(~p"/tuist-org/billing")
+
+      # Then
+      assert has_element?(lv, ".billing__overview__plan-card__plan-summary__info", "Air plan")
+      refute has_element?(lv, "button", "Downgrade")
+      assert has_element?(lv, "button", "Upgrade")
+      assert has_element?(lv, "button", "Current plan")
+      assert has_element?(lv, "p", "167 of 200 remote cache hits")
+    end
+  end
+
+  describe "when pro plan" do
+    test "renders the correct information", %{conn: conn} do
+      # Given
+      Billing
+      |> stub(:get_current_active_subscription, fn _ ->
+        %{
+          plan: :pro,
+          status: "active",
+          default_payment_method: "payment_method_id",
+          trial_end: nil,
+          subscription_id: "subscription_id"
+        }
+      end)
+
+      # When
+      {:ok, lv, _html} =
+        conn
+        |> live(~p"/tuist-org/billing")
+
+      # Then
+      assert has_element?(lv, ".billing__overview__plan-card__plan-summary__info", "Pro plan")
+      assert has_element?(lv, "button", "Downgrade")
+      refute has_element?(lv, "button", "Upgrade")
+      assert has_element?(lv, "button", "Current plan")
+      assert has_element?(lv, "p", "167 of 200 free remote cache hits")
+    end
+  end
+
+  describe "when enterprise" do
+    test "renders billing when a user has the enterprise plan", %{conn: conn} do
+      # Given
+      Billing
+      |> stub(:get_current_active_subscription, fn _ ->
+        %{
+          plan: :enterprise,
+          status: "active",
+          default_payment_method: "payment_method_id",
+          trial_end: nil,
+          subscription_id: "subscription_id"
+        }
+      end)
+
+      # When
+      {:ok, lv, _html} =
+        conn
+        |> live(~p"/tuist-org/billing")
+
+      # Then
+      assert has_element?(
+               lv,
+               ".billing__overview__plan-card__plan-summary__info",
+               "Enterprise plan"
+             )
+
+      assert has_element?(lv, "p", "Enterprise plan")
+      assert has_element?(lv, "h3", "Custom")
+      refute has_element?(lv, "button", "Downgrade")
+      refute has_element?(lv, "button", "Upgrade")
     end
   end
 end
