@@ -199,7 +199,7 @@ Docker 이미지 배포 과정은 선택한 클라우드 제공 업체와 조직
 
 #### Fly {#fly}
 
-To deploy the app on [Fly](https://fly.io/), you'll require a `fly.toml` configuration file. Consider generating it dynamically within your Continuous Deployment (CD) pipeline. Below is a reference example for your use:
+앱을 [Fly](https://fly.io/)에 배포하기 위해 `fly.toml` 구성 파일이 필요합니다. Continuous Deployment (CD) 파이프라인 내에서 이 구성 파일을 동적으로 생성하는 것을 고려해야 합니다. 아래는 참고용 예시입니다:
 
 ```toml
 app = "tuist"
@@ -253,11 +253,11 @@ kill_timeout = "5s"
   url_prefix = "/"
 ```
 
-Then you can run `fly launch --local-only --no-deploy` to launch the app. On subsequent deploys, instead of running `fly launch --local-only`, you will need to run `fly deploy --local-only`. Fly.io doesn't allow to pull private Docker images, which is why we need to use the `--local-only` flag.
+이러면 앱을 실행하기 위해 `fly launch --local-only --no-deploy`을 수행할 수 있습니다. 이후 배포에서는 `fly launch --local-only`를 수행하는 대신에 `fly deploy --local-only`를 수행합니다. Fly.io에서는 비공개 Docker 이미지를 가져올 수 없으므로, `--local-only` 플래그를 사용해야 합니다.
 
 ### Docker Compose {#docker-compose}
 
-Below is an example of a `docker-compose.yml` file that you can use as a reference to deploy the service:
+아래는 서비스를 배포하기 위해 참고할 수 있는 `docker-compose.yml` 파일의 예시입니다:
 
 ```yaml
 version: '3.8'
@@ -344,10 +344,10 @@ volumes:
 
 ## Operations {#operations}
 
-Tuist provides a set of utilities under `/ops/` that you can use to manage your instance.
+Tuist는 인스턴스를 관리하기 위해 사용할 수 있는 유틸리티를 `/ops/`에서 제공합니다.
 
-> [!IMPORTANT] Authorization
-> Only people whose handles are listed in the `TUIST_OPS_USER_HANDLES` environment variable can access the `/ops/` endpoints.
+> [!IMPORTANT] 인증\
+> `TUIST_OPS_USER_HANDLES` 환경 변수에 작성된 사용자만 `/ops/` 엔드포인트에 접근할 수 있습니다.
 
-- **Errors (`/ops/errors`):** You can view unexpected errors that ocurred in the application. This is useful for debugging and understanding what went wrong and we might ask you to share this information with us if you're facing issues.
-- **Dashboard (`/ops/dashboard`):** You can view a dashboard that provides insights into the application's performance and health (e.g. memory consumption, processes running, number of requests). This dashboard can be quite useful to understand if the hardware you're using is enough to handle the load.
+- **오류 (`/ops/errors`):** 애플리케이션에서 발생한 오류를 볼 수 있습니다. 이것은 디버깅과 문제의 원인을 파악하는데 유용하고, 우리는 문제가 발생할 경우 이 정보를 공유해 달라고 요청할 수 있습니다.
+- **대시보드 (`/ops/dashboard`):** 애플리케이션의 성능과 상태 (예: 메모리 사용량, 실행 중인 프로세스, 요청 수) 를 확인할 수 있는 대시보드를 볼 수 있습니다. 이 대시보드는 사용 중인 하드웨어가 부하를 처리하기에 충분한지 확인하는데 매우 유용할 수 있습니다.
