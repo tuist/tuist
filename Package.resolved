@@ -1,5 +1,5 @@
 {
-  "originHash" : "3a379b24984107847f21f4adabe9b978a4f67d21dcf18b9537875af1e3d25659",
+  "originHash" : "0c414c57d7e49511967579ef2d188ec6144684a2624b29f5c91de7da2d3f4edf",
   "pins" : [
     {
       "identity" : "aexml",
@@ -312,8 +312,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/XcodeGraph.git",
       "state" : {
-        "branch" : "fix/overlay-settings",
-        "revision" : "2d860d0dc4464305d9484d3ab7c0bd4f8e61bce5"
+        "revision" : "6dae7e2ce73b3335cb92d4c0829d4e0c35a72990",
+        "version" : "0.19.4"
       }
     },
     {
