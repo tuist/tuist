@@ -1,5 +1,25 @@
 # Changelog
 
+## 4.35.0 - 2024-11-21
+
+### CLI
+
+#### Changed
+
+- Align ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES with the Xcode default [#7038](https://github.com/tuist/tuist/pull/7038) by [@yungu0010](https://github.com/yungu0010)
+- Change behavior of --no-selective-testing to still run all tests, but store the results [#7080](https://github.com/tuist/tuist/pull/7080) by [@fortmarek](https://github.com/fortmarek)
+- Disable "file_name" SwiftLint rule in synthesized resources [#7074](https://github.com/tuist/tuist/pull/7074) by [@ilia3546](https://github.com/ilia3546)
+
+#### Fixed
+
+- Fix data race when refreshing an access token [#7082](https://github.com/tuist/tuist/pull/7082) by [@fortmarek](https://github.com/fortmarek)
+- fix: honor platform-specific package settings [#7083](https://github.com/tuist/tuist/pull/7083) by [@fortmarek](https://github.com/fortmarek)
+- fix: when hashing packages, hash should include extra metadata like Swift compiler version [#7087](https://github.com/tuist/tuist/pull/7087) by [@fortmarek](https://github.com/fortmarek)
+
+### CLI (Server features)
+
+- no changes
+
 ## 4.34.2 - 2024-11-15
 
 ### CLI
