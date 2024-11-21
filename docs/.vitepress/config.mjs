@@ -311,7 +311,7 @@ ${await fs.readFile(path.join(import.meta.dirname, "locale-redirects.txt"), {
     },
     socialLinks: [
       { icon: "github", link: "https://github.com/tuist/tuist" },
-      { icon: "x", link: "https://x.com/tuistio" },
+      { icon: "x", link: "https://x.com/tuistdev" },
       { icon: "mastodon", link: "https://fosstodon.org/@tuist" },
       {
         icon: "slack",

@@ -4,7 +4,7 @@
   </div>
   <img src="https://github.com/tuist/tuist/workflows/Tuist/badge.svg" alt="CI status">
   <img src="https://img.shields.io/github/commit-activity/w/tuist/tuist?style=flat-square&label=commits" alt="Commit Activity">
-  <a href="https://twitter.com/tuistio"><img src="https://img.shields.io/badge/tuist-gray.svg?logo=x" alt="Twitter Followers"></a>
+  <a href="https://x.com/tuistdev"><img src="https://img.shields.io/badge/tuist-gray.svg?logo=x" alt="Twitter Followers"></a>
   <a href="https://join.slack.com/t/tuistapp/shared_invite/zt-1lqw355mp-zElRwLeoZ2EQsgGEkyaFgg"><img src="https://img.shields.io/badge/tuist-gray.svg?logo=slack" alt="Slack Workspace"></a>
   <a href="https://t.me/tuist"><img src="https://img.shields.io/badge/tuist-gray.svg?logo=telegram" alt="Slack Workspace"></a>
   <div>
