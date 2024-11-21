@@ -29,6 +29,14 @@ defmodule Tuist.Accounts do
     Repo.reload(account)
   end
 
+  def get_users_count() do
+    Repo.aggregate(User, :count, :id)
+  end
+
+  def get_organizations_count() do
+    Repo.aggregate(Organization, :count, :id)
+  end
+
   @doc """
   Given an id, it returns the account associated with it.
   """

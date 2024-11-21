@@ -27,6 +27,32 @@ defmodule Tuist.AccountsTest do
     :ok
   end
 
+  describe "get_users_count/0" do
+    test "returns the total number of users" do
+      # Given
+      AccountsFixtures.user_fixture()
+
+      # When
+      got = Accounts.get_users_count()
+
+      # Then
+      assert got == 1
+    end
+  end
+
+  describe "get_organizations_count/0" do
+    test "returns the total number of users" do
+      # Given
+      AccountsFixtures.organization_fixture()
+
+      # When
+      got = Accounts.get_organizations_count()
+
+      # Then
+      assert got == 1
+    end
+  end
+
   describe "organization_admin?/2" do
     test "organization_admin? returns false if the user is not an admin" do
       # Given

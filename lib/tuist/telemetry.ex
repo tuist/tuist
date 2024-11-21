@@ -1,4 +1,12 @@
 defmodule Tuist.Telemetry do
+  def event_name_accounts_users_count() do
+    [:tuist, :accounts, :accounts, :users, :count]
+  end
+
+  def event_name_accounts_organizations_count() do
+    [:tuist, :accounts, :accounts, :organizations, :count]
+  end
+
   def event_name_storage_get_object_as_string_size() do
     [:tuist, :storage, :get_object_size]
   end

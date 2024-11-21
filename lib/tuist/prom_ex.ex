@@ -66,7 +66,8 @@ defmodule Tuist.PromEx do
         # Plugins.Broadway,
 
         Tuist.Storage.PromExPlugin,
-        Tuist.CommandEvents.PromExPlugin
+        Tuist.CommandEvents.PromExPlugin,
+        Tuist.Accounts.PromExPlugin
       ]
 
     plugins =
