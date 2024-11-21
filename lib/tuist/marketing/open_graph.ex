@@ -6,7 +6,7 @@ defmodule Tuist.Marketing.OpenGraph do
 
   embed_templates "og_image/*"
 
-  @max_length 43
+  @max_length 40
 
   def generate_og_image(title, path) do
     {title_line_1, title_line_2} = og_image_title_lines(title)
