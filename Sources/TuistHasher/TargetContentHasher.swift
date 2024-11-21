@@ -97,7 +97,10 @@ public final class TargetContentHasher: TargetContentHashing {
         case .local: nil
         }
         if let projectHash {
-            return TargetContentHash(hash: projectHash, hashedPaths: [:])
+            return TargetContentHash(
+                hash: try contentHasher.hash([projectHash] + additionalStrings),
+                hashedPaths: [:]
+            )
         }
         var hashedPaths = hashedPaths
         let sourcesHash = try await sourceFilesContentHasher.hash(identifier: "sources", sources: graphTarget.target.sources).hash
