@@ -60,7 +60,8 @@ defmodule Tuist.Projects.Project do
 
   def update_changeset(project, attrs) do
     project
-    |> cast(attrs, [:default_branch, :vcs_repository_full_handle, :vcs_provider])
+    |> cast(attrs, [:default_branch, :vcs_repository_full_handle, :vcs_provider, :visibility])
     |> validate_inclusion(:vcs_provider, [:github])
+    |> validate_inclusion(:visibility, [:private, :public])
   end
 end

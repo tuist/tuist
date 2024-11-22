@@ -141,5 +141,30 @@ defmodule Tuist.ProjectTest do
       assert changeset.valid? == false
       assert "is invalid" in errors_on(changeset).vcs_provider
     end
+
+    test "changeset is valid when visibility is :public" do
+      # When
+      changeset =
+        Project.update_changeset(
+          %Project{},
+          %{visibility: :public}
+        )
+
+      # Then
+      assert changeset.valid? == true
+    end
+
+    test "changeset is invalid when visibility is not a valid value" do
+      # When
+      changeset =
+        Project.update_changeset(
+          %Project{},
+          %{visibility: :invalid_visibility}
+        )
+
+      # Then
+      assert changeset.valid? == false
+      assert "is invalid" in errors_on(changeset).visibility
+    end
   end
 end

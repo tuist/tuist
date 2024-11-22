@@ -133,7 +133,8 @@ defmodule TuistWeb.API.ProjectsController do
             full_name: Projects.get_project_slug_from_id(project.id),
             token: project.token,
             default_branch: project.default_branch,
-            repository_url: Projects.get_repository_url(project)
+            repository_url: Projects.get_repository_url(project),
+            visibility: project.visibility
           })
         rescue
           e in Ecto.InvalidChangesetError ->
@@ -180,7 +181,8 @@ defmodule TuistWeb.API.ProjectsController do
           id: project_account.project.id,
           full_name: project_account.handle,
           token: project_account.project.token,
-          default_branch: project_account.project.default_branch
+          default_branch: project_account.project.default_branch,
+          visibility: project_account.project.visibility
         }
       end)
 
@@ -260,7 +262,8 @@ defmodule TuistWeb.API.ProjectsController do
           full_name: "#{account.name}/#{project.name}",
           token: project.token,
           default_branch: project.default_branch,
-          repository_url: Projects.get_repository_url(project)
+          repository_url: Projects.get_repository_url(project),
+          visibility: project.visibility
         })
     end
   end
@@ -295,6 +298,12 @@ defmodule TuistWeb.API.ProjectsController do
            repository_url: %Schema{
              type: :string,
              description: "The repository URL for the project."
+           },
+           visibility: %Schema{
+             type: :string,
+             enum: ["public", "private"],
+             description:
+               "The visibility of the project. Public projects are visible to everyone, private projects are only visible to the project's members."
            }
          }
        }},
@@ -427,7 +436,8 @@ defmodule TuistWeb.API.ProjectsController do
           Projects.update_project(project, %{
             default_branch: default_branch,
             vcs_provider: vcs_provider,
-            vcs_repository_full_handle: vcs_repository_full_handle
+            vcs_repository_full_handle: vcs_repository_full_handle,
+            visibility: body_params |> Map.get(:visibility, project.visibility)
           })
 
         conn
@@ -437,7 +447,8 @@ defmodule TuistWeb.API.ProjectsController do
           full_name: "#{account_handle}/#{project_handle}",
           token: project.token,
           default_branch: project.default_branch,
-          repository_url: Projects.get_repository_url(project)
+          repository_url: Projects.get_repository_url(project),
+          visibility: project.visibility
         })
     end
   end

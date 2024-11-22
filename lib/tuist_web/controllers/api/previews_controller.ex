@@ -3,6 +3,7 @@ defmodule TuistWeb.API.PreviewsController do
   alias TuistWeb.API.Schemas
   alias Tuist.CommandEvents
   alias TuistWeb.API.Schemas.ArtifactDownloadURL
+  alias TuistWeb.API.Schemas.PreviewSupportedPlatform
   alias TuistWeb.API.EnsureProjectPresencePlug
   alias Tuist.Previews
   alias Tuist.Previews.Preview
@@ -74,10 +75,7 @@ defmodule TuistWeb.API.PreviewsController do
            },
            supported_platforms: %Schema{
              type: :array,
-             items: %Schema{
-               type: :string,
-               enum: Ecto.Enum.values(Preview, :supported_platforms)
-             },
+             items: PreviewSupportedPlatform,
              description: "The supported platforms of the preview."
            }
          }
@@ -389,10 +387,7 @@ defmodule TuistWeb.API.PreviewsController do
         in: :query,
         type: %Schema{
           type: :array,
-          items: %Schema{
-            type: :string,
-            enum: Ecto.Enum.values(Preview, :supported_platforms)
-          },
+          items: PreviewSupportedPlatform,
           description: "The supported platforms of the preview."
         }
       ],

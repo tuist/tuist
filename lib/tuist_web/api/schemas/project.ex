@@ -7,7 +7,7 @@ defmodule TuistWeb.API.Schemas.Project do
 
   OpenApiSpex.schema(%{
     type: :object,
-    required: [:id, :full_name, :token, :default_branch],
+    required: [:id, :full_name, :token, :default_branch, :visibility],
     properties: %{
       id: %Schema{
         type: :number,
@@ -31,6 +31,11 @@ defmodule TuistWeb.API.Schemas.Project do
         type: :string,
         description:
           "The URL of the connected git repository, such as https://github.com/tuist/tuist or https://github.com/tuist/tuist.git"
+      },
+      visibility: %Schema{
+        type: :string,
+        description: "The visibility of the project",
+        enum: [:private, :public]
       }
     }
   })
