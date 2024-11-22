@@ -84,6 +84,17 @@ Testing new functionality should be a part of any code review. But having to bui
 Once your Tuist project is connected with your Git platform such as [GitHub](https://github.com), add a <LocalizedLink href="/cli/share">`tuist share MyApp`</LocalizedLink> to your CI workflow. Tuist will then post a Preview link directly in your pull requests:
 ![GitHub app comment with a Tuist Preview link](/images/guides/share/github-app-with-preview.png)
 
+## README badge {#readme-badge}
+
+To make Tuist Previews more visible in your repository, you can add a badge to your `README` file that points to the latest Tuist Preview:
+
+[![Tuist Preview](https://tuist.dev/Dimillian/IcySky/previews/latest/badge.svg)](https://tuist.dev/Dimillian/IcySky/previews/latest)
+
+To add the badge to your `README`, use the following markdown and replace the account and project handles with your own:
+```
+[![Tuist Preview](https://tuist.dev/{account-handle}/{project-handle}/previews/latest/badge.svg)](https://tuist.dev/{account-handle}/{project-handle}/previews/latest)
+```
+
 ## Automations {#automations}
 
 You can use the `--json` flag to get a JSON output from the `tuist share` command:
