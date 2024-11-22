@@ -58,6 +58,7 @@ final class DeviceService: DeviceServicing {
     private let remoteArtifactDownloader: RemoteArtifactDownloading
     private let fileSystem: FileSysteming
     private let appBundleLoader: AppBundleLoading
+    private let menuBarFocusService: MenuBarFocusServicing
 
     init(
         taskStatusReporter: any TaskStatusReporting,
@@ -68,7 +69,8 @@ final class DeviceService: DeviceServicing {
         fileArchiverFactory: FileArchivingFactorying = FileArchivingFactory(),
         remoteArtifactDownloader: RemoteArtifactDownloading = RemoteArtifactDownloader(),
         fileSystem: FileSysteming = FileSystem(),
-        appBundleLoader: AppBundleLoading = AppBundleLoader()
+        appBundleLoader: AppBundleLoading = AppBundleLoader(),
+        menuBarFocusService: MenuBarFocusServicing = MenuBarFocusService()
     ) {
         self.taskStatusReporter = taskStatusReporter
         self.appStorage = appStorage
@@ -79,6 +81,7 @@ final class DeviceService: DeviceServicing {
         self.remoteArtifactDownloader = remoteArtifactDownloader
         self.fileSystem = fileSystem
         self.appBundleLoader = appBundleLoader
+        self.menuBarFocusService = menuBarFocusService
     }
 
     @MainActor func selectDevice(_ newDevice: Device?) {
@@ -108,6 +111,7 @@ final class DeviceService: DeviceServicing {
     }
 
     func launchPreviewDeeplink(with previewDeeplinkURL: URL) async throws {
+        await menuBarFocusService.focus()
         let urlComponents = URLComponents(url: previewDeeplinkURL, resolvingAgainstBaseURL: false)
         guard let previewId = urlComponents?.queryItems?.first(where: { $0.name == "preview_id" })?.value,
               let fullHandle = urlComponents?.queryItems?.first(where: { $0.name == "full_handle" })?.value,

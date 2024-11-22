@@ -19,6 +19,7 @@ final class DeviceServiceTests: TuistUnitTestCase {
     private var appStorage: MockAppStoring!
     private var deviceController: MockDeviceControlling!
     private var taskStatusReporter: MockTaskStatusReporting!
+    private var menuBarFocusService: MockMenuBarFocusServicing!
 
     private let previewURL =
         URL(
@@ -55,6 +56,7 @@ final class DeviceServiceTests: TuistUnitTestCase {
         appStorage = .init()
         deviceController = .init()
         taskStatusReporter = .init()
+        menuBarFocusService = MockMenuBarFocusServicing()
 
         subject = DeviceService(
             taskStatusReporter: taskStatusReporter,
@@ -65,7 +67,8 @@ final class DeviceServiceTests: TuistUnitTestCase {
             fileArchiverFactory: fileArchiverFactory,
             remoteArtifactDownloader: remoteArtifactDownloader,
             fileSystem: fileSystem,
-            appBundleLoader: appBundleLoader
+            appBundleLoader: appBundleLoader,
+            menuBarFocusService: menuBarFocusService
         )
 
         given(deviceController)
@@ -103,6 +106,10 @@ final class DeviceServiceTests: TuistUnitTestCase {
                 bundleId: .any,
                 device: .any
             )
+            .willReturn()
+
+        given(menuBarFocusService)
+            .focus()
             .willReturn()
 
         fileUnarchiver = MockFileUnarchiving()
@@ -410,6 +417,9 @@ final class DeviceServiceTests: TuistUnitTestCase {
                 device: .value(iPhone15.device),
                 arguments: .value([])
             )
+            .called(1)
+        verify(menuBarFocusService)
+            .focus()
             .called(1)
     }
 
