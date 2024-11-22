@@ -18,7 +18,10 @@ defmodule TuistWeb.LayoutComponents do
     <meta property="og:description" content={assigns[:head_description] || default_description} />
 
     <%= if is_nil(assigns[:head_image]) do %>
-      <meta property="og:image" content={Tuist.Environment.app_url(path: "/images/open-graph.png")} />
+      <meta
+        property="og:image"
+        content={Tuist.Environment.app_url(path: "/images/open-graph/card.jpeg")}
+      />
     <% else %>
       <meta property="og:image" content={assigns[:head_image]} />
     <% end %>
@@ -32,9 +35,12 @@ defmodule TuistWeb.LayoutComponents do
     <% else %>
       <meta name="twitter:card" content={assigns[:head_twitter_card]} />
     <% end %>
-    <meta name="twitter:site" content="@tuistio" />
+    <meta name="twitter:site" content="@tuistdev" />
     <%= if is_nil(assigns[:head_image]) do %>
-      <meta name="twitter:image" content={Tuist.Environment.app_url(path: "/images/open-graph.png")} />
+      <meta
+        name="twitter:image"
+        content={Tuist.Environment.app_url(path: "/images/open-graph/card.jpeg")}
+      />
     <% else %>
       <meta name="twitter:image" content={assigns[:head_image]} />
     <% end %>

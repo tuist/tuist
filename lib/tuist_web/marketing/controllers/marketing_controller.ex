@@ -3,6 +3,8 @@ defmodule TuistWeb.Marketing.MarketingController do
   import TuistWeb.Marketing.StructuredMarkup
 
   plug(:assign_default_head_tags)
+  plug(:put_resp_header_cache_control)
+  plug(:put_resp_header_server)
 
   def home(conn, _params) do
     read_more_posts = Tuist.Marketing.Blog.get_posts() |> Enum.take(3)
@@ -26,6 +28,15 @@ defmodule TuistWeb.Marketing.MarketingController do
         {gettext("Tuist"), Tuist.Environment.app_url(path: ~p"/")},
         {gettext("About"), Tuist.Environment.app_url(path: ~p"/about")}
       ])
+    )
+    |> assign(
+      :head_image,
+      Tuist.Environment.app_url(path: "/marketing/images/og/generated/about.jpg")
+    )
+    |> assign(:head_twitter_card, "summary_large_image")
+    |> assign(
+      :head_description,
+      "Learn more about Tuist, the open-source project that helps you scale your Swift development."
     )
     |> render(:about, layout: false)
   end
@@ -280,9 +291,17 @@ defmodule TuistWeb.Marketing.MarketingController do
 
   def assign_default_head_tags(conn, _params) do
     conn
-    |> assign(:head_image, Tuist.Environment.app_url(path: "/images/open-graph.jpeg"))
-    |> assign(:head_twitter_card, "summary")
+    |> assign(:head_image, Tuist.Environment.app_url(path: "/images/open-graph/card.jpeg"))
+    |> assign(:head_twitter_card, "summary_large_image")
     |> assign(:head_include_blog_rss_and_atom, true)
     |> assign(:head_include_changelog_rss_and_atom, true)
+  end
+
+  defp put_resp_header_cache_control(conn, _opts) do
+    put_resp_header(conn, "cache-control", "public, max-age=86400, immutable")
+  end
+
+  defp put_resp_header_server(conn, _opts) do
+    put_resp_header(conn, "server", "Bandit")
   end
 end

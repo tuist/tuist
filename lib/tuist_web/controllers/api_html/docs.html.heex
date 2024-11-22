@@ -8,10 +8,13 @@
     <meta property="og:url" content={Tuist.Environment.app_url(path: "/")} />
     <meta property="og:type" content="website" />
     <meta property="og:title" content={assigns[:head_title] || "Tuist"} />
-    <meta property="og:image" content={Tuist.Environment.app_url(path: "/images/open-graph.png")} />
+    <meta
+      property="og:image"
+      content={Tuist.Environment.app_url(path: "/images/open-graph/api-docs-card.jpeg")}
+    />
     <!-- Twitter Meta Tags -->
-    <meta name="twitter:card" content="summary" />
-    <meta name="twitter:site" content="@tuistio" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content="@tuistdev" />
     <meta name="twitter:image" content={Tuist.Environment.app_url(path: "/")} />
     <meta name="twitter:title" content={assigns[:head_title] || "Tuist"} />
     <meta

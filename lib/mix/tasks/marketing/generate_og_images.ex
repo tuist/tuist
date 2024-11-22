@@ -42,8 +42,12 @@ defmodule Mix.Tasks.Marketing.GenerateOgImages do
   defp generate_posts_og_images(og_images_directory) do
     Tuist.Marketing.Blog.get_posts()
     |> Enum.each(fn post ->
-      IO.puts("Generating OG image for blog post: #{post.title}")
       image_path = Path.join(og_images_directory, "#{post.slug}.jpg")
+
+      IO.puts(
+        "Generating OG image for '#{post.title}' at #{Path.relative_to(image_path, File.cwd!())}"
+      )
+
       File.mkdir_p!(Path.dirname(image_path))
 
       Tuist.Marketing.OpenGraph.generate_og_image(

@@ -99,7 +99,7 @@ defmodule TuistWeb.Marketing.StructuredMarkup do
           "Tuist is designed to grow with you. Only add a card if you need more than the free tier limits or dedicated support."
         ),
       "brand" => get_organization_structured_data(),
-      "image" => Tuist.Environment.app_url(path: "/images/open-graph.png"),
+      "image" => Tuist.Environment.app_url(path: "/images/open-graph/squared.png"),
       "offers" =>
         plans
         |> Enum.map(fn plan ->
@@ -113,7 +113,7 @@ defmodule TuistWeb.Marketing.StructuredMarkup do
             "description" => plan.description,
             "availability" => "https://schema.org/InStock",
             "priceValidUntil" => "2025-12-31",
-            "image" => Tuist.Environment.app_url(path: "/images/open-graph.png")
+            "image" => Tuist.Environment.app_url(path: "/images/open-graph/squared.png")
           }
         end)
     }
