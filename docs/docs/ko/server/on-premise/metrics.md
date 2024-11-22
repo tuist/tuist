@@ -4,13 +4,14 @@ titleTemplate: :title | On-premise | Server | Tuist
 description: 컴파일된 바이너리를 캐싱하고 다양한 환경 간에 공유하여 빌드 시간을 최적화하세요.
 ---
 
-# Metrics {#metrics}
+# 메트릭 {#metrics}
 
-You can ingest metrics gathered by the Tuist server using [Prometheus](https://prometheus.io/) and a visualization tool such as [Grafana](https://grafana.com/) to create a custom dashboard tailored to your needs. The Prometheus metrics are served via the `/metrics` endpoint on port 9091. The Prometheus' [scrape_interval](https://prometheus.io/docs/introduction/first_steps/#configuring-prometheus) should be set as less than 10_000 seconds (we recommend keeping the default of 15 seconds).
+Tuist 서버에서 수집한 메트릭을 [Prometheus](https://prometheus.io/)를 통해 가져오고
+[Grafana](https://grafana.com/)와 같은 시각화 도구를 활용하여 사용자 요구에 맞는 커스텀 대시보드를 생성할 수 있습니다. Prometheus 메트릭은 9091 port의 `/metrics` endpoint를 통해 제공됩니다. Prometheus의 [scrape_interval](https://prometheus.io/docs/introduction/first_steps/#configuring-prometheus)은 10,000초 미만으로 설정해야 합니다 (기본 값인 15 초로 유지할 것을 권장합니다).
 
-## Elixir metrics {#elixir-metrics}
+## Elixir 메트릭 {#elixir-metrics}
 
-By default we include metrics of the Elixir runtime, [BEAM](https://en.wikipedia.org/wiki/BEAM_\\\\\\\\\\\\(Erlang_virtual_machine\\\\\\\\\\\\)), Elixir, and some of the libraries we use. The following are some of the metrics you can expect to see:
+기본적으로 Elixir 런타임, [BEAM](https://en.wikipedia.org/wiki/BEAM_\(Erlang_virtual_machine\)), Elixir, 그리고 사용하는 일부 라이브러리의 메트릭이 포함되어 있습니다. 다음은 확인할 수 있는 메트릭의 일부입니다:
 
 - [Application](https://hexdocs.pm/prom_ex/PromEx.Plugins.Application.html)
 - [BEAM](https://hexdocs.pm/prom_ex/PromEx.Plugins.Beam.html)
@@ -21,229 +22,229 @@ By default we include metrics of the Elixir runtime, [BEAM](https://en.wikipedia
 
 We recommend checking those pages to know which metrics are available and how to use them.
 
-## Runs metrics {#runs-metrics}
+## Runs 메트릭 {#runs-metrics}
 
-A set of metrics related to Tuist Runs.
+Tuist run과 관련된 메트릭 모음입니다.
 
-### `tuist_runs_total` (counter) {#tuist_runs_total-counter}
+### `tuist_runs_total` (카운터) {#tuist_runs_total-counter}
 
-The total number of Tuist Runs.
+Tuist Run의 총 실행 횟수.
 
 #### Tags {#tuist-runs-total-tags}
 
-| Tag      | Description                                                                                 |
-| -------- | ------------------------------------------------------------------------------------------- |
-| `name`   | The name of the `tuist` command that was run, such as `build`, `test`, etc. |
-| `is_ci`  | A boolean indicating if the executor was a CI or a developer's machine.     |
-| `status` | `0` in case of `success`, `1` in case of `failure`.                         |
+| Tag      | Description                                                |
+| -------- | ---------------------------------------------------------- |
+| `name`   | `build`, `test` 등과 같이 실행된 `tuist` 명령어의 이름. |
+| `is_ci`  | CI 또는 개발자의 머신에서 실행되었는 지를 나타내는 불리언 값.       |
+| `status` | `성공` 시 `0`, `실패` 시 `1`                                     |
 
-### `tuist_runs_duration_milliseconds` (histogram) {#tuist_runs_duration_milliseconds-histogram}
+### `tuist_runs_duration_milliseconds` (히스토그램) {#tuist_runs_duration_milliseconds-histogram}
 
-The total duration of each tuist run in milliseconds.
+각 tuist run의 총 소요 시간(milliseconds).
 
 #### Tags {#tuist-runs-duration-miliseconds-tags}
 
-| Tag      | Description                                                                                 |
-| -------- | ------------------------------------------------------------------------------------------- |
-| `name`   | The name of the `tuist` command that was run, such as `build`, `test`, etc. |
-| `is_ci`  | A boolean indicating if the executor was a CI or a developer's machine.     |
-| `status` | `0` in case of `success`, `1` in case of `failure`.                         |
+| Tag      | Description                                                |
+| -------- | ---------------------------------------------------------- |
+| `name`   | `build`, `test` 등과 같이 실행된 `tuist` 명령어의 이름. |
+| `is_ci`  | CI 또는 개발자의 머신에서 실행되었는 지를 나타내는 불리언 값.       |
+| `status` | `성공` 시 `0`, `실패` 시 `1`                                     |
 
-## Cache metrics {#cache-metrics}
+## Cache 메트릭 {#cache-metrics}
 
-A set of metrics related to the Tuist Cache.
+Tuist Cache와 관련된 메트릭 모음입니다.
 
-### `tuist_cache_events_total` (counter) {#tuist_cache_events_total-counter}
+### `tuist_cache_events_total` (카운터) {#tuist_cache_events_total-counter}
 
-The total number of Tuist Binary Cache events.
+Tuist Binary Cache 이벤트의 총 개수.
 
 #### Tags {#tuist-cache-events-total-tags}
 
-| Tag          | Description                                                            |
-| ------------ | ---------------------------------------------------------------------- |
-| `event_type` | Can be either of `local_hit`, `remote_hit`, or `miss`. |
+| Tag          | Description                            |
+| ------------ | -------------------------------------- |
+| `event_type` | `local_hit`, `remote_hit`, `miss` 중 하나 |
 
 ---
 
-## Storage metrics {#storage-metrics}
+## Storage 메트릭 {#storage-metrics}
 
-A set of metrics related to the storage of artifacts in a remote storage (e.g. s3).
+remote storage(예: s3)에 아티팩트를 저장하는 것과 관련된 메트릭 모음.
 
 > [!TIP]
-> These metrics are useful to understand the performance of the storage operations and to identify potential bottlenecks.
+> 이 메트릭은 storage의 작업 성능을 이해하고 잠재적인 병목 현상을 식별하는데 유용합니다.
 
-### `tuist_storage_get_object_size_size_bytes` (histogram) {#tuist_storage_get_object_size_size_bytes-histogram}
+### `tuist_storage_get_object_size_size_bytes` (히스토그램) {#tuist_storage_get_object_size_size_bytes-histogram}
 
-The size (in bytes) of an object fetched from the remote storage.
+remote storage에서 가져온 object의 크기(byte)
 
 #### Tags {#tuist-storage-get-object-size-size-bytes-tags}
 
-| Tag          | Description                                                         |
-| ------------ | ------------------------------------------------------------------- |
-| `object_key` | The lookup key of the object in the remote storage. |
+| Tag          | Description                   |
+| ------------ | ----------------------------- |
+| `object_key` | remote storage에서 object의 조회 키 |
 
-### `tuist_storage_get_object_size_duration_miliseconds` (histogram) {#tuist_storage_get_object_size_duration_miliseconds-histogram}
+### `tuist_storage_get_object_size_duration_miliseconds` (히스토그램) {#tuist_storage_get_object_size_duration_miliseconds-histogram}
 
-The duration (in milliseconds) of fetching an object size from the remote storage.
+remote storage에서 object의 크기를 가져오는 데 소요된 시간(milliseconds)
 
 #### Tags {#tuist-storage-get-object-size-duration-miliseconds-tags}
 
-| Tag          | Description                                                         |
-| ------------ | ------------------------------------------------------------------- |
-| `object_key` | The lookup key of the object in the remote storage. |
+| Tag          | Description                   |
+| ------------ | ----------------------------- |
+| `object_key` | remote storage에서 object의 조회 키 |
 
-### `tuist_storage_get_object_size_count` (counter) {#tuist_storage_get_object_size_count-counter}
+### `tuist_storage_get_object_size_count` (카운터) {#tuist_storage_get_object_size_count-counter}
 
-The number of times an object size was fetched from the remote storage.
+remote storage에서 object 크기를 가져온 횟수.
 
 #### Tags {#tuist-storage-get-object-size-count-tags}
 
-| Tag          | Description                                                         |
-| ------------ | ------------------------------------------------------------------- |
-| `object_key` | The lookup key of the object in the remote storage. |
+| Tag          | Description                   |
+| ------------ | ----------------------------- |
+| `object_key` | remote storage에서 object의 조회 키 |
 
-### `tuist_storage_delete_all_objects_duration_milliseconds` (histogram) {#tuist_storage_delete_all_objects_duration_milliseconds-histogram}
+### `tuist_storage_delete_all_objects_duration_milliseconds` (히스토그램) {#tuist_storage_delete_all_objects_duration_milliseconds-histogram}
 
-The duration (in milliseconds) of deleting all objects from the remote storage.
+remote storage에서 모든 object를 삭제하는 데 소요된 시간(milliseconds)
 
 #### Tags {#tuist-storage-delete-all-objects-duration-milliseconds-tags}
 
-| Tag            | Description                                                                      |
-| -------------- | -------------------------------------------------------------------------------- |
-| `project_slug` | The project slug of the project whose objects are being deleted. |
+| Tag            | Description                                          |
+| -------------- | ---------------------------------------------------- |
+| `project_slug` | object가 삭제되는 프로젝트의 프로젝트 슬러그(slug) |
 
-### `tuist_storage_delete_all_objects_count` (counter) {#tuist_storage_delete_all_objects_count-counter}
+### `tuist_storage_delete_all_objects_count` (카운터) {#tuist_storage_delete_all_objects_count-counter}
 
-The number of times all project objects were deleted from the remote storage.
+remote storage에서 프로젝트의 모든 object가 삭제된 횟수
 
 #### Tags {#tuist-storage-delete-all-objects-count-tags}
 
-| Tag            | Description                                                                      |
-| -------------- | -------------------------------------------------------------------------------- |
-| `project_slug` | The project slug of the project whose objects are being deleted. |
+| Tag            | Description                                          |
+| -------------- | ---------------------------------------------------- |
+| `project_slug` | object가 삭제되는 프로젝트의 프로젝트 슬러그(slug) |
 
-### `tuist_storage_multipart_start_upload_duration_milliseconds` (histogram) {#tuist_storage_multipart_start_upload_duration_milliseconds-histogram}
+### `tuist_storage_multipart_start_upload_duration_milliseconds` (히스토그램) {#tuist_storage_multipart_start_upload_duration_milliseconds-histogram}
 
-The duration (in milliseconds) of starting an upload to the remote storage.
+remote storage로 업로드를 시작하는 데 소요된 시간(milliseconds)
 
 #### Tags {#tuist-storage-multipart-start-upload-duration-milliseconds-tags}
 
-| Tag          | Description                                                         |
-| ------------ | ------------------------------------------------------------------- |
-| `object_key` | The lookup key of the object in the remote storage. |
+| Tag          | Description                   |
+| ------------ | ----------------------------- |
+| `object_key` | remote storage에서 object의 조회 키 |
 
-### `tuist_storage_multipart_start_upload_duration_count` (counter) {#tuist_storage_multipart_start_upload_duration_count-counter}
+### `tuist_storage_multipart_start_upload_duration_count` (카운터) {#tuist_storage_multipart_start_upload_duration_count-counter}
 
-The number of times an upload was started to the remote storage.
+remote storage로 업로드가 시작된 횟수
 
 #### Tags {#tuist-storage-multipart-start-upload-duration-count-tags}
 
-| Tag          | Description                                                         |
-| ------------ | ------------------------------------------------------------------- |
-| `object_key` | The lookup key of the object in the remote storage. |
+| Tag          | Description                   |
+| ------------ | ----------------------------- |
+| `object_key` | remote storage에서 object의 조회 키 |
 
-### `tuist_storage_get_object_as_string_duration_milliseconds` (histogram) {#tuist_storage_get_object_as_string_duration_milliseconds-histogram}
+### `tuist_storage_get_object_as_string_duration_milliseconds` (히스토그램) {#tuist_storage_get_object_as_string_duration_milliseconds-histogram}
 
-The duration (in milliseconds) of fetching an object as a string from the remote storage.
+remote storage에서 object를 문자열로 가져오는 데 소요된 시간(milliseconds)
 
 #### Tags {#tuist-storage-get-object-as-string-duration-milliseconds-tags}
 
-| Tag          | Description                                                         |
-| ------------ | ------------------------------------------------------------------- |
-| `object_key` | The lookup key of the object in the remote storage. |
+| Tag          | Description                   |
+| ------------ | ----------------------------- |
+| `object_key` | remote storage에서 object의 조회 키 |
 
-### `tuist_storage_get_object_as_string_count` (count) {#tuist_storage_get_object_as_string_count-count}
+### `tuist_storage_get_object_as_string_count` (횟수) {#tuist_storage_get_object_as_string_count-count}
 
-The number of times an object was fetched as a string from the remote storage.
+remote storage에서 객체를 문자열로 가져온 횟수
 
 #### Tags {#tuist-storage-get-object-as-string-count-tags}
 
-| Tag          | Description                                                         |
-| ------------ | ------------------------------------------------------------------- |
-| `object_key` | The lookup key of the object in the remote storage. |
+| Tag          | Description                   |
+| ------------ | ----------------------------- |
+| `object_key` | remote storage에서 object의 조회 키 |
 
-### `tuist_storage_check_object_existence_duration_milliseconds` (histogram) {#tuist_storage_check_object_existence_duration_milliseconds-histogram}
+### `tuist_storage_check_object_existence_duration_milliseconds` (히스토그램) {#tuist_storage_check_object_existence_duration_milliseconds-histogram}
 
-The duration (in milliseconds) of checking the existence of an object in the remote storage.
+remote storage에서 object의 존재 여부를 확인하는 데 소요된 시간(milliseconds)
 
 #### Tags {#tuist-storage-check-object-existence-duration-milliseconds-tags}
 
-| Tag          | Description                                                         |
-| ------------ | ------------------------------------------------------------------- |
-| `object_key` | The lookup key of the object in the remote storage. |
+| Tag          | Description                   |
+| ------------ | ----------------------------- |
+| `object_key` | remote storage에서 object의 조회 키 |
 
-### `tuist_storage_check_object_existence_count` (count) {#tuist_storage_check_object_existence_count-count}
+### `tuist_storage_check_object_existence_count` (횟수) {#tuist_storage_check_object_existence_count-count}
 
-The number of times the existence of an object was checked in the remote storage.
+remote storage에서 object의 존재 여부를 확인한 횟수
 
 #### Tags {#tuist-storage-check-object-existence-count-tags}
 
-| Tag          | Description                                                         |
-| ------------ | ------------------------------------------------------------------- |
-| `object_key` | The lookup key of the object in the remote storage. |
+| Tag          | Description                   |
+| ------------ | ----------------------------- |
+| `object_key` | remote storage에서 object의 조회 키 |
 
-### `tuist_storage_generate_download_presigned_url_duration_milliseconds` (histogram) {#tuist_storage_generate_download_presigned_url_duration_milliseconds-histogram}
+### `tuist_storage_generate_download_presigned_url_duration_milliseconds` (히스토그램) {#tuist_storage_generate_download_presigned_url_duration_milliseconds-histogram}
 
-The duration (in milliseconds) of generating a download presigned URL for an object in the remote storage.
+remote storage에서 object의 download presigned URL을 생성하는 데 소요된 시간(milliseconds)
 
 #### Tags {#tuist-storage-generate-download-presigned-url-duration-milliseconds-tags}
 
-| Tag          | Description                                                         |
-| ------------ | ------------------------------------------------------------------- |
-| `object_key` | The lookup key of the object in the remote storage. |
+| Tag          | Description                   |
+| ------------ | ----------------------------- |
+| `object_key` | remote storage에서 object의 조회 키 |
 
-### `tuist_storage_generate_download_presigned_url_count` (count) {#tuist_storage_generate_download_presigned_url_count-count}
+### `tuist_storage_generate_download_presigned_url_count` (횟수) {#tuist_storage_generate_download_presigned_url_count-count}
 
-The number of times a download presigned URL was generated for an object in the remote storage.
+remote storage에서 object의 download presigned URL이 생성된 횟수
 
 #### Tags {#tuist-storage-generate-download-presigned-url-count-tags}
 
-| Tag          | Description                                                         |
-| ------------ | ------------------------------------------------------------------- |
-| `object_key` | The lookup key of the object in the remote storage. |
+| Tag          | Description                   |
+| ------------ | ----------------------------- |
+| `object_key` | remote storage에서 object의 조회 키 |
 
-### `tuist_storage_multipart_generate_upload_part_presigned_url_duration_milliseconds` (histogram) {#tuist_storage_multipart_generate_upload_part_presigned_url_duration_milliseconds-histogram}
+### `tuist_storage_multipart_generate_upload_part_presigned_url_duration_milliseconds` (히스토그램) {#tuist_storage_multipart_generate_upload_part_presigned_url_duration_milliseconds-histogram}
 
-The duration (in milliseconds) of generating a part upload presigned URL for an object in the remote storage.
+remote storage에서 object의 part upload presigned URL을 생성하는 데 소요된 시간(milliseconds)
 
 #### Tags {#tuist-storage-multipart-generate-upload-part-presigned-url-duration-milliseconds-tags}
 
-| Tag           | Description                                                         |
-| ------------- | ------------------------------------------------------------------- |
-| `object_key`  | The lookup key of the object in the remote storage. |
-| `part_number` | The part number of the object being uploaded.       |
-| `upload_id`   | The upload ID of the multipart upload.              |
+| Tag           | Description                   |
+| ------------- | ----------------------------- |
+| `object_key`  | remote storage에서 object의 조회 키 |
+| `part_number` | 업로드 중인 object의 part number    |
+| `upload_id`   | multipart upload의 upload ID  |
 
-### `tuist_storage_multipart_generate_upload_part_presigned_url_count` (count) {#tuist_storage_multipart_generate_upload_part_presigned_url_count-count}
+### `tuist_storage_multipart_generate_upload_part_presigned_url_count` (횟수) {#tuist_storage_multipart_generate_upload_part_presigned_url_count-count}
 
-The number of times a part upload presigned URL was generated for an object in the remote storage.
+remote storage에서 object의 part upload presigned URL이 생성된 횟수
 
 #### Tags {#tuist-storage-multipart-generate-upload-part-presigned-url-count-tags}
 
-| Tag           | Description                                                         |
-| ------------- | ------------------------------------------------------------------- |
-| `object_key`  | The lookup key of the object in the remote storage. |
-| `part_number` | The part number of the object being uploaded.       |
-| `upload_id`   | The upload ID of the multipart upload.              |
+| Tag           | Description                   |
+| ------------- | ----------------------------- |
+| `object_key`  | remote storage에서 object의 조회 키 |
+| `part_number` | 업로드 중인 object의 part number    |
+| `upload_id`   | multipart upload의 upload ID  |
 
-### `tuist_storage_multipart_complete_upload_duration_milliseconds` (histogram) {#tuist_storage_multipart_complete_upload_duration_milliseconds-histogram}
+### `tuist_storage_multipart_complete_upload_duration_milliseconds` (히스토그램) {#tuist_storage_multipart_complete_upload_duration_milliseconds-histogram}
 
-The duration (in milliseconds) of completing an upload to the remote storage.
+remote storage로 업로드를 완료하는 데 소요된 시간(milliseconds)
 
 #### Tags {#tuist-storage-multipart-complete-upload-duration-milliseconds-tags}
 
-| Tag          | Description                                                         |
-| ------------ | ------------------------------------------------------------------- |
-| `object_key` | The lookup key of the object in the remote storage. |
-| `upload_id`  | The upload ID of the multipart upload.              |
+| Tag          | Description                   |
+| ------------ | ----------------------------- |
+| `object_key` | remote storage에서 object의 조회 키 |
+| `upload_id`  | multipart upload의 upload ID  |
 
-### `tuist_storage_multipart_complete_upload_count` (count) {#tuist_storage_multipart_complete_upload_count-count}
+### `tuist_storage_multipart_complete_upload_count` (횟수) {#tuist_storage_multipart_complete_upload_count-count}
 
-The total number of times an upload was completed to the remote storage.
+remote storage로 업로드가 완료된 총 횟수.
 
 #### Tags {#tuist-storage-multipart-complete-upload-count-tags}
 
-| Tag          | Description                                                         |
-| ------------ | ------------------------------------------------------------------- |
-| `object_key` | The lookup key of the object in the remote storage. |
-| `upload_id`  | The upload ID of the multipart upload.              |
+| Tag          | Description                   |
+| ------------ | ----------------------------- |
+| `object_key` | remote storage에서 object의 조회 키 |
+| `upload_id`  | multipart upload의 upload ID  |

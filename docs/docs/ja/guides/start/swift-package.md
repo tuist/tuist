@@ -16,7 +16,7 @@ Tuist は、`Package.swift` をプロジェクトの DSL として使用する�
 
 ## TuistをSwiftパッケージと使用する {#using-tuist-with-a-swift-package}
 
-Swiftパッケージを含む[TootSDK Package](https://github.com/TootSDK/TootSDK)リポジトリでTuistを使用します。 まず、リポジトリをクローンする必要があります。
+Swiftパッケージを含む[TootSDK Package](https://github.com/TootSDK/TootSDK)リポジトリでTuistを使用します。 まず、リポジトリをクローンする必要があります。 まず、リポジトリをクローンする必要があります。
 
 ```bash
 git clone https://github.com/TootSDK/TootSDK
@@ -30,6 +30,7 @@ tuist install
 ```
 
 `tuist install` は、Swift Package Managerを使用してパッケージの依存関係を解決して pull します。
+依存関係の解決が完了したら、プロジェクトを生成することができます。
 依存関係の解決が完了したら、プロジェクトを生成することができます。
 
 ```bash
