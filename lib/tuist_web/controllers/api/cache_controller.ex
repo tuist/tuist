@@ -717,9 +717,9 @@ defmodule TuistWeb.API.CacheController do
          project_slug: project_slug
        }) do
     if cache_category != nil do
-      "#{project_slug}/#{cache_category}/#{hash}/#{name}"
+      "#{project_slug |> String.downcase()}/#{cache_category}/#{hash}/#{name}"
     else
-      "#{project_slug}/#{hash}/#{name}"
+      "#{project_slug |> String.downcase()}/#{hash}/#{name}"
     end
   end
 end

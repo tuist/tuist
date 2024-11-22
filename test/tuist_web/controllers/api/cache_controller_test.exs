@@ -11,53 +11,107 @@ defmodule TuistWeb.API.CacheControllerTest do
   use TuistWeb.ConnCase, async: true
   use Mimic
 
-  test "GET /api/cache", %{conn: conn} do
-    # Given
-    project = ProjectsFixtures.project_fixture()
-    account = Accounts.get_account_by_id(project.account_id)
-    hash = "hash"
-    name = "name"
-    project_id = "#{account.name}/#{project.name}"
-    cache_category = "builds"
-    download_url = "https://tuist.dev/download/1234"
-    object_key = "#{project_id}/#{cache_category}/#{hash}/#{name}"
+  describe "GET /api/cache" do
+    test "returns download url", %{conn: conn} do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      account = Accounts.get_account_by_id(project.account_id)
+      hash = "hash"
+      name = "name"
+      project_id = "#{account.name}/#{project.name}"
+      cache_category = "builds"
+      download_url = "https://tuist.dev/download/1234"
+      object_key = "#{project_id}/#{cache_category}/#{hash}/#{name}"
 
-    CommandEvents.create_cache_event(%{
-      project_id: project.id,
-      name: name,
-      event_type: :upload,
-      size: 1024,
-      hash: hash
-    })
-
-    Storage
-    |> expect(:generate_download_url, fn ^object_key, _ ->
-      download_url
-    end)
-
-    conn =
-      conn
-      |> Authentication.put_current_project(project)
-
-    # When
-    conn =
-      conn
-      |> get(~p"/api/cache",
-        hash: hash,
+      CommandEvents.create_cache_event(%{
+        project_id: project.id,
         name: name,
-        project_id: project_id,
-        cache_category: cache_category
-      )
+        event_type: :upload,
+        size: 1024,
+        hash: hash
+      })
 
-    # Then
-    response = json_response(conn, 200)
-    assert response["status"] == "success"
-    response_data = response["data"]
-    assert response_data["url"] == download_url
-    assert response_data["expires_at"] != nil
+      Storage
+      |> expect(:generate_download_url, fn ^object_key, _ ->
+        download_url
+      end)
 
-    cache_event = CommandEvents.get_cache_event(%{hash: hash, event_type: :download})
-    assert cache_event.size == 1024
+      conn =
+        conn
+        |> Authentication.put_current_project(project)
+
+      # When
+      conn =
+        conn
+        |> get(~p"/api/cache",
+          hash: hash,
+          name: name,
+          project_id: project_id,
+          cache_category: cache_category
+        )
+
+      # Then
+      response = json_response(conn, 200)
+      assert response["status"] == "success"
+      response_data = response["data"]
+      assert response_data["url"] == download_url
+      assert response_data["expires_at"] != nil
+
+      cache_event = CommandEvents.get_cache_event(%{hash: hash, event_type: :download})
+      assert cache_event.size == 1024
+    end
+
+    test "returns download url with downcased full handle", %{conn: conn} do
+      # Given
+      organization = AccountsFixtures.organization_fixture(name: "MyAccount", preload: [:account])
+
+      project =
+        ProjectsFixtures.project_fixture(
+          name: "MyProject",
+          account_id: organization.account.id
+        )
+
+      hash = "hash"
+      name = "name"
+      full_handle = "MyAccount/MyProject"
+      cache_category = "builds"
+      download_url = "https://tuist.dev/download/1234"
+      object_key = "myaccount/myproject/#{cache_category}/#{hash}/#{name}"
+
+      CommandEvents.create_cache_event(%{
+        project_id: project.id,
+        name: name,
+        event_type: :upload,
+        size: 1024,
+        hash: hash
+      })
+
+      Storage
+      |> expect(:generate_download_url, fn ^object_key, _ ->
+        download_url
+      end)
+
+      conn =
+        conn
+        |> Authentication.put_current_project(project)
+
+      # When
+      conn =
+        conn
+        |> get(~p"/api/cache",
+          hash: hash,
+          name: name,
+          project_id: full_handle,
+          cache_category: cache_category
+        )
+
+      # Then
+      response = json_response(conn, 200)
+      assert response["data"]["url"] == download_url
+
+      cache_event = CommandEvents.get_cache_event(%{hash: hash, event_type: :download})
+      assert cache_event.size == 1024
+    end
   end
 
   describe "GET /api/projects/:account_handle/:project_handle/cache/ac/:hash" do

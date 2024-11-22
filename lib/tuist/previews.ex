@@ -42,7 +42,7 @@ defmodule Tuist.Previews do
         project_handle: project_handle,
         preview_id: preview_id
       }) do
-    "#{account_handle}/#{project_handle}/previews/#{preview_id}.zip"
+    "#{account_handle |> String.downcase()}/#{project_handle |> String.downcase()}/previews/#{preview_id}.zip"
   end
 
   def get_icon_storage_key(%{
