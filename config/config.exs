@@ -40,7 +40,8 @@ config :tuist, :urls,
   app_lifecycle_phase_start: "https://docs.tuist.io/guides/start/new-project",
   app_lifecycle_phase_develop: "https://docs.tuist.io/guides/develop/projects",
   app_lifecycle_phase_share: "https://docs.tuist.io/guides/share/previews",
-  app_lifecycle_phase_measure: "https://docs.tuist.io/server/introduction/why-a-server"
+  app_lifecycle_phase_measure: "https://docs.tuist.io/server/introduction/why-a-server",
+  shop: "https://shop.tuist.dev"
 
 # Configures the mailer
 #
