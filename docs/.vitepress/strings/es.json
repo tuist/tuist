@@ -195,13 +195,13 @@
               "text": "Try with a Swift Package"
             },
             "migrate": {
-              "text": "Migrate",
+              "text": "Migra",
               "items": {
                 "xcode-project": {
-                  "text": "An Xcode project"
+                  "text": "Un proyecto de Xcode"
                 },
                 "swift-package": {
-                  "text": "A Swift package"
+                  "text": "Un paquete de Swift"
                 },
                 "xcodegen-project": {
                   "text": "An XcodeGen project"
@@ -220,59 +220,59 @@
               "text": "Projects",
               "items": {
                 "manifests": {
-                  "text": "Manifests"
+                  "text": "Ficheros manifest"
                 },
                 "directory-structure": {
-                  "text": "Directory structure"
+                  "text": "Estructura de directorios"
                 },
                 "editing": {
-                  "text": "Editing"
+                  "text": "Edición"
                 },
                 "dependencies": {
-                  "text": "Dependencies"
+                  "text": "Dependencias"
                 },
                 "code-sharing": {
-                  "text": "Code sharing"
+                  "text": "Compartir código"
                 },
                 "synthesized-files": {
-                  "text": "Synthesized files"
+                  "text": "Sintetizado de ficheros"
                 },
                 "dynamic-configuration": {
-                  "text": "Dynamic configuration"
+                  "text": "Configuración dinámica"
                 },
                 "templates": {
-                  "text": "Templates"
+                  "text": "Plantillas"
                 },
                 "plugins": {
                   "text": "Plugins"
                 },
                 "hashing": {
-                  "text": "Hashing"
+                  "text": "Hasheado"
                 },
                 "the-cost-of-convenience": {
-                  "text": "The cost of convenience"
+                  "text": "El coste de la conveniencia"
                 },
                 "tma-architecture": {
-                  "text": "Modular architecture"
+                  "text": "Architectura modular"
                 },
                 "best-practices": {
-                  "text": "Best practices"
+                  "text": "Buenas prácticas"
                 }
               }
             },
             "build": {
-              "text": "Build",
+              "text": "Compila",
               "items": {
                 "cache": {
-                  "text": "Cache"
+                  "text": "Cachea"
                 }
               }
             },
             "test": {
-              "text": "Test",
+              "text": "Testea",
               "items": {
                 "smart-runner": {
-                  "text": "Smart runner"
+                  "text": "Ejecutador inteligente"
                 },
                 "flakiness": {
                   "text": "Flakiness"
