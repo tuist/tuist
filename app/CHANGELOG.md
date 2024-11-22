@@ -1,3 +1,8 @@
+## What's Changed in app@0.7.0
+* feat: focus Tuist menu bar window when running Tuist Preview deeplink by @fortmarek in [#7098](https://github.com/tuist/tuist/pull/7098)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/app@0.6.1...app@0.7.0
+
 ## What's Changed in app@0.6.1
 * fix: be less aggresive truncating longer app names by @fortmarek in [#7091](https://github.com/tuist/tuist/pull/7091)
 
