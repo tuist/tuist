@@ -35,7 +35,7 @@ RUN mix local.hex --force && \
 ARG MIX_ENV=prod
 ENV MIX_ENV=$MIX_ENV
 ARG TUIST_HOSTED=1
-ARG TUIST_HOSTED=$TUIST_HOSTED
+ENV TUIST_HOSTED=$TUIST_HOSTED
 
 # install mix dependencies
 COPY mix.exs mix.lock ./

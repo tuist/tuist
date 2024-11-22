@@ -135,6 +135,23 @@ jobs:
         run: mix deps.get
       - name: Check format
         run: mix format --check-formatted
+  build_on_premise_image:
+    name: Build on-premise image
+    runs-on: "blacksmith-4vcpu-ubuntu-2204"
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+      - name: Docker build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile
+          push: false
+          build-args: |
+            TUIST_HOSTED=0
+            TUIST_VERSION=1.24.11.11
+            MIX_ENV=prod
   seed:
     name: Seed
     runs-on: "blacksmith-4vcpu-ubuntu-2204"

@@ -117,7 +117,7 @@
               <%= raw(
                 gettext("Visit our %{pricing_page} to learn how we measure and price usage.",
                   pricing_page:
-                    "<a href=\"#{~p"/pricing#features-section"}\" style=\"display: inline;\">#{gettext("pricing page")}</a>"
+                    "<a href=\"#{Tuist.Environment.app_url(path: "/pricing#features-section")}\" style=\"display: inline;\">#{gettext("pricing page")}</a>"
                 )
               ) %>
             </p>
