@@ -54,16 +54,17 @@ COPY lib lib
 
 COPY assets assets
 
-# compile assets
-RUN mix assets.deploy
-
 # Delete some directories if TUIST_HOSTED=0
 RUN if [ "$TUIST_HOSTED" = "0" ]; then \
   rm -rf lib/tuist/marketing; \
   rm -rf lib/tuist_web/marketing; \
   rm -rf priv/marketing; \
   rm -rf priv/static/marketing; \
+  rm -rf lib/mix/tasks/marketing; \
   fi
+
+# compile assets
+RUN mix assets.deploy
 
 # We generate the open graph marketing images when it's Tuist-hosted
 RUN if [ "$TUIST_HOSTED" = "1" ]; then \
@@ -71,7 +72,6 @@ RUN if [ "$TUIST_HOSTED" = "1" ]; then \
   fi
 
 # Compile the release
-ENV TUIST_HOSTED=${TUIST_HOSTED}
 RUN mix compile --warnings-as-errors
 
 # Changes to config/runtime.exs don't require recompiling the code
