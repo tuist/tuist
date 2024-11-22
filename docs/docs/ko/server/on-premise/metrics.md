@@ -7,7 +7,7 @@ description: 컴파일된 바이너리를 캐싱하고 다양한 환경 간에 �
 # 메트릭 {#metrics}
 
 Tuist 서버에서 수집한 메트릭을 [Prometheus](https://prometheus.io/)를 통해 가져오고
-[Grafana](https://grafana.com/)와 같은 시각화 도구를 활용하여 사용자 요구에 맞는 커스텀 대시보드를 생성할 수 있습니다. Prometheus 메트릭은 9091 port의 `/metrics` endpoint를 통해 제공됩니다. Prometheus의 [scrape_interval](https://prometheus.io/docs/introduction/first_steps/#configuring-prometheus)은 10,000초 미만으로 설정해야 합니다 (기본값인 15초로 유지할 것을 권장합니다).
+[Grafana](https://grafana.com/)와 같은 시각화 도구를 활용하여 사용자 요구에 맞는 커스텀 대시보드를 생성할 수 있습니다. Prometheus 메트릭은 9091 port의 `/metrics` endpoint를 통해 제공됩니다. Prometheus의 [scrape_interval](https://prometheus.io/docs/introduction/first_steps/#configuring-prometheus)은 10,000초 미만으로 설정해야 합니다 (기본 값인 15 초로 유지할 것을 권장합니다).
 
 ## Elixir 메트릭 {#elixir-metrics}
 
