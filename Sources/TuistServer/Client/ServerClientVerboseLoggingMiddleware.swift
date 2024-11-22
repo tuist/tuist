@@ -27,6 +27,8 @@ struct ServerClientVerboseLoggingMiddleware: ClientMiddleware {
 
         logger.debug("""
         Received HTTP response from Tuist:
+          - URL: \(baseURL.absoluteString)
+          - Path: \(request.path ?? "")
           - Status: \(response.status.code)
           - Body: \(responseBodyToLog)
           - Headers: \(response.headerFields)

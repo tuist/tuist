@@ -9,7 +9,8 @@ public protocol UpdateProjectServicing {
         fullHandle: String,
         serverURL: URL,
         defaultBranch: String?,
-        repositoryURL: String?
+        repositoryURL: String?,
+        visibility: ServerProject.Visibility?
     ) async throws -> ServerProject
 }
 
@@ -58,11 +59,21 @@ public final class UpdateProjectService: UpdateProjectServicing {
         fullHandle: String,
         serverURL: URL,
         defaultBranch: String?,
-        repositoryURL: String?
+        repositoryURL: String?,
+        visibility: ServerProject.Visibility?
     ) async throws -> ServerProject {
         let client = Client.authenticated(serverURL: serverURL)
 
         let handles = try fullHandleService.parse(fullHandle)
+
+        let visibility: Operations.updateProject.Input.Body.jsonPayload.visibilityPayload? = switch visibility {
+        case .private:
+            ._private
+        case .public:
+            ._public
+        case .none:
+            .none
+        }
 
         let response = try await client.updateProject(
             .init(
@@ -73,7 +84,8 @@ public final class UpdateProjectService: UpdateProjectServicing {
                 body: .json(
                     .init(
                         default_branch: defaultBranch,
-                        repository_url: repositoryURL
+                        repository_url: repositoryURL,
+                        visibility: visibility
                     )
                 )
             )

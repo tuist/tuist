@@ -72,6 +72,7 @@ struct ProjectShowService {
             }
 
             projectInfo.append("Default branch: \(project.defaultBranch)")
+            projectInfo.append("Visibility: \(project.visibility.rawValue)")
 
             logger.info("\(projectInfo.joined(separator: "\n"))")
         }
