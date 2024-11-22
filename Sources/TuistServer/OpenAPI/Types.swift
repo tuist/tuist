@@ -1344,6 +1344,17 @@ internal enum Components {
             /// - Remark: Generated from `#/components/schemas/Project/token`.
             @available(*, deprecated)
             internal var token: Swift.String
+            /// The visibility of the project
+            ///
+            /// - Remark: Generated from `#/components/schemas/Project/visibility`.
+            internal enum visibilityPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case _private = "private"
+                case _public = "public"
+            }
+            /// The visibility of the project
+            ///
+            /// - Remark: Generated from `#/components/schemas/Project/visibility`.
+            internal var visibility: Components.Schemas.Project.visibilityPayload
             /// Creates a new `Project`.
             ///
             /// - Parameters:
@@ -1352,18 +1363,21 @@ internal enum Components {
             ///   - id: ID of the project
             ///   - repository_url: The URL of the connected git repository, such as https://github.com/tuist/tuist or https://github.com/tuist/tuist.git
             ///   - token: The token that should be used to authenticate the project. For CI only.
+            ///   - visibility: The visibility of the project
             internal init(
                 default_branch: Swift.String,
                 full_name: Swift.String,
                 id: Swift.Double,
                 repository_url: Swift.String? = nil,
-                token: Swift.String
+                token: Swift.String,
+                visibility: Components.Schemas.Project.visibilityPayload
             ) {
                 self.default_branch = default_branch
                 self.full_name = full_name
                 self.id = id
                 self.repository_url = repository_url
                 self.token = token
+                self.visibility = visibility
             }
             internal enum CodingKeys: String, CodingKey {
                 case default_branch
@@ -1371,6 +1385,7 @@ internal enum Components {
                 case id
                 case repository_url
                 case token
+                case visibility
             }
         }
         /// - Remark: Generated from `#/components/schemas/Invitation`.
@@ -1563,8 +1578,6 @@ internal enum Components {
                 case sso_provider
             }
         }
-        /// The supported platforms of the preview.
-        ///
         /// - Remark: Generated from `#/components/schemas/PreviewSupportedPlatform`.
         internal enum PreviewSupportedPlatform: String, Codable, Hashable, Sendable, CaseIterable {
             case ios = "ios"
@@ -9436,21 +9449,36 @@ internal enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/PUT/requestBody/json/repository_url`.
                     internal var repository_url: Swift.String?
+                    /// The visibility of the project. Public projects are visible to everyone, private projects are only visible to the project's members.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/PUT/requestBody/json/visibility`.
+                    internal enum visibilityPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                        case _public = "public"
+                        case _private = "private"
+                    }
+                    /// The visibility of the project. Public projects are visible to everyone, private projects are only visible to the project's members.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/PUT/requestBody/json/visibility`.
+                    internal var visibility: Operations.updateProject.Input.Body.jsonPayload.visibilityPayload?
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
                     ///   - default_branch: The default branch for the project.
                     ///   - repository_url: The repository URL for the project.
+                    ///   - visibility: The visibility of the project. Public projects are visible to everyone, private projects are only visible to the project's members.
                     internal init(
                         default_branch: Swift.String? = nil,
-                        repository_url: Swift.String? = nil
+                        repository_url: Swift.String? = nil,
+                        visibility: Operations.updateProject.Input.Body.jsonPayload.visibilityPayload? = nil
                     ) {
                         self.default_branch = default_branch
                         self.repository_url = repository_url
+                        self.visibility = visibility
                     }
                     internal enum CodingKeys: String, CodingKey {
                         case default_branch
                         case repository_url
+                        case visibility
                     }
                 }
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/PUT/requestBody/content/application\/json`.

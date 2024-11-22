@@ -44,6 +44,7 @@ struct ProjectUpdateService {
         fullHandle: String?,
         defaultBranch: String?,
         repositoryURL: String?,
+        visibility: ServerProject.Visibility?,
         path: String?
     ) async throws {
         let path = try self.path(path)
@@ -57,7 +58,8 @@ struct ProjectUpdateService {
             fullHandle: fullHandle,
             serverURL: serverURL,
             defaultBranch: defaultBranch,
-            repositoryURL: repositoryURL
+            repositoryURL: repositoryURL,
+            visibility: visibility
         )
 
         logger.notice("The project \(fullHandle) was successfully updated 🎉", metadata: .success)
