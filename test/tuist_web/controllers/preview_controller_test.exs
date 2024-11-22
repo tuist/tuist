@@ -2,6 +2,7 @@ defmodule TuistWeb.PreviewControllerTest do
   use TuistWeb.ConnCase, async: true
   use Mimic
 
+  alias Tuist.CommandEventsFixtures
   alias Tuist.PreviewsFixtures
   alias Tuist.Storage
   alias Tuist.ProjectsFixtures
@@ -15,6 +16,73 @@ defmodule TuistWeb.PreviewControllerTest do
       |> log_in_user(user)
 
     %{conn: conn, user: user}
+  end
+
+  describe "latest_badge/2" do
+    test "redirects to the latest badge", %{conn: conn} do
+      # Given
+      project =
+        ProjectsFixtures.project_fixture(preload: [:account])
+
+      # When
+      conn =
+        conn
+        |> get(~p"/#{project.account.name}/#{project.name}/previews/latest/badge.svg")
+
+      # Then
+      assert redirected_to(conn) == ~p"/images/previews-badge.svg"
+    end
+  end
+
+  describe "latest/2" do
+    test "redirects to the latest preview", %{conn: conn} do
+      # Given
+      project =
+        ProjectsFixtures.project_fixture(preload: [:account])
+
+      preview =
+        PreviewsFixtures.preview_fixture(
+          project: project,
+          display_name: "App"
+        )
+
+      _command_event =
+        CommandEventsFixtures.command_event_fixture(
+          name: "share",
+          project_id: project.id,
+          preview_id: preview.id,
+          git_branch: "main"
+        )
+
+      # When
+      conn =
+        conn
+        |> get(~p"/#{project.account.name}/#{project.name}/previews/latest")
+
+      # Then
+      assert redirected_to(conn) ==
+               "/#{project.account.name}/#{project.name}/previews/#{preview.id}"
+    end
+
+    test "raises not found error when the project does not exist", %{conn: conn} do
+      # When / Then
+      assert_raise TuistWeb.Errors.NotFoundError, fn ->
+        conn
+        |> get("/account/non-existing-project/previews/latest")
+      end
+    end
+
+    test "raises not found error when there is no latest preview", %{conn: conn} do
+      # Given
+      project =
+        ProjectsFixtures.project_fixture(preload: [:account])
+
+      # When / Then
+      assert_raise TuistWeb.Errors.NotFoundError, fn ->
+        conn
+        |> get(~p"/#{project.account.name}/#{project.name}/previews/latest")
+      end
+    end
   end
 
   describe "download_qr_code_svg/2" do

@@ -1,11 +1,49 @@
 defmodule TuistWeb.PreviewController do
+  alias Tuist.CommandEvents
+  alias Tuist.Projects
   alias TuistWeb.Authorization
   alias Tuist.Storage
   alias Tuist.Previews
   use TuistWeb, :controller
 
   plug :assign_current_preview
+       when action in [
+              :download_preview,
+              :download_qr_code_svg,
+              :download_icon,
+              :manifest
+            ]
+
   plug Authorization, [:current_user, :read, :preview] when action in [:preview]
+
+  def latest_badge(conn, _params) do
+    conn
+    |> redirect(to: ~p"/images/previews-badge.svg")
+  end
+
+  def latest(
+        conn,
+        %{
+          "account_handle" => account_handle,
+          "project_handle" => project_handle
+        } = _params
+      ) do
+    with project when not is_nil(project) <-
+           Projects.get_project_by_account_and_project_handles(account_handle, project_handle),
+         latest_share_command_event when not is_nil(latest_share_command_event) <-
+           CommandEvents.get_latest_share_command_event(project) do
+      conn
+      |> redirect(
+        to:
+          ~p"/#{account_handle}/#{project_handle}/previews/#{latest_share_command_event.preview.id}"
+      )
+      |> halt()
+    else
+      nil ->
+        raise TuistWeb.Errors.NotFoundError,
+              "The page you are looking for doesn't exist or has been moved."
+    end
+  end
 
   def download_qr_code_svg(
         conn,

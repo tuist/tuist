@@ -448,6 +448,91 @@ defmodule Tuist.CommandEventsTest do
     end
   end
 
+  describe "get_latest_share_command_event/1" do
+    test "returns latest share command event" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      preview_one =
+        PreviewsFixtures.preview_fixture(
+          project: project,
+          display_name: "App"
+        )
+
+      _command_event_one =
+        CommandEventsFixtures.command_event_fixture(
+          name: "share",
+          project_id: project.id,
+          preview_id: preview_one.id,
+          created_at: ~N[2021-01-01 00:00:00],
+          git_branch: "main"
+        )
+
+      preview_two =
+        PreviewsFixtures.preview_fixture(
+          project: project,
+          display_name: "App"
+        )
+
+      command_event_two =
+        CommandEventsFixtures.command_event_fixture(
+          name: "share",
+          project_id: project.id,
+          preview_id: preview_two.id,
+          created_at: ~N[2021-01-01 01:00:00],
+          git_branch: "main"
+        )
+
+      _command_event_three =
+        CommandEventsFixtures.command_event_fixture(
+          name: "generate",
+          project_id: project.id,
+          created_at: ~N[2021-01-01 02:00:00],
+          git_branch: "main"
+        )
+
+      # When
+      got = CommandEvents.get_latest_share_command_event(project)
+
+      # Then
+      assert got.id == command_event_two.id
+    end
+
+    test "returns nil when no latest share command event exists" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      preview_one =
+        PreviewsFixtures.preview_fixture(
+          project: project,
+          display_name: "App"
+        )
+
+      _command_event_one =
+        CommandEventsFixtures.command_event_fixture(
+          name: "share",
+          project_id: project.id,
+          preview_id: preview_one.id,
+          created_at: ~N[2021-01-01 00:00:00],
+          git_branch: "other"
+        )
+
+      _command_event_two =
+        CommandEventsFixtures.command_event_fixture(
+          name: "generate",
+          project_id: project.id,
+          created_at: ~N[2021-01-01 02:00:00],
+          git_branch: "main"
+        )
+
+      # When
+      got = CommandEvents.get_latest_share_command_event(project)
+
+      # Then
+      assert got == nil
+    end
+  end
+
   describe "get_total_command_period_average_duration/5" do
     test "returns command average duration" do
       # Given

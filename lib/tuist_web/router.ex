@@ -307,14 +307,16 @@ defmodule TuistWeb.Router do
 
   # Dashboard
 
-  scope "/:account_handle/:project_handle/previews/:id", TuistWeb do
+  scope "/:account_handle/:project_handle/previews", TuistWeb do
     pipe_through [
       :open_api,
       :browser_app,
       :analytics
     ]
 
-    get "/icon.png", PreviewController, :download_icon
+    get "/latest", PreviewController, :latest
+    get "/latest/badge.svg", PreviewController, :latest_badge
+    get "/:id/icon.png", PreviewController, :download_icon
   end
 
   scope "/:account_handle/:project_handle/previews/:id", TuistWeb do

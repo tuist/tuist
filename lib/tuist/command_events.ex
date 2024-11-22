@@ -104,6 +104,20 @@ defmodule Tuist.CommandEvents do
     end
   end
 
+  def get_latest_share_command_event(%Project{} = project) do
+    Event
+    |> join(:left, [e], p in assoc(e, :preview), as: :preview)
+    |> preload(:preview)
+    |> where(
+      [e],
+      e.project_id == ^project.id and e.name == "share" and
+        e.git_branch == ^project.default_branch
+    )
+    |> order_by(desc: :created_at)
+    |> limit(1)
+    |> Repo.one()
+  end
+
   def list_command_events(attrs, opts \\ []) do
     query =
       Event
