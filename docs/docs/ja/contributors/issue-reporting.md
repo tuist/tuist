@@ -12,7 +12,7 @@ Tuist のユーザーとして、バグや予期しない動作に遭遇する�
 
 ## GitHub Issues は当プロジェクトのチケット管理プラットフォームです {#github-issues-is-our-ticketing-platform}
 
-Issues should be reported on GitHub as [GitHub issues](https://github.com/tuist/tuist/issues) and not on Slack or other platforms. GitHub is better for tracing and managing issues, is closer to the codebase, and allows us to track the progress of the issue. Moreover, it encourages a long-form description of the problem, which forces the reporter to think about the problem and provide more context.
+問題は GitHub の [Issue](https://github.com/tuist/tuist/issues) として報告し、Slack など他のプラットフォームでは報告しないでください。 GitHub は、問題の追跡や管理に適しており、コードベースに近い場所で問題の進捗を追うことができます。 加えて、問題の詳細な説明が推奨されるため、報告者は問題について考え、より多くの背景情報を提供することが求められます。
 
 ## 背景情報が鍵 {#context-is-crucial}
 

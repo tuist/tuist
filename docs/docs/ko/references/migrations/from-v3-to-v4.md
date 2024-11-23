@@ -10,7 +10,7 @@ description: 이 페이지에서는 Tuist CLI를 버전 3에서 버전 4로 마�
 
 ### `tuistenv`를 통한 버전 관리가 삭제되었습니다. {#dropped-version-management-through-tuistenv}
 
-Tuist 4 이전에는 설치 스크립트가 `tuistenv`라는 도구를 설치했으며, 설치 시 이 도구는 `tuist`로 이름이 변경되었습니다. 이 도구는 Tuist의 버전을 설치하고 활성화하여 환경 간의 일관성을 보장하는 역할을 했습니다. Tuist의 기능 범위를 줄이기 위해, 동일한 작업을 수행하지만 더 유연하고 다양한 도구에서 사용할 수 있는 [Mise](https://mise.jdx.dev/)로 대체하면서 `tuistenv` 지원을 중단하기로 결정했습니다. If you were using `tuistenv`, you'll have to uninstall the current version of Tuist by running `curl -Ls https://uninstall.tuist.io | bash` and then install it using the installation method of your choice. We strongly recommend the usage of Mise because it's able to install and activate versions deterministically across environments.
+Tuist 4 이전에는 설치 스크립트가 `tuistenv`라는 도구를 설치했으며, 설치 시 이 도구는 `tuist`로 이름이 변경되었습니다. 이 도구는 Tuist의 버전을 설치하고 활성화하여 환경 간의 일관성을 보장하는 역할을 했습니다. Tuist의 기능 범위를 줄이기 위해, 동일한 작업을 수행하지만 더 유연하고 다양한 도구에서 사용할 수 있는 [Mise](https://mise.jdx.dev/)로 대체하면서 `tuistenv` 지원을 중단하기로 결정했습니다. `tuistenv`를 사용하고 있었다면, 현재 버전의 Tuist를 `curl -Ls https://uninstall.tuist.io | bash` 명령어로 제거한 후, 원하는 설치 방법을 사용하여 다시 설치해야 합니다. 환경 간에 일관된 방식으로 버전을 설치하고 활성화할 수 있기 때문에 Mise 사용을 강력히 권장합니다.
 
 ::: code-group
 
@@ -20,46 +20,46 @@ curl -Ls https://uninstall.tuist.io | bash
 
 :::
 
-> [!IMPORTANT] MISE IN CI ENVIRONMENTS AND XCODE PROJECTS
-> If you decide to embrace the determinism that Mise brings across the board, we recommend checking out the documentation for how to use Mise in [CI environments](https://mise.jdx.dev/continuous-integration.html) and [Xcode projects](https://mise.jdx.dev/ide-integration.html#xcode).
+> [!IMPORTANT] CI 환경과 Xcode 프로젝트에서 Mise 사용
+> Mise가 제공하는 일관성을 활용하기로 했다면, [CI 환경](https://mise.jdx.dev/continuous-integration.html)과 [Xcode 프로젝트](https://mise.jdx.dev/ide-integration.html#xcode)에서 Mise를 사용하는 방법에 대한 문서를 확인해 보시기를 권장합니다.
 
-> [!NOTE] HOMEBREW IS SUPPORTED
-> Note that you can still install Tuist using Homebrew, which is a popular package manager for macOS. You can find the instructions on how to install Tuist using Homebrew in the <LocalizedLink href="/guides/quick-start/install-tuist#alternative-homebrew">installation guide</LocalizedLink>.
+> [!NOTE] Homebrew 지원됨
+> macOS용 인기 패키지 관리자인 Homebrew를 통해 Tuist를 설치할 수 있다는 점을 참고하세요. Homebrew를 사용하여 Tuist를 설치하는 방법은 <LocalizedLink href="/guides/quick-start/install-tuist#alternative-homebrew">설치 가이드</LocalizedLink>에서 확인할 수 있습니다.
 
-### Dropped `init` constructors from `ProjectDescription` models {#dropped-init-constructors-from-projectdescription-models}
+### `ProjectDescription` 모델에서 `init` 생성자가 제거되었습니다. {#dropped-init-constructors-from-projectdescription-models}
 
-With the aim of improving the readability and expressiveness of the APIs, we decided to remove the `init` constructors from all the `ProjectDescription` models. Every model now provides a static constructor that you can use to create instances of the models. If you were using the `init` constructors, you'll have to update your project to use the static constructors instead.
+API의 가독성과 표현력을 높이기 위해, 모든 `ProjectDescription` 모델에서 `init` 생성자를 제거하기로 결정했습니다. 이제 각 모델은 인스턴스를 생성할 수 있는 정적 생성자를 제공합니다. 만약 `init` 생성자를 사용하고 있었다면, 이제 정적 생성자를 사용하도록 프로젝트를 업데이트해야 합니다.
 
-> [!TIP] NAMING CONVENTION
-> The naming convention that we follow is to use the name of the model as the name of the static constructor. For example, the static constructor for the `Target` model is `Target.target`.
+> [!TIP] 명명 규칙
+> 우리가 따르는 명명 규칙은 모델의 이름을 정적 생성자의 이름으로 사용하는 것입니다. 예를 들어, `Target` 모델의 정적 생성자는 `Target.target`입니다.
 
-### Renamed `--no-cache` to `--no-binary-cache` {#renamed-nocache-to-nobinarycache}
+### `--no-cache` 가 `--no-binary-cache`로 이름이 변경되었습니다. {#renamed-nocache-to-nobinarycache}
 
-Because the `--no-cache` flag was ambiguous, we decided to rename it to `--no-binary-cache` to make it clear that it refers to the binary cache. If you were using the `--no-cache` flag, you'll have to update your project to use the `--no-binary-cache` flag instead.
+왜냐하면 `--no-cache` 플래그가 모호했기 때문에, 이를 `--no-binary-cache`로 변경하여 바이너리 캐시를 의미한다는 점을 명확히 했습니다. 만약 `--no-cache` 플래그를 사용하고 있었다면, 이제 `--no-binary-cache` 플래그를 사용하도록 프로젝트를 업데이트해야 합니다.
 
-### Renamed `tuist fetch` to `tuist install` {#renamed-tuist-fetch-to-tuist-install}
+### `tuist fetch`가 `tuist install`로 이름이 변경되었습니다. {#renamed-tuist-fetch-to-tuist-install}
 
-We renamed the `tuist fetch` command to `tuist install` to align with the industry convention. If you were using the `tuist fetch` command, you'll have to update your project to use the `tuist install` command instead.
+업계 표준에 맞추기 위해 `tuist fetch` 명령어를 `tuist install`로 변경했습니다. `tuist fetch` 명령어를 사용하고 있었다면 `tuist install` 명령어를 사용하도록 프로젝트를 업데이트해야 합니다.
 
-### [Adopt `Package.swift` as the DSL for dependencies](https://github.com/tuist/tuist/pull/5862) {#adopt-packageswift-as-the-dsl-for-dependencieshttpsgithubcomtuisttuistpull5862}
+### [종속성을 위한 DSL로 'Package.swift'를 채택합니다](https://github.com/tuist/tuist/pull/5862) {#adopt-packageswift-as-the-dsl-for-dependencieshttpsgithubcomtuisttuistpull5862}
 
-Before Tuist 4, you could define dependencies in a `Dependencies.swift` file. This proprietary format broke the support in tools like [Dependabot](https://github.com/dependabot) or [Renovatebot](https://github.com/renovatebot/renovate) to automatically update dependencies. Moreover, it introduced unnecessary indirections for users. Therefore, we decided to embrace `Package.swift` as the only way to define dependencies in Tuist. If you were using the `Dependencies.swift` file, you'll have to move the content from your `Tuist/Dependencies.swift` to a `Package.swift` at the root, and use the `#if TUIST` directive to configure the integration. You can read more about how to integrate Swift Package dependencies <LocalizedLink href="/guides/develop/projects/dependencies#swift-packages">here</LocalizedLink>
+Tuist 4 이전에는 `Dependencies.swift` 파일에서 종속성을 정의할 수 있었습니다. 이 독자적인 형식은 [Dependabot](https://github.com/dependabot)이나 [Renovatebot](https://github.com/renovatebot/renovate)과 같은 도구에서 종속성을 자동으로 업데이트하는 기능을 지원하지 못하게 했습니다. 또한 사용자에게 불필요한 간접 경로를 도입하게 했습니다. 따라서 Tuist에서 종속성을 정의하는 유일한 방법으로 `Package.swift`를 채택하기로 결정했습니다. `Dependencies.swift` 파일을 사용하고 있었다면, `Tuist/Dependencies.swift`의 내용을 루트 디렉토리의 `Package.swift`로 이동하고, 통합을 설정하기 위해 `#if TUIST` 지시문을 사용해야 합니다. Swift Package 종속성을 통합하는 방법에 대한 자세한 내용은 <LocalizedLink href="/guides/develop/projects/dependencies#swift-packages">여기</LocalizedLink>에서 확인할 수 있습니다.
 
-### Renamed `tuist cache warm` to `tuist cache` {#renamed-tuist-cache-warm-to-tuist-cache}
+### `tuist cache warm`이 `tuist cache`로 이름이 변경되었습니다. {#renamed-tuist-cache-warm-to-tuist-cache}
 
-For brevity, we decided to rename the `tuist cache warm` command to `tuist cache`. If you were using the `tuist cache warm` command, you'll have to update your project to use the `tuist cache` command instead.
+간결함을 위해 `tuist cache warm` 명령어를 `tuist cache`로 이름 변경하기로 결정했습니다. `tuist cache warm` 명령어를 사용하고 있었다면, 이제 `tuist cache` 명령어를 사용하도록 프로젝트를 업데이트해야 합니다.
 
-### Renamed `tuist cache print-hashes` to `tuist cache --print-hashes` {#renamed-tuist-cache-printhashes-to-tuist-cache-printhashes}
+### `tuist cache print-hashes`가 `tuist cache --print-hashes`로 이름이 변경되었습니다. {#renamed-tuist-cache-printhashes-to-tuist-cache-printhashes}
 
-We decided to rename the `tuist cache print-hashes` command to `tuist cache --print-hashes` to make it clear that it's a flag of the `tuist cache` command. If you were using the `tuist cache print-hashes` command, you'll have to update your project to use the `tuist cache --print-hashes` flag instead.
+`tuist cache print-hashes` 명령어를 `tuist cache --print-hashes`로 변경하여, 이것이 `tuist cache` 명령어의 플래그임을 명확히 했습니다. `tuist cache print-hashes` 명령어를 사용하고 있었다면, 이제 `tuist cache --print-hashes` 플래그를 사용하도록 프로젝트를 업데이트해야 합니다.
 
-### Removed caching profiles {#removed-caching-profiles}
+### caching profiles가 제거되었습니다. {#removed-caching-profiles}
 
-Before Tuist 4, you could define caching profiles in `Tuist/Config.swift` which contained a configuration for the cache. We decided to remove this feature because it could lead to confusion when using it in the generation process with a profile other than the one that was used to generate the project. Moreover, it could lead to users using a debug profile to build a release version of the app, which could lead to unexpected results. In its place, we introduced the `--configuration` option, which you can use to specify the configuration you want to use when generating the project. If you were using caching profiles, you'll have to update your project to use the `--configuration` option instead.
+Tuist 4 이전에는 Tuist/Config.swift에 캐시 구성을 포함한 caching profiles를 정의할 수 있었습니다. 이 기능은 다른 프로필을 사용하여 프로젝트를 생성할 때 혼란을 초래할 수 있기 때문에 제거하기로 결정했습니다. 게다가, 이 기능은 사용자가 디버그 프로필을 사용하여 앱의 릴리스 버전을 빌드하는 상황을 초래할 수 있어, 예상치 못한 결과를 발생시킬 수 있습니다. 그 대신, 프로젝트를 생성할 때 사용할 구성을 지정할 수 있는 `--configuration` 옵션을 도입했습니다. caching profiles을 사용하고 있었다면, 이제 `--configuration` 옵션을 대신 사용하도록 프로젝트를 업데이트해야 합니다.
 
-### Removed `--skip-cache` in favor of arguments {#removed-skipcache-in-favor-of-arguments}
+### {#removed-skipcache-in-favor-of-arguments}
 
-We removed the flag `--skip-cache` from the `generate` command in favor of controlling for which targets the binary cache should be skipped by using the arguments. If you were using the `--skip-cache` flag, you'll have to update your project to use the arguments instead.
+`generate` 명령에서 `--skip-cache` 플래그를 제거하고, 대신 arguments를 사용하여 바이너리 캐시를 건너뛰어야 할 대상을 제어하도록 변경되었습니다. `--skip-cache` 플래그를 사용하고 있었다면, 이제 arguments를 사용하도록 프로젝트를 업데이트해야 합니다.
 
 ::: code-group
 
@@ -73,27 +73,26 @@ tuist generate Foo
 
 :::
 
-### [Dropped signing capabilities](https://github.com/tuist/tuist/pull/5716) {#dropped-signing-capabilitieshttpsgithubcomtuisttuistpull5716}
+### [중단된 서명 기능](https://github.com/tuist/tuist/pull/5716) {#dropped-signing-capabilitieshttpsgithubcomtuisttuistpull5716}
 
-Signing is already solved by community tooling like [Fastlane](https://fastlane.tools/) and Xcode itself, which do a much better job at that. We felt that signing was an stretch goal for Tuist, and that it was better to focus on the core features of the project. If you were using Tuist signing capabilities, which consisted of encrypting the certificates and profiles in the repository and installing them in the right places at generation time, you might want to replicate that logic in your own scripts that run before project generation. In particular:
+서명 기능은 이미 [Fastlane](https://fastlane.tools/)과 Xcode 자체와 같은 커뮤니티 도구들에 의해 해결되었으며, 이들이 훨씬 더 잘 처리합니다. 우리는 서명 기능이 Tuist의 추가 목표라고 판단했으며, 프로젝트의 핵심 기능에 집중하는 것이 더 좋다고 생각했습니다. 만약 Tuist의 서명 기능을 사용하고 있었다면, 이는 저장소에서 인증서와 프로필을 암호화하여 프로젝트 생성 시 올바른 위치에 설치하는 방식이었습니다. 이제 이 기능이 제거되었기 때문에, 프로젝트 생성 전에 실행되는 스크립트에서 해당 로직을 직접 구현해야 할 수 있습니다. 특히:
 
-- A script that decrypts the certificates and profiles using a key either stored in the file-system or in an environment variable, and installs certificates in the keychain, and the provisioning profiles in the directory `~/Library/MobileDevice/Provisioning\ Profiles`.
-- A script that can take an existing profiles and certificates and encrypt them.
+- 파일 시스템이나 환경 변수에 저장된 키를 사용하여 인증서와 프로필을 복호화하고, 인증서를 키체인에 설치하며, 프로비저닝 프로필은 `~/Library/MobileDevice/Provisioning\ Profiles` 디렉토리에 설치하는 스크립트를 작성해야 할 수 있습니다.
+- 기존의 프로필과 인증서를 받아서 암호화하는 스크립트를 작성해야 할 수 있습니다.
 
-> [!TIP] SIGNING REQUIREMENTS
-> Signing requires the right certificates to be present in the keychain and the provisioning profiles to be present in the directory `~/Library/MobileDevice/Provisioning\ Profiles`. You can use the `security` command-line tool to install certificates in the keychain and the `cp` command to copy the provisioning profiles to the right directory.
+> [!TIP] 서명 요구 사항
+> 서명은 키체인에 올바른 인증서가 있어야 하고, 프로비저닝 프로필은 `~/Library/MobileDevice/Provisioning\ Profiles` 디렉토리에 있어야 합니다. `security` 명령어를 사용하여 인증서를 키체인에 설치하고, `cp` 명령어를 사용하여 프로비저닝 프로필을 올바른 디렉토리에 복사할 수 있습니다.
 
-### Dropped Carthage integration via `Dependencies.swift` {#dropped-carthage-integration-via-dependenciesswift}
+### `Dependencies.swift`를 통한 Carthage 통합이 제거되었습니다. {#dropped-carthage-integration-via-dependenciesswift}
 
-Before Tuist 4, Carthage dependencies could be defined in a `Dependencies.swift` file, which users could then fetch by running `tuist fetch`. We also felt that this was a stretch goal for Tuist, specially considering a future where Swift Package Manager would be the preferred way to manage dependencies. If you were using Carthage dependencies, you'll have to use `Carthage` directly to pull the pre-compiled frameworks and XCFrameworks into Carthage's standard directory, and then reference those binaries from your tagets using the `TargetDependency.xcframework` and `TargetDependency.framework` cases.
+Tuist 4 이전에는 Carthage 의존성을 `Dependencies.swift` 파일에 정의할 수 있었으며, 사용자는 `tuist fetch` 명령을 실행하여 이를 가져올 수 있었습니다. 우리는 또한 이것이 Tuist의 추가 목표라고 생각했으며, 특히 앞으로 Swift Package Manager가 의존성을 관리하는 기본적인 방법이 될 것이라는 점을 고려했습니다. 만약 Carthage 의존성을 사용하고 있었다면, 이제 `Carthage`를 직접 사용하여 미리 컴파일된 프레임워크와 XCFramework를 Carthage의 표준 디렉토리로 가져온 후, `TargetDependency.xcframework`와 `TargetDependency.framework` 케이스를 사용하여 해당 바이너리를 타겟에서 참조해야 합니다.
 
-> [!NOTE] CARTHAGE IS STILL SUPPORTED
-> Some users understood that we dropped Carthage support. We didn't. The contract between Tuist and Carthage's output is to system-stored frameworks and XCFrameworks. The only thing that changed is who is responsible for fetching the dependencies. It used to be Tuist through Carthage, now it's Carthage.
+> 일부 사용자들은 우리가 Carthage 지원을 중단했다고 이해했습니다. 우리는 그렇지 않았습니다. Tuist와 Carthage의 출력 간의 계약은 시스템에 저장된 프레임워크와 XCFramework에 관한 것입니다. 변경된 유일한 점은 의존성을 가져오는 책임이 누구에게 있는지입니다. 이전에는 Tuist가 Carthage를 통해 의존성을 가져왔지만, 이제는 Carthage가 직접 의존성을 가져옵니다.
 
-### Dropped the `TargetDependency.packagePlugin` API {#dropped-the-targetdependencypackageplugin-api}
+### `TargetDependency.packagePlugin` API가 제거되었습니다. {#dropped-the-targetdependencypackageplugin-api}
 
-Before Tuist 4, you could define a package plugin dependency using the `TargetDependency.packagePlugin` case. After seeing the Swift Package Manager introducing new package types, we decided to iterate on the API towards something that would be more flexible and future-proof. If you were using `TargetDependency.packagePlugin`, you'll have to use `TargetDependency.package` instead, and pass the type of package you want to use as an argument.
+Tuist 4 이전에는 `TargetDependency.packagePlugin` 케이스를 사용하여 패키지 플러그인 의존성을 정의할 수 있었습니다. Swift Package Manager가 새로운 패키지 유형을 도입하는 것을 본 후, 우리는 API를 더 유연하고 미래 지향적으로 발전시키기로 결정했습니다. 만약 `TargetDependency.packagePlugin`을 사용하고 있었다면, 대신 `TargetDependency.package`를 사용해야 하며, 사용하려는 패키지 유형을 인수로 전달해야 합니다.
 
-### [Dropped deprecated APIs](https://github.com/tuist/tuist/pull/5560) {#dropped-deprecated-apishttpsgithubcomtuisttuistpull5560}
+### [더 이상 사용되지 않는 API가 제거되었습니다.](https://github.com/tuist/tuist/pull/5560) {#dropped-deprecated-apishttpsgithubcomtuisttuistpull5560}
 
-We removed the APIs that were marked as deprecated in Tuist 3. If you were using any of the deprecated APIs, you'll have to update your project to use the new APIs.
+우리는 Tuist 3에서 더 이상 사용되지 않는 것으로 표시된 API들을 제거했습니다. 만약 더 이상 사용되지 않는 API를 사용하고 있었다면, 새로운 API를 사용하도록 프로젝트를 업데이트해야 합니다.

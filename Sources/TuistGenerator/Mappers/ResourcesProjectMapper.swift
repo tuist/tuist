@@ -56,6 +56,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
                     base: [
                         "CODE_SIGNING_ALLOWED": "NO",
                         "SKIP_INSTALL": "YES",
+                        "GENERATE_MASTER_OBJECT_FILE": "NO",
                     ],
                     configurations: [:]
                 ),
@@ -86,7 +87,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
             sideEffects.append(sideEffect)
         }
 
-        if project.isExternal,
+        if case .external = project.type,
            target.supportsSources,
            target.sources.containsObjcFiles,
            target.resources.containsBundleAccessedResources,
@@ -179,13 +180,19 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         }
 
         // Add public accessors only for non external projects
-        let publicBundleAccessor = if project.isExternal || target.sourcesContainsPublicResourceClassName {
+        let publicBundleAccessor = switch project.type {
+        case .external:
             ""
-        } else {
-            publicBundleAccessorString(for: target)
+        case .local:
+            if target.sourcesContainsPublicResourceClassName {
+                ""
+            } else {
+                publicBundleAccessorString(for: target)
+            }
         }
 
         return """
+        // swiftlint:disable:this file_name
         // swiftlint:disable all
         // swift-format-ignore-file
         // swiftformat:disable all

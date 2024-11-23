@@ -1,7 +1,9 @@
 import Foundation
+import Mockable
 import TuistCore
 import XcodeGraph
 
+@Mockable
 public protocol CopyFilesContentHashing {
     func hash(identifier: String, copyFiles: [CopyFilesAction]) async throws -> MerkleNode
 }

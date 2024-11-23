@@ -84,6 +84,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         XCTAssertEqual(resourcesTarget.settings?.base, [
             "SKIP_INSTALL": "YES",
             "CODE_SIGNING_ALLOWED": "NO",
+            "GENERATE_MASTER_OBJECT_FILE": "NO",
         ])
     }
 
@@ -91,7 +92,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         // Given
         let resources: [ResourceFileElement] = [.file(path: "/image.png")]
         let target = Target.test(product: .framework, sources: ["/Absolute/File.m"], resources: .init(resources))
-        project = Project.test(targets: [target], isExternal: true)
+        project = Project.test(targets: [target], type: .external(hash: nil))
 
         // Got
         let (gotProject, gotSideEffects) = try subject.map(project: project)
@@ -350,7 +351,11 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         let sources: [SourceFile] = ["/ViewController.swift"]
         let resources: [ResourceFileElement] = []
         let target = Target.test(product: .staticLibrary, sources: sources, resources: .init(resources))
-        project = Project.test(path: try AbsolutePath(validating: "/AbsolutePath/Project"), targets: [target], isExternal: true)
+        project = Project.test(
+            path: try AbsolutePath(validating: "/AbsolutePath/Project"),
+            targets: [target],
+            type: .external(hash: nil)
+        )
 
         // Got
         let (gotProject, gotSideEffects) = try subject.map(project: project)
@@ -365,7 +370,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         let sources: [SourceFile] = ["/ViewController.swift"]
         let resources: [ResourceFileElement] = []
         let target = Target.test(product: .staticLibrary, sources: sources, resources: .init(resources))
-        project = Project.test(path: try AbsolutePath(validating: "/AbsolutePath/Project"), targets: [target], isExternal: false)
+        project = Project.test(path: try AbsolutePath(validating: "/AbsolutePath/Project"), targets: [target], type: .local)
 
         // Got
         let (gotProject, gotSideEffects) = try subject.map(project: project)
@@ -380,7 +385,11 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         let sources: [SourceFile] = ["/ViewController.swift"]
         let resources: [ResourceFileElement] = [.file(path: "/AbsolutePath/Project/Resources/image.png")]
         let target = Target.test(product: .staticLibrary, sources: sources, resources: .init(resources))
-        project = Project.test(path: try AbsolutePath(validating: "/AbsolutePath/Project"), targets: [target], isExternal: true)
+        project = Project.test(
+            path: try AbsolutePath(validating: "/AbsolutePath/Project"),
+            targets: [target],
+            type: .external(hash: nil)
+        )
 
         // Got
         let (_, gotSideEffects) = try subject.map(project: project)
@@ -394,7 +403,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         let sources: [SourceFile] = ["/ViewController.swift"]
         let resources: [ResourceFileElement] = [.file(path: "/AbsolutePath/Project/Resources/image.png")]
         let target = Target.test(product: .staticLibrary, sources: sources, resources: .init(resources))
-        project = Project.test(path: try AbsolutePath(validating: "/AbsolutePath/Project"), targets: [target], isExternal: false)
+        project = Project.test(path: try AbsolutePath(validating: "/AbsolutePath/Project"), targets: [target], type: .local)
 
         // Got
         let (_, gotSideEffects) = try subject.map(project: project)
@@ -408,7 +417,11 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         let sources: [SourceFile] = ["/ViewController.m"]
         let resources: [ResourceFileElement] = [.file(path: "/AbsolutePath/Project/Resources/image.png")]
         let target = Target.test(product: .staticLibrary, sources: sources, resources: .init(resources))
-        project = Project.test(path: try AbsolutePath(validating: "/AbsolutePath/Project"), targets: [target], isExternal: true)
+        project = Project.test(
+            path: try AbsolutePath(validating: "/AbsolutePath/Project"),
+            targets: [target],
+            type: .external(hash: nil)
+        )
 
         // Got
         let (gotProject, gotSideEffects) = try subject.map(project: project)
@@ -427,7 +440,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         let sources: [SourceFile] = ["/ViewController.m"]
         let resources: [ResourceFileElement] = [.file(path: "/AbsolutePath/Project/Resources/image.png")]
         let target = Target.test(product: .staticLibrary, sources: sources, resources: .init(resources))
-        project = Project.test(path: try AbsolutePath(validating: "/AbsolutePath/Project"), targets: [target], isExternal: false)
+        project = Project.test(path: try AbsolutePath(validating: "/AbsolutePath/Project"), targets: [target], type: .local)
 
         // Got
         let (gotProject, gotSideEffects) = try subject.map(project: project)

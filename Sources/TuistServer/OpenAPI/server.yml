@@ -217,11 +217,18 @@ components:
           deprecated: true
           description: The token that should be used to authenticate the project. For CI only.
           type: string
+        visibility:
+          description: The visibility of the project
+          enum:
+            - private
+            - public
+          type: string
       required:
         - id
         - full_name
         - token
         - default_branch
+        - visibility
       title: Project
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Project
@@ -316,6 +323,7 @@ components:
           description: The SSO provider set up for the organization
           enum:
             - google
+            - okta
           type: string
       required:
         - id
@@ -326,6 +334,20 @@ components:
       title: Organization
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Organization
+    PreviewSupportedPlatform:
+      enum:
+        - ios
+        - ios_simulator
+        - tvos
+        - tvos_simulator
+        - watchos
+        - watchos_simulator
+        - visionos
+        - visionos_simulator
+        - macos
+      title: PreviewSupportedPlatform
+      type: string
+      x-struct: Elixir.TuistWeb.API.Schemas.PreviewSupportedPlatform
     CommandEventArtifact:
       description: It represents an artifact that's associated with a command event (e.g. result bundles)
       properties:
@@ -602,7 +624,7 @@ info:
   version: 0.1.0
   x-logo:
     altText: Tuist logo
-    url: http://localhost:8080/images/open-graph.png
+    url: http://localhost:8080/images/open-graph/squared.png
 openapi: 3.0.0
 paths:
   /api/analytics:
@@ -1430,6 +1452,7 @@ paths:
                   description: The SSO provider to set up for the organization
                   enum:
                     - google
+                    - okta
                     - none
                   type: string
               type: object
@@ -1493,6 +1516,7 @@ paths:
                   description: The SSO provider to set up for the organization
                   enum:
                     - google
+                    - okta
                     - none
                   type: string
               type: object
@@ -1559,8 +1583,6 @@ paths:
         required: false
       responses:
         204:
-          content:
-            application/json: {}
           description: The invitation was cancelled
         401:
           content:
@@ -1951,6 +1973,12 @@ paths:
                 repository_url:
                   description: The repository URL for the project.
                   type: string
+                visibility:
+                  description: The visibility of the project. Public projects are visible to everyone, private projects are only visible to the project's members.
+                  enum:
+                    - public
+                    - private
+                  type: string
               type: object
         description: Project update params
         required: false
@@ -2195,6 +2223,15 @@ paths:
             type: string
         - description: ''
           in: query
+          name: supported_platforms
+          required: false
+          schema:
+            description: The supported platforms of the preview.
+            items:
+              $ref: '#/components/schemas/PreviewSupportedPlatform'
+            type: array
+        - description: ''
+          in: query
           name: page_size
           required: false
           schema:
@@ -2407,6 +2444,11 @@ paths:
                 display_name:
                   description: The display name of the preview.
                   type: string
+                supported_platforms:
+                  description: The supported platforms of the preview.
+                  items:
+                    $ref: '#/components/schemas/PreviewSupportedPlatform'
+                  type: array
                 type:
                   default: app_bundle
                   description: The type of the preview to upload.

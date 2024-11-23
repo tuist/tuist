@@ -1,3 +1,40 @@
+## What's Changed in app@0.7.0
+* feat: focus Tuist menu bar window when running Tuist Preview deeplink by @fortmarek in [#7098](https://github.com/tuist/tuist/pull/7098)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/app@0.6.1...app@0.7.0
+
+## What's Changed in app@0.6.1
+* fix: be less aggresive truncating longer app names by @fortmarek in [#7091](https://github.com/tuist/tuist/pull/7091)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/app@0.6.0...app@0.6.1
+
+## What's Changed in app@0.6.0
+* feat: when running latest preview, filter supported platforms by @fortmarek in [#7077](https://github.com/tuist/tuist/pull/7077)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/app@0.5.2...app@0.6.0
+
+## What's Changed in app@0.5.2
+* fix: running apps with app clip by @fortmarek in [#7059](https://github.com/tuist/tuist/pull/7059)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/app@0.5.1...app@0.5.2
+
+## What's Changed in app@0.5.1
+* remove 0.5.0 appcast entry by @fortmarek
+* fix: finding latest update by @fortmarek in [#7046](https://github.com/tuist/tuist/pull/7046)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/app@0.5.0...app@0.5.1
+
+## What's Changed in app@0.5.0
+* feat: report status when installing preview by @fortmarek in [#7024](https://github.com/tuist/tuist/pull/7024)
+* feat: add support for preview icons by @fortmarek in [#7021](https://github.com/tuist/tuist/pull/7021)
+* feat: Update the default server URL to `tuist.dev` by @pepicrft in [#7020](https://github.com/tuist/tuist/pull/7020)
+* fix: failing AppTests by @fortmarek in [#7013](https://github.com/tuist/tuist/pull/7013)
+* fix: app release script by @fortmarek in [#7012](https://github.com/tuist/tuist/pull/7012)
+* fix: handle empty state when no latest previews are available by @fortmarek in [#7011](https://github.com/tuist/tuist/pull/7011)
+* refactor: combine Tuist CLI and App workspaces into one by @fortmarek in [#7008](https://github.com/tuist/tuist/pull/7008)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/app@0.4.0...app@0.5.0
+
 ## What's Changed in app@0.4.0
 * feat: add support for downloading latest previews by @fortmarek in [#7001](https://github.com/tuist/tuist/pull/7001)
 

@@ -1,8 +1,10 @@
 import Foundation
+import Mockable
 import Path
 import TuistCore
 import XcodeGraph
 
+@Mockable
 public protocol TargetScriptsContentHashing {
     func hash(targetScripts: [TargetScript], sourceRootPath: AbsolutePath) async throws -> String
 }

@@ -934,13 +934,21 @@ public class GraphTraverser: GraphTraversing {
     public func directTargetExternalDependencies(path: Path.AbsolutePath, name: String) -> Set<
         GraphTargetReference
     > {
-        directTargetDependencies(path: path, name: name).filter(\.graphTarget.project.isExternal)
+        directTargetDependencies(path: path, name: name)
+            .filter {
+                switch $0.graphTarget.project.type {
+                case .local:
+                    return false
+                case .external:
+                    return true
+                }
+            }
     }
 
     public func allExternalTargets() -> Set<GraphTarget> {
         Set(
             graph.projects.flatMap { path, project -> [GraphTarget] in
-                guard project.isExternal else { return [] }
+                guard case .external = project.type else { return [] }
                 return project.targets.values.map {
                     GraphTarget(path: path, target: $0, project: project)
                 }
@@ -1267,7 +1275,12 @@ public class GraphTraverser: GraphTraversing {
         guard let targetDependency = dependency.targetDependency,
               let project = graph.projects[targetDependency.path]
         else { return false }
-        return project.isExternal
+        switch project.type {
+        case .external:
+            return true
+        case .local:
+            return false
+        }
     }
 
     func isDependencyPrecompiledMacro(_ dependency: GraphDependency) -> Bool {
@@ -1500,6 +1513,8 @@ public class GraphTraverser: GraphTraversing {
             )
         case let .bundle(path):
             return .bundle(path: path, condition: condition)
+        case let .packageProduct(_, product, .runtimeEmbedded):
+            return .packageProduct(product: product, condition: condition)
         case .packageProduct:
             return nil
         case let .sdk(_, path, status, source):
@@ -1541,7 +1556,7 @@ public class GraphTraverser: GraphTraversing {
     private func allTargets(excludingExternalTargets: Bool) -> Set<GraphTarget> {
         Set(
             projects.flatMap { projectPath, project -> [GraphTarget] in
-                if excludingExternalTargets, project.isExternal { return [] }
+                if excludingExternalTargets, case .external = project.type { return [] }
                 return project.targets.values.map { target in
                     GraphTarget(path: projectPath, target: target, project: project)
                 }

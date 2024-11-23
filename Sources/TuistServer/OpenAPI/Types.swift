@@ -1344,6 +1344,17 @@ internal enum Components {
             /// - Remark: Generated from `#/components/schemas/Project/token`.
             @available(*, deprecated)
             internal var token: Swift.String
+            /// The visibility of the project
+            ///
+            /// - Remark: Generated from `#/components/schemas/Project/visibility`.
+            internal enum visibilityPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case _private = "private"
+                case _public = "public"
+            }
+            /// The visibility of the project
+            ///
+            /// - Remark: Generated from `#/components/schemas/Project/visibility`.
+            internal var visibility: Components.Schemas.Project.visibilityPayload
             /// Creates a new `Project`.
             ///
             /// - Parameters:
@@ -1352,18 +1363,21 @@ internal enum Components {
             ///   - id: ID of the project
             ///   - repository_url: The URL of the connected git repository, such as https://github.com/tuist/tuist or https://github.com/tuist/tuist.git
             ///   - token: The token that should be used to authenticate the project. For CI only.
+            ///   - visibility: The visibility of the project
             internal init(
                 default_branch: Swift.String,
                 full_name: Swift.String,
                 id: Swift.Double,
                 repository_url: Swift.String? = nil,
-                token: Swift.String
+                token: Swift.String,
+                visibility: Components.Schemas.Project.visibilityPayload
             ) {
                 self.default_branch = default_branch
                 self.full_name = full_name
                 self.id = id
                 self.repository_url = repository_url
                 self.token = token
+                self.visibility = visibility
             }
             internal enum CodingKeys: String, CodingKey {
                 case default_branch
@@ -1371,6 +1385,7 @@ internal enum Components {
                 case id
                 case repository_url
                 case token
+                case visibility
             }
         }
         /// - Remark: Generated from `#/components/schemas/Invitation`.
@@ -1520,6 +1535,7 @@ internal enum Components {
             /// - Remark: Generated from `#/components/schemas/Organization/sso_provider`.
             internal enum sso_providerPayload: String, Codable, Hashable, Sendable, CaseIterable {
                 case google = "google"
+                case okta = "okta"
             }
             /// The SSO provider set up for the organization
             ///
@@ -1561,6 +1577,18 @@ internal enum Components {
                 case sso_organization_id
                 case sso_provider
             }
+        }
+        /// - Remark: Generated from `#/components/schemas/PreviewSupportedPlatform`.
+        internal enum PreviewSupportedPlatform: String, Codable, Hashable, Sendable, CaseIterable {
+            case ios = "ios"
+            case ios_simulator = "ios_simulator"
+            case tvos = "tvos"
+            case tvos_simulator = "tvos_simulator"
+            case watchos = "watchos"
+            case watchos_simulator = "watchos_simulator"
+            case visionos = "visionos"
+            case visionos_simulator = "visionos_simulator"
+            case macos = "macos"
         }
         /// It represents an artifact that's associated with a command event (e.g. result bundles)
         ///
@@ -5956,6 +5984,7 @@ internal enum Operations {
                     /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/PATCH/requestBody/json/sso_provider`.
                     internal enum sso_providerPayload: String, Codable, Hashable, Sendable, CaseIterable {
                         case google = "google"
+                        case okta = "okta"
                         case none = "none"
                     }
                     /// The SSO provider to set up for the organization
@@ -6335,6 +6364,7 @@ internal enum Operations {
                     /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/PUT/requestBody/json/sso_provider`.
                     internal enum sso_providerPayload: String, Codable, Hashable, Sendable, CaseIterable {
                         case google = "google"
+                        case okta = "okta"
                         case none = "none"
                     }
                     /// The SSO provider to set up for the organization
@@ -7365,32 +7395,8 @@ internal enum Operations {
         }
         internal enum Output: Sendable, Hashable {
             internal struct NoContent: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/invitations/DELETE/responses/204/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/invitations/DELETE/responses/204/content/application\/json`.
-                    case json(OpenAPIRuntime.OpenAPIValueContainer)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: OpenAPIRuntime.OpenAPIValueContainer {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.cancelInvitation.Output.NoContent.Body
                 /// Creates a new `NoContent`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.cancelInvitation.Output.NoContent.Body) {
-                    self.body = body
-                }
+                internal init() {}
             }
             /// The invitation was cancelled
             ///
@@ -9443,21 +9449,36 @@ internal enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/PUT/requestBody/json/repository_url`.
                     internal var repository_url: Swift.String?
+                    /// The visibility of the project. Public projects are visible to everyone, private projects are only visible to the project's members.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/PUT/requestBody/json/visibility`.
+                    internal enum visibilityPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                        case _public = "public"
+                        case _private = "private"
+                    }
+                    /// The visibility of the project. Public projects are visible to everyone, private projects are only visible to the project's members.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/PUT/requestBody/json/visibility`.
+                    internal var visibility: Operations.updateProject.Input.Body.jsonPayload.visibilityPayload?
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
                     ///   - default_branch: The default branch for the project.
                     ///   - repository_url: The repository URL for the project.
+                    ///   - visibility: The visibility of the project. Public projects are visible to everyone, private projects are only visible to the project's members.
                     internal init(
                         default_branch: Swift.String? = nil,
-                        repository_url: Swift.String? = nil
+                        repository_url: Swift.String? = nil,
+                        visibility: Operations.updateProject.Input.Body.jsonPayload.visibilityPayload? = nil
                     ) {
                         self.default_branch = default_branch
                         self.repository_url = repository_url
+                        self.visibility = visibility
                     }
                     internal enum CodingKeys: String, CodingKey {
                         case default_branch
                         case repository_url
+                        case visibility
                     }
                 }
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/PUT/requestBody/content/application\/json`.
@@ -10905,6 +10926,10 @@ internal enum Operations {
                 internal var specifier: Swift.String?
                 ///
                 ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/query/supported_platforms`.
+                internal var supported_platforms: [Components.Schemas.PreviewSupportedPlatform]?
+                ///
+                ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/query/page_size`.
                 internal var page_size: Swift.Int?
                 ///
@@ -10924,18 +10949,21 @@ internal enum Operations {
                 /// - Parameters:
                 ///   - display_name: The display name of previews.
                 ///   - specifier: The preview version specifier. Currently, accepts a commit SHA, branch name, or latest.
+                ///   - supported_platforms:
                 ///   - page_size:
                 ///   - page:
                 ///   - distinct_field: Distinct fields – no two previews will be returned with this field having the same value.
                 internal init(
                     display_name: Swift.String? = nil,
                     specifier: Swift.String? = nil,
+                    supported_platforms: [Components.Schemas.PreviewSupportedPlatform]? = nil,
                     page_size: Swift.Int? = nil,
                     page: Swift.Int? = nil,
                     distinct_field: Operations.listPreviews.Input.Query.distinct_fieldPayload? = nil
                 ) {
                     self.display_name = display_name
                     self.specifier = specifier
+                    self.supported_platforms = supported_platforms
                     self.page_size = page_size
                     self.page = page
                     self.distinct_field = distinct_field
@@ -11887,6 +11915,10 @@ internal enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/requestBody/json/display_name`.
                     internal var display_name: Swift.String?
+                    /// The supported platforms of the preview.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/requestBody/json/supported_platforms`.
+                    internal var supported_platforms: [Components.Schemas.PreviewSupportedPlatform]?
                     /// The type of the preview to upload.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/requestBody/json/type`.
@@ -11907,22 +11939,26 @@ internal enum Operations {
                     /// - Parameters:
                     ///   - bundle_identifier: The bundle identifier of the preview.
                     ///   - display_name: The display name of the preview.
+                    ///   - supported_platforms: The supported platforms of the preview.
                     ///   - _type: The type of the preview to upload.
                     ///   - version: The version of the preview.
                     internal init(
                         bundle_identifier: Swift.String? = nil,
                         display_name: Swift.String? = nil,
+                        supported_platforms: [Components.Schemas.PreviewSupportedPlatform]? = nil,
                         _type: Operations.startPreviewsMultipartUpload.Input.Body.jsonPayload._typePayload? = nil,
                         version: Swift.String? = nil
                     ) {
                         self.bundle_identifier = bundle_identifier
                         self.display_name = display_name
+                        self.supported_platforms = supported_platforms
                         self._type = _type
                         self.version = version
                     }
                     internal enum CodingKeys: String, CodingKey {
                         case bundle_identifier
                         case display_name
+                        case supported_platforms
                         case _type = "type"
                         case version
                     }

@@ -566,6 +566,10 @@ Thanks goes to these wonderful people:
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/gustn3965"><img src="https://avatars.githubusercontent.com/u/48749182?v=4" width="100px;" alt=""/><br /><sub><b>HyunSu Park</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/vldalx"><img src="https://avatars.githubusercontent.com/u/13873200?v=4" width="100px;" alt=""/><br /><sub><b>Vladimir</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="http://rhysmorgan.co"><img src="https://avatars.githubusercontent.com/u/11096937?v=4" width="100px;" alt=""/><br /><sub><b>Rhys Morgan</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/pierrerodgers"><img src="https://avatars.githubusercontent.com/u/48193278?v=4" width="100px;" alt=""/><br /><sub><b>pierrerodgers</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/honghoker"><img src="https://avatars.githubusercontent.com/u/50417461?v=4" width="100px;" alt=""/><br /><sub><b>eunpyo hong</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://medium.com/@dbstj169"><img src="https://avatars.githubusercontent.com/u/65678579?v=4" width="100px;" alt=""/><br /><sub><b>Yunseo Kang</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/ilia3546"><img src="https://avatars.githubusercontent.com/u/4445510?v=4" width="100px;" alt=""/><br /><sub><b>Ilya Kharlamov</b></sub></a></td>
     </tr>
   </tbody>
 </table>

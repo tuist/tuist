@@ -195,9 +195,9 @@ final class ManifestLoaderTests: TuistTestCase {
             got,
             .init(
                 targetSettings: [
-                    "TargetA": [
+                    "TargetA": .settings(base: [
                         "OTHER_LDFLAGS": "-ObjC",
-                    ],
+                    ]),
                 ]
             )
         )

@@ -184,6 +184,8 @@ final class RunService {
             guard let preview = try await listPreviewsService.listPreviews(
                 displayName: displayName,
                 specifier: specifier,
+                // `tuist run` currently supports only simulator builds
+                supportedPlatforms: Platform.allCases.map(DestinationType.simulator),
                 page: 1,
                 pageSize: 1,
                 distinctField: nil,
@@ -203,6 +205,7 @@ final class RunService {
         device: String?,
         version: Version?
     ) async throws {
+        logger.notice("Runnning \(previewLink.absoluteString)...")
         guard let scheme = previewLink.scheme,
               let host = previewLink.host,
               let serverURL = URL(string: "\(scheme)://\(host)\(previewLink.port.map { ":" + String($0) } ?? "")"),
@@ -226,7 +229,7 @@ final class RunService {
         try await fileSystem.remove(archivePath)
 
         let apps = try await
-            fileSystem.glob(directory: unarchivedDirectory, include: ["*.app", "*/*.app"])
+            fileSystem.glob(directory: unarchivedDirectory, include: ["*.app", "Payload/*.app"])
             .collect()
             .concurrentMap {
                 try await self.appBundleLoader.load($0)

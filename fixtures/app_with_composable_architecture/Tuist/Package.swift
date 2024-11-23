@@ -15,6 +15,6 @@
 let package = Package(
     name: "App",
     dependencies: [
-        .package(url: "https://github.com/pointfreeco/swift-composable-architecture", .upToNextMinor(from: "1.15.0")),
+        .package(url: "https://github.com/pointfreeco/swift-composable-architecture", .upToNextMinor(from: "1.16.1")),
     ]
 )

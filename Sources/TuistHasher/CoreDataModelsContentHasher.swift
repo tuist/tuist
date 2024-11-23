@@ -1,7 +1,9 @@
 import Foundation
+import Mockable
 import TuistCore
 import XcodeGraph
 
+@Mockable
 public protocol CoreDataModelsContentHashing {
     func hash(coreDataModels: [CoreDataModel]) async throws -> String
 }

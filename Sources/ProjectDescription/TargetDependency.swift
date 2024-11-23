@@ -41,6 +41,9 @@ public enum TargetDependency: Codable, Hashable, Sendable {
         /// For example importing the framework and consuming from dependent targets.
         case runtime
 
+        /// A runtime embedded package type represents a package that's embedded in the product at runtime.
+        case runtimeEmbedded
+
         /// A plugin package represents a package that's loaded by the build system at compile-time to
         /// extend the compilation process.
         case plugin

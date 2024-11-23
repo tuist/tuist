@@ -1,7 +1,9 @@
 import Foundation
+import Mockable
 import TuistCore
 import XcodeGraph
 
+@Mockable
 public protocol SettingsContentHashing {
     func hash(settings: Settings) async throws -> String
 }

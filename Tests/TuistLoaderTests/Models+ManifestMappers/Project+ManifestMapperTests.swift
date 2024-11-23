@@ -52,7 +52,7 @@ final class ProjectManifestMapperTests: TuistUnitTestCase {
             plugins: .none,
             externalDependencies: [:],
             resourceSynthesizerPathLocator: MockResourceSynthesizerPathLocator(),
-            isExternal: false,
+            type: .local,
             fileSystem: fileSystem
         )
 
@@ -91,7 +91,7 @@ final class ProjectManifestMapperTests: TuistUnitTestCase {
                 additionalFiles: [.file(path: swiftFilePath)],
                 resourceSynthesizers: [],
                 lastUpgradeCheck: nil,
-                isExternal: false
+                type: .local
             )
         )
     }

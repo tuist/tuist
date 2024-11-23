@@ -55,14 +55,14 @@ let workspace = Workspace(
 
 Tuist 프로젝트에서는 첫 생성 시간 (Cold generation time) 이 더 빠르고 (더 적은 매니페스트 파일을 컴파일 하기 때문) <LocalizedLink href="/guides/develop/projects/code-sharing">프로젝트 설명 도우미</LocalizedLink>를 캡슐화 단위로 사용하기 때문에 단일 프로젝트를 사용합니다. 그러나 애플리케이션에 다른 도메인을 나타내기 위해 캡슐화의 단위로 Xcode 프로젝트를 사용하면 Xcode에서 권장하는 프로젝트 구조와 더 일치합니다.
 
-## Config.swift {#configswift}
+## Tuist.swift {#tuistswift}
 
-Tuist는 프로젝트 구성을 단순화 하기 위해 <LocalizedLink href="/contributors/principles.html#default-to-conventions">기본값 (Sensible defaults)</LocalizedLink>을 제공합니다. 그러나 Tuist가 프로젝트의 루트를 결정하는 `Tuist` 디렉토리 아래에 <0>`Config.swift`</0> 매니페스트를 정의하여 구성을 사용자화 할 수 있습니다.
+Tuist는 프로젝트 구성을 단순화 하기 위해 <LocalizedLink href="/contributors/principles.html#default-to-conventions">기본값 (Sensible defaults)</LocalizedLink>을 제공합니다. 하지만 Tuist가 프로젝트의 루트를 결정하는데 사용되는 <LocalizedLink href="/references/project-description/structs/tuist">`Tuist.swift`</LocalizedLink>를 정의하여 구성을 사용자화 할 수 있습니다.
 
 ```swift
 import ProjectDescription
 
-let config = Config(
-    generationOptions: .options(enforceExplicitDependencies: true)
+let tuist = Tuist(
+    project: .tuist(generationOptions: .options(enforceExplicitDependencies: true))
 )
 ```

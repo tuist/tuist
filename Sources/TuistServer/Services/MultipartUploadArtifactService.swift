@@ -50,7 +50,7 @@ public protocol MultipartUploadArtifactServicing {
     ) async throws -> [(etag: String, partNumber: Int)]
 }
 
-public final class MultipartUploadArtifactService: MultipartUploadArtifactServicing {
+public struct MultipartUploadArtifactService: MultipartUploadArtifactServicing {
     private let urlSession: URLSession
 
     public init(urlSession: URLSession = .tuistShared) {
@@ -70,7 +70,8 @@ public final class MultipartUploadArtifactService: MultipartUploadArtifactServic
 
         var partNumber = 1
         var buffer = [UInt8](repeating: 0, count: partSize)
-        var parts: [(etag: String, partNumber: Int)] = []
+
+        var uploadParts: [UploadPart] = []
 
         while inputStream.hasBytesAvailable {
             let bytesRead = inputStream.read(&buffer, maxLength: partSize)
@@ -84,9 +85,14 @@ public final class MultipartUploadArtifactService: MultipartUploadArtifactServic
                 guard let url = URL(string: uploadURLString) else {
                     throw MultipartUploadArtifactServiceError.invalidMultipartUploadURL(uploadURLString)
                 }
-                let request = uploadRequest(url: url, fileSize: UInt64(bytesRead), data: partData)
-                let etag = try await upload(for: request)
-                parts.append((etag: etag, partNumber: Int(partNumber)))
+                uploadParts.append(
+                    UploadPart(
+                        url: url,
+                        fileSize: UInt64(bytesRead),
+                        data: partData,
+                        partNumber: partNumber
+                    )
+                )
 
                 partNumber += 1
             }
@@ -94,7 +100,14 @@ public final class MultipartUploadArtifactService: MultipartUploadArtifactServic
 
         inputStream.close()
 
-        return parts
+        return try await uploadParts
+            .concurrentMap { partUpload in
+                let initialDate = Date()
+                let request = uploadRequest(url: partUpload.url, fileSize: partUpload.fileSize, data: partUpload.data)
+                let etag = try await upload(for: request)
+                return (etag: etag, partNumber: partUpload.partNumber)
+            }
+            .sorted(by: { $0.partNumber < $1.partNumber })
     }
 
     private func upload(for request: URLRequest) async throws -> String {
@@ -116,5 +129,12 @@ public final class MultipartUploadArtifactService: MultipartUploadArtifactServic
         request.setValue("zip", forHTTPHeaderField: "Content-Encoding")
         request.httpBody = data
         return request
+    }
+
+    private struct UploadPart {
+        let url: URL
+        let fileSize: UInt64
+        let data: Data
+        let partNumber: Int
     }
 }

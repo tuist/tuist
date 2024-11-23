@@ -12,6 +12,17 @@
                 .iPad,
                 .iPhone,
             ],
+        ],
+        targetSettings: [
+            "MyUIKitPackage": .settings(
+                debug: [
+                    "ACTIVE_COMPILATION_CONDITIONS": "$(inherited) QA_MODE",
+                ],
+                release: [
+                    "BUILD_LIBRARY_FOR_DISTRIBUTION": "YES",
+                    "SKIP_INSTALL": "NO",
+                ]
+            ),
         ]
     )
 

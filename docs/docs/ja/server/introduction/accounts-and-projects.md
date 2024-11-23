@@ -26,10 +26,10 @@ Your projects, either Tuist's or raw Xcode's, need to be integrated with your ac
 
 Projects are identified by a full handle, which is the result of concatenating the organization handle and the project handle. For example, if you have an organization with the handle `tuist`, and a project with the handle `tuist`, the full handle would be `tuist/tuist`.
 
-The binding between the local and the remote project is done through the configuration file. If you don't have any, create it under `Tuist/Config.swift` and add the following content:
+The binding between the local and the remote project is done through the configuration file. If you don't have any, create it at `Tuist.swift` and add the following content:
 
 ```swift
-let config = Config(fullHandle: "{account-handle}/{project-handle}") // e.g. tuist/tuist
+let tuist = Tuist(fullHandle: "{account-handle}/{project-handle}") // e.g. tuist/tuist
 ```
 
 > [!IMPORTANT] TUIST PROJECT-ONLY FEATURES

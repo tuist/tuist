@@ -13,6 +13,7 @@ public enum TuistAcceptanceFixtures {
     case appWithPlugins
     case appWithPreviews
     case appWithRealm
+    case appWithRevenueCat
     case appWithSpmDependencies
     case appWithSpmModuleAliases
     case appWithLocalSPMModuleWithRemoteDependencies
@@ -87,6 +88,7 @@ public enum TuistAcceptanceFixtures {
     case workspaceWithInlineFileHeaderTemplate
     case xcodeApp
     case appWithExecutableNonLocalDependencies
+    case appWithGeneratedSources
     case custom(String)
 
     public var path: String {
@@ -115,6 +117,8 @@ public enum TuistAcceptanceFixtures {
             return "app_with_previews"
         case .appWithRealm:
             return "app_with_realm"
+        case .appWithRevenueCat:
+            return "app_with_revenue_cat"
         case .appWithSpmDependencies:
             return "app_with_spm_dependencies"
         case .appWithSpmModuleAliases:
@@ -263,6 +267,8 @@ public enum TuistAcceptanceFixtures {
             return "xcode_app"
         case .appWithExecutableNonLocalDependencies:
             return "app_with_executable_non_local_dependencies"
+        case .appWithGeneratedSources:
+            return "app_with_generated_sources"
         case let .custom(path):
             return path
         }
