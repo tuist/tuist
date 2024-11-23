@@ -127,13 +127,16 @@ public final class PackageInfoMapper: PackageInfoMapping {
     fileprivate static let predefinedTestDirectories = ["Tests", "Sources", "Source", "src", "srcs"]
     private let moduleMapGenerator: SwiftPackageManagerModuleMapGenerating
     private let fileSystem: FileSysteming
+    private let rootDirectoryLocator: RootDirectoryLocating
 
     public init(
         moduleMapGenerator: SwiftPackageManagerModuleMapGenerating = SwiftPackageManagerModuleMapGenerator(),
-        fileSystem: FileSysteming = FileSystem()
+        fileSystem: FileSysteming = FileSystem(),
+        rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator()
     ) {
         self.moduleMapGenerator = moduleMapGenerator
         self.fileSystem = fileSystem
+        self.rootDirectoryLocator = rootDirectoryLocator
     }
 
     /// Resolves all SwiftPackageManager dependencies.
@@ -213,12 +216,11 @@ public final class PackageInfoMapper: PackageInfoMapping {
             }
         // Include dependencies added as binary targets
         let remoteXcframeworksPath = path.appending(components: ["artifacts", "tuist"])
-        let rootPath = path.parentDirectory.parentDirectory
         let remoteXcframeworks = try await fileSystem.glob(directory: remoteXcframeworksPath, include: ["**/*.xcframework"])
             .collect()
         for xcframework in remoteXcframeworks {
             let dependencyName = xcframework.relative(to: remoteXcframeworksPath).basenameWithoutExt
-            let xcframeworkPath = Path.relativeToRoot(xcframework.relative(to: rootPath).pathString)
+            let xcframeworkPath = Path.relativeToRoot(xcframework.relative(to: try await rootDirectoryLocator.locate(from: path)).pathString)
             externalDependencies[dependencyName] = [.xcframework(path: xcframeworkPath)]
         }
         return externalDependencies
