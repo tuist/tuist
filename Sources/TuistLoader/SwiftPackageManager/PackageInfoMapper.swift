@@ -220,7 +220,8 @@ public final class PackageInfoMapper: PackageInfoMapping {
             .collect()
         for xcframework in remoteXcframeworks {
             let dependencyName = xcframework.relative(to: remoteXcframeworksPath).basenameWithoutExt
-            let xcframeworkPath = Path.relativeToRoot(xcframework.relative(to: try await rootDirectoryLocator.locate(from: path)).pathString)
+            let xcframeworkPath = Path
+                .relativeToRoot(xcframework.relative(to: try await rootDirectoryLocator.locate(from: path)).pathString)
             externalDependencies[dependencyName] = [.xcframework(path: xcframeworkPath)]
         }
         return externalDependencies
