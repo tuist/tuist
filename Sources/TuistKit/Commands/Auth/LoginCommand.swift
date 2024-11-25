@@ -1,12 +1,12 @@
 import ArgumentParser
 import Foundation
-import Path
 
-struct AuthCommand: AsyncParsableCommand {
+struct LoginCommand: AsyncParsableCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(
-            commandName: "auth",
-            abstract: "Authenticates the user"
+            commandName: "login",
+            _superCommandName: "auth",
+            abstract: "Log in a user"
         )
     }
 
@@ -31,7 +31,7 @@ struct AuthCommand: AsyncParsableCommand {
     var path: String?
 
     func run() async throws {
-        try await AuthService().authenticate(
+        try await LoginService().run(
             email: email,
             password: password,
             directory: path

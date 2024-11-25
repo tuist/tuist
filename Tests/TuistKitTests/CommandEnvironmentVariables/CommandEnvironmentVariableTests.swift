@@ -848,25 +848,25 @@ final class CommandEnvironmentVariableTests: XCTestCase {
         XCTAssertEqual(commandWithArgs.path, "/new/member/path")
     }
 
-    func testAuthCommandUsesEnvVars() throws {
+    func testLoginCommandUsesEnvVars() throws {
         setVariable(.authPath, value: "/path/to/auth")
 
-        let commandWithEnvVars = try AuthCommand.parse([])
+        let commandWithEnvVars = try LoginCommand.parse([])
         XCTAssertEqual(commandWithEnvVars.path, "/path/to/auth")
 
-        let commandWithArgs = try AuthCommand.parse([
+        let commandWithArgs = try LoginCommand.parse([
             "--path", "/new/auth/path",
         ])
         XCTAssertEqual(commandWithArgs.path, "/new/auth/path")
     }
 
-    func testSessionCommandUsesEnvVars() throws {
-        setVariable(.sessionPath, value: "/path/to/session")
+    func testWhoamiCommandUsesEnvVars() throws {
+        setVariable(.whoamiPath, value: "/path/to/session")
 
-        let commandWithEnvVars = try SessionCommand.parse([])
+        let commandWithEnvVars = try WhoamiCommand.parse([])
         XCTAssertEqual(commandWithEnvVars.path, "/path/to/session")
 
-        let commandWithArgs = try SessionCommand.parse([
+        let commandWithArgs = try WhoamiCommand.parse([
             "--path", "/new/session/path",
         ])
         XCTAssertEqual(commandWithArgs.path, "/new/session/path")

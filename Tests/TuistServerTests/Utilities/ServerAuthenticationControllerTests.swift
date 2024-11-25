@@ -181,7 +181,9 @@ final class ServerAuthenticationControllerTests: TuistUnitTestCase {
             got,
             .user(legacyToken: "legacy-token", accessToken: nil, refreshToken: nil)
         )
-        XCTAssertStandardOutput(pattern: "You are using a deprecated user token. Please, reauthenticate by running `tuist auth`.")
+        XCTAssertStandardOutput(
+            pattern: "You are using a deprecated user token. Please, reauthenticate by running tuist auth login."
+        )
     }
 
     func test_when_credentials_store_returns_legacy_token_and_jwt_tokens() async throws {
@@ -192,7 +194,13 @@ final class ServerAuthenticationControllerTests: TuistUnitTestCase {
 
         given(credentialsStore)
             .read(serverURL: .any)
-            .willReturn(ServerCredentials(token: "legacy-token", accessToken: accessToken, refreshToken: refreshToken))
+            .willReturn(
+                .test(
+                    token: "legacy-token",
+                    accessToken: accessToken,
+                    refreshToken: refreshToken
+                )
+            )
 
         // When
         let got = try await subject.authenticationToken(serverURL: .test())
@@ -203,18 +211,18 @@ final class ServerAuthenticationControllerTests: TuistUnitTestCase {
             got,
             .user(
                 legacyToken: nil,
-                accessToken: JWT(
+                accessToken: .test(
                     token: accessToken,
                     expiryDate: Date(timeIntervalSince1970: 1_720_429_812)
                 ),
-                refreshToken: JWT(
+                refreshToken: .test(
                     token: refreshToken,
                     expiryDate: Date(timeIntervalSince1970: 1_720_429_810)
                 )
             )
         )
         XCTAssertPrinterOutputNotContains(
-            "You are using a deprecated user token. Please, reauthenticate by running `tuist auth`."
+            "You are using a deprecated user token. Please, reauthenticate by running tuist auth login."
         )
     }
 
@@ -242,11 +250,11 @@ final class ServerAuthenticationControllerTests: TuistUnitTestCase {
             got,
             .user(
                 legacyToken: nil,
-                accessToken: JWT(
+                accessToken: .test(
                     token: accessToken,
                     expiryDate: Date(timeIntervalSince1970: 1_720_429_812)
                 ),
-                refreshToken: JWT(
+                refreshToken: .test(
                     token: refreshToken,
                     expiryDate: Date(timeIntervalSince1970: 1_720_429_810)
                 )

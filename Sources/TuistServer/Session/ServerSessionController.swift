@@ -2,15 +2,29 @@ import Foundation
 import Mockable
 import TuistSupport
 
+/// Type of device code used for authentication.
+public enum DeviceCodeType: String {
+    case cli
+    case app
+}
+
 @Mockable
 public protocol ServerSessionControlling: AnyObject {
     /// It authenticates the user for the server with the given URL.
-    /// - Parameter serverURL: Server URL.
-    func authenticate(serverURL: URL) async throws
+    /// - Parameters:
+    ///     - serverURL: Server URL.
+    ///     - deviceCodeType: Type of device origin used for authentication.
+    ///     - onOpeningBrowser: Triggered when we begin opening the browser at the given authentication url.
+    ///     - onAuthWaitBegin: Custom callback when we started waiting for the authentication to finish in the browser.
+    func authenticate(
+        serverURL: URL,
+        deviceCodeType: DeviceCodeType,
+        onOpeningBrowser: @escaping (URL) -> Void,
+        onAuthWaitBegin: @escaping () -> Void
+    ) async throws
 
-    /// Prints the session for the server with the given URL.
-    /// - Parameter serverURL: Server URL.
-    func printSession(serverURL: URL) async throws
+    /// - Returns: Account handle for the signed-in user for the server with the given URL
+    func whoami(serverURL: URL) async throws -> String?
 
     /// Removes the session for the server with the given URL.
     /// - Parameter serverURL: Server URL.
@@ -57,22 +71,25 @@ public final class ServerSessionController: ServerSessionControlling {
 
     // MARK: - ServerSessionControlling
 
-    public func authenticate(serverURL: URL) async throws {
+    public func authenticate(
+        serverURL: URL,
+        deviceCodeType: DeviceCodeType,
+        onOpeningBrowser: @escaping (URL) -> Void,
+        onAuthWaitBegin: () -> Void
+    ) async throws {
         var components = URLComponents(url: serverURL, resolvingAgainstBaseURL: false)!
         let deviceCode = uniqueIDGenerator.uniqueID()
-        components.path = "/auth/cli/\(deviceCode)"
-        components.queryItems = nil
+        components.path = "/auth/device_codes/\(deviceCode)"
+        components.queryItems = [
+            URLQueryItem(name: "type", value: deviceCodeType.rawValue),
+        ]
         let authURL = components.url!
 
-        logger.notice("Opening \(authURL.absoluteString) to start the authentication flow")
+        onOpeningBrowser(authURL)
+
         try opener.open(url: authURL)
 
-        if Environment.shared.shouldOutputBeColoured {
-            logger.notice("Press \("CTRL + C".cyan()) once to cancel the process.", metadata: .pretty)
-        } else {
-            logger.notice("Press CTRL + C once to cancel the process.")
-        }
-
+        onAuthWaitBegin()
         let tokens = try await getAuthTokens(
             serverURL: serverURL,
             deviceCode: deviceCode
@@ -86,29 +103,19 @@ public final class ServerSessionController: ServerSessionControlling {
         logger.notice("Credentials stored successfully", metadata: .success)
     }
 
-    public func printSession(serverURL: URL) async throws {
-        if let token = try await serverAuthenticationController.authenticationToken(serverURL: serverURL) {
-            switch token {
-            case let .user(legacyToken: legacyToken, accessToken: accessToken, refreshToken: _):
-                logger.notice("""
-                Requests against \(serverURL.absoluteString) will be authenticated as a user using the following token:
-                \(accessToken?.token ?? legacyToken!)
-                """)
-            case let .project(projectToken):
-                logger.notice("""
-                Requests against \(serverURL.absoluteString) will be authenticated as a project using the following token:
-                \(projectToken)
-                """)
-            }
-        } else {
-            logger.notice("There are no sessions for the server with URL \(serverURL.absoluteString)")
+    public func whoami(serverURL: URL) async throws -> String? {
+        guard let token = try await serverAuthenticationController.authenticationToken(serverURL: serverURL) else { return nil }
+        switch token {
+        case let .user(legacyToken: _, accessToken: accessToken, refreshToken: _):
+            return accessToken?.preferredUsername
+        case .project:
+            return nil
         }
     }
 
     public func logout(serverURL: URL) async throws {
-        logger.notice("Removing session for server with URL \(serverURL.absoluteString)")
         try await credentialsStore.delete(serverURL: serverURL)
-        logger.notice("Session deleted successfully", metadata: .success)
+        logger.notice("Successfully logged out.", metadata: .success)
     }
 
     private func getAuthTokens(

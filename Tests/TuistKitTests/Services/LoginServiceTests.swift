@@ -12,7 +12,7 @@ import XCTest
 @testable import TuistKit
 @testable import TuistSupportTesting
 
-final class AuthServiceTests: TuistUnitTestCase {
+final class LoginServiceTests: TuistUnitTestCase {
     private var serverSessionController: MockServerSessionControlling!
     private var configLoader: MockConfigLoading!
     private var serverURL: URL!
@@ -20,7 +20,7 @@ final class AuthServiceTests: TuistUnitTestCase {
     private var serverCredentialsStore: MockServerCredentialsStoring!
     private var serverURLService: MockServerURLServicing!
     private var userInputReader: MockUserInputReading!
-    private var subject: AuthService!
+    private var subject: LoginService!
 
     override func setUp() {
         super.setUp()
@@ -39,7 +39,7 @@ final class AuthServiceTests: TuistUnitTestCase {
             .url(configServerURL: .any)
             .willReturn(serverURL)
 
-        subject = AuthService(
+        subject = LoginService(
             serverSessionController: serverSessionController,
             serverURLService: serverURLService,
             configLoader: configLoader,
@@ -61,14 +61,19 @@ final class AuthServiceTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_authenticate() async throws {
+    func test_run() async throws {
         // Given
         given(serverSessionController)
-            .authenticate(serverURL: .value(serverURL))
+            .authenticate(
+                serverURL: .value(serverURL),
+                deviceCodeType: .any,
+                onOpeningBrowser: .any,
+                onAuthWaitBegin: .any
+            )
             .willReturn(())
 
         // When / Then
-        try await subject.authenticate(
+        try await subject.run(
             email: nil,
             password: nil,
             directory: nil
@@ -108,14 +113,14 @@ final class AuthServiceTests: TuistUnitTestCase {
             )
 
         // When
-        try await subject.authenticate(
+        try await subject.run(
             email: nil,
             password: "password",
             directory: nil
         )
 
         // Then
-        XCTAssertStandardOutput(pattern: "Credentials stored successfully.")
+        XCTAssertStandardOutput(pattern: "Successfully logged in.")
     }
 
     func test_authenticate_when_email_is_provided() async throws {
@@ -151,14 +156,14 @@ final class AuthServiceTests: TuistUnitTestCase {
             )
 
         // When
-        try await subject.authenticate(
+        try await subject.run(
             email: "email@tuist.io",
             password: nil,
             directory: nil
         )
 
         // Then
-        XCTAssertStandardOutput(pattern: "Credentials stored successfully.")
+        XCTAssertStandardOutput(pattern: "Successfully logged in.")
     }
 
     func test_authenticate_when_email_and_password_are_provided() async throws {
@@ -190,14 +195,14 @@ final class AuthServiceTests: TuistUnitTestCase {
             )
 
         // When
-        try await subject.authenticate(
+        try await subject.run(
             email: "email@tuist.io",
             password: "password",
             directory: nil
         )
 
         // Then
-        XCTAssertStandardOutput(pattern: "Credentials stored successfully.")
+        XCTAssertStandardOutput(pattern: "Successfully logged in.")
         verify(userInputReader)
             .readString(asking: .any)
             .called(0)
