@@ -9,15 +9,7 @@ import PackageDescription
             base: [
                 "ENABLE_USER_SCRIPT_SANDBOXING": true,
             ]
-        ),
-        targetSettings: [
-            "SwiftSyntaxMacrosTestSupport" : [
-                "OTHER_LDFLAGS": "-framework XCTest"
-            ],
-            "_SwiftSyntaxTestSupport" : [
-                "OTHER_LDFLAGS": "-framework XCTest"
-            ]
-        ]
+        )
     )
 
 #endif
