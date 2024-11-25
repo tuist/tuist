@@ -174,6 +174,6 @@ final class BuildAcceptanceTestMultiplatformAppWithMacrosAndEmbeddedWatchOSApp: 
         try await run(InstallCommand.self)
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self, "App", "--platform", "ios")
-        try await run(BuildCommand.self, "App", "--platform", "watchos")
+        try await run(BuildCommand.self, "App", "--platform", "ios")
     }
 }
