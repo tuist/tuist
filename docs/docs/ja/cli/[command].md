@@ -1,5 +1,6 @@
 ---
-description: "{{ $params.description }}"
+editLink: false
+title: "{{ $params.command.fullCommand}}"
 titleTemplate: :title · CLI · Tuist
 ---
 
