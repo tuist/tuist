@@ -17,6 +17,6 @@ import PackageDescription
 let package = Package(
     name: "Dependencies",
     dependencies: [
-        .package(url: "https://github.com/pointfreeco/swift-case-paths", from: "1.3.0"),
+        .package(url: "https://github.com/pointfreeco/swift-case-paths", from: "1.5.6"),
     ]
 )
