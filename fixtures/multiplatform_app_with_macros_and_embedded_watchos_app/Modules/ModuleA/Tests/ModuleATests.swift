@@ -1,7 +1,7 @@
-@testable import ModuleAMacros_Testable
 import SwiftSyntaxMacros
 import SwiftSyntaxMacrosTestSupport
 import XCTest
+@testable import ModuleAMacros_Testable
 
 final class StringifyMacroTests: XCTestCase {
     let testMacros: [String: Macro.Type] = [
