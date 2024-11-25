@@ -70,7 +70,7 @@
                     ) %>
                   <% else %>
                     <%= gettext(
-                      "%{remote_cache_hits_above_threshold} above the %{remote_cache_hit_threshold} free remote cache hits",
+                      "%{remote_cache_hits_above_threshold} above the free remote cache hits (%{remote_cache_hit_threshold})",
                       remote_cache_hits_above_threshold:
                         @current_month_remote_cache_hits_count - remote_cache_hit_threshold,
                       remote_cache_hit_threshold: remote_cache_hit_threshold
@@ -86,13 +86,15 @@
               </p>
               <p :if={@plan == :pro} class="text--small font--regular color--text-tertiary">
                 <%= gettext(
-                  "%{remote_cache_hit_unit_price} x (%{current_month_remote_cache_hits_count} - %{remote_cache_hit_threshold})",
+                  "%{remote_cache_hit_unit_price} x %{remote_cache_hits_above_threshold} = %{estimated_next_payment}",
                   remote_cache_hit_unit_price: @remote_cache_hit_unit_price,
-                  current_month_remote_cache_hits_count: @current_month_remote_cache_hits_count,
-                  remote_cache_hit_threshold: remote_cache_hit_threshold
+                  remote_cache_hits_above_threshold:
+                    @current_month_remote_cache_hits_count - remote_cache_hit_threshold,
+                  estimated_next_payment: @estimated_next_payment
                 ) %>
               </p>
               <progress
+                :if={@plan == :air}
                 class="billing__overview__plan-card__usage__progress"
                 max="1"
                 value={
@@ -110,18 +112,18 @@
               >
               </progress>
             <% end %>
-            <p
-              :if={[:enterprise, :pro] |> Enum.member?(@plan)}
-              class="billing__overview__plan-card__usage__progress-label"
-            >
-              <%= raw(
-                gettext("Visit our %{pricing_page} to learn how we measure and price usage.",
-                  pricing_page:
-                    "<a href=\"#{Tuist.Environment.app_url(path: "/pricing#features-section")}\" style=\"display: inline;\">#{gettext("pricing page")}</a>"
-                )
-              ) %>
-            </p>
           </.stack>
+          <p
+            :if={[:enterprise, :pro] |> Enum.member?(@plan)}
+            class="billing__overview__plan-card__usage__progress-label"
+          >
+            <%= raw(
+              gettext("Visit our %{pricing_page} to learn how we measure and price usage.",
+                pricing_page:
+                  "<a href=\"#{Tuist.Environment.app_url(path: "/pricing#features-section")}\" style=\"display: inline;\">#{gettext("pricing page")}</a>"
+              )
+            ) %>
+          </p>
         </.stack>
       </.card>
       <.card :if={not (@plan == :air)} class="billing__overview__payment-card">
