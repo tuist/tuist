@@ -22,9 +22,11 @@ jobs:
         env:
           MISE_HTTP_TIMEOUT: 300
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Cache
-        run: tuist cache --path fixtures/ios_app_with_frameworks/
-      - name: Clean the cache
-        run: rm -rf ~/.cache/tuist
-      - name: Build
-        run: tuist build --path fixtures/ios_app_with_frameworks/
+      - name: Server value
+        run: echo $CIRRUS_TUIST_CACHE_URL
+      # - name: Cache
+      #   run: tuist cache --path fixtures/ios_app_with_frameworks/
+      # - name: Clean the cache
+      #   run: rm -rf ~/.cache/tuist
+      # - name: Build
+      #   run: tuist build --path fixtures/ios_app_with_frameworks/
