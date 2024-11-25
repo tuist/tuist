@@ -87,6 +87,18 @@ Tuist Previews를 더욱 쉽게 실행할 수 있도록, 우리는 Tuist macOS m
 [GitHub](https://github.com)와 같은 Git 플랫폼에 Tuist 프로젝트를 연결한 후, CI workflow에 <LocalizedLink href="/cli/share">`tuist share MyApp`</LocalizedLink>을 추가하세요. 이후 Tuist는 Pull request에 Preview 링크를 직접 게시합니다:
 ![GitHub app comment with a Tuist Preview link](/images/guides/share/github-app-with-preview.png)
 
+## README 배지 {#readme-badge}
+
+Tuist Previews를 repository에서 더 잘 보이게 하려면, `README` 파일에 최신 TUIST Preview를 가리키는 배지를 추가할 수 있습니다:
+
+[![Tuist Preview](https://tuist.dev/Dimillian/IcySky/previews/latest/badge.svg)](https://tuist.dev/Dimillian/IcySky/previews/latest)
+
+`README`에 배지를 추가하려면, 아래의 markdown을 사용하고 계정 및 프로젝트 핸들을 여러분의 것으로 교체하세요:
+
+```
+[![Tuist Preview](https://tuist.dev/{account-handle}/{project-handle}/previews/latest/badge.svg)](https://tuist.dev/{account-handle}/{project-handle}/previews/latest)
+```
+
 ## 자동화 {#automations}
 
 `tuist share` 명령어에서 `--json` 플래그를 사용하면 JSON 형식의 출력을 얻을 수 있습니다:
