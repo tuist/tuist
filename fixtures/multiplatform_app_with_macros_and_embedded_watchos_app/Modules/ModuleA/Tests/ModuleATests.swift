@@ -1,4 +1,4 @@
-import ModuleAMacros_testable
+@testable import ModuleAMacros_Testable
 import SwiftSyntaxMacros
 import SwiftSyntaxMacrosTestSupport
 import XCTest

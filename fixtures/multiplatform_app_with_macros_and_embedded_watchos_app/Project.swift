@@ -93,7 +93,7 @@ let project = Project(
             name: "ModuleAMacros_Testable",
             destinations: [.iPhone, .appleVision, .appleWatch], // Must match platform of the test target
             product: .framework, // Must match be a linkable product
-            productName: "ModuleAMacros_testable",
+            productName: "ModuleAMacros_Testable",
             bundleId: "io.tuist.moduleamacros.testable",
             sources: [
                 "Modules/ModuleA/Macros/Sources/**",
@@ -105,3 +105,4 @@ let project = Project(
         ),
     ]
 )
+
