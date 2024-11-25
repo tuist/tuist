@@ -18,8 +18,18 @@ defmodule TuistWeb.UserSessionController do
     create(conn, params, "Welcome back!")
   end
 
-  defp create(conn, %{"user" => user_params}, info) do
-    %{"email" => email, "password" => password} = user_params
+  defp create(conn, params, info) do
+    user_params =
+      %{"email" => email, "password" => password} =
+      if Map.has_key?(params, "user") do
+        params["user"]
+      else
+        %{
+          "email" => params["user[email]"],
+          "password" => params["user[password]"],
+          "remember_me" => params["user[remember_me]"]
+        }
+      end
 
     case Accounts.get_user_by_email_and_password(email, password) do
       {:ok, user} ->

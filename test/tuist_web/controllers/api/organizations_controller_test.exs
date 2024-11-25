@@ -11,7 +11,7 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
   use Mimic
 
   setup do
-    user = AccountsFixtures.user_fixture(email: "tuist@tuist.io")
+    user = AccountsFixtures.user_fixture(email: "tuist@tuist.io", preload: [:account])
     Billing |> stub(:start_trial, fn _ -> :ok end)
     %{user: user}
   end
@@ -350,7 +350,31 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
 
       # Then
       response = json_response(conn, :bad_request)
-      assert response["message"] == "Organization tuist-org already exists"
+
+      assert response["message"] ==
+               "A user or organization with the handle tuist-org already exists"
+    end
+
+    test "returns bad request when a user with the same handle already exists", %{
+      conn: conn,
+      user: user
+    } do
+      # Given
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/organizations", name: user.account.name)
+
+      # Then
+      response = json_response(conn, :bad_request)
+
+      assert response["message"] ==
+               "A user or organization with the handle tuist already exists"
     end
 
     test "returns bad request when organization contains a dot", %{conn: conn, user: user} do

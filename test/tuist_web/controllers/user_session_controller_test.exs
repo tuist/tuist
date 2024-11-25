@@ -9,10 +9,21 @@ defmodule TuistWeb.UserSessionControllerTest do
   end
 
   describe "POST /users/log_in" do
-    test "logs the user in", %{conn: conn, user: user} do
+    test "logs the user in when user params are in the user key", %{conn: conn, user: user} do
       conn =
         post(conn, ~p"/users/log_in", %{
           "user" => %{"email" => user.email, "password" => valid_user_password()}
+        })
+
+      assert get_session(conn, :user_token)
+      assert redirected_to(conn) == ~p"/#{user.account.name}/projects"
+    end
+
+    test "logs the user in when user params are flattened", %{conn: conn, user: user} do
+      conn =
+        post(conn, ~p"/users/log_in", %{
+          "user[email]" => user.email,
+          "user[password]" => valid_user_password()
         })
 
       assert get_session(conn, :user_token)

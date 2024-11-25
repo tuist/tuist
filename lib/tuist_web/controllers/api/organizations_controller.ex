@@ -104,7 +104,7 @@ defmodule TuistWeb.API.OrganizationsController do
         _params
       ) do
     user = Authentication.current_user(conn)
-    existing_organization = Accounts.get_organization_account_by_name(organization_name)
+    existing_account = Accounts.get_account_by_handle(organization_name)
 
     cond do
       String.contains?(organization_name, ".") ->
@@ -115,7 +115,7 @@ defmodule TuistWeb.API.OrganizationsController do
             "Organization name can't contain a dot. Please use a different name, such as #{String.replace(organization_name, ".", "-")}."
         })
 
-      is_nil(existing_organization) ->
+      is_nil(existing_account) ->
         organization =
           Accounts.create_organization(%{name: organization_name, creator: user})
 
@@ -132,10 +132,12 @@ defmodule TuistWeb.API.OrganizationsController do
           invitations: []
         })
 
-      !is_nil(existing_organization) ->
+      !is_nil(existing_account) ->
         conn
         |> put_status(:bad_request)
-        |> json(%{message: "Organization #{organization_name} already exists"})
+        |> json(%{
+          message: "A user or organization with the handle #{organization_name} already exists"
+        })
     end
   end
 
