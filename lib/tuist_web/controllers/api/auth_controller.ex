@@ -101,16 +101,23 @@ defmodule TuistWeb.API.AuthController do
         |> json(%{})
 
       device_code.authenticated ->
-        user = Accounts.get_user!(device_code.user_id)
+        user = Accounts.get_user!(device_code.user_id, preload: [:account])
 
         {:ok, access_token, _opts} =
-          Authentication.encode_and_sign(user, %{},
+          Authentication.encode_and_sign(
+            user,
+            %{
+              email: user.email,
+              preferred_username: user.account.name
+            },
             token_type: :access,
             ttl: @access_token_ttl
           )
 
         {:ok, refresh_token, _opts} =
-          Authentication.encode_and_sign(user, %{},
+          Authentication.encode_and_sign(
+            user,
+            %{email: user.email, preferred_username: user.account.name},
             token_type: :refresh,
             ttl: @refresh_token_ttl
           )

@@ -57,7 +57,7 @@ defmodule TuistWeb.API.AuthControllerTest do
       conn: conn
     } do
       # Given
-      user = AccountsFixtures.user_fixture()
+      user = AccountsFixtures.user_fixture(preload: [:account])
 
       device_code =
         Accounts.create_device_code("AOKJ-1234", created_at: ~U[2024-04-30 10:14:30Z])
@@ -77,15 +77,21 @@ defmodule TuistWeb.API.AuthControllerTest do
 
       assert response["token"] == user.token
 
-      assert Tuist.Authentication.decode_and_verify(response["access_token"], %{
-               "typ" => "access",
-               "sub" => user.id
-             })
+      {:ok, access_token_claims} =
+        Tuist.Authentication.decode_and_verify(response["access_token"], %{
+          "typ" => "access"
+        })
 
-      assert Tuist.Authentication.decode_and_verify(response["refresh_token"], %{
-               "typ" => "refresh",
-               "sub" => user.id
-             })
+      assert access_token_claims["email"] == user.email
+      assert access_token_claims["preferred_username"] == user.account.name
+
+      {:ok, refresh_token_claims} =
+        Tuist.Authentication.decode_and_verify(response["refresh_token"], %{
+          "typ" => "refresh"
+        })
+
+      assert refresh_token_claims["email"] == user.email
+      assert refresh_token_claims["preferred_username"] == user.account.name
     end
   end
 
