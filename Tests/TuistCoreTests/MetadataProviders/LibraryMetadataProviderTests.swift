@@ -17,12 +17,16 @@ final class LibraryMetadataProviderTests: XCTestCase {
         super.tearDown()
     }
 
-    func test_loadMetadata() throws {
+    func test_loadMetadata() async throws {
         // Given
         let libraryPath = fixturePath(path: try RelativePath(validating: "libStaticLibrary.a"))
 
         // When
-        let metadata = try subject.loadMetadata(at: libraryPath, publicHeaders: libraryPath.parentDirectory, swiftModuleMap: nil)
+        let metadata = try await subject.loadMetadata(
+            at: libraryPath,
+            publicHeaders: libraryPath.parentDirectory,
+            swiftModuleMap: nil
+        )
 
         // Then
         XCTAssertEqual(metadata, LibraryMetadata(

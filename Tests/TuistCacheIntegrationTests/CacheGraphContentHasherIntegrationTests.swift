@@ -1,6 +1,7 @@
 import Foundation
-import MockableTest
+import Mockable
 import Path
+import struct TSCUtility.Version
 import TuistCore
 import TuistHasher
 import TuistSupport
@@ -61,6 +62,9 @@ final class ContentHashingIntegrationTests: TuistUnitTestCase {
             XCTFail("Error while creating files for stub project")
         }
         given(swiftVersionProvider).swiftlangVersion().willReturn("5.4.0")
+        given(xcodeController)
+            .selectedVersion()
+            .willReturn(Version(15, 3, 0))
         subject = CacheGraphContentHasher(contentHasher: CachedContentHasher())
     }
 
@@ -81,7 +85,7 @@ final class ContentHashingIntegrationTests: TuistUnitTestCase {
 
     // MARK: - Sources
 
-    func test_contentHashes_frameworksWithSameSources() throws {
+    func test_contentHashes_frameworksWithSameSources() async throws {
         // Given
         let framework1Target = makeFramework(sources: [source1, source2])
         let framework2Target = makeFramework(sources: [source2, source1])
@@ -106,7 +110,7 @@ final class ContentHashingIntegrationTests: TuistUnitTestCase {
         )
 
         // When
-        let contentHash = try subject.contentHashes(
+        let contentHash = try await subject.contentHashes(
             for: graph,
             configuration: "Debug",
             config: .test(),
@@ -117,7 +121,7 @@ final class ContentHashingIntegrationTests: TuistUnitTestCase {
         XCTAssertEqual(contentHash[framework1], contentHash[framework2])
     }
 
-    func test_contentHashes_frameworksWithDifferentSources() throws {
+    func test_contentHashes_frameworksWithDifferentSources() async throws {
         // Given
         let framework1Target = makeFramework(sources: [source1, source2])
         let framework2Target = makeFramework(sources: [source3, source4])
@@ -142,7 +146,7 @@ final class ContentHashingIntegrationTests: TuistUnitTestCase {
         )
 
         // When
-        let contentHash = try subject.contentHashes(
+        let contentHash = try await subject.contentHashes(
             for: graph,
             configuration: "Debug",
             config: .test(),
@@ -153,7 +157,7 @@ final class ContentHashingIntegrationTests: TuistUnitTestCase {
         XCTAssertNotEqual(contentHash[framework1], contentHash[framework2])
     }
 
-    func test_contentHashes_hashIsConsistent() throws {
+    func test_contentHashes_hashIsConsistent() async throws {
         // Given
         let framework1Target = makeFramework(sources: [source1, source2])
         let framework2Target = makeFramework(sources: [source3, source4])
@@ -178,7 +182,7 @@ final class ContentHashingIntegrationTests: TuistUnitTestCase {
         )
 
         // When
-        let contentHash = try subject.contentHashes(
+        let contentHash = try await subject.contentHashes(
             for: graph,
             configuration: "Debug",
             config: .test(),
@@ -186,13 +190,13 @@ final class ContentHashingIntegrationTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(contentHash[framework1], "733b86d9009e7e3d23cd9eb030fb635f")
-        XCTAssertEqual(contentHash[framework2], "644e0bd4ff2868a9c9f74c349df77163")
+        XCTAssertEqual(contentHash[framework1], "b4887fb8385832284a3b63443347aa08")
+        XCTAssertEqual(contentHash[framework2], "b5eeaecaf3561f20c10e4bbe047e111e")
     }
 
     // MARK: - Resources
 
-    func test_contentHashes_differentResourceFiles() throws {
+    func test_contentHashes_differentResourceFiles() async throws {
         // Given
         let framework1Target = makeFramework(resources: .init([resourceFile1]))
         let framework2Target = makeFramework(resources: .init([resourceFile2]))
@@ -217,7 +221,7 @@ final class ContentHashingIntegrationTests: TuistUnitTestCase {
         )
 
         // When
-        let contentHash = try subject.contentHashes(
+        let contentHash = try await subject.contentHashes(
             for: graph,
             configuration: "Debug",
             config: .test(),
@@ -228,7 +232,7 @@ final class ContentHashingIntegrationTests: TuistUnitTestCase {
         XCTAssertNotEqual(contentHash[framework1], contentHash[framework2])
     }
 
-    func test_contentHashes_differentResourcesFolderReferences() throws {
+    func test_contentHashes_differentResourcesFolderReferences() async throws {
         // Given
         let framework1Target = makeFramework(resources: .init([resourceFolderReference1]))
         let framework2Target = makeFramework(resources: .init([resourceFolderReference2]))
@@ -253,7 +257,7 @@ final class ContentHashingIntegrationTests: TuistUnitTestCase {
         )
 
         // When
-        let contentHash = try subject.contentHashes(
+        let contentHash = try await subject.contentHashes(
             for: graph,
             configuration: "Debug",
             config: .test(),
@@ -264,7 +268,7 @@ final class ContentHashingIntegrationTests: TuistUnitTestCase {
         XCTAssertNotEqual(contentHash[framework1], contentHash[framework2])
     }
 
-    func test_contentHashes_sameResources() throws {
+    func test_contentHashes_sameResources() async throws {
         // Given
         let resources: ResourceFileElements = .init([resourceFile1, resourceFolderReference1])
         let framework1Target = makeFramework(resources: resources)
@@ -290,7 +294,7 @@ final class ContentHashingIntegrationTests: TuistUnitTestCase {
         )
 
         // When
-        let contentHash = try subject.contentHashes(
+        let contentHash = try await subject.contentHashes(
             for: graph,
             configuration: "Debug",
             config: .test(),
@@ -303,7 +307,7 @@ final class ContentHashingIntegrationTests: TuistUnitTestCase {
 
     // MARK: - Core Data Models
 
-    func test_contentHashes_differentCoreDataModels() throws {
+    func test_contentHashes_differentCoreDataModels() async throws {
         // Given
         let framework1Target = makeFramework(coreDataModels: [coreDataModel1])
         let framework2Target = makeFramework(coreDataModels: [coreDataModel2])
@@ -328,7 +332,7 @@ final class ContentHashingIntegrationTests: TuistUnitTestCase {
         )
 
         // When
-        let contentHash = try subject.contentHashes(
+        let contentHash = try await subject.contentHashes(
             for: graph,
             configuration: "Debug",
             config: .test(),
@@ -339,7 +343,7 @@ final class ContentHashingIntegrationTests: TuistUnitTestCase {
         XCTAssertNotEqual(contentHash[framework1], contentHash[framework2])
     }
 
-    func test_contentHashes_sameCoreDataModels() throws {
+    func test_contentHashes_sameCoreDataModels() async throws {
         // Given
         let framework1Target = makeFramework(coreDataModels: [coreDataModel1])
         let framework2Target = makeFramework(coreDataModels: [coreDataModel1])
@@ -364,7 +368,7 @@ final class ContentHashingIntegrationTests: TuistUnitTestCase {
         )
 
         // When
-        let contentHash = try subject.contentHashes(
+        let contentHash = try await subject.contentHashes(
             for: graph,
             configuration: "Debug",
             config: .test(),
@@ -379,7 +383,7 @@ final class ContentHashingIntegrationTests: TuistUnitTestCase {
 
     // MARK: - Platform
 
-    func test_contentHashes_differentPlatform() throws {
+    func test_contentHashes_differentPlatform() async throws {
         // Given
         let framework1Target = makeFramework(platform: .iOS)
         let framework2Target = makeFramework(platform: .macOS)
@@ -404,7 +408,7 @@ final class ContentHashingIntegrationTests: TuistUnitTestCase {
         )
 
         // When
-        let contentHash = try subject.contentHashes(
+        let contentHash = try await subject.contentHashes(
             for: graph,
             configuration: "Debug",
             config: .test(),
@@ -416,7 +420,7 @@ final class ContentHashingIntegrationTests: TuistUnitTestCase {
 
     // MARK: - ProductName
 
-    func test_contentHashes_differentProductName() throws {
+    func test_contentHashes_differentProductName() async throws {
         // Given
         let framework1Target = makeFramework(productName: "1")
         let framework2Target = makeFramework(productName: "2")
@@ -441,7 +445,7 @@ final class ContentHashingIntegrationTests: TuistUnitTestCase {
         )
 
         // When
-        let contentHash = try subject.contentHashes(
+        let contentHash = try await subject.contentHashes(
             for: graph,
             configuration: "Debug",
             config: .test(),

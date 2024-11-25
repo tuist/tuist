@@ -1,20 +1,26 @@
-// swift-tools-version:5.10
+// swift-tools-version: 5.10
 
-import PackageDescription
+@preconcurrency import PackageDescription
 
-let swiftToolsSupportDependency: Target.Dependency = .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core")
+let swiftToolsSupportDependency: Target.Dependency = .product(
+    name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"
+)
 let pathDependency: Target.Dependency = .product(name: "Path", package: "Path")
 let loggingDependency: Target.Dependency = .product(name: "Logging", package: "swift-log")
-let argumentParserDependency: Target.Dependency = .product(name: "ArgumentParser", package: "swift-argument-parser")
+let argumentParserDependency: Target.Dependency = .product(
+    name: "ArgumentParser", package: "swift-argument-parser"
+)
 let swiftGenKitDependency: Target.Dependency = .product(name: "SwiftGenKit", package: "SwiftGen")
 
-var targets: [Target] = [
+let targets: [Target] = [
     .executableTarget(
         name: "tuistbenchmark",
         dependencies: [
             argumentParserDependency,
             pathDependency,
             swiftToolsSupportDependency,
+            "FileSystem",
+            "Path",
         ]
     ),
     .executableTarget(
@@ -23,17 +29,19 @@ var targets: [Target] = [
             argumentParserDependency,
             pathDependency,
             swiftToolsSupportDependency,
+            "ProjectDescription",
         ]
     ),
     .target(
         name: "TuistCore",
         dependencies: [
             pathDependency,
-            "ProjectDescription",
             "TuistSupport",
             "XcodeGraph",
             "XcodeProj",
             "Mockable",
+            "FileSystem",
+            .byName(name: "AnyCodable"),
         ],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
@@ -44,6 +52,8 @@ var targets: [Target] = [
         dependencies: [
             "TuistCore",
             "TuistSupportTesting",
+            "TuistSupport",
+            "XcodeGraph",
             pathDependency,
         ],
         linkerSettings: [.linkedFramework("XCTest")]
@@ -54,12 +64,14 @@ var targets: [Target] = [
             "XcodeProj",
             pathDependency,
             argumentParserDependency,
+            "TuistCore",
             "TuistSupport",
             "TuistGenerator",
             "TuistAutomation",
             "ProjectDescription",
             "ProjectAutomation",
             "TuistLoader",
+            "TuistHasher",
             "TuistScaffold",
             "TuistDependencies",
             "GraphViz",
@@ -73,6 +85,7 @@ var targets: [Target] = [
             "FileSystem",
             "TuistCache",
             .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
+            .byName(name: "AnyCodable"),
         ],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
@@ -82,6 +95,9 @@ var targets: [Target] = [
         name: "tuist",
         dependencies: [
             "TuistKit",
+            "TuistSupport",
+            "Path",
+            "TuistLoader",
             "ProjectDescription",
             "ProjectAutomation",
             swiftToolsSupportDependency,
@@ -102,7 +118,6 @@ var targets: [Target] = [
             swiftToolsSupportDependency,
             "KeychainAccess",
             "ZIPFoundation",
-            "ProjectDescription",
             "Mockable",
             "FileSystem",
         ],
@@ -117,6 +132,7 @@ var targets: [Target] = [
             "XcodeGraph",
             pathDependency,
             "Difference",
+            "FileSystem",
         ],
         linkerSettings: [.linkedFramework("XCTest")]
     ),
@@ -128,6 +144,9 @@ var targets: [Target] = [
             "TuistSupport",
             "TuistSupportTesting",
             "XcodeProj",
+            "FileSystem",
+            "ProjectDescription",
+            "XcodeGraph",
             pathDependency,
         ],
         linkerSettings: [.linkedFramework("XCTest")]
@@ -145,6 +164,7 @@ var targets: [Target] = [
             "StencilSwiftKit",
             "Mockable",
             "FileSystem",
+            "Stencil",
         ],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
@@ -155,6 +175,10 @@ var targets: [Target] = [
         dependencies: [
             "TuistGenerator",
             pathDependency,
+            "XcodeGraph",
+            "XcodeProj",
+            "TuistCore",
+            "TuistSupport",
         ],
         linkerSettings: [.linkedFramework("XCTest")]
     ),
@@ -185,6 +209,7 @@ var targets: [Target] = [
             "TuistSupport",
             "Mockable",
             "FileSystem",
+            "Command",
         ],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
@@ -213,6 +238,7 @@ var targets: [Target] = [
             "TuistSupport",
             "XcodeProj",
             "Mockable",
+            "FileSystem",
             pathDependency,
         ],
         swiftSettings: [
@@ -245,6 +271,7 @@ var targets: [Target] = [
             "TuistSupport",
             "Mockable",
             "ProjectDescription",
+            "FileSystem",
         ],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
@@ -258,6 +285,8 @@ var targets: [Target] = [
             "TuistCore",
             "ProjectDescription",
             "TuistSupportTesting",
+            "TuistSupport",
+            "XcodeGraph",
         ],
         linkerSettings: [.linkedFramework("XCTest")]
     ),
@@ -269,6 +298,7 @@ var targets: [Target] = [
             "TuistCore",
             "XcodeGraph",
             "TuistLoader",
+            "TuistSupport",
             "Mockable",
             pathDependency,
         ],
@@ -281,6 +311,7 @@ var targets: [Target] = [
         dependencies: [
             "XcodeGraph",
             "TuistLoader",
+            "TuistCore",
             "TuistSupport",
             "TuistScaffold",
             "Mockable",
@@ -296,9 +327,13 @@ var targets: [Target] = [
         dependencies: [
             "TuistCore",
             "TuistSupport",
+            "TuistCache",
             "FileSystem",
+            "XcodeGraph",
+            "Mockable",
             pathDependency,
             .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
+            .product(name: "HTTPTypes", package: "swift-http-types"),
             .product(name: "OpenAPIURLSession", package: "swift-openapi-urlsession"),
         ],
         exclude: ["OpenAPI/server.yml"],
@@ -314,6 +349,7 @@ var targets: [Target] = [
             "FileSystem",
             pathDependency,
             "XcodeGraph",
+            "Mockable",
         ],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
@@ -325,6 +361,7 @@ var targets: [Target] = [
             "TuistCore",
             "TuistSupport",
             "FileSystem",
+            "Mockable",
             pathDependency,
             "XcodeGraph",
             "TuistHasher",
@@ -347,7 +384,6 @@ var targets: [Target] = [
             "TSCLibc": .staticFramework,
             "ArgumentParser": .staticFramework,
             "Mockable": .staticFramework,
-            "MockableTest": .staticFramework,
         ],
         baseSettings: .settings(base: ["GENERATE_MASTER_OBJECT_FILE": "YES"])
     )
@@ -356,7 +392,7 @@ var targets: [Target] = [
 
 let package = Package(
     name: "tuist",
-    platforms: [.macOS(.v12)],
+    platforms: [.macOS(.v13)],
     products: [
         .executable(name: "tuistbenchmark", targets: ["tuistbenchmark"]),
         .executable(name: "tuistfixturegenerator", targets: ["tuistfixturegenerator"]),
@@ -456,18 +492,30 @@ let package = Package(
         .package(url: "https://github.com/weichsel/ZIPFoundation", from: "0.9.19"),
         .package(url: "https://github.com/kishikawakatsumi/KeychainAccess", from: "4.2.2"),
         .package(url: "https://github.com/stencilproject/Stencil", exact: "0.15.1"),
-        .package(url: "https://github.com/tuist/GraphViz.git", branch: "0.2.1"),
+        .package(url: "https://github.com/tuist/GraphViz.git", exact: "0.4.2"),
         .package(url: "https://github.com/SwiftGen/StencilSwiftKit", exact: "2.10.1"),
         .package(url: "https://github.com/SwiftGen/SwiftGen", exact: "6.6.2"),
-        .package(url: "https://github.com/tuist/XcodeProj", exact: "8.23.0"),
-        .package(url: "https://github.com/cpisciotta/xcbeautify", .upToNextMajor(from: "2.5.0")),
+        .package(url: "https://github.com/tuist/XcodeProj", exact: "8.24.4"),
+        .package(url: "https://github.com/cpisciotta/xcbeautify", .upToNextMajor(from: "2.13.0")),
         .package(url: "https://github.com/krzysztofzablocki/Difference.git", from: "1.0.2"),
-        .package(url: "https://github.com/Kolos65/Mockable.git", from: "0.0.9"),
-        .package(url: "https://github.com/tuist/swift-openapi-runtime", branch: "swift-tools-version"),
-        .package(url: "https://github.com/tuist/swift-openapi-urlsession", branch: "swift-tools-version"),
+        .package(url: "https://github.com/Kolos65/Mockable.git", exact: "0.0.11"),
+        .package(
+            url: "https://github.com/apple/swift-openapi-runtime", .upToNextMajor(from: "1.5.0")
+        ),
+        .package(
+            url: "https://github.com/apple/swift-http-types", .upToNextMajor(from: "1.3.0")
+        ),
+        .package(
+            url: "https://github.com/apple/swift-openapi-urlsession", .upToNextMajor(from: "1.0.2")
+        ),
         .package(url: "https://github.com/tuist/Path", .upToNextMajor(from: "0.3.0")),
-        .package(url: "https://github.com/tuist/XcodeGraph.git", exact: "0.10.0"),
-        .package(url: "https://github.com/tuist/FileSystem.git", .upToNextMajor(from: "0.2.0")),
+        .package(
+            url: "https://github.com/tuist/XcodeGraph.git", exact: "0.19.4"
+        ),
+        .package(url: "https://github.com/tuist/FileSystem.git", .upToNextMajor(from: "0.6.17")),
+        .package(url: "https://github.com/tuist/Command.git", exact: "0.8.0"),
+        .package(url: "https://github.com/sparkle-project/Sparkle.git", from: "2.6.4"),
+        .package(url: "https://github.com/apple/swift-collections", .upToNextMajor(from: "1.1.4")),
     ],
     targets: targets
 )

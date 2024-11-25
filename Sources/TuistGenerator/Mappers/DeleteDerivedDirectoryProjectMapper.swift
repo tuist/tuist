@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import TuistCore
 import TuistSupport
@@ -7,23 +8,26 @@ import XcodeGraph
 public final class DeleteDerivedDirectoryProjectMapper: ProjectMapping {
     private let derivedDirectoryName: String
     private let fileHandler: FileHandling
+    private let fileSystem: FileSysteming
 
     public init(
         derivedDirectoryName: String = Constants.DerivedDirectory.name,
-        fileHandler: FileHandling = FileHandler.shared
+        fileHandler: FileHandling = FileHandler.shared,
+        fileSystem: FileSysteming = FileSystem()
     ) {
         self.derivedDirectoryName = derivedDirectoryName
         self.fileHandler = fileHandler
+        self.fileSystem = fileSystem
     }
 
     // MARK: - ProjectMapping
 
-    public func map(project: Project) throws -> (Project, [SideEffectDescriptor]) {
+    public func map(project: Project) async throws -> (Project, [SideEffectDescriptor]) {
         logger.debug("Transforming project \(project.name): Deleting /Derived directory")
 
         let derivedDirectoryPath = project.path.appending(component: derivedDirectoryName)
 
-        if !fileHandler.exists(derivedDirectoryPath) {
+        if try await !fileSystem.exists(derivedDirectoryPath) {
             return (project, [])
         }
 

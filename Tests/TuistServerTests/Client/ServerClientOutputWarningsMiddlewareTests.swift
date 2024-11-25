@@ -1,11 +1,12 @@
 import Foundation
+import HTTPTypes
 import OpenAPIRuntime
 import TuistSupport
 import XCTest
 @testable import TuistServer
 @testable import TuistSupportTesting
 
-private class MockWarningController: WarningControlling {
+private final class MockWarningController: WarningControlling {
     var warnings: [String] = []
     func append(warning: String) {
         warnings.append(warning)
@@ -37,16 +38,19 @@ final class ServerClientOutputWarningsMiddlewareTests: TuistUnitTestCase {
         let url = URL(string: "https://test.tuist.io")!
         let warnings = ["foo", "bar"]
         let base64edJsonWarnings = (try JSONSerialization.data(withJSONObject: warnings)).base64EncodedString()
-        let request = Request(path: "/", method: .get)
-        let response = Response(
-            statusCode: 200,
-            headerFields: [.init(name: "x-tuist-cloud-warnings", value: base64edJsonWarnings)]
+        let request = HTTPRequest(method: .get, scheme: nil, authority: nil, path: "/")
+        let response = HTTPResponse(
+            status: 200,
+            headerFields: [
+                try XCTUnwrap(HTTPField.Name("x-tuist-cloud-warnings")): base64edJsonWarnings,
+            ]
         )
 
         // When
-        let gotResponse = try await subject.intercept(request, baseURL: url, operationID: "123") { _, _ in
-            response
-        }
+        let (gotResponse, _) = try await subject
+            .intercept(request, body: nil, baseURL: url, operationID: "123") { _, _, _ in
+                (response, nil)
+            }
 
         // Then
         XCTAssertEqual(gotResponse, response)
@@ -58,13 +62,14 @@ final class ServerClientOutputWarningsMiddlewareTests: TuistUnitTestCase {
     func test_doesntOutputAnyWarning_whenTheHeaderIsAbsent() async throws {
         // Given
         let url = URL(string: "https://test.tuist.io")!
-        let request = Request(path: "/", method: .get)
-        let response = Response(statusCode: 200)
+        let request = HTTPRequest(method: .get, scheme: nil, authority: nil, path: "/")
+        let response = HTTPResponse(status: 200)
 
         // When
-        let gotResponse = try await subject.intercept(request, baseURL: url, operationID: "123") { _, _ in
-            response
-        }
+        let (gotResponse, _) = try await subject
+            .intercept(request, body: nil, baseURL: url, operationID: "123") { _, _, _ in
+                (response, nil)
+            }
 
         // Then
         XCTAssertEqual(gotResponse, response)

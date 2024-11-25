@@ -36,6 +36,13 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
     )
     var clean: Bool = false
 
+    @Flag(
+        name: .shortAndLong,
+        help: "When passed, the result necessary for test selection is not persisted to the server.",
+        envKey: .testNoUpload
+    )
+    var noUpload: Bool = false
+
     @Option(
         name: .shortAndLong,
         help: "The path to the directory that contains the project to be tested.",
@@ -154,7 +161,7 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
     var binaryCache: Bool = true
 
     @Flag(
-        help: "Run all tests instead of selectively test only those that have changed since the last successful test run.",
+        help: "When --no-selective-testing is passed, tuist runs all tests without using selective testing.",
         envKey: .testSelectiveTesting
     )
     var selectiveTesting: Bool = true
@@ -219,21 +226,11 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
         }
 
         defer {
-            var parameters: [String: AnyCodable] = [
-                "no_binary_cache": AnyCodable(!binaryCache),
-                "no_selective_testing": AnyCodable(!selectiveTesting),
-            ]
-            parameters["cacheable_targets"] = AnyCodable(CacheAnalyticsStore.shared.cacheableTargets)
-            parameters["local_cache_target_hits"] = AnyCodable(CacheAnalyticsStore.shared.localCacheTargetsHits)
-            parameters["remote_cache_target_hits"] = AnyCodable(CacheAnalyticsStore.shared.remoteCacheTargetsHits)
-            parameters["test_targets"] = AnyCodable(CacheAnalyticsStore.shared.testTargets)
-            parameters["local_test_target_hits"] = AnyCodable(CacheAnalyticsStore.shared.localTestTargetHits)
-            parameters["remote_test_target_hits"] = AnyCodable(CacheAnalyticsStore.shared.remoteTestTargetHits)
-            parameters["target_hashes"] = AnyCodable(CacheAnalyticsStore.shared.targetHashes)
-            parameters["graph_path"] = AnyCodable(CacheAnalyticsStore.shared.graphPath)
-
             TestCommand.analyticsDelegate?.addParameters(
-                parameters
+                [
+                    "no_binary_cache": AnyCodable(!binaryCache),
+                    "no_selective_testing": AnyCodable(!selectiveTesting),
+                ]
             )
         }
 
@@ -244,6 +241,7 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
             runId: runId,
             schemeName: scheme,
             clean: clean,
+            noUpload: noUpload,
             configuration: configuration,
             path: absolutePath,
             deviceName: device,
@@ -272,12 +270,13 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
             ignoreBinaryCache: !binaryCache,
             ignoreSelectiveTesting: !selectiveTesting,
             generateOnly: generateOnly,
-            passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
+            passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
+            analyticsDelegate: TestCommand.analyticsDelegate
         )
     }
 }
 
-extension TestIdentifier: ExpressibleByArgument {
+extension TestIdentifier: ArgumentParser.ExpressibleByArgument {
     public init?(argument: String) {
         do {
             try self.init(string: argument)

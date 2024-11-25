@@ -19,10 +19,11 @@ public enum MultipartUploadCompleteAnalyticsServiceError: FatalError, Equatable 
     case notFound(String)
     case forbidden(String)
     case unauthorized(String)
+    case internalServerError(String)
 
     public var type: ErrorType {
         switch self {
-        case .unknownError:
+        case .unknownError, .internalServerError:
             return .bug
         case .notFound, .forbidden, .unauthorized:
             return .abort
@@ -33,7 +34,7 @@ public enum MultipartUploadCompleteAnalyticsServiceError: FatalError, Equatable 
         switch self {
         case let .unknownError(statusCode):
             return "The multi-part upload could not get completed due to an unknown Tuist response of \(statusCode)."
-        case let .notFound(message), let .forbidden(message), let .unauthorized(message):
+        case let .notFound(message), let .forbidden(message), let .unauthorized(message), let .internalServerError(message):
             return message
         }
     }
@@ -83,7 +84,12 @@ public final class MultipartUploadCompleteAnalyticsService: MultipartUploadCompl
         case let .unauthorized(unauthorized):
             switch unauthorized.body {
             case let .json(error):
-                throw DeleteOrganizationServiceError.unauthorized(error.message)
+                throw MultipartUploadCompleteAnalyticsServiceError.unauthorized(error.message)
+            }
+        case let .internalServerError(internalServerError):
+            switch internalServerError.body {
+            case let .json(error):
+                throw MultipartUploadCompleteAnalyticsServiceError.internalServerError(error.message)
             }
         }
     }

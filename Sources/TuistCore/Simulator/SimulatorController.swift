@@ -52,7 +52,7 @@ public protocol SimulatorControlling {
     ///   - bundleId: The bundle id of the app to launch.
     ///   - device: The simulator device to install the app on.
     ///   - arguments: Any additional arguments to pass the app on launch.
-    func launchApp(bundleId: String, device: SimulatorDevice, arguments: [String]) throws
+    func launchApp(bundleId: String, device: SimulatorDevice, arguments: [String]) async throws
 
     /// Finds the simulator destination for the target platform
     /// - Parameters:
@@ -77,6 +77,11 @@ public protocol SimulatorControlling {
     /// Boots a simulator, if necessary
     /// - Returns: A simulator with the updated `state`
     func booted(device: SimulatorDevice) throws -> SimulatorDevice
+
+    /// Boots a simulator, if necessary
+    /// - Parameters:
+    ///     - forced: If `true`, booting of the simulator is forced
+    func booted(device: SimulatorDevice, forced: Bool) throws -> SimulatorDevice
 }
 
 public enum SimulatorControllerError: Equatable, FatalError {
@@ -111,15 +116,18 @@ public final class SimulatorController: SimulatorControlling {
 
     private let system: Systeming
     private let devEnvironment: DeveloperEnvironmenting
+    private let xcodeController: XcodeControlling
 
     public init(
         userInputReader: UserInputReading = UserInputReader(),
         system: Systeming = System.shared,
-        devEnvironment: DeveloperEnvironmenting = DeveloperEnvironment.shared
+        devEnvironment: DeveloperEnvironmenting = DeveloperEnvironment.shared,
+        xcodeController: XcodeControlling = XcodeController.shared
     ) {
         self.userInputReader = userInputReader
         self.system = system
         self.devEnvironment = devEnvironment
+        self.xcodeController = xcodeController
     }
 
     /// Returns the list of simulator devices that are available in the system.
@@ -267,15 +275,25 @@ public final class SimulatorController: SimulatorControlling {
         try system.run(["/usr/bin/xcrun", "simctl", "install", device.udid, path.pathString])
     }
 
-    public func launchApp(bundleId: String, device: SimulatorDevice, arguments: [String]) throws {
+    public func launchApp(bundleId: String, device: SimulatorDevice, arguments: [String]) async throws {
         logger.debug("Launching app with bundle id \(bundleId) on simulator device with id \(device.udid)")
         let device = try device.booted(using: system)
-        try system.run(["/usr/bin/open", "-a", "Simulator"])
+        let simulator = try await xcodeController.selected()?.path.appending(
+            components: "Contents",
+            "Developer",
+            "Applications",
+            "Simulator.app"
+        )
+        try system.run(["/usr/bin/open", "-a", simulator?.pathString ?? "Simulator"])
         try system.run(["/usr/bin/xcrun", "simctl", "launch", device.udid, bundleId] + arguments)
     }
 
     public func booted(device: SimulatorDevice) throws -> SimulatorDevice {
         try device.booted(using: system)
+    }
+
+    public func booted(device: SimulatorDevice, forced: Bool) throws -> SimulatorDevice {
+        try device.booted(using: system, forced: forced)
     }
 
     /// https://www.mokacoding.com/blog/xcodebuild-destination-options/
@@ -319,9 +337,19 @@ public final class SimulatorController: SimulatorControlling {
 extension SimulatorDevice {
     /// Attempts to boot the simulator.
     /// - returns: The `SimulatorDevice` with updated `isShutdown` field.
-    fileprivate func booted(using system: Systeming) throws -> Self {
-        guard isShutdown else { return self }
-        try system.run(["/usr/bin/xcrun", "simctl", "boot", udid])
+    fileprivate func booted(using system: Systeming, forced: Bool = false) throws -> Self {
+        guard isShutdown || forced else { return self }
+        do {
+            try system.run(["/usr/bin/xcrun", "simctl", "boot", udid])
+        } catch {
+            if forced, let error = error as? FatalError,
+               error.description.contains("Unable to boot device in current state: Booted")
+            {
+                // noop
+            } else {
+                throw error
+            }
+        }
         return SimulatorDevice(
             dataPath: dataPath,
             logPath: logPath,

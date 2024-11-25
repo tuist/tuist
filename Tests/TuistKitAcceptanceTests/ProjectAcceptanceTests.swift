@@ -59,3 +59,46 @@ final class ProjectAcceptanceTestProjectDefaultBranch: ServerAcceptanceTestCase 
         )
     }
 }
+
+final class ProjectAcceptanceTestProjectVisibility: ServerAcceptanceTestCase {
+    func test_update_visibility() async throws {
+        try await setUpFixture(.iosAppWithFrameworks)
+        try await run(ProjectShowCommand.self, fullHandle)
+        XCTAssertStandardOutput(
+            pattern: """
+            Visibility: private
+            """
+        )
+        try await run(ProjectUpdateCommand.self, fullHandle, "--visibility", "public")
+        TestingLogHandler.reset()
+        try await run(ProjectShowCommand.self, fullHandle)
+        XCTAssertStandardOutput(
+            pattern: """
+            Visibility: public
+            """
+        )
+    }
+}
+
+final class ProjectAcceptanceTestProjectRepository: ServerAcceptanceTestCase {
+    func test_update_repository() async throws {
+        try await setUpFixture(.iosAppWithFrameworks)
+        try await run(ProjectShowCommand.self, fullHandle)
+        XCTAssertStandardOutput(
+            pattern: """
+            Full handle: \(fullHandle)
+            Default branch: main
+            """
+        )
+        try await run(ProjectUpdateCommand.self, fullHandle, "--repository-url", "https://github.com/tuist/tuist")
+        TestingLogHandler.reset()
+        try await run(ProjectShowCommand.self, fullHandle)
+        XCTAssertStandardOutput(
+            pattern: """
+            Full handle: \(fullHandle)
+            Repository: https://github.com/tuist/tuist
+            Default branch: main
+            """
+        )
+    }
+}

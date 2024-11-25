@@ -29,39 +29,6 @@ extension AbsolutePath {
         URL(fileURLWithPath: pathString)
     }
 
-    /// Returns the list of paths that match the given glob pattern.
-    ///
-    /// - Parameter pattern: Relative glob pattern used to match the paths.
-    /// - Returns: List of paths that match the given pattern.
-    public func glob(_ pattern: String) -> [AbsolutePath] {
-        // swiftlint:disable:next force_try
-        Glob(pattern: appending(try! RelativePath(validating: pattern)).pathString).paths
-            .map { try! AbsolutePath(validating: $0) } // swiftlint:disable:this force_try
-    }
-
-    /// Returns the list of paths that match the given glob pattern, if the directory exists.
-    ///
-    /// - Parameter pattern: Relative glob pattern used to match the paths.
-    /// - Throws: an error if the directory where the first glob pattern is declared doesn't exist
-    /// - Returns: List of paths that match the given pattern.
-    public func throwingGlob(_ pattern: String) throws -> [AbsolutePath] {
-        let globPath = appending(try RelativePath(validating: pattern)).pathString
-
-        if globPath.isGlobComponent {
-            let pathUpToLastNonGlob = try AbsolutePath(validating: globPath).upToLastNonGlob
-
-            if !FileHandler.shared.isFolder(pathUpToLastNonGlob) {
-                let invalidGlob = InvalidGlob(
-                    pattern: globPath,
-                    nonExistentPath: pathUpToLastNonGlob
-                )
-                throw GlobError.nonExistentDirectory(invalidGlob)
-            }
-        }
-
-        return glob(pattern)
-    }
-
     /// Returns true if the path is a package, recognized by having a UTI `com.apple.package`
     public var isPackage: Bool {
         let ext = URL(fileURLWithPath: pathString).pathExtension
@@ -69,16 +36,23 @@ extension AbsolutePath {
         return utType.conforms(to: UTType.package)
     }
 
-    /// An opaque directory is a directory that should be treated like a file, therefor ignoring its content.
+    /// An opaque directory is a directory that should be treated like a file, therefore ignoring its content.
     /// I.e.: .xcassets, .xcdatamodeld, etc...
     /// This property returns true when a file is contained in such directory.
     public var isInOpaqueDirectory: Bool {
+        opaqueParentDirectory() != nil
+    }
+
+    /// An opaque directory is a directory that should be treated like a file, therefore ignoring its content.
+    /// I.e.: .xcassets, .xcdatamodeld, etc...
+    /// This property returns the first such parent directory if it exists. It returns `nil` otherwise.
+    public func opaqueParentDirectory() -> AbsolutePath? {
         var currentDirectory = parentDirectory
         while currentDirectory != .root {
-            if currentDirectory.isOpaqueDirectory { return true }
+            if currentDirectory.isOpaqueDirectory { return currentDirectory }
             currentDirectory = currentDirectory.parentDirectory
         }
-        return false
+        return nil
     }
 
     /// An opaque directory is a directory that should be treated like a file, therefor ignoring its content.
@@ -93,6 +67,7 @@ extension AbsolutePath {
             "playground",
             "bundle",
             "mlmodelc",
+            "xcmappingmodel",
         ]
         .contains(self.extension ?? "")
     }
@@ -144,7 +119,7 @@ extension AbsolutePath {
     }
 }
 
-extension AbsolutePath: ExpressibleByStringLiteral {
+extension AbsolutePath: Swift.ExpressibleByStringLiteral {
     public init(stringLiteral value: String) {
         self = try! AbsolutePath(validating: value) // swiftlint:disable:this force_try
     }
@@ -154,5 +129,12 @@ extension String {
     var isGlobComponent: Bool {
         let globCharacters = CharacterSet(charactersIn: "*{}")
         return rangeOfCharacter(from: globCharacters) != nil
+    }
+}
+
+extension AbsolutePath {
+    /// `true` if the path is of a glob pattern, `no` otherwise.
+    public var isGlobPath: Bool {
+        return pathString.isGlobComponent
     }
 }

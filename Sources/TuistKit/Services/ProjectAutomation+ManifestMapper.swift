@@ -41,10 +41,17 @@ extension ProjectAutomation.Project {
             ProjectAutomation.Target.from(target)
         }
 
+        let isExternal = switch project.type {
+        case .external:
+            true
+        case .local:
+            false
+        }
+
         return ProjectAutomation.Project(
             name: project.name,
             path: project.path.pathString,
-            isExternal: project.isExternal,
+            isExternal: isExternal,
             packages: packages,
             targets: Array(targets.values),
             schemes: schemes
@@ -79,26 +86,32 @@ extension ProjectAutomation.Target {
 
     static func from(_ dependency: XcodeGraph.TargetDependency) -> ProjectAutomation.TargetDependency {
         switch dependency {
-        case let .target(name, _):
-            return .target(name: name)
-        case let .project(target, path, _):
-            return .project(target: target, path: path.pathString)
+        case let .target(name, status, _):
+            let linkingStatus: ProjectAutomation.LinkingStatus = status == .optional ? .optional : .required
+            return .target(name: name, status: linkingStatus)
+        case let .project(target, path, status, _):
+            let linkingStatus: ProjectAutomation.LinkingStatus = status == .optional ? .optional : .required
+            return .project(target: target, path: path.pathString, status: linkingStatus)
         case let .framework(path, status, _):
-            let frameworkStatus: ProjectAutomation.FrameworkStatus
+            let frameworkStatus: ProjectAutomation.LinkingStatus
             switch status {
             case .optional:
                 frameworkStatus = .optional
             case .required:
                 frameworkStatus = .required
+            case .none:
+                frameworkStatus = .none
             }
             return .framework(path: path.pathString, status: frameworkStatus)
         case let .xcframework(path, status, _):
-            let frameworkStatus: ProjectAutomation.FrameworkStatus
+            let frameworkStatus: ProjectAutomation.LinkingStatus
             switch status {
             case .optional:
                 frameworkStatus = .optional
             case .required:
                 frameworkStatus = .required
+            case .none:
+                frameworkStatus = .none
             }
             return .xcframework(path: path.pathString, status: frameworkStatus)
         case let .library(path, publicHeaders, swiftModuleMap, _):
@@ -115,14 +128,18 @@ extension ProjectAutomation.Target {
                 return .packagePlugin(product: product)
             case .runtime:
                 return .package(product: product)
+            case .runtimeEmbedded:
+                return .package(product: product, embedded: true)
             }
         case let .sdk(name, status, _):
-            let projectAutomationStatus: ProjectAutomation.SDKStatus
+            let projectAutomationStatus: ProjectAutomation.LinkingStatus
             switch status {
             case .optional:
                 projectAutomationStatus = .optional
             case .required:
                 projectAutomationStatus = .required
+            case .none:
+                projectAutomationStatus = .none
             }
             return .sdk(name: name, status: projectAutomationStatus)
         case .xctest:

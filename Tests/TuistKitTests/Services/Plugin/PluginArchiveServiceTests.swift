@@ -1,4 +1,4 @@
-import MockableTest
+import Mockable
 import Path
 import TuistLoader
 import TuistSupport
@@ -9,16 +9,19 @@ import XCTest
 final class PluginArchiveServiceTests: TuistUnitTestCase {
     private var subject: PluginArchiveService!
     private var swiftPackageManagerController: MockSwiftPackageManagerController!
+    private var packageInfoLoader: MockPackageInfoLoading!
     private var manifestLoader: MockManifestLoading!
     private var fileArchiverFactory: MockFileArchivingFactorying!
 
     override func setUp() {
         super.setUp()
         swiftPackageManagerController = MockSwiftPackageManagerController()
+        packageInfoLoader = .init()
         manifestLoader = .init()
         fileArchiverFactory = MockFileArchivingFactorying()
         subject = PluginArchiveService(
             swiftPackageManagerController: swiftPackageManagerController,
+            packageInfoLoader: packageInfoLoader,
             manifestLoader: manifestLoader,
             fileArchiverFactory: fileArchiverFactory
         )
@@ -27,6 +30,7 @@ final class PluginArchiveServiceTests: TuistUnitTestCase {
     override func tearDown() {
         subject = nil
         swiftPackageManagerController = nil
+        packageInfoLoader = nil
         manifestLoader = nil
         fileArchiverFactory = nil
         super.tearDown()
@@ -34,17 +38,19 @@ final class PluginArchiveServiceTests: TuistUnitTestCase {
 
     func test_run_when_no_task_products_defined() async throws {
         // Given
-        swiftPackageManagerController.loadPackageInfoStub = { _ in
-            PackageInfo.test(
-                products: [
-                    PackageInfo.Product(
-                        name: "my-non-task-executable",
-                        type: .executable,
-                        targets: []
-                    ),
-                ]
+        given(packageInfoLoader)
+            .loadPackageInfo(at: .any)
+            .willReturn(
+                PackageInfo.test(
+                    products: [
+                        PackageInfo.Product(
+                            name: "my-non-task-executable",
+                            type: .executable,
+                            targets: []
+                        ),
+                    ]
+                )
             )
-        }
 
         // When
         try await subject.run(path: nil)
@@ -60,34 +66,34 @@ final class PluginArchiveServiceTests: TuistUnitTestCase {
     func test_run() async throws {
         // Given
         let path = try temporaryPath()
-        var invokedPackagePath: AbsolutePath?
-        swiftPackageManagerController.loadPackageInfoStub = { packagePath in
-            invokedPackagePath = packagePath
-            return PackageInfo.test(
-                products: [
-                    PackageInfo.Product(
-                        name: "my-non-task-executable",
-                        type: .executable,
-                        targets: []
-                    ),
-                    PackageInfo.Product(
-                        name: "tuist-one",
-                        type: .executable,
-                        targets: []
-                    ),
-                    PackageInfo.Product(
-                        name: "tuist-two",
-                        type: .executable,
-                        targets: []
-                    ),
-                    PackageInfo.Product(
-                        name: "tuist-three",
-                        type: .library(.automatic),
-                        targets: []
-                    ),
-                ]
+        given(packageInfoLoader)
+            .loadPackageInfo(at: .any)
+            .willReturn(
+                PackageInfo.test(
+                    products: [
+                        PackageInfo.Product(
+                            name: "my-non-task-executable",
+                            type: .executable,
+                            targets: []
+                        ),
+                        PackageInfo.Product(
+                            name: "tuist-one",
+                            type: .executable,
+                            targets: []
+                        ),
+                        PackageInfo.Product(
+                            name: "tuist-two",
+                            type: .executable,
+                            targets: []
+                        ),
+                        PackageInfo.Product(
+                            name: "tuist-three",
+                            type: .library(.automatic),
+                            targets: []
+                        ),
+                    ]
+                )
             )
-        }
         given(manifestLoader)
             .loadPlugin(at: .any)
             .willReturn(.test(name: "TestPlugin"))
@@ -109,7 +115,9 @@ final class PluginArchiveServiceTests: TuistUnitTestCase {
         try await subject.run(path: path.pathString)
 
         // Then
-        XCTAssertEqual(invokedPackagePath, path)
+        verify(packageInfoLoader)
+            .loadPackageInfo(at: .value(path))
+            .called(1)
         XCTAssertEqual(builtProducts, ["tuist-one", "tuist-two"])
 
         _ = verify(fileArchiver).zip(name: .value("TestPlugin.tuist-plugin.zip"))

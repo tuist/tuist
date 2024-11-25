@@ -11,13 +11,15 @@ extension TuistCore.PackageSettings {
     /// instance.
     static func from(
         manifest: ProjectDescription.PackageSettings,
-        generatorPaths: GeneratorPaths,
-        swiftToolsVersion: TSCUtility.Version
+        generatorPaths: GeneratorPaths
     ) throws -> Self {
         let productTypes = manifest.productTypes.mapValues { XcodeGraph.Product.from(manifest: $0) }
         let productDestinations = try manifest.productDestinations.mapValues { try XcodeGraph.Destination.from(destinations: $0) }
         let baseSettings = try XcodeGraph.Settings.from(manifest: manifest.baseSettings, generatorPaths: generatorPaths)
-        let targetSettings = manifest.targetSettings.mapValues { XcodeGraph.SettingsDictionary.from(manifest: $0) }
+        let targetSettings = try manifest.targetSettings.mapValues { try XcodeGraph.Settings.from(
+            manifest: $0,
+            generatorPaths: generatorPaths
+        ) }
         let projectOptions: [String: XcodeGraph.Project.Options] = manifest
             .projectOptions
             .mapValues { .from(manifest: $0) }
@@ -27,8 +29,7 @@ extension TuistCore.PackageSettings {
             productDestinations: productDestinations,
             baseSettings: baseSettings,
             targetSettings: targetSettings,
-            projectOptions: projectOptions,
-            swiftToolsVersion: .init(stringLiteral: swiftToolsVersion.description)
+            projectOptions: projectOptions
         )
     }
 }

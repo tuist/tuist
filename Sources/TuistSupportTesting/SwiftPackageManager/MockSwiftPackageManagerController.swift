@@ -6,17 +6,17 @@ public final class MockSwiftPackageManagerController: SwiftPackageManagerControl
     public init() {}
 
     public var invokedResolve = false
-    public var resolveStub: ((AbsolutePath, Bool) throws -> Void)?
-    public func resolve(at path: AbsolutePath, printOutput: Bool) throws {
+    public var resolveStub: ((AbsolutePath, [String], Bool) throws -> Void)?
+    public func resolve(at path: AbsolutePath, arguments: [String], printOutput: Bool) throws {
         invokedResolve = true
-        try resolveStub?(path, printOutput)
+        try resolveStub?(path, arguments, printOutput)
     }
 
     public var invokedUpdate = false
-    public var updateStub: ((AbsolutePath, Bool) throws -> Void)?
-    public func update(at path: AbsolutePath, printOutput: Bool) throws {
+    public var updateStub: ((AbsolutePath, [String], Bool) throws -> Void)?
+    public func update(at path: AbsolutePath, arguments: [String], printOutput: Bool) throws {
         invokedUpdate = true
-        try updateStub?(path, printOutput)
+        try updateStub?(path, arguments, printOutput)
     }
 
     public var invokedSetToolsVersion = false
@@ -31,22 +31,6 @@ public final class MockSwiftPackageManagerController: SwiftPackageManagerControl
     public func getToolsVersion(at path: AbsolutePath) throws -> Version {
         invokedGetToolsVersion = true
         return try getToolsVersionStub?(path) ?? Version("5.4.0")
-    }
-
-    public var invokedLoadPackageInfo = false
-    public var loadPackageInfoStub: ((AbsolutePath) throws -> PackageInfo)?
-    public func loadPackageInfo(at path: AbsolutePath) throws -> PackageInfo {
-        invokedLoadPackageInfo = true
-        return try loadPackageInfoStub?(path)
-            ?? .init(
-                name: "Package",
-                products: [],
-                targets: [],
-                platforms: [],
-                cLanguageStandard: nil,
-                cxxLanguageStandard: nil,
-                swiftLanguageVersions: nil
-            )
     }
 
     public var invokedBuildFatReleaseBinary = false

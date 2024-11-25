@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import TuistCache
 import TuistCore
 import TuistGenerator
 import TuistLoader
@@ -14,7 +15,6 @@ final class GenerateService {
     private let timeTakenLoggerFormatter: TimeTakenLoggerFormatting
     private let cacheStorageFactory: CacheStorageFactorying
     private let generatorFactory: GeneratorFactorying
-    private let manifestLoader: ManifestLoading
     private let pluginService: PluginServicing
     private let configLoader: ConfigLoading
 
@@ -23,16 +23,14 @@ final class GenerateService {
         generatorFactory: GeneratorFactorying,
         clock: Clock = WallClock(),
         timeTakenLoggerFormatter: TimeTakenLoggerFormatting = TimeTakenLoggerFormatter(),
-        manifestLoader: ManifestLoading = ManifestLoader(),
         opener: Opening = Opener(),
         pluginService: PluginServicing = PluginService(),
-        configLoader: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader())
+        configLoader: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader(), warningController: WarningController.shared)
     ) {
         self.generatorFactory = generatorFactory
         self.cacheStorageFactory = cacheStorageFactory
         self.clock = clock
         self.timeTakenLoggerFormatter = timeTakenLoggerFormatter
-        self.manifestLoader = manifestLoader
         self.opener = opener
         self.pluginService = pluginService
         self.configLoader = configLoader
@@ -43,12 +41,13 @@ final class GenerateService {
         sources: Set<String>,
         noOpen: Bool,
         configuration: String?,
-        ignoreBinaryCache: Bool
+        ignoreBinaryCache: Bool,
+        analyticsDelegate: TrackableParametersDelegate?
     ) async throws {
         let timer = clock.startTimer()
         let path = try self.path(path)
         let config = try await configLoader.loadConfig(path: path)
-        let cacheStorage = try cacheStorageFactory.cacheStorage(config: config)
+        let cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
         let generator = generatorFactory.generation(
             config: config,
             sources: sources,
@@ -56,9 +55,12 @@ final class GenerateService {
             ignoreBinaryCache: ignoreBinaryCache,
             cacheStorage: cacheStorage
         )
-        let workspacePath = try await generator.generate(path: path)
+        let (workspacePath, _, environment) = try await generator.generateWithGraph(path: path)
+        analyticsDelegate?.cacheableTargets = environment.cacheableTargets
+        analyticsDelegate?.cacheItems = environment.targetCacheItems.values.flatMap(\.values)
+            .sorted(by: { $0.name < $1.name })
         if !noOpen {
-            try opener.open(path: workspacePath)
+            try await opener.open(path: workspacePath)
         }
         logger.notice("Project generated.", metadata: .success)
         logger.notice(timeTakenLoggerFormatter.timeTakenMessage(for: timer))

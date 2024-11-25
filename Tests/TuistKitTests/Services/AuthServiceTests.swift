@@ -1,5 +1,5 @@
 import Foundation
-import MockableTest
+import Mockable
 import Path
 import TuistCore
 import TuistCoreTesting
@@ -26,7 +26,7 @@ final class AuthServiceTests: TuistUnitTestCase {
         super.setUp()
         serverSessionController = .init()
         configLoader = MockConfigLoading()
-        serverURL = URL(string: "https://test.cloud.tuist.io")!
+        serverURL = URL(string: "https://test.tuist.dev")!
         authenticateService = .init()
         serverCredentialsStore = .init()
         serverURLService = .init()

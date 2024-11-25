@@ -20,7 +20,7 @@ final class SettingsLinterTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_lint_project_when_config_files_are_missing() throws {
+    func test_lint_project_when_config_files_are_missing() async throws {
         // Given
         let temporaryPath = try temporaryPath()
         let debugPath = temporaryPath.appending(component: "Debug.xcconfig")
@@ -32,7 +32,7 @@ final class SettingsLinterTests: TuistUnitTestCase {
         let project = Project.test(settings: settings)
 
         // When
-        let got = subject.lint(project: project)
+        let got = try await subject.lint(project: project)
 
         // Then
         XCTAssertEqual(
@@ -47,7 +47,7 @@ final class SettingsLinterTests: TuistUnitTestCase {
         )
     }
 
-    func test_lint_target_when_config_files_are_missing() throws {
+    func test_lint_target_when_config_files_are_missing() async throws {
         // Given
         let temporaryPath = try temporaryPath()
         let debugPath = temporaryPath.appending(component: "Debug.xcconfig")
@@ -59,7 +59,7 @@ final class SettingsLinterTests: TuistUnitTestCase {
         let target = Target.test(settings: settings)
 
         // When
-        let got = subject.lint(target: target)
+        let got = try await subject.lint(target: target)
 
         // Then
         XCTAssertEqual(
@@ -74,47 +74,47 @@ final class SettingsLinterTests: TuistUnitTestCase {
         )
     }
 
-    func test_lint_project_when_no_configurations() {
+    func test_lint_project_when_no_configurations() async throws {
         // Given
         let settings = Settings(base: ["A": "B"], configurations: [:])
         let project = Project.test(settings: settings)
 
         // When
-        let got = subject.lint(project: project)
+        let got = try await subject.lint(project: project)
 
         // Then
         XCTAssertEqual(got, [LintingIssue(reason: "The project at path /Project has no configurations", severity: .error)])
     }
 
-    func test_lint_target_when_no_configurations() {
+    func test_lint_target_when_no_configurations() async throws {
         // Given
         let settings = Settings(base: ["A": "B"], configurations: [:])
         let target = Target.test(settings: settings)
 
         // When
-        let got = subject.lint(target: target)
+        let got = try await subject.lint(target: target)
 
         // Then
         XCTAssertEqual(got, [])
     }
 
-    func test_lint_project_when_platform_and_deployment_target_are_compatible() {
+    func test_lint_project_when_platform_and_deployment_target_are_compatible() async throws {
         // Given
         let target = Target.test(platform: .macOS, deploymentTarget: .macOS("10.14.5"))
 
         // When
-        let got = subject.lint(target: target)
+        let got = try await subject.lint(target: target)
 
         // Then
         XCTAssertEqual(got, [])
     }
 
-    func test_lint_project_when_platform_and_deployment_target_are_not_compatible() {
+    func test_lint_project_when_platform_and_deployment_target_are_not_compatible() async throws {
         // Given
         let target = Target.test(platform: .iOS, deploymentTarget: .macOS("10.14.5"))
 
         // When
-        let got = subject.lint(target: target)
+        let got = try await subject.lint(target: target)
 
         // Then
         XCTAssertEqual(

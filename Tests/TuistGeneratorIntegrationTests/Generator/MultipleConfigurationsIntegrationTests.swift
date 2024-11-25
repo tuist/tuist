@@ -1,6 +1,7 @@
-import MockableTest
+import Mockable
 import Path
 import TSCBasic
+import struct TSCUtility.Version
 import TuistCore
 import TuistLoaderTesting
 import XcodeGraph
@@ -18,7 +19,9 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
                 .swiftVersion()
                 .willReturn("5.2")
 
-            xcodeController.selectedVersionStub = .success("11.0.0")
+            given(xcodeController)
+                .selectedVersion()
+                .willReturn(TSCUtility.Version(11, 0, 0))
             try setupTestProject()
         } catch {
             XCTFail(error.localizedDescription)
@@ -348,10 +351,13 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
         let graphLoader = GraphLoader()
         let config = Config.test()
 
-        let graph = try graphLoader.loadWorkspace(workspace: models.workspace, projects: models.projects)
+        let graph = try await graphLoader.loadWorkspace(
+            workspace: models.workspace,
+            projects: models.projects
+        )
         let graphTraverser = GraphTraverser(graph: graph)
-        try linter.lint(graphTraverser: graphTraverser, config: config).printAndThrowErrorsIfNeeded()
-        let descriptor = try subject.generateWorkspace(graphTraverser: graphTraverser)
+        try await linter.lint(graphTraverser: graphTraverser, config: config).printAndThrowErrorsIfNeeded()
+        let descriptor = try await subject.generateWorkspace(graphTraverser: graphTraverser)
         try await writer.write(workspace: descriptor)
     }
 
@@ -389,6 +395,7 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
             swiftVersion: nil,
             plugins: [],
             generationOptions: .test(),
+            installOptions: .test(),
             path: nil
         )
     }
@@ -429,7 +436,7 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
             additionalFiles: [],
             resourceSynthesizers: [],
             lastUpgradeCheck: nil,
-            isExternal: false
+            type: .local
         )
     }
 

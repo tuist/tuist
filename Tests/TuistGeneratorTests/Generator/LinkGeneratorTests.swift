@@ -1,5 +1,5 @@
 import Foundation
-import MockableTest
+import Mockable
 import Path
 import TuistCore
 import TuistSupportTesting
@@ -318,6 +318,140 @@ final class LinkGeneratorTests: XCTestCase {
         XCTAssertEqual(copyBuildPhase.name, "Embed Frameworks")
         let buildFiles = try XCTUnwrap(copyBuildPhase.files)
         XCTAssertEqual(buildFiles.map { $0.file?.path }, ["Test.xcframework"])
+        XCTAssertEqual(buildFiles.map { $0.settings as? [String: [String]] }, [
+            ["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]],
+        ])
+    }
+
+    func test_generateLinks_generatesEmbeddedFrameworksForLocalEmbedPackage() throws {
+        // Given
+        let (pbxTarget, target) = createTargets(product: .framework)
+        let pbxproj = PBXProj()
+
+        let productDependency = XCSwiftPackageProductDependency(productName: "Product", isPlugin: false)
+        let buildFile = PBXBuildFile(product: productDependency)
+        pbxproj.add(object: buildFile)
+
+        let configurationList = XCConfigurationList(buildConfigurations: [])
+        pbxproj.add(object: configurationList)
+        pbxTarget.buildConfigurationList = configurationList
+
+        let fileElements = ProjectFileElements()
+        let path = try AbsolutePath(validating: "/path/")
+        let sourceRootPath = try AbsolutePath(validating: "/")
+
+        var dependencies: Set<GraphDependencyReference> = []
+        dependencies.insert(GraphDependencyReference.testPackageProduct())
+
+        let searchPaths = Set([
+            try AbsolutePath(validating: "/path/to/libraries"),
+            try AbsolutePath(validating: "/path/to/other/libraries"),
+        ])
+
+        let graphTraverser = MockGraphTraversing()
+
+        given(graphTraverser)
+            .embeddableFrameworks(path: .any, name: .any)
+            .willReturn(dependencies)
+
+        given(graphTraverser)
+            .librariesSearchPaths(path: .any, name: .any)
+            .willReturn(searchPaths)
+
+        given(graphTraverser)
+            .searchablePathDependencies(path: .any, name: .any)
+            .willReturn(dependencies)
+
+        given(graphTraverser)
+            .librariesPublicHeadersFolders(path: .any, name: .any)
+            .willReturn(
+                [
+                    try AbsolutePath(validating: "/headers"),
+                ]
+            )
+
+        given(graphTraverser)
+            .librariesSwiftIncludePaths(path: .any, name: .any)
+            .willReturn(searchPaths)
+
+        given(graphTraverser)
+            .runPathSearchPaths(path: .any, name: .any)
+            .willReturn(
+                [
+                    try AbsolutePath(validating: "/path/Dependencies/Frameworks/"),
+                    try AbsolutePath(validating: "/path/Dependencies/XCFrameworks/"),
+                ]
+            )
+
+        given(graphTraverser)
+            .linkableDependencies(path: .any, name: .any)
+            .willReturn(dependencies)
+
+        given(graphTraverser)
+            .copyProductDependencies(path: .any, name: .any)
+            .willReturn(dependencies)
+
+        given(graphTraverser)
+            .executableDependencies(path: .any, name: .any)
+            .willReturn(dependencies)
+
+        // When
+        try subject.generateLinks(
+            target: target,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            fileElements: fileElements,
+            path: path,
+            sourceRootPath: sourceRootPath,
+            graphTraverser: graphTraverser
+        )
+
+        // Then
+        let copyBuildPhase = try XCTUnwrap(pbxTarget.embedFrameworksBuildPhases().first)
+        XCTAssertEqual(copyBuildPhase.name, "Embed Frameworks")
+
+        let buildFiles = try XCTUnwrap(copyBuildPhase.files)
+        XCTAssertEqual(buildFiles.map { $0.product?.productName }, ["Product"])
+        XCTAssertEqual(buildFiles.map { $0.settings as? [String: [String]] }, [
+            ["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]],
+        ])
+    }
+
+    func test_generateEmbedPhase_setupEmbedFrameworksBuildPhase_whenPackageProductIsPresent() throws {
+        // Given
+        var dependencies: Set<GraphDependencyReference> = []
+        dependencies.insert(GraphDependencyReference.testPackageProduct())
+        let pbxproj = PBXProj()
+        let (pbxTarget, target) = createTargets(product: .framework)
+        let sourceRootPath = try AbsolutePath(validating: "/")
+
+        let productDependency = XCSwiftPackageProductDependency(productName: "Product", isPlugin: false)
+        let buildFile = PBXBuildFile(product: productDependency)
+        pbxproj.add(object: buildFile)
+
+        let fileElements = ProjectFileElements()
+        let path = try AbsolutePath(validating: "/path/")
+        let graphTraverser = MockGraphTraversing()
+        given(graphTraverser)
+            .embeddableFrameworks(path: .any, name: .any)
+            .willReturn(dependencies)
+
+        // When
+        try subject.generateEmbedPhase(
+            target: target,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            fileElements: fileElements,
+            sourceRootPath: sourceRootPath,
+            path: path,
+            graphTraverser: graphTraverser
+        )
+
+        // Then
+        let copyBuildPhase = try XCTUnwrap(pbxTarget.embedFrameworksBuildPhases().first)
+        XCTAssertEqual(copyBuildPhase.name, "Embed Frameworks")
+        let buildFiles = try XCTUnwrap(copyBuildPhase.files)
+        XCTAssertEqual(buildFiles.map { $0.product?.productName }, ["Product"])
         XCTAssertEqual(buildFiles.map { $0.settings as? [String: [String]] }, [
             ["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]],
         ])
@@ -681,6 +815,83 @@ final class LinkGeneratorTests: XCTestCase {
         XCTAssertEqual(wakaBuildFile?.file, wakaFile)
     }
 
+    func test_generateLinkingPhase_requiredProduct() throws {
+        var dependencies: Set<GraphDependencyReference> = []
+        dependencies.insert(GraphDependencyReference.testFramework(path: "/test.framework"))
+        dependencies.insert(GraphDependencyReference.product(
+            target: "Test",
+            productName: "Test.framework",
+            status: .required
+        ))
+        let pbxproj = PBXProj()
+        let (pbxTarget, target) = createTargets(product: .framework)
+        let fileElements = ProjectFileElements()
+        let testFile = PBXFileReference()
+        pbxproj.add(object: testFile)
+        let wakaFile = PBXFileReference()
+        pbxproj.add(object: wakaFile)
+        fileElements.products["Test"] = wakaFile
+        fileElements.elements[try AbsolutePath(validating: "/test.framework")] = testFile
+        let path = try AbsolutePath(validating: "/path/")
+        let graphTraverser = MockGraphTraversing()
+        given(graphTraverser)
+            .linkableDependencies(path: .any, name: .any)
+            .willReturn(dependencies)
+
+        try subject.generateLinkingPhase(
+            target: target,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            fileElements: fileElements,
+            path: path,
+            graphTraverser: graphTraverser
+        )
+
+        let buildPhase = try pbxTarget.frameworksBuildPhase()
+
+        let testBuildFile: PBXBuildFile? = buildPhase?.files?.first
+        XCTAssertNil(testBuildFile?.settings?["ATTRIBUTES"])
+    }
+
+    func test_generateLinkingPhase_optionalProduct() throws {
+        var dependencies: Set<GraphDependencyReference> = []
+        dependencies.insert(GraphDependencyReference.testFramework(path: "/test.framework"))
+        dependencies.insert(GraphDependencyReference.product(
+            target: "Test",
+            productName: "Test.framework",
+            status: .optional
+        ))
+        let pbxproj = PBXProj()
+        let (pbxTarget, target) = createTargets(product: .framework)
+        let fileElements = ProjectFileElements()
+        let testFile = PBXFileReference()
+        pbxproj.add(object: testFile)
+        let wakaFile = PBXFileReference()
+        pbxproj.add(object: wakaFile)
+        fileElements.products["Test"] = wakaFile
+        fileElements.elements[try AbsolutePath(validating: "/test.framework")] = testFile
+        let path = try AbsolutePath(validating: "/path/")
+        let graphTraverser = MockGraphTraversing()
+        given(graphTraverser)
+            .linkableDependencies(path: .any, name: .any)
+            .willReturn(dependencies)
+
+        try subject.generateLinkingPhase(
+            target: target,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            fileElements: fileElements,
+            path: path,
+            graphTraverser: graphTraverser
+        )
+
+        let buildPhase = try pbxTarget.frameworksBuildPhase()
+
+        let testBuildFile: PBXBuildFile? = buildPhase?.files?.first
+        let attributes: [String]? = testBuildFile?.settings?["ATTRIBUTES"] as? [String]
+        XCTAssertEqual(attributes, ["Weak"])
+    }
+
     func test_generateLinkingPhase_optionalFramework() throws {
         var dependencies: Set<GraphDependencyReference> = []
         dependencies.insert(GraphDependencyReference.testFramework(path: "/test.framework", status: .optional))
@@ -999,6 +1210,56 @@ final class LinkGeneratorTests: XCTestCase {
         let buildFiles = copyProductsPhase?.files?.compactMap { $0.file?.path }
         XCTAssertEqual(buildFiles, [
             "ResourceBundle.bundle",
+        ])
+    }
+
+    func test_generateCopyExecutablesBuildPhase() throws {
+        // Given
+        let mainApp = Target.test(name: "App", product: .app)
+        let localExecutable = Target.test(name: "LocalExecutable", product: .app)
+        let nonLocalExecutable = Target.test(name: "NonLocalExecutable", product: .app)
+        let mainProject = Project.test(path: "/mainProject", targets: [mainApp, localExecutable])
+        let otherProject = Project.test(path: "/otherProject", targets: [nonLocalExecutable])
+
+        let appDependency = GraphDependency.target(name: mainApp.name, path: mainProject.path)
+        let localExecutableDependencyTarget = GraphDependency.target(name: localExecutable.name, path: mainProject.path)
+        let nonLocalExecutableDependencyTarget = GraphDependency.target(name: nonLocalExecutable.name, path: otherProject.path)
+
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            appDependency: Set([localExecutableDependencyTarget, nonLocalExecutableDependencyTarget]),
+        ]
+
+        // Given: Value Graph
+        let graph = Graph.test(
+            path: mainProject.path,
+            projects: [mainProject.path: mainProject, otherProject.path: otherProject],
+            dependencies: dependencies
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+        let fileElements = createProjectFileElements(for: [nonLocalExecutable])
+        let xcodeProjElements = createXcodeprojElements()
+
+        // When
+        try subject.generateCopyExecutablesBuildPhase(
+            path: mainProject.path,
+            target: mainApp,
+            graphTraverser: graphTraverser,
+            pbxTarget: xcodeProjElements.pbxTarget,
+            pbxproj: xcodeProjElements.pbxproj,
+            fileElements: fileElements
+        )
+
+        // Then
+        let copyExecutablePhase = xcodeProjElements
+            .pbxTarget
+            .buildPhases
+            .compactMap { $0 as? PBXCopyFilesBuildPhase }
+            .first(where: { $0.name() == "Executable Dependencies" })
+        XCTAssertEqual(copyExecutablePhase?.dstSubfolderSpec, .executables)
+
+        let buildFiles = copyExecutablePhase?.files?.compactMap { $0.file?.path }
+        XCTAssertEqual(buildFiles, [
+            nonLocalExecutable.productNameWithExtension,
         ])
     }
 

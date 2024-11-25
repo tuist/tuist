@@ -1,10 +1,10 @@
 import Path
 import TSCUtility
 import TuistCore
-import TuistSupport
+import TuistSupportTesting
 import XcodeGraph
 import XCTest
-@testable import TuistSupportTesting
+@testable import TuistSupport
 
 final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
     private var subject: SwiftPackageManagerController!
@@ -12,7 +12,10 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
     override func setUp() {
         super.setUp()
 
-        subject = SwiftPackageManagerController(system: system, fileHandler: fileHandler)
+        subject = SwiftPackageManagerController(
+            system: system,
+            fileSystem: fileSystem
+        )
     }
 
     override func tearDown() {
@@ -29,11 +32,18 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
             "package",
             "--package-path",
             path.pathString,
+            "--replace-scm-with-registry",
             "resolve",
         ])
 
         // When / Then
-        XCTAssertNoThrow(try subject.resolve(at: path, printOutput: false))
+        XCTAssertNoThrow(
+            try subject.resolve(
+                at: path,
+                arguments: ["--replace-scm-with-registry"],
+                printOutput: false
+            )
+        )
     }
 
     func test_update() throws {
@@ -44,11 +54,18 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
             "package",
             "--package-path",
             path.pathString,
+            "--replace-scm-with-registry",
             "update",
         ])
 
         // When / Then
-        XCTAssertNoThrow(try subject.update(at: path, printOutput: false))
+        XCTAssertNoThrow(
+            try subject.update(
+                at: path,
+                arguments: ["--replace-scm-with-registry"],
+                printOutput: false
+            )
+        )
     }
 
     func test_setToolsVersion_specificVersion() throws {
@@ -69,91 +86,7 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
         XCTAssertNoThrow(try subject.setToolsVersion(at: path, to: version!))
     }
 
-    func test_loadPackageInfo() throws {
-        // Given
-        let path = try temporaryPath()
-        system.succeedCommand(
-            [
-                "swift",
-                "package",
-                "--package-path",
-                path.pathString,
-                "dump-package",
-            ],
-            output: PackageInfo.testJSON
-        )
-
-        // When
-        let packageInfo = try subject.loadPackageInfo(at: path)
-
-        // Then
-        XCTAssertBetterEqual(packageInfo, PackageInfo.test)
-    }
-
-    func test_loadPackageInfo_Xcode14() throws {
-        // Given
-        let path = try temporaryPath()
-        system.succeedCommand(
-            [
-                "swift",
-                "package",
-                "--package-path",
-                path.pathString,
-                "dump-package",
-            ],
-            output: PackageInfo.testJSONXcode14
-        )
-
-        // When
-        let packageInfo = try subject.loadPackageInfo(at: path)
-
-        // Then
-        XCTAssertEqual(packageInfo, PackageInfo.test)
-    }
-
-    func test_loadPackageInfo_alamofire() throws {
-        // Given
-        let path = try temporaryPath()
-        system.succeedCommand(
-            [
-                "swift",
-                "package",
-                "--package-path",
-                path.pathString,
-                "dump-package",
-            ],
-            output: PackageInfo.alamofireJSON
-        )
-
-        // When
-        let packageInfo = try subject.loadPackageInfo(at: path)
-
-        // Then
-        XCTAssertEqual(packageInfo, PackageInfo.alamofire)
-    }
-
-    func test_loadPackageInfo_googleAppMeasurement() throws {
-        // Given
-        let path = try temporaryPath()
-        system.succeedCommand(
-            [
-                "swift",
-                "package",
-                "--package-path",
-                path.pathString,
-                "dump-package",
-            ],
-            output: PackageInfo.googleAppMeasurementJSON
-        )
-
-        // When
-        let packageInfo = try subject.loadPackageInfo(at: path)
-
-        // Then
-        XCTAssertEqual(packageInfo, PackageInfo.googleAppMeasurement)
-    }
-
-    func test_buildFatReleaseBinary() throws {
+    func test_buildFatReleaseBinary() async throws {
         // Given
         let packagePath = try temporaryPath()
         let product = "my-product"
@@ -186,7 +119,7 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
         ])
 
         // When
-        try subject.buildFatReleaseBinary(
+        try await subject.buildFatReleaseBinary(
             packagePath: packagePath,
             product: product,
             buildPath: buildPath,

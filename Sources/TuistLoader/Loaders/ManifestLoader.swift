@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Mockable
 import Path
@@ -53,10 +54,10 @@ public enum ManifestLoaderError: FatalError, Equatable {
 
 @Mockable
 public protocol ManifestLoading {
-    /// Loads the Config.swift in the given directory.
+    /// Loads the Tuist.swift in the given directory.
     ///
-    /// - Parameter path: Path to the directory that contains the Config.swift file.
-    /// - Returns: Loaded Config.swift file.
+    /// - Parameter path: Path to the directory that contains the Tuist.swift file.
+    /// - Returns: Loaded Tuist.swift file.
     /// - Throws: An error if the file has a syntax error.
     func loadConfig(at path: AbsolutePath) async throws -> ProjectDescription.Config
 
@@ -86,13 +87,13 @@ public protocol ManifestLoading {
 
     /// List all the manifests in the given directory.
     /// - Parameter path: Path to the directory whose manifest files will be returned.
-    func manifests(at path: AbsolutePath) -> Set<Manifest>
+    func manifests(at path: AbsolutePath) async throws -> Set<Manifest>
 
     /// Verifies that there is a project or workspace manifest at the given path, or throws an error otherwise.
-    func validateHasRootManifest(at path: AbsolutePath) throws
+    func validateHasRootManifest(at path: AbsolutePath) async throws
 
     /// - Returns: `true` if there is a project or workspace manifest at the given path
-    func hasRootManifest(at path: AbsolutePath) -> Bool
+    func hasRootManifest(at path: AbsolutePath) async throws -> Bool
 
     /// Registers plugins that will be used within the manifest loading process.
     /// - Parameter plugins: The plugins to register.
@@ -113,10 +114,12 @@ public class ManifestLoader: ManifestLoading {
     let environment: Environmenting
     private let decoder: JSONDecoder
     private var plugins: Plugins = .none
-    private let cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring
+    private let cacheDirectoriesProvider: CacheDirectoriesProviding
     private let projectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactoring
     private let xcodeController: XcodeControlling
     private let swiftPackageManagerController: SwiftPackageManagerControlling
+    private let packageInfoLoader: PackageInfoLoading
+    private let fileSystem: FileSysteming
 
     // MARK: - Init
 
@@ -124,45 +127,53 @@ public class ManifestLoader: ManifestLoading {
         self.init(
             environment: Environment.shared,
             resourceLocator: ResourceLocator(),
-            cacheDirectoryProviderFactory: CacheDirectoriesProviderFactory(),
+            cacheDirectoriesProvider: CacheDirectoriesProvider(),
             projectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactory(),
             manifestFilesLocator: ManifestFilesLocator(),
             xcodeController: XcodeController.shared,
-            swiftPackageManagerController: SwiftPackageManagerController(system: System.shared, fileHandler: FileHandler.shared)
+            swiftPackageManagerController: SwiftPackageManagerController(
+                system: System.shared,
+                fileSystem: FileSystem()
+            ),
+            packageInfoLoader: PackageInfoLoader()
         )
     }
 
     init(
         environment: Environmenting,
         resourceLocator: ResourceLocating,
-        cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring,
+        cacheDirectoriesProvider: CacheDirectoriesProviding,
         projectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactoring,
         manifestFilesLocator: ManifestFilesLocating,
         xcodeController: XcodeControlling,
-        swiftPackageManagerController: SwiftPackageManagerControlling
+        swiftPackageManagerController: SwiftPackageManagerControlling,
+        packageInfoLoader: PackageInfoLoading,
+        fileSystem: FileSysteming = FileSystem()
     ) {
         self.environment = environment
         self.resourceLocator = resourceLocator
-        self.cacheDirectoryProviderFactory = cacheDirectoryProviderFactory
+        self.cacheDirectoriesProvider = cacheDirectoriesProvider
         self.projectDescriptionHelpersBuilderFactory = projectDescriptionHelpersBuilderFactory
         self.manifestFilesLocator = manifestFilesLocator
         self.xcodeController = xcodeController
         self.swiftPackageManagerController = swiftPackageManagerController
+        self.packageInfoLoader = packageInfoLoader
+        self.fileSystem = fileSystem
         decoder = JSONDecoder()
     }
 
-    public func manifests(at path: AbsolutePath) -> Set<Manifest> {
-        Set(manifestFilesLocator.locateManifests(at: path).map(\.0))
+    public func manifests(at path: AbsolutePath) async throws -> Set<Manifest> {
+        try await Set(manifestFilesLocator.locateManifests(at: path).map(\.0))
     }
 
-    public func validateHasRootManifest(at path: AbsolutePath) throws {
-        guard hasRootManifest(at: path) else {
+    public func validateHasRootManifest(at path: AbsolutePath) async throws {
+        guard try await hasRootManifest(at: path) else {
             throw ManifestLoaderError.manifestNotFound(path)
         }
     }
 
-    public func hasRootManifest(at path: AbsolutePath) -> Bool {
-        let manifests = manifests(at: path)
+    public func hasRootManifest(at path: AbsolutePath) async throws -> Bool {
+        let manifests = try await manifests(at: path)
         let rootManifests: Set<Manifest> = [.workspace, .project, .package]
         return !manifests.isDisjoint(with: rootManifests)
     }
@@ -183,8 +194,8 @@ public class ManifestLoader: ManifestLoading {
         try await loadManifest(.template, at: path)
     }
 
-    public func loadPackage(at path: AbsolutePath) throws -> PackageInfo {
-        try swiftPackageManagerController.loadPackageInfo(
+    public func loadPackage(at path: AbsolutePath) async throws -> PackageInfo {
+        try await packageInfoLoader.loadPackageInfo(
             at: path
         )
     }
@@ -221,7 +232,7 @@ public class ManifestLoader: ManifestLoading {
         _ manifest: Manifest,
         at path: AbsolutePath
     ) async throws -> T {
-        let manifestPath = try manifestPath(
+        let manifestPath = try await manifestPath(
             manifest,
             at: path
         )
@@ -294,14 +305,17 @@ public class ManifestLoader: ManifestLoading {
     private func manifestPath(
         _ manifest: Manifest,
         at path: AbsolutePath
-    ) throws -> AbsolutePath {
-        let manifestPath = path.appending(component: manifest.fileName(path))
-
-        guard FileHandler.shared.exists(manifestPath) else {
-            throw ManifestLoaderError.manifestNotFound(manifest, path)
+    ) async throws -> AbsolutePath {
+        let manifestPathCandidates = [
+            path.appending(component: manifest.fileName(path)),
+            manifest.alternativeFileName(path).map { path.appending(component: $0) },
+        ].compactMap { $0 }
+        for candidate in manifestPathCandidates {
+            if try await fileSystem.exists(candidate) {
+                return candidate
+            }
         }
-
-        return manifestPath
+        throw ManifestLoaderError.manifestNotFound(manifest, path)
     }
 
     private func loadDataForManifest(
@@ -342,7 +356,7 @@ public class ManifestLoader: ManifestLoading {
         _ manifest: Manifest,
         at path: AbsolutePath
     ) async throws -> [String] {
-        let projectDescriptionPath = try resourceLocator.projectDescription()
+        let projectDescriptionPath = try await resourceLocator.projectDescription()
         let searchPaths = ProjectDescriptionSearchPaths.paths(for: projectDescriptionPath)
         let frameworkName: String
         switch manifest {
@@ -365,8 +379,7 @@ public class ManifestLoader: ManifestLoading {
             "-l\(frameworkName)",
             "-framework", frameworkName,
         ]
-        let projectDescriptionHelpersCacheDirectory = try cacheDirectoryProviderFactory
-            .cacheDirectories()
+        let projectDescriptionHelpersCacheDirectory = try cacheDirectoriesProvider
             .cacheDirectory(for: .projectDescriptionHelpers)
 
         let projectDescriptionHelperArguments: [String] = try await {
@@ -393,9 +406,9 @@ public class ManifestLoader: ManifestLoading {
             }
         }()
 
-        let packageDescriptionArguments: [String] = try {
+        let packageDescriptionArguments: [String] = try await {
             if case .packageSettings = manifest {
-                guard let xcode = try xcodeController.selected() else { return [] }
+                guard let xcode = try await xcodeController.selected() else { return [] }
                 let packageVersion = try swiftPackageManagerController.getToolsVersion(
                     at: path.parentDirectory
                 )

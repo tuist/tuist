@@ -244,7 +244,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             preActions: preActions,
             postActions: postActions,
             parallelizeBuild: true,
-            buildImplicitDependencies: true,
+            buildImplicitDependencies: buildAction.findImplicitDependencies,
             runPostActionsOnFailure: buildAction.runPostActionsOnFailure ? true : nil
         )
     }
@@ -761,10 +761,12 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         rootPath: AbsolutePath,
         generatedProjects: [AbsolutePath: GeneratedProject]
     ) throws -> XCScheme.ArchiveAction? {
-        guard let target = defaultTargetReference(scheme: scheme),
-              let graphTarget = graphTraverser.target(path: target.projectPath, name: target.name) else { return nil }
-
         guard let archiveAction = scheme.archiveAction else {
+            guard let target = defaultTargetReference(scheme: scheme),
+                  let graphTarget = graphTraverser.target(path: target.projectPath, name: target.name)
+            else {
+                return nil
+            }
             return defaultSchemeArchiveAction(for: graphTarget.project)
         }
 

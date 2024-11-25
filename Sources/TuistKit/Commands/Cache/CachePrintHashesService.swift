@@ -21,7 +21,7 @@ final class CachePrintHashesService {
             generatorFactory: generatorFactory,
             cacheGraphContentHasher: CacheGraphContentHasher(contentHasher: contentHasher),
             clock: WallClock(),
-            configLoader: ConfigLoader(manifestLoader: ManifestLoader())
+            configLoader: ConfigLoader(manifestLoader: ManifestLoader(), warningController: WarningController.shared)
         )
     }
 
@@ -52,9 +52,9 @@ final class CachePrintHashesService {
         let absolutePath = try absolutePath(path)
         let timer = clock.startTimer()
         let config = try await configLoader.loadConfig(path: absolutePath)
-        let generator = generatorFactory.defaultGenerator(config: config)
+        let generator = generatorFactory.defaultGenerator(config: config, sources: [])
         let graph = try await generator.load(path: absolutePath)
-        let hashes = try cacheGraphContentHasher.contentHashes(
+        let hashes = try await cacheGraphContentHasher.contentHashes(
             for: graph,
             configuration: configuration,
             config: config,

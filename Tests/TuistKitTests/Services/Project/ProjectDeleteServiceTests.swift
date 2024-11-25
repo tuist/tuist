@@ -1,5 +1,5 @@
 import Foundation
-import MockableTest
+import Mockable
 import TuistLoader
 import TuistServer
 import TuistSupport
@@ -24,7 +24,7 @@ final class ProjectDeleteServiceTests: TuistUnitTestCase {
         deleteProjectService = .init()
         credentialsStore = .init()
         configLoader = MockConfigLoading()
-        serverURL = URL(string: "https://test.cloud.tuist.io")!
+        serverURL = URL(string: "https://test.tuist.dev")!
         given(configLoader).loadConfig(path: .any).willReturn(.test(url: serverURL))
         subject = ProjectDeleteService(
             deleteProjectService: deleteProjectService,

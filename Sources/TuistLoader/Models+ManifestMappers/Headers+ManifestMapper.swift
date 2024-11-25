@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Path
 import ProjectDescription
@@ -15,8 +16,9 @@ extension XcodeGraph.Headers {
     static func from( // swiftlint:disable:this function_body_length
         manifest: ProjectDescription.Headers,
         generatorPaths: GeneratorPaths,
-        productName: String?
-    ) throws -> XcodeGraph.Headers {
+        productName: String?,
+        fileSystem: FileSysteming
+    ) async throws -> XcodeGraph.Headers {
         let resolvedUmbrellaPath = try manifest.umbrellaHeader.map { try generatorPaths.resolve(path: $0) }
         let headersFromUmbrella = try resolvedUmbrellaPath.map {
             Set(try UmbrellaHeaderHeadersExtractor.headers(from: $0, for: productName))
@@ -31,10 +33,10 @@ extension XcodeGraph.Headers {
         func unfold(
             _ list: FileList?,
             isPublic: Bool = false
-        ) throws -> [AbsolutePath] {
+        ) async throws -> [AbsolutePath] {
             guard let list else { return [] }
-            return try list.globs.flatMap {
-                try $0.unfold(generatorPaths: generatorPaths) { path in
+            return try await list.globs.concurrentFlatMap {
+                try await $0.unfold(generatorPaths: generatorPaths, fileSystem: fileSystem) { path in
                     guard let fileExtension = path.extension,
                           allowedExtensions.contains(".\(fileExtension)"),
                           !autoExlcudedPaths.contains(path)
@@ -51,7 +53,7 @@ extension XcodeGraph.Headers {
 
         switch manifest.exclusionRule {
         case .projectExcludesPrivateAndPublic:
-            publicHeaders = try unfold(manifest.public, isPublic: true)
+            publicHeaders = try await unfold(manifest.public, isPublic: true)
             // be sure, that umbrella was not added before
             if let resolvedUmbrellaPath,
                !publicHeaders.contains(resolvedUmbrellaPath)
@@ -59,16 +61,16 @@ extension XcodeGraph.Headers {
                 publicHeaders.append(resolvedUmbrellaPath)
             }
             autoExlcudedPaths.formUnion(publicHeaders)
-            privateHeaders = try unfold(manifest.private)
+            privateHeaders = try await unfold(manifest.private)
             autoExlcudedPaths.formUnion(privateHeaders)
-            projectHeaders = try unfold(manifest.project)
+            projectHeaders = try await unfold(manifest.project)
 
         case .publicExcludesPrivateAndProject:
-            projectHeaders = try unfold(manifest.project)
+            projectHeaders = try await unfold(manifest.project)
             autoExlcudedPaths.formUnion(projectHeaders)
-            privateHeaders = try unfold(manifest.private)
+            privateHeaders = try await unfold(manifest.private)
             autoExlcudedPaths.formUnion(privateHeaders)
-            publicHeaders = try unfold(manifest.public, isPublic: true)
+            publicHeaders = try await unfold(manifest.public, isPublic: true)
             // be sure, that umbrella was not added before
             if let resolvedUmbrellaPath,
                !publicHeaders.contains(resolvedUmbrellaPath)
@@ -76,6 +78,10 @@ extension XcodeGraph.Headers {
                 publicHeaders.append(resolvedUmbrellaPath)
             }
         }
-        return Headers(public: publicHeaders, private: privateHeaders, project: projectHeaders)
+        return Headers(
+            public: publicHeaders.sorted(),
+            private: privateHeaders.sorted(),
+            project: projectHeaders.sorted()
+        )
     }
 }

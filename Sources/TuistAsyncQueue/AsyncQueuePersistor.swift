@@ -27,15 +27,21 @@ public protocol AsyncQueuePersisting {
 final class AsyncQueuePersistor: AsyncQueuePersisting {
     // MARK: - Attributes
 
-    let directory: AbsolutePath
-    let jsonEncoder = JSONEncoder()
-    let fileSystem: FileSystem
+    private let directory: AbsolutePath
+    private let jsonEncoder = JSONEncoder()
+    private let fileSystem: FileSystem
+    private let dateService: DateServicing
 
     // MARK: - Init
 
-    init(directory: AbsolutePath = Environment.shared.queueDirectory, fileSystem: FileSystem = FileSystem()) {
+    init(
+        directory: AbsolutePath = Environment.shared.queueDirectory,
+        fileSystem: FileSystem = FileSystem(),
+        dateService: DateServicing = DateService()
+    ) {
         self.directory = directory
         self.fileSystem = fileSystem
+        self.dateService = dateService
     }
 
     func write(event: some AsyncQueueEvent) throws {
@@ -51,14 +57,15 @@ final class AsyncQueuePersistor: AsyncQueuePersisting {
 
     func delete(filename: String) async throws {
         let path = directory.appending(component: filename)
-        guard FileHandler.shared.exists(path) else { return }
+        guard try await fileSystem.exists(path) else { return }
         try await fileSystem.remove(path)
     }
 
     func readAll() async throws -> [AsyncQueueEventTuple] {
-        let paths = FileHandler.shared.glob(directory, glob: "*.json")
-        var events: [AsyncQueueEventTuple] = []
-        for eventPath in paths {
+        let dateService = dateService
+        let fileSystem = fileSystem
+        let paths = try await fileSystem.glob(directory: directory, include: ["*.json"]).collect()
+        let events: [AsyncQueueEventTuple] = await paths.concurrentCompactMap { eventPath in
             let fileName = eventPath.basenameWithoutExt
             let components = fileName.split(separator: ".")
             guard components.count == 3,
@@ -68,20 +75,30 @@ final class AsyncQueuePersistor: AsyncQueuePersisting {
                 /// Changing the naming convention is a breaking change. When detected
                 /// we delete the event.
                 try? await fileSystem.remove(eventPath)
-                continue
+                return nil
             }
+
+            // We delete events that are older than a day to ensure the directory doesn't grow indefinitely if events continuosly
+            // fail to be uploaded.
+            let date = Date(timeIntervalSince1970: timestamp)
+            if dateService.now().timeIntervalSince(date) > 24 * 60 * 60 {
+                try? await fileSystem.remove(eventPath)
+                return nil
+            }
+
             do {
                 let data = try Data(contentsOf: eventPath.url)
                 let event = (
                     dispatcherId: String(components[1]),
                     id: id,
-                    date: Date(timeIntervalSince1970: timestamp),
+                    date: date,
                     data: data,
                     filename: eventPath.basename
                 )
-                events.append(event)
+                return event
             } catch {
                 try? await fileSystem.remove(eventPath)
+                return nil
             }
         }
         return events

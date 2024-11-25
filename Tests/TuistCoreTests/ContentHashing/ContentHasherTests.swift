@@ -54,39 +54,40 @@ final class ContentHasherTests: TuistUnitTestCase {
         XCTAssertEqual(hash, expectedHash)
     }
 
-    func test_hashFile_hashesTheExpectedFile() throws {
+    func test_hashFile_hashesTheExpectedFile() async throws {
         // Given
         let path = try writeToTemporaryPath(content: "foo")
 
         // When
-        let hash = try subject.hash(path: path)
+        let hash = try await subject.hash(path: path)
 
         // Then
         XCTAssertEqual(hash, "acbd18db4cc2f85cedef654fccc4a4d8") // This is the md5 of "foo"
     }
 
-    func test_hashFile_isNotHarcoded() throws {
+    func test_hashFile_isNotHarcoded() async throws {
         // Given
         let path = try writeToTemporaryPath(content: "bar")
 
         // When
-        let hash = try subject.hash(path: path)
+        let hash = try await subject.hash(path: path)
 
         // Then
         XCTAssertEqual(hash, "37b51d194a7513e45b56f6524f2d51f2") // This is the md5 of "bar"
     }
 
-    func test_hashFile_whenFileDoesntExist_itThrowsFileNotFound() throws {
+    func test_hashFile_whenFileDoesntExist_itThrowsFileNotFound() async throws {
         // Given
         let wrongPath = try AbsolutePath(validating: "/shakirashakira")
 
         // Then
-        XCTAssertThrowsError(try subject.hash(path: wrongPath)) { error in
-            XCTAssertEqual(error as? FileHandlerError, FileHandlerError.fileNotFound(wrongPath))
-        }
+        await XCTAssertThrowsSpecific(
+            try await subject.hash(path: wrongPath),
+            FileHandlerError.fileNotFound(wrongPath)
+        )
     }
 
-    func test_hash_sortedContentsOfADirectorySkippingDSStore() throws {
+    func test_hash_sortedContentsOfADirectorySkippingDSStore() async throws {
         // given
         let folderPath = try temporaryPath().appending(component: "assets.xcassets")
         try mockFileHandler.createFolder(folderPath)
@@ -101,10 +102,10 @@ final class ContentHasherTests: TuistUnitTestCase {
         try writeFiles(to: folderPath, files: files)
 
         // When
-        let hash = try subject.hash(path: folderPath)
+        let hash = try await subject.hash(path: folderPath)
 
         // Then
-        XCTAssertEqual(hash, "37b51d194a7513e45b56f6524f2d51f2-224e2539f52203eb33728acd228b4432")
+        XCTAssertEqual(hash, "224e2539f52203eb33728acd228b4432-37b51d194a7513e45b56f6524f2d51f2")
         // This is the md5 of "bar", a dash, md5 of "bar2", in sorted order according to the file name
         // and .DS_STORE should be ignored
     }

@@ -10,6 +10,7 @@
   <div>
     <a href="https://cal.com/team/tuist/cloud?utm_source=banner&utm_campaign=oss" target="_blank"><img alt="Book us with Cal.com" src="https://cal.com/book-with-cal-dark.svg" width="150"/></a>
   </div>
+  <a title="Crowdin" target="_blank" href="https://crowdin.com/project/tuist-documentation"><img src="https://badges.crowdin.net/tuist-documentation/localized.svg"></a>
 </div>
 
 ## 🕺 What's Tuist
@@ -80,8 +81,8 @@ The financial sustainability of the project is possible thanks to the ongoing co
       <td width="30%" align="center">
         <a href="https://getstream.io/chat/sdk/ios/?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&utm_campaign=Github_Jan2022_SwiftSDK&utm_term=tuist" target="_blank">
           <picture>
-            <source 
-            srcset="assets/companies/stream-darkmode.png" 
+            <source
+            srcset="assets/companies/stream-darkmode.png"
             media="(prefers-color-scheme: dark)">
             <img src="assets/companies/stream.png" alt="stream_logo"/>
           </picture>
@@ -101,8 +102,8 @@ The financial sustainability of the project is possible thanks to the ongoing co
       <td width="30%" align="center">
         <a href="https://www.emergetools.com?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&utm_term=tuist" target="_blank">
           <picture>
-            <source 
-              srcset="assets/companies/emergetools-darkmode.svg" 
+            <source
+              srcset="assets/companies/emergetools-darkmode.svg"
               media="(prefers-color-scheme: dark)">
             <img width="140" src="assets/companies/emergetools.svg" alt="emerge_logo"/>
           </picture>
@@ -158,8 +159,8 @@ The financial sustainability of the project is possible thanks to the ongoing co
       <td width="20%" align="center">
         <a href="https://bendingspoons.com" target="_blank">
           <picture>
-            <source 
-              srcset="assets/companies/bendingspoons-darkmode.png" 
+            <source
+              srcset="assets/companies/bendingspoons-darkmode.png"
               media="(prefers-color-scheme: dark)">
             <img src="assets/companies/bendingspoons.png" alt="bendingspoons_logo"/>
           </picture>
@@ -183,11 +184,6 @@ The financial sustainability of the project is possible thanks to the ongoing co
         </a>
       </td>
       <td width="20%" align="center">
-        <a href="https://hh.ru" target="_blank">
-          <img src="assets/companies/hh.svg" alt="hh_logo" height="75"/>
-        </a>
-      </td>
-      <td width="20%" align="center">
         <a href="https://www.trendyol.com" target="_blank">
           <img src="assets/companies/Trendyol.png" alt="trendyol_logo"/>
         </a>
@@ -202,13 +198,13 @@ The financial sustainability of the project is possible thanks to the ongoing co
           <img src="assets/companies/compass.png" alt="compass_logo"/>
         </a>
       </td>
-    </tr>
-    <tr>
       <td width="20%" align="center">
         <a href="https://www.wefox.com" target="_blank">
           <img src="assets/companies/wefox.png" alt="wefox_logo"/>
         </a>
       </td>
+    </tr>
+    <tr>
       <td width="20%" align="center">
         <a href="https://www.hedvig.com" target="_blank">
             <img src="assets/companies/hedvig.svg" alt="hedvig_logo"/>
@@ -227,28 +223,6 @@ The financial sustainability of the project is possible thanks to the ongoing co
       <td width="20%" align="center">
         <a href="https://www.justeattakeaway.com" target="_blank">
           <img src="assets/companies/justeattakeaway.svg" alt="justeattakeaway_logo"/>
-        </a>
-      </td>
-    </tr>
-    <tr>
-      <td width="20%" align="center">
-        <a href="https://www.dodopizza.com" target="_blank">
-          <img src="assets/companies/dodopizza.svg" alt="dodopizza_logo" height="75"/>
-        </a>
-      </td>
-      <td width="20%" align="center">
-        <a href="https://www.olimp.bet" target="_blank">
-          <img src="assets/companies/olimpbet.svg" alt="olimpbet_logo" height="75"/>
-        </a>
-      </td>
-      <td width="20%" align="center">
-        <a href="https://www.vk.company" target="_blank">
-          <img src="assets/companies/vk.svg" alt="vk_logo" height="75"/>
-        </a>
-      </td>
-      <td width="20%" align="center">
-        <a href="https://hd.kinopoisk.ru" target="_blank">
-          <img src="assets/companies/kinopoisk.svg" alt="kinopoisk_logo"/>
         </a>
       </td>
       <td width="20%" align="center">
@@ -279,25 +253,20 @@ The financial sustainability of the project is possible thanks to the ongoing co
         </a>
       </td>
       <td width="20%" align="center">
-        <a href="https://ozon.tech" target="_blank">
-          <img src="assets/companies/ozontech.svg" alt="ozontech_logo" height="75"/>
+        <a href="https://izi.me/kz" target="_blank">
+          <img src="assets/companies/izi.svg" alt="izi_logo" height="75"/>
         </a>
       </td>
     </tr>
     <tr>
       <td width="20%" align="center">
-        <a href="https://smlab.digital" target="_blank">
-          <img src="assets/companies/smlab.svg" alt="smlab_logo" height="75"/>
+        <a href="https://wise.com" target="_blank">
+          <img src="assets/companies/wise.png" alt="wise_logo" height="75"/>
         </a>
       </td>
       <td width="20%" align="center">
-        <a href="https://izi.me/kz" target="_blank">
-          <img src="assets/companies/izi.svg" alt="izi_logo" height="75"/>
-        </a>
-      </td>
-      <td width="20%" align="center">
-        <a href="https://travel.yandex.ru" target="_blank">
-          <img src="assets/companies/yandexTravel.svg" alt="yandexTravel_logo" height="75"/>
+        <a href="https://zapis.kz/" target="_blank">
+          <img src="assets/companies/zapis.svg" alt="wise_logo" height="75"/>
         </a>
       </td>
     </tr>
@@ -581,6 +550,26 @@ Thanks goes to these wonderful people:
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/barakwei"><img src="https://avatars.githubusercontent.com/u/5232161?v=4" width="100px;" alt=""/><br /><sub><b>Barak Weiss</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/hiltonc"><img src="https://avatars.githubusercontent.com/u/470753?v=4" width="100px;" alt=""/><br /><sub><b>Hilton Campbell</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/rgnns"><img src="https://avatars.githubusercontent.com/u/811827?v=4" width="100px;" alt=""/><br /><sub><b>Gabriel Liévano</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/vijaytholpadi"><img src="https://avatars.githubusercontent.com/u/1171868?v=4" width="100px;" alt=""/><br /><sub><b>Vijay Tholpadi</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://withiosdeveloper.blogspot.com/"><img src="https://avatars.githubusercontent.com/u/27220138?v=4" width="100px;" alt=""/><br /><sub><b>Minhoi Goo</b></sub></a></td>
+    </tr>
+    <tr>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/sphanley"><img src="https://avatars.githubusercontent.com/u/1323769?v=4" width="100px;" alt=""/><br /><sub><b>Sam Hanley</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/ahmdyasser"><img src="https://avatars.githubusercontent.com/u/42544598?v=4" width="100px;" alt=""/><br /><sub><b>ahmdyasser</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/minhaaan"><img src="https://avatars.githubusercontent.com/u/87178301?v=4" width="100px;" alt=""/><br /><sub><b>minhaaan</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/TamarMilchtaich"><img src="https://avatars.githubusercontent.com/u/49520876?v=4" width="100px;" alt=""/><br /><sub><b>Tamar Milchtaich Lavi</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/rock88"><img src="https://avatars.githubusercontent.com/u/323908?v=4" width="100px;" alt=""/><br /><sub><b>Andrey K</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://2stable.com"><img src="https://avatars.githubusercontent.com/u/69604865?v=4" width="100px;" alt=""/><br /><sub><b>Alex Vera</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://www.annalisemariottini.com"><img src="https://avatars.githubusercontent.com/u/14299642?v=4" width="100px;" alt=""/><br /><sub><b>Annalise Mariottini</b></sub></a></td>
+    </tr>
+    <tr>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/gustn3965"><img src="https://avatars.githubusercontent.com/u/48749182?v=4" width="100px;" alt=""/><br /><sub><b>HyunSu Park</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/vldalx"><img src="https://avatars.githubusercontent.com/u/13873200?v=4" width="100px;" alt=""/><br /><sub><b>Vladimir</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="http://rhysmorgan.co"><img src="https://avatars.githubusercontent.com/u/11096937?v=4" width="100px;" alt=""/><br /><sub><b>Rhys Morgan</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/pierrerodgers"><img src="https://avatars.githubusercontent.com/u/48193278?v=4" width="100px;" alt=""/><br /><sub><b>pierrerodgers</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/honghoker"><img src="https://avatars.githubusercontent.com/u/50417461?v=4" width="100px;" alt=""/><br /><sub><b>eunpyo hong</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://medium.com/@dbstj169"><img src="https://avatars.githubusercontent.com/u/65678579?v=4" width="100px;" alt=""/><br /><sub><b>Yunseo Kang</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/ilia3546"><img src="https://avatars.githubusercontent.com/u/4445510?v=4" width="100px;" alt=""/><br /><sub><b>Ilya Kharlamov</b></sub></a></td>
     </tr>
   </tbody>
 </table>

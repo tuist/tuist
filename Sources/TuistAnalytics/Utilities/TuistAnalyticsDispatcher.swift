@@ -8,9 +8,9 @@ import XcodeGraph
 public struct TuistAnalyticsDispatcher: AsyncQueueDispatching {
     public static let dispatcherId = "TuistAnalytics"
 
-    private let backend: TuistAnalyticsBackend?
+    private let backend: TuistAnalyticsBackend
 
-    public init(backend: TuistAnalyticsBackend?) {
+    public init(backend: TuistAnalyticsBackend) {
         self.backend = backend
     }
 
@@ -22,7 +22,7 @@ public struct TuistAnalyticsDispatcher: AsyncQueueDispatching {
         guard let commandEvent = event as? CommandEvent else { return }
 
         Task {
-            _ = try? await backend?.send(commandEvent: commandEvent)
+            _ = try? await backend.send(commandEvent: commandEvent)
             try await completion()
         }
     }

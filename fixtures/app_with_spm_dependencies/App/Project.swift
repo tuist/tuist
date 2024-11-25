@@ -14,7 +14,9 @@ let project = Project(
             sources: "Sources/App/**",
             dependencies: [
                 .target(name: "AppKit"),
-                .project(target: "FeatureOneFramework_iOS", path: .relativeToRoot("Features/FeatureOne")),
+                .project(
+                    target: "FeatureOneFramework_iOS", path: .relativeToRoot("Features/FeatureOne")
+                ),
                 .external(name: "Styles"),
                 .external(name: "BrazeKit"),
                 .external(name: "BrazeUI"),
@@ -30,20 +32,15 @@ let project = Project(
             sources: "Sources/AppKit/**",
             dependencies: [
                 .sdk(name: "c++", type: .library, status: .required),
-                .external(name: "Alamofire"),
-                .external(name: "ComposableArchitecture"),
                 .external(name: "ZipArchive"),
                 .external(name: "Yams"),
                 .external(name: "GoogleSignIn"),
                 .external(name: "Sentry"),
-                .external(name: "RealmSwift"),
                 .external(name: "CocoaLumberjackSwift"),
                 .external(name: "AppCenterAnalytics"),
                 .external(name: "AppCenterCrashes"),
                 .external(name: "libzstd"),
-                .external(name: "NYTPhotoViewer"),
                 .external(name: "SVProgressHUD"),
-                .external(name: "AirshipPreferenceCenter"),
                 .external(name: "MarkdownUI"),
                 .external(name: "GoogleMobileAds"),
                 .external(name: "LookinServer"),
@@ -70,10 +67,7 @@ let project = Project(
             destinations: [.appleVision],
             product: .app,
             bundleId: "io.tuist.app.applevision",
-            sources: ["Sources/VisionOS/App/**"],
-            dependencies: [
-                .external(name: "Alamofire"),
-            ]
+            sources: ["Sources/VisionOS/App/**"]
         ),
         .target(
             name: "WatchApp",
@@ -95,10 +89,7 @@ let project = Project(
             destinations: [.appleWatch],
             product: .watch2Extension,
             bundleId: "io.tuist.app.watchapp.extension",
-            sources: ["Sources/Watch/Extension/**"],
-            dependencies: [
-                .external(name: "Alamofire"),
-            ]
+            sources: ["Sources/Watch/Extension/**"]
         ),
     ],
     schemes: Scheme.allSchemes(for: ["App", "AppKit"], executable: "App")

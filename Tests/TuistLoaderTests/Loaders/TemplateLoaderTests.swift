@@ -1,4 +1,4 @@
-import MockableTest
+import Mockable
 import Path
 import TuistCore
 import TuistSupport
@@ -9,17 +9,23 @@ import XCTest
 @testable import TuistSupportTesting
 
 final class TemplateLoaderTests: TuistUnitTestCase {
-    var subject: TemplateLoader!
-    var manifestLoader: MockManifestLoading!
+    private var subject: TemplateLoader!
+    private var manifestLoader: MockManifestLoading!
+    private var rootDirectoryLocator: MockRootDirectoryLocating!
 
     override func setUp() {
         super.setUp()
         manifestLoader = .init()
-        subject = TemplateLoader(manifestLoader: manifestLoader)
+        rootDirectoryLocator = .init()
+        subject = TemplateLoader(
+            manifestLoader: manifestLoader,
+            rootDirectoryLocator: rootDirectoryLocator
+        )
     }
 
     override func tearDown() {
         manifestLoader = nil
+        rootDirectoryLocator = nil
         subject = nil
         super.tearDown()
     }
@@ -35,6 +41,10 @@ final class TemplateLoaderTests: TuistUnitTestCase {
         given(manifestLoader)
             .register(plugins: .any)
             .willReturn(())
+
+        given(rootDirectoryLocator)
+            .locate(from: .any)
+            .willReturn(temporaryPath)
 
         // Then
         await XCTAssertThrowsSpecific(
@@ -61,6 +71,10 @@ final class TemplateLoaderTests: TuistUnitTestCase {
         given(manifestLoader)
             .register(plugins: .any)
             .willReturn(())
+
+        given(rootDirectoryLocator)
+            .locate(from: .any)
+            .willReturn(temporaryPath)
 
         // When
         let got = try await subject.loadTemplate(at: temporaryPath, plugins: .none)

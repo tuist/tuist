@@ -13,7 +13,11 @@ final class SettingsManifestMapperTests: TuistUnitTestCase {
     func test_from() throws {
         // Given
         let temporaryPath = try temporaryPath()
-        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
+        let rootDirectory = temporaryPath
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: rootDirectory
+        )
         let debug: ProjectDescription.Configuration = .debug(
             name: .debug,
             settings: ["Debug": .string("Debug")],

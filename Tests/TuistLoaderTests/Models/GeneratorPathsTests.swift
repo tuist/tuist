@@ -1,4 +1,4 @@
-import MockableTest
+import Mockable
 import Path
 import TuistCore
 import TuistSupport
@@ -10,48 +10,22 @@ import XCTest
 @testable import TuistLoaderTesting
 @testable import TuistSupportTesting
 
-final class GeneratorPathsErrorTests: TuistUnitTestCase {
-    func test_type_when_rootDirectoryNotFound() {
-        // Given
-        let path = try! AbsolutePath(validating: "/")
-        let error = GeneratorPathsError.rootDirectoryNotFound(path)
-
-        // Then
-        XCTAssertEqual(error.type, .abort)
-    }
-
-    func test_description_when_rootDirectoryNotFound() {
-        // Given
-        let path = try! AbsolutePath(validating: "/")
-        let error = GeneratorPathsError.rootDirectoryNotFound(path)
-
-        // Then
-        XCTAssertEqual(
-            error.description,
-            "Couldn't locate the root directory from path \(path.pathString). The root directory is the closest directory that contains a Tuist or a .git directory."
-        )
-    }
-}
-
-class GeneratorPathsTests: TuistUnitTestCase {
-    var subject: GeneratorPaths!
-    var path: AbsolutePath!
-    var rootDirectoryLocator: MockRootDirectoryLocating!
+final class GeneratorPathsTests: TuistUnitTestCase {
+    private var path: AbsolutePath!
+    private var subject: GeneratorPaths!
 
     override func setUp() {
         super.setUp()
         path = try! temporaryPath()
-        rootDirectoryLocator = .init()
         subject = GeneratorPaths(
             manifestDirectory: path,
-            rootDirectoryLocator: rootDirectoryLocator
+            rootDirectory: path.appending(component: "Root")
         )
     }
 
     override func tearDown() {
-        subject = nil
-        rootDirectoryLocator = nil
         path = nil
+        subject = nil
         super.tearDown()
     }
 
@@ -62,9 +36,6 @@ class GeneratorPathsTests: TuistUnitTestCase {
             type: .relativeToCurrentFile,
             callerPath: path.pathString
         )
-        given(rootDirectoryLocator)
-            .locate(from: .any)
-            .willReturn(path.appending(component: "Root"))
 
         // When
         let got = try subject.resolve(path: filePath)
@@ -76,9 +47,6 @@ class GeneratorPathsTests: TuistUnitTestCase {
     func test_resolve_when_relative_to_manifest() throws {
         // Given
         let filePath = Path.relativeToManifest("file.swift")
-        given(rootDirectoryLocator)
-            .locate(from: .any)
-            .willReturn(path.appending(component: "Root"))
 
         // When
         let got = try subject.resolve(path: filePath)
@@ -90,25 +58,11 @@ class GeneratorPathsTests: TuistUnitTestCase {
     func test_resolve_when_relative_to_root_directory() throws {
         // Given
         let filePath = Path.relativeToRoot("file.swift")
-        given(rootDirectoryLocator)
-            .locate(from: .any)
-            .willReturn(path.appending(component: "Root"))
 
         // When
         let got = try subject.resolve(path: filePath)
 
         // Then
         XCTAssertEqual(got, path.appending(component: "Root").appending(component: "file.swift"))
-    }
-
-    func test_resolve_throws_when_the_root_directory_cant_be_found() throws {
-        // Given
-        let filePath = Path.relativeToRoot("file.swift")
-        given(rootDirectoryLocator)
-            .locate(from: .any)
-            .willReturn(nil)
-
-        // When
-        XCTAssertThrowsSpecific(try subject.resolve(path: filePath), GeneratorPathsError.rootDirectoryNotFound(path))
     }
 }

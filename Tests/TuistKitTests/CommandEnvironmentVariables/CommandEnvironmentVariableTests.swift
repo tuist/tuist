@@ -483,6 +483,7 @@ final class CommandEnvironmentVariableTests: XCTestCase {
         // Set environment variables for TestCommand
         setVariable(.testScheme, value: "MyScheme")
         setVariable(.testClean, value: "true")
+        setVariable(.testNoUpload, value: "true")
         setVariable(.testPath, value: "/path/to/test")
         setVariable(.testDevice, value: "iPhone")
         setVariable(.testPlatform, value: "iOS")
@@ -505,6 +506,7 @@ final class CommandEnvironmentVariableTests: XCTestCase {
         let testCommandWithEnvVars = try TestCommand.parse([])
         XCTAssertEqual(testCommandWithEnvVars.scheme, "MyScheme")
         XCTAssertTrue(testCommandWithEnvVars.clean)
+        XCTAssertTrue(testCommandWithEnvVars.noUpload)
         XCTAssertEqual(testCommandWithEnvVars.path, "/path/to/test")
         XCTAssertEqual(testCommandWithEnvVars.device, "iPhone")
         XCTAssertEqual(testCommandWithEnvVars.platform, "iOS")

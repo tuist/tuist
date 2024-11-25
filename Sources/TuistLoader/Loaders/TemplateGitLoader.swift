@@ -13,7 +13,7 @@ public protocol TemplateGitLoading {
 public final class TemplateGitLoader: TemplateGitLoading {
     private let templateLoader: TemplateLoading
     private let fileHandler: FileHandling
-    private let gitHandler: GitHandling
+    private let gitController: GitControlling
     private let templateLocationParser: TemplateLocationParsing
 
     /// Default constructor.
@@ -21,7 +21,7 @@ public final class TemplateGitLoader: TemplateGitLoading {
         self.init(
             templateLoader: TemplateLoader(),
             fileHandler: FileHandler.shared,
-            gitHandler: GitHandler(),
+            gitController: GitController(),
             templateLocationParser: TemplateLocationParser()
         )
     }
@@ -29,12 +29,12 @@ public final class TemplateGitLoader: TemplateGitLoading {
     init(
         templateLoader: TemplateLoading,
         fileHandler: FileHandling,
-        gitHandler: GitHandling,
+        gitController: GitControlling,
         templateLocationParser: TemplateLocationParsing
     ) {
         self.templateLoader = templateLoader
         self.fileHandler = fileHandler
-        self.gitHandler = gitHandler
+        self.gitController = gitController
         self.templateLocationParser = templateLocationParser
     }
 
@@ -48,9 +48,9 @@ public final class TemplateGitLoader: TemplateGitLoading {
         try await fileHandler.inTemporaryDirectory { temporaryPath in
             let templatePath = temporaryPath.appending(component: "Template")
             try self.fileHandler.createFolder(templatePath)
-            try self.gitHandler.clone(url: repoURL, to: templatePath)
+            try self.gitController.clone(url: repoURL, to: templatePath)
             if let repoBranch {
-                try self.gitHandler.checkout(id: repoBranch, in: templatePath)
+                try self.gitController.checkout(id: repoBranch, in: templatePath)
             }
             let template = try await self.templateLoader.loadTemplate(at: templatePath, plugins: .none)
             try await closure(template)

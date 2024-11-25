@@ -30,7 +30,7 @@ struct ProjectShowService {
 
     init(
         opener: Opening = Opener(),
-        configLoader: ConfigLoading = ConfigLoader(),
+        configLoader: ConfigLoading = ConfigLoader(warningController: WarningController.shared),
         serverURLService: ServerURLServicing = ServerURLService(),
         getProjectService: GetProjectServicing = GetProjectService()
     ) {
@@ -62,11 +62,19 @@ struct ProjectShowService {
                 serverURL: serverURL
             )
 
-            logger.info("""
-            \("Project".bold())
-            Full handle: \(fullHandle)
-            Default branch: \(project.defaultBranch)
-            """)
+            var projectInfo = [
+                "Project".bold(),
+                "Full handle: \(fullHandle)",
+            ]
+
+            if let repositoryURL = project.repositoryURL {
+                projectInfo.append("Repository: \(repositoryURL)")
+            }
+
+            projectInfo.append("Default branch: \(project.defaultBranch)")
+            projectInfo.append("Visibility: \(project.visibility.rawValue)")
+
+            logger.info("\(projectInfo.joined(separator: "\n"))")
         }
     }
 

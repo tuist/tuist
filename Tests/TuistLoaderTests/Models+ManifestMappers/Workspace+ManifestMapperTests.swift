@@ -1,5 +1,5 @@
 import Foundation
-import MockableTest
+import Mockable
 import TuistCore
 import TuistLoader
 import TuistSupportTesting
@@ -25,7 +25,7 @@ final class WorkspaceManifestMapperTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_from_when_using_glob_for_projects() throws {
+    func test_from_when_using_glob_for_projects() async throws {
         // Given
         given(manifestLoader)
             .manifests(at: .any)
@@ -37,10 +37,11 @@ final class WorkspaceManifestMapperTests: TuistUnitTestCase {
             .locate(from: .any)
             .willReturn(workspacePath)
 
+        try await fileSystem.touch(workspacePath.appending(component: "Project.swift"))
         try fileHandler.createFolder(workspacePath.appending(components: ".build", "checkouts"))
 
         // When
-        let got = try XcodeGraph.Workspace.from(
+        let got = try await XcodeGraph.Workspace.from(
             manifest: .test(
                 projects: [
                     "**",
@@ -49,9 +50,10 @@ final class WorkspaceManifestMapperTests: TuistUnitTestCase {
             path: workspacePath,
             generatorPaths: .init(
                 manifestDirectory: workspacePath,
-                rootDirectoryLocator: rootDirectoryLocator
+                rootDirectory: workspacePath
             ),
-            manifestLoader: manifestLoader
+            manifestLoader: manifestLoader,
+            fileSystem: fileSystem
         )
 
         // Then

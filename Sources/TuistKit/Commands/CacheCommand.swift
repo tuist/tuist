@@ -74,17 +74,12 @@ public struct CacheCommand: AsyncParsableCommand, HasTrackableParameters {
             configuration: configuration,
             targetsToBinaryCache: Set(targets),
             externalOnly: externalOnly,
-            generateOnly: generateOnly
+            generateOnly: generateOnly,
+            analyticsDelegate: CacheCommand.analyticsDelegate
         )
         CacheCommand.analyticsDelegate?.addParameters(
             [
                 "n_targets": AnyCodable(targets.count),
-                "cacheable_targets": AnyCodable(CacheAnalyticsStore.shared.cacheableTargets),
-                "local_cache_target_hits": AnyCodable(CacheAnalyticsStore.shared.localCacheTargetsHits),
-                "remote_cache_target_hits": AnyCodable(CacheAnalyticsStore.shared.remoteCacheTargetsHits),
-                "test_targets": AnyCodable(CacheAnalyticsStore.shared.testTargets),
-                "local_test_target_hits": AnyCodable(CacheAnalyticsStore.shared.localTestTargetHits),
-                "remote_test_target_hits": AnyCodable(CacheAnalyticsStore.shared.remoteTestTargetHits),
             ]
         )
     }

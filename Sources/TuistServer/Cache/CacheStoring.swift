@@ -1,6 +1,7 @@
 import Foundation
 import Mockable
 import Path
+import TuistCache
 import TuistCore
 import XcodeGraph
 
@@ -40,7 +41,7 @@ public protocol CacheStoring {
     func fetch(
         _ items: Set<CacheStorableItem>,
         cacheCategory: RemoteCacheCategory
-    ) async throws -> [CacheStorableItem: AbsolutePath]
+    ) async throws -> [CacheItem: AbsolutePath]
     func store(
         _ items: [CacheStorableItem: [AbsolutePath]],
         cacheCategory: RemoteCacheCategory
@@ -58,7 +59,9 @@ extension CacheStoring {
                 cacheCategory: cacheCategory
             )
             .compactMap { item, path -> (CacheStorableTarget, AbsolutePath)? in
-                guard let target = targets.first(where: { $0.hash == item.hash }) else { return nil }
+                guard let target = targets.first(where: { $0.hash == item.hash }) else {
+                    return nil
+                }
                 return (target, path)
             }
         )
@@ -68,9 +71,12 @@ extension CacheStoring {
         _ targets: [CacheStorableTarget: [AbsolutePath]],
         cacheCategory: RemoteCacheCategory
     ) async throws {
-        let items = Dictionary(uniqueKeysWithValues: targets.map { target, paths -> (CacheStorableItem, [AbsolutePath]) in
-            (CacheStorableItem(name: target.name, hash: target.hash), paths)
-        })
+        let items = Dictionary(
+            uniqueKeysWithValues: targets.map {
+                target, paths -> (CacheStorableItem, [AbsolutePath]) in
+                (CacheStorableItem(name: target.name, hash: target.hash), paths)
+            }
+        )
         try await store(items, cacheCategory: cacheCategory)
     }
 }

@@ -1,0 +1,25 @@
+name: Actionable item
+description: Use this to capture actionable items (e.g., refactors, small improvements) for any contributor to pick up. For ideas, please use the "Ideas & feature-request" option.
+title: "Insert title here"
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for taking the time to help improve Tuist!
+
+  - type: textarea
+    id: need
+    attributes:
+      label: Why is this needed?
+      description: It's important to understand the problem or need that you're trying to address. This will help us evaluate the importance of the issue and prioritize it accordingly.
+      placeholder: Describe why this is needed and the impact it will have on the project or community.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to address the need
+      description: What steps need to be taken to address the need? Be as specific as possible. Contributors who have never worked on the project should be able to understand what needs to be done, so try not to assume any prior knowledge.
+      placeholder: List the specific steps needed to address this need in enough detail for new contributors to follow.
+    validations:
+      required: true

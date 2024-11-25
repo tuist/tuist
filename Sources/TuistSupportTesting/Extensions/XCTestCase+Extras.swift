@@ -7,9 +7,13 @@ extension XCTestCase {
     // MARK: - Fixtures
 
     public func fixturePath(path: RelativePath) -> AbsolutePath {
-        try! AbsolutePath(validating: #file) // swiftlint:disable:this force_try
-            .appending(try! RelativePath(validating: "../../../../Tests/Fixtures")) // swiftlint:disable:this force_try
-            .appending(path)
+        // swiftlint:disable:next force_try
+        try! AbsolutePath(
+            validating: ProcessInfo.processInfo
+                .environment["TUIST_CONFIG_SRCROOT"]!
+        )
+        .appending(components: "Tests", "Fixtures")
+        .appending(path)
     }
 
     // MARK: - XCTAssertions
@@ -76,6 +80,22 @@ extension XCTestCase {
         """
 
         XCTAssertTrue(standardOutput.contains(pattern), message, file: file, line: line)
+    }
+
+    public func XCTAssertStandardOutputNotContains(_ pattern: String, file: StaticString = #file, line: UInt = #line) {
+        let standardOutput = TestingLogHandler.collected[.info, <=]
+
+        let message = """
+        The standard output:
+        ===========
+        \(standardOutput)
+
+        Contains the not expected:
+        ===========
+        \(pattern)
+        """
+
+        XCTAssertFalse(standardOutput.contains(pattern), message, file: file, line: line)
     }
 
     public func XCTAssertStandardError(pattern: String, file: StaticString = #file, line: UInt = #line) {

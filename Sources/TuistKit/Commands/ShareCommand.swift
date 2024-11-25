@@ -2,13 +2,18 @@ import ArgumentParser
 import Foundation
 import XcodeGraph
 
-public struct ShareCommand: AsyncParsableCommand {
+public struct ShareCommand: AsyncParsableCommand, HasTrackableParameters, TrackableParsableCommand {
+    public static var analyticsDelegate: TrackableParametersDelegate?
+    public var runId = UUID().uuidString
+
+    public var analyticsRequired: Bool { true }
+
     public init() {}
 
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "share",
-            abstract: "Generate a link to share your app. Only simulator builds supported."
+            abstract: "Generate a link to share your app."
         )
     }
 
@@ -20,7 +25,7 @@ public struct ShareCommand: AsyncParsableCommand {
     var path: String?
 
     @Argument(
-        help: "The app names to be looked up in the built products directory or the paths to the app bundles.",
+        help: "The app name to be looked up in the built products directory or the paths to the app bundles or an .ipa archive.",
         envKey: .shareApp
     )
     var apps: [String] = []
@@ -46,13 +51,20 @@ public struct ShareCommand: AsyncParsableCommand {
     )
     var derivedDataPath: String?
 
+    @Flag(
+        help: "The output in JSON format.",
+        envKey: .shareJSON
+    )
+    var json: Bool = false
+
     public func run() async throws {
         try await ShareService().run(
             path: path,
             apps: apps,
             configuration: configuration,
             platforms: platforms,
-            derivedDataPath: derivedDataPath
+            derivedDataPath: derivedDataPath,
+            json: json
         )
     }
 }

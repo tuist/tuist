@@ -1,4 +1,5 @@
-import MockableTest
+import FileSystem
+import Mockable
 import Path
 import struct TSCUtility.Version
 import TuistAutomationTesting
@@ -64,13 +65,12 @@ final class TargetRunnerTests: TuistUnitTestCase {
         let productPath = outputPath.appending(component: "Target.app")
         given(xcodeProjectBuildDirectoryLocator)
             .locate(
-                platform: .any,
+                destinationType: .any,
                 projectPath: .any,
                 derivedDataPath: .any,
                 configuration: .any
             )
             .willReturn(outputPath)
-        fileHandler.stubExists = { _ in false }
 
         // When / Then
         await XCTAssertThrowsSpecific(
@@ -93,17 +93,22 @@ final class TargetRunnerTests: TuistUnitTestCase {
         // Given
         let path = try temporaryPath()
         let workspacePath = path.appending(component: "App.xcworkspace")
-        fileHandler.stubExists = { _ in true }
-        system.succeedCommand(["/path/to/proj.xcworkspace/Target"])
+        try await fileSystem.makeDirectory(at: workspacePath)
+        try await fileSystem.touch(workspacePath.appending(component: "Target"))
+        system.succeedCommand(
+            [
+                workspacePath.appending(component: "Target").pathString,
+            ]
+        )
 
         given(xcodeProjectBuildDirectoryLocator)
             .locate(
-                platform: .any,
+                destinationType: .any,
                 projectPath: .any,
                 derivedDataPath: .any,
                 configuration: .any
             )
-            .willReturn(try AbsolutePath(validating: "/path/to/proj.xcworkspace"))
+            .willReturn(workspacePath)
 
         // When
         try await subject.runTarget(
@@ -121,7 +126,7 @@ final class TargetRunnerTests: TuistUnitTestCase {
         // Then
         verify(xcodeProjectBuildDirectoryLocator)
             .locate(
-                platform: .any,
+                destinationType: .any,
                 projectPath: .any,
                 derivedDataPath: .any,
                 configuration: .value(BuildConfiguration.debug.name)
@@ -138,10 +143,11 @@ final class TargetRunnerTests: TuistUnitTestCase {
         let executablePath = outputPath.appending(component: target.productNameWithExtension)
         let arguments = ["Argument", "--option1", "AnotherArgument", "--option2=true", "-opt3"]
 
-        fileHandler.stubExists = { _ in true }
+        try await fileSystem.makeDirectory(at: outputPath)
+        try await fileSystem.touch(outputPath.appending(component: "Target"))
         given(xcodeProjectBuildDirectoryLocator)
             .locate(
-                platform: .any,
+                destinationType: .any,
                 projectPath: .any,
                 derivedDataPath: .any,
                 configuration: .any
@@ -180,10 +186,11 @@ final class TargetRunnerTests: TuistUnitTestCase {
         let deviceName = "iPhone 11"
         let bundleId = "com.tuist.bundleid"
 
-        fileHandler.stubExists = { _ in true }
+        try await fileSystem.makeDirectory(at: outputPath)
+        try await fileSystem.touch(outputPath.appending(component: "Target.app"))
         given(xcodeProjectBuildDirectoryLocator)
             .locate(
-                platform: .any,
+                destinationType: .any,
                 projectPath: .any,
                 derivedDataPath: .any,
                 configuration: .any

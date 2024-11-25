@@ -1,5 +1,5 @@
 import Foundation
-import MockableTest
+import Mockable
 import TuistLoader
 import TuistServer
 import TuistSupportTesting
@@ -20,7 +20,7 @@ final class ProjectTokensRevokeServiceTests: TuistUnitTestCase {
         revokeProjectTokenService = .init()
         serverURLService = .init()
         configLoader = .init()
-        serverURL = URL(string: "https://test.cloud.tuist.io")!
+        serverURL = URL(string: "https://test.tuist.dev")!
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(.test(url: serverURL))

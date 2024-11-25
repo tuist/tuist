@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Path
 import TuistCore
@@ -22,20 +23,23 @@ protocol ProjectEditorMapping: AnyObject {
         resourceSynthesizers: [AbsolutePath],
         stencils: [AbsolutePath],
         projectDescriptionSearchPath: AbsolutePath
-    ) throws -> Graph
+    ) async throws -> Graph
 }
 
 // swiftlint:disable:next type_body_length
 final class ProjectEditorMapper: ProjectEditorMapping {
     private let swiftPackageManagerController: SwiftPackageManagerControlling
+    private let fileSystem: FileSysteming
 
     init(
         swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(
             system: System.shared,
-            fileHandler: FileHandler.shared
-        )
+            fileSystem: FileSystem()
+        ),
+        fileSystem: FileSysteming = FileSystem()
     ) {
         self.swiftPackageManagerController = swiftPackageManagerController
+        self.fileSystem = fileSystem
     }
 
     // swiftlint:disable:next function_body_length
@@ -55,11 +59,11 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         resourceSynthesizers: [AbsolutePath],
         stencils: [AbsolutePath],
         projectDescriptionSearchPath: AbsolutePath
-    ) throws -> Graph {
+    ) async throws -> Graph {
         logger.notice("Building the editable project graph")
         let swiftVersion = try SwiftVersionProvider.shared.swiftVersion()
 
-        let pluginsProject = mapPluginsProject(
+        let pluginsProject = try await mapPluginsProject(
             pluginManifests: editablePluginManifests,
             projectDescriptionPath: projectDescriptionSearchPath,
             swiftVersion: swiftVersion,
@@ -68,7 +72,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             tuistPath: tuistPath
         )
 
-        let manifestsProject = try mapManifestsProject(
+        let manifestsProject = try await mapManifestsProject(
             projectManifests: projectManifests,
             projectDescriptionPath: projectDescriptionSearchPath,
             swiftVersion: swiftVersion,
@@ -109,7 +113,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
                 let graphDependencies = project.targets.values.map(\.dependencies).lazy.map { dependencies in
                     dependencies.lazy.compactMap { dependency -> GraphDependency? in
                         switch dependency {
-                        case let .target(name, _):
+                        case let .target(name, _, _):
                             if let pluginsProject, editablePluginManifests.contains(where: { $0.name == name }) {
                                 return .target(name: name, path: pluginsProject.path)
                             } else {
@@ -154,7 +158,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         packageManifestPath: AbsolutePath?,
         editablePluginTargets: [String],
         pluginProjectDescriptionHelpersModule: [ProjectDescriptionHelpersModule]
-    ) throws -> Project? {
+    ) async throws -> Project? {
         guard !projectManifests.isEmpty || packageManifestPath != nil else { return nil }
 
         let projectName = "Manifests"
@@ -241,9 +245,9 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         let helperTargetDependencies = helpersTarget.map { [TargetDependency.target(name: $0.name)] } ?? []
         let helperAndPluginDependencies = helperTargetDependencies + editablePluginTargetDependencies
 
-        let packagesTarget: Target? = try {
+        let packagesTarget: Target? = try await {
             guard let packageManifestPath,
-                  let xcode = try XcodeController.shared.selected()
+                  let xcode = try await XcodeController.shared.selected()
             else { return nil }
             let packageVersion = try swiftPackageManagerController.getToolsVersion(at: packageManifestPath.parentDirectory)
 
@@ -355,7 +359,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             additionalFiles: [],
             resourceSynthesizers: [],
             lastUpgradeCheck: nil,
-            isExternal: false
+            type: .local
         )
     }
 
@@ -367,7 +371,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         sourceRootPath: AbsolutePath,
         destinationDirectory: AbsolutePath,
         tuistPath _: AbsolutePath
-    ) -> Project? {
+    ) async throws -> Project? {
         guard !pluginManifests.isEmpty else { return nil }
 
         let projectName = "Plugins"
@@ -383,17 +387,22 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             defaultSettings: .recommended
         )
 
-        let pluginTargets = pluginManifests.map { manifest -> Target in
+        let fileSystem = fileSystem
+        let pluginTargets = try await pluginManifests.concurrentMap { manifest -> Target in
             let pluginManifest = manifest.path.appending(component: "Plugin.swift")
             let pluginHelpersPath = manifest.path.appending(component: Constants.helpersDirectoryName)
             let pluginTemplatesPath = manifest.path.appending(component: Constants.templatesDirectoryName)
             let pluginResourceTemplatesPath = manifest.path.appending(component: Constants.resourceSynthesizersDirectoryName)
-            let sourcePaths = [pluginManifest] +
-                FileHandler.shared.glob(pluginHelpersPath, glob: "**/*.swift") +
-                FileHandler.shared.glob(pluginTemplatesPath, glob: "**/*.swift") +
-                FileHandler.shared.glob(pluginTemplatesPath, glob: "**/*.stencil") +
-                FileHandler.shared.glob(pluginResourceTemplatesPath, glob: "*.stencil")
-            return editorHelperTarget(
+            let pluginHelpers = try await fileSystem.glob(directory: pluginHelpersPath, include: ["**/*.swift"])
+                .collect()
+            let pluginTemplates = try await fileSystem.glob(
+                directory: pluginTemplatesPath,
+                include: ["**/*.swift", "**/*.stencil"]
+            ).collect()
+            let pluginResources = try await fileSystem.glob(directory: pluginResourceTemplatesPath, include: ["*.stencil"])
+                .collect()
+            let sourcePaths = [pluginManifest] + pluginHelpers + pluginTemplates + pluginResources
+            return self.editorHelperTarget(
                 name: manifest.name,
                 filesGroup: pluginsFilesGroup,
                 targetSettings: targetSettings,
@@ -447,7 +456,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             additionalFiles: [],
             resourceSynthesizers: [],
             lastUpgradeCheck: nil,
-            isExternal: false
+            type: .local
         )
     }
 
@@ -464,7 +473,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         targets.reduce(into: [TargetReference: Set<TargetReference>]()) { result, target in
             let dependencyRefs = target.dependencies.lazy.compactMap { dependency -> TargetReference? in
                 switch dependency {
-                case let .target(name, _):
+                case let .target(name, _, _):
                     return TargetReference(projectPath: projectPath, name: name)
                 default:
                     return nil

@@ -52,7 +52,7 @@ public protocol PluginServicing {
     /// - Returns: The loaded `Plugins` representation.
     func loadPlugins(using config: Config) async throws -> Plugins
     /// - Returns: Array of `RemotePluginPaths` for each remote plugin.
-    func remotePluginPaths(using config: Config) throws -> [RemotePluginPaths]
+    func remotePluginPaths(using config: Config) async throws -> [RemotePluginPaths]
 }
 
 enum PluginServiceConstants {
@@ -61,12 +61,12 @@ enum PluginServiceConstants {
 }
 
 /// A default implementation of `PluginServicing` which loads `Plugins` using the `Config` manifest.
-public final class PluginService: PluginServicing {
+public struct PluginService: PluginServicing {
     private let manifestLoader: ManifestLoading
     private let templatesDirectoryLocator: TemplatesDirectoryLocating
     private let fileHandler: FileHandling
-    private let gitHandler: GitHandling
-    private let cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring
+    private let gitController: GitControlling
+    private let cacheDirectoriesProvider: CacheDirectoriesProviding
     private let fileArchivingFactory: FileArchivingFactorying
     private let fileClient: FileClienting
     private let fileSystem: FileSystem
@@ -76,16 +76,16 @@ public final class PluginService: PluginServicing {
     ///   - manifestLoader: A manifest loader for loading plugin manifests.
     ///   - templatesDirectoryLocator: Locator for finding templates for plugins.
     ///   - fileHandler: A file handler for creating plugin directories/related files.
-    ///   - gitHandler: A git handler for cloning and interacting with remote plugins.
-    ///   - cacheDirectoryProviderFactory: A cache directory provider
+    ///   - gitController: A git handler for cloning and interacting with remote plugins.
+    ///   - cacheDirectoriesProvider: A cache directory provider
     ///   - fileArchivingFactory: FileArchiver for unzipping plugin releases.
     ///   - fileClient: FileClient for downloading plugin releases.
     public init(
         manifestLoader: ManifestLoading = ManifestLoader(),
         templatesDirectoryLocator: TemplatesDirectoryLocating = TemplatesDirectoryLocator(),
         fileHandler: FileHandling = FileHandler.shared,
-        gitHandler: GitHandling = GitHandler(),
-        cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring = CacheDirectoriesProviderFactory(),
+        gitController: GitControlling = GitController(),
+        cacheDirectoriesProvider: CacheDirectoriesProviding = CacheDirectoriesProvider(),
         fileArchivingFactory: FileArchivingFactorying = FileArchivingFactory(),
         fileClient: FileClienting = FileClient(),
         fileSystem: FileSystem = FileSystem()
@@ -93,20 +93,20 @@ public final class PluginService: PluginServicing {
         self.manifestLoader = manifestLoader
         self.templatesDirectoryLocator = templatesDirectoryLocator
         self.fileHandler = fileHandler
-        self.gitHandler = gitHandler
-        self.cacheDirectoryProviderFactory = cacheDirectoryProviderFactory
+        self.gitController = gitController
+        self.cacheDirectoriesProvider = cacheDirectoriesProvider
         self.fileArchivingFactory = fileArchivingFactory
         self.fileClient = fileClient
         self.fileSystem = fileSystem
     }
 
-    public func remotePluginPaths(using config: Config) throws -> [RemotePluginPaths] {
-        try config.plugins.compactMap { pluginLocation in
+    public func remotePluginPaths(using config: Config) async throws -> [RemotePluginPaths] {
+        try await config.plugins.concurrentCompactMap { pluginLocation in
             switch pluginLocation {
             case .local:
                 return nil
             case let .git(url: url, gitReference: .sha(sha), directory, _):
-                let pluginCacheDirectory = try self.pluginCacheDirectory(
+                let pluginCacheDirectory = try pluginCacheDirectory(
                     url: url,
                     gitId: sha,
                     config: config
@@ -120,7 +120,7 @@ public final class PluginService: PluginServicing {
                     releasePath: nil
                 )
             case let .git(url: url, gitReference: .tag(tag), directory, _):
-                let pluginCacheDirectory = try self.pluginCacheDirectory(
+                let pluginCacheDirectory = try pluginCacheDirectory(
                     url: url,
                     gitId: tag,
                     config: config
@@ -132,7 +132,7 @@ public final class PluginService: PluginServicing {
                 let releasePath = pluginCacheDirectory.appending(component: PluginServiceConstants.release)
                 return RemotePluginPaths(
                     repositoryPath: repositoryPath,
-                    releasePath: FileHandler.shared.exists(releasePath) ? releasePath : nil
+                    releasePath: try await fileSystem.exists(releasePath) ? releasePath : nil
                 )
             }
         }
@@ -153,36 +153,39 @@ public final class PluginService: PluginServicing {
                     return nil
                 }
             }
-        let localPluginManifests = try await localPluginPaths.concurrentMap(manifestLoader.loadPlugin)
+        let localPluginManifests = try await localPluginPaths
+            .concurrentMap { try await manifestLoader.loadPlugin(at: $0) }
 
-        let remotePluginPaths = try remotePluginPaths(using: config)
+        let remotePluginPaths = try await remotePluginPaths(using: config)
         let remotePluginRepositoryPaths = remotePluginPaths.map(\.repositoryPath)
         let remotePluginManifests = try await remotePluginRepositoryPaths
-            .concurrentMap(manifestLoader.loadPlugin)
+            .concurrentMap { try await manifestLoader.loadPlugin(at: $0) }
         let pluginPaths = localPluginPaths + remotePluginRepositoryPaths
-        let missingRemotePlugins = zip(remotePluginManifests, remotePluginRepositoryPaths)
-            .filter { !FileHandler.shared.exists($0.1) }
+        let missingRemotePlugins = try await zip(remotePluginManifests, remotePluginRepositoryPaths)
+            .map { $0 }
+            .concurrentFilter { try await !fileSystem.exists($0.1) }
         if !missingRemotePlugins.isEmpty {
             throw PluginServiceError.missingRemotePlugins(missingRemotePlugins.map(\.0.name))
         }
 
-        let localProjectDescriptionHelperPlugins = zip(localPluginManifests, localPluginPaths)
-            .compactMap { plugin, path -> ProjectDescriptionHelpersPlugin? in
-                projectDescriptionHelpersPlugin(name: plugin.name, pluginPath: path, location: .local)
+        let localProjectDescriptionHelperPlugins = try await zip(localPluginManifests, localPluginPaths)
+            .concurrentCompactMap { plugin, path -> ProjectDescriptionHelpersPlugin? in
+                try await projectDescriptionHelpersPlugin(name: plugin.name, pluginPath: path, location: .local)
             }
 
-        let remoteProjectDescriptionHelperPlugins = zip(remotePluginManifests, remotePluginRepositoryPaths)
-            .compactMap { plugin, path -> ProjectDescriptionHelpersPlugin? in
-                projectDescriptionHelpersPlugin(name: plugin.name, pluginPath: path, location: .remote)
+        let remoteProjectDescriptionHelperPlugins = try await zip(remotePluginManifests, remotePluginRepositoryPaths)
+            .concurrentCompactMap { plugin, path -> ProjectDescriptionHelpersPlugin? in
+                try await projectDescriptionHelpersPlugin(name: plugin.name, pluginPath: path, location: .remote)
             }
 
-        let templatePaths = try pluginPaths.flatMap(templatePaths(pluginPath:))
-        let resourceSynthesizerPlugins = zip(
+        let templatePaths = try await pluginPaths.concurrentFlatMap(templatePaths(pluginPath:))
+        let resourceSynthesizerPlugins = try await zip(
             (localPluginManifests + remotePluginManifests).map(\.name),
             pluginPaths
                 .map { $0.appending(component: Constants.resourceSynthesizersDirectoryName) }
         )
-        .filter { _, path in FileHandler.shared.exists(path) }
+        .map { $0 }
+        .concurrentFilter { _, path in try await fileSystem.exists(path) }
         .map(PluginResourceSynthesizer.init)
 
         return Plugins(
@@ -219,7 +222,7 @@ public final class PluginService: PluginServicing {
             gitId: gitReference.raw,
             config: config
         )
-        try fetchGitPluginRepository(
+        try await fetchGitPluginRepository(
             pluginCacheDirectory: pluginCacheDirectory,
             url: url,
             gitId: gitReference.raw
@@ -242,8 +245,7 @@ public final class PluginService: PluginServicing {
         gitId: String,
         config _: Config
     ) throws -> AbsolutePath {
-        let cacheDirectories = try cacheDirectoryProviderFactory.cacheDirectories()
-        let cacheDirectory = try cacheDirectories.cacheDirectory(for: .plugins)
+        let cacheDirectory = try cacheDirectoriesProvider.cacheDirectory(for: .plugins)
         let fingerprint = "\(url)-\(gitId)".md5
         return cacheDirectory
             .appending(component: fingerprint)
@@ -251,18 +253,18 @@ public final class PluginService: PluginServicing {
 
     /// Fetches the git plugins from the remote server and caches them in
     /// the Tuist cache with a unique fingerprint
-    private func fetchGitPluginRepository(pluginCacheDirectory: AbsolutePath, url: String, gitId: String) throws {
+    private func fetchGitPluginRepository(pluginCacheDirectory: AbsolutePath, url: String, gitId: String) async throws {
         let pluginRepositoryDirectory = pluginCacheDirectory.appending(component: PluginServiceConstants.repository)
 
-        guard !fileHandler.exists(pluginRepositoryDirectory) else {
+        guard try await !fileSystem.exists(pluginRepositoryDirectory) else {
             logger.debug("Using cached git plugin \(url)")
             return
         }
 
         logger.notice("Cloning plugin from \(url) @ \(gitId)", metadata: .subsection)
         logger.notice("\(pluginRepositoryDirectory.pathString)", metadata: .subsection)
-        try gitHandler.clone(url: url, to: pluginRepositoryDirectory)
-        try gitHandler.checkout(id: gitId, in: pluginRepositoryDirectory)
+        try gitController.clone(url: url, to: pluginRepositoryDirectory)
+        try gitController.checkout(id: gitId, in: pluginRepositoryDirectory)
     }
 
     private func fetchGitPluginRelease(
@@ -273,12 +275,12 @@ public final class PluginService: PluginServicing {
     ) async throws {
         let pluginRepositoryDirectory = pluginCacheDirectory.appending(component: PluginServiceConstants.repository)
         // If `Package.swift` exists for the plugin, a Github release should for the given `gitTag` should also exist
-        guard FileHandler.shared
+        guard try await fileSystem
             .exists(pluginRepositoryDirectory.appending(component: Constants.SwiftPackageManager.packageSwiftName))
         else { return }
 
         let pluginReleaseDirectory = pluginCacheDirectory.appending(component: PluginServiceConstants.release)
-        guard !fileHandler.exists(pluginReleaseDirectory) else {
+        guard try await !fileSystem.exists(pluginReleaseDirectory) else {
             logger.debug("Using cached git plugin release \(url)")
             return
         }
@@ -291,17 +293,17 @@ public final class PluginService: PluginServicing {
         try await FileHandler.shared.inTemporaryDirectory { _ in
             // Download the release.
             // Currently, we assume the release path exists.
-            let downloadPath = try await self.fileClient.download(url: releaseURL)
+            let downloadPath = try await fileClient.download(url: releaseURL)
             let downloadZipPath = downloadPath.removingLastComponent().appending(component: "release.zip")
-            let fileUnarchiver = try self.fileArchivingFactory.makeFileUnarchiver(for: downloadZipPath)
+            let fileUnarchiver = try fileArchivingFactory.makeFileUnarchiver(for: downloadZipPath)
 
             var thrownError: Error?
 
             do {
-                if FileHandler.shared.exists(downloadZipPath) {
-                    try await self.fileSystem.remove(downloadZipPath)
+                if try await fileSystem.exists(downloadZipPath) {
+                    try await fileSystem.remove(downloadZipPath)
                 }
-                try FileHandler.shared.move(from: downloadPath, to: downloadZipPath)
+                try await fileSystem.move(from: downloadPath, to: downloadZipPath)
 
                 // Unzip
                 let unarchivedContents = try FileHandler.shared.contentsOfDirectory(
@@ -310,7 +312,7 @@ public final class PluginService: PluginServicing {
 
                 try FileHandler.shared.createFolder(pluginReleaseDirectory)
                 for unarchivedContent in unarchivedContents {
-                    try FileHandler.shared.move(
+                    try await fileSystem.move(
                         from: unarchivedContent,
                         to: pluginReleaseDirectory.appending(component: unarchivedContent.basename)
                     )
@@ -327,8 +329,8 @@ public final class PluginService: PluginServicing {
             }
 
             try? await fileUnarchiver.delete()
-            try? await self.fileSystem.remove(downloadPath)
-            try? await self.fileSystem.remove(downloadZipPath)
+            try? await fileSystem.remove(downloadPath)
+            try? await fileSystem.remove(downloadZipPath)
 
             if let thrownError { throw thrownError }
         }
@@ -351,17 +353,17 @@ public final class PluginService: PluginServicing {
         name: String,
         pluginPath: AbsolutePath,
         location: ProjectDescriptionHelpersPlugin.Location
-    ) -> ProjectDescriptionHelpersPlugin? {
+    ) async throws -> ProjectDescriptionHelpersPlugin? {
         let helpersPath = pluginPath.appending(component: Constants.helpersDirectoryName)
-        guard fileHandler.exists(helpersPath) else { return nil }
+        guard try await fileSystem.exists(helpersPath) else { return nil }
         return ProjectDescriptionHelpersPlugin(name: name, path: helpersPath, location: location)
     }
 
     private func templatePaths(
         pluginPath: AbsolutePath
-    ) throws -> [AbsolutePath] {
+    ) async throws -> [AbsolutePath] {
         let templatesPath = pluginPath.appending(component: Constants.templatesDirectoryName)
-        guard fileHandler.exists(templatesPath) else { return [] }
+        guard try await fileSystem.exists(templatesPath) else { return [] }
         return try templatesDirectoryLocator.templatePluginDirectories(at: templatesPath)
     }
 }

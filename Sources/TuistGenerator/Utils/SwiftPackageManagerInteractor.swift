@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Path
 import TuistCore
@@ -27,9 +28,14 @@ public protocol SwiftPackageManagerInteracting {
 }
 
 public class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting {
-    private let fileHandler: FileHandling
-    public init(fileHandler: FileHandling = FileHandler.shared) {
-        self.fileHandler = fileHandler
+    private let fileSystem: FileSysteming
+    private let system: Systeming
+    public init(
+        fileSystem: FileSysteming = FileSystem(),
+        system: Systeming = System.shared
+    ) {
+        self.fileSystem = fileSystem
+        self.system = system
     }
 
     public func install(graphTraverser: GraphTraversing, workspaceName: String, config: Config = .default) async throws {
@@ -48,7 +54,7 @@ public class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting {
         graphTraverser: GraphTraversing
     ) async throws {
         guard !config.generationOptions.disablePackageVersionLocking,
-              graphTraverser.hasRemotePackages
+              graphTraverser.hasPackages
         else {
             return
         }
@@ -58,11 +64,11 @@ public class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting {
             .appending(try RelativePath(validating: "\(workspaceName)/xcshareddata/swiftpm"))
         let workspacePackageResolvedPath = workspacePackageResolvedFolderPath.appending(component: "Package.resolved")
 
-        if fileHandler.exists(rootPackageResolvedPath), !fileHandler.exists(workspacePackageResolvedPath) {
-            if !fileHandler.exists(workspacePackageResolvedPath.parentDirectory) {
-                try fileHandler.createFolder(workspacePackageResolvedPath.parentDirectory)
+        if try await fileSystem.exists(rootPackageResolvedPath), try await !fileSystem.exists(workspacePackageResolvedPath) {
+            if try await !fileSystem.exists(workspacePackageResolvedPath.parentDirectory) {
+                try await fileSystem.makeDirectory(at: workspacePackageResolvedPath.parentDirectory)
             }
-            try fileHandler.linkFile(atPath: rootPackageResolvedPath, toPath: workspacePackageResolvedPath)
+            try await fileSystem.createSymbolicLink(from: workspacePackageResolvedPath, to: rootPackageResolvedPath)
         }
 
         let workspacePath = path.appending(component: workspaceName)
@@ -84,7 +90,7 @@ public class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting {
 
         arguments.append(contentsOf: ["-workspace", workspacePath.pathString, "-list"])
 
-        try System.shared.run(
+        try system.run(
             arguments,
             verbose: false,
             environment: System.shared.env,
@@ -97,10 +103,10 @@ public class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting {
             })
         )
 
-        if !fileHandler.exists(rootPackageResolvedPath), fileHandler.exists(workspacePackageResolvedPath) {
-            try fileHandler.copy(from: workspacePackageResolvedPath, to: rootPackageResolvedPath)
-            if !fileHandler.exists(workspacePackageResolvedPath) {
-                try fileHandler.linkFile(atPath: rootPackageResolvedPath, toPath: workspacePackageResolvedPath)
+        if try await !fileSystem.exists(rootPackageResolvedPath), try await fileSystem.exists(workspacePackageResolvedPath) {
+            try await fileSystem.copy(workspacePackageResolvedPath, to: rootPackageResolvedPath)
+            if try await !fileSystem.exists(workspacePackageResolvedPath) {
+                try await fileSystem.createSymbolicLink(from: workspacePackageResolvedPath, to: rootPackageResolvedPath)
             }
         }
     }

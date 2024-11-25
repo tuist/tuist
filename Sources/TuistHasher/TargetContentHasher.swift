@@ -7,10 +7,15 @@ import XcodeGraph
 public protocol TargetContentHashing {
     func contentHash(
         for target: GraphTarget,
-        hashedTargets: inout [GraphHashedTarget: String],
-        hashedPaths: inout [AbsolutePath: String],
+        hashedTargets: [GraphHashedTarget: String],
+        hashedPaths: [AbsolutePath: String],
         additionalStrings: [String]
-    ) throws -> String
+    ) async throws -> TargetContentHash
+}
+
+public struct TargetContentHash {
+    public let hash: String
+    public let hashedPaths: [AbsolutePath: String]
 }
 
 /// `TargetContentHasher`
@@ -31,13 +36,20 @@ public final class TargetContentHasher: TargetContentHashing {
     // MARK: - Init
 
     public convenience init(contentHasher: ContentHashing) {
+        let platformConditionContentHasher = PlatformConditionContentHasher(contentHasher: contentHasher)
         self.init(
             contentHasher: contentHasher,
-            sourceFilesContentHasher: SourceFilesContentHasher(contentHasher: contentHasher),
+            sourceFilesContentHasher: SourceFilesContentHasher(
+                contentHasher: contentHasher,
+                platformConditionContentHasher: platformConditionContentHasher
+            ),
             targetScriptsContentHasher: TargetScriptsContentHasher(contentHasher: contentHasher),
             coreDataModelsContentHasher: CoreDataModelsContentHasher(contentHasher: contentHasher),
             resourcesContentHasher: ResourcesContentHasher(contentHasher: contentHasher),
-            copyFilesContentHasher: CopyFilesContentHasher(contentHasher: contentHasher),
+            copyFilesContentHasher: CopyFilesContentHasher(
+                contentHasher: contentHasher,
+                platformConditionContentHasher: platformConditionContentHasher
+            ),
             headersContentHasher: HeadersContentHasher(contentHasher: contentHasher),
             deploymentTargetContentHasher: DeploymentTargetsContentHasher(contentHasher: contentHasher),
             plistContentHasher: PlistContentHasher(contentHasher: contentHasher),
@@ -76,30 +88,44 @@ public final class TargetContentHasher: TargetContentHashing {
 
     public func contentHash(
         for graphTarget: GraphTarget,
-        hashedTargets: inout [GraphHashedTarget: String],
-        hashedPaths: inout [AbsolutePath: String],
+        hashedTargets: [GraphHashedTarget: String],
+        hashedPaths: [AbsolutePath: String],
         additionalStrings: [String] = []
-    ) throws -> String {
-        let sourcesHash = try sourceFilesContentHasher.hash(sources: graphTarget.target.sources)
-        let resourcesHash = try resourcesContentHasher.hash(resources: graphTarget.target.resources)
-        let copyFilesHash = try copyFilesContentHasher.hash(copyFiles: graphTarget.target.copyFiles)
-        let coreDataModelHash = try coreDataModelsContentHasher.hash(coreDataModels: graphTarget.target.coreDataModels)
-        let targetScriptsHash = try targetScriptsContentHasher.hash(
+    ) async throws -> TargetContentHash {
+        let projectHash: String? = switch graphTarget.project.type {
+        case let .external(hash: hash): hash
+        case .local: nil
+        }
+        if let projectHash {
+            return TargetContentHash(
+                hash: try contentHasher.hash([projectHash] + additionalStrings),
+                hashedPaths: [:]
+            )
+        }
+        var hashedPaths = hashedPaths
+        let sourcesHash = try await sourceFilesContentHasher.hash(identifier: "sources", sources: graphTarget.target.sources).hash
+        let resourcesHash = try await resourcesContentHasher
+            .hash(identifier: "resources", resources: graphTarget.target.resources).hash
+        let copyFilesHash = try await copyFilesContentHasher
+            .hash(identifier: "copyFiles", copyFiles: graphTarget.target.copyFiles).hash
+        let coreDataModelHash = try await coreDataModelsContentHasher.hash(coreDataModels: graphTarget.target.coreDataModels)
+        let targetScriptsHash = try await targetScriptsContentHasher.hash(
             targetScripts: graphTarget.target.scripts,
             sourceRootPath: graphTarget.project.sourceRootPath
         )
-        let dependenciesHash = try dependenciesContentHasher.hash(
+        let dependenciesHash = try await dependenciesContentHasher.hash(
             graphTarget: graphTarget,
-            hashedTargets: &hashedTargets,
-            hashedPaths: &hashedPaths
+            hashedTargets: hashedTargets,
+            hashedPaths: hashedPaths
         )
+        hashedPaths = dependenciesHash.hashedPaths
         let environmentHash = try contentHasher.hash(graphTarget.target.environmentVariables.mapValues(\.value))
         var stringsToHash = [
             graphTarget.target.name,
             graphTarget.target.product.rawValue,
             graphTarget.target.bundleId,
             graphTarget.target.productName,
-            dependenciesHash,
+            dependenciesHash.hash,
             sourcesHash,
             resourcesHash,
             copyFilesHash,
@@ -111,7 +137,7 @@ public final class TargetContentHasher: TargetContentHashing {
         stringsToHash.append(contentsOf: graphTarget.target.destinations.map(\.rawValue).sorted())
 
         if let headers = graphTarget.target.headers {
-            let headersHash = try headersContentHasher.hash(headers: headers)
+            let headersHash = try await headersContentHasher.hash(headers: headers)
             stringsToHash.append(headersHash)
         }
 
@@ -119,19 +145,22 @@ public final class TargetContentHasher: TargetContentHashing {
         stringsToHash.append(deploymentTargetHash)
 
         if let infoPlist = graphTarget.target.infoPlist {
-            let infoPlistHash = try plistContentHasher.hash(plist: .infoPlist(infoPlist))
+            let infoPlistHash = try await plistContentHasher.hash(plist: .infoPlist(infoPlist))
             stringsToHash.append(infoPlistHash)
         }
         if let entitlements = graphTarget.target.entitlements {
-            let entitlementsHash = try plistContentHasher.hash(plist: .entitlements(entitlements))
+            let entitlementsHash = try await plistContentHasher.hash(plist: .entitlements(entitlements))
             stringsToHash.append(entitlementsHash)
         }
         if let settings = graphTarget.target.settings {
-            let settingsHash = try settingsContentHasher.hash(settings: settings)
+            let settingsHash = try await settingsContentHasher.hash(settings: settings)
             stringsToHash.append(settingsHash)
         }
         stringsToHash += additionalStrings
 
-        return try contentHasher.hash(stringsToHash)
+        return TargetContentHash(
+            hash: try contentHasher.hash(stringsToHash),
+            hashedPaths: hashedPaths
+        )
     }
 }

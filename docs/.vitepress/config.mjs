@@ -5,7 +5,143 @@ import {
   guidesSidebar,
   contributorsSidebar,
   referencesSidebar,
-} from "./sidebars.mjs";
+  serverSidebar,
+  navBar,
+} from "./bars.mjs";
+import { loadData as loadCLIData } from "./data/cli";
+import { localizedString } from "./i18n.mjs";
+
+async function themeConfig(locale) {
+  const sidebar = {};
+  sidebar[`/${locale}/contributors`] = contributorsSidebar(locale);
+  sidebar[`/${locale}/guides/`] = guidesSidebar(locale);
+  sidebar[`/${locale}/server/`] = serverSidebar(locale);
+  sidebar[`/${locale}/`] = guidesSidebar(locale);
+  sidebar[`/${locale}/cli/`] = await loadCLIData(locale);
+  sidebar[`/${locale}/references/`] = await referencesSidebar(locale);
+  return {
+    nav: navBar(locale),
+    sidebar,
+  };
+}
+
+function getSearchOptionsForLocale(locale) {
+  return {
+    placeholder: localizedString(locale, "search.placeholder"),
+    translations: {
+      button: {
+        buttonText: localizedString(
+          locale,
+          "search.translations.button.buttonText",
+        ),
+        buttonAriaLabel: localizedString(
+          locale,
+          "search.translations.button.buttonAriaLabel",
+        ),
+      },
+      modal: {
+        searchBox: {
+          resetButtonTitle: localizedString(
+            locale,
+            "search.translations.modal.search-box.reset-button-title",
+          ),
+          resetButtonAriaLabel: localizedString(
+            locale,
+            "search.translations.modal.search-box.reset-button-aria-label",
+          ),
+          cancelButtonText: localizedString(
+            locale,
+            "search.translations.modal.search-box.cancel-button-text",
+          ),
+          cancelButtonAriaLabel: localizedString(
+            locale,
+            "search.translations.modal.search-box.cancel-button-aria-label",
+          ),
+        },
+        startScreen: {
+          recentSearchesTitle: localizedString(
+            locale,
+            "search.translations.modal.start-screen.recent-searches-title",
+          ),
+          noRecentSearchesText: localizedString(
+            locale,
+            "search.translations.modal.start-screen.no-recent-searches-text",
+          ),
+          saveRecentSearchButtonTitle: localizedString(
+            locale,
+            "search.translations.modal.start-screen.save-recent-search-button-title",
+          ),
+          removeRecentSearchButtonTitle: localizedString(
+            locale,
+            "search.translations.modal.start-screen.remove-recent-search-button-title",
+          ),
+          favoriteSearchesTitle: localizedString(
+            locale,
+            "search.translations.modal.start-screen.favorite-searches-title",
+          ),
+          removeFavoriteSearchButtonTitle: localizedString(
+            locale,
+            "search.translations.modal.start-screen.remove-favorite-search-button-title",
+          ),
+        },
+        errorScreen: {
+          titleText: localizedString(
+            locale,
+            "search.translations.modal.error-screen.title-text",
+          ),
+          helpText: localizedString(
+            locale,
+            "search.translations.modal.error-screen.help-text",
+          ),
+        },
+        footer: {
+          selectText: localizedString(
+            locale,
+            "search.translations.modal.footer.select-text",
+          ),
+          navigateText: localizedString(
+            locale,
+            "search.translations.modal.footer.navigate-text",
+          ),
+          closeText: localizedString(
+            locale,
+            "search.translations.modal.footer.close-text",
+          ),
+          searchByText: localizedString(
+            locale,
+            "search.translations.modal.footer.search-by-text",
+          ),
+        },
+        noResultsScreen: {
+          noResultsText: localizedString(
+            locale,
+            "search.translations.modal.no-results-screen.no-results-text",
+          ),
+          suggestedQueryText: localizedString(
+            locale,
+            "search.translations.modal.no-results-screen.suggested-query-text",
+          ),
+          reportMissingResultsText: localizedString(
+            locale,
+            "search.translations.modal.no-results-screen.report-missing-results-text",
+          ),
+          reportMissingResultsLinkText: localizedString(
+            locale,
+            "search.translations.modal.no-results-screen.report-missing-results-link-text",
+          ),
+        },
+      },
+    },
+  };
+}
+
+const searchOptionsLocales = {
+  en: getSearchOptionsForLocale("en"),
+  ko: getSearchOptionsForLocale("ko"),
+  ja: getSearchOptionsForLocale("ja"),
+  ru: getSearchOptionsForLocale("ru"),
+  es: getSearchOptionsForLocale("es"),
+};
 
 export default defineConfig({
   title: "Tuist",
@@ -14,9 +150,35 @@ export default defineConfig({
   srcDir: "docs",
   lastUpdated: true,
   locales: {
-    root: {
+    en: {
       label: "English",
-      lange: "en",
+      lang: "en",
+      themeConfig: await themeConfig("en"),
+    },
+    ko: {
+      label: "한국어 (Korean)",
+      lang: "ko",
+      themeConfig: await themeConfig("ko"),
+    },
+    ja: {
+      label: "日本語 (Japanese)",
+      lang: "ja",
+      themeConfig: await themeConfig("ja"),
+    },
+    ru: {
+      label: "Русский (Russian)",
+      lang: "ru",
+      themeConfig: await themeConfig("ru"),
+    },
+    es: {
+      label: "Castellano (Spanish)",
+      lang: "es",
+      themeConfig: await themeConfig("es"),
+    },
+    pt: {
+      label: "Português (Portuguese)",
+      lang: "pt",
+      themeConfig: await themeConfig("pt"),
     },
   },
   cleanUrls: true,
@@ -36,13 +198,31 @@ export default defineConfig({
       !function(t){if(window.ko)return;window.ko=[],["identify","track","removeListeners","open","on","off","qualify","ready"].forEach(function(t){ko[t]=function(){var n=[].slice.call(arguments);return n.unshift(t),ko.push(n),ko}});var n=document.createElement("script");n.async=!0,n.setAttribute("src","https://cdn.getkoala.com/v1/pk_3f80a3529ec2914b714a3f740d10b12642b9/sdk.js"),(document.body || document.head).appendChild(n)}();
     `,
     ],
+    ["meta", { property: "og:url", content: "https://docs.tuist.io" }, ""],
+    ["meta", { property: "og:type", content: "website" }, ""],
+    [
+      "meta",
+      { property: "og:image", content: "https://docs.tuist.io/images/og.jpeg" },
+      "",
+    ],
+    ["meta", { name: "twitter:card", content: "summary" }, ""],
+    ["meta", { property: "twitter:domain", content: "docs.tuist.io" }, ""],
+    ["meta", { property: "twitter:url", content: "https://docs.tuist.io" }, ""],
+    [
+      "meta",
+      {
+        name: "twitter:image",
+        content: "https://docs.tuist.io/images/og.jpeg",
+      },
+      "",
+    ],
   ],
   sitemap: {
     hostname: "https://docs.tuist.io",
   },
   async buildEnd({ outDir }) {
     const redirectsPath = path.join(outDir, "_redirects");
-    const redirects = `    
+    const redirects = `
 /documentation/tuist/installation /guide/introduction/installation 301
 /documentation/tuist/project-structure /guide/project/directory-structure 301
 /documentation/tuist/command-line-interface /guide/automation/generate 301
@@ -73,7 +253,6 @@ export default defineConfig({
 /documentation/tuist/championing-projects /contributors/get-started 301
 /guide/scale/ufeatures-architecture.html /guide/scale/tma-architecture.html 301
 /guide/scale/ufeatures-architecture /guide/scale/tma-architecture 301
-
 /guide/introduction/cost-of-convenience /guides/develop/projects/cost-of-convenience 301
 /guide/introduction/installation /guides/quick-start/install-tuist 301
 /guide/introduction/adopting-tuist/new-project /guides/start/new-project 301
@@ -108,8 +287,14 @@ export default defineConfig({
 /cloud/on-premise/metrics /guides/dashboard/on-premise/metrics 301
 /reference/project-description/* /references/project-description/:splat 301
 /reference/examples/* /references/examples/:splat 301
-
+/guides/develop/workflows /guides/develop/continuous-integration/workflows 301
+/guides/dashboard/on-premise/install /server/on-premise/install 301
+/guides/dashboard/on-premise/metrics /server/on-premise/metrics 301
+/:locale/references/project-description/structs/config /:locale/references/project-description/structs/tuist  301
 /documentation/tuist/* / 301
+${await fs.readFile(path.join(import.meta.dirname, "locale-redirects.txt"), {
+  encoding: "utf-8",
+})}
     `;
     fs.writeFile(redirectsPath, redirects);
   },
@@ -117,37 +302,12 @@ export default defineConfig({
     logo: "/logo.png",
     search: {
       provider: "local",
+      options: {
+        locales: searchOptionsLocales,
+      },
     },
-    nav: [
-      { text: "Guides", link: "/" },
-      {
-        text: "References",
-        link: "/references/project-description/structs/project",
-      },
-      { text: "Contributors", link: "/contributors/get-started" },
-      { text: "Changelog", link: "https://github.com/tuist/tuist/releases" },
-      {
-        text: "Server",
-        items: [
-          {
-            text: "Dashboard",
-            link: "https://cloud.tuist.io",
-          },
-          {
-            text: "API Documentation",
-            link: "https://cloud.tuist.io/api/docs",
-          },
-        ],
-      },
-    ],
     editLink: {
       pattern: "https://github.com/tuist/tuist/edit/main/docs/docs/:path",
-    },
-    sidebar: {
-      "/contributors": contributorsSidebar,
-      "/guides/": guidesSidebar,
-      "/": guidesSidebar,
-      "/references/": referencesSidebar,
     },
     socialLinks: [
       { icon: "github", link: "https://github.com/tuist/tuist" },

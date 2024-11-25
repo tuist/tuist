@@ -86,6 +86,9 @@ public enum EnvKey: String, CaseIterable {
     case pluginOptionsConfiguration = "TUIST_PLUGIN_OPTIONS_CONFIGURATION"
     case pluginOptionsPath = "TUIST_PLUGIN_OPTIONS_PATH"
 
+    // LINT
+    case lintImplicitDependenciesPath = "TUIST_LINT_IMPLICIT_DEPENDENCIES_PATH"
+
     // RUN
     case runBuildTests = "TUIST_RUN_BUILD_TESTS"
     case runSkipBuild = "TUIST_RUN_SKIP_BUILD"
@@ -110,6 +113,7 @@ public enum EnvKey: String, CaseIterable {
     // TEST
     case testScheme = "TUIST_TEST_SCHEME"
     case testClean = "TUIST_TEST_CLEAN"
+    case testNoUpload = "TUIST_TEST_NO_UPLOAD"
     case testPath = "TUIST_TEST_PATH"
     case testDevice = "TUIST_TEST_DEVICE"
     case testPlatform = "TUIST_TEST_PLATFORM"
@@ -221,6 +225,7 @@ public enum EnvKey: String, CaseIterable {
     case shareApp = "TUIST_SHARE_APP"
     case shareConfiguration = "TUIST_SHARE_CONFIGURATION"
     case sharePlatform = "TUIST_SHARE_PLATFORM"
+    case shareJSON = "TUIST_SHARE_JSON"
     case shareDerivedDataPath = "TUIST_SHARE_DERIVED_DATA_PATH"
 }
 

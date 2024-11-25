@@ -42,7 +42,7 @@ extension Project {
     }
 
     public func derivedDirectoryPath(for target: Target) -> AbsolutePath {
-        if isExternal,
+        if case .external = type,
            path.pathString
            .contains("\(Constants.SwiftPackageManager.packageBuildDirectoryName)/checkouts")
         {

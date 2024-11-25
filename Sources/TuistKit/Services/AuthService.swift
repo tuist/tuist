@@ -26,7 +26,7 @@ final class AuthService: AuthServicing {
     init(
         serverSessionController: ServerSessionControlling = ServerSessionController(),
         serverURLService: ServerURLServicing = ServerURLService(),
-        configLoader: ConfigLoading = ConfigLoader(),
+        configLoader: ConfigLoading = ConfigLoader(warningController: WarningController.shared),
         userInputReader: UserInputReading = UserInputReader(),
         authenticateService: AuthenticateServicing = AuthenticateService(),
         serverCredentialsStore: ServerCredentialsStoring = ServerCredentialsStore()
@@ -80,7 +80,7 @@ final class AuthService: AuthServicing {
             serverURL: serverURL
         )
 
-        try serverCredentialsStore.store(
+        try await serverCredentialsStore.store(
             credentials: ServerCredentials(
                 token: nil,
                 accessToken: authenticationTokens.accessToken,

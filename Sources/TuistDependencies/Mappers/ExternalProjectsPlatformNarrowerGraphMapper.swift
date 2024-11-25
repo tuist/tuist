@@ -19,7 +19,16 @@ public struct ExternalProjectsPlatformNarrowerGraphMapper: GraphMapping { // swi
         logger.debug("Transforming graph \(graph.name): Aligning external target platforms with locals'")
 
         // If the project has no external dependencies we skip this.
-        if graph.projects.values.first(where: { $0.isExternal }) == nil {
+        if graph.projects.values.first(
+            where: {
+                switch $0.type {
+                case .external:
+                    return true
+                case .local:
+                    return false
+                }
+            }
+        ) == nil {
             return (graph, [], environment)
         }
 
@@ -52,7 +61,7 @@ public struct ExternalProjectsPlatformNarrowerGraphMapper: GraphMapping { // swi
          */
         var target = target
         let graphTarget = GraphTarget(path: project.path, target: target, project: project)
-        if project.isExternal, let targetFilteredPlatforms = externalTargetSupportedPlatforms[graphTarget] {
+        if case .external = project.type, let targetFilteredPlatforms = externalTargetSupportedPlatforms[graphTarget] {
             target.destinations = target.destinations.filter { destination in
                 targetFilteredPlatforms.contains(destination.platform)
             }

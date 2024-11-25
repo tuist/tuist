@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Mockable
 import Path
@@ -22,8 +23,8 @@ enum OpeningError: FatalError, Equatable {
 
 @Mockable
 public protocol Opening: AnyObject {
-    func open(path: AbsolutePath, wait: Bool) throws
-    func open(path: AbsolutePath) throws
+    func open(path: AbsolutePath, wait: Bool) async throws
+    func open(path: AbsolutePath) async throws
     func open(path: AbsolutePath, application: AbsolutePath) throws
     func open(path: AbsolutePath, application: AbsolutePath, wait: Bool) throws
     func open(url: URL) throws
@@ -31,19 +32,25 @@ public protocol Opening: AnyObject {
 }
 
 public class Opener: Opening {
-    public init() {}
+    private let fileSystem: FileSysteming
+
+    public init(
+        fileSystem: FileSysteming = FileSystem()
+    ) {
+        self.fileSystem = fileSystem
+    }
 
     // MARK: - Opening
 
-    public func open(path: AbsolutePath, wait: Bool) throws {
-        if !FileHandler.shared.exists(path) {
+    public func open(path: AbsolutePath, wait: Bool) async throws {
+        if try await !fileSystem.exists(path) {
             throw OpeningError.notFound(path)
         }
         try open(target: path.pathString, wait: wait)
     }
 
-    public func open(path: AbsolutePath) throws {
-        try open(path: path, wait: false)
+    public func open(path: AbsolutePath) async throws {
+        try await open(path: path, wait: false)
     }
 
     public func open(url: URL) throws {

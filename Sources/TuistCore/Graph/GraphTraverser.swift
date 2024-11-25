@@ -1,9 +1,10 @@
 import Foundation
 import Path
-import func TSCBasic.topologicalSort
-import func TSCBasic.transitiveClosure
 import TuistSupport
 import XcodeGraph
+
+import func TSCBasic.topologicalSort
+import func TSCBasic.transitiveClosure
 
 // swiftlint:disable type_body_length
 public class GraphTraverser: GraphTraversing {
@@ -24,7 +25,11 @@ public class GraphTraverser: GraphTraversing {
 
     private let graph: Graph
     private let conditionCache = ConditionCache()
-    private let systemFrameworkMetadataProvider: SystemFrameworkMetadataProviding = SystemFrameworkMetadataProvider()
+    private let swiftPluginExecutablesCache = GraphCache<GraphDependency, Set<String>>()
+    private let systemFrameworkMetadataProvider: SystemFrameworkMetadataProviding =
+        SystemFrameworkMetadataProvider()
+    private let targetDirectTargetDependenciesCache: ThreadSafe<[GraphTarget: [GraphTarget]]> =
+        ThreadSafe([:])
 
     public required init(graph: Graph) {
         self.graph = graph
@@ -40,9 +45,11 @@ public class GraphTraverser: GraphTraversing {
     }
 
     public func rootTargets() -> Set<GraphTarget> {
-        Set(graph.workspace.projects.reduce(into: Set()) { result, path in
-            result.formUnion(targets(at: path))
-        })
+        Set(
+            graph.workspace.projects.reduce(into: Set()) { result, path in
+                result.formUnion(targets(at: path))
+            }
+        )
     }
 
     public func allTargets() -> Set<GraphTarget> {
@@ -67,9 +74,11 @@ public class GraphTraverser: GraphTraversing {
     }
 
     public func rootProjects() -> Set<Project> {
-        Set(graph.workspace.projects.compactMap {
-            projects[$0]
-        })
+        Set(
+            graph.workspace.projects.compactMap {
+                projects[$0]
+            }
+        )
     }
 
     public func schemes() -> [Scheme] {
@@ -81,19 +90,25 @@ public class GraphTraverser: GraphTraversing {
             acc.formUnion([next.key])
             acc.formUnion(next.value)
         }
-        return Set(dependencies.compactMap { dependency -> Path.AbsolutePath? in
-            guard case let GraphDependency.framework(path, _, _, _, _, _, _) = dependency else { return nil }
-            return path
-        })
+        return Set(
+            dependencies.compactMap { dependency -> Path.AbsolutePath? in
+                guard case let GraphDependency.framework(path, _, _, _, _, _, _) = dependency else {
+                    return nil
+                }
+                return path
+            }
+        )
     }
 
     public func targets(product: Product) -> Set<GraphTarget> {
         var filteredTargets: Set<GraphTarget> = Set()
         for (path, projectTargets) in targets() {
-            projectTargets.values.forEach { target in
-                guard target.product == product else { return }
-                guard let project = projects[path] else { return }
-                filteredTargets.formUnion([GraphTarget(path: path, target: target, project: project)])
+            for target in projectTargets.values {
+                guard target.product == product else { continue }
+                guard let project = projects[path] else { continue }
+                filteredTargets.formUnion([
+                    GraphTarget(path: path, target: target, project: project),
+                ])
             }
         }
         return filteredTargets
@@ -101,13 +116,16 @@ public class GraphTraverser: GraphTraversing {
 
     public func target(path: Path.AbsolutePath, name: String) -> GraphTarget? {
         guard let project = graph.projects[path],
-              let target = project.targets[name] else { return nil }
+              let target = project.targets[name]
+        else { return nil }
         return GraphTarget(path: path, target: target, project: project)
     }
 
     public func targets(at path: Path.AbsolutePath) -> Set<GraphTarget> {
         guard let project = graph.projects[path] else { return Set() }
-        return Set(project.targets.values.map { GraphTarget(path: path, target: $0, project: project) })
+        return Set(
+            project.targets.values.map { GraphTarget(path: path, target: $0, project: project) }
+        )
     }
 
     public func testPlan(name: String) -> TestPlan? {
@@ -121,38 +139,58 @@ public class GraphTraverser: GraphTraversing {
 
     public func allTargetDependencies(traversingFromTargets: [GraphTarget]) -> Set<GraphTarget> {
         return transitiveClosure(traversingFromTargets) { target in
-            Array(
-                directTargetDependencies(
-                    path: target.path,
-                    name: target.target.name
+            if let cachedTargetDependencies = targetDirectTargetDependenciesCache.value[target] {
+                return cachedTargetDependencies
+            } else {
+                let values = Array(
+                    directTargetDependencies(
+                        path: target.path,
+                        name: target.target.name
+                    )
                 )
-            )
-            .map(\.graphTarget)
+                .map(\.graphTarget)
+                targetDirectTargetDependenciesCache.mutate { cache in
+                    cache[target] = values
+                }
+                return values
+            }
         }
     }
 
-    public func directTargetDependencies(path: Path.AbsolutePath, name: String) -> Set<GraphTargetReference> {
+    public func directTargetDependencies(path: Path.AbsolutePath, name: String) -> Set<
+        GraphTargetReference
+    > {
         let target = GraphDependency.target(name: name, path: path)
         guard let dependencies = graph.dependencies[target]
         else { return [] }
 
-        let targetDependencies = dependencies
-            .compactMap(\.targetDependency)
+        let targetDependencies =
+            dependencies
+                .compactMap(\.targetDependency)
 
         return Set(convertToGraphTargetReferences(targetDependencies, for: target))
     }
 
-    public func directLocalTargetDependencies(path: Path.AbsolutePath, name: String) -> Set<GraphTargetReference> {
+    public func directLocalTargetDependencies(path: Path.AbsolutePath, name: String) -> Set<
+        GraphTargetReference
+    > {
         let target = GraphDependency.target(name: name, path: path)
         guard let dependencies = graph.dependencies[target],
               graph.projects[path] != nil
         else { return [] }
 
-        let localTargetDependencies = dependencies
-            .compactMap(\.targetDependency)
-            .filter { $0.path == path }
+        let localTargetDependencies =
+            dependencies
+                .compactMap(\.targetDependency)
+                .filter { $0.path == path }
 
         return Set(convertToGraphTargetReferences(localTargetDependencies, for: target))
+    }
+
+    /// Returns all direct target dependencies where the target is in another project.
+    private func directNonLocalTargetDependencies(path: Path.AbsolutePath, name: String) -> Set<GraphTargetReference> {
+        let dependencies = directTargetDependencies(path: path, name: name)
+        return dependencies.subtracting(directLocalTargetDependencies(path: path, name: name))
     }
 
     func convertToGraphTargetReferences(
@@ -166,13 +204,29 @@ public class GraphTraverser: GraphTraversing {
             else {
                 return nil
             }
-            let condition = graph.dependencyConditions[(target, .target(name: dependencyTarget.name, path: dependencyPath))]
-            let graphTarget = GraphTarget(path: dependencyPath, target: dependencyTarget, project: dependencyProject)
+            let condition = graph.dependencyConditions[
+                (target, .target(name: dependencyTarget.name, path: dependencyPath))
+            ]
+            let graphTarget = GraphTarget(
+                path: dependencyPath, target: dependencyTarget, project: dependencyProject
+            )
             return GraphTargetReference(target: graphTarget, condition: condition)
         }
     }
 
-    public func resourceBundleDependencies(path: Path.AbsolutePath, name: String) -> Set<GraphDependencyReference> {
+    private func executableNonLocalDependencies(path: Path.AbsolutePath, targetName: String) -> Set<GraphDependencyReference> {
+        let dependencies = directNonLocalTargetDependencies(path: path, name: targetName)
+            .filter {
+                [.app, .appExtension].contains($0.target.product)
+            }
+            .map { GraphDependencyReference.product(target: $0.target.name, productName: $0.target.productNameWithExtension) }
+
+        return Set(dependencies)
+    }
+
+    public func resourceBundleDependencies(path: Path.AbsolutePath, name: String) -> Set<
+        GraphDependencyReference
+    > {
         guard let target = graph.projects[path]?.targets[name] else { return [] }
         guard target.supportsResources else { return [] }
 
@@ -183,7 +237,8 @@ public class GraphTraverser: GraphTraversing {
         let bundles = filterDependencies(
             from: .target(name: name, path: path),
             test: { dependency in
-                isDependencyResourceBundle(dependency: dependency) && !isDependencyExternal(dependency)
+                isDependencyResourceBundle(dependency: dependency) &&
+                    !(isDependencyExternal(dependency) || dependency.isPrecompiled)
             },
             skip: canHostResources
         )
@@ -193,10 +248,14 @@ public class GraphTraverser: GraphTraversing {
         let externalBundles = filterDependencies(
             from: .target(name: name, path: path),
             test: { dependency in
-                isDependencyResourceBundle(dependency: dependency) && isDependencyExternal(dependency) &&
-                    canEmbedProducts(target: target)
+                guard isDependencyResourceBundle(dependency: dependency) else { return false }
+                // Precompiled bundles are embedded to any downstream target that supports resources to ensure Xcode previews work
+                // reliably.
+                // See this issue for more details: https://github.com/tuist/tuist/pull/6865
+                return (dependency.isPrecompiled && target.supportsResources) ||
+                    (isDependencyExternal(dependency) && canEmbedBundles(target: target))
             },
-            skip: canDependencyEmbedProducts
+            skip: canDependencyEmbedBundles
         )
 
         return Set(
@@ -206,7 +265,7 @@ public class GraphTraverser: GraphTraversing {
     }
 
     public func target(from dependency: GraphDependency) -> GraphTarget? {
-        guard case let GraphDependency.target(name, path) = dependency else {
+        guard case let GraphDependency.target(name, path, _) = dependency else {
             return nil
         }
         guard let target = graph.projects[path]?.targets[name] else { return nil }
@@ -214,17 +273,22 @@ public class GraphTraverser: GraphTraversing {
         return GraphTarget(path: path, target: target, project: project)
     }
 
-    public func appExtensionDependencies(path: Path.AbsolutePath, name: String) -> Set<GraphTargetReference> {
+    public func appExtensionDependencies(path: Path.AbsolutePath, name: String) -> Set<
+        GraphTargetReference
+    > {
         let validProducts: [Product] = [
-            .appExtension, .stickerPackExtension, .watch2Extension, .tvTopShelfExtension, .messagesExtension,
+            .appExtension, .stickerPackExtension, .watch2Extension, .tvTopShelfExtension,
+            .messagesExtension,
         ]
         return Set(
-            directLocalTargetDependencies(path: path, name: name)
+            directTargetDependencies(path: path, name: name)
                 .filter { validProducts.contains($0.target.product) }
         )
     }
 
-    public func extensionKitExtensionDependencies(path: Path.AbsolutePath, name: String) -> Set<GraphTargetReference> {
+    public func extensionKitExtensionDependencies(path: Path.AbsolutePath, name: String) -> Set<
+        GraphTargetReference
+    > {
         let validProducts: [Product] = [
             .extensionKitExtension,
         ]
@@ -255,13 +319,16 @@ public class GraphTraverser: GraphTraversing {
     }
 
     // Filter based on edges
-    public func directStaticDependencies(path: Path.AbsolutePath, name: String) -> Set<GraphDependencyReference> {
+    public func directStaticDependencies(path: Path.AbsolutePath, name: String) -> Set<
+        GraphDependencyReference
+    > {
         Set(
             graph.dependencies[.target(name: name, path: path)]?
                 .compactMap { (dependency: GraphDependency) -> GraphDependencyReference? in
-                    guard case let GraphDependency.target(dependencyName, dependencyPath) = dependency,
-                          let target = graph.projects[dependencyPath]?.targets[dependencyName],
-                          target.product.isStatic
+                    guard case let GraphDependency.target(dependencyName, dependencyPath, _) =
+                        dependency,
+                        let target = graph.projects[dependencyPath]?.targets[dependencyName],
+                        target.product.isStatic
                     else {
                         return nil
                     }
@@ -275,8 +342,11 @@ public class GraphTraverser: GraphTraversing {
         )
     }
 
-    public func embeddableFrameworks(path: Path.AbsolutePath, name: String) -> Set<GraphDependencyReference> {
-        guard let target = target(path: path, name: name), canEmbedProducts(target: target.target) else { return Set() }
+    public func embeddableFrameworks(path: Path.AbsolutePath, name: String) -> Set<
+        GraphDependencyReference
+    > {
+        guard let target = target(path: path, name: name), canEmbedFrameworks(target: target.target)
+        else { return Set() }
 
         var references: Set<GraphDependencyReference> = Set([])
 
@@ -284,38 +354,55 @@ public class GraphTraverser: GraphTraversing {
         var precompiledFrameworks = filterDependencies(
             from: .target(name: name, path: path),
             test: { $0.isPrecompiledDynamicAndLinkable },
-            skip: or(canDependencyEmbedProducts, isDependencyPrecompiledMacro)
+            skip: or(canDependencyEmbedBinaries, isDependencyPrecompiledMacro)
         )
         // Skip merged precompiled libraries from merging into the runnable binary
         if case let .manual(dependenciesToMerge) = target.target.mergedBinaryType {
-            precompiledFrameworks = precompiledFrameworks
-                .filter { !isXCFrameworkMerged(dependency: $0, expectedMergedBinaries: dependenciesToMerge) }
+            precompiledFrameworks =
+                precompiledFrameworks
+                    .filter {
+                        !isXCFrameworkMerged(
+                            dependency: $0, expectedMergedBinaries: dependenciesToMerge
+                        )
+                    }
         }
-        references.formUnion(precompiledFrameworks.lazy.compactMap { self.dependencyReference(
-            to: $0,
-            from: .target(name: name, path: path)
-        ) })
+        references.formUnion(
+            precompiledFrameworks.lazy.compactMap {
+                self.dependencyReference(
+                    to: $0,
+                    from: .target(name: name, path: path)
+                )
+            }
+        )
 
         /// Other targets' frameworks.
         var otherTargetFrameworks = filterDependencies(
             from: .target(name: name, path: path),
             test: isDependencyDynamicTarget,
-            skip: canDependencyEmbedProducts
+            skip: canDependencyEmbedBinaries
         )
 
         if target.target.mergedBinaryType != .disabled {
-            otherTargetFrameworks = otherTargetFrameworks.filter(isDependencyDynamicNonMergeableTarget)
+            otherTargetFrameworks = otherTargetFrameworks.filter(
+                isDependencyDynamicNonMergeableTarget
+            )
         }
 
-        references.formUnion(otherTargetFrameworks.lazy.compactMap { self.dependencyReference(
-            to: $0,
-            from: .target(name: name, path: path)
-        ) })
+        references.formUnion(
+            otherTargetFrameworks.lazy.compactMap {
+                self.dependencyReference(
+                    to: $0,
+                    from: .target(name: name, path: path)
+                )
+            }
+        )
 
         // Exclude any products embed in unit test host apps
         if target.target.product == .unitTests {
             if let hostApp = unitTestHost(path: path, name: name) {
-                references.subtract(embeddableFrameworks(path: hostApp.path, name: hostApp.target.name))
+                references.subtract(
+                    embeddableFrameworks(path: hostApp.path, name: hostApp.target.name)
+                )
             } else {
                 references = Set()
             }
@@ -324,12 +411,16 @@ public class GraphTraverser: GraphTraversing {
         return references
     }
 
-    public func searchablePathDependencies(path: Path.AbsolutePath, name: String) throws -> Set<GraphDependencyReference> {
+    public func searchablePathDependencies(path: Path.AbsolutePath, name: String) throws -> Set<
+        GraphDependencyReference
+    > {
         try linkableDependencies(path: path, name: name, shouldExcludeHostAppDependencies: false)
             .union(staticPrecompiledFrameworksDependencies(path: path, name: name))
     }
 
-    public func linkableDependencies(path: Path.AbsolutePath, name: String) throws -> Set<GraphDependencyReference> {
+    public func linkableDependencies(path: Path.AbsolutePath, name: String) throws -> Set<
+        GraphDependencyReference
+    > {
         try linkableDependencies(path: path, name: name, shouldExcludeHostAppDependencies: true)
     }
 
@@ -346,14 +437,19 @@ public class GraphTraverser: GraphTraversing {
 
         // System libraries and frameworks
         if target.target.canLinkStaticProducts() {
-            let transitiveSystemLibraries = transitiveStaticDependencies(from: targetGraphDependency)
-                .flatMap { dependency -> [GraphDependencyReference] in
-                    let dependencies = self.graph.dependencies[dependency, default: []]
-                    return dependencies.compactMap { dependencyDependency -> GraphDependencyReference? in
-                        guard case GraphDependency.sdk = dependencyDependency else { return nil }
-                        return dependencyReference(to: dependencyDependency, from: targetGraphDependency)
-                    }
+            let transitiveSystemLibraries = transitiveStaticDependencies(
+                from: targetGraphDependency
+            )
+            .flatMap { dependency -> [GraphDependencyReference] in
+                let dependencies = self.graph.dependencies[dependency, default: []]
+                return dependencies.compactMap {
+                    dependencyDependency -> GraphDependencyReference? in
+                    guard case GraphDependency.sdk = dependencyDependency else { return nil }
+                    return dependencyReference(
+                        to: dependencyDependency, from: targetGraphDependency
+                    )
                 }
+            }
             references.formUnion(transitiveSystemLibraries)
         }
 
@@ -366,55 +462,58 @@ public class GraphTraverser: GraphTraversing {
                 source: .system
             )
             .path
-            references.formUnion([GraphDependencyReference.sdk(
-                path: path,
-                status: .required,
-                source: .system,
-                condition: .when([.ios])
-            )])
+            references.formUnion([
+                GraphDependencyReference.sdk(
+                    path: path,
+                    status: .required,
+                    source: .system,
+                    condition: .when([.ios])
+                ),
+            ])
         }
 
         // Direct system libraries and frameworks
-        let directSystemLibrariesAndFrameworks = graph.dependencies[targetGraphDependency, default: []]
-            .compactMap { dependency -> GraphDependencyReference? in
-                guard case GraphDependency.sdk = dependency else { return nil }
-                return dependencyReference(to: dependency, from: targetGraphDependency)
-            }
+        let directSystemLibrariesAndFrameworks = graph.dependencies[
+            targetGraphDependency, default: []
+        ]
+        .compactMap { dependency -> GraphDependencyReference? in
+            guard case GraphDependency.sdk = dependency else { return nil }
+            return dependencyReference(to: dependency, from: targetGraphDependency)
+        }
         references.formUnion(directSystemLibrariesAndFrameworks)
 
-        // Precompiled libraries and frameworks
-        let precompiled = graph.dependencies[.target(name: name, path: path), default: []]
-            .lazy
-            .filter(\.isPrecompiled)
-
-        let precompiledDependencies = precompiled
-            .flatMap { filterDependencies(from: $0) }
-
-        let precompiledDynamicLibrariesAndFrameworks = Set(precompiled + precompiledDependencies)
-            .filter(\.isPrecompiledDynamicAndLinkable)
+        let precompiledDynamicLibrariesAndFrameworks = precompiledDynamicLibrariesAndFrameworks(
+            path: path,
+            name: name
+        )
 
         let staticXCFrameworksLinkedByDynamicXCFrameworkDependencies = filterDependencies(
             from: Set(precompiledDynamicLibrariesAndFrameworks).filter { $0.xcframeworkDependency != nil },
-            test: { $0.xcframeworkDependency?.linking == .static },
+            test: {
+                $0.xcframeworkDependency?.linking == .static &&
+                    $0.xcframeworkDependency?.swiftModules.isEmpty == false
+            },
             skip: { $0.xcframeworkDependency == nil }
         )
 
-        let libraryDependenciesLinkedByStaticXCFrameworks = try staticXCFrameworksLinkedByDynamicXCFrameworkDependencies.flatMap {
-            guard let dependencies = dependencies[$0] else { return [GraphDependency]() }
-            return try dependencies.filter {
-                switch $0 {
-                case .sdk:
-                    return true
-                default:
-                    return false
+        let libraryDependenciesLinkedByStaticXCFrameworks =
+            staticXCFrameworksLinkedByDynamicXCFrameworkDependencies.flatMap {
+                guard let dependencies = dependencies[$0] else { return [GraphDependency]() }
+                return dependencies.filter {
+                    switch $0 {
+                    case .sdk:
+                        return true
+                    default:
+                        return false
+                    }
                 }
             }
-        }
 
         let precompiledLibrariesAndFrameworks =
             (
-                precompiledDynamicLibrariesAndFrameworks + staticXCFrameworksLinkedByDynamicXCFrameworkDependencies +
-                    libraryDependenciesLinkedByStaticXCFrameworks
+                precompiledDynamicLibrariesAndFrameworks
+                    + staticXCFrameworksLinkedByDynamicXCFrameworkDependencies
+                    + libraryDependenciesLinkedByStaticXCFrameworks
             )
             .compactMap { dependencyReference(to: $0, from: targetGraphDependency) }
 
@@ -422,7 +521,9 @@ public class GraphTraverser: GraphTraversing {
 
         // Static libraries and frameworks / Static libraries' dynamic libraries
         if target.target.canLinkStaticProducts() {
-            let transitiveStaticTargetReferences = transitiveStaticDependencies(from: targetGraphDependency)
+            let transitiveStaticTargetReferences = transitiveStaticDependencies(
+                from: targetGraphDependency
+            )
 
             // Exclude any static products linked in a host application
             // however, for search paths it's fine to keep them included
@@ -431,29 +532,34 @@ public class GraphTraverser: GraphTraversing {
                let hostApp = unitTestHost(path: path, name: name)
             {
                 hostApplicationStaticTargets =
-                    transitiveStaticDependencies(from: .target(name: hostApp.target.name, path: hostApp.project.path))
+                    transitiveStaticDependencies(
+                        from: .target(name: hostApp.target.name, path: hostApp.project.path)
+                    )
             } else {
                 hostApplicationStaticTargets = Set()
             }
 
-            let staticDependenciesDynamicLibrariesAndFrameworks = transitiveStaticTargetReferences.flatMap { dependency in
-                self.graph.dependencies[dependency, default: []]
-                    .lazy
-                    .filter(\.isTarget)
-                    .filter(isDependencyDynamicTarget)
-            }
+            let staticDependenciesDynamicLibrariesAndFrameworks =
+                transitiveStaticTargetReferences.flatMap { dependency in
+                    self.graph.dependencies[dependency, default: []]
+                        .lazy
+                        .filter(\.isTarget)
+                        .filter(isDependencyDynamicTarget)
+                }
 
-            let staticDependenciesPrecompiledLibrariesAndFrameworks = transitiveStaticTargetReferences.flatMap { dependency in
-                self.graph.dependencies[dependency, default: []]
-                    .lazy
-                    .filter { $0.isPrecompiled && $0.isLinkable }
-            }
+            let staticDependenciesPrecompiledLibrariesAndFrameworks =
+                transitiveStaticTargetReferences.flatMap { dependency in
+                    self.graph.dependencies[dependency, default: []]
+                        .lazy
+                        .filter { $0.isPrecompiled && $0.isLinkable }
+                }
 
-            let allDependencies = (
-                transitiveStaticTargetReferences
-                    + staticDependenciesDynamicLibrariesAndFrameworks
-                    + staticDependenciesPrecompiledLibrariesAndFrameworks
-            )
+            let allDependencies =
+                (
+                    transitiveStaticTargetReferences
+                        + staticDependenciesDynamicLibrariesAndFrameworks
+                        + staticDependenciesPrecompiledLibrariesAndFrameworks
+                )
 
             references.formUnion(
                 allDependencies
@@ -466,13 +572,51 @@ public class GraphTraverser: GraphTraversing {
         }
 
         // Link dynamic libraries and frameworks
-        let dynamicLibrariesAndFrameworks = graph.dependencies[.target(name: name, path: path), default: []]
-            .filter(or(isDependencyDynamicLibrary, isDependencyFramework))
-            .compactMap { dependencyReference(to: $0, from: targetGraphDependency) }
+        let dynamicLibrariesAndFrameworks = graph.dependencies[
+            .target(name: name, path: path), default: []
+        ]
+        .filter(or(isDependencyDynamicLibrary, isDependencyFramework))
+        .compactMap { dependencyReference(to: $0, from: targetGraphDependency) }
 
         references.formUnion(dynamicLibrariesAndFrameworks)
 
         return references
+    }
+
+    private func precompiledDynamicLibrariesAndFrameworks(
+        path: Path.AbsolutePath,
+        name: String
+    ) -> [GraphDependency] {
+        // Precompiled libraries and frameworks
+        let precompiled = graph.dependencies[.target(name: name, path: path), default: []]
+            .lazy
+            .filter(\.isPrecompiled)
+
+        let precompiledDependencies = precompiled
+            .flatMap { filterDependencies(from: $0) }
+
+        return Set(precompiled + precompiledDependencies)
+            .filter(\.isPrecompiledDynamicAndLinkable)
+    }
+
+    public func staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies(
+        path: Path.AbsolutePath,
+        name: String
+    ) -> Set<GraphDependency> {
+        filterDependencies(
+            from: Set(
+                precompiledDynamicLibrariesAndFrameworks(
+                    path: path,
+                    name: name
+                )
+            ).filter { $0.xcframeworkDependency != nil },
+            test: {
+                $0.xcframeworkDependency?.linking == .static &&
+                    $0.xcframeworkDependency?.swiftModules.isEmpty == true &&
+                    $0.xcframeworkDependency?.moduleMaps.isEmpty == false
+            },
+            skip: { $0.xcframeworkDependency == nil }
+        )
     }
 
     public func copyProductDependencies(path: Path.AbsolutePath, name: String) -> Set<GraphDependencyReference> {
@@ -482,58 +626,106 @@ public class GraphTraverser: GraphTraversing {
 
         if target.target.product.isStatic {
             dependencies.formUnion(directStaticDependencies(path: path, name: name))
-            dependencies.formUnion(staticPrecompiledXCFrameworksDependencies(path: path, name: name))
+            dependencies.formUnion(
+                staticPrecompiledXCFrameworksDependencies(path: path, name: name)
+            )
         }
 
+        dependencies.formUnion(
+            executableNonLocalDependencies(path: path, targetName: target.target.name)
+        )
         dependencies.formUnion(resourceBundleDependencies(path: path, name: name))
 
         return Set(dependencies)
     }
 
-    public func directSwiftMacroExecutables(path: Path.AbsolutePath, name: String) -> Set<GraphDependencyReference> {
+    public func executableDependencies(
+        path: Path.AbsolutePath,
+        name: String
+    ) -> Set<GraphDependencyReference> {
+        let validProducts: [Product] = [.app]
+        return Set(
+            directNonLocalTargetDependencies(path: path, name: name)
+                .filter { validProducts.contains($0.target.product) }
+                .map { GraphDependencyReference.product(target: $0.target.name, productName: $0.target.productNameWithExtension) }
+        )
+    }
+
+    public func directSwiftMacroExecutables(path: Path.AbsolutePath, name: String) -> Set<
+        GraphDependencyReference
+    > {
         let dependencies = directTargetDependencies(path: path, name: name)
             .filter { $0.target.product == .macro }
-            .map { GraphDependencyReference.product(
-                target: $0.target.name,
-                productName: $0.target.productName,
-                condition: .when([.macos])
-            ) }
+            .map {
+                GraphDependencyReference.product(
+                    target: $0.target.name,
+                    productName: $0.target.productName,
+                    condition: .when([.macos])
+                )
+            }
 
         return Set(dependencies)
     }
 
-    public func directSwiftMacroTargets(path: Path.AbsolutePath, name: String) -> Set<GraphTargetReference> {
+    public func directSwiftMacroTargets(path: Path.AbsolutePath, name: String) -> Set<
+        GraphTargetReference
+    > {
         let dependencies = directTargetDependencies(path: path, name: name)
-            .filter { [.staticFramework, .framework, .dynamicLibrary, .staticLibrary].contains($0.target.product) }
-            .filter { self.directSwiftMacroExecutables(path: $0.graphTarget.path, name: $0.graphTarget.target.name).count != 0 }
+            .filter {
+                [.staticFramework, .framework, .dynamicLibrary, .staticLibrary].contains(
+                    $0.target.product
+                )
+            }
+            .filter {
+                self.directSwiftMacroExecutables(
+                    path: $0.graphTarget.path, name: $0.graphTarget.target.name
+                ).count != 0
+            }
         return Set(dependencies)
     }
 
     public func allSwiftMacroTargets(path: Path.AbsolutePath, name: String) -> Set<GraphTarget> {
         var dependencies = allTargetDependencies(path: path, name: name)
-            .filter { [.staticFramework, .framework, .dynamicLibrary, .staticLibrary].contains($0.target.product) }
-            .filter { self.directSwiftMacroExecutables(path: $0.path, name: $0.target.name).count != 0 }
+            .filter {
+                [.staticFramework, .framework, .dynamicLibrary, .staticLibrary].contains(
+                    $0.target.product
+                )
+            }
+            .filter {
+                self.directSwiftMacroExecutables(path: $0.path, name: $0.target.name).count != 0
+            }
 
-        if let target = target(path: path, name: name), !directSwiftMacroExecutables(path: path, name: name).isEmpty {
+        if let target = target(path: path, name: name),
+           !directSwiftMacroExecutables(path: path, name: name).isEmpty
+        {
             dependencies.insert(target)
         }
 
         return Set(dependencies)
     }
 
-    public func librariesPublicHeadersFolders(path: Path.AbsolutePath, name: String) -> Set<Path.AbsolutePath> {
+    public func librariesPublicHeadersFolders(path: Path.AbsolutePath, name: String) -> Set<
+        Path.AbsolutePath
+    > {
         let dependencies = graph.dependencies[.target(name: name, path: path), default: []]
         let libraryPublicHeaders = dependencies.compactMap { dependency -> Path.AbsolutePath? in
-            guard case let GraphDependency.library(_, publicHeaders, _, _, _) = dependency else { return nil }
+            guard case let GraphDependency.library(_, publicHeaders, _, _, _) = dependency else {
+                return nil
+            }
             return publicHeaders
         }
         return Set(libraryPublicHeaders)
     }
 
-    public func librariesSearchPaths(path: Path.AbsolutePath, name: String) throws -> Set<Path.AbsolutePath> {
+    public func librariesSearchPaths(path: Path.AbsolutePath, name: String) throws -> Set<
+        Path.AbsolutePath
+    > {
         let directDependencies = graph.dependencies[.target(name: name, path: path), default: []]
-        let directDependenciesLibraryPaths = directDependencies.compactMap { dependency -> Path.AbsolutePath? in
-            guard case let GraphDependency.library(path, _, _, _, _) = dependency else { return nil }
+        let directDependenciesLibraryPaths = directDependencies.compactMap {
+            dependency -> Path.AbsolutePath? in
+            guard case let GraphDependency.library(path, _, _, _, _) = dependency else {
+                return nil
+            }
             return path
         }
 
@@ -552,13 +744,21 @@ public class GraphTraverser: GraphTraversing {
             }
         }
 
-        return Set((directDependenciesLibraryPaths + linkedLibraryPaths).compactMap { $0.removingLastComponent() })
+        return Set(
+            (directDependenciesLibraryPaths + linkedLibraryPaths).compactMap {
+                $0.removingLastComponent()
+            }
+        )
     }
 
-    public func librariesSwiftIncludePaths(path: Path.AbsolutePath, name: String) -> Set<Path.AbsolutePath> {
+    public func librariesSwiftIncludePaths(path: Path.AbsolutePath, name: String) -> Set<
+        Path.AbsolutePath
+    > {
         let dependencies = graph.dependencies[.target(name: name, path: path), default: []]
-        let librarySwiftModuleMapPaths = dependencies.compactMap { dependency -> Path.AbsolutePath? in
-            guard case let GraphDependency.library(_, _, _, _, swiftModuleMapPath) = dependency else { return nil }
+        let librarySwiftModuleMapPaths = dependencies.compactMap {
+            dependency -> Path.AbsolutePath? in
+            guard case let GraphDependency.library(_, _, _, _, swiftModuleMapPath) = dependency
+            else { return nil }
             return swiftModuleMapPath
         }
         return Set(librarySwiftModuleMapPaths.compactMap { $0.removingLastComponent() })
@@ -566,7 +766,7 @@ public class GraphTraverser: GraphTraversing {
 
     public func runPathSearchPaths(path: Path.AbsolutePath, name: String) -> Set<Path.AbsolutePath> {
         guard let target = target(path: path, name: name),
-              canEmbedProducts(target: target.target),
+              canEmbedFrameworks(target: target.target),
               target.target.product == .unitTests,
               unitTestHost(path: path, name: name) == nil
         else {
@@ -579,7 +779,7 @@ public class GraphTraverser: GraphTraversing {
         let precompiledFrameworksPaths = filterDependencies(
             from: from,
             test: { $0.isPrecompiledDynamicAndLinkable },
-            skip: canDependencyEmbedProducts
+            skip: canDependencyEmbedBinaries
         )
         .lazy
         .compactMap { (dependency: GraphDependency) -> Path.AbsolutePath? in
@@ -605,10 +805,14 @@ public class GraphTraverser: GraphTraversing {
         let targets = project.targets
 
         return targets.values.compactMap { target -> GraphTarget? in
-            let dependencies = self.graph.dependencies[.target(name: target.name, path: path), default: Set()]
+            let dependencies = self.graph.dependencies[
+                .target(name: target.name, path: path), default: Set()
+            ]
             let dependsOnTarget = dependencies.contains(where: { dependency in
                 // swiftlint:disable:next identifier_name
-                guard case let GraphDependency.target(_name, _path) = dependency else { return false }
+                guard case let GraphDependency.target(_name, _path, _) = dependency else {
+                    return false
+                }
                 return _name == name && _path == path
             })
             let graphTarget = GraphTarget(path: path, target: target, project: project)
@@ -616,7 +820,9 @@ public class GraphTraverser: GraphTraversing {
         }.first
     }
 
-    public func allProjectDependencies(path: Path.AbsolutePath) throws -> Set<GraphDependencyReference> {
+    public func allProjectDependencies(path: Path.AbsolutePath) throws -> Set<
+        GraphDependencyReference
+    > {
         let targets = targets(at: path)
         if targets.isEmpty { return Set() }
         var references: Set<GraphDependencyReference> = Set()
@@ -633,6 +839,7 @@ public class GraphTraverser: GraphTraversing {
     public func needsEnableTestingSearchPaths(path: Path.AbsolutePath, name: String) -> Bool {
         var cache: [GraphTarget: Bool] = [:]
 
+        // swiftlint:disable:next identifier_name
         func _needsEnableTestingSearchPaths(
             path: Path.AbsolutePath,
             name: String
@@ -665,7 +872,9 @@ public class GraphTraverser: GraphTraversing {
             // If there are dependencies found, we need to traverse deeper down the graph
             var enable: Bool? // placeholder when we find a dependency that needs to enable testing paths
             for dependency in allTargetDependencies {
-                let needs = _needsEnableTestingSearchPaths(path: dependency.path, name: dependency.target.name)
+                let needs = _needsEnableTestingSearchPaths(
+                    path: dependency.path, name: dependency.target.name
+                )
 
                 if needs {
                     cache[dependency] = true
@@ -717,18 +926,34 @@ public class GraphTraverser: GraphTraversing {
     }
 
     public func targetsWithExternalDependencies() -> Set<GraphTarget> {
-        allInternalTargets().filter { directTargetExternalDependencies(path: $0.path, name: $0.target.name).count != 0 }
+        allInternalTargets().filter {
+            directTargetExternalDependencies(path: $0.path, name: $0.target.name).count != 0
+        }
     }
 
-    public func directTargetExternalDependencies(path: Path.AbsolutePath, name: String) -> Set<GraphTargetReference> {
-        directTargetDependencies(path: path, name: name).filter(\.graphTarget.project.isExternal)
+    public func directTargetExternalDependencies(path: Path.AbsolutePath, name: String) -> Set<
+        GraphTargetReference
+    > {
+        directTargetDependencies(path: path, name: name)
+            .filter {
+                switch $0.graphTarget.project.type {
+                case .local:
+                    return false
+                case .external:
+                    return true
+                }
+            }
     }
 
     public func allExternalTargets() -> Set<GraphTarget> {
-        Set(graph.projects.flatMap { path, project -> [GraphTarget] in
-            guard project.isExternal else { return [] }
-            return project.targets.values.map { GraphTarget(path: path, target: $0, project: project) }
-        })
+        Set(
+            graph.projects.flatMap { path, project -> [GraphTarget] in
+                guard case .external = project.type else { return [] }
+                return project.targets.values.map {
+                    GraphTarget(path: path, target: $0, project: project)
+                }
+            }
+        )
     }
 
     public func allOrphanExternalTargets() -> Set<GraphTarget> {
@@ -737,82 +962,105 @@ public class GraphTraverser: GraphTraversing {
                 .map { GraphDependency.target(name: $0.target.name, path: $0.project.path) }
         )
 
-        let allTargetExternalDependendedUponTargets = filterDependencies(from: graphDependenciesWithExternalDependencies)
-            .compactMap { graphDependency -> GraphTarget? in
-                if case let GraphDependency.target(name, path) = graphDependency {
-                    guard let project = graph.projects[path],
-                          let target = project.targets[name]
-                    else {
-                        return nil
-                    }
-                    return GraphTarget(path: path, target: target, project: project)
+        let externalTargetSupportedPlatforms = externalTargetSupportedPlatforms()
+
+        let allTargetExternalDependendedUponTargets = filterDependencies(
+            from: graphDependenciesWithExternalDependencies
+        )
+        .compactMap { graphDependency -> GraphTarget? in
+            if case let GraphDependency.target(name, path, _) = graphDependency {
+                guard let project = graph.projects[path],
+                      let target = project.targets[name]
+                else {
+                    return nil
+                }
+                let graphTarget = GraphTarget(path: path, target: target, project: project)
+
+                if externalTargetSupportedPlatforms[graphTarget]?.isEmpty == false {
+                    return graphTarget
                 } else {
                     return nil
                 }
+
+            } else {
+                return nil
             }
+        }
         let allExternalTargets = allExternalTargets()
         return allExternalTargets.subtracting(allTargetExternalDependendedUponTargets)
     }
 
     // swiftlint:disable:next function_body_length
     public func allSwiftPluginExecutables(path: Path.AbsolutePath, name: String) -> Set<String> {
-        func precompiledMacroDependencies(_ graphDependency: GraphDependency) -> Set<Path.AbsolutePath> {
-            Set(
-                dependencies[graphDependency, default: Set()]
-                    .lazy
-                    .compactMap {
-                        if case let GraphDependency.macro(path) = $0 {
-                            return path
-                        } else {
-                            return nil
+        if let cached = swiftPluginExecutablesCache[.target(name: name, path: path)] {
+            return cached
+        } else {
+            func precompiledMacroDependencies(_ graphDependency: GraphDependency) -> Set<
+                Path.AbsolutePath
+            > {
+                Set(
+                    dependencies[graphDependency, default: Set()]
+                        .lazy
+                        .compactMap {
+                            if case let GraphDependency.macro(path) = $0 {
+                                return path
+                            } else {
+                                return nil
+                            }
                         }
+                )
+            }
+
+            let precompiledMacroPluginExecutables = filterDependencies(
+                from: .target(name: name, path: path),
+                test: { dependency in
+                    switch dependency {
+                    case .xcframework:
+                        return !precompiledMacroDependencies(dependency).isEmpty
+                    case .macro:
+                        return true
+                    case .bundle, .library, .framework, .sdk, .target, .packageProduct:
+                        return false
                     }
+                },
+                skip: { dependency in
+                    switch dependency {
+                    case .macro:
+                        return true
+                    case .bundle, .library, .framework, .sdk, .target, .packageProduct, .xcframework:
+                        return false
+                    }
+                }
             )
-        }
-
-        let precompiledMacroPluginExecutables = filterDependencies(from: .target(name: name, path: path), test: { dependency in
-            switch dependency {
-            case .xcframework:
-                return !precompiledMacroDependencies(dependency).isEmpty
-            case .macro:
-                return true
-            case .bundle, .library, .framework, .sdk, .target, .packageProduct:
-                return false
-            }
-        }, skip: { dependency in
-            switch dependency {
-            case .macro:
-                return true
-            case .bundle, .library, .framework, .sdk, .target, .packageProduct, .xcframework:
-                return false
-            }
-        })
-        .flatMap { dependency in
-            switch dependency {
-            case .xcframework:
-                return Array(precompiledMacroDependencies(dependency))
-            case let .macro(path):
-                return [path]
-            case .bundle, .library, .framework, .sdk, .target, .packageProduct:
-                return []
-            }
-        }
-        .map { "\($0.pathString)#\($0.basename.replacingOccurrences(of: ".macro", with: ""))" }
-
-        let sourceMacroPluginExecutables = allSwiftMacroTargets(path: path, name: name)
-            .flatMap { target in
-                directSwiftMacroExecutables(path: target.project.path, name: target.target.name).map { (target, $0) }
-            }
-            .compactMap { _, dependencyReference in
-                switch dependencyReference {
-                case let .product(_, productName, _):
-                    return "$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/\(productName)#\(productName)"
-                default:
-                    return nil
+            .flatMap { dependency in
+                switch dependency {
+                case .xcframework:
+                    return Array(precompiledMacroDependencies(dependency))
+                case let .macro(path):
+                    return [path]
+                case .bundle, .library, .framework, .sdk, .target, .packageProduct:
+                    return []
                 }
             }
+            .map { "\($0.pathString)#\($0.basename.replacingOccurrences(of: ".macro", with: ""))" }
 
-        return Set(precompiledMacroPluginExecutables + sourceMacroPluginExecutables)
+            let sourceMacroPluginExecutables = allSwiftMacroTargets(path: path, name: name)
+                .flatMap { target in
+                    directSwiftMacroExecutables(path: target.project.path, name: target.target.name).map
+                        { (target, $0) }
+                }
+                .compactMap { _, dependencyReference in
+                    switch dependencyReference {
+                    case let .product(_, productName, _, _):
+                        return "$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/\(productName)#\(productName)"
+                    default:
+                        return nil
+                    }
+                }
+            let result = Set(precompiledMacroPluginExecutables + sourceMacroPluginExecutables)
+            swiftPluginExecutablesCache[.target(name: name, path: path)] = result
+            return result
+        }
     }
 
     // MARK: - Internal
@@ -822,7 +1070,7 @@ public class GraphTraverser: GraphTraversing {
     /// - Parameters:
     ///   - from: Dependency from which the traverse is done.
     ///   - test: If the closure returns true, the dependency is included.
-    ///   - skip: If the closure returns false, the traversing logic doesn't traverse the dependencies from that dependency.
+    ///   - skip: If the closure returns true, the traversing logic doesn't traverse the dependencies from that dependency.
     func filterDependencies(
         from rootDependency: GraphDependency,
         test: (GraphDependency) -> Bool = { _ in true },
@@ -836,7 +1084,7 @@ public class GraphTraverser: GraphTraversing {
     /// - Parameters:
     ///   - from: Dependencies from which the traverse is done.
     ///   - test: If the closure returns true, the dependency is included.
-    ///   - skip: If the closure returns false, the traversing logic doesn't traverse the dependencies from that dependency.
+    ///   - skip: If the closure returns true, the traversing logic doesn't traverse the dependencies from that dependency.
     func filterDependencies(
         from rootDependencies: Set<GraphDependency>,
         test: (GraphDependency) -> Bool = { _ in true },
@@ -885,7 +1133,8 @@ public class GraphTraverser: GraphTraversing {
     public func combinedCondition(
         to transitiveDependency: GraphDependency,
         from rootDependency: GraphDependency
-    ) -> PlatformCondition
+    )
+        -> PlatformCondition
         .CombinationResult
     {
         if let cached = conditionCache[(rootDependency, transitiveDependency)] {
@@ -944,9 +1193,13 @@ public class GraphTraverser: GraphTraversing {
             for dependencyTargetReference in dependencies {
                 var platformsToInsert: Set<Platform>?
                 let dependencyTarget = dependencyTargetReference.graphTarget
-                let inheritedPlatforms = dependencyTarget.target.product == .macro ? Set<Platform>([.macOS]) : parentPlatforms
+                let inheritedPlatforms =
+                    dependencyTarget.target.product == .macro
+                        ? Set<Platform>([.macOS]) : parentPlatforms
                 if let dependencyCondition = dependencyTargetReference.condition,
-                   let platformIntersection = PlatformCondition.when(target.target.dependencyPlatformFilters)?
+                   let platformIntersection = PlatformCondition.when(
+                       target.target.dependencyPlatformFilters
+                   )?
                    .intersection(dependencyCondition)
                 {
                     switch platformIntersection {
@@ -964,7 +1217,9 @@ public class GraphTraverser: GraphTraversing {
                         }
                     }
                 } else {
-                    platformsToInsert = inheritedPlatforms.intersection(dependencyTarget.target.supportedPlatforms)
+                    platformsToInsert = inheritedPlatforms.intersection(
+                        dependencyTarget.target.supportedPlatforms
+                    )
                 }
 
                 if let platformsToInsert {
@@ -974,24 +1229,37 @@ public class GraphTraverser: GraphTraversing {
                     platforms[dependencyTarget] = existingPlatforms
 
                     if continueTraversing {
-                        traverse(target: dependencyTarget, parentPlatforms: platforms[dependencyTarget, default: Set()])
+                        traverse(
+                            target: dependencyTarget,
+                            parentPlatforms: platforms[dependencyTarget, default: Set()]
+                        )
                     }
                 }
             }
         }
 
-        targetsWithExternalDependencies.forEach { traverse(target: $0, parentPlatforms: $0.target.supportedPlatforms) }
+        for targetsWithExternalDependency in targetsWithExternalDependencies {
+            traverse(
+                target: targetsWithExternalDependency,
+                parentPlatforms: targetsWithExternalDependency.target.supportedPlatforms
+            )
+        }
         return platforms
     }
 
-    func allDependenciesSatisfy(from rootDependency: GraphDependency, meets: (GraphDependency) -> Bool) -> Bool {
+    func allDependenciesSatisfy(
+        from rootDependency: GraphDependency, meets: (GraphDependency) -> Bool
+    ) -> Bool {
         var allSatisfy = true
-        _ = filterDependencies(from: rootDependency, test: { dependency in
-            if !meets(dependency) {
-                allSatisfy = false
+        _ = filterDependencies(
+            from: rootDependency,
+            test: { dependency in
+                if !meets(dependency) {
+                    allSatisfy = false
+                }
+                return true
             }
-            return true
-        })
+        )
         return allSatisfy
     }
 
@@ -1007,7 +1275,12 @@ public class GraphTraverser: GraphTraversing {
         guard let targetDependency = dependency.targetDependency,
               let project = graph.projects[targetDependency.path]
         else { return false }
-        return project.isExternal
+        switch project.type {
+        case .external:
+            return true
+        case .local:
+            return false
+        }
     }
 
     func isDependencyPrecompiledMacro(_ dependency: GraphDependency) -> Bool {
@@ -1045,7 +1318,9 @@ public class GraphTraverser: GraphTraversing {
         }
     }
 
-    func isXCFrameworkMerged(dependency: GraphDependency, expectedMergedBinaries: Set<String>) -> Bool {
+    func isXCFrameworkMerged(dependency: GraphDependency, expectedMergedBinaries: Set<String>)
+        -> Bool
+    {
         guard case let .xcframework(xcframework) = dependency,
               let binaryName = xcframework.infoPlist.libraries.first?.binaryName,
               expectedMergedBinaries.contains(binaryName)
@@ -1053,20 +1328,24 @@ public class GraphTraverser: GraphTraversing {
             return false
         }
         if !xcframework.mergeable {
-            fatalError("XCFramework \(binaryName) must be compiled with  -make_mergeable option enabled")
+            fatalError(
+                "XCFramework \(binaryName) must be compiled with  -make_mergeable option enabled"
+            )
         }
         return xcframework.mergeable
     }
 
     func isDependencyDynamicNonMergeableTarget(dependency: GraphDependency) -> Bool {
-        guard case let GraphDependency.target(name, path) = dependency,
-              let target = target(path: path, name: name) else { return false }
+        guard case let GraphDependency.target(name, path, _) = dependency,
+              let target = target(path: path, name: name)
+        else { return false }
         return !target.target.mergeable
     }
 
     func isDependencyStaticTarget(dependency: GraphDependency) -> Bool {
-        guard case let GraphDependency.target(name, path) = dependency,
-              let target = target(path: path, name: name) else { return false }
+        guard case let GraphDependency.target(name, path, _) = dependency,
+              let target = target(path: path, name: name)
+        else { return false }
         return target.target.product.isStatic
     }
 
@@ -1081,7 +1360,7 @@ public class GraphTraverser: GraphTraversing {
             return linking == .static
         case .bundle: return false
         case .packageProduct: return false
-        case let .target(name, path):
+        case let .target(name, path, _):
             guard let target = target(path: path, name: name) else { return false }
             return target.target.product.isStatic
         case .sdk: return false
@@ -1089,14 +1368,16 @@ public class GraphTraverser: GraphTraversing {
     }
 
     func isDependencyDynamicLibrary(dependency: GraphDependency) -> Bool {
-        guard case let GraphDependency.target(name, path) = dependency,
-              let target = target(path: path, name: name) else { return false }
+        guard case let GraphDependency.target(name, path, _) = dependency,
+              let target = target(path: path, name: name)
+        else { return false }
         return target.target.product == .dynamicLibrary
     }
 
     func isDependencyFramework(dependency: GraphDependency) -> Bool {
-        guard case let GraphDependency.target(name, path) = dependency,
-              let target = target(path: path, name: name) else { return false }
+        guard case let GraphDependency.target(name, path, _) = dependency,
+              let target = target(path: path, name: name)
+        else { return false }
         return target.target.product == .framework
     }
 
@@ -1108,7 +1389,7 @@ public class GraphTraverser: GraphTraversing {
         case .library: return false
         case .bundle: return false
         case .packageProduct: return false
-        case let .target(name, path):
+        case let .target(name, path, _):
             guard let target = target(path: path, name: name) else { return false }
             return target.target.product.isDynamic
         case .sdk: return false
@@ -1120,7 +1401,9 @@ public class GraphTraverser: GraphTraversing {
         case let .xcframework(xcframework):
             return xcframework.linking == .dynamic
         case let .framework(_, _, _, _, linking, _, _),
-             let .library(path: _, publicHeaders: _, linking: linking, architectures: _, swiftModuleMap: _):
+             let .library(
+                 path: _, publicHeaders: _, linking: linking, architectures: _, swiftModuleMap: _
+             ):
             return linking == .dynamic
         case .bundle: return false
         case .packageProduct: return false
@@ -1130,15 +1413,23 @@ public class GraphTraverser: GraphTraversing {
         }
     }
 
-    func canDependencyEmbedProducts(dependency: GraphDependency) -> Bool {
-        guard case let GraphDependency.target(name, path) = dependency,
-              let target = target(path: path, name: name) else { return false }
-        return canEmbedProducts(target: target.target)
+    func canDependencyEmbedBinaries(dependency: GraphDependency) -> Bool {
+        guard case let GraphDependency.target(name, path, _) = dependency,
+              let target = target(path: path, name: name)
+        else { return false }
+        return canEmbedFrameworks(target: target.target)
+    }
+
+    func canDependencyEmbedBundles(dependency: GraphDependency) -> Bool {
+        guard case let GraphDependency.target(name, path, _) = dependency,
+              let target = target(path: path, name: name)
+        else { return false }
+        return canEmbedBundles(target: target.target)
     }
 
     func canDependencyLinkStaticProducts(dependency: GraphDependency) -> Bool {
         switch dependency {
-        case let .target(name, path):
+        case let .target(name, path, _):
             guard let target = target(path: path, name: name) else { return false }
             return target.target.canLinkStaticProducts()
         case let .xcframework(xcframework): return xcframework.linking == .dynamic
@@ -1150,18 +1441,32 @@ public class GraphTraverser: GraphTraversing {
     }
 
     func unitTestHost(path: Path.AbsolutePath, name: String) -> GraphTarget? {
-        directLocalTargetDependencies(path: path, name: name)
+        directTargetDependencies(path: path, name: name)
             .first(where: { $0.target.product.canHostTests() })?.graphTarget
     }
 
-    func canEmbedProducts(target: Target) -> Bool {
+    func canEmbedFrameworks(target: Target) -> Bool {
         let validProducts: [Product] = [
             .app,
             .watch2App,
             .appClip,
             .unitTests,
             .uiTests,
+            .watch2Extension,
+            .systemExtension,
+            .xpc,
+        ]
+        return validProducts.contains(target.product)
+    }
+
+    func canEmbedBundles(target: Target) -> Bool {
+        let validProducts: [Product] = [
+            .app,
             .appExtension,
+            .watch2App,
+            .appClip,
+            .unitTests,
+            .uiTests,
             .watch2Extension,
             .systemExtension,
             .xpc,
@@ -1174,14 +1479,19 @@ public class GraphTraverser: GraphTraversing {
         to toDependency: GraphDependency,
         from fromDependency: GraphDependency
     ) -> GraphDependencyReference? {
-        guard case let .condition(condition) = combinedCondition(to: toDependency, from: fromDependency) else {
+        guard case let .condition(condition) = combinedCondition(
+            to: toDependency, from: fromDependency
+        )
+        else {
             return nil
         }
 
         switch toDependency {
         case let .macro(path):
             return .macro(path: path)
-        case let .framework(path, binaryPath, dsymPath, bcsymbolmapPaths, linking, architectures, status):
+        case let .framework(
+            path, binaryPath, dsymPath, bcsymbolmapPaths, linking, architectures, status
+        ):
             return .framework(
                 path: path,
                 binaryPath: binaryPath,
@@ -1203,6 +1513,8 @@ public class GraphTraverser: GraphTraversing {
             )
         case let .bundle(path):
             return .bundle(path: path, condition: condition)
+        case let .packageProduct(_, product, .runtimeEmbedded):
+            return .packageProduct(product: product, condition: condition)
         case .packageProduct:
             return nil
         case let .sdk(_, path, status, source):
@@ -1212,19 +1524,18 @@ public class GraphTraverser: GraphTraversing {
                 source: source,
                 condition: condition
             )
-        case let .target(name, path):
+        case let .target(name, path, status):
             guard let target = target(path: path, name: name) else { return nil }
             return .product(
                 target: target.target.name,
                 productName: target.target.productNameWithExtension,
+                status: status,
                 condition: condition
             )
         case let .xcframework(xcframework):
             return .xcframework(
                 path: xcframework.path,
                 infoPlist: xcframework.infoPlist,
-                primaryBinaryPath: xcframework.primaryBinaryPath,
-                binaryPath: xcframework.primaryBinaryPath,
                 status: xcframework.status,
                 condition: condition
             )
@@ -1235,7 +1546,7 @@ public class GraphTraverser: GraphTraversing {
         switch dependency {
         case .bundle:
             return true
-        case let .target(name: name, path: path):
+        case let .target(name: name, path: path, _):
             return target(path: path, name: name)?.target.product == .bundle
         default:
             return false
@@ -1243,12 +1554,14 @@ public class GraphTraverser: GraphTraversing {
     }
 
     private func allTargets(excludingExternalTargets: Bool) -> Set<GraphTarget> {
-        Set(projects.flatMap { projectPath, project -> [GraphTarget] in
-            if excludingExternalTargets, project.isExternal { return [] }
-            return project.targets.values.map { target in
-                GraphTarget(path: projectPath, target: target, project: project)
+        Set(
+            projects.flatMap { projectPath, project -> [GraphTarget] in
+                if excludingExternalTargets, case .external = project.type { return [] }
+                return project.targets.values.map { target in
+                    GraphTarget(path: projectPath, target: target, project: project)
+                }
             }
-        })
+        )
     }
 
     private func staticPrecompiledFrameworksDependencies(
@@ -1265,8 +1578,9 @@ public class GraphTraverser: GraphTraversing {
                 }
             }
 
-        let precompiledDependencies = precompiledStatic
-            .flatMap { filterDependencies(from: $0) }
+        let precompiledDependencies =
+            precompiledStatic
+                .flatMap { filterDependencies(from: $0) }
 
         return Set(precompiledStatic + precompiledDependencies)
             .compactMap { dependencyReference(to: $0, from: .target(name: name, path: path)) }

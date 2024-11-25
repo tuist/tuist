@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Path
 
@@ -48,9 +49,10 @@ public struct Xcode {
     /// - Parameter path: Path to a local Xcode.app bundle.
     /// - Returns: Initialized Xcode instance.
     /// - Throws: An error if the local installation can't be read.
-    static func read(path: AbsolutePath) throws -> Xcode {
+    static func read(path: AbsolutePath) async throws -> Xcode {
         let infoPlistPath = path.appending(try RelativePath(validating: "Contents/Info.plist"))
-        if !FileHandler.shared.exists(infoPlistPath) {
+        let fileSystem = FileSystem()
+        if try await !fileSystem.exists(infoPlistPath) {
             throw XcodeError.infoPlistNotFound(infoPlistPath)
         }
         let plistDecoder = PropertyListDecoder()
@@ -73,3 +75,21 @@ public struct Xcode {
         self.infoPlist = infoPlist
     }
 }
+
+#if DEBUG
+    extension Xcode {
+        public static func test(
+            path: AbsolutePath = try! AbsolutePath(validating: "/Applications/Xcode.app"), // swiftlint:disable:this force_try
+            infoPlist: Xcode.InfoPlist = .test()
+        ) -> Xcode {
+            Xcode(path: path, infoPlist: infoPlist)
+        }
+    }
+
+    extension Xcode.InfoPlist {
+        public static func test(version: String = "3.2.1") -> Xcode.InfoPlist {
+            Xcode.InfoPlist(version: version)
+        }
+    }
+
+#endif

@@ -1,6 +1,5 @@
 import Foundation
 import Mockable
-import MockableTest
 import Path
 import TuistSupport
 import XCTest
@@ -78,14 +77,14 @@ final class ServerSessionControllerTests: TuistUnitTestCase {
         """)
     }
 
-    func test_printSession_when_legacyUserToken() throws {
+    func test_printSession_when_legacyUserToken() async throws {
         // When
         given(serverAuthenticationController)
             .authenticationToken(serverURL: .value(serverURL))
             .willReturn(
                 .user(legacyToken: "legacy-token", accessToken: nil, refreshToken: nil)
             )
-        try subject.printSession(serverURL: serverURL)
+        try await subject.printSession(serverURL: serverURL)
 
         // Then
         XCTAssertPrinterOutputContains("""
@@ -94,7 +93,7 @@ final class ServerSessionControllerTests: TuistUnitTestCase {
         """)
     }
 
-    func test_printSession_when_userToken() throws {
+    func test_printSession_when_userToken() async throws {
         // When
         given(serverAuthenticationController)
             .authenticationToken(serverURL: .value(serverURL))
@@ -105,7 +104,7 @@ final class ServerSessionControllerTests: TuistUnitTestCase {
                     refreshToken: .test(token: "refresh-token")
                 )
             )
-        try subject.printSession(serverURL: serverURL)
+        try await subject.printSession(serverURL: serverURL)
 
         // Then
         XCTAssertPrinterOutputContains("""
@@ -114,10 +113,10 @@ final class ServerSessionControllerTests: TuistUnitTestCase {
         """)
     }
 
-    func test_printSession_when_projectToken() throws {
+    func test_printSession_when_projectToken() async throws {
         // When
         given(serverAuthenticationController).authenticationToken(serverURL: .value(serverURL)).willReturn(.project("token"))
-        try subject.printSession(serverURL: serverURL)
+        try await subject.printSession(serverURL: serverURL)
 
         // Then
         XCTAssertPrinterOutputContains("""
@@ -126,12 +125,12 @@ final class ServerSessionControllerTests: TuistUnitTestCase {
         """)
     }
 
-    func test_printSession_when_credentialsDontExist() throws {
+    func test_printSession_when_credentialsDontExist() async throws {
         // Given
         given(serverAuthenticationController).authenticationToken(serverURL: .value(serverURL)).willReturn(nil)
 
         // When
-        try subject.printSession(serverURL: serverURL)
+        try await subject.printSession(serverURL: serverURL)
 
         // Then
         XCTAssertPrinterOutputContains("""
@@ -149,7 +148,7 @@ final class ServerSessionControllerTests: TuistUnitTestCase {
         given(credentialsStore)
             .store(credentials: .value(credentials), serverURL: .value(serverURL))
             .willReturn()
-        try credentialsStore.store(credentials: credentials, serverURL: serverURL)
+        try await credentialsStore.store(credentials: credentials, serverURL: serverURL)
 
         given(credentialsStore)
             .delete(serverURL: .value(serverURL))
@@ -175,7 +174,7 @@ final class ServerSessionControllerTests: TuistUnitTestCase {
         given(credentialsStore)
             .store(credentials: .value(credentials), serverURL: .value(serverURL))
             .willReturn()
-        try credentialsStore.store(credentials: credentials, serverURL: serverURL)
+        try await credentialsStore.store(credentials: credentials, serverURL: serverURL)
 
         given(credentialsStore)
             .delete(serverURL: .value(serverURL))

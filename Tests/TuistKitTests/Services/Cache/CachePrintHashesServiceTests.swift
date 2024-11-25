@@ -1,6 +1,5 @@
 import Foundation
 import Mockable
-import MockableTest
 import Path
 import TuistCache
 import TuistCore
@@ -27,7 +26,7 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
         generatorFactory = MockGeneratorFactorying()
         generator = .init()
         given(generatorFactory)
-            .defaultGenerator(config: .any)
+            .defaultGenerator(config: .any, sources: .any)
             .willReturn(generator)
 
         cacheGraphContentHasher = MockCacheGraphContentHashing()

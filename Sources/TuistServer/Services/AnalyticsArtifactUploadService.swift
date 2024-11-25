@@ -1,6 +1,7 @@
 import Foundation
 import Mockable
 import Path
+import TuistCore
 import TuistSupport
 import XcodeGraph
 
@@ -8,7 +9,7 @@ import XcodeGraph
 public protocol AnalyticsArtifactUploadServicing {
     func uploadResultBundle(
         _ resultBundle: AbsolutePath,
-        targetHashes: [GraphTarget: String],
+        targetHashes: [CommandEventGraphTarget: String],
         graphPath: AbsolutePath,
         commandEventId: Int,
         serverURL: URL
@@ -66,7 +67,7 @@ public final class AnalyticsArtifactUploadService: AnalyticsArtifactUploadServic
 
     public func uploadResultBundle(
         _ resultBundle: AbsolutePath,
-        targetHashes: [GraphTarget: String],
+        targetHashes: [CommandEventGraphTarget: String],
         graphPath: AbsolutePath,
         commandEventId: Int,
         serverURL: URL
@@ -80,7 +81,7 @@ public final class AnalyticsArtifactUploadService: AnalyticsArtifactUploadServic
             serverURL: serverURL
         )
 
-        let invocationRecordString = try xcresultToolController.resultBundleObject(resultBundle)
+        let invocationRecordString = try await xcresultToolController.resultBundleObject(resultBundle)
         let invocationRecordPath = resultBundle.parentDirectory.appending(component: "invocation_record.json")
         try fileHandler.write(invocationRecordString, path: invocationRecordPath, atomically: true)
 
@@ -90,7 +91,7 @@ public final class AnalyticsArtifactUploadService: AnalyticsArtifactUploadServic
             .filter({ $0.schemeCommandName._value == "Test" })
         {
             guard let id = testActionRecord.actionResult.testsRef?.id._value else { continue }
-            let resultBundleObjectString = try xcresultToolController.resultBundleObject(
+            let resultBundleObjectString = try await xcresultToolController.resultBundleObject(
                 resultBundle,
                 id: id
             )
@@ -145,7 +146,7 @@ public final class AnalyticsArtifactUploadService: AnalyticsArtifactUploadServic
 
         switch artifact.type {
         case .resultBundle:
-            artifactPath = try fileArchiver.makeFileArchiver(for: [passedArtifactPath])
+            artifactPath = try await fileArchiver.makeFileArchiver(for: [passedArtifactPath])
                 .zip(name: passedArtifactPath.basenameWithoutExt)
         case .invocationRecord, .resultBundleObject:
             artifactPath = passedArtifactPath
@@ -160,13 +161,14 @@ public final class AnalyticsArtifactUploadService: AnalyticsArtifactUploadServic
 
             let parts = try await multipartUploadArtifactService.multipartUploadArtifact(
                 artifactPath: artifactPath,
-                generateUploadURL: { partNumber in
+                generateUploadURL: { part in
                     try await self.multipartUploadGenerateURLAnalyticsService.uploadAnalytics(
                         artifact,
                         commandEventId: commandEventId,
-                        partNumber: partNumber,
+                        partNumber: part.number,
                         uploadId: uploadId,
-                        serverURL: serverURL
+                        serverURL: serverURL,
+                        contentLength: part.contentLength
                     )
                 }
             )
