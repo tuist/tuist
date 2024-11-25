@@ -960,7 +960,7 @@ final class GenerateAcceptanceTestAppWithCustomScheme: TuistAcceptanceTestCase {
 
 final class GenerateAcceptanceTestsAppWithMetalOptions: TuistAcceptanceTestCase {
     func test_app_with_metal_options() async throws {
-        try setUpFixture(.appWithMetalOptions)
+        try await setUpFixture(.appWithMetalOptions)
         try await run(GenerateCommand.self)
 
         try XCTAssertContainsMetalOptions(
