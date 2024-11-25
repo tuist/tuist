@@ -1,0 +1,30 @@
+name: Cirrus
+
+on:
+  push:
+    branches:
+      - main
+  pull_request: {}
+
+jobs:
+  cache_and_generate:
+    name: Cache and generate
+    runs-on: ghcr.io/cirruslabs/macos-runner:sonoma
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: jdx/mise-action@v2
+        with:
+          version: 2024.11.8
+          experimental: true
+        env:
+          MISE_HTTP_TIMEOUT: 300
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Cache
+        run: tuist cache --path fixtures/ios_app_with_frameworks/
+      - name: Clean the cache
+        run: rm -rf ~/.cache/tuist
+      - name: Build
+        run: tuist build --path fixtures/ios_app_with_frameworks/
