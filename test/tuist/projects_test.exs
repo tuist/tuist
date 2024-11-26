@@ -4,7 +4,6 @@ defmodule Tuist.ProjectsTest do
 
   alias Tuist.Base64
   alias Tuist.Projects.ProjectToken
-  alias Tuist.Billing
   alias Tuist.CommandEvents
   alias Tuist.CommandEventsFixtures
   alias Tuist.Accounts.ProjectAccount
@@ -13,13 +12,6 @@ defmodule Tuist.ProjectsTest do
   alias Tuist.Projects
   alias Tuist.Accounts
   use Mimic
-
-  setup do
-    Billing
-    |> stub(:start_trial, fn _ -> {:ok, %{}} end)
-
-    :ok
-  end
 
   test "returns command average duration" do
     # Given

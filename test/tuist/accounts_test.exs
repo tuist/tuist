@@ -2,8 +2,6 @@ defmodule Tuist.AccountsTest do
   use Tuist.DataCase, async: false
   use Tuist.StubCase, billing: true
 
-  alias Tuist.Accounts.Account
-  alias Tuist.Billing
   alias Tuist.CommandEvents
   alias Tuist.CommandEventsFixtures
   alias Tuist.Projects
@@ -97,7 +95,6 @@ defmodule Tuist.AccountsTest do
     test "organization_user? returns true if the user's sso matches the organization's when the sso is Google" do
       # Given
       Environment |> stub(:on_premise?, fn -> false end)
-      Billing |> expect(:start_trial, fn %{plan: :air, account: _} -> :ok end)
 
       user =
         Accounts.find_or_create_user_from_oauth2(%{
@@ -131,7 +128,6 @@ defmodule Tuist.AccountsTest do
     test "organization_user? returns true if the user's sso matches the organization's when the sso is Okta" do
       # Given
       Environment |> stub(:on_premise?, fn -> false end)
-      Billing |> expect(:start_trial, fn %{plan: :air, account: _} -> :ok end)
 
       user =
         Accounts.find_or_create_user_from_oauth2(%{
@@ -162,7 +158,6 @@ defmodule Tuist.AccountsTest do
     test "organization_user? returns false if the user's sso domain matches the organization's but the providers are different" do
       # Given
       Environment |> stub(:on_premise?, fn -> false end)
-      Billing |> expect(:start_trial, fn %{plan: :air, account: _} -> :ok end)
 
       user =
         Accounts.find_or_create_user_from_oauth2(%{
@@ -193,7 +188,6 @@ defmodule Tuist.AccountsTest do
     test "organization_user? returns false if the user's sso does not match the organization's when both are Google" do
       # Given
       Environment |> stub(:on_premise?, fn -> false end)
-      Billing |> expect(:start_trial, fn %{plan: :air, account: _} -> :ok end)
 
       user =
         Accounts.find_or_create_user_from_oauth2(%{
@@ -252,7 +246,6 @@ defmodule Tuist.AccountsTest do
     test "returns true if the user's sso matches the organization's" do
       # Given
       Environment |> stub(:on_premise?, fn -> false end)
-      Billing |> expect(:start_trial, fn %{plan: :air, account: _} -> :ok end)
 
       user =
         Accounts.find_or_create_user_from_oauth2(%{
@@ -334,7 +327,6 @@ defmodule Tuist.AccountsTest do
     test "returns true if the user's sso matches the organization's" do
       # Given
       Environment |> stub(:on_premise?, fn -> false end)
-      Billing |> expect(:start_trial, fn %{plan: :air, account: _} -> :ok end)
 
       user =
         Accounts.find_or_create_user_from_oauth2(%{
@@ -368,7 +360,6 @@ defmodule Tuist.AccountsTest do
     test "returns false if the user's sso does not match the organization's" do
       # Given
       Environment |> stub(:on_premise?, fn -> false end)
-      Billing |> stub(:start_trial, fn %{plan: :air, account: _} -> :ok end)
 
       user =
         Accounts.find_or_create_user_from_oauth2(%{
@@ -673,7 +664,6 @@ defmodule Tuist.AccountsTest do
     test "creates an organization" do
       # Given
       Environment |> stub(:on_premise?, fn -> false end)
-      Billing |> expect(:start_trial, fn %{plan: :air, account: _} -> :ok end)
       user = AccountsFixtures.user_fixture()
 
       # When
@@ -687,7 +677,6 @@ defmodule Tuist.AccountsTest do
     test "creates an organization when new pricing model is enabled" do
       # Given
       Billing
-      |> expect(:start_trial, fn %{plan: :air, account: %Account{}} -> {:ok, %{}} end)
 
       user = AccountsFixtures.user_fixture()
 
@@ -702,7 +691,6 @@ defmodule Tuist.AccountsTest do
     test "creates an organization with SSO provider" do
       # Given
       Environment |> stub(:on_premise?, fn -> false end)
-      Billing |> stub(:start_trial, fn %{plan: :air, account: _} -> :ok end)
       user = AccountsFixtures.user_fixture()
 
       # When
@@ -742,7 +730,6 @@ defmodule Tuist.AccountsTest do
     test "deletes an organization" do
       # Given
       Environment |> stub(:on_premise?, fn -> false end)
-      Billing |> expect(:start_trial, fn %{plan: :air, account: _} -> :ok end)
 
       user = AccountsFixtures.user_fixture()
       organization = Accounts.create_organization(%{name: "tuist", creator: user})
@@ -761,10 +748,6 @@ defmodule Tuist.AccountsTest do
     test "handles creating another account with the same handle gracefully" do
       # Given
       Environment |> stub(:on_premise?, fn -> false end)
-
-      Billing
-      |> expect(:start_trial, fn %{plan: :air, account: _} -> :ok end)
-      |> expect(:start_trial, fn %{plan: :air, account: _} -> :ok end)
 
       first_oauth_identity = %{
         provider: :github,
@@ -950,7 +933,6 @@ defmodule Tuist.AccountsTest do
     test "gets a given organization account doing a case-insensitive search" do
       # Given
       Environment |> stub(:on_premise?, fn -> false end)
-      Billing |> expect(:start_trial, fn %{plan: :air, account: _} -> :ok end)
       user = AccountsFixtures.user_fixture()
       organization = Accounts.create_organization(%{name: "tuist", creator: user})
       account = Accounts.get_account_from_organization(organization)
@@ -997,7 +979,6 @@ defmodule Tuist.AccountsTest do
     test "create a user with a password" do
       # Given
       Environment |> stub(:on_premise?, fn -> false end)
-      Billing |> stub(:start_trial, fn %{plan: :air, account: _} -> :ok end)
       email = unique_user_email()
 
       # When
@@ -1011,9 +992,6 @@ defmodule Tuist.AccountsTest do
 
     test "create a user with a password when new pricing model is enabled" do
       # Given
-      Billing
-      |> expect(:start_trial, fn %{plan: :air, account: %Account{}} -> {:ok, %{}} end)
-
       email = unique_user_email()
 
       # When
@@ -1028,7 +1006,6 @@ defmodule Tuist.AccountsTest do
     test "create a user lowercasing the email" do
       # Given
       Environment |> stub(:on_premise?, fn -> false end)
-      Billing |> expect(:start_trial, fn %{plan: :air, account: _} -> :ok end)
       email = "#{Tuist.TestUtilities.unique_integer()}@TUIST.io"
 
       # When
@@ -1041,7 +1018,6 @@ defmodule Tuist.AccountsTest do
     test "create a user with a password when email has a dot in the username" do
       # Given
       Environment |> stub(:on_premise?, fn -> false end)
-      Billing |> expect(:start_trial, fn %{plan: :air, account: _} -> :ok end)
       email = "username.with.dot@tuist.io"
 
       # When
@@ -1058,7 +1034,6 @@ defmodule Tuist.AccountsTest do
     test "creates the user when there's already a user with the same handle derived from email" do
       # Given
       Environment |> stub(:on_premise?, fn -> false end)
-      Billing |> stub(:start_trial, fn %{plan: :air, account: _} -> :ok end)
       Accounts.create_user("foo@tuist.io")
 
       # When
@@ -1071,7 +1046,6 @@ defmodule Tuist.AccountsTest do
     test "errors after attempting finding a unique account handle using suffixes" do
       # Given
       Environment |> stub(:on_premise?, fn -> false end)
-      Billing |> stub(:start_trial, fn %{plan: :air, account: _} -> :ok end)
       Accounts.create_user("foo@tuist.io")
       Accounts.create_user("foo1@tuist.io")
       Accounts.create_user("foo2@tuist.io")
@@ -1086,7 +1060,6 @@ defmodule Tuist.AccountsTest do
     test "errors after creating user with an email that already exists" do
       # Given
       Environment |> stub(:on_premise?, fn -> false end)
-      Billing |> expect(:start_trial, fn %{plan: :air, account: _} -> :ok end)
       Accounts.create_user("foo@tuist.io")
 
       # When
@@ -1353,7 +1326,6 @@ defmodule Tuist.AccountsTest do
     test "creates a user from a github identity" do
       # Given
       Environment |> stub(:on_premise?, fn -> false end)
-      Billing |> expect(:start_trial, fn %{plan: :air, account: _} -> :ok end)
 
       # When
       user =
@@ -1372,7 +1344,6 @@ defmodule Tuist.AccountsTest do
     test "creates a user from a google identity with a hosted domain" do
       # Given
       Environment |> stub(:on_premise?, fn -> false end)
-      Billing |> expect(:start_trial, fn %{plan: :air, account: _} -> :ok end)
 
       # When
       user =
@@ -1400,7 +1371,6 @@ defmodule Tuist.AccountsTest do
     test "creates a user from a google identity without a hosted domain" do
       # Given
       Environment |> stub(:on_premise?, fn -> false end)
-      Billing |> expect(:start_trial, fn %{plan: :air, account: _} -> :ok end)
 
       # When
       user =
@@ -1530,7 +1500,6 @@ defmodule Tuist.AccountsTest do
     test "deletes a user when a user belongs to the SSO organization" do
       # Given
       Environment |> stub(:on_premise?, fn -> false end)
-      Billing |> expect(:start_trial, fn %{plan: :air, account: _} -> :ok end)
 
       organization =
         AccountsFixtures.organization_fixture(
@@ -1653,7 +1622,6 @@ defmodule Tuist.AccountsTest do
     test "returns users of an organization with a google hosted domain" do
       # Given
       Environment |> stub(:on_premise?, fn -> false end)
-      Billing |> stub(:start_trial, fn %{plan: :air, account: _} -> :ok end)
       user_one = AccountsFixtures.user_fixture()
 
       organization =
@@ -1706,7 +1674,6 @@ defmodule Tuist.AccountsTest do
     test "returns users of an organization with a given okta id" do
       # Given
       Environment |> stub(:on_premise?, fn -> false end)
-      Billing |> stub(:start_trial, fn %{plan: :air, account: _} -> :ok end)
       user_one = AccountsFixtures.user_fixture()
 
       organization =

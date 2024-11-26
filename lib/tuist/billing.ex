@@ -110,16 +110,6 @@ defmodule Tuist.Billing do
       |> Stripe.Request.make_request()
   end
 
-  def start_trial(%{plan: plan, account: %Account{customer_id: customer_id}}) do
-    subscription_items = get_subscription_items(plan)
-
-    Stripe.Subscription.create(%{
-      customer: customer_id,
-      items: subscription_items,
-      trial_period_days: 30
-    })
-  end
-
   def update_plan(%{
         plan: plan,
         account: %Account{} = account,

@@ -321,30 +321,6 @@ defmodule Tuist.BillingTest do
     end
   end
 
-  describe "start_trial/1" do
-    test "starts a new air trial" do
-      # Given
-      user = AccountsFixtures.user_fixture(customer_id: "customer_id")
-      account = Accounts.get_account_from_user(user)
-      customer_id = account.customer_id
-
-      Stripe.Subscription
-      |> expect(:create, fn %{
-                              customer: ^customer_id,
-                              items: [
-                                %{price: "air.usage"},
-                                %{price: "air.flat.monthly", quantity: 1}
-                              ],
-                              trial_period_days: 30
-                            } ->
-        {:ok, %{}}
-      end)
-
-      # When
-      Billing.start_trial(%{account: account, plan: :air})
-    end
-  end
-
   describe "update_plan/1" do
     test "creates a new session when upgrading to the pro plan if there is no current active subscription" do
       # Given

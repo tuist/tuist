@@ -6,7 +6,6 @@ defmodule Tuist.VCSTest do
   use Mimic
 
   alias Tuist.GitHub
-  alias Tuist.Billing
   alias Tuist.Accounts
   alias Tuist.VCS
   alias Tuist.VCS.Comment
@@ -31,8 +30,6 @@ defmodule Tuist.VCSTest do
   describe "get_user_permission/1" do
     test "returns user permission when admin" do
       # Given
-      Billing |> stub(:start_trial, fn _ -> :ok end)
-
       user =
         Accounts.find_or_create_user_from_oauth2(%{
           provider: :github,

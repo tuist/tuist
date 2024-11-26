@@ -14,7 +14,6 @@ defmodule Tuist.StubCase do
       if unquote(options)[:billing] do
         setup do
           Tuist.Billing |> stub(:create_customer, fn _ -> "cust_#{UUIDv7.generate()}" end)
-          Tuist.Billing |> stub(:start_trial, fn _ -> :ok end)
           :ok
         end
       end

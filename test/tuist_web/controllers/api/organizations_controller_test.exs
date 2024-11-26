@@ -7,12 +7,10 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
   alias TuistWeb.Authentication
   alias Tuist.AccountsFixtures
   alias Tuist.Accounts
-  alias Tuist.Billing
   use Mimic
 
   setup do
     user = AccountsFixtures.user_fixture(email: "tuist@tuist.io", preload: [:account])
-    Billing |> stub(:start_trial, fn _ -> :ok end)
     %{user: user}
   end
 
