@@ -91,7 +91,8 @@ defmodule TuistWeb.AppLayoutComponents do
             </.link>
           </li>
 
-          <% tests_path = ~p"/#{@selected_account.name}/#{@selected_project.name}/tests" %>
+          <%!-- Temporarily disabled due to performance issues --%>
+          <%!-- <% tests_path = ~p"/#{@selected_account.name}/#{@selected_project.name}/tests" %>
           <li
             class="sidebar__navigation-list__item"
             aria-selected={if tests_path == @current_path, do: "true", else: "false"}
@@ -101,7 +102,7 @@ defmodule TuistWeb.AppLayoutComponents do
               <.check_circle_icon />
               <p class="text-md semibold"><%= gettext("Tests") %></p>
             </.link>
-          </li>
+          </li> --%>
 
           <% previews_path = ~p"/#{@selected_account.name}/#{@selected_project.name}/previews" %>
           <li

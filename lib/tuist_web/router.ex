@@ -393,8 +393,9 @@ defmodule TuistWeb.Router do
       live "/runs", ProjectRunsLive
       get "/runs/:id/download", RunsController, :download
       live "/runs/:id", ProjectRunDetailLive
-      live "/tests", ProjectTestsLive
-      live "/tests/cases/:identifier", ProjectTestCaseDetailLive
+      # Temporarily disabled due to performance issues
+      # live "/tests", ProjectTestsLive
+      # live "/tests/cases/:identifier", ProjectTestCaseDetailLive
       live "/previews", PreviewsLive
       # Used in tuist analytics command
       live "/analytics", ProjectDashboardLive
