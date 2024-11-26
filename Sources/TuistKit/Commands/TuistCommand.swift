@@ -54,8 +54,6 @@ public struct TuistCommand: AsyncParsableCommand {
                         ProjectCommand.self,
                         OrganizationCommand.self,
                         AuthCommand.self,
-                        SessionCommand.self,
-                        LogoutCommand.self,
                     ]
                 ),
             ]

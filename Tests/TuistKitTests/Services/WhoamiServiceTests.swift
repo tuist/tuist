@@ -13,9 +13,9 @@ import XCTest
 @testable import TuistKit
 @testable import TuistSupportTesting
 
-final class SessionServiceTests: TuistUnitTestCase {
+final class WhoamiServiceTests: TuistUnitTestCase {
     private var serverSessionController: MockServerSessionControlling!
-    private var subject: SessionService!
+    private var subject: WhoamiService!
     private var configLoader: MockConfigLoading!
     private var serverURL: URL!
 
@@ -25,7 +25,7 @@ final class SessionServiceTests: TuistUnitTestCase {
         configLoader = MockConfigLoading()
         serverURL = URL(string: "https://test.tuist.dev")!
         given(configLoader).loadConfig(path: .any).willReturn(.test(url: serverURL))
-        subject = SessionService(
+        subject = WhoamiService(
             serverSessionController: serverSessionController,
             configLoader: configLoader
         )
@@ -39,13 +39,29 @@ final class SessionServiceTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_printSession() async throws {
+    func test_whoami_when_logged_in() async throws {
         // Given
         given(serverSessionController)
-            .printSession(serverURL: .value(serverURL))
-            .willReturn(())
+            .whoami(serverURL: .value(serverURL))
+            .willReturn("tuist@tuist.io")
 
-        // When / Then
-        try await subject.printSession(directory: nil)
+        // When
+        try await subject.run(directory: nil)
+
+        // Then
+        XCTAssertPrinterOutputContains("tuist@tuist.io")
+    }
+
+    func test_whoami_when_logged_out() async throws {
+        // Given
+        given(serverSessionController)
+            .whoami(serverURL: .value(serverURL))
+            .willReturn(nil)
+
+        // When
+        try await subject.run(directory: nil)
+
+        // Then
+        XCTAssertPrinterOutputContains("You are not logged in.")
     }
 }

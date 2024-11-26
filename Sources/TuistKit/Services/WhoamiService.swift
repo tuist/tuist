@@ -5,15 +5,13 @@ import TuistLoader
 import TuistServer
 import TuistSupport
 
-protocol SessionServicing: AnyObject {
-    /// It prints any existing session in the keychain to authenticate
-    /// on a server identified by that URL.
-    func printSession(
+protocol WhoamiServicing: AnyObject {
+    func run(
         directory: String?
     ) async throws
 }
 
-final class SessionService: SessionServicing {
+final class WhoamiService: WhoamiServicing {
     private let serverSessionController: ServerSessionControlling
     private let serverURLService: ServerURLServicing
     private let configLoader: ConfigLoading
@@ -30,9 +28,7 @@ final class SessionService: SessionServicing {
         self.configLoader = configLoader
     }
 
-    // MARK: - CloudAuthServicing
-
-    func printSession(
+    func run(
         directory: String?
     ) async throws {
         let directoryPath: AbsolutePath
@@ -43,6 +39,10 @@ final class SessionService: SessionServicing {
         }
         let config = try await configLoader.loadConfig(path: directoryPath)
         let serverURL = try serverURLService.url(configServerURL: config.url)
-        try await serverSessionController.printSession(serverURL: serverURL)
+        if let whoami = try await serverSessionController.whoami(serverURL: serverURL) {
+            logger.notice("\(whoami)")
+        } else {
+            logger.notice("You are not logged in. Run 'tuist auth login'.")
+        }
     }
 }

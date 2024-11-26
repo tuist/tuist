@@ -13,6 +13,7 @@ func tuistAppDependencies() -> [TargetDependency] {
         .external(name: "FileSystem"),
         .external(name: "Mockable"),
         .external(name: "Collections"),
+        .external(name: "OpenAPIRuntime"),
     ]
 }
 

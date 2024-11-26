@@ -7,15 +7,15 @@ import TuistServer
 import TuistSupport
 
 @Mockable
-protocol AuthServicing: AnyObject {
-    func authenticate(
+protocol LoginServicing: AnyObject {
+    func run(
         email: String?,
         password: String?,
         directory: String?
     ) async throws
 }
 
-final class AuthService: AuthServicing {
+final class LoginService: LoginServicing {
     private let serverSessionController: ServerSessionControlling
     private let serverURLService: ServerURLServicing
     private let configLoader: ConfigLoading
@@ -41,7 +41,7 @@ final class AuthService: AuthServicing {
 
     // MARK: - AuthServicing
 
-    func authenticate(
+    func run(
         email: String?,
         password: String?,
         directory: String?
@@ -88,12 +88,26 @@ final class AuthService: AuthServicing {
             ),
             serverURL: serverURL
         )
-        logger.notice("Credentials stored successfully.", metadata: .success)
+        logger.notice("Successfully logged in.", metadata: .success)
     }
 
     private func authenticateWithBrowserLogin(
         serverURL: URL
     ) async throws {
-        try await serverSessionController.authenticate(serverURL: serverURL)
+        try await serverSessionController.authenticate(
+            serverURL: serverURL,
+            deviceCodeType: .cli,
+            onOpeningBrowser: { authURL in
+                logger.notice("Opening \(authURL.absoluteString) to start the authentication flow")
+            },
+            onAuthWaitBegin: {
+                if Environment.shared.shouldOutputBeColoured {
+                    logger.notice("Press \("CTRL + C".cyan()) once to cancel the process.", metadata: .pretty)
+                } else {
+                    logger.notice("Press CTRL + C once to cancel the process.")
+                }
+            }
+        )
+        logger.notice("Successfully logged in.", metadata: .success)
     }
 }
