@@ -1,6 +1,6 @@
 [tools]
 "elixir" = "1.17.2"
-"flyctl" = "0.3.5"
+"flyctl" = "0.3.41"
 "erlang" = "27.0.1"
 "rust" = "1.77.2"
 
