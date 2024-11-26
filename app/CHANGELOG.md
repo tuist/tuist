@@ -1,3 +1,8 @@
+## What's Changed in app@0.8.0
+* feat: add support for logging in directly through the app, improve auth-related commands structure by @fortmarek in [#7105](https://github.com/tuist/tuist/pull/7105)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/app@0.7.0...app@0.8.0
+
 ## What's Changed in app@0.7.0
 * feat: focus Tuist menu bar window when running Tuist Preview deeplink by @fortmarek in [#7098](https://github.com/tuist/tuist/pull/7098)
 

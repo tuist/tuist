@@ -48,8 +48,8 @@ let project = Project(
                     "SUPublicEDKey": "ObyvL/hvYnFyAypkWwYaoeqE/iqB0LK6ioI3SA/Y1+k=",
                     "SUFeedURL":
                         "https://raw.githubusercontent.com/tuist/tuist/main/app/appcast.xml",
-                    "CFBundleShortVersionString": "0.7.0",
-                    "CFBundleVersion": "0.7.0",
+                    "CFBundleShortVersionString": "0.8.0",
+                    "CFBundleVersion": "0.8.0",
                 ]
             ),
             sources: ["TuistApp/Sources/**"],
