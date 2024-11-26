@@ -95,7 +95,7 @@ defmodule TuistWeb.API.AuthControllerTest do
     end
   end
 
-  describe "GET /cli/:device_code" do
+  describe "GET /auth/device_codes/:device_code" do
     setup [:register_and_log_in_user]
 
     test "creates device code", %{conn: conn} do
@@ -105,7 +105,7 @@ defmodule TuistWeb.API.AuthControllerTest do
       # When
       conn =
         conn
-        |> get(~p"/auth/cli/#{device_code}")
+        |> get(~p"/auth/device_codes/#{device_code}")
 
       # Then
       html_response(conn, 302)
@@ -118,12 +118,12 @@ defmodule TuistWeb.API.AuthControllerTest do
 
       conn =
         conn
-        |> get(~p"/auth/cli/#{device_code}")
+        |> get(~p"/auth/device_codes/#{device_code}")
 
       # When
       conn =
         conn
-        |> get(~p"/auth/cli/#{device_code}")
+        |> get(~p"/auth/device_codes/#{device_code}")
 
       # Then
       html_response(conn, 302)

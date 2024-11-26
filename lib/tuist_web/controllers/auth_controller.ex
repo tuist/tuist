@@ -35,15 +35,26 @@ defmodule TuistWeb.AuthController do
     |> Authentication.log_in_user(user)
   end
 
-  def authenticate(conn, params) do
-    device_code = params["device_code"]
+  def authenticate_cli_deprecated(conn, params) do
+    conn
+    |> redirect(to: ~p"/auth/device_codes/#{params["device_code"]}?type=cli")
+    |> halt()
+  end
 
+  def authenticate_device_code(conn, params) do
+    device_code = params["device_code"]
+    create_device_code_if_absent(device_code)
+
+    type = params["type"] || "cli"
+
+    conn
+    |> redirect(to: ~p"/auth/device_codes/#{device_code}/success?type=#{type}")
+    |> halt()
+  end
+
+  defp create_device_code_if_absent(device_code) do
     if is_nil(Accounts.get_device_code(device_code)) do
       Accounts.create_device_code(device_code)
     end
-
-    conn
-    |> redirect(to: ~p"/auth/cli/success/#{device_code}")
-    |> halt()
   end
 end

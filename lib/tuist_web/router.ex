@@ -305,11 +305,13 @@ defmodule TuistWeb.Router do
 
     live_session :auth,
       on_mount: [{TuistWeb.Authentication, :ensure_authenticated}] do
-      live "/cli/success/:device_code", CLISuccessLive, :new
+      live "/device_codes/:device_code/success", DeviceCodesSuccessLive, :new
       live "/invitations/:token", AcceptInvitationLive, :new
     end
 
-    get "/cli/:device_code", AuthController, :authenticate
+    # This route is deprecated and will be removed in future versions.
+    get "/cli/:device_code", AuthController, :authenticate_cli_deprecated
+    get "/device_codes/:device_code", AuthController, :authenticate_device_code
   end
 
   # Dashboard
