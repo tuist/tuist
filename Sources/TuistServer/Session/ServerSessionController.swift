@@ -3,9 +3,18 @@ import Mockable
 import TuistSupport
 
 /// Type of device code used for authentication.
-public enum DeviceCodeType: String {
+public enum DeviceCodeType {
     case cli
     case app
+
+    var apiValue: String {
+        switch self {
+        case .app:
+            "app"
+        case .cli:
+            "cli"
+        }
+    }
 }
 
 @Mockable
@@ -81,7 +90,10 @@ public final class ServerSessionController: ServerSessionControlling {
         let deviceCode = uniqueIDGenerator.uniqueID()
         components.path = "/auth/device_codes/\(deviceCode)"
         components.queryItems = [
-            URLQueryItem(name: "type", value: deviceCodeType.rawValue),
+            URLQueryItem(
+                name: "type",
+                value: deviceCodeType.apiValue
+            ),
         ]
         let authURL = components.url!
 

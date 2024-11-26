@@ -182,7 +182,7 @@ final class ServerAuthenticationControllerTests: TuistUnitTestCase {
             .user(legacyToken: "legacy-token", accessToken: nil, refreshToken: nil)
         )
         XCTAssertStandardOutput(
-            pattern: "You are using a deprecated user token. Please, reauthenticate by running tuist auth login."
+            pattern: "You are using a deprecated user token. Please, reauthenticate by running 'tuist auth login'."
         )
     }
 
@@ -222,7 +222,7 @@ final class ServerAuthenticationControllerTests: TuistUnitTestCase {
             )
         )
         XCTAssertPrinterOutputNotContains(
-            "You are using a deprecated user token. Please, reauthenticate by running tuist auth login."
+            "You are using a deprecated user token. Please, reauthenticate by running 'tuist auth login'."
         )
     }
 

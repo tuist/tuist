@@ -71,7 +71,7 @@ enum ServerCredentialsStoreError: FatalError {
     var description: String {
         switch self {
         case .credentialsNotFound:
-            return "You are not authenticated. Authenticate by running tuist auth login."
+            return "You are not authenticated. Authenticate by running 'tuist auth login'."
         case let .xcdgHomePathNotAbsolute(path):
             return "We expected the value of the XDG_CONFIG_HOME environment variable, \(path), to be an absolute path but it's not."
         case let .invalidServerURL(url):

@@ -42,7 +42,7 @@ final class WhoamiService: WhoamiServicing {
         if let whoami = try await serverSessionController.whoami(serverURL: serverURL) {
             logger.notice("\(whoami)")
         } else {
-            logger.notice("You are not logged in. Run tuist auth login.")
+            logger.notice("You are not logged in. Run 'tuist auth login'.")
         }
     }
 }
