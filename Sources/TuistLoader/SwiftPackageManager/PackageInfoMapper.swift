@@ -1026,6 +1026,8 @@ extension ProjectDescription.Settings {
             "MockableTest", // https://github.com/Kolos65/Mockable.git
             "Testing", // https://github.com/apple/swift-testing
             "Cuckoo", // https://github.com/Brightify/Cuckoo
+            "_SwiftSyntaxTestSupport", // https://github.com/swiftlang/swift-syntax
+            "SwiftSyntaxMacrosTestSupport", // https://github.com/swiftlang/swift-syntax
         ]
 
         let resolvedSettings = try mapper.mapSettings()
