@@ -33,7 +33,10 @@ defmodule TuistWeb.Marketing.MarketingChangelogLive do
     {:noreply,
      socket
      |> assign(:entries, entries)
-     |> assign(:head_image, Tuist.Environment.app_url(path: "/marketing/images/og/changelog.jpg"))
+     |> assign(
+       :head_image,
+       Tuist.Environment.app_url(path: "/marketing/images/og/changelog.jpg")
+     )
      |> assign(:head_title, "Tuist Changelog")
      |> assign(:head_include_blog_rss_and_atom, false)
      |> assign(:head_include_changelog_rss_and_atom, true)

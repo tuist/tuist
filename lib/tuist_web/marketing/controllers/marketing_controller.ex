@@ -12,7 +12,10 @@ defmodule TuistWeb.Marketing.MarketingController do
 
     conn
     |> assign(:head_title, "Tuist · Scale your Swift App development")
-    |> assign(:head_image, Tuist.Environment.app_url(path: "/marketing/images/og/home.jpg"))
+    |> assign(
+      :head_image,
+      Tuist.Environment.app_url(path: "/marketing/images/og/home.jpg")
+    )
     |> assign(:head_twitter_card, "summary_large_image")
     |> assign_structured_data(get_testimonials_structured_data(testimonials))
     |> assign(:testimonials, testimonials)
@@ -83,10 +86,12 @@ defmodule TuistWeb.Marketing.MarketingController do
 
   def sitemap(conn, _params) do
     page_urls =
-      Tuist.Marketing.Pages.get_pages() |> Enum.map(&Tuist.Environment.app_url(path: &1.slug))
+      Tuist.Marketing.Pages.get_pages()
+      |> Enum.map(&Tuist.Environment.app_url(path: &1.slug))
 
     post_urls =
-      Tuist.Marketing.Blog.get_posts() |> Enum.map(&Tuist.Environment.app_url(path: &1.slug))
+      Tuist.Marketing.Blog.get_posts()
+      |> Enum.map(&Tuist.Environment.app_url(path: &1.slug))
 
     entries =
       [
@@ -118,7 +123,10 @@ defmodule TuistWeb.Marketing.MarketingController do
       |> assign(:head_keywords, post.tags)
       |> assign(
         :head_image,
-        Tuist.Environment.app_url(path: "/marketing/images/og/generated#{post.slug}.jpg")
+        Tuist.Environment.app_url(
+          path: "/marketing/images/og/generated#{post.slug}.jpg",
+          marketing: true
+        )
       )
       |> assign(:head_twitter_card, "summary_large_image")
       |> assign_structured_data(get_blog_post_structured_markup_data(post))
@@ -163,7 +171,10 @@ defmodule TuistWeb.Marketing.MarketingController do
     |> assign(:head_title, "Pricing · Plans for every developer · Tuist")
     |> assign(:faqs, faqs)
     |> assign(:plans, plans)
-    |> assign(:head_image, Tuist.Environment.app_url(path: "/marketing/images/og/pricing.jpg"))
+    |> assign(
+      :head_image,
+      Tuist.Environment.app_url(path: "/marketing/images/og/pricing.jpg")
+    )
     |> assign(:head_twitter_card, "summary_large_image")
     |> assign_structured_data(get_faq_structured_data(faqs))
     |> assign_structured_data(get_pricing_plans_structured_data(plans))
@@ -291,7 +302,10 @@ defmodule TuistWeb.Marketing.MarketingController do
 
   def assign_default_head_tags(conn, _params) do
     conn
-    |> assign(:head_image, Tuist.Environment.app_url(path: "/images/open-graph/card.jpeg"))
+    |> assign(
+      :head_image,
+      Tuist.Environment.app_url(path: "/images/open-graph/card.jpeg")
+    )
     |> assign(:head_twitter_card, "summary_large_image")
     |> assign(:head_include_blog_rss_and_atom, true)
     |> assign(:head_include_changelog_rss_and_atom, true)

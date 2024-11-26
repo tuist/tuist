@@ -34,7 +34,10 @@ defmodule TuistWeb.Marketing.MarketingBlogLive do
      socket
      |> assign(:hero_post, hero_post)
      |> assign(:posts, posts)
-     |> assign(:head_image, Tuist.Environment.app_url(path: "/marketing/images/og/blog.jpg"))
+     |> assign(
+       :head_image,
+       Tuist.Environment.app_url(path: "/marketing/images/og/blog.jpg")
+     )
      |> assign(:head_title, "The Tuist Blog")
      |> assign(:head_include_blog_rss_and_atom, true)
      |> assign(:head_include_changelog_rss_and_atom, false)

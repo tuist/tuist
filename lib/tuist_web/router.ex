@@ -23,20 +23,20 @@ defmodule TuistWeb.Router do
     plug :put_secure_browser_headers
     plug Ueberauth
     plug :fetch_current_user
+    plug TuistWeb.MarketingOrAppRedirectPlug
   end
 
-  if not Tuist.Environment.on_premise?() do
-    pipeline :browser_marketing do
-      plug :accepts, ["html"]
-      plug :enable_robot_indexing
-      plug :fetch_session
-      plug :fetch_live_flash
-      plug :put_root_layout, html: {TuistWeb.Marketing.Layouts, :marketing}
-      plug :protect_from_forgery
-      plug :put_secure_browser_headers
-      plug Ueberauth
-      plug :fetch_current_user
-    end
+  pipeline :browser_marketing do
+    plug :accepts, ["html"]
+    plug :enable_robot_indexing
+    plug :fetch_session
+    plug :fetch_live_flash
+    plug :put_root_layout, html: {TuistWeb.Marketing.Layouts, :marketing}
+    plug :protect_from_forgery
+    plug :put_secure_browser_headers
+    plug Ueberauth
+    plug :fetch_current_user
+    plug TuistWeb.MarketingOrAppRedirectPlug
   end
 
   pipeline :browser_marketing_feed do
@@ -69,44 +69,53 @@ defmodule TuistWeb.Router do
   end
 
   # Marketing
-  if Tuist.Environment.on_premise?() do
-    scope "/" do
-      live "/", AccountProjectsLive
+
+  scope "/" do
+    pipe_through [:redirect_to_production_if_on_premise, :browser_marketing_feed]
+
+    redirect("/rss.xml", "/blog/rss.xml", :permanent, preserve_query_string: true)
+
+    get "/blog/rss.xml", TuistWeb.Marketing.MarketingController, :blog_rss,
+      metadata: %{type: :marketing}
+
+    get "/blog/atom.xml", TuistWeb.Marketing.MarketingController, :blog_atom,
+      metadata: %{type: :marketing}
+
+    get "/changelog/rss.xml", TuistWeb.Marketing.MarketingController, :changelog_rss,
+      metadata: %{type: :marketing}
+
+    get "/changelog/atom.xml", TuistWeb.Marketing.MarketingController, :changelog_atom,
+      metadata: %{type: :marketing}
+
+    get "/sitemap.xml", TuistWeb.Marketing.MarketingController, :sitemap,
+      metadata: %{type: :marketing}
+  end
+
+  scope "/" do
+    pipe_through [
+      :redirect_to_production_if_on_premise,
+      :open_api,
+      :browser_marketing,
+      :assign_current_path
+    ]
+
+    live "/blog", TuistWeb.Marketing.MarketingBlogLive, metadata: %{type: :marketing}
+    live "/changelog", TuistWeb.Marketing.MarketingChangelogLive, metadata: %{type: :marketing}
+    get "/", TuistWeb.Marketing.MarketingController, :home, metadata: %{type: :marketing}
+
+    get "/pricing", TuistWeb.Marketing.MarketingController, :pricing,
+      metadata: %{type: :marketing}
+
+    for %{slug: blog_post_slug} <- Tuist.Marketing.Blog.get_posts() do
+      get blog_post_slug, TuistWeb.Marketing.MarketingController, :blog_post,
+        metadata: %{type: :marketing}
     end
-  else
-    scope "/" do
-      pipe_through [:browser_marketing_feed]
 
-      redirect("/rss.xml", "/blog/rss.xml", :permanent, preserve_query_string: true)
-      get "/blog/rss.xml", TuistWeb.Marketing.MarketingController, :blog_rss
-      get "/blog/atom.xml", TuistWeb.Marketing.MarketingController, :blog_atom
-      get "/changelog/rss.xml", TuistWeb.Marketing.MarketingController, :changelog_rss
-      get "/changelog/atom.xml", TuistWeb.Marketing.MarketingController, :changelog_atom
-      get "/sitemap.xml", TuistWeb.Marketing.MarketingController, :sitemap
+    for %{slug: page_slug} <- Tuist.Marketing.Pages.get_pages() do
+      get page_slug, TuistWeb.Marketing.MarketingController, :page, metadata: %{type: :marketing}
     end
 
-    scope "/" do
-      pipe_through [
-        :open_api,
-        :browser_marketing,
-        :assign_current_path
-      ]
-
-      live "/blog", TuistWeb.Marketing.MarketingBlogLive
-      live "/changelog", TuistWeb.Marketing.MarketingChangelogLive
-      get "/", TuistWeb.Marketing.MarketingController, :home
-      get "/pricing", TuistWeb.Marketing.MarketingController, :pricing
-
-      for %{slug: blog_post_slug} <- Tuist.Marketing.Blog.get_posts() do
-        get blog_post_slug, TuistWeb.Marketing.MarketingController, :blog_post
-      end
-
-      for %{slug: page_slug} <- Tuist.Marketing.Pages.get_pages() do
-        get page_slug, TuistWeb.Marketing.MarketingController, :page
-      end
-
-      get "/about", TuistWeb.Marketing.MarketingController, :about
-    end
+    get "/about", TuistWeb.Marketing.MarketingController, :about, metadata: %{type: :marketing}
   end
 
   scope "/" do
@@ -231,14 +240,12 @@ defmodule TuistWeb.Router do
         {TuistWeb.Authorization, [:current_user, :read, :ops]}
       ]
 
-    if Tuist.Environment.on_premise?() do
-      error_tracker_dashboard("/errors",
-        on_mount: [
-          {TuistWeb.Authentication, :ensure_authenticated},
-          {TuistWeb.Authorization, [:current_user, :read, :ops]}
-        ]
-      )
-    end
+    error_tracker_dashboard("/errors",
+      on_mount: [
+        {TuistWeb.Authentication, :ensure_authenticated},
+        {TuistWeb.Authorization, [:current_user, :read, :ops]}
+      ]
+    )
   end
 
   if Tuist.Environment.dev?() do
@@ -347,8 +354,7 @@ defmodule TuistWeb.Router do
       :open_api,
       :browser_app,
       :require_authenticated_user,
-      :analytics,
-      TuistWeb.AutoRedirectToProjectPlug
+      :analytics
     ]
 
     get "/:account_handle/billing/manage", BillingController, :manage
@@ -405,11 +411,17 @@ defmodule TuistWeb.Router do
     conn |> put_resp_header("x-robots-tags", "noindex, nofollow")
   end
 
-  if not Tuist.Environment.on_premise?() do
-    defp enable_robot_indexing(conn, _params) do
-      # Once we iterate on the open-graph tags of the dashboard pages for public projects
-      # we should iterate on this to enable indexing for public projects
-      conn |> put_resp_header("x-robots-tags", "index, follow")
+  defp enable_robot_indexing(conn, _params) do
+    # Once we iterate on the open-graph tags of the dashboard pages for public projects
+    # we should iterate on this to enable indexing for public projects
+    conn |> put_resp_header("x-robots-tags", "index, follow")
+  end
+
+  def redirect_to_production_if_on_premise(%{request_path: request_path} = conn, _params) do
+    if Tuist.Environment.on_premise?() do
+      conn |> redirect(external: Tuist.Environment.app_url(path: request_path))
+    else
+      conn
     end
   end
 end

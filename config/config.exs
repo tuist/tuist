@@ -21,6 +21,7 @@ config :tuist, TuistWeb.Endpoint,
   live_view: [signing_salt: "laTbtzV8"]
 
 config :tuist, :urls,
+  production: "https://tuist.dev",
   contact: "mailto:contact@tuist.io",
   grafana_dashboard:
     "https://tuist.grafana.net/public-dashboards/1f85f1c3895e48febd02cc7350ade2d9",
