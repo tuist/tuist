@@ -27,21 +27,28 @@ enum AppPreviewsModelError: FatalError, Equatable {
 
 @Observable
 final class AppPreviewsViewModel: Sendable {
-    private(set) var appPreviews: [AppPreview] = []
+    private(set) var appPreviews: [AppPreview] = [] {
+        didSet {
+            try? appStorage.set(AppPreviewsKey.self, value: appPreviews)
+        }
+    }
 
     private let listProjectsService: ListProjectsServicing
     private let listPreviewsService: ListPreviewsServicing
     private let serverURLService: ServerURLServicing
+    private let appCredentialsService: any AppCredentialsServicing
     private let deviceService: any DeviceServicing
     private let appStorage: AppStoring
 
     init(
+        appCredentialsService: any AppCredentialsServicing,
         deviceService: any DeviceServicing,
         listProjectsService: ListProjectsServicing = ListProjectsService(),
         listPreviewsService: ListPreviewsServicing = ListPreviewsService(),
         serverURLService: ServerURLServicing = ServerURLService(),
         appStorage: AppStoring = AppStorage()
     ) {
+        self.appCredentialsService = appCredentialsService
         self.deviceService = deviceService
         self.listProjectsService = listProjectsService
         self.listPreviewsService = listPreviewsService
@@ -54,33 +61,45 @@ final class AppPreviewsViewModel: Sendable {
     }
 
     func onAppear() async throws {
-        let serverURL = serverURLService.serverURL()
-        let projects = try await listProjectsService.listProjects(serverURL: serverURL)
-        let listPreviewsService = listPreviewsService
-        appPreviews = try await projects.concurrentMap { project in
-            try await listPreviewsService.listPreviews(
-                displayName: nil,
-                specifier: "latest",
-                supportedPlatforms: [],
-                page: nil,
-                pageSize: nil,
-                distinctField: .bundleIdentifier,
-                fullHandle: project.fullName,
-                serverURL: serverURL
-            )
-            .compactMap { preview in
-                guard let bundleIdentifier = preview.bundleIdentifier else { return nil }
-                return AppPreview(
+        try await updatePreviews()
+    }
+
+    func onAuthenticationStateChanged() async throws {
+        try await updatePreviews()
+    }
+
+    private func updatePreviews() async throws {
+        switch appCredentialsService.authenticationState {
+        case .loggedIn:
+            let serverURL = serverURLService.serverURL()
+            let projects = try await listProjectsService.listProjects(serverURL: serverURL)
+            let listPreviewsService = listPreviewsService
+            appPreviews = try await projects.concurrentMap { project in
+                try await listPreviewsService.listPreviews(
+                    displayName: nil,
+                    specifier: "latest",
+                    supportedPlatforms: [],
+                    page: nil,
+                    pageSize: nil,
+                    distinctField: .bundleIdentifier,
                     fullHandle: project.fullName,
-                    displayName: preview.displayName ?? project.fullName,
-                    bundleIdentifier: bundleIdentifier,
-                    iconURL: preview.iconURL
+                    serverURL: serverURL
                 )
+                .compactMap { preview in
+                    guard let bundleIdentifier = preview.bundleIdentifier else { return nil }
+                    return AppPreview(
+                        fullHandle: project.fullName,
+                        displayName: preview.displayName ?? project.fullName,
+                        bundleIdentifier: bundleIdentifier,
+                        iconURL: preview.iconURL
+                    )
+                }
             }
+            .flatMap { $0 }
+            .sorted(by: { $0.displayName < $1.displayName })
+        case .loggedOut:
+            appPreviews = []
         }
-        .flatMap { $0 }
-        .sorted(by: { $0.displayName < $1.displayName })
-        try? appStorage.set(AppPreviewsKey.self, value: appPreviews)
     }
 
     func launchAppPreview(_ appPreview: AppPreview) async throws {
