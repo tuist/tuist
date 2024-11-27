@@ -1,29 +1,30 @@
 import Foundation
 import Mockable
+import Testing
 import class TuistApp.MockServerURLServicing
 import TuistServer
 import TuistSupportTesting
-import XCTest
 
 @testable import TuistApp
 
-final class AppPreviewsViewModelTests: TuistUnitTestCase {
-    private var subject: AppPreviewsViewModel!
-    private var deviceService: MockDeviceServicing!
-    private var appStorage: MockAppStoring!
-    private var listPreviewsService: MockListPreviewsServicing!
-    private var listProjectsService: MockListProjectsServicing!
-    private var serverURLService: MockServerURLServicing!
+@Suite struct AppPreviewsViewModelTests {
+    private let subject: AppPreviewsViewModel
+    private let appCredentialsService: MockAppCredentialsServicing
+    private let deviceService: MockDeviceServicing
+    private let appStorage: MockAppStoring
+    private let listPreviewsService: MockListPreviewsServicing
+    private let listProjectsService: MockListProjectsServicing
+    private let serverURLService: MockServerURLServicing
 
-    override func setUp() {
-        super.setUp()
-
+    init() {
+        appCredentialsService = MockAppCredentialsServicing()
         deviceService = MockDeviceServicing()
         listPreviewsService = MockListPreviewsServicing()
         listProjectsService = MockListProjectsServicing()
         serverURLService = MockServerURLServicing()
         appStorage = MockAppStoring()
         subject = AppPreviewsViewModel(
+            appCredentialsService: appCredentialsService,
             deviceService: deviceService,
             listProjectsService: listProjectsService,
             listPreviewsService: listPreviewsService,
@@ -46,31 +47,24 @@ final class AppPreviewsViewModelTests: TuistUnitTestCase {
             .willReturn(.test())
     }
 
-    override func tearDown() {
-        deviceService = nil
-        listPreviewsService = nil
-        listProjectsService = nil
-        serverURLService = nil
-        appStorage = nil
-        subject = nil
-
-        super.tearDown()
-    }
-
-    func test_load_app_previews_from_cache() {
+    @Test func load_app_previews_from_cache() {
         // Given
         given(appStorage)
             .get(.any as Parameter<AppPreviewsKey.Type>)
             .willReturn([.test()])
 
+        given(appStorage)
+            .set(.any as Parameter<AppPreviewsKey.Type>, value: .any)
+            .willReturn()
+
         // When
         subject.loadAppPreviewsFromCache()
 
         // Then
-        XCTAssertEqual(subject.appPreviews, [.test()])
+        #expect(subject.appPreviews == [.test()])
     }
 
-    func test_on_appear_updates_app_previews() async throws {
+    @Test func on_appear_updates_app_previews_when_logged_in() async throws {
         // Given
         given(listProjectsService)
             .listProjects(serverURL: .any)
@@ -108,13 +102,16 @@ final class AppPreviewsViewModelTests: TuistUnitTestCase {
             .set(.any as Parameter<AppPreviewsKey.Type>, value: .any)
             .willReturn()
 
+        given(appCredentialsService)
+            .authenticationState
+            .willReturn(.loggedIn(accountHandle: "tuistrocks"))
+
         // When
         try await subject.onAppear()
 
         // Then
-        XCTAssertEqual(
-            subject.appPreviews,
-            [
+        #expect(
+            subject.appPreviews == [
                 .test(
                     displayName: "App_A"
                 ),
@@ -129,12 +126,36 @@ final class AppPreviewsViewModelTests: TuistUnitTestCase {
             .called(1)
     }
 
-    func test_launch_preview_when_no_preview_found() async throws {
+    @Test func update_app_previews_is_skipped_when_logged_out() async throws {
+        // Given
+        given(appStorage)
+            .set(.any as Parameter<AppPreviewsKey.Type>, value: .any)
+            .willReturn()
+
+        given(appCredentialsService)
+            .authenticationState
+            .willReturn(.loggedOut)
+
+        // When
+        try await subject.onAppear()
+
+        // Then
+        verify(listProjectsService)
+            .listProjects(serverURL: .any)
+            .called(0)
+        #expect(subject.appPreviews == [])
+    }
+
+    @Test func launch_preview_when_no_preview_found() async throws {
         // Given
         let appPreview: AppPreview = .test()
         given(appStorage)
             .get(.any as Parameter<AppPreviewsKey.Type>)
             .willReturn([appPreview])
+
+        given(appStorage)
+            .set(.any as Parameter<AppPreviewsKey.Type>, value: .any)
+            .willReturn()
 
         subject.loadAppPreviewsFromCache()
 
@@ -152,18 +173,21 @@ final class AppPreviewsViewModelTests: TuistUnitTestCase {
             .willReturn([])
 
         // When / Then
-        await XCTAssertThrowsSpecific(
-            try await subject.launchAppPreview(appPreview),
-            AppPreviewsModelError.previewNotFound(appPreview.displayName)
-        )
+        await #expect(throws: AppPreviewsModelError.previewNotFound(appPreview.displayName)) {
+            try await subject.launchAppPreview(appPreview)
+        }
     }
 
-    func test_launch_preview() async throws {
+    @Test func launch_preview() async throws {
         // Given
         let appPreview: AppPreview = .test()
         given(appStorage)
             .get(.any as Parameter<AppPreviewsKey.Type>)
             .willReturn([appPreview])
+
+        given(appStorage)
+            .set(.any as Parameter<AppPreviewsKey.Type>, value: .any)
+            .willReturn()
 
         subject.loadAppPreviewsFromCache()
 

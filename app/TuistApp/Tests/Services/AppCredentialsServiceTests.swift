@@ -5,8 +5,8 @@ import class TuistServer.MockServerSessionControlling
 
 @testable import TuistApp
 
-@Suite struct MenuBarViewModelTests {
-    private let subject: MenuBarViewModel
+@Suite struct AppCredentialsServiceTests {
+    private let subject: AppCredentialsService
     private let serverURLService: MockServerURLServicing
     private let appStorage: MockAppStoring
     private let serverSessionController: MockServerSessionControlling
@@ -15,10 +15,10 @@ import class TuistServer.MockServerSessionControlling
         serverURLService = MockServerURLServicing()
         appStorage = MockAppStoring()
         serverSessionController = MockServerSessionControlling()
-        subject = MenuBarViewModel(
-            serverURLService: serverURLService,
+        subject = AppCredentialsService(
+            appStorage: appStorage,
             serverSessionController: serverSessionController,
-            appStorage: appStorage
+            serverURLService: serverURLService
         )
 
         Matcher.register(AuthenticationStateKey.Type.self, match: { _, _ in true })
@@ -36,7 +36,7 @@ import class TuistServer.MockServerSessionControlling
             .willReturn(.loggedOut)
 
         // When
-        subject.loadInitialData()
+        subject.loadCredentials()
 
         // Then
         #expect(subject.authenticationState == .loggedOut)
@@ -50,7 +50,7 @@ import class TuistServer.MockServerSessionControlling
             .willReturn(.loggedIn(accountHandle: "tuist"))
 
         // When
-        subject.loadInitialData()
+        subject.loadCredentials()
 
         // Then
         #expect(subject.authenticationState == .loggedIn(accountHandle: "tuist"))

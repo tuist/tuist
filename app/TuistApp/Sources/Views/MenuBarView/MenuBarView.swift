@@ -8,6 +8,8 @@ struct MenuBarView: View {
     @State var canCheckForUpdates = false
     private let errorHandling: ErrorHandling
     private let deviceService: DeviceService
+    @EnvironmentObject
+    private var appCredentialsService: AppCredentialsService
     @State var viewModel: MenuBarViewModel
     private var cancellables = Set<AnyCancellable>()
     private let taskStatusReporter: TaskStatusReporter
@@ -65,11 +67,14 @@ struct MenuBarView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             MenuHeader(
-                accountHandle: viewModel.accountHandle
+                accountHandle: appCredentialsService.accountHandle
             )
 
             AppPreviews(
-                viewModel: AppPreviewsViewModel(deviceService: deviceService)
+                viewModel: AppPreviewsViewModel(
+                    appCredentialsService: appCredentialsService,
+                    deviceService: deviceService
+                )
             )
             .padding(.horizontal, 8)
             .padding(.top, 4)
@@ -84,14 +89,14 @@ struct MenuBarView: View {
                 .padding(.vertical, 4)
 
             Group {
-                switch viewModel.authenticationState {
+                switch appCredentialsService.authenticationState {
                 case .loggedIn:
                     Button("Log out") {
-                        errorHandling.fireAndHandleError(viewModel.logout)
+                        errorHandling.fireAndHandleError(appCredentialsService.logout)
                     }
                 case .loggedOut:
                     Button("Log in") {
-                        errorHandling.fireAndHandleError(viewModel.login)
+                        errorHandling.fireAndHandleError(appCredentialsService.login)
                     }
                 }
             }
@@ -119,8 +124,8 @@ struct MenuBarView: View {
         .environmentObject(deviceService)
         .environmentObject(taskStatusReporter)
         .onAppear {
-            viewModel.loadInitialData()
-            errorHandling.fireAndHandleError(viewModel.updateAuthenticationState)
+            appCredentialsService.loadCredentials()
+            errorHandling.fireAndHandleError(appCredentialsService.updateAuthenticationState)
         }
     }
 }
