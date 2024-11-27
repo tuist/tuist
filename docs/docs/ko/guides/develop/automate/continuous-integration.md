@@ -24,7 +24,7 @@ curl https://mise.jdx.dev/install.sh | sh
 mise install # Installs the version from .mise.toml
 
 .mise.toml 파일에 명시된 버전의 Tuist 실행 {#runs-the-version-of-tuist-indicated-in-the-misetoml-file}
-mise x tuist generate
+mise exec -- tuist generate
 ```
 
 ```bash [Homebrew]
@@ -55,7 +55,7 @@ workflows:
           curl https://mise.jdx.dev/install.sh | sh
           mise install # Installs the version from .mise.toml
       - name: Build
-        script: mise x tuist build
+        script: mise exec -- tuist build
 ```
 
 ```yaml [Homebrew]
