@@ -14,7 +14,7 @@
   top: 0;
   left: 0;
   right: 0;
-  height: 50vh;
+  height: 30vh;
   background: red;
   z-index: -1;
   background: linear-gradient(to bottom, var(--lime), white);
@@ -89,7 +89,9 @@
   user-select: none;
   opacity: 0;
   text-decoration: none;
-  transition: color 0.25s, opacity 0.25s;
+  transition:
+    color 0.25s,
+    opacity 0.25s;
 
   margin-left: -0.87em;
 }
