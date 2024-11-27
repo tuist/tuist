@@ -53,7 +53,7 @@ final class DeviceService: DeviceServicing {
     private let appStorage: AppStoring
     private let deviceController: DeviceControlling
     private let simulatorController: SimulatorControlling
-    private let downloadPreviewService: DownloadPreviewServicing
+    private let getPreviewService: GetPreviewServicing
     private let fileArchiverFactory: FileArchivingFactorying
     private let remoteArtifactDownloader: RemoteArtifactDownloading
     private let fileSystem: FileSysteming
@@ -65,7 +65,7 @@ final class DeviceService: DeviceServicing {
         appStorage: AppStoring = AppStorage(),
         deviceController: DeviceControlling = DeviceController(),
         simulatorController: SimulatorControlling = SimulatorController(),
-        downloadPreviewService: DownloadPreviewServicing = DownloadPreviewService(),
+        getPreviewService: GetPreviewServicing = GetPreviewService(),
         fileArchiverFactory: FileArchivingFactorying = FileArchivingFactory(),
         remoteArtifactDownloader: RemoteArtifactDownloading = RemoteArtifactDownloader(),
         fileSystem: FileSysteming = FileSystem(),
@@ -76,7 +76,7 @@ final class DeviceService: DeviceServicing {
         self.appStorage = appStorage
         self.deviceController = deviceController
         self.simulatorController = simulatorController
-        self.downloadPreviewService = downloadPreviewService
+        self.getPreviewService = getPreviewService
         self.fileArchiverFactory = fileArchiverFactory
         self.remoteArtifactDownloader = remoteArtifactDownloader
         self.fileSystem = fileSystem
@@ -142,22 +142,38 @@ final class DeviceService: DeviceServicing {
             status: status
         )
 
-        defer {
-            Task {
-                await status.markAsDone()
+        do {
+            let preview = try await getPreviewService.getPreview(
+                previewId,
+                fullHandle: fullHandle,
+                serverURL: serverURL
+            )
+
+            let app = try await downloadApp(
+                for: preview,
+                selectedDevice: selectedDevice
+            )
+
+            await status.update(state: .running(message: "Launching preview", progress: .indeterminate))
+
+            try await launchApp(app, on: selectedDevice)
+            if let gitCommitSHA = preview.gitCommitSHA {
+                await status.markAsDone(message: "Installed \(app.infoPlist.name)@\(gitCommitSHA.prefix(7))")
+            } else {
+                await status.markAsDone(message: "Installed \(app.infoPlist.name)")
             }
+        } catch {
+            await status.markAsDone(message: "Installation failed")
+            throw error
         }
+    }
 
-        let downloadURL = try await downloadPreviewService.downloadPreview(
-            previewId,
-            fullHandle: fullHandle,
-            serverURL: serverURL
-        )
-
-        guard let downloadURL = URL(string: downloadURL) else { throw SimulatorsViewModelError.invalidDownloadURL(downloadURL) }
-
-        guard let archivePath = try await remoteArtifactDownloader.download(url: downloadURL)
-        else { throw DeviceServiceError.appDownloadFailed(previewId) }
+    private func downloadApp(
+        for preview: Preview,
+        selectedDevice: Device
+    ) async throws -> AppBundle {
+        guard let archivePath = try await remoteArtifactDownloader.download(url: preview.url)
+        else { throw DeviceServiceError.appDownloadFailed(preview.id) }
         let fileUnarchiver = try fileArchiverFactory.makeFileUnarchiver(for: archivePath)
         let unarchivedDirectory = try fileUnarchiver.unzip()
 
@@ -204,9 +220,14 @@ final class DeviceService: DeviceServicing {
             )
         }
 
-        await status.update(state: .running(message: "Launching preview", progress: .indeterminate))
+        return app
+    }
 
-        switch selectedDevice {
+    private func launchApp(
+        _ app: AppBundle,
+        on device: Device
+    ) async throws {
+        switch device {
         case let .simulator(simulator):
             let bootedDevice = try simulatorController.booted(device: simulator.device, forced: true)
             try simulatorController.installApp(at: app.path, device: bootedDevice)
