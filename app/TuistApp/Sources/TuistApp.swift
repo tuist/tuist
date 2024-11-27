@@ -6,6 +6,7 @@ struct TuistApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     private let updaterController: SPUStandardUpdaterController
+    private let appCredentialsService = AppCredentialsService()
 
     init() {
         updaterController = SPUStandardUpdaterController(
@@ -21,6 +22,7 @@ struct TuistApp: App {
                 appDelegate: appDelegate,
                 updaterController: updaterController
             )
+            .environmentObject(appCredentialsService)
         }
         .menuBarExtraStyle(.window)
     }
