@@ -23,7 +23,7 @@ jobs:
   canary:
     environment:
       name: canary
-      url: https://canary.tuist.io
+      url: https://canary.tuist.dev
     name: Canary Deployment
     env:
       DOCKER_BUILDKIT: 1

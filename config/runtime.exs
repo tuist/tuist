@@ -71,7 +71,7 @@ if [:prod, :stag, :can] |> Enum.member?(env) do
   port = "8080"
   config :tuist, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
 
-  app_url = Tuist.Environment.app_url([], secrets)
+  app_url = Tuist.Environment.app_url([route_type: :app], secrets)
   %{host: app_url_host, port: app_url_port, scheme: app_url_scheme} = URI.parse(app_url)
 
   # We migrated from {...}.tuist.io to {...}.tuist.dev, so we need to make sure we include

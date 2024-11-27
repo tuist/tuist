@@ -323,26 +323,32 @@ defmodule Tuist.Environment do
   def app_url(opts \\ [], secrets \\ secrets()) do
     path = Keyword.get(opts, :path, "/") |> String.trim_trailing("/")
 
-    route_info =
-      case Phoenix.Router.route_info(TuistWeb.Router, "GET", path, "") do
-        :error -> nil
-        route_info -> route_info
-      end
+    route_info = get_route_info(path)
+
+    default_route_type = Keyword.get(opts, :route_type)
 
     type =
       cond do
+        not is_nil(default_route_type) -> default_route_type
         is_nil(route_info) -> :static_asset
         Map.get(route_info, :type) == :marketing -> :marketing
         true -> :app
       end
 
-    if type == :marketing and true do
+    if type == :marketing and Tuist.Environment.on_premise?() do
       # When it's a marketing URL available presented somewhere in an
       # on-premis instance, it should point to the production routes.
       %{URI.parse(get_url(:production)) | path: path} |> URI.to_string()
     else
       url = get([:app, :url], secrets) || "http://localhost:8080"
       %{URI.parse(url) | path: path} |> URI.to_string()
+    end
+  end
+
+  defp get_route_info(path) do
+    case Phoenix.Router.route_info(TuistWeb.Router, "GET", path, "") do
+      :error -> nil
+      route_info -> route_info
     end
   end
 
