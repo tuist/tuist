@@ -1,4 +1,4 @@
-defmodule Mix.Tasks.Marketing.GenerateOgImages do
+defmodule Mix.Tasks.Marketing.Gen.OgImages do
   @moduledoc ~S"""
   This task generates the open graph images dynamically for all the marketing routes
   """
@@ -13,25 +13,15 @@ defmodule Mix.Tasks.Marketing.GenerateOgImages do
   end
 
   defp generate_pages_og_images(og_images_directory) do
-    Tuist.Marketing.OpenGraph.generate_og_image(
-      "Terms of service",
-      Path.join(og_images_directory, "terms.jpg")
-    )
+    dynamic_pages = Tuist.Marketing.Pages.get_pages()
 
-    Tuist.Marketing.OpenGraph.generate_og_image(
-      "Privacy policy",
-      Path.join(og_images_directory, "privacy.jpg")
-    )
-
-    Tuist.Marketing.OpenGraph.generate_og_image(
-      "Imprint",
-      Path.join(og_images_directory, "imprint.jpg")
-    )
-
-    Tuist.Marketing.OpenGraph.generate_og_image(
-      "Cookie policy",
-      Path.join(og_images_directory, "cookies.jpg")
-    )
+    dynamic_pages
+    |> Enum.each(fn page ->
+      Tuist.Marketing.OpenGraph.generate_og_image(
+        page.title,
+        Path.join(og_images_directory, "#{String.split(page.slug, "/") |> List.last()}.jpg")
+      )
+    end)
 
     Tuist.Marketing.OpenGraph.generate_og_image(
       "About us",

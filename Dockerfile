@@ -58,7 +58,7 @@ COPY assets assets
 RUN mix assets.deploy
 
 # generate og images
-RUN mix marketing.generate_og_images;
+RUN mix marketing.gen.og_images;
 
 # Compile the release
 RUN mix compile --warnings-as-errors
