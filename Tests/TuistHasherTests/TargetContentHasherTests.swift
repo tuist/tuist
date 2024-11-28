@@ -52,6 +52,10 @@ final class TargetContentHasherTests: TuistUnitTestCase {
         given(contentHasher)
             .hash(Parameter<[String]>.any)
             .willProduce { $0.joined(separator: "-") }
+
+        given(settingsContentHasher)
+            .hash(settings: .any)
+            .willReturn("settings_hash")
     }
 
     override func tearDown() async throws {
@@ -77,7 +81,7 @@ final class TargetContentHasherTests: TuistUnitTestCase {
         let got = try await subject.contentHash(for: target, hashedTargets: [:], hashedPaths: [:])
 
         // Then
-        XCTAssertEqual(got.hash, "hash")
+        XCTAssertEqual(got.hash, "hash-app-settings_hash-iPad-iPhone")
     }
 
     func test_hash_when_targetBelongsToExternalProjectWithHash_with_additional_string() async throws {
@@ -93,6 +97,6 @@ final class TargetContentHasherTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(got.hash, "hash-additional_string_one-additional_string_two")
+        XCTAssertEqual(got.hash, "hash-app-settings_hash-iPad-iPhone-additional_string_one-additional_string_two")
     }
 }
