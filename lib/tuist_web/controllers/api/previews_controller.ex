@@ -2,7 +2,6 @@ defmodule TuistWeb.API.PreviewsController do
   alias TuistWeb.API.Schemas.ArtifactUploadURL
   alias TuistWeb.API.Schemas
   alias Tuist.CommandEvents
-  alias TuistWeb.API.Schemas.ArtifactDownloadURL
   alias TuistWeb.API.Schemas.PreviewSupportedPlatform
   alias TuistWeb.API.EnsureProjectPresencePlug
   alias Tuist.Previews
@@ -266,7 +265,7 @@ defmodule TuistWeb.API.PreviewsController do
         } = conn,
         _params
       ) do
-    preview = Previews.get_preview_by_id(preview_id)
+    preview = Previews.get_preview_by_id(preview_id, preload: [:command_event])
 
     if is_nil(preview) do
       conn
@@ -285,6 +284,16 @@ defmodule TuistWeb.API.PreviewsController do
 
       Tuist.Analytics.preview_upload(Authentication.authenticated_subject(conn))
 
+      {git_commit_sha, git_branch} =
+        if is_nil(preview.command_event) do
+          {nil, nil}
+        else
+          {
+            preview.command_event.git_commit_sha,
+            preview.command_event.git_branch
+          }
+        end
+
       conn
       |> put_status(:ok)
       |> json(%{
@@ -294,14 +303,17 @@ defmodule TuistWeb.API.PreviewsController do
           url(~p"/#{account_handle}/#{project_handle}/previews/#{preview_id}/qr-code.png"),
         icon_url: url(~p"/#{account_handle}/#{project_handle}/previews/#{preview_id}/icon.png"),
         bundle_identifier: preview.bundle_identifier,
-        display_name: preview.display_name
+        display_name: preview.display_name,
+        git_commit_sha: git_commit_sha,
+        git_branch: git_branch
       })
     end
   end
 
-  operation(:download,
-    summary: "Downloads a preview.",
-    description: "This endpoint returns a signed URL that can be used to download a preview.",
+  operation(:show,
+    summary: "Returns a preview with a given id.",
+    description:
+      "This endpoint returns a preview with a given id, including the url to download the preview.",
     operation_id: "downloadPreview",
     parameters: [
       account_handle: [
@@ -324,35 +336,58 @@ defmodule TuistWeb.API.PreviewsController do
       ]
     ],
     responses: %{
-      ok: {"The preview exists and can be downloaded", "application/json", ArtifactDownloadURL},
+      ok: {"The preview exists and can be downloaded", "application/json", Schemas.Preview},
       unauthorized:
         {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden:
         {"The authenticated subject is not authorized to perform this action", "application/json",
          Error},
-      not_found: {"The build doesn't exist", "application/json", Error}
+      not_found: {"The preview does not exist", "application/json", Error}
     }
   )
 
-  def download(
+  def show(
         %{
           path_params: %{
+            "account_handle" => account_handle,
+            "project_handle" => project_handle,
             "preview_id" => preview_id
           }
         } = conn,
         _params
       ) do
-    expires_in = 3600
+    preview = Previews.get_preview_by_id(preview_id, preload: [:command_event])
 
-    url =
-      Storage.generate_download_url(
-        get_object_key(conn, preview_id),
-        expires_in: expires_in
-      )
+    if is_nil(preview) do
+      conn
+      |> put_status(:not_found)
+      |> json(%{message: "Preview not found."})
+    else
+      expires_in = 3600
 
-    expires_at = System.system_time(:second) + expires_in
-    Tuist.Analytics.preview_download(Authentication.authenticated_subject(conn))
-    conn |> json(%{url: url, expires_at: expires_at})
+      url =
+        Storage.generate_download_url(
+          get_object_key(conn, preview_id),
+          expires_in: expires_in
+        )
+
+      expires_at = System.system_time(:second) + expires_in
+      Tuist.Analytics.preview_download(Authentication.authenticated_subject(conn))
+
+      conn
+      |> json(%{
+        id: preview_id,
+        url: url,
+        expires_at: expires_at,
+        qr_code_url:
+          url(~p"/#{account_handle}/#{project_handle}/previews/#{preview_id}/qr-code.png"),
+        icon_url: url(~p"/#{account_handle}/#{project_handle}/previews/#{preview_id}/icon.png"),
+        bundle_identifier: preview.bundle_identifier,
+        display_name: preview.display_name,
+        git_commit_sha: preview.command_event.git_commit_sha,
+        git_branch: preview.command_event.git_branch
+      })
+    end
   end
 
   operation(:index,
@@ -496,7 +531,9 @@ defmodule TuistWeb.API.PreviewsController do
             icon_url:
               url(~p"/#{account_handle}/#{project_handle}/previews/#{&1.preview.id}/icon.png"),
             bundle_identifier: &1.preview.bundle_identifier,
-            display_name: &1.preview.display_name
+            display_name: &1.preview.display_name,
+            git_commit_sha: &1.git_commit_sha,
+            git_branch: &1.git_branch
           }
         )
     })

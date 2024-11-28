@@ -354,6 +354,14 @@ defmodule TuistWeb.PreviewsControllerTest do
       upload_id = "1234"
       preview = PreviewsFixtures.preview_fixture(project: project)
 
+      _command_event =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          preview_id: preview.id,
+          git_commit_sha: "preview-commit-sha",
+          git_branch: "main"
+        )
+
       object_key =
         "#{account.name}/#{project.name}/previews/#{preview.id}.zip"
 
@@ -397,7 +405,9 @@ defmodule TuistWeb.PreviewsControllerTest do
                "icon_url" =>
                  url(~p"/#{account.name}/#{project.name}/previews/#{preview.id}/icon.png"),
                "bundle_identifier" => "com.tuist.app",
-               "display_name" => "App"
+               "display_name" => "App",
+               "git_commit_sha" => "preview-commit-sha",
+               "git_branch" => "main"
              }
     end
 
@@ -503,6 +513,14 @@ defmodule TuistWeb.PreviewsControllerTest do
       # Given
       preview = PreviewsFixtures.preview_fixture(project: project)
 
+      _command_event =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          preview_id: preview.id,
+          git_commit_sha: "preview-commit-sha",
+          git_branch: "main"
+        )
+
       object_key =
         "#{account.name}/#{project.name}/previews/#{preview.id}.zip"
 
@@ -524,6 +542,8 @@ defmodule TuistWeb.PreviewsControllerTest do
       response = json_response(conn, :ok)
 
       assert response["url"] == "https://url.com"
+      assert response["git_branch"] == "main"
+      assert response["git_commit_sha"] == "preview-commit-sha"
     end
 
     test "returns not_found when project doesn't exist", %{
@@ -612,10 +632,11 @@ defmodule TuistWeb.PreviewsControllerTest do
           project_id: project.id,
           preview_id: preview_two.id,
           created_at: ~N[2021-01-01 01:00:00],
-          git_branch: "main"
+          git_branch: "main",
+          git_commit_sha: "commit-sha-two"
         )
 
-      _preview_three =
+      preview_three =
         PreviewsFixtures.preview_fixture(
           project: project,
           display_name: "App"
@@ -625,12 +646,12 @@ defmodule TuistWeb.PreviewsControllerTest do
         CommandEventsFixtures.command_event_fixture(
           name: "share",
           project_id: project.id,
-          preview_id: preview_two.id,
+          preview_id: preview_three.id,
           created_at: ~N[2021-01-01 02:00:00],
           git_branch: "feature-branch"
         )
 
-      _preview_four =
+      preview_four =
         PreviewsFixtures.preview_fixture(
           project: project,
           display_name: "AppTwo"
@@ -640,7 +661,7 @@ defmodule TuistWeb.PreviewsControllerTest do
         CommandEventsFixtures.command_event_fixture(
           name: "share",
           project_id: project.id,
-          preview_id: preview_two.id,
+          preview_id: preview_four.id,
           created_at: ~N[2021-01-01 02:30:00],
           git_branch: "main"
         )
@@ -671,7 +692,9 @@ defmodule TuistWeb.PreviewsControllerTest do
                  "icon_url" =>
                    url(~p"/#{account.name}/#{project.name}/previews/#{preview_two.id}/icon.png"),
                  "bundle_identifier" => "com.tuist.app",
-                 "display_name" => "App"
+                 "display_name" => "App",
+                 "git_commit_sha" => "commit-sha-two",
+                 "git_branch" => "main"
                }
              ]
     end

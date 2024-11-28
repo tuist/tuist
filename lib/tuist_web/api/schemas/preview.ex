@@ -29,6 +29,14 @@ defmodule TuistWeb.API.Schemas.Preview do
       display_name: %Schema{
         type: :string,
         description: "The display name of the preview"
+      },
+      git_commit_sha: %Schema{
+        type: :string,
+        description: "The git commit SHA associated with the preview"
+      },
+      git_branch: %Schema{
+        type: :string,
+        description: "The git branch associated with the preview"
       }
     }
   })
