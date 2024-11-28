@@ -15,6 +15,7 @@ import PackageDescription
 let package = Package(
     name: "ios_app_with_facebook_sdk_dependency",
     dependencies: [
+        .package(url: "https://github.com/facebook/facebook-ios-sdk", exact: "17.1.0")
         // Add your own dependencies here:
         // .package(url: "https://github.com/Alamofire/Alamofire", from: "5.0.0"),
         // You can read more about dependencies here: https://docs.tuist.io/documentation/tuist/dependencies

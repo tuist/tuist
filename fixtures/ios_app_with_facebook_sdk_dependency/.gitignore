@@ -68,3 +68,5 @@ Derived/
 
 ### Tuist managed dependencies ###
 Tuist/.build
+
+graph.png
