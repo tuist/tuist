@@ -199,7 +199,7 @@ defmodule TuistWeb.Marketing.MarketingController do
       |> Enum.find(&(&1.slug == String.trim_trailing(conn.request_path, "/")))
 
     conn
-    |> assign(:head_title, "Tuist #{page.title}")
+    |> assign(:head_title, "#{page.title}")
     |> assign(:head_description, page.excerpt)
     |> assign(
       :head_image,
