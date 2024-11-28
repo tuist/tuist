@@ -238,6 +238,9 @@ defmodule TuistWeb.Router do
       on_mount: [
         {TuistWeb.Authentication, :ensure_authenticated},
         {TuistWeb.Authorization, [:current_user, :read, :ops]}
+      ],
+      additional_pages: [
+        route_name: TuistWeb.OpsConfigurationLive
       ]
 
     error_tracker_dashboard("/errors",
