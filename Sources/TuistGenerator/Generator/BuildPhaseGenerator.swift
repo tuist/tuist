@@ -748,7 +748,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
 
             let pbxBuildFile = PBXBuildFile(
                 file: fileReference,
-                settings: ["ATTRIBUTES": [ "CodeSignOnCopy", "RemoveHeadersOnCopy"]]
+                settings: ["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]]
             )
             if target.supportsCatalyst {
                 pbxBuildFile.applyPlatformFilters([.catalyst])
