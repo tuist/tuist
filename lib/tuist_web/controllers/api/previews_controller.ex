@@ -374,6 +374,16 @@ defmodule TuistWeb.API.PreviewsController do
       expires_at = System.system_time(:second) + expires_in
       Tuist.Analytics.preview_download(Authentication.authenticated_subject(conn))
 
+      {git_commit_sha, git_branch} =
+        if is_nil(preview.command_event) do
+          {nil, nil}
+        else
+          {
+            preview.command_event.git_commit_sha,
+            preview.command_event.git_branch
+          }
+        end
+
       conn
       |> json(%{
         id: preview_id,
@@ -384,8 +394,8 @@ defmodule TuistWeb.API.PreviewsController do
         icon_url: url(~p"/#{account_handle}/#{project_handle}/previews/#{preview_id}/icon.png"),
         bundle_identifier: preview.bundle_identifier,
         display_name: preview.display_name,
-        git_commit_sha: preview.command_event.git_commit_sha,
-        git_branch: preview.command_event.git_branch
+        git_commit_sha: git_commit_sha,
+        git_branch: git_branch
       })
     end
   end

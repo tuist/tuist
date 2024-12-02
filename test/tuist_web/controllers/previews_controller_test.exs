@@ -546,6 +546,40 @@ defmodule TuistWeb.PreviewsControllerTest do
       assert response["git_commit_sha"] == "preview-commit-sha"
     end
 
+    test "return preview when command_event is not found", %{
+      conn: conn,
+      user: user,
+      project: project,
+      account: account
+    } do
+      # Given
+      preview = PreviewsFixtures.preview_fixture(project: project)
+
+      object_key =
+        "#{account.name}/#{project.name}/previews/#{preview.id}.zip"
+
+      Storage
+      |> expect(:generate_download_url, fn ^object_key, expires_in: 3600 ->
+        "https://url.com"
+      end)
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+
+      # When
+      conn =
+        conn
+        |> get(~p"/api/projects/#{account.name}/#{project.name}/previews/#{preview.id}")
+
+      # Then
+      response = json_response(conn, :ok)
+
+      assert response["url"] == "https://url.com"
+      assert response["git_branch"] == nil
+      assert response["git_commit_sha"] == nil
+    end
+
     test "returns not_found when project doesn't exist", %{
       conn: conn,
       user: user,
