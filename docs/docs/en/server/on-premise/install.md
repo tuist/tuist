@@ -149,6 +149,7 @@ You can use any S3-compliant storage provider to store artifacts. The following 
 | `TUIST_S3_POOL_TIMEOUT` | The timeout (in seconds) for the connection pool to the storage provider | No | `5` | `5` |
 | `TUIST_S3_POOL_COUNT` | The number of pools to use for connections to the storage provider | No | `1` | `1` |
 | `TUIST_S3_PROTOCOL` | The protocol to use when connecting to the storage provider (`http1` or `http2`) | No | `http2` | `http2` |
+| `TUIST_S3_VIRTUAL_HOST` | Whether the URL should be constructed with the bucket name as a sub-domain (virtual host). | No | No | `1` |
 
 > [!NOTE] AWS authentication with Web Identity Token from environment variables
 > If your storage provider is AWS and you'd like to authenticate using a web identity token, you can set the environment variable `TUIST_S3_AUTHENTICATION_METHOD` to `aws_web_identity_token_from_env_vars`, and Tuist will use that method using the conventional AWS environment variables.
