@@ -151,6 +151,15 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
             pbxproj: pbxproj
         )
 
+        try generateEmbedPlugInsBuildPhase(
+            path: path,
+            target: target,
+            graphTraverser: graphTraverser,
+            pbxTarget: pbxTarget,
+            fileElements: fileElements,
+            pbxproj: pbxproj
+        )
+
         if target.canEmbedSystemExtensions() {
             try generateEmbedSystemExtensionBuildPhase(
                 path: path,
@@ -713,6 +722,42 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
 
         pbxBuildFiles.forEach { pbxproj.add(object: $0) }
         embedXPCServicesBuildPhase.files = pbxBuildFiles
+    }
+
+    func generateEmbedPlugInsBuildPhase(
+        path: AbsolutePath,
+        target: Target,
+        graphTraverser: GraphTraversing,
+        pbxTarget: PBXTarget,
+        fileElements: ProjectFileElements,
+        pbxproj: PBXProj
+    ) throws {
+        let targetDependencies = graphTraverser.directLocalTargetDependencies(path: path, name: target.name).sorted()
+        let plugIns = targetDependencies.filter { $0.target.isEmbeddablePlugin() }
+        guard !plugIns.isEmpty else { return }
+
+        let embedPlugInsBuildPhase = PBXCopyFilesBuildPhase(
+            dstSubfolderSpec: .plugins,
+            name: "Embed PlugIns"
+        )
+        pbxproj.add(object: embedPlugInsBuildPhase)
+        pbxTarget.buildPhases.append(embedPlugInsBuildPhase)
+
+        let pbxBuildFiles: [PBXBuildFile] = plugIns.compactMap { graphTarget in
+            guard let fileReference = fileElements.product(target: graphTarget.target.name) else { return nil }
+
+            let pbxBuildFile = PBXBuildFile(
+                file: fileReference,
+                settings: ["ATTRIBUTES": [ "CodeSignOnCopy", "RemoveHeadersOnCopy"]]
+            )
+            if target.supportsCatalyst {
+                pbxBuildFile.applyPlatformFilters([.catalyst])
+            }
+            return pbxBuildFile
+        }
+
+        pbxBuildFiles.forEach { pbxproj.add(object: $0) }
+        embedPlugInsBuildPhase.files = pbxBuildFiles
     }
 
     func generateEmbedSystemExtensionBuildPhase(
