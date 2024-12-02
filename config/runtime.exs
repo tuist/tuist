@@ -190,6 +190,8 @@ if Tuist.Environment.env() not in [:test] do
     scheme: "https://",
     host: s3_endpoint_host
 
+  config :ex_aws, :s3, virtual_host: Tuist.Environment.s3_virtual_host()
+
   case Tuist.Environment.s3_authentication_method(secrets) do
     :env_access_key_id_and_secret_access_key ->
       config :ex_aws,

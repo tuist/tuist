@@ -217,6 +217,10 @@ defmodule Tuist.Environment do
     end
   end
 
+  def s3_virtual_host(secrets \\ secrets()) do
+    get([:s3, :virtual_host], secrets) |> truthy?()
+  end
+
   def slack_tuist_token(secrets \\ secrets()) do
     get([:slack, :tuist, :token], secrets)
   end
