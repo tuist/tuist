@@ -40,7 +40,7 @@ extension ProjectAutomation.Project {
         let packages = project.packages
             .reduce(into: [ProjectAutomation.Package]()) { $0.append(ProjectAutomation.Package.from($1)) }
         let schemes = project.schemes.reduce(into: [ProjectAutomation.Scheme]()) { $0.append(ProjectAutomation.Scheme.from($1)) }
-        
+
         var dependenciesCache = [XcodeGraph.TargetDependency: ProjectAutomation.TargetDependency]()
         let targets = project.targets.mapValues { target in
             ProjectAutomation.Target.from(target, dependenciesCache: &dependenciesCache)
@@ -76,8 +76,12 @@ extension ProjectAutomation.Package {
 }
 
 extension ProjectAutomation.Target {
-    static func from(_ target: XcodeGraph.Target,
-                     dependenciesCache: inout [XcodeGraph.TargetDependency: ProjectAutomation.TargetDependency]) -> ProjectAutomation.Target {
+    static func from(
+        _ target: XcodeGraph.Target,
+        dependenciesCache: inout [XcodeGraph.TargetDependency: ProjectAutomation.TargetDependency]
+    )
+        -> ProjectAutomation.Target
+    {
         let dependencies = target.dependencies.map {
             if let foundDependency = dependenciesCache[$0] {
                 return foundDependency
