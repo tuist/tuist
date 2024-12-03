@@ -958,6 +958,31 @@ final class GenerateAcceptanceTestAppWithCustomScheme: TuistAcceptanceTestCase {
     }
 }
 
+final class GenerateAcceptanceTestsAppWithMetalOptions: TuistAcceptanceTestCase {
+    func test_app_with_metal_options() async throws {
+        try await setUpFixture(.appWithMetalOptions)
+        try await run(GenerateCommand.self)
+
+        try XCTAssertContainsMetalOptions(
+            xcodeprojPath: xcodeprojPath,
+            scheme: "CustomMetalConfig",
+            apiValidation: false,
+            shaderValidation: true,
+            showGraphicsOverview: true,
+            logGraphicsOverview: true
+        )
+
+        try XCTAssertContainsMetalOptions(
+            xcodeprojPath: xcodeprojPath,
+            scheme: "DefaultMetalConfig",
+            apiValidation: true,
+            shaderValidation: false,
+            showGraphicsOverview: false,
+            logGraphicsOverview: false
+        )
+    }
+}
+
 final class GenerateAcceptanceTestAppWithGoogleMaps: TuistAcceptanceTestCase {
     func test_app_with_google_maps() async throws {
         try await setUpFixture(.appWithGoogleMaps)
