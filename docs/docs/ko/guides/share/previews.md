@@ -69,7 +69,9 @@ tuist run App@00dde7f56b1b8795a26b8085a781fb3715e834be # 특정 Git 커밋 SHA�
     <img src="/images/guides/share/menu-bar-app.png" style="width: 300px;" />
 </div>
 
-Tuist Previews를 더욱 쉽게 실행할 수 있도록, 우리는 Tuist macOS menu bar 앱을 개발했습니다. Tuist CLI를 통해 Previews를 실행하는 대신, macOS 앱을 [다운로드](https://cloud.tuist.io/download)하여 사용할 수 있습니다. 브라우저에서 Preview 링크를 열면, 앱이 현재 선택된 디바이스에서 자동으로 실행됩니다.
+Tuist Previews를 더욱 쉽게 실행할 수 있도록, 우리는 Tuist macOS menu bar 앱을 개발했습니다. Instead of running Previews via the Tuist CLI, you can [download](https://tuist.dev/download) the macOS app. You can also install the app by running `brew install --cask tuist/tuist/tuist`.
+
+When you now click on "Run" in the Preview page, the macOS app will automatically launch it on your currently selected device.
 
 > [!IMPORTANT] 요구 사항
 > Previews를 다운로드하려면, 먼저 `tuist auth` 명령어를 사용해 인증해야 합니다.
