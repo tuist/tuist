@@ -12,7 +12,7 @@ import XCTest
 final class DeviceServiceTests: TuistUnitTestCase {
     private var subject: DeviceService!
     private var simulatorController: MockSimulatorControlling!
-    private var downloadPreviewService: MockDownloadPreviewServicing!
+    private var getPreviewService: MockGetPreviewServicing!
     private var fileUnarchiver: MockFileUnarchiving!
     private var remoteArtifactDownloader: MockRemoteArtifactDownloading!
     private var appBundleLoader: MockAppBundleLoading!
@@ -49,7 +49,7 @@ final class DeviceServiceTests: TuistUnitTestCase {
         super.setUp()
 
         simulatorController = .init()
-        downloadPreviewService = .init()
+        getPreviewService = .init()
         let fileArchiverFactory = MockFileArchivingFactorying()
         remoteArtifactDownloader = .init()
         appBundleLoader = .init()
@@ -63,7 +63,7 @@ final class DeviceServiceTests: TuistUnitTestCase {
             appStorage: appStorage,
             deviceController: deviceController,
             simulatorController: simulatorController,
-            downloadPreviewService: downloadPreviewService,
+            getPreviewService: getPreviewService,
             fileArchiverFactory: fileArchiverFactory,
             remoteArtifactDownloader: remoteArtifactDownloader,
             fileSystem: fileSystem,
@@ -124,7 +124,7 @@ final class DeviceServiceTests: TuistUnitTestCase {
 
     override func tearDown() {
         simulatorController = nil
-        downloadPreviewService = nil
+        getPreviewService = nil
         fileUnarchiver = nil
         remoteArtifactDownloader = nil
         appBundleLoader = nil
@@ -352,13 +352,13 @@ final class DeviceServiceTests: TuistUnitTestCase {
 
         try await subject.loadDevices()
 
-        given(downloadPreviewService)
-            .downloadPreview(
+        given(getPreviewService)
+            .getPreview(
                 .value("01912892-3778-7297-8ca9-d66ac7ee2a53"),
                 fullHandle: .value("tuist/ios_app_with_frameworks"),
                 serverURL: .value(Constants.URLs.production)
             )
-            .willReturn("https://tuist.io/download-link")
+            .willReturn(.test())
 
         let downloadedArchive = try temporaryPath().appending(component: "archive")
 
@@ -438,13 +438,13 @@ final class DeviceServiceTests: TuistUnitTestCase {
 
         await subject.selectDevice(.device(myiPhone))
 
-        given(downloadPreviewService)
-            .downloadPreview(
+        given(getPreviewService)
+            .getPreview(
                 .value("01912892-3778-7297-8ca9-d66ac7ee2a53"),
                 fullHandle: .value("tuist/ios_app_with_frameworks"),
                 serverURL: .value(Constants.URLs.production)
             )
-            .willReturn("https://tuist.io/download-link")
+            .willReturn(.test())
 
         let downloadedArchive = try temporaryPath().appending(component: "archive")
 
@@ -525,13 +525,13 @@ final class DeviceServiceTests: TuistUnitTestCase {
 
         await subject.selectDevice(.device(myiPhone))
 
-        given(downloadPreviewService)
-            .downloadPreview(
+        given(getPreviewService)
+            .getPreview(
                 .value("01912892-3778-7297-8ca9-d66ac7ee2a53"),
                 fullHandle: .value("tuist/ios_app_with_frameworks"),
                 serverURL: .value(Constants.URLs.production)
             )
-            .willReturn("https://tuist.io/download-link")
+            .willReturn(.test())
 
         let downloadedArchive = try temporaryPath().appending(component: "archive")
 
@@ -630,9 +630,13 @@ final class DeviceServiceTests: TuistUnitTestCase {
             .add(status: .any)
             .willReturn()
 
-        given(downloadPreviewService)
-            .downloadPreview(.any, fullHandle: .any, serverURL: .any)
-            .willReturn("https://tuist.io/download-link")
+        given(getPreviewService)
+            .getPreview(.any, fullHandle: .any, serverURL: .any)
+            .willReturn(
+                .test(
+                    id: "preview-id"
+                )
+            )
 
         given(remoteArtifactDownloader)
             .download(url: .any)
@@ -641,7 +645,7 @@ final class DeviceServiceTests: TuistUnitTestCase {
         // When / Then
         await XCTAssertThrowsSpecific(
             try await subject.launchPreviewDeeplink(with: previewURL),
-            DeviceServiceError.appDownloadFailed("01912892-3778-7297-8ca9-d66ac7ee2a53")
+            DeviceServiceError.appDownloadFailed("preview-id")
         )
     }
 
@@ -653,9 +657,9 @@ final class DeviceServiceTests: TuistUnitTestCase {
             .add(status: .any)
             .willReturn()
 
-        given(downloadPreviewService)
-            .downloadPreview(.any, fullHandle: .any, serverURL: .any)
-            .willReturn("https://tuist.io/download-link")
+        given(getPreviewService)
+            .getPreview(.any, fullHandle: .any, serverURL: .any)
+            .willReturn(.test())
 
         let downloadedArchive = try temporaryPath().appending(component: "archive")
 
