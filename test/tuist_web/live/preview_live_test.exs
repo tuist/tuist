@@ -47,6 +47,75 @@ defmodule TuistWeb.PreviewLiveTest do
     assert has_element?(lv, "p", "iOS, macOS")
   end
 
+  test "it does not show git branch when the associated command event does not exist", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    # Given
+    preview =
+      PreviewsFixtures.preview_fixture(project: project)
+
+    # When
+    {:ok, lv, _html} =
+      conn
+      |> live(~p"/#{organization.account.name}/#{project.name}/previews/#{preview.id}")
+
+    # Then
+    refute has_element?(lv, "p", "Branch")
+  end
+
+  test "it does not show git branch when the git branch is nil", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    # Given
+    preview = PreviewsFixtures.preview_fixture(project: project, type: :ipa)
+
+    _command_event =
+      CommandEventsFixtures.command_event_fixture(
+        name: "share",
+        project_id: project.id,
+        preview_id: preview.id,
+        git_branch: nil
+      )
+
+    # When
+    {:ok, lv, _html} =
+      conn
+      |> live(~p"/#{organization.account.name}/#{project.name}/previews/#{preview.id}")
+
+    # Then
+    refute has_element?(lv, "p", "Branch")
+  end
+
+  test "it shows git branch when the git branch is defined", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    # Given
+    preview = PreviewsFixtures.preview_fixture(project: project, type: :ipa)
+
+    _command_event =
+      CommandEventsFixtures.command_event_fixture(
+        name: "share",
+        project_id: project.id,
+        preview_id: preview.id,
+        git_branch: "main"
+      )
+
+    # When
+    {:ok, lv, _html} =
+      conn
+      |> live(~p"/#{organization.account.name}/#{project.name}/previews/#{preview.id}")
+
+    # Then
+    assert has_element?(lv, "p", "Branch")
+    assert has_element?(lv, "p", "main")
+  end
+
   test "it shows mobile install button when family is iOS and preview_type is :ipa", %{
     conn: conn,
     organization: organization,
