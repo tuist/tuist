@@ -219,9 +219,9 @@ internal protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/previews/start`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/start/post(startPreviewsMultipartUpload)`.
     func startPreviewsMultipartUpload(_ input: Operations.startPreviewsMultipartUpload.Input) async throws -> Operations.startPreviewsMultipartUpload.Output
-    /// Downloads a preview.
+    /// Returns a preview with a given id.
     ///
-    /// This endpoint returns a signed URL that can be used to download a preview.
+    /// This endpoint returns a preview with a given id, including the url to download the preview.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/previews/{preview_id}`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/get(downloadPreview)`.
@@ -759,9 +759,9 @@ extension APIProtocol {
             body: body
         ))
     }
-    /// Downloads a preview.
+    /// Returns a preview with a given id.
     ///
-    /// This endpoint returns a signed URL that can be used to download a preview.
+    /// This endpoint returns a preview with a given id, including the url to download the preview.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/previews/{preview_id}`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/get(downloadPreview)`.
@@ -1680,6 +1680,14 @@ internal enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/Preview/display_name`.
             internal var display_name: Swift.String?
+            /// The git branch associated with the preview
+            ///
+            /// - Remark: Generated from `#/components/schemas/Preview/git_branch`.
+            internal var git_branch: Swift.String?
+            /// The git commit SHA associated with the preview
+            ///
+            /// - Remark: Generated from `#/components/schemas/Preview/git_commit_sha`.
+            internal var git_commit_sha: Swift.String?
             /// The URL for the icon image of the preview
             ///
             /// - Remark: Generated from `#/components/schemas/Preview/icon_url`.
@@ -1701,6 +1709,8 @@ internal enum Components {
             /// - Parameters:
             ///   - bundle_identifier: The bundle identifier of the preview
             ///   - display_name: The display name of the preview
+            ///   - git_branch: The git branch associated with the preview
+            ///   - git_commit_sha: The git commit SHA associated with the preview
             ///   - icon_url: The URL for the icon image of the preview
             ///   - id: Unique identifier of the preview.
             ///   - qr_code_url: The URL for the QR code image to dowload the preview
@@ -1708,6 +1718,8 @@ internal enum Components {
             internal init(
                 bundle_identifier: Swift.String? = nil,
                 display_name: Swift.String? = nil,
+                git_branch: Swift.String? = nil,
+                git_commit_sha: Swift.String? = nil,
                 icon_url: Swift.String,
                 id: Swift.String,
                 qr_code_url: Swift.String,
@@ -1715,6 +1727,8 @@ internal enum Components {
             ) {
                 self.bundle_identifier = bundle_identifier
                 self.display_name = display_name
+                self.git_branch = git_branch
+                self.git_commit_sha = git_commit_sha
                 self.icon_url = icon_url
                 self.id = id
                 self.qr_code_url = qr_code_url
@@ -1723,6 +1737,8 @@ internal enum Components {
             internal enum CodingKeys: String, CodingKey {
                 case bundle_identifier
                 case display_name
+                case git_branch
+                case git_commit_sha
                 case icon_url
                 case id
                 case qr_code_url
@@ -1899,35 +1915,6 @@ internal enum Components {
             }
             internal enum CodingKeys: String, CodingKey {
                 case error
-            }
-        }
-        /// The URL to download an artifact.
-        ///
-        /// - Remark: Generated from `#/components/schemas/ArtifactDownloadURL`.
-        internal struct ArtifactDownloadURL: Codable, Hashable, Sendable {
-            /// The UNIX timestamp when the URL expires.
-            ///
-            /// - Remark: Generated from `#/components/schemas/ArtifactDownloadURL/expires_at`.
-            internal var expires_at: Swift.Int
-            /// The URL to download the artifact.
-            ///
-            /// - Remark: Generated from `#/components/schemas/ArtifactDownloadURL/url`.
-            internal var url: Swift.String
-            /// Creates a new `ArtifactDownloadURL`.
-            ///
-            /// - Parameters:
-            ///   - expires_at: The UNIX timestamp when the URL expires.
-            ///   - url: The URL to download the artifact.
-            internal init(
-                expires_at: Swift.Int,
-                url: Swift.String
-            ) {
-                self.expires_at = expires_at
-                self.url = url
-            }
-            internal enum CodingKeys: String, CodingKey {
-                case expires_at
-                case url
             }
         }
         /// - Remark: Generated from `#/components/schemas/Error`.
@@ -12279,9 +12266,9 @@ internal enum Operations {
             }
         }
     }
-    /// Downloads a preview.
+    /// Returns a preview with a given id.
     ///
-    /// This endpoint returns a signed URL that can be used to download a preview.
+    /// This endpoint returns a preview with a given id, including the url to download the preview.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/previews/{preview_id}`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/get(downloadPreview)`.
@@ -12349,12 +12336,12 @@ internal enum Operations {
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/GET/responses/200/content`.
                 internal enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/GET/responses/200/content/application\/json`.
-                    case json(Components.Schemas.ArtifactDownloadURL)
+                    case json(Components.Schemas.Preview)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas.ArtifactDownloadURL {
+                    internal var json: Components.Schemas.Preview {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -12526,7 +12513,7 @@ internal enum Operations {
                     self.body = body
                 }
             }
-            /// The build doesn't exist
+            /// The preview does not exist
             ///
             /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/get(downloadPreview)/responses/404`.
             ///
