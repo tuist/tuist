@@ -20,7 +20,6 @@ let targets: [Target] = [
             pathDependency,
             swiftToolsSupportDependency,
             "FileSystem",
-            "Path",
         ]
     ),
     .executableTarget(
@@ -96,10 +95,10 @@ let targets: [Target] = [
         dependencies: [
             "TuistKit",
             "TuistSupport",
-            "Path",
             "TuistLoader",
             "ProjectDescription",
             "ProjectAutomation",
+            pathDependency,
             swiftToolsSupportDependency,
         ]
     ),
