@@ -139,17 +139,18 @@ Tuist는 API를 통해 업로드된 산출물을 저장하기 위한 저장소�
 
 산출물을 저장하기 위해 S3 호환 저장소 제공자를 사용할 수 있습니다. 저장소 제공자와의 인증과 통합 구성을 위해 다음의 환경 변수가 필요합니다:
 
-| 환경 변수                                                | 설명                                                               | 필수 여부 | 기본값     | 예시                                         |
-| ---------------------------------------------------- | ---------------------------------------------------------------- | ----- | ------- | ------------------------------------------ |
-| `TUIST_ACCESS_KEY_ID` 또는 `AWS_ACCESS_KEY_ID`         | 저장소 제공자 인증을 위한 접근 키 ID                                           | Yes   |         | `AKIAIOSFOD`                               |
-| `TUIST_SECRET_ACCESS_KEY` 또는 `AWS_SECRET_ACCESS_KEY` | 저장소 제공자 인증을 위한 비밀 접근 키                                           | Yes   |         | `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY` |
-| `TUIST_S3_REGION` 또는 `AWS_REGION`                    | 버킷이 위치한 지역                                                       | Yes   |         | `us-west-2`                                |
-| `TUIST_S3_ENDPOINT` 또는 `AWS_ENDPOINT`                | 저장소 제공자의 엔드포인트                                                   | Yes   |         | `https://s3.us-west-2.amazonaws.com`       |
-| `TUIST_S3_BUCKET_NAME`                               | 산출물이 저장될 버킷의 이름                                                  | Yes   |         | `tuist-artifacts`                          |
-| `TUIST_S3_REQUEST_TIMEOUT`                           | 저장소 제공자 요청에 대한 타임아웃 (초 단위)                    | No    | `30`    | `30`                                       |
-| `TUIST_S3_POOL_TIMEOUT`                              | 저장소 제공자에 대한 연결 풀의 타임아웃 (초 단위)                 | No    | `5`     | `5`                                        |
-| `TUIST_S3_POOL_COUNT`                                | 저장소 제공자와의 연결 풀의 수                                                | No    | `1`     | `1`                                        |
-| `TUIST_S3_PROTOCOL`                                  | 저장소 제공자와 연결할 때 사용하는 프로토콜 (`http1` 또는 `http2`) | No    | `http2` | `http2`                                    |
+| 환경 변수                                                | 설명                                                                            | 필수 여부 | 기본값     | 예시                                         |
+| ---------------------------------------------------- | ----------------------------------------------------------------------------- | ----- | ------- | ------------------------------------------ |
+| `TUIST_ACCESS_KEY_ID` 또는 `AWS_ACCESS_KEY_ID`         | 저장소 제공자 인증을 위한 접근 키 ID                                                        | Yes   |         | `AKIAIOSFOD`                               |
+| `TUIST_SECRET_ACCESS_KEY` 또는 `AWS_SECRET_ACCESS_KEY` | 저장소 제공자 인증을 위한 비밀 접근 키                                                        | Yes   |         | `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY` |
+| `TUIST_S3_REGION` 또는 `AWS_REGION`                    | 버킷이 위치한 지역                                                                    | Yes   |         | `us-west-2`                                |
+| `TUIST_S3_ENDPOINT` 또는 `AWS_ENDPOINT`                | 저장소 제공자의 엔드포인트                                                                | Yes   |         | `https://s3.us-west-2.amazonaws.com`       |
+| `TUIST_S3_BUCKET_NAME`                               | 산출물이 저장될 버킷의 이름                                                               | Yes   |         | `tuist-artifacts`                          |
+| `TUIST_S3_REQUEST_TIMEOUT`                           | 저장소 제공자 요청에 대한 타임아웃 (초 단위)                                 | No    | `30`    | `30`                                       |
+| `TUIST_S3_POOL_TIMEOUT`                              | 저장소 제공자에 대한 연결 풀의 타임아웃 (초 단위)                              | No    | `5`     | `5`                                        |
+| `TUIST_S3_POOL_COUNT`                                | 저장소 제공자와의 연결 풀의 수                                                             | No    | `1`     | `1`                                        |
+| `TUIST_S3_PROTOCOL`                                  | 저장소 제공자와 연결할 때 사용하는 프로토콜 (`http1` 또는 `http2`)              | No    | `http2` | `http2`                                    |
+| `TUIST_S3_VIRTUAL_HOST`                              | URL이 서브도메인 (가상 호스트) 으로 버킷 이름을 구성해야 하는지 여부. | No    | No      | `1`                                        |
 
 > [!NOTE] 환경 변수에서 Web Identity Token을 사용한 AWS 인증\
 > 저장소 제공자가 AWS이고 웹 아이덴티티 토큰을 사용하여 인증하려는 경우에 환경 변수 `TUIST_S3_AUTHENTICATION_METHOD`를 `aws_web_identity_token_from_env_vars`로 설정할 수 있습니다. 그러면 Tuist는 기존의 AWS 환경 변수를 사용하여 인증을 진행할 수 있습니다.
