@@ -21,101 +21,75 @@ defmodule Tuist.Analytics do
     @all_events
   end
 
-  defmacro run_if_enabled(do: block) do
-    quote do
-      if Tuist.Environment.analytics_enabled?() do
-        unquote(block)
-      else
-        :ok
-      end
-    end
-  end
-
   def organization_create(
         name,
         %{email: email} = subject
       ) do
-    run_if_enabled do
-      :telemetry.execute(
-        [:analytics, :organization, :create],
-        %{},
-        %{
-          name: name,
-          email: email
-        }
-        |> Map.merge(subject_parameters(subject))
-      )
-    end
+    :telemetry.execute(
+      [:analytics, :organization, :create],
+      %{},
+      %{
+        name: name,
+        email: email
+      }
+      |> Map.merge(subject_parameters(subject))
+    )
   end
 
   def user_authenticate(%{email: email} = subject) do
-    run_if_enabled do
-      :telemetry.execute(
-        [:analytics, :user, :authenticate],
-        %{},
-        %{email: email} |> Map.merge(subject_parameters(subject))
-      )
-    end
+    :telemetry.execute(
+      [:analytics, :user, :authenticate],
+      %{},
+      %{email: email} |> Map.merge(subject_parameters(subject))
+    )
   end
 
   def user_create(%{email: email} = subject) do
-    run_if_enabled do
-      :telemetry.execute(
-        [:analytics, :user, :create],
-        %{},
-        %{email: email} |> Map.merge(subject_parameters(subject))
-      )
-    end
+    :telemetry.execute(
+      [:analytics, :user, :create],
+      %{},
+      %{email: email} |> Map.merge(subject_parameters(subject))
+    )
   end
 
   def page_view(path, subject) do
-    run_if_enabled do
-      :telemetry.execute(
-        [:analytics, :page, :view],
-        %{},
-        %{path: path} |> Map.merge(subject_parameters(subject))
-      )
-    end
+    :telemetry.execute(
+      [:analytics, :page, :view],
+      %{},
+      %{path: path} |> Map.merge(subject_parameters(subject))
+    )
   end
 
   def preview_upload(subject) do
-    run_if_enabled do
-      :telemetry.execute(
-        [:analytics, :preview, :upload],
-        %{},
-        %{} |> Map.merge(subject_parameters(subject))
-      )
-    end
+    :telemetry.execute(
+      [:analytics, :preview, :upload],
+      %{},
+      %{} |> Map.merge(subject_parameters(subject))
+    )
   end
 
   def preview_download(subject) do
-    run_if_enabled do
-      :telemetry.execute(
-        [:analytics, :preview, :download],
-        %{},
-        %{} |> Map.merge(subject_parameters(subject))
-      )
-    end
+    :telemetry.execute(
+      [:analytics, :preview, :download],
+      %{},
+      %{} |> Map.merge(subject_parameters(subject))
+    )
   end
 
   def cache_artifact_upload(%{size: size, category: category}, subject) do
-    run_if_enabled do
-      :telemetry.execute(
-        [:analytics, :cache_artifact, :upload],
-        %{size: size},
-        %{category: category} |> Map.merge(subject_parameters(subject))
-      )
-    end
+    :telemetry.execute(
+      [:analytics, :cache_artifact, :upload],
+      %{size: size},
+      %{category: category} |> Map.merge(subject_parameters(subject))
+    )
   end
 
   def cache_artifact_download(%{size: size, category: category}, subject) do
-    run_if_enabled do
-      :telemetry.execute(
-        [:analytics, :cache_artifact, :download],
-        %{size: size},
-        %{category: category} |> Map.merge(subject_parameters(subject))
-      )
-    end
+    :telemetry.execute(
+      [:analytics, :cache_artifact, :download],
+      %{size: size},
+      %{category: category} |> Map.merge(subject_parameters(subject))
+    )
   end
 
   def subject_parameters(%Tuist.Projects.Project{id: id}) do

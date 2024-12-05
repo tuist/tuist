@@ -1,4 +1,8 @@
 defmodule Tuist.Telemetry do
+  def event_name_projects_count() do
+    [:tuist, :projects, :count]
+  end
+
   def event_name_accounts_users_count() do
     [:tuist, :accounts, :users, :count]
   end

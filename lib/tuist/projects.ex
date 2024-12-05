@@ -13,6 +13,10 @@ defmodule Tuist.Projects do
 
   import Ecto.Query
 
+  def get_projects_count() do
+    Repo.aggregate(Project, :count, :id)
+  end
+
   def legacy_token?(token) do
     not String.starts_with?(token, "tuist_")
   end

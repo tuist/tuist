@@ -13,6 +13,19 @@ defmodule Tuist.ProjectsTest do
   alias Tuist.Accounts
   use Mimic
 
+  describe "get_projects_count/0" do
+    test "returns the right count" do
+      # Given
+      ProjectsFixtures.project_fixture()
+
+      # When
+      got = Projects.get_projects_count()
+
+      # Then
+      assert got == 1
+    end
+  end
+
   test "returns command average duration" do
     # Given
     organization = AccountsFixtures.organization_fixture(name: "tuist")

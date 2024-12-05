@@ -39,3 +39,5 @@ npm-debug.log
 priv/secrets/*.key
 
 priv/static/marketing/images/og/generated/
+
+.elixir_ls/
