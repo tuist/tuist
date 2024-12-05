@@ -98,7 +98,7 @@
           "text": "예제"
         },
         "migrations": {
-          "text": "이관",
+          "text": "Migrations",
           "items": {
             "from-v3-to-v4": {
               "text": "버전 3에서 버전 4로"
@@ -136,7 +136,7 @@
               "text": "왜 서버가 필요한가?"
             },
             "accounts-and-projects": {
-              "text": "계정들과 프로젝트들"
+              "text": "계정과 프로젝트"
             },
             "authentication": {
               "text": "인증"
@@ -172,7 +172,7 @@
       "text": "안내서",
       "items": {
         "quick-start": {
-          "text": "시작하기",
+          "text": "Quick start",
           "items": {
             "install-tuist": {
               "text": "Install Tuist"
@@ -186,38 +186,38 @@
           }
         },
         "start": {
-          "text": "시작",
+          "text": "Start",
           "items": {
             "new-project": {
               "text": "Create a new project"
             },
             "swift-package": {
-              "text": "Swift Package 사용"
+              "text": "Try with a Swift Package"
             },
             "migrate": {
-              "text": "이관",
+              "text": "Migrate",
               "items": {
                 "xcode-project": {
-                  "text": "Xcode 프로젝트"
+                  "text": "An Xcode project"
                 },
                 "swift-package": {
-                  "text": "Swift 패키지"
+                  "text": "A Swift package"
                 },
                 "xcodegen-project": {
-                  "text": "XcodeGen 프로젝트"
+                  "text": "An XcodeGen project"
                 },
                 "bazel-project": {
-                  "text": "Bazel 프로젝트"
+                  "text": "A Bazel project"
                 }
               }
             }
           }
         },
         "develop": {
-          "text": "개발",
+          "text": "Develop",
           "items": {
             "projects": {
-              "text": "프로젝트들",
+              "text": "Projects",
               "items": {
                 "manifests": {
                   "text": "Manifests"
@@ -253,7 +253,7 @@
                   "text": "The cost of convenience"
                 },
                 "tma-architecture": {
-                  "text": "모듈화 설계"
+                  "text": "Modular architecture"
                 },
                 "best-practices": {
                   "text": "Best practices"
@@ -261,7 +261,7 @@
               }
             },
             "build": {
-              "text": "빌드",
+              "text": "Build",
               "items": {
                 "cache": {
                   "text": "Cache"
@@ -269,7 +269,7 @@
               }
             },
             "test": {
-              "text": "테스트",
+              "text": "Test",
               "items": {
                 "smart-runner": {
                   "text": "Smart runner"
@@ -280,7 +280,7 @@
               }
             },
             "inspect": {
-              "text": "속성",
+              "text": "Inspect",
               "items": {
                 "implicit-imports": {
                   "text": "Implicit imports"
@@ -288,10 +288,10 @@
               }
             },
             "automate": {
-              "text": "자동화",
+              "text": "Automate",
               "items": {
                 "continuous-integration": {
-                  "text": "지속 통합"
+                  "text": "Continuous integration"
                 },
                 "workflows": {
                   "text": "Workflows"
@@ -301,10 +301,10 @@
           }
         },
         "share": {
-          "text": "공유",
+          "text": "Share",
           "items": {
             "previews": {
-              "text": "미리보기"
+              "text": "Previews"
             }
           }
         }
