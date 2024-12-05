@@ -2,7 +2,7 @@
   <div>
     <a href="https://tuist.io" target="_blank"><img src="assets/header.jpg" alt="header"/></a>
   </div>
-  <img src="https://github.com/tuist/tuist/workflows/Tuist/badge.svg" alt="CI status">
+  <img src="https://api.codemagic.io/apps/65ca555c190cfbe9f5dd792f/unit_tests/status_badge.svg" alt="CI status">
   <img src="https://img.shields.io/github/commit-activity/w/tuist/tuist?style=flat-square&label=commits" alt="Commit Activity">
   <a href="https://twitter.com/tuistio"><img src="https://img.shields.io/badge/tuist-gray.svg?logo=x" alt="Twitter Followers"></a>
   <a href="https://join.slack.com/t/tuistapp/shared_invite/zt-1lqw355mp-zElRwLeoZ2EQsgGEkyaFgg"><img src="https://img.shields.io/badge/tuist-gray.svg?logo=slack" alt="Slack Workspace"></a>
@@ -45,6 +45,14 @@ You can check out [the project documentation](https://docs.tuist.io).
 ### 🔬 Sample projects
 
 You can find some sample projects in the [fixtures folder](fixtures) or the [awesome Tuist repo](https://github.com/tuist/awesome-tuist)! 🎉
+
+## ✅ CI Sponsor
+
+<a href="https://www.codemagic.io?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&utm_term=tuist" target="_blank">
+  <img width="140" src="assets/companies/codemagic.svg" alt="codemagic_logo"/>
+</a>
+
+[Codemagic](https://codemagic.io), a CI/CD tool for building world-class mobile apps, supports the development of Tuist by providing fast and reliable CI environments.
 
 ## 💰 Sponsors
 
@@ -110,14 +118,6 @@ The financial sustainability of the project is possible thanks to the ongoing co
         </a>
       </td>
       <td><a href="https://www.emergetools.com">Emerge Tools</a> is a suite of revolutionary products designed to supercharge mobile apps and the teams that build them.</td>
-    </tr>
-    <tr>
-      <td width="30%" align="center">
-        <a href="https://www.codemagic.io?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&utm_term=tuist" target="_blank">
-          <img width="140" src="assets/companies/codemagic.svg" alt="codemagic_logo"/>
-        </a>
-      </td>
-      <td><a href="https://codemagic.io">Codemagic</a> is a CI/CD tool for building world-class mobile apps.</td>
     </tr>
   </tbody>
 </table>
