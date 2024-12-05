@@ -1040,6 +1040,56 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         // Then
         XCTAssertBetterEqual(got, multiplatformFrameworkTargetEssentialDebugSettings)
     }
+
+    func testTargetSettings_whenDebug_iOSWithCatalyst() async throws {
+        // Given
+        let buildConfiguration: BuildConfiguration = .debug
+        let project = Project.test()
+        let target = Target.test(destinations: [.iPad, .macCatalyst], product: .app)
+        let graph = Graph.test(path: project.path)
+
+        given(xcodeController)
+            .selectedVersion()
+            .willReturn(Version(15, 0, 0))
+
+        // When
+        let got = try await subject.targetSettings(
+            target: target,
+            project: project,
+            buildConfiguration: buildConfiguration,
+            graphTraverser: GraphTraverser(graph: graph)
+        )
+
+        // Then
+        XCTAssertSettings(got, containsAll: [
+            "CODE_SIGN_IDENTITY[sdk=macosx*]": "-",
+        ])
+    }
+
+    func testTargetSettings_whenRelease_iOSUnitTestWithCatalyst() async throws {
+        // Given
+        let buildConfiguration: BuildConfiguration = .release
+        let project = Project.test()
+        let target = Target.test(destinations: [.iPad, .macCatalyst], product: .unitTests)
+        let graph = Graph.test(path: project.path)
+
+        given(xcodeController)
+            .selectedVersion()
+            .willReturn(Version(15, 0, 0))
+
+        // When
+        let got = try await subject.targetSettings(
+            target: target,
+            project: project,
+            buildConfiguration: buildConfiguration,
+            graphTraverser: GraphTraverser(graph: graph)
+        )
+
+        // Then
+        XCTAssertSettings(got, containsAll: [
+            "CODE_SIGN_IDENTITY[sdk=macosx*]": "-",
+        ])
+    }
 }
 
 final class DefaultSettingsProvider_MacosTests: TuistUnitTestCase {

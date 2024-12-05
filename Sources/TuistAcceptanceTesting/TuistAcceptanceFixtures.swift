@@ -71,6 +71,7 @@ public enum TuistAcceptanceFixtures {
     case iosAppWithXcframeworks
     case iosWorkspaceWithDependencyCycle
     case iosWorkspaceWithMicrofeatureArchitecture
+    case iosAppWithCatalyst
     case macosAppWithCopyFiles
     case macosAppWithExtensions
     case manifestWithLogs
@@ -234,6 +235,8 @@ public enum TuistAcceptanceFixtures {
             return "ios_workspace_with_dependency_cycle"
         case .iosWorkspaceWithMicrofeatureArchitecture:
             return "ios_workspace_with_microfeature_architecture"
+        case .iosAppWithCatalyst:
+            return "ios_app_with_catalyst"
         case .macosAppWithCopyFiles:
             return "macos_app_with_copy_files"
         case .macosAppWithExtensions:

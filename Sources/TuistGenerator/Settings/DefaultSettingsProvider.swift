@@ -158,6 +158,10 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
             )
         }
 
+        if target.supportsCatalyst {
+            settings.overlay(with: ["CODE_SIGN_IDENTITY": "-"], for: .macOS)
+        }
+
         return settings
     }
 
