@@ -174,7 +174,11 @@ defmodule TuistWeb.Marketing.MarketingLayoutComponents do
         <%= render_slot(@inner_block) %>
       </a>
     <% else %>
-      <button {@rest} class={"marketing__component__primary__button #{@font_class}"} data-size={@size}>
+      <button
+        {@rest}
+        class={"marketing__component__primary__button #{@font_class} #{@class}"}
+        data-size={@size}
+      >
         <%= render_slot(@inner_block) %>
       </button>
     <% end %>

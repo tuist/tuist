@@ -93,5 +93,34 @@
     <TuistWeb.Marketing.MarketingLayoutComponents.header current_path={@current_path} {assigns} />
     <%= @inner_content %>
     <TuistWeb.Marketing.MarketingLayoutComponents.footer />
+
+    <div class="marketing__component__cookies" id="cookies-banner" phx-hook="CookiesBanner">
+      <div class="marketing__component__cookies__logo">
+        🍪
+      </div>
+      <div class="marketing__component__cookies__content">
+        <div class="marketing__component__cookies__content__body" src="">
+          <p class="marketing__component__cookies__content__body__title">
+            <%= gettext("We use cookies") %>
+          </p>
+          <p class="marketing__component__cookies__content__body__description">
+            <%= raw(
+              gettext(
+                "This site uses cookies. By continuing to use our site, you agree to %{use_of_cookies}.",
+                use_of_cookies: "<a href=\"#{~p"/cookies"}\">#{gettext("use of cookies")}</a>"
+              )
+            ) %>
+          </p>
+        </div>
+
+        <TuistWeb.Marketing.MarketingLayoutComponents.primary_button
+          size="medium"
+          class="marketing__component__cookies__content__button"
+          phx-click={JS.dispatch("accept-cookies")}
+        >
+          <%= gettext("Accept") %>
+        </TuistWeb.Marketing.MarketingLayoutComponents.primary_button>
+      </div>
+    </div>
   </body>
 </html>

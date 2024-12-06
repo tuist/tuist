@@ -1,4 +1,5 @@
 @import "./components/termynal.css";
+@import "./components/cookie.css";
 
 .marketing__component__link {
   text-decoration: none;
@@ -43,6 +44,14 @@
 }
 
 .marketing__component__primary__button {
+  /* Reset */
+  appearance: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  background: none;
+  color: inherit;
+
   white-space: nowrap;
   text-decoration: none;
   background: var(--violet);
