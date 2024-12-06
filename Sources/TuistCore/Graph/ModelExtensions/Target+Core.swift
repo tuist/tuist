@@ -142,4 +142,12 @@ extension Target {
 
         return Array(sourceFiles.values)
     }
+
+    public var bundlesResources: Bool {
+        supportsResources || product == .staticFramework && containsResources
+    }
+
+    public var containsResources: Bool {
+        !resources.resources.isEmpty || !coreDataModels.isEmpty
+    }
 }
