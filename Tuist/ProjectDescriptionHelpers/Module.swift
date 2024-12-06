@@ -6,6 +6,7 @@ public enum Module: String, CaseIterable {
     case tuistBenchmark = "tuistbenchmark"
     case tuistFixtureGenerator = "tuistfixturegenerator"
     case projectDescription = "ProjectDescription"
+    case projectWorkflows = "ProjectWorkflows"
     case projectAutomation = "ProjectAutomation"
     case acceptanceTesting = "TuistAcceptanceTesting"
     case support = "TuistSupport"
@@ -132,7 +133,7 @@ public enum Module: String, CaseIterable {
         switch self {
         case .tuist, .tuistBenchmark, .tuistFixtureGenerator, .kit, .projectAutomation,
              .projectDescription, .analytics,
-             .dependencies, .acceptanceTesting, .server, .hasher, .cache, .scaffold:
+             .dependencies, .acceptanceTesting, .server, .hasher, .cache, .scaffold, .projectWorkflows:
             return nil
         default:
             return "\(rawValue)Testing"
@@ -143,7 +144,7 @@ public enum Module: String, CaseIterable {
         switch self {
         case .analytics, .tuist, .tuistBenchmark, .tuistFixtureGenerator, .projectAutomation,
              .projectDescription,
-             .acceptanceTesting:
+             .acceptanceTesting, .projectWorkflows:
             return nil
         default:
             return "\(rawValue)Tests"
@@ -155,7 +156,7 @@ public enum Module: String, CaseIterable {
         case .tuist, .tuistBenchmark, .tuistFixtureGenerator, .projectAutomation,
              .projectDescription,
              .asyncQueue,
-             .plugin, .analytics, .dependencies, .acceptanceTesting, .server, .hasher:
+             .plugin, .analytics, .dependencies, .acceptanceTesting, .server, .hasher, .projectWorkflows:
             return nil
         default:
             return "\(rawValue)IntegrationTests"
@@ -429,8 +430,10 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.hasher.targetName),
                     .external(name: "XcodeGraph"),
                 ]
+            case .projectWorkflows:
+                []
             }
-        if self != .projectDescription, self != .projectAutomation {
+        if self != .projectDescription, self != .projectAutomation, self != .projectWorkflows {
             dependencies.append(contentsOf: sharedDependencies)
         }
         return dependencies
@@ -452,6 +455,8 @@ public enum Module: String, CaseIterable {
                     .external(name: "SwiftToolsSupport"),
                     .external(name: "FileSystem"),
                 ]
+            case .projectWorkflows:
+                []
             case .projectDescription:
                 [
                     .target(name: Module.support.testingTargetName!),
@@ -625,7 +630,7 @@ public enum Module: String, CaseIterable {
             switch self {
             case .tuist, .projectAutomation, .projectDescription, .acceptanceTesting, .hasher,
                  .analytics,
-                 .migration, .tuistFixtureGenerator, .cache, .scaffold:
+                 .migration, .tuistFixtureGenerator, .cache, .scaffold, .projectWorkflows:
                 []
             case .server:
                 [
@@ -701,7 +706,7 @@ public enum Module: String, CaseIterable {
             switch self {
             case .tuistBenchmark, .tuistFixtureGenerator, .support, .projectAutomation,
                  .projectDescription, .acceptanceTesting,
-                 .asyncQueue, .plugin, .analytics, .dependencies, .server, .hasher:
+                 .asyncQueue, .plugin, .analytics, .dependencies, .server, .hasher, .projectWorkflows:
                 []
             case .cache:
                 [
