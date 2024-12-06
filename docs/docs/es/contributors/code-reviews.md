@@ -6,20 +6,20 @@ description: Learn how to contribute to Tuist by reviewing code
 
 # Code reviews {#code-reviews}
 
-Reviewing pull requests is a common type of contribution. Despite continuous integration (CI) ensuring the code does what’s supposed to do, it’s not enough. There are contribution traits that can’t be automated: design, code structure & architecture, tests quality, or typos. The following sections represent different aspects of the code review process.
+La revisión de PRs es una forma típica de contribuir con el proyecto. A pesar de la integración continua (CI) validando que el código hace lo que se supone que tiene que hacer, no es suficiente. Hay rasgos de contribución que no se pueden automatizar: diseño, estructura de código y arquitectura, calidad de las pruebas, o errores tipográficos. Las siguientes secciones representan diferentes aspectos del proceso de revisión de código.
 
-## Readability {#readability}
+## Legibilidad {#readability}
 
-Does the code express its intention clearly? **If you need to spend a bunch of time figuring out what the code does, the code implementation needs to be improved.** Suggest splitting the code into smaller abstractions that are easier to understand. Alternative, and as a last resource, they can add a comment explaining the reasoning behind it. Ask yourself if you’d be able to understand the code in a near future, without any surrounding context like the pull request description.
+¿Expresa el código claramente su intención? **Si necesitas dedicar un montón de tiempo a averiguar lo que hace el código, es necesario mejorar la implementación de código.** Sugiere dividir el código en abstracciones más pequeñas que son más fáciles de entender. De forma alternativa y como último recurso, pueden añadir un comentario explicando el razonamiento detrás de él. Pregúntate si serías capaz de entender el código en un futuro próximo, sin ningún contexto circundante como la descripción del pull request.
 
 ## Small pull requests {#small-pull-requests}
 
-Large pull requests are hard to review and it’s easier to miss out details. If a pull request becomes too large and unmanageable, suggest the author to break it down.
+PRs grandes son difíciles de revisar y es más probable que se escapen detalles. Si un PR acaba siendo muy grande e inmanejable, sugiere al autor que lo divida en PRs más pequeños.
 
-> [!NOTE] EXCEPTIONS
-> There are few scenarios where splitting up the pull request is not possible, like when the changes are tightly coupled and can’t be split. In those cases, the author should provide a clear explanation of the changes and the reasoning behind them.
+> [!NOTE] EXCEPCIONES
+> Hay pocos escenarios donde no es posible dividir el PR, como cuando los cambios están fuertemente acoplados y no pueden ser divididos. En esos casos, el autor debe dar una explicación clara de los cambios y del razonamiento que se esconden detrás de ellos.
 
-## Consistency {#consistency}
+## Consistencia {#consistency}
 
 It’s important that the changes are consistent with the rest of the project. Inconsistencies complicate maintenance, and therefore we should avoid them. If there’s an approach to output messages to the user, or report errors, we should stick to that. If the author disagrees with the project’s standards, suggest them to open an issue where we can discuss them further.
 
