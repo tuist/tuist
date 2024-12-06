@@ -29,8 +29,6 @@ let tuist = Tuist()
 ```js [Project.swift]
 import ProjectDescription
 
-import ProjectDescription
-
 let project = Project(
     name: "MyApp-Tuist",
     targets: [
@@ -99,7 +97,7 @@ let project = Project(
     name: "MyApp",
     settings: .settings(configurations: [
         .debug(name: "Debug", xcconfig: "./xcconfigs/MyApp-Project.xcconfig"), // [!code ++]
-        .debug(name: "Release", xcconfig: "./xcconfigs/MyApp-Project.xcconfig"), // [!code ++]
+        .release(name: "Release", xcconfig: "./xcconfigs/MyApp-Project.xcconfig"), // [!code ++]
     ]),
     targets: [
         /** Targets will go here **/
