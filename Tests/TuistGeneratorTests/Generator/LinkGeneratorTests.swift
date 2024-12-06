@@ -1213,56 +1213,6 @@ final class LinkGeneratorTests: XCTestCase {
         ])
     }
 
-    func test_generateCopyExecutablesBuildPhase() throws {
-        // Given
-        let mainApp = Target.test(name: "App", product: .app)
-        let localExecutable = Target.test(name: "LocalExecutable", product: .app)
-        let nonLocalExecutable = Target.test(name: "NonLocalExecutable", product: .app)
-        let mainProject = Project.test(path: "/mainProject", targets: [mainApp, localExecutable])
-        let otherProject = Project.test(path: "/otherProject", targets: [nonLocalExecutable])
-
-        let appDependency = GraphDependency.target(name: mainApp.name, path: mainProject.path)
-        let localExecutableDependencyTarget = GraphDependency.target(name: localExecutable.name, path: mainProject.path)
-        let nonLocalExecutableDependencyTarget = GraphDependency.target(name: nonLocalExecutable.name, path: otherProject.path)
-
-        let dependencies: [GraphDependency: Set<GraphDependency>] = [
-            appDependency: Set([localExecutableDependencyTarget, nonLocalExecutableDependencyTarget]),
-        ]
-
-        // Given: Value Graph
-        let graph = Graph.test(
-            path: mainProject.path,
-            projects: [mainProject.path: mainProject, otherProject.path: otherProject],
-            dependencies: dependencies
-        )
-        let graphTraverser = GraphTraverser(graph: graph)
-        let fileElements = createProjectFileElements(for: [nonLocalExecutable])
-        let xcodeProjElements = createXcodeprojElements()
-
-        // When
-        try subject.generateCopyExecutablesBuildPhase(
-            path: mainProject.path,
-            target: mainApp,
-            graphTraverser: graphTraverser,
-            pbxTarget: xcodeProjElements.pbxTarget,
-            pbxproj: xcodeProjElements.pbxproj,
-            fileElements: fileElements
-        )
-
-        // Then
-        let copyExecutablePhase = xcodeProjElements
-            .pbxTarget
-            .buildPhases
-            .compactMap { $0 as? PBXCopyFilesBuildPhase }
-            .first(where: { $0.name() == "Executable Dependencies" })
-        XCTAssertEqual(copyExecutablePhase?.dstSubfolderSpec, .executables)
-
-        let buildFiles = copyExecutablePhase?.files?.compactMap { $0.file?.path }
-        XCTAssertEqual(buildFiles, [
-            nonLocalExecutable.productNameWithExtension,
-        ])
-    }
-
     // MARK: - Helpers
 
     struct XcodeprojElements {

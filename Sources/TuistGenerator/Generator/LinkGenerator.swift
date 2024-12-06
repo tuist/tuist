@@ -121,15 +121,6 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
             pbxproj: pbxproj,
             fileElements: fileElements
         )
-
-        try generateCopyExecutablesBuildPhase(
-            path: path,
-            target: target,
-            graphTraverser: graphTraverser,
-            pbxTarget: pbxTarget,
-            pbxproj: pbxproj,
-            fileElements: fileElements
-        )
     }
 
     private func setupSearchAndIncludePaths(
@@ -519,27 +510,6 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
             pbxTarget: pbxTarget,
             pbxproj: pbxproj,
             target: target,
-            fileElements: fileElements
-        )
-    }
-
-    func generateCopyExecutablesBuildPhase(
-        path: AbsolutePath,
-        target: Target,
-        graphTraverser: GraphTraversing,
-        pbxTarget: PBXTarget,
-        pbxproj: PBXProj,
-        fileElements: ProjectFileElements
-    ) throws {
-        let dependencies = graphTraverser.executableDependencies(path: path, name: target.name).sorted()
-
-        try generateDependenciesBuildPhase(
-            dependencies: dependencies,
-            dstSubfolderSpec: .executables,
-            buildPhaseName: "Executable Dependencies",
-            target: target,
-            pbxTarget: pbxTarget,
-            pbxproj: pbxproj,
             fileElements: fileElements
         )
     }
