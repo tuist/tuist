@@ -4445,9 +4445,9 @@ internal struct Client: APIProtocol {
             }
         )
     }
-    /// Downloads a preview.
+    /// Returns a preview with a given id.
     ///
-    /// This endpoint returns a signed URL that can be used to download a preview.
+    /// This endpoint returns a preview with a given id, including the url to download the preview.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/previews/{preview_id}`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/get(downloadPreview)`.
@@ -4489,7 +4489,7 @@ internal struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas.ArtifactDownloadURL.self,
+                            Components.Schemas.Preview.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)

@@ -14,7 +14,6 @@ enum RunServiceError: FatalError, Equatable {
     case schemeWithoutRunnableTarget(scheme: String)
     case invalidVersion(String)
     case workspaceNotFound(path: String)
-    case invalidDownloadBuildURL(String)
     case invalidPreviewURL(String)
     case appNotFound(String)
     case missingFullHandle(displayName: String, specifier: String)
@@ -30,8 +29,6 @@ enum RunServiceError: FatalError, Equatable {
             return "The version \(version) is not a valid version specifier."
         case let .workspaceNotFound(path):
             return "Workspace not found expected xcworkspace at \(path)"
-        case let .invalidDownloadBuildURL(downloadBuildURL):
-            return "The download build URL \(downloadBuildURL) is invalid."
         case let .invalidPreviewURL(previewURL):
             return "The preview URL \(previewURL) is invalid."
         case let .appNotFound(url):
@@ -53,7 +50,7 @@ enum RunServiceError: FatalError, Equatable {
              .missingFullHandle,
              .previewNotFound:
             return .abort
-        case .workspaceNotFound, .invalidDownloadBuildURL:
+        case .workspaceNotFound:
             return .bug
         }
     }
@@ -65,7 +62,7 @@ final class RunService {
     private let targetBuilder: TargetBuilding
     private let targetRunner: TargetRunning
     private let configLoader: ConfigLoading
-    private let downloadPreviewService: DownloadPreviewServicing
+    private let getPreviewService: GetPreviewServicing
     private let listPreviewsService: ListPreviewsServicing
     private let fileHandler: FileHandling
     private let fileSystem: FileSysteming
@@ -81,7 +78,7 @@ final class RunService {
             targetBuilder: TargetBuilder(),
             targetRunner: TargetRunner(),
             configLoader: ConfigLoader(manifestLoader: ManifestLoader(), warningController: WarningController.shared),
-            downloadPreviewService: DownloadPreviewService(),
+            getPreviewService: GetPreviewService(),
             listPreviewsService: ListPreviewsService(),
             fileHandler: FileHandler.shared,
             fileSystem: FileSystem(),
@@ -98,7 +95,7 @@ final class RunService {
         targetBuilder: TargetBuilding,
         targetRunner: TargetRunning,
         configLoader: ConfigLoading,
-        downloadPreviewService: DownloadPreviewServicing,
+        getPreviewService: GetPreviewServicing,
         listPreviewsService: ListPreviewsServicing,
         fileHandler: FileHandling,
         fileSystem: FileSystem,
@@ -112,7 +109,7 @@ final class RunService {
         self.targetBuilder = targetBuilder
         self.targetRunner = targetRunner
         self.configLoader = configLoader
-        self.downloadPreviewService = downloadPreviewService
+        self.getPreviewService = getPreviewService
         self.listPreviewsService = listPreviewsService
         self.fileHandler = fileHandler
         self.fileSystem = fileSystem
@@ -212,16 +209,13 @@ final class RunService {
               previewLink.pathComponents.count > 4 // We expect at least four path components
         else { throw RunServiceError.invalidPreviewURL(previewLink.absoluteString) }
 
-        let downloadURLString = try await downloadPreviewService.downloadPreview(
+        let preview = try await getPreviewService.getPreview(
             previewLink.lastPathComponent,
             fullHandle: "\(previewLink.pathComponents[1])/\(previewLink.pathComponents[2])",
             serverURL: serverURL
         )
 
-        guard let downloadURL = URL(string: downloadURLString)
-        else { throw RunServiceError.invalidDownloadBuildURL(downloadURLString) }
-
-        guard let archivePath = try await remoteArtifactDownloader.download(url: downloadURL)
+        guard let archivePath = try await remoteArtifactDownloader.download(url: preview.url)
         else { throw RunServiceError.appNotFound(previewLink.absoluteString) }
 
         let unarchivedDirectory = try fileArchiverFactory.makeFileUnarchiver(for: archivePath).unzip()

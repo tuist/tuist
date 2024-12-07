@@ -395,6 +395,12 @@ components:
         display_name:
           description: The display name of the preview
           type: string
+        git_branch:
+          description: The git branch associated with the preview
+          type: string
+        git_commit_sha:
+          description: The git commit SHA associated with the preview
+          type: string
         icon_url:
           description: The URL for the icon image of the preview
           type: string
@@ -497,21 +503,6 @@ components:
           type: array
       title: AbsentCacheArtifact
       type: object
-    ArtifactDownloadURL:
-      description: The URL to download an artifact.
-      properties:
-        expires_at:
-          description: The UNIX timestamp when the URL expires.
-          type: integer
-        url:
-          description: The URL to download the artifact.
-          type: string
-      required:
-        - url
-        - expires_at
-      title: ArtifactDownloadURL
-      type: object
-      x-struct: Elixir.TuistWeb.API.Schemas.ArtifactDownloadURL
     Error:
       properties:
         message:
@@ -2517,7 +2508,7 @@ paths:
   /api/projects/{account_handle}/{project_handle}/previews/{preview_id}:
     get:
       callbacks: {}
-      description: This endpoint returns a signed URL that can be used to download a preview.
+      description: This endpoint returns a preview with a given id, including the url to download the preview.
       operationId: downloadPreview
       parameters:
         - description: The handle of the account.
@@ -2543,7 +2534,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ArtifactDownloadURL'
+                $ref: '#/components/schemas/Preview'
           description: The preview exists and can be downloaded
         401:
           content:
@@ -2562,8 +2553,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: The build doesn't exist
-      summary: Downloads a preview.
+          description: The preview does not exist
+      summary: Returns a preview with a given id.
       tags:
         - Previews
   /api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons:

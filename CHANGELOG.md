@@ -1,5 +1,15 @@
 # Changelog
 
+## 4.36.0 - 2024-11-27
+
+### CLI
+
+- no changes
+
+### CLI (Server features)
+
+- no changes
+
 ## 4.35.0 - 2024-11-21
 
 ### CLI

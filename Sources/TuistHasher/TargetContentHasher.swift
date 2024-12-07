@@ -96,9 +96,24 @@ public final class TargetContentHasher: TargetContentHashing {
         case let .external(hash: hash): hash
         case .local: nil
         }
+        let settingsHash: String?
+        if let settings = graphTarget.target.settings {
+            settingsHash = try await settingsContentHasher.hash(settings: settings)
+        } else {
+            settingsHash = nil
+        }
+
+        let destinations = graphTarget.target.destinations.map(\.rawValue).sorted()
+
         if let projectHash {
             return TargetContentHash(
-                hash: try contentHasher.hash([projectHash] + additionalStrings),
+                hash: try contentHasher.hash(
+                    [
+                        projectHash,
+                        graphTarget.target.product.rawValue,
+                        settingsHash,
+                    ].compactMap { $0 } + destinations + additionalStrings
+                ),
                 hashedPaths: [:]
             )
         }
@@ -132,7 +147,7 @@ public final class TargetContentHasher: TargetContentHashing {
             coreDataModelHash,
             targetScriptsHash,
             environmentHash,
-        ]
+        ] + destinations
 
         stringsToHash.append(contentsOf: graphTarget.target.destinations.map(\.rawValue).sorted())
 
@@ -152,11 +167,10 @@ public final class TargetContentHasher: TargetContentHashing {
             let entitlementsHash = try await plistContentHasher.hash(plist: .entitlements(entitlements))
             stringsToHash.append(entitlementsHash)
         }
-        if let settings = graphTarget.target.settings {
-            let settingsHash = try await settingsContentHasher.hash(settings: settings)
+
+        if let settingsHash {
             stringsToHash.append(settingsHash)
         }
-        stringsToHash += additionalStrings
 
         return TargetContentHash(
             hash: try contentHasher.hash(stringsToHash),

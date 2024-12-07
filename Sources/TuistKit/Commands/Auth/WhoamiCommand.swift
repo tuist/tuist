@@ -2,11 +2,12 @@ import ArgumentParser
 import Foundation
 import Path
 
-struct LogoutCommand: AsyncParsableCommand {
+struct WhoamiCommand: AsyncParsableCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(
-            commandName: "logout",
-            abstract: "Removes an existing Tuist session."
+            commandName: "whoami",
+            _superCommandName: "auth",
+            abstract: "Display the user's email identity currently authenticated and in use."
         )
     }
 
@@ -14,12 +15,12 @@ struct LogoutCommand: AsyncParsableCommand {
         name: .shortAndLong,
         help: "The path to the directory or a subdirectory of the project.",
         completion: .directory,
-        envKey: .logoutPath
+        envKey: .whoamiPath
     )
     var path: String?
 
     func run() async throws {
-        try await LogoutService().logout(
+        try await WhoamiService().run(
             directory: path
         )
     }

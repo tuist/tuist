@@ -69,7 +69,9 @@ tuist run App@00dde7f56b1b8795a26b8085a781fb3715e834be # 특정 Git 커밋 SHA�
     <img src="/images/guides/share/menu-bar-app.png" style="width: 300px;" />
 </div>
 
-Tuist Previews를 더욱 쉽게 실행할 수 있도록, 우리는 Tuist macOS menu bar 앱을 개발했습니다. Tuist CLI를 통해 Previews를 실행하는 대신, macOS 앱을 [다운로드](https://cloud.tuist.io/download)하여 사용할 수 있습니다. 브라우저에서 Preview 링크를 열면, 앱이 현재 선택된 디바이스에서 자동으로 실행됩니다.
+Tuist Previews를 더욱 쉽게 실행할 수 있도록, 우리는 Tuist macOS menu bar 앱을 개발했습니다. Tuist CLI를 통해 Preview를 실행하는 대신, macOS 앱을 [다운로드](https://tuist.dev/download)하여 사용할 수 있습니다. `brew install --cask tuist/tuist/tuist` 명령어를 실행하여 설치할 수도 있습니다.
+
+Preview 페이지에서 "Run"을 클릭하면, macOS 앱이 현재 선택된 디바이스에서 자동으로 실행됩니다
 
 > [!IMPORTANT] 요구 사항
 > Previews를 다운로드하려면, 먼저 `tuist auth` 명령어를 사용해 인증해야 합니다.
@@ -86,6 +88,18 @@ Tuist Previews를 더욱 쉽게 실행할 수 있도록, 우리는 Tuist macOS m
 
 [GitHub](https://github.com)와 같은 Git 플랫폼에 Tuist 프로젝트를 연결한 후, CI workflow에 <LocalizedLink href="/cli/share">`tuist share MyApp`</LocalizedLink>을 추가하세요. 이후 Tuist는 Pull request에 Preview 링크를 직접 게시합니다:
 ![GitHub app comment with a Tuist Preview link](/images/guides/share/github-app-with-preview.png)
+
+## README 배지 {#readme-badge}
+
+Tuist Previews를 repository에서 더 잘 보이게 하려면, `README` 파일에 최신 TUIST Preview를 가리키는 배지를 추가할 수 있습니다:
+
+[![Tuist Preview](https://tuist.dev/Dimillian/IcySky/previews/latest/badge.svg)](https://tuist.dev/Dimillian/IcySky/previews/latest)
+
+`README`에 배지를 추가하려면, 아래의 markdown을 사용하고 계정 및 프로젝트 핸들을 여러분의 것으로 교체하세요:
+
+```
+[![Tuist Preview](https://tuist.dev/{account-handle}/{project-handle}/previews/latest/badge.svg)](https://tuist.dev/{account-handle}/{project-handle}/previews/latest)
+```
 
 ## 자동화 {#automations}
 
