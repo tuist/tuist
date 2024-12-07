@@ -17,6 +17,7 @@ public enum TuistAcceptanceFixtures {
     case appWithRevenueCat
     case appWithSpmDependencies
     case appWithSpmModuleAliases
+    case appWithSpmXcframeworkDependency
     case appWithLocalSPMModuleWithRemoteDependencies
     case appWithTestPlan
     case appWithTests
@@ -126,6 +127,8 @@ public enum TuistAcceptanceFixtures {
             return "app_with_spm_dependencies"
         case .appWithSpmModuleAliases:
             return "app_with_spm_module_aliases"
+        case .appWithSpmXcframeworkDependency:
+            return "app_with_spm_xcframework_dependency"
         case .appWithLocalSPMModuleWithRemoteDependencies:
             return "app_with_local_spm_module_with_remote_dependencies"
         case .appWithTestPlan:
