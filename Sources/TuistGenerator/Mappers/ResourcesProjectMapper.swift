@@ -232,12 +232,50 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         #import <Foundation/Foundation.h>
         #import "TuistBundle+\(targetName).h"
 
+        @interface \(targetName)BundleFinder : NSObject
+        @end
+
+        @implementation \(targetName)BundleFinder
+        @end
+
         NSBundle* \(targetName)_SWIFTPM_MODULE_BUNDLE(void) {
-            NSURL *bundleURL = [[[NSBundle mainBundle] bundleURL] URLByAppendingPathComponent:@"\(bundleName).bundle"];
+            NSString *bundleName = @"\(bundleName)";
+            
+            NSURL *bundleURL = [[NSBundle bundleForClass:\(targetName)BundleFinder.self] resourceURL];
+            NSMutableArray *candidates = [NSMutableArray arrayWithObjects:
+                                          [[NSBundle mainBundle] resourceURL],
+                                          bundleURL,
+                                          [[NSBundle mainBundle] bundleURL],
+                                          nil];
+            
+            NSString* override = [[[NSProcessInfo processInfo] environment] objectForKey:@"PACKAGE_RESOURCE_BUNDLE_PATH"];
+            if (override) {
+                [candidates addObject:override];
+                
+                NSString *subpaths = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:override error:nil];
+                if (subpaths) {
+                    for (NSString *subpath in subpaths) {
+                        if ([subpath hasSuffix:@".framework"]) {
+                            [candidates addObject:[NSURL fileURLWithPath:[NSString stringWithFormat:@"%@/%@", override, subpath]]];
+                        }
+                    }
+                }
+            }
+            
+            #if __has_include(<XCTest/XCTest.h>)
+            [candidates addObject:[bundleURL URLByAppendingPathComponent:@".."]];
+            #endif
+            
+            for (NSURL *candidate in candidates) {
+                NSURL *bundlePath = [candidate URLByAppendingPathComponent:[NSString stringWithFormat:@"%@%@", bundleName, @".bundle"]];
+                NSBundle *bundle = [NSBundle bundleWithURL:bundlePath];
+                
+                if (bundle) {
+                    return bundle;
+                }
+            }
 
-            NSBundle *bundle = [NSBundle bundleWithURL:bundleURL];
-
-            return bundle;
+            [NSException raise:@"BundleNotFound" format:nil];
         }
         """
     }
