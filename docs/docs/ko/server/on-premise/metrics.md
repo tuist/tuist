@@ -56,7 +56,7 @@ Tuist Cache와 관련된 메트릭 모음입니다.
 
 ### `tuist_cache_events_total` (카운터) {#tuist_cache_events_total-counter}
 
-The total number of binary cache events.
+바이너리 캐시 이벤트의 총 개수.
 
 #### Tags {#tuist-cache-events-total-tags}
 
@@ -64,35 +64,35 @@ The total number of binary cache events.
 | ------------ | -------------------------------------- |
 | `event_type` | `local_hit`, `remote_hit`, `miss` 중 하나 |
 
-### `tuist_cache_uploads_total` (counter) {#tuist_cache_uploads_total-counter}
+### `tuist_cache_uploads_total` (카운터) {#tuist_cache_uploads_total-counter}
 
-The number of uploads to the binary cache.
+바이너리 캐시 업로드 개수.
 
-### `tuist_cache_uploaded_bytes` (sum) {#tuist_cache_uploaded_bytes-sum}
+### `tuist_cache_uploaded_bytes` (합) {#tuist_cache_uploaded_bytes-sum}
 
-The number of bytes uploaded to the binary cache.
+바이너리 캐시에 업로드된 바이트 수.
 
-### `tuist_cache_downloads_total` (counter) {#tuist_cache_downloads_total-counter}
+### `tuist_cache_downloads_total` (카운터) {#tuist_cache_downloads_total-counter}
 
-The number of downloads to the binary cache.
+바이너리 캐시에 다운로드 수.
 
-### `tuist_cache_downloaded_bytes` (sum) {#tuist_cache_downloaded_bytes-sum}
+### `tuist_cache_downloaded_bytes` (합) {#tuist_cache_downloaded_bytes-sum}
 
-The number of bytes downloaded from the binary cache.
+바이너리 캐시로 부터 다운로드된 바이트 수.
 
 ---
 
-## Previews metrics {#previews-metrics}
+## Preview 메트릭 {#previews-metrics}
 
-A set of metrics related to the previews feature.
+프리뷰 기능과 관련된 메트릭 모음입니다.
 
-### `tuist_previews_uploads_total` (sum) {#tuist_previews_uploads_total-counter}
+### `tuist_previews_uploads_total` (합) {#tuist_previews_uploads_total-counter}
 
-The total number of previews uploaded.
+업로드된 프리뷰의 수.
 
-### `tuist_previews_downloads_total` (sum) {#tuist_previews_downloads_total-counter}
+### `tuist_previews_downloads_total` (합) {#tuist_previews_downloads_total-counter}
 
-The total number of previews downloaded.
+다운로드된 프리뷰의 수.
 
 ---
 
@@ -281,24 +281,24 @@ remote storage로 업로드가 완료된 총 횟수.
 
 ---
 
-## Projects metrics {#projects-metrics}
+## 프로젝트 메트릭 {#projects-metrics}
 
-A set of metrics related to the projects.
+프로젝트와 관련된 메트릭 모음입니다.
 
 ### `tuist_projects_total` (last_value) {#tuist_projects_total-last_value}
 
-The total number of projects.
+프로젝트의 수.
 
 ---
 
-## Accounts metrics {#accounts-metrics}
+## 계정 메트릭 {#accounts-metrics}
 
-A set of metrics related to accounts (users and organizations).
+계정 (사용자와 조직) 과 관련된 메트릭 모음입니다.
 
 ### `tuist_accounts_organizations_total` (last_value) {#tuist_accounts_organizations_total-last_value}
 
-The total number of organizations.
+조직의 총 수.
 
 ### `tuist_accounts_users_total` (last_value) {#tuist_accounts_users_total-last_value}
 
-The total number of users.
+사용자의 총 수.
