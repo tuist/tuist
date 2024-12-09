@@ -571,6 +571,9 @@ Thanks goes to these wonderful people:
       <td align="center" valign="top" width="14.28%"><a href="https://medium.com/@dbstj169"><img src="https://avatars.githubusercontent.com/u/65678579?v=4" width="100px;" alt=""/><br /><sub><b>Yunseo Kang</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/ilia3546"><img src="https://avatars.githubusercontent.com/u/4445510?v=4" width="100px;" alt=""/><br /><sub><b>Ilya Kharlamov</b></sub></a></td>
     </tr>
+    <tr>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/brianvar"><img src="https://avatars.githubusercontent.com/u/115399684?v=4" width="100px;" alt=""/><br /><sub><b>brianvar</b></sub></a></td>
+    </tr>
   </tbody>
 </table>
 
