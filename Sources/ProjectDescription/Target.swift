@@ -1,5 +1,6 @@
 import Foundation
 
+
 /// A target of a project.
 public struct Target: Codable, Equatable, Sendable {
     /// The name of the target. Also, the product name if not specified with ``productName``.
@@ -72,6 +73,8 @@ public struct Target: Codable, Equatable, Sendable {
 
     /// The target's tags associated with on demand resources
     public var onDemandResourcesTags: OnDemandResourcesTags?
+    
+    public var metadata: TargetMetadata?
 
     public static func target(
         name: String,
@@ -96,7 +99,8 @@ public struct Target: Codable, Equatable, Sendable {
         buildRules: [BuildRule] = [],
         mergedBinaryType: MergedBinaryType = .disabled,
         mergeable: Bool = false,
-        onDemandResourcesTags: OnDemandResourcesTags? = nil
+        onDemandResourcesTags: OnDemandResourcesTags? = nil,
+        metadata: TargetMetadata? = nil
     ) -> Self {
         self.init(
             name: name,
@@ -121,7 +125,8 @@ public struct Target: Codable, Equatable, Sendable {
             buildRules: buildRules,
             mergedBinaryType: mergedBinaryType,
             mergeable: mergeable,
-            onDemandResourcesTags: onDemandResourcesTags
+            onDemandResourcesTags: onDemandResourcesTags,
+            metadata: metadata
         )
     }
 }
