@@ -17,6 +17,29 @@ env:
   MISE_EXPERIMENTAL: 1
 
 jobs:
+  check_locales_extraction:
+    name: Test
+    runs-on: "blacksmith-4vcpu-ubuntu-2204"
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+      - name: Restore Cache
+        uses: actions/cache@v3
+        id: mix-cache
+        with:
+          path: |
+            deps
+            _build
+            _site
+          key: mix-${{ hashFiles('mix.lock') }}
+      - name: Install dependencies
+        run: mix deps.get
+      - name: Check if extraction is needed
+        run: mix gettext.extract --check-up-to-date
+      - name: Print instruction if extraction validation fails
+        if: failure()
+        run: echo "Run 'mix gettext.extract --merge'"
   test:
     name: Test
     runs-on: "blacksmith-4vcpu-ubuntu-2204"
