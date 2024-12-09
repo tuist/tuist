@@ -239,6 +239,64 @@
   font: var(--font-xxs);
 }
 
+.marketing__pricing__paired_with {
+  display: flex;
+  flex-direction: column;
+  align-self: stretch;
+}
+
+.marketing__pricing__paired_with__title {
+  color: var(--dark-violet);
+  font: var(--font-xxl-strong);
+  margin: 0;
+}
+
+.marketing__pricing__paired_with__subtitle {
+  color: var(--dark-violet);
+  font: var(--font-l);
+  margin-top: var(--spacing-8);
+}
+
+.marketing__pricing__paired_with__companies {
+  display: flex;
+  flex-direction: row;
+  gap: var(--spacing-16);
+
+  @media (max-width: 1024px) {
+    flex-direction: column;
+  }
+}
+
+.marketing__pricing__paired_with__companies__company {
+  background: var(--light-gray-violet);
+  border-radius: var(--radius-l);
+  padding: var(--spacing-32);
+  text-decoration: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-24);
+  flex: 1;
+  &:hover {
+    background: var(--gray-violet);
+  }
+}
+
+.marketing__pricing__paired_with__companies__company__logo {
+  color: var(--dark-violet);
+}
+
+.marketing__pricing__paired_with__companies__company__name {
+  color: var(--dark-violet);
+  font: var(--font-xl-strong);
+  margin: 0;
+}
+
+.marketing__pricing__paired_with__companies__company__description {
+  color: var(--dark-violet);
+  font: var(--font-m);
+  margin: 0;
+}
+
 .marketing__pricing__features__header {
   display: flex;
   flex-direction: column;

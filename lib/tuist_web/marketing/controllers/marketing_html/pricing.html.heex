@@ -113,6 +113,61 @@
     </div>
   </div>
 
+  <section
+    class="marketing__pricing__paired_with"
+    id="frequently-paired-with"
+    aria-label="Frequently paired with"
+  >
+    <h2 class="marketing__pricing__paired_with__title">
+      <%= gettext("Frequently paired with") %>
+    </h2>
+
+    <p class="marketing__pricing__paired_with__subtitle">
+      <%= gettext("These are some products that pair well with Tuist") %>
+    </p>
+
+    <div class="marketing__pricing__paired_with__companies">
+      <.link
+        class="marketing__pricing__paired_with__companies__company"
+        href="https://codemagic.io//?utm_source=tuist_website&utm_medium=referral&utm_campaign=tuist_partnership"
+        target="__blank"
+      >
+        <TuistWeb.Marketing.MarketingLogos.codemagic_logo class="marketing__pricing__paired_with__companies__company__logo" />
+        <h3 class="marketing__pricing__paired_with__companies__company__name">Codemagic</h3>
+        <p class="marketing__pricing__paired_with__companies__company__description">
+          <%= gettext(
+            "One tool for all your mobile app builds. Test, build and release with ease."
+          ) %>
+        </p>
+      </.link>
+      <.link
+        class="marketing__pricing__paired_with__companies__company"
+        href="https://cirruslabs.org//?utm_source=tuist_website&utm_medium=referral&utm_campaign=tuist_partnership"
+        target="__blank"
+      >
+        <TuistWeb.Marketing.MarketingLogos.cirrus_labs_logo class="marketing__pricing__paired_with__companies__company__logo" />
+        <h3 class="marketing__pricing__paired_with__companies__company__name">CirrusLabs</h3>
+        <p class="marketing__pricing__paired_with__companies__company__description">
+          <%= gettext(
+            "A virtualization toolset to build, run and manage macOS and Linux virtual machines on Apple Silicon."
+          ) %>
+        </p>
+      </.link>
+      <.link
+        class="marketing__pricing__paired_with__companies__company"
+        href="https://appcircle.io/?utm_source=tuist_website&utm_medium=referral&utm_campaign=tuist_partnership"
+        target="__blank"
+      >
+        <TuistWeb.Marketing.MarketingLogos.app_circle_logo class="marketing__pricing__paired_with__companies__company__logo" />
+        <h3 class="marketing__pricing__paired_with__companies__company__name">AppCircle</h3>
+        <p class="marketing__pricing__paired_with__companies__company__description">
+          <%= gettext("Enterprise-Grade Fully Automated
+            Mobile DevOps Platform") %>
+        </p>
+      </.link>
+    </div>
+  </section>
+
   <div class="marketing__pricing__features__header">
     <h2 class="marketing__pricing__features__header__title" id="features-section">
       <%= gettext("Features") %>

@@ -818,7 +818,7 @@ msgstr ""
 msgid "Explore our documentation—your go-to guide for mastering all things."
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:163
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:218
 #, elixir-autogen, elixir-format
 msgid "FAQ"
 msgstr ""
@@ -844,7 +844,7 @@ msgid "Feature"
 msgstr ""
 
 #: lib/tuist_web/marketing/controllers/marketing_html.ex:101
-#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:118
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:173
 #, elixir-autogen, elixir-format
 msgid "Features"
 msgstr ""
@@ -2278,7 +2278,7 @@ msgstr ""
 msgid "Your new password must be different to previously used passwords."
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:121
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:176
 #, elixir-autogen, elixir-format
 msgid "You’re only charged for the features you use, based on your usage, and only after you exceed a free threshold. Have feedback on our model? Reach out at contact@tuist.io—we’d love to hear from you!"
 msgstr ""
@@ -2371,4 +2371,29 @@ msgstr ""
 #: lib/tuist_web/live/preview_live.html.heex:12
 #, elixir-autogen, elixir-format
 msgid " Version %{version}"
+msgstr ""
+
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:151
+#, elixir-autogen, elixir-format
+msgid "A virtualization toolset to build, run and manage macOS and Linux virtual machines on Apple Silicon."
+msgstr ""
+
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:164
+#, elixir-autogen, elixir-format
+msgid "Enterprise-Grade Fully Automated\n            Mobile DevOps Platform"
+msgstr ""
+
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:122
+#, elixir-autogen, elixir-format
+msgid "Frequently paired with"
+msgstr ""
+
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:138
+#, elixir-autogen, elixir-format
+msgid "One tool for all your mobile app builds. Test, build and release with ease."
+msgstr ""
+
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:126
+#, elixir-autogen, elixir-format
+msgid "These are some products that pair well with Tuist"
 msgstr ""
