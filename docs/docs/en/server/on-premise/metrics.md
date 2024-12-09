@@ -85,11 +85,11 @@ The number of bytes downloaded from the binary cache.
 
 A set of metrics related to the previews feature.
 
-### `tuist_cache_previews_uploads_total` (sum) {#tuist_previews_uploads_total-counter}
+### `tuist_previews_uploads_total` (sum) {#tuist_previews_uploads_total-counter}
 
 The total number of previews uploaded.
 
-### `tuist_cache_previews_downloads_total` (sum) {#tuist_previews_downloads_total-counter}
+### `tuist_previews_downloads_total` (sum) {#tuist_previews_downloads_total-counter}
 
 The total number of previews downloaded.
 
