@@ -11,7 +11,7 @@ Tuist 서버에서 수집한 메트릭을 [Prometheus](https://prometheus.io/)�
 
 ## Elixir 메트릭 {#elixir-metrics}
 
-기본적으로 Elixir 런타임, [BEAM](https://en.wikipedia.org/wiki/BEAM_\\\\\\(Erlang_virtual_machine\\\\\\)), Elixir, 그리고 사용하는 일부 라이브러리의 메트릭이 포함되어 있습니다. 다음은 확인할 수 있는 메트릭의 일부입니다:
+기본적으로 Elixir 런타임, [BEAM](https://en.wikipedia.org/wiki/BEAM_\\\\\\\(Erlang_virtual_machine\\\\\\\)), Elixir, 그리고 사용하는 일부 라이브러리의 메트릭이 포함되어 있습니다. 다음은 확인할 수 있는 메트릭의 일부입니다:
 
 - [Application](https://hexdocs.pm/prom_ex/PromEx.Plugins.Application.html)
 - [BEAM](https://hexdocs.pm/prom_ex/PromEx.Plugins.Beam.html)
@@ -56,13 +56,43 @@ Tuist Cache와 관련된 메트릭 모음입니다.
 
 ### `tuist_cache_events_total` (카운터) {#tuist_cache_events_total-counter}
 
-Tuist Binary Cache 이벤트의 총 개수.
+The total number of binary cache events.
 
 #### Tags {#tuist-cache-events-total-tags}
 
 | Tag          | Description                            |
 | ------------ | -------------------------------------- |
 | `event_type` | `local_hit`, `remote_hit`, `miss` 중 하나 |
+
+### `tuist_cache_uploads_total` (counter) {#tuist_cache_uploads_total-counter}
+
+The number of uploads to the binary cache.
+
+### `tuist_cache_uploaded_bytes` (sum) {#tuist_cache_uploaded_bytes-sum}
+
+The number of bytes uploaded to the binary cache.
+
+### `tuist_cache_downloads_total` (counter) {#tuist_cache_downloads_total-counter}
+
+The number of downloads to the binary cache.
+
+### `tuist_cache_downloaded_bytes` (sum) {#tuist_cache_downloaded_bytes-sum}
+
+The number of bytes downloaded from the binary cache.
+
+---
+
+## Previews metrics {#previews-metrics}
+
+A set of metrics related to the previews feature.
+
+### `tuist_previews_uploads_total` (sum) {#tuist_previews_uploads_total-counter}
+
+The total number of previews uploaded.
+
+### `tuist_previews_downloads_total` (sum) {#tuist_previews_downloads_total-counter}
+
+The total number of previews downloaded.
 
 ---
 
@@ -248,3 +278,27 @@ remote storage로 업로드가 완료된 총 횟수.
 | ------------ | ----------------------------- |
 | `object_key` | remote storage에서 object의 조회 키 |
 | `upload_id`  | multipart upload의 upload ID  |
+
+---
+
+## Projects metrics {#projects-metrics}
+
+A set of metrics related to the projects.
+
+### `tuist_projects_total` (last_value) {#tuist_projects_total-last_value}
+
+The total number of projects.
+
+---
+
+## Accounts metrics {#accounts-metrics}
+
+A set of metrics related to accounts (users and organizations).
+
+### `tuist_accounts_organizations_total` (last_value) {#tuist_accounts_organizations_total-last_value}
+
+The total number of organizations.
+
+### `tuist_accounts_users_total` (last_value) {#tuist_accounts_users_total-last_value}
+
+The total number of users.
