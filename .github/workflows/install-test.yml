@@ -17,5 +17,20 @@ jobs:
         env:
           MISE_HTTP_TIMEOUT: 300
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Restore cache
+        id: cache-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            .build
+          key: ${{ runner.os }}-${{ hashFiles('Package.resolved') }}
+          restore-keys: .build
       - name: Install Tuist dependencies
         run: swift package resolve
+      - name: Save cache
+        id: cache-save
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            .build
+          key: ${{ steps.cache-restore.outputs.cache-primary-key }}
