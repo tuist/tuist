@@ -16,17 +16,66 @@ defmodule Tuist.VCS do
     ["GitHub"]
   end
 
+  def get_repository_content(
+        %{
+          repository_full_handle: repository_full_handle,
+          provider: provider,
+          token: token
+        },
+        opts \\ []
+      ) do
+    client = get_client_for_provider(provider)
+
+    client.get_repository_content(
+      %{
+        repository_full_handle: repository_full_handle,
+        token: token
+      },
+      opts
+    )
+  end
+
+  def get_tags(%{provider: provider, repository_full_handle: repository_full_handle, token: token}) do
+    client = get_client_for_provider(provider)
+
+    client.get_tags(%{repository_full_handle: repository_full_handle, token: token})
+  end
+
+  def get_source_archive_by_tag_and_repository_full_handle(%{
+        provider: provider,
+        repository_full_handle: repository_full_handle,
+        tag: tag,
+        token: token
+      }) do
+    client = get_client_for_provider(provider)
+
+    client.get_source_archive_by_tag_and_repository_full_handle(%{
+      repository_full_handle: repository_full_handle,
+      tag: tag,
+      token: token
+    })
+  end
+
   def get_repository_from_repository_url(repository_url) do
+    case get_provider_from_repository_url(repository_url) do
+      {:ok, provider} ->
+        client = get_client_for_provider(provider)
+
+        get_repository_full_handle_from_url(repository_url)
+        |> client.get_repository()
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  def get_provider_from_repository_url(repository_url) do
     vcs_uri = repository_url |> URI.parse()
     host = vcs_uri |> Map.get(:host)
 
-    if host == "github.com" do
-      client = get_client_for_provider(:github)
-
-      get_repository_full_handle_from_url(repository_url)
-      |> client.get_repository()
-    else
-      {:error, :unsupported_vcs}
+    case host do
+      "github.com" -> {:ok, :github}
+      _ -> {:error, :unsupported_vcs}
     end
   end
 
@@ -72,7 +121,7 @@ defmodule Tuist.VCS do
     GitHub.Client
   end
 
-  defp get_repository_full_handle_from_url(repository_url) do
+  def get_repository_full_handle_from_url(repository_url) do
     Regex.replace(~r/^git@(.+):/, repository_url, "https://\\1/")
     |> URI.parse()
     |> Map.get(:path)

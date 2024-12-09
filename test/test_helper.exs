@@ -1,3 +1,4 @@
+Mimic.copy(Base)
 Mimic.copy(Bcrypt)
 Mimic.copy(ExAws)
 Mimic.copy(ExAws.Config)
@@ -34,6 +35,8 @@ Mimic.copy(Tuist.Slack)
 Mimic.copy(Tuist.Storage)
 Mimic.copy(Tuist.Time)
 Mimic.copy(Tuist.VCS)
+Mimic.copy(Tuist.Registry.Swift.Packages)
+Mimic.copy(Tuist.Zip)
 Mimic.copy(QRCode)
 Mimic.copy(UAParser)
 

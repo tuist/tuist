@@ -47,6 +47,10 @@ defmodule TuistWeb.Router do
     plug :accepts, ["json"]
   end
 
+  pipeline :api_registry_swift do
+    plug :accepts, ["swift-registry-v1-json", "swift-registry-v1-zip", "swift-registry-v1-api"]
+  end
+
   pipeline :authenticated_api do
     plug :accepts, ["json"]
 
@@ -207,6 +211,20 @@ defmodule TuistWeb.Router do
     put "/organizations/:organization_name/members/:user_name",
         OrganizationsController,
         :update_member
+  end
+
+  scope "/api", TuistWeb.API do
+    scope "/accounts/:account_handle/registry", Registry do
+      scope "/swift" do
+        pipe_through [:api_registry_swift]
+
+        get "/identifiers", SwiftController, :identifiers
+        get "/:scope/:name", SwiftController, :list_releases
+        get "/:scope/:name/:version", SwiftController, :show_release
+        get "/:scope/:name/:version/Package.swift", SwiftController, :show_package_swift
+        get "/availability", SwiftController, :availability
+      end
+    end
   end
 
   scope "/api" do

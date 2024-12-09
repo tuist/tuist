@@ -2,6 +2,9 @@ defmodule Tuist.GitHub.ClientTest do
   use ExUnit.Case, async: false
 
   use Mimic
+  alias Tuist.Base64
+  alias Tuist.VCS.Repositories.Content
+  alias Tuist.VCS.Repositories.Tag
   alias Tuist.VCS
   alias Tuist.VCS.Comment
   alias Tuist.GitHub.App
@@ -10,6 +13,11 @@ defmodule Tuist.GitHub.ClientTest do
   @default_headers [
     {"Accept", "application/vnd.github.v3+json"},
     {"Authorization", "token github_token"}
+  ]
+
+  @default_api_headers [
+    {"Accept", "application/vnd.github.v3+json"},
+    {"Authorization", "Bearer github_token"}
   ]
 
   setup do
@@ -278,6 +286,263 @@ defmodule Tuist.GitHub.ClientTest do
                   full_handle: "tuist/tuist",
                   provider: :github
                 }}
+    end
+  end
+
+  describe "get_tags/1" do
+    test "returns tags" do
+      # Given
+      Req
+      |> stub(
+        :get,
+        fn
+          [
+            url: "https://api.github.com/repos/tuist/tuist/tags?page_size=100",
+            headers: @default_api_headers
+          ] ->
+            {:ok,
+             %Req.Response{
+               status: 200,
+               headers: %{
+                 "link" => [
+                   "<https://api.github.com/repos/tuist/tuist/tags?page=2>; rel=\"next\", <https://api.github.com/repos/tuist/tuist/tags?page=2>; rel=\"last\""
+                 ]
+               },
+               body: [
+                 %{"name" => "1.0.2"},
+                 %{"name" => "1.0.1"}
+               ]
+             }}
+
+          [
+            url: "https://api.github.com/repos/tuist/tuist/tags?page=2&page_size=100",
+            headers: @default_api_headers
+          ] ->
+            {:ok,
+             %Req.Response{
+               status: 200,
+               headers: %{
+                 "link" => [
+                   "<https://api.github.com/repos/tuist/tuist/tags?page=2>; rel=\"last\""
+                 ]
+               },
+               body: [
+                 %{"name" => "1.0.0"}
+               ]
+             }}
+        end
+      )
+
+      # When
+      got = Client.get_tags(%{repository_full_handle: "tuist/tuist", token: "github_token"})
+
+      # Then
+      assert got == [%Tag{name: "1.0.2"}, %Tag{name: "1.0.1"}, %Tag{name: "1.0.0"}]
+    end
+
+    test "returns empty array when no tags exist" do
+      # Given
+      Req
+      |> stub(
+        :get,
+        fn
+          [
+            url: "https://api.github.com/repos/tuist/tuist/tags?page_size=100",
+            headers: @default_api_headers
+          ] ->
+            {:ok,
+             %Req.Response{
+               status: 200,
+               headers: %{
+                 "link" => [
+                   "<https://api.github.com/repos/tuist/tuist/tags?page=1>; rel=\"last\""
+                 ]
+               },
+               body: []
+             }}
+        end
+      )
+
+      # When
+      got = Client.get_tags(%{repository_full_handle: "tuist/tuist", token: "github_token"})
+
+      # Then
+      assert got == []
+    end
+
+    test "returns error when endpoint returns unexpected status code" do
+      # Given
+      Req
+      |> stub(:get, fn _ ->
+        {:ok, %Req.Response{status: 404}}
+      end)
+
+      # When
+      got = Client.get_tags(%{repository_full_handle: "tuist/tuist", token: "github_token"})
+
+      # Then
+      assert got ==
+               {:error,
+                "Unexpected status code: 404 when getting tags at https://api.github.com/repos/tuist/tuist/tags?page_size=100."}
+    end
+  end
+
+  describe "get_source_archive_by_tag_and_repository_full_handle/1" do
+    test "returns source archive" do
+      # Given
+      Req
+      |> stub(:get, fn _ ->
+        {:ok, %Req.Response{status: 200, body: [{~c"File.swift", "File contents"}]}}
+      end)
+
+      # When
+      got =
+        Client.get_source_archive_by_tag_and_repository_full_handle(%{
+          repository_full_handle: "Alamofire/Alamofire",
+          tag: "5.10.0",
+          token: "github_token"
+        })
+
+      # Then
+      assert got == {:ok, [{~c"File.swift", "File contents"}]}
+    end
+
+    test "returns error when getting the source archive fails" do
+      # Given
+      Req
+      |> stub(:get, fn _ ->
+        {:ok, %Req.Response{status: 404}}
+      end)
+
+      # When
+      got =
+        Client.get_source_archive_by_tag_and_repository_full_handle(%{
+          repository_full_handle: "Alamofire/Alamofire",
+          tag: "5.10.0",
+          token: "github_token"
+        })
+
+      # Then
+      assert got ==
+               {:error,
+                "Unexpected status code 404 when downloading Alamofire/Alamofire repository's source archive for 5.10.0 tag."}
+    end
+  end
+
+  describe "get_repository_content/1" do
+    test "returns contents array in a given repository" do
+      # Given
+      Req
+      |> stub(:get, fn _ ->
+        {:ok,
+         %Req.Response{
+           status: 200,
+           body: [
+             %{
+               "path" => "Package.swift"
+             },
+             %{
+               "path" => "Package@swift-5.9.swift"
+             }
+           ]
+         }}
+      end)
+
+      # When
+      got =
+        Client.get_repository_content(%{
+          repository_full_handle: "Alamofire/Alamofire",
+          token: "github_token"
+        })
+
+      # Then
+      assert got ==
+               {:ok,
+                [
+                  %Content{
+                    path: "Package.swift"
+                  },
+                  %Content{
+                    path: "Package@swift-5.9.swift"
+                  }
+                ]}
+    end
+
+    test "returns file content in a given repository" do
+      # Given
+      Req
+      |> stub(:get, fn _ ->
+        {:ok,
+         %Req.Response{
+           status: 200,
+           body: %{
+             "path" => "Package.swift",
+             "content" => "Package.swift encoded content"
+           }
+         }}
+      end)
+
+      Base64
+      |> stub(:decode, fn "Package.swift encoded content" -> "Package.swift content" end)
+
+      # When
+      got =
+        Client.get_repository_content(
+          %{
+            repository_full_handle: "Alamofire/Alamofire",
+            token: "github_token"
+          },
+          path: "Package.swift"
+        )
+
+      # Then
+      assert got ==
+               {:ok,
+                %Content{
+                  path: "Package.swift",
+                  content: "Package.swift content"
+                }}
+    end
+
+    test "returns :not_found error when the content does not exist" do
+      # Given
+      Req
+      |> stub(:get, fn _ ->
+        {:ok, %Req.Response{status: 404}}
+      end)
+
+      # When
+      got =
+        Client.get_repository_content(%{
+          repository_full_handle: "Alamofire/Alamofire",
+          path: "Package.swift",
+          token: "github_token"
+        })
+
+      # Then
+      assert got ==
+               {:error, :not_found}
+    end
+
+    test "returns unexpected error when the content does not exist" do
+      # Given
+      Req
+      |> stub(:get, fn _ ->
+        {:ok, %Req.Response{status: 329}}
+      end)
+
+      # When
+      got =
+        Client.get_repository_content(%{
+          repository_full_handle: "Alamofire/Alamofire",
+          path: "Package.swift",
+          token: "github_token"
+        })
+
+      # Then
+      assert got ==
+               {:error,
+                "Unexpected status code: 329 when getting contents at https://api.github.com/repos/Alamofire/Alamofire/contents/."}
     end
   end
 end

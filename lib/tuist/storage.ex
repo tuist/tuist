@@ -115,6 +115,19 @@ defmodule Tuist.Storage do
     stream
   end
 
+  def upload(source, object_key) do
+    bucket = Environment.s3_bucket_name()
+
+    ExAws.S3.upload(source, bucket, object_key)
+    |> ExAws.request!()
+  end
+
+  def put_object(object_key, content) do
+    Environment.s3_bucket_name()
+    |> ExAws.S3.put_object(object_key, content)
+    |> ExAws.request!()
+  end
+
   def object_exists?(object_key) do
     {time, exists} =
       Performance.measure_time_in_milliseconds(fn ->

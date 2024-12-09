@@ -246,6 +246,14 @@ defmodule Tuist.Environment do
     get_in(secrets, [:stripe, :prices])
   end
 
+  def github_token_update_packages(secrets \\ secrets()) do
+    get([:github, :token, :update_packages], secrets)
+  end
+
+  def github_token_update_package_releases(secrets \\ secrets()) do
+    get([:github, :token, :update_package_releases], secrets)
+  end
+
   def github_app_client_id(secrets \\ secrets()) do
     get([:github, :app_client_id], secrets) || get([:github, :oauth_id], secrets)
   end

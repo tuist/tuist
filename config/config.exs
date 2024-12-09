@@ -233,6 +233,12 @@ config :error_tracker,
   # 1 week
   plugins: [{ErrorTracker.Plugins.Pruner, max_age: :timer.hours(24 * 7)}]
 
+config :mime, :types, %{
+  "application/vnd.swift.registry.v1+json" => ["swift-registry-v1-json"],
+  "application/vnd.swift.registry.v1+zip" => ["swift-registry-v1-zip"],
+  "application/vnd.swift.registry.v1+swift" => ["swift-registry-v1-api"]
+}
+
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
 import_config "#{config_env()}.exs"
