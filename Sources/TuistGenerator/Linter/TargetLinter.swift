@@ -225,7 +225,7 @@ class TargetLinter: TargetLinting {
     }
 
     private func lintLibraryHasNoResources(target: Target, options: Project.Options) -> [LintingIssue] {
-        if target.supportsResources {
+        if target.bundlesResources {
             return []
         }
 

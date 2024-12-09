@@ -34,7 +34,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
 
     // swiftlint:disable:next function_body_length
     public func mapTarget(_ target: Target, project: Project) throws -> ([Target], [SideEffectDescriptor]) {
-        if target.resources.resources.isEmpty, target.coreDataModels.isEmpty { return ([target], []) }
+        guard target.containsResources else { return ([target], []) }
 
         var additionalTargets: [Target] = []
         var sideEffects: [SideEffectDescriptor] = []
@@ -43,7 +43,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         let bundleName = "\(project.name)_\(sanitizedTargetName)"
         var modifiedTarget = target
 
-        if !target.supportsResources {
+        if !target.bundlesResources {
             let resourcesTarget = Target(
                 name: bundleName,
                 destinations: target.destinations,
@@ -91,7 +91,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
            target.supportsSources,
            target.sources.containsObjcFiles,
            target.resources.containsBundleAccessedResources,
-           !target.supportsResources
+           !target.bundlesResources
         {
             let (headerFilePath, headerData) = synthesizedObjcHeaderFile(bundleName: bundleName, target: target, project: project)
 
@@ -173,7 +173,9 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
 
     // swiftlint:disable:next function_body_length
     static func fileContent(targetName _: String, bundleName: String, target: Target, in project: Project) -> String {
-        let bundleAccessor = if target.supportsResources {
+        let bundleAccessor = if target.product == .staticFramework, target.containsResources {
+            swiftStaticFrameworkBundleAccessorString(for: target)
+        } else if target.bundlesResources {
             swiftFrameworkBundleAccessorString(for: target)
         } else {
             swiftSPMBundleAccessorString(for: target, and: bundleName)
@@ -283,11 +285,11 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
     private static func publicBundleAccessorString(for target: Target) -> String {
         """
         // MARK: - Objective-C Bundle Accessor
-        @objc
-        public class \(target.productName.toValidSwiftIdentifier())Resources: NSObject {
-        @objc public class var bundle: Bundle {
-            return .module
-        }
+        @objcMembers
+        public final class \(target.productName.toValidSwiftIdentifier())Resources: NSObject {
+            public static var bundle: Bundle {
+                .module
+            }
         }
         """
     }
@@ -295,12 +297,10 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
     private static func swiftSPMBundleAccessorString(for target: Target, and bundleName: String) -> String {
         """
         // MARK: - Swift Bundle Accessor - for SPM
-        private class BundleFinder {}
+        private final class BundleFinder {}
         extension Foundation.Bundle {
-        /// Since \(target.name) is a \(
-            target
-                .product
-        ), the bundle containing the resources is copied into the final product.
+        /// Since \(target.name) is a \(target.product), \
+        the bundle containing the resources is copied into the final product.
         static let module: Bundle = {
             let bundleName = "\(bundleName)"
             let bundleFinderResourceURL = Bundle(for: BundleFinder.self).resourceURL
@@ -326,22 +326,11 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
                 }
             }
 
-            // This is a fix to make unit tests work with bundled resources.
-            // Making this change allows unit tests to search one directory up for a bundle.
-            // More context can be found in this PR: https://github.com/tuist/tuist/pull/6895
-            #if canImport(XCTest)
-            candidates.append(bundleFinderResourceURL?.appendingPathComponent(".."))
-            #endif
-
-            for candidate in candidates {
-                let bundlePath = candidate?.appendingPathComponent(bundleName + ".bundle")
-                if let bundle = bundlePath.flatMap(Bundle.init(url:)) {
-                    return bundle
-                }
-            }
+            \(iterateOverCandidatesString(appendingPath: "bundleName + \".bundle\""))
             fatalError("unable to find bundle named \(bundleName)")
         }()
         }
+        \(appendingPathToURLString())
         """
     }
 
@@ -350,11 +339,59 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         // MARK: - Swift Bundle Accessor for Frameworks
         private class BundleFinder {}
         extension Foundation.Bundle {
-        /// Since \(target.name) is a \(
-            target
-                .product
-        ), the bundle for classes within this module can be used directly.
+        /// Since \(target.name) is a \(target.product), \
+        the bundle for classes within this module can be used directly.
         static let module = Bundle(for: BundleFinder.self)
+        }
+        """
+    }
+
+    private static func swiftStaticFrameworkBundleAccessorString(for target: Target) -> String {
+        """
+        // MARK: - Swift Bundle Accessor for Frameworks
+        extension Foundation.Bundle {
+        /// Since \(target.name) is a \(target.product), \
+        a cut down framework is embedded, with all the resources but only a stub Mach-O image.
+        static let module: Bundle = {
+            var candidates = [Bundle.main.privateFrameworksURL]
+            \(iterateOverCandidatesString(appendingPath: "\"\(target.name).framework\""))
+            fatalError("unable to find \(target.product) \\"\(target.name).framework\\"")
+        }()
+        }
+        \(appendingPathToURLString())
+        """
+    }
+
+    private static func iterateOverCandidatesString(appendingPath: String) -> String {
+        """
+        // This is a fix to make unit tests work with bundled resources.
+            // Making this change allows unit tests to search one directory up for the framework.
+            // More context can be found in this PR: https://github.com/tuist/tuist/pull/6895
+            #if canImport(XCTest)
+            final class UnitTestBundleFinder {}
+            let bundleFinderResourceURL = Bundle(for: UnitTestBundleFinder.self).resourceURL?.appendingPath("..")
+            candidates.append(bundleFinderResourceURL)
+            #endif
+
+            for candidate in candidates {
+                let frameworkUrl = candidate?.appendingPath(\(appendingPath))
+                if let bundle = frameworkUrl.flatMap(Bundle.init(url:)) {
+                    return bundle
+                }
+            }
+        """
+    }
+
+    private static func appendingPathToURLString() -> String {
+        """
+        private extension URL {
+            func appendingPath(_ path: String) -> URL {
+                if #available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *) {
+                    appending(path: path, directoryHint: .isDirectory)
+                } else {
+                    appendingPathComponent(path)
+                }
+            }
         }
         """
     }
