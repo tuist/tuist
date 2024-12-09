@@ -40,6 +40,7 @@ public struct TuistCommand: AsyncParsableCommand {
                         ScaffoldCommand.self,
                         TestCommand.self,
                         InspectCommand.self,
+                        WorkflowsCommand.self
                     ]
                 ),
                 CommandGroup(
