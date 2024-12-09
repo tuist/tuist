@@ -1,0 +1,18 @@
+{
+  "authentication": {},
+  "security": {
+    "default": {
+      "signing": {
+        "onUnsigned": "silentAllow"
+      }
+    }
+  },
+  "registries": {
+    "[default]": {
+      "onUnsigned": "silentAllow",
+      "supportsAvailability": false,
+      "url": "https://staging.tuist.dev/api/accounts/tuist/registry/swift"
+    }
+  },
+  "version": 1
+}
