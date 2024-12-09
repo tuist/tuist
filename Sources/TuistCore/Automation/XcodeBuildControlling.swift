@@ -6,6 +6,7 @@ import TuistSupport
 public enum XcodeBuildDestination: Equatable {
     case device(String)
     case mac
+    case macCatalyst
 }
 
 @Mockable
