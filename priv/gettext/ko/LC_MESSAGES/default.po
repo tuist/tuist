@@ -1,11 +1,3 @@
-## "msgid"s in this file come from POT (.pot) files.
-###
-### Do not add, change, or remove "msgid"s manually here as
-### they're tied to the ones in the corresponding POT file
-### (with the same domain).
-###
-### Use "mix gettext.extract --merge" or "mix gettext.merge"
-### to merge POT files into PO files.
 msgid ""
 msgstr ""
 "Language: ko\n"
@@ -18,7 +10,7 @@ msgstr ""
 "Project-Id-Version: tuist-website\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Language-Team: Korean\n"
-"PO-Revision-Date: 2024-12-09 18:07\n"
+"PO-Revision-Date: 2024-12-10 13:10\n"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:1011
 #, elixir-autogen, elixir-format
@@ -28,45 +20,45 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_html/about.html.heex:36
 #, elixir-autogen, elixir-format
 msgid "\"We approach openness with curiosity, not fear.\""
-msgstr ""
+msgstr "\"우리는 두려움이 아닌 호기심으로 개방성을 대합니다.\""
 
 #: lib/tuist/billing.ex:53
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:46
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:85
 #, elixir-autogen, elixir-format
 msgid "$0"
-msgstr ""
+msgstr "$0"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:72
 #, elixir-autogen, elixir-format
 msgid "$0.5"
-msgstr ""
+msgstr "$0.5"
 
 #: lib/tuist_web/live/account_billing_live.html.heex:154
 #, elixir-autogen, elixir-format
 msgid "%{card_name} ending in %{last_4_digits}"
-msgstr ""
+msgstr "%{last_4_digits}로 끝나는 %{card_name}"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/blog_post.html.heex:46
 #, elixir-autogen, elixir-format
 msgid "%{count} minute"
 msgid_plural "%{count} minutes"
-msgstr[0] ""
+msgstr[0] "%{count} 분"
 
 #: lib/tuist_web/live/account_billing_live.html.heex:66
 #, elixir-autogen, elixir-format
 msgid "%{current_remote_cache_hits_count} of %{remote_cache_hit_threshold} free remote cache hits"
-msgstr ""
+msgstr "무료 원격 캐시 횟수 %{remote_cache_hit_threshold} 중 %{current_remote_cache_hits_count}"
 
 #: lib/tuist_web/live/account_billing_live.html.heex:80
 #, elixir-autogen, elixir-format
 msgid "%{current_remote_cache_hits_count} of %{remote_cache_hit_threshold} remote cache hits"
-msgstr ""
+msgstr "원격 캐시 횟수 %{remote_cache_hit_threshold} 중 %{current_remote_cache_hits_count}"
 
 #: lib/tuist_web/live/preview_live.ex:42
 #, elixir-autogen, elixir-format
 msgid "%{display_name} · Tuist"
-msgstr ""
+msgstr "%{display_name} · Tuist"
 
 #: lib/tuist_web/live/project_dashboard_live.html.heex:105
 #: lib/tuist_web/live/project_dashboard_live.html.heex:131
@@ -75,12 +67,12 @@ msgstr ""
 #: lib/tuist_web/live/project_run_detail_live.html.heex:95
 #, elixir-autogen, elixir-format
 msgid "%{duration} s"
-msgstr ""
+msgstr "%{duration} 초"
 
 #: lib/tuist_web/live/project_dashboard_live.html.heex:90
 #, elixir-autogen, elixir-format
 msgid "%{hit_rate} %"
-msgstr ""
+msgstr "%{hit_rate} %"
 
 #: lib/tuist_web/live/account_billing_live.html.heex:205
 #, elixir-autogen, elixir-format
@@ -157,12 +149,15 @@ msgstr ""
 
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:152
 #, elixir-autogen, elixir-format
-msgid "<p>Our commitment to open-source and our core values shape our unique approach to pricing. Unlike many models that try to extract every dollar from you with \"contact sales\" calls, limited demos, and other sales tactics, we believe in fairness and transparency. We treat everyone equally and set prices that are fair for all. By choosing our services, you are not only getting a great product but also supporting the development of more open-source projects. We see building a thriving business as a long-term journey, not a short-term sprint filled with shady practices. You can <a href=\"#{~p\"/blog/2024/11/05/our-pricing-philosophy\"}\">read more</a> about our philosophy.</p>\n<p>By supporting Tuist, you are also supporting the development of more open-source software for the Swift ecosystem.</p>\n"
+msgid "<p>Our commitment to open-source and our core values shape our unique approach to pricing. Unlike many models that try to extract every dollar from you with \"contact sales\" calls, limited demos, and other sales tactics, we believe in fairness and transparency. We treat everyone equally and set prices that are fair for all. By choosing our services, you are not only getting a great product but also supporting the development of more open-source projects. We see building a thriving business as a long-term journey, not a short-term sprint filled with shady practices. You can <a href=\"#{~p\"/blog/2024/11/05/our-pricing-philosophy\"}\">read more</a> about our philosophy.</p>\n"
+"<p>By supporting Tuist, you are also supporting the development of more open-source software for the Swift ecosystem.</p>\n"
 msgstr ""
 
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:231
 #, elixir-autogen, elixir-format
-msgid "<p>Tuist has been a game-changer for our large codebase, where multiple engineers collaborate simultaneously. It helps us avoid conflicts in project organization and provides full control over project configuration, allowing us to customize everything to our needs. For a modularized app, Tuist is the perfect ally—its ability to effortlessly reuse configurations across modules has significantly streamlined our development process.</p>\n<p>Additionally, the way Tuist manages package dependencies is outstanding. As soon as you open Xcode, you're ready to jump right into coding without waiting for 30+ packages to resolve every time. It's truly a productivity booster.</p>\n<p>I've been using it since version 1, and it's been incredible to see how the product has evolved and expanded with new features over time. Their effort in resolving underlying issues and evolving the product has made Tuist a mature, reliable tool that we can depend on.</p>\n"
+msgid "<p>Tuist has been a game-changer for our large codebase, where multiple engineers collaborate simultaneously. It helps us avoid conflicts in project organization and provides full control over project configuration, allowing us to customize everything to our needs. For a modularized app, Tuist is the perfect ally—its ability to effortlessly reuse configurations across modules has significantly streamlined our development process.</p>\n"
+"<p>Additionally, the way Tuist manages package dependencies is outstanding. As soon as you open Xcode, you're ready to jump right into coding without waiting for 30+ packages to resolve every time. It's truly a productivity booster.</p>\n"
+"<p>I've been using it since version 1, and it's been incredible to see how the product has evolved and expanded with new features over time. Their effort in resolving underlying issues and evolving the product has made Tuist a mature, reliable tool that we can depend on.</p>\n"
 msgstr ""
 
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:255
@@ -2389,7 +2384,8 @@ msgstr ""
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:164
 #, elixir-autogen, elixir-format
-msgid "Enterprise-Grade Fully Automated\n            Mobile DevOps Platform"
+msgid "Enterprise-Grade Fully Automated\n"
+"            Mobile DevOps Platform"
 msgstr ""
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:122
@@ -2397,12 +2393,13 @@ msgstr ""
 msgid "Frequently paired with"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:138
-#, elixir-autogen, elixir-format
-msgid "One tool for all your mobile app builds. Test, build and release with ease."
-msgstr ""
-
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:126
 #, elixir-autogen, elixir-format
 msgid "These are some products that pair well with Tuist"
 msgstr ""
+
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:138
+#, elixir-autogen, elixir-format
+msgid "Mobile-first CI/CD with first class support for iOS team. Supporting the Tuist with fast and reliable CI environments."
+msgstr ""
+
