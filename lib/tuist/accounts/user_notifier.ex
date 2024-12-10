@@ -8,7 +8,7 @@ defmodule Tuist.Accounts.UserNotifier do
   alias Tuist.Environment
   alias Tuist.Mailer
   alias Tuist.Accounts.User
-  import TuistWeb.Gettext
+  use Gettext, backend: TuistWeb.Gettext
 
   # Delivers the email using the application mailer.
   defp deliver(recipient, subject, body) do

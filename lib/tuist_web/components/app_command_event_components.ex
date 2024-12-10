@@ -6,7 +6,7 @@ defmodule TuistWeb.AppCommandEventComponents do
   use Phoenix.Component
   import TuistWeb.AppComponents
   import TuistWeb.Components.IconComponents
-  import TuistWeb.Gettext
+  use Gettext, backend: TuistWeb.Gettext
 
   attr(:command_event, :map, required: true)
 

@@ -9,7 +9,7 @@ defmodule TuistWeb.Authorization do
   alias TuistWeb.Authentication
   alias Tuist.Authorization
   alias Tuist.Projects
-  import TuistWeb.Gettext
+  use Gettext, backend: TuistWeb.Gettext
   alias TuistWeb.Errors.UnauthorizedError
 
   def init(opts), do: opts

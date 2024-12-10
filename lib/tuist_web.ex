@@ -44,7 +44,7 @@ defmodule TuistWeb do
         layouts: [html: TuistWeb.Layouts]
 
       import Plug.Conn
-      import TuistWeb.Gettext
+      use Gettext, backend: TuistWeb.Gettext
 
       unquote(verified_routes())
     end
@@ -54,7 +54,7 @@ defmodule TuistWeb do
     quote do
       use Phoenix.LiveView
       import TuistWeb.AppLayoutComponents
-      import TuistWeb.Gettext
+      use Gettext, backend: TuistWeb.Gettext
 
       unquote(html_helpers())
     end
@@ -100,7 +100,7 @@ defmodule TuistWeb do
       import TuistWeb.AppAuthComponents
       import TuistWeb.Components.IconComponents
       import TuistWeb.AppCommandEventComponents
-      import TuistWeb.Gettext
+      use Gettext, backend: TuistWeb.Gettext
 
       # Shortcut for generating JS commands
       alias Phoenix.LiveView.JS

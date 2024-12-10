@@ -17,7 +17,7 @@ defmodule TuistWeb.AppComponents do
   use Phoenix.Component
 
   alias Phoenix.LiveView.JS
-  import TuistWeb.Gettext
+  use Gettext, backend: TuistWeb.Gettext
   import TuistWeb.Components.IconComponents
 
   @doc """

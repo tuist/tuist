@@ -4,7 +4,7 @@ defmodule Tuist.Accounts.User do
   """
   use Ecto.Schema
   import Ecto.Changeset
-  import TuistWeb.Gettext
+  use Gettext, backend: TuistWeb.Gettext
   alias Tuist.Accounts.DeviceCode
   alias Tuist.Accounts.UserRole
   alias Tuist.Accounts.Oauth2Identity

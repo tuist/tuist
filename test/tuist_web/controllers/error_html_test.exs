@@ -1,6 +1,6 @@
 defmodule TuistWeb.Controllers.ErrorHTMLTest do
   use ExUnit.Case, async: true
-  import TuistWeb.Gettext
+  use Gettext, backend: TuistWeb.Gettext
 
   test "render 401.html" do
     # Given/When

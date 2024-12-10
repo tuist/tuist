@@ -9,7 +9,7 @@ defmodule Tuist.Billing do
   alias Tuist.Accounts
   alias Tuist.Accounts.Account
   alias Tuist.Repo
-  import TuistWeb.Gettext
+  use Gettext, backend: TuistWeb.Gettext
 
   import Ecto.Query, only: [from: 2]
 

@@ -4,7 +4,7 @@ defmodule TuistWeb.Marketing.StructuredMarkup do
   - https://developers.google.com/search/docs/appearance/structured-data/intro-structured-data
   """
 
-  import TuistWeb.Gettext
+  use Gettext, backend: TuistWeb.Gettext
 
   use Phoenix.VerifiedRoutes,
     endpoint: TuistWeb.Endpoint,

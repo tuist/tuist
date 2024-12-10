@@ -10,6 +10,15 @@ msgid ""
 msgstr ""
 "Language: ko\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
+"X-Crowdin-Project: tuist-website\n"
+"X-Crowdin-Project-ID: 743641\n"
+"X-Crowdin-Language: ko\n"
+"X-Crowdin-File: /main/priv/gettext/en/LC_MESSAGES/default.po\n"
+"X-Crowdin-File-ID: 180\n"
+"Project-Id-Version: tuist-website\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language-Team: Korean\n"
+"PO-Revision-Date: 2024-12-09 18:07\n"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:1011
 #, elixir-autogen, elixir-format

@@ -7,7 +7,7 @@ defmodule TuistWeb.AuthorizationTest do
   alias Tuist.Accounts
   alias Tuist.AccountsFixtures
   alias TuistWeb.Authentication
-  import TuistWeb.Gettext
+  use Gettext, backend: TuistWeb.Gettext
   alias TuistWeb.Errors.UnauthorizedError
   use TuistWeb.ConnCase, async: true
 
