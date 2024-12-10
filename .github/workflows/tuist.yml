@@ -39,7 +39,7 @@ jobs:
         run: mix gettext.extract --check-up-to-date
       - name: Print instruction if extraction validation fails
         if: failure()
-        run: echo "Run 'mix gettext.extract --merge'"
+        run: echo "Run 'mix gettext.extract --merge --locale en'"
   test:
     name: Test
     runs-on: "blacksmith-4vcpu-ubuntu-2204"

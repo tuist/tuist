@@ -2389,12 +2389,12 @@ msgstr ""
 msgid "Frequently paired with"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:138
-#, elixir-autogen, elixir-format
-msgid "One tool for all your mobile app builds. Test, build and release with ease."
-msgstr ""
-
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:126
 #, elixir-autogen, elixir-format
 msgid "These are some products that pair well with Tuist"
+msgstr ""
+
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:138
+#, elixir-autogen, elixir-format
+msgid "Mobile-first CI/CD with first class support for iOS team. Supporting the Tuist with fast and reliable CI environments."
 msgstr ""

@@ -53,11 +53,9 @@
   flex-direction: column;
   align-items: stretch;
   gap: var(--spacing-48);
-}
 
-@media (max-width: 1024px) {
-  .marketing__blog__essential {
-    padding: 0 0 var(--spacing-24) 0;
+  @media (max-width: 1024px) {
+    padding: var(--spacing-48) 0 var(--spacing-48) 0;
   }
 }
 
@@ -66,11 +64,9 @@
   color: var(--lime);
   margin: 0;
   text-transform: uppercase;
-}
 
-@media (max-width: 1024px) {
-  .marketing__blog__essential__title {
-    padding: var(--spacing-48) var(--spacing-24) 0 var(--spacing-24);
+  @media (max-width: 1024px) {
+    padding: 0 var(--spacing-24) 0 var(--spacing-24);
   }
 }
 

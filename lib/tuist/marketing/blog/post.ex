@@ -24,12 +24,14 @@ defmodule Tuist.Marketing.Blog.Post do
   ]
 
   def build(_filename, attrs, body) do
+    title = attrs["title"] |> String.trim_trailing(".")
+
     struct!(__MODULE__,
       categories: attrs["categories"],
       date: attrs["date"],
       excerpt: attrs["excerpt"],
       slug: attrs["slug"],
-      title: attrs["title"],
+      title: title,
       type: attrs["type"],
       interviewee_avatar: attrs["interviewee_avatar"],
       interviewee_name: attrs["interviewee_name"],

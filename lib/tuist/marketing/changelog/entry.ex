@@ -15,10 +15,12 @@ defmodule Tuist.Marketing.Changelog.Entry do
   ]
 
   def build(_filename, attrs, body) do
+    title = attrs["title"] |> String.trim_trailing(".")
+
     struct!(__MODULE__,
       category: attrs["category"],
       date: attrs["date"],
-      title: attrs["title"],
+      title: title,
       id: attrs["id"],
       body: body
     )
