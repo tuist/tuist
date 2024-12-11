@@ -923,7 +923,7 @@ final class GenerateAcceptanceTestiOSAppWithCatalyst: TuistAcceptanceTestCase {
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self, "App", "--platform", "macos")
         try await run(BuildCommand.self, "App", "--platform", "ios")
-        
+
         try await XCTAssertProductWithDestinationContainsResource(
             "App.app",
             destination: "Debug-maccatalyst",
