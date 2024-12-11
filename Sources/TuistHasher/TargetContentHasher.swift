@@ -147,7 +147,7 @@ public final class TargetContentHasher: TargetContentHashing {
             coreDataModelHash,
             targetScriptsHash,
             environmentHash,
-        ] + destinations
+        ] + destinations + additionalStrings
 
         stringsToHash.append(contentsOf: graphTarget.target.destinations.map(\.rawValue).sorted())
 
