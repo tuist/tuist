@@ -3,7 +3,6 @@ defmodule Tuist.Cache.PromExPlugin do
   Defines custom Prometheus metrics for the Tuist cache events
   """
   use PromEx.Plugin
-  alias Tuist.CommandEvents
 
   @impl true
   def event_metrics(_opts) do
