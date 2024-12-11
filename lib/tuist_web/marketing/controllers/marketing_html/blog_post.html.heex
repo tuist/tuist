@@ -3,13 +3,13 @@
 
   <header class="marketing__blog_post__header" aria-label={gettext("Blog post header")}>
     <div class="marketing__blog_post__header__category font-m-strong">
-      <%= @post.category %>
+      {@post.category}
     </div>
     <h1 class="marketing__blog_post__header__title font-xxxl-strong">
-      <%= @post.title %>
+      {@post.title}
     </h1>
     <p class="marketing__blog_post__header__excerpt font-l">
-      <%= @post.excerpt %>
+      {@post.excerpt}
     </p>
   </header>
 
@@ -25,7 +25,7 @@
         </div>
       <% end %>
       <div class="marketing_content">
-        <%= raw(@post.body) %>
+        {raw(@post.body)}
       </div>
     </section>
     <aside
@@ -37,20 +37,20 @@
         class="marketing__blog_post__body__side__date font-xs"
         aria-label={gettext("Post date")}
       >
-        <%= Timex.format!(@post.date, "{Mfull} {D}, {YYYY}") %>
+        {Timex.format!(@post.date, "{Mfull} {D}, {YYYY}")}
       </div>
       <div
         class="marketing__blog_post__body__side__reading_time font-xs"
         aria-label={gettext("Reading time")}
       >
-        <%= ngettext("%{count} minute", "%{count} minutes", ReadingTime.time(@post.body)) %>
+        {ngettext("%{count} minute", "%{count} minutes", ReadingTime.time(@post.body))}
       </div>
       <div class="marketing__blog_post__body__side__written_by font-xs">
         <%= cond do %>
           <% not is_nil(@author) -> %>
-            <%= gettext("Written by") %>
+            {gettext("Written by")}
           <% @post.type == "interview" -> %>
-            <%= gettext("Interviewee") %>
+            {gettext("Interviewee")}
           <% true -> %>
             <span></span>
         <% end %>
@@ -79,9 +79,9 @@
           <div class="marketing__blog_post__body__side__person__data__name font-m-strong">
             <%= cond do %>
               <% not is_nil(@author) -> %>
-                <%= @author["name"] %>
+                {@author["name"]}
               <% @post.type == "interview" -> %>
-                <%= @post.interviewee_name %>
+                {@post.interviewee_name}
               <% true -> %>
                 <span></span>
             <% end %>
@@ -89,9 +89,9 @@
           <div class="marketing__blog_post__body__side__person__data__role font-xs">
             <%= cond do %>
               <% not is_nil(@author) -> %>
-                <%= @author["role"] %>
+                {@author["role"]}
               <% @post.type == "interview" -> %>
-                <%= @post.interviewee_role %>
+                {@post.interviewee_role}
               <% true -> %>
                 <span></span>
             <% end %>
@@ -105,7 +105,7 @@
 
   <section class="marketing__blog_post__related" aria-labelledby="related-posts-title">
     <h2 id="related-posts-title" class="marketing__blog_post__related__title font-xxxl-strong">
-      <%= gettext("You might also like") %>
+      {gettext("You might also like")}
     </h2>
     <div class="marketing__blog_post__related__body">
       <div class="marketing__blog_post__related__body__cards">

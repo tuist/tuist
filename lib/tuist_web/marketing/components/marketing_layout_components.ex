@@ -39,14 +39,14 @@ defmodule TuistWeb.Marketing.MarketingLayoutComponents do
       >
         <%= if length(@children) > 0 do %>
           <div class="marketing__header__bar__mobile__menu__main__dropdown__header__title font-xxl">
-            <%= @title %>
+            {@title}
           </div>
         <% else %>
           <.link
             href={@href}
             class="marketing__header__bar__mobile__menu__main__dropdown__header__title font-xxl"
           >
-            <%= @title %>
+            {@title}
           </.link>
         <% end %>
         <%= if length(@children) > 0 do %>
@@ -61,7 +61,7 @@ defmodule TuistWeb.Marketing.MarketingLayoutComponents do
           data-current={"#{@current_path == child.href}"}
           class="font-xl marketing__header__bar__mobile__menu__main__dropdown__header__children__child"
         >
-          <%= child.title %>
+          {child.title}
         </.link>
       </div>
     </div>
@@ -114,7 +114,7 @@ defmodule TuistWeb.Marketing.MarketingLayoutComponents do
       href={assigns[:href]}
       {@rest}
     >
-      <%= render_slot(@inner_block) %>
+      {render_slot(@inner_block)}
     </.link>
     """
   end
@@ -171,7 +171,7 @@ defmodule TuistWeb.Marketing.MarketingLayoutComponents do
         class={"marketing__component__primary__button #{@font_class} #{@class}"}
         data-size={@size}
       >
-        <%= render_slot(@inner_block) %>
+        {render_slot(@inner_block)}
       </a>
     <% else %>
       <button
@@ -179,7 +179,7 @@ defmodule TuistWeb.Marketing.MarketingLayoutComponents do
         class={"marketing__component__primary__button #{@font_class} #{@class}"}
         data-size={@size}
       >
-        <%= render_slot(@inner_block) %>
+        {render_slot(@inner_block)}
       </button>
     <% end %>
     """
@@ -212,7 +212,7 @@ defmodule TuistWeb.Marketing.MarketingLayoutComponents do
         data-size={@size}
         data-variant={@variant}
       >
-        <%= render_slot(@inner_block) %>
+        {render_slot(@inner_block)}
       </a>
     <% else %>
       <button
@@ -221,7 +221,7 @@ defmodule TuistWeb.Marketing.MarketingLayoutComponents do
         data-size={@size}
         data-variant={@variant}
       >
-        <%= render_slot(@inner_block) %>
+        {render_slot(@inner_block)}
       </button>
     <% end %>
     """
@@ -234,7 +234,7 @@ defmodule TuistWeb.Marketing.MarketingLayoutComponents do
     ~H"""
     <div class="marketing__footer__main__menus__menu">
       <h4 class="marketing__footer__main__menus__menu_title font-xxs-strong">
-        <%= @title %>
+        {@title}
       </h4>
       <div class="marketing__footer__main__menus__menu_links">
         <.link
@@ -243,7 +243,7 @@ defmodule TuistWeb.Marketing.MarketingLayoutComponents do
           class="marketing__footer__main__menus__menu_link font-xxs"
           target={Map.get(item, :target, nil)}
         >
-          <%= item.text %>
+          {item.text}
         </.link>
       </div>
     </div>
@@ -287,13 +287,13 @@ defmodule TuistWeb.Marketing.MarketingLayoutComponents do
   def more_card_content(assigns) do
     ~H"""
     <div class="font-xs-strong marketing__component__more_card__content__category">
-      <%= @category %>
+      {@category}
     </div>
     <.link class="font-xl-strong marketing__component__more_card__content__title" href={@href}>
-      <%= @title %>
+      {@title}
     </.link>
     <div class="font-m marketing__component__more_card__content__description">
-      <%= @description %>
+      {@description}
     </div>
     <% style =
       if(is_nil(assigns[:image_url]),
@@ -319,30 +319,30 @@ defmodule TuistWeb.Marketing.MarketingLayoutComponents do
   def pricing_plan_plan_card(assigns) do
     ~H"""
     <div class="marketing__pricing__plans__plan" data-popular={@popular}>
-      <div class="marketing__pricing__plans__plan__badge"><%= gettext("Most popular") %></div>
+      <div class="marketing__pricing__plans__plan__badge">{gettext("Most popular")}</div>
       <h2 class="marketing__pricing__plans__plan__name">
-        <%= @name %>
+        {@name}
       </h2>
       <p class="marketing__pricing__plans__plan__description">
-        <%= @description %>
+        {@description}
       </p>
       <div class="marketing__pricing__plans__plan__price">
-        <%= @price %>
+        {@price}
         <span
           :if={not is_nil(assigns[:price_frequency])}
           class="marketing__pricing__plans__plan__price__frequency"
         >
-          <%= @price_frequency %>
+          {@price_frequency}
         </span>
       </div>
       <%= case @cta do %>
         <% {:primary, text, href} -> %>
           <.primary_button href={href} size="big">
-            <%= text %>
+            {text}
           </.primary_button>
         <% {:secondary, text, href} -> %>
           <.secondary_button href={href} size="big" variant="light">
-            <%= text %>
+            {text}
           </.secondary_button>
       <% end %>
       <div class="marketing__pricing__plans__plan__cta__separator"></div>
@@ -351,17 +351,17 @@ defmodule TuistWeb.Marketing.MarketingLayoutComponents do
           <TuistWeb.Marketing.MarketingIcons.check_circle_icon class="marketing__pricing__plans__plan__feature__icon" />
           <div class="marketing__pricing__plans__plan__feature__content">
             <span class="marketing__pricing__plans__plan__feature__content__title">
-              <%= title %>
+              {title}
             </span>
             <span class="marketing__pricing__plans__plan__feature__content__description">
-              <%= description %>
+              {description}
             </span>
           </div>
         </li>
       </ul>
       <div class="marketing__pricing__plans__plan__bottom_badges">
         <div :for={badge <- @badges} class="marketing__pricing__plans__plan__bottom_badges__badge">
-          <%= badge %>
+          {badge}
         </div>
       </div>
     </div>

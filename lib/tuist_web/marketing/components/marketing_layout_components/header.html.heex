@@ -65,7 +65,7 @@ reset_dopdowns_state_js =
         aria-haspopup="true"
         phx-click={show_app_lifecycle_js}
       >
-        <%= gettext("App lifecycle") %>
+        {gettext("App lifecycle")}
         <.icon_plus size={15} class="marketing__header__bar__links__link__open_icon" />
         <.icon_minus size={15} class="marketing__header__bar__links__link__close_icon" />
       </.link>
@@ -76,15 +76,15 @@ reset_dopdowns_state_js =
         aria-haspopup="true"
         phx-click={show_developers_js}
       >
-        <%= gettext("Developers") %>
+        {gettext("Developers")}
         <.icon_plus size={15} class="marketing__header__bar__links__link__open_icon" />
         <.icon_minus size={15} class="marketing__header__bar__links__link__close_icon" />
       </.link>
       <.link href={~p"/pricing"} class="marketing__header__bar__links__link">
-        <%= gettext("Pricing") %>
+        {gettext("Pricing")}
       </.link>
       <.link href={~p"/blog"} class="marketing__header__bar__links__link">
-        <%= gettext("Blog") %>
+        {gettext("Blog")}
       </.link>
     </nav>
 
@@ -96,7 +96,7 @@ reset_dopdowns_state_js =
          TuistWeb.Authentication.signed_in_path(TuistWeb.Authentication.current_user(assigns))}
       end %>
     <.primary_button class="marketing__header__bar__cta" size="small" href={cta_href}>
-      <%= cta_text %>
+      {cta_text}
     </.primary_button>
 
     <button
@@ -196,11 +196,11 @@ reset_dopdowns_state_js =
 
       <div class="marketing__header__bar__mobile__menu__main__footer">
         <.primary_button size="big" type="primary" href={Tuist.Environment.get_url(:get_started)}>
-          <%= gettext("Get started") %>
+          {gettext("Get started")}
         </.primary_button>
         <div class="marketing__header__bar__mobile__menu__main__footer__links">
           <div class="marketing__header__bar__mobile__menu__main__footer__links__header">
-            <%= gettext("Stay in touch") %>
+            {gettext("Stay in touch")}
           </div>
           <div class="marketing__header__bar__mobile__menu__main__footer__links__main">
             <nav
@@ -239,10 +239,10 @@ reset_dopdowns_state_js =
       target="_blank"
     >
       <h2 class="marketing__header__bar__app-lifecycle__phase__title">
-        <%= gettext("Start") %>
+        {gettext("Start")}
       </h2>
       <p class="marketing__header__bar__app-lifecycle__phase__description">
-        <%= gettext("Start a new project or add Tuist to an existing one.") %>
+        {gettext("Start a new project or add Tuist to an existing one.")}
       </p>
       <.app_lifecycle_start_artwork />
     </.link>
@@ -253,10 +253,10 @@ reset_dopdowns_state_js =
       target="_blank"
     >
       <h2 class="marketing__header__bar__app-lifecycle__phase__title">
-        <%= gettext("Develop") %>
+        {gettext("Develop")}
       </h2>
       <p class="marketing__header__bar__app-lifecycle__phase__description">
-        <%= gettext("Develop top-notch apps fast and with confidence.") %>
+        {gettext("Develop top-notch apps fast and with confidence.")}
       </p>
       <.app_lifecycle_develop_artwork />
     </.link>
@@ -266,10 +266,10 @@ reset_dopdowns_state_js =
       target="_blank"
     >
       <h2 class="marketing__header__bar__app-lifecycle__phase__title">
-        <%= gettext("Share") %>
+        {gettext("Share")}
       </h2>
       <p class="marketing__header__bar__app-lifecycle__phase__description">
-        <%= gettext("Effortlessly share your app with a single URL.") %>
+        {gettext("Effortlessly share your app with a single URL.")}
       </p>
       <.app_lifecycle_share_artwork />
     </.link>
@@ -280,10 +280,10 @@ reset_dopdowns_state_js =
       target="_blank"
     >
       <h2 class="marketing__header__bar__app-lifecycle__phase__title">
-        <%= gettext("Measure") %>
+        {gettext("Measure")}
       </h2>
       <p class="marketing__header__bar__app-lifecycle__phase__description">
-        <%= gettext("Enhance your product and development with actionable insights.") %>
+        {gettext("Enhance your product and development with actionable insights.")}
       </p>
       <.app_lifecycle_measure_artwork />
     </.link>
@@ -296,10 +296,10 @@ reset_dopdowns_state_js =
       target="_blank"
     >
       <h2 class="marketing__header__bar__developers__phase__title">
-        <%= gettext("Docs") %>
+        {gettext("Docs")}
       </h2>
       <p class="marketing__header__bar__developers__phase__description">
-        <%= gettext("Explore our documentation—your go-to guide for mastering all things.") %>
+        {gettext("Explore our documentation—your go-to guide for mastering all things.")}
       </p>
 
       <.developers_docs_artwork style="grid-area: span 2;" />
@@ -307,10 +307,10 @@ reset_dopdowns_state_js =
 
     <.link class="marketing__header__bar__developers__phase" href={~p"/changelog"}>
       <h2 class="marketing__header__bar__developers__phase__title">
-        <%= gettext("Changelog") %>
+        {gettext("Changelog")}
       </h2>
       <p class="marketing__header__bar__developers__phase__description">
-        <%= gettext("Keep up with the latest and greatest changes in Tuist.") %>
+        {gettext("Keep up with the latest and greatest changes in Tuist.")}
       </p>
     </.link>
 
@@ -320,10 +320,10 @@ reset_dopdowns_state_js =
       target="_blank"
     >
       <h2 class="marketing__header__bar__developers__phase__title">
-        <%= gettext("Community") %>
+        {gettext("Community")}
       </h2>
       <p class="marketing__header__bar__developers__phase__description">
-        <%= gettext("Got ideas or questions? Join the conversation in our community forum.") %>
+        {gettext("Got ideas or questions? Join the conversation in our community forum.")}
       </p>
     </.link>
 
@@ -333,13 +333,13 @@ reset_dopdowns_state_js =
       target="_blank"
     >
       <h2 class="marketing__header__bar__developers__phase__title">
-        <%= gettext("Slack") %>
+        {gettext("Slack")}
       </h2>
 
       <p class="marketing__header__bar__developers__phase__description">
-        <%= gettext(
+        {gettext(
           "Join our Slack group for real-time conversations and to connect with the Tuist community"
-        ) %>
+        )}
       </p>
     </.link>
 
@@ -349,12 +349,12 @@ reset_dopdowns_state_js =
       target="_blank"
     >
       <h2 class="marketing__header__bar__developers__phase__title">
-        <%= gettext("GitHub") %>
+        {gettext("GitHub")}
       </h2>
       <p class="marketing__header__bar__developers__phase__description">
-        <%= gettext(
+        {gettext(
           "Check out our GitHub to see all the action—where the magic happens and collaboration thrives."
-        ) %>
+        )}
       </p>
     </.link>
   </nav>

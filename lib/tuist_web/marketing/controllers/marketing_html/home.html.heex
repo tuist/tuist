@@ -1,15 +1,15 @@
 <!-- Hero section -->
 <div class="marketing__home__section__hero">
   <h1 class="font-xxxl-strong marketing__home__section__hero__title">
-    <%= gettext("Scale your Swift App development") %>
+    {gettext("Scale your Swift App development")}
   </h1>
   <p class="marketing__home__section__hero__subtitle">
-    <%= gettext(
+    {gettext(
       "We are an integrated and open core toolchain that extends Apple's official tools with insights, optimizations, and workflows to help you build better apps faster"
-    ) %>
+    )}
   </p>
   <.primary_button size="big" href="https://docs.tuist.io">
-    <%= gettext("Get started") %>
+    {gettext("Get started")}
   </.primary_button>
 
   <div class="marketing__home__section__hero__terminal">
@@ -23,30 +23,30 @@
         <span data-ty="input" data-ty-prompt=">">tuist test</span>
         <span data-ty>
           <span class="marketing__home__section__hero__terminal__main__prompt__info">
-            <%= gettext("INFO:") %>
+            {gettext("INFO:")}
           </span>
-          <%= gettext("Pulling cache binaries...") %>
+          {gettext("Pulling cache binaries...")}
         </span>
         <span data-ty>
           <span class="marketing__home__section__hero__terminal__main__prompt__info">
-            <%= gettext("INFO:") %>
+            {gettext("INFO:")}
           </span>
-          <%= gettext("You'll save 60% of compilation time") %>
+          {gettext("You'll save 60% of compilation time")}
         </span>
         <span data-ty>
           <span class="marketing__home__section__hero__terminal__main__prompt__info">
-            <%= gettext("INFO:") %>
+            {gettext("INFO:")}
           </span>
-          <%= gettext("Running tests - 4.200 tests skipped (already run)") %>
+          {gettext("Running tests - 4.200 tests skipped (already run)")}
         </span>
         <span data-ty="progress"></span>
         <span data-ty>
           <span class="marketing__home__section__hero__terminal__main__prompt__success">
-            <%= gettext("SUCCESS:") %>
+            {gettext("SUCCESS:")}
           </span>
-          <%= gettext("1250 tests ran successfully") %>
+          {gettext("1250 tests ran successfully")}
         </span>
-        <span data-ty>📝 <%= gettext("Report: https://tuist.dev/tuist/tuist/runs/589318") %></span>
+        <span data-ty>📝 {gettext("Report: https://tuist.dev/tuist/tuist/runs/589318")}</span>
       </div>
     </div>
   </div>
@@ -54,7 +54,7 @@
 <!-- Companies section -->
 <div class="marketing__home__section__companies">
   <h2 class="marketing__home__section__companies__title">
-    <%= gettext("Trusted by the following organizations") %>
+    {gettext("Trusted by the following organizations")}
   </h2>
   <div class="marketing__home__section__companies__logos">
     <a
@@ -284,9 +284,9 @@
       </svg>
     </:logo>
     <:description>
-      <%= gettext(
+      {gettext(
         "Create new, scalable projects with best industry practices and tools, or integrate them into your existing Xcode projects with ease, ensuring you're set up for success from the start."
-      ) %>
+      )}
     </:description>
     <:illustration>
       <svg
@@ -507,9 +507,9 @@
       </svg>
     </:logo>
     <:description>
-      <%= gettext(
+      {gettext(
         "Build, test, and run your apps quickly and reliably, without the hassle. While you focus on creating exceptional apps, we handle the setup, automation, and everything in between, so you can stay productive and efficient."
-      ) %>
+      )}
     </:description>
     <:illustration>
       <svg viewBox="0 0 960 400" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -666,9 +666,9 @@
       </svg>
     </:logo>
     <:description>
-      <%= gettext(
+      {gettext(
         "Easily share your app with a single URL. One click lets anyone run it on a simulator or device instantly."
-      ) %>
+      )}
     </:description>
     <:illustration>
       <svg
@@ -838,9 +838,9 @@
       </svg>
     </:logo>
     <:description>
-      <%= gettext(
+      {gettext(
         "Automatically gather actionable insights from your projects, builds, tests, and artifacts to make informed decisions and maintain healthy project growth. We handle the data collection for you."
-      ) %>
+      )}
     </:description>
     <:illustration>
       <svg
@@ -967,7 +967,7 @@
 <!-- Testimonials section -->
 <div class="marketing__home__section__testimonials">
   <h2 class="font-xxl marketing__home__section__testimonials__title">
-    <%= gettext("Users 💜 Tuist") %>
+    {gettext("Users 💜 Tuist")}
   </h2>
   <div class="marketing__home__section__testimonials__main">
     <div
@@ -990,15 +990,15 @@
               target="_blank"
               href={testimonial.author_link}
             >
-              <%= testimonial.author %>
+              {testimonial.author}
             </a>
             <div class="font-xs marketing__home__section__testimonials__testimonial__author_info__title">
-              <%= testimonial.author_title %>
+              {testimonial.author_title}
             </div>
           </div>
         </div>
         <div class="font-xs marketing__home__section__testimonials__testimonial__body">
-          <%= raw(testimonial.body) %>
+          {raw(testimonial.body)}
         </div>
       </div>
     </div>
@@ -1008,9 +1008,7 @@
 <div class="marketing__home__section__time_saved">
   <.marketing_shell class="marketing__home__section__time_saved__logo" />
   <h2 class="font-xxl marketing__home__section__time_saved__title">
-    <span class="font-xxl-strong"><%= gettext("Millions") %></span><%= gettext(
-      " of minutes saved"
-    ) %>
+    <span class="font-xxl-strong">{gettext("Millions")}</span>{gettext(" of minutes saved")}
   </h2>
   <.marketing_shell class="marketing__home__section__time_saved__logo" />
 </div>
@@ -1053,11 +1051,11 @@
 <div class="marketing__home__section__learn_more">
   <div class="marketing__home__section__learn_more__header">
     <h2 class="marketing__home__section__learn_more__header__title font-xxxl-strong">
-      <%= gettext("Learn more") %>
+      {gettext("Learn more")}
     </h2>
     <!-- TODO: Add link to all articles -->
     <.marketing_link class="marketing__home__section__learn_more__header__link">
-      <%= gettext("View all") %>
+      {gettext("View all")}
     </.marketing_link>
   </div>
   <div class="marketing__home__section__learn_more__body">
@@ -1074,7 +1072,7 @@
   </div>
   <div class="marketing__home__section__learn_more__footer">
     <.marketing_link class="marketing__home__section__learn_more__footer__link" href={~p"/blog"}>
-      <%= gettext("View all") %>
+      {gettext("View all")}
     </.marketing_link>
   </div>
 </div>

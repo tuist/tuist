@@ -1,9 +1,9 @@
 <div class="flaky-tests page">
   <.stack gap="xl">
     <.stack gap="xs">
-      <h2 class="text--extraExtraLarge font--semibold"><%= gettext("Flaky tests") %></h2>
+      <h2 class="text--extraExtraLarge font--semibold">{gettext("Flaky tests")}</h2>
       <p class="text--small font--regular color--text-tertiary">
-        <%= gettext("A list of tests that Tuist has identified as flaky.") %>
+        {gettext("A list of tests that Tuist has identified as flaky.")}
       </p>
     </.stack>
 
@@ -20,16 +20,16 @@
     >
       <:empty_state_icon><.check_done_icon /></:empty_state_icon>
       <:col :let={flaky_test} label={gettext("Test case")}>
-        <%= flaky_test.name %>
+        {flaky_test.name}
       </:col>
       <:col :let={flaky_test} label={gettext("Module")}>
-        <%= flaky_test.module_name %>
+        {flaky_test.module_name}
       </:col>
       <:col :let={flaky_test} label={gettext("Project")}>
-        <%= String.split(flaky_test.project_identifier, "/") |> hd() %>
+        {String.split(flaky_test.project_identifier, "/") |> hd()}
       </:col>
       <:col :let={flaky_test} label={gettext("Last flaky run")}>
-        <%= Timex.from_now(flaky_test.last_flaky_test_case_run.inserted_at) %>
+        {Timex.from_now(flaky_test.last_flaky_test_case_run.inserted_at)}
       </:col>
       <:footer>
         <.pagination

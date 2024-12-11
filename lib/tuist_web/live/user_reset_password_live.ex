@@ -28,14 +28,14 @@ defmodule TuistWeb.UserResetPasswordLive do
           />
           <.stack gap="xl">
             <.button type="submit" variant="primary" class="auth-form__primary-action">
-              <%= gettext("Reset password") %>
+              {gettext("Reset password")}
             </.button>
           </.stack>
         </.stack>
       </.simple_form>
 
       <.link href={~p"/users/log_in"} class="text--small font--semibold">
-        <%= gettext("Back to log in") %>
+        {gettext("Back to log in")}
       </.link>
 
       <.flash_group flash={@flash} />

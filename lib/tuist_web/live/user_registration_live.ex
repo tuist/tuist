@@ -16,10 +16,10 @@ defmodule TuistWeb.UserRegistrationLive do
         />
         <.stack gap="lg">
           <h5 class="auth-header__title font--semibold color--text-primary">
-            <%= gettext("Create an account") %>
+            {gettext("Create an account")}
           </h5>
           <p class="auth-header__subtitle text--medium color--text-tertiary">
-            <%= gettext("Start your Tuist journey.") %>
+            {gettext("Start your Tuist journey.")}
           </p>
         </.stack>
       </.stack>
@@ -52,7 +52,7 @@ defmodule TuistWeb.UserRegistrationLive do
             </.stack>
             <.stack gap="xl">
               <.button type="submit" variant="primary" class="auth-form__primary-action">
-                <%= gettext("Sign up") %>
+                {gettext("Sign up")}
               </.button>
             </.stack>
           </.stack>
@@ -61,7 +61,7 @@ defmodule TuistWeb.UserRegistrationLive do
         <%= if @github_auth_configured do %>
           <.social_button>
             <a href={~p"/users/auth/github"}>
-              <%= gettext("Sign up with GitHub") %>
+              {gettext("Sign up with GitHub")}
             </a>
             <:icon><.github_icon /></:icon>
           </.social_button>
@@ -69,7 +69,7 @@ defmodule TuistWeb.UserRegistrationLive do
         <%= if @google_configured do %>
           <.social_button>
             <a href={~p"/users/auth/google"}>
-              <%= gettext("Sign up with Google") %>
+              {gettext("Sign up with Google")}
             </a>
             <:icon><.google_icon /></:icon>
           </.social_button>
@@ -77,7 +77,7 @@ defmodule TuistWeb.UserRegistrationLive do
         <%= if @okta_configured do %>
           <.social_button>
             <a href={~p"/users/auth/okta"}>
-              <%= gettext("Sign up with Okta") %>
+              {gettext("Sign up with Okta")}
             </a>
             <:icon><.okta_icon /></:icon>
           </.social_button>
@@ -85,10 +85,10 @@ defmodule TuistWeb.UserRegistrationLive do
       </.stack>
       <.stack direction="horizontal" gap="xs">
         <span class="text--small font--regular color--text-tertiary">
-          <%= gettext("Already an account?") %>
+          {gettext("Already an account?")}
         </span>
         <a href={~p"/users/log_in"} class="text--small font--semibold">
-          <%= gettext("Sign in") %>
+          {gettext("Sign in")}
         </a>
       </.stack>
 

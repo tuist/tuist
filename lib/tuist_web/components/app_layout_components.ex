@@ -19,10 +19,10 @@ defmodule TuistWeb.AppLayoutComponents do
         menu_id="account-projects"
         menu_class="sidebar__dropdown__menu"
       >
-        <%= @selected_account.name %>
+        {@selected_account.name}
         <:content>
           <a :for={account <- @current_user_accounts} href={~p"/#{account.name}/projects"}>
-            <%= account.name %>
+            {account.name}
           </a>
         </:content>
       </.dropdown_picker>
@@ -35,7 +35,7 @@ defmodule TuistWeb.AppLayoutComponents do
         >
           <a href={projects_path}>
             <.briefcase_icon />
-            <p class="text-md semibold"><%= gettext("Projects") %></p>
+            <p class="text-md semibold">{gettext("Projects")}</p>
           </a>
         </li>
         <%= if @can_read_billing do %>
@@ -47,7 +47,7 @@ defmodule TuistWeb.AppLayoutComponents do
           >
             <a href={billing_path}>
               <.credit_card_icon />
-              <p class="text-md semibold"><%= gettext("Billing") %></p>
+              <p class="text-md semibold">{gettext("Billing")}</p>
             </a>
           </li>
         <% end %>
@@ -75,7 +75,7 @@ defmodule TuistWeb.AppLayoutComponents do
             >
               <.link patch={project_dashboard_path}>
                 <.bar_chart_icon />
-                <p class="text-md semibold"><%= gettext("Dashboard") %></p>
+                <p class="text-md semibold">{gettext("Dashboard")}</p>
               </.link>
             </li>
           <% end %>
@@ -87,7 +87,7 @@ defmodule TuistWeb.AppLayoutComponents do
           >
             <.link patch={runs_path}>
               <.terminal_square_icon />
-              <p class="text-md semibold"><%= gettext("Runs") %></p>
+              <p class="text-md semibold">{gettext("Runs")}</p>
             </.link>
           </li>
 
@@ -112,14 +112,14 @@ defmodule TuistWeb.AppLayoutComponents do
           >
             <.link patch={previews_path}>
               <.phone_icon />
-              <p class="text-md semibold"><%= gettext("Previews") %></p>
+              <p class="text-md semibold">{gettext("Previews")}</p>
             </.link>
           </li>
         </ul>
         <%= if is_nil(@current_user) do %>
           <.link href={~p"/users/log_in"}>
             <.button variant="primary" class="sidebar__sign-in-button">
-              <%= gettext("Sign in") %>
+              {gettext("Sign in")}
             </.button>
           </.link>
         <% end %>
@@ -158,7 +158,7 @@ defmodule TuistWeb.AppLayoutComponents do
         </a>
         <a class="headerbar__links__link text--small" href="https://docs.tuist.io" target="_blank">
           <.book_open_icon class="headerbar__links__icon" />
-          <%= gettext("Documentation") %>
+          {gettext("Documentation")}
         </a>
       </nav>
       <!-- Avatar -->
@@ -178,7 +178,7 @@ defmodule TuistWeb.AppLayoutComponents do
                 Signed as
               </div>
               <div class="headerbar__links__avatar__dropdown__account-email-value text--small">
-                <%= @current_user.email %>
+                {@current_user.email}
               </div>
             </div>
             <hr class="headerbar__links__avatar__dropdown__break" />
@@ -207,17 +207,17 @@ defmodule TuistWeb.AppLayoutComponents do
           <%= cond do %>
             <% Map.get(breadcrumb, :href) -> %>
               <a href={breadcrumb.href} class="headerbar__breadcrumbs__list-link-item">
-                <%= Phoenix.HTML.raw(breadcrumb.content) %>
+                {Phoenix.HTML.raw(breadcrumb.content)}
               </a>
             <% Enum.empty?(Map.get(breadcrumb, :items, []))-> %>
               <span class="headerbar__breadcrumbs__text-item">
-                <%= Phoenix.HTML.raw(breadcrumb.content) %>
+                {Phoenix.HTML.raw(breadcrumb.content)}
               </span>
             <% true -> %>
               <.headless_dropdown dropdown_id={"breadcrumbs-item-#{index}-#{breadcrumb.content}"}>
                 <:activator :let={attrs}>
                   <div class="headerbar__breadcrumbs__dropdown-item" {attrs}>
-                    <%= Phoenix.HTML.raw(breadcrumb.content) %>
+                    {Phoenix.HTML.raw(breadcrumb.content)}
                     <.chevron_selector_horizontal class="headerbar__breadcrumbs__dropdown-item__icon" />
                   </div>
                 </:activator>
@@ -227,7 +227,7 @@ defmodule TuistWeb.AppLayoutComponents do
                     class="headerbar__breadcrumbs__dropdown-item__menu__item"
                     href={item_href}
                   >
-                    <%= item_content %>
+                    {item_content}
                   </a>
                 </div>
               </.headless_dropdown>

@@ -1,22 +1,22 @@
 <div class="analytics page">
   <.stack class="analytics__header-section" gap="3xl">
     <h2 class="analytics__header-section__title text--extraExtraLarge font--semibold">
-      <%= gettext("Dashboard") %>
+      {gettext("Dashboard")}
     </h2>
     <.stack class="analytics__header-section__controls" direction="horizontal">
       <.button_group selected_key={@date_range}>
         <:button key="last_7_days">
-          <a href="?date_range=last_7_days"><%= gettext("7 days") %></a>
+          <a href="?date_range=last_7_days">{gettext("7 days")}</a>
         </:button>
         <:button key="last_30_days">
-          <a href="?date_range=last_30_days"><%= gettext("30 days") %></a>
+          <a href="?date_range=last_30_days">{gettext("30 days")}</a>
         </:button>
         <:button key="last_12_months">
-          <a href="?date_range=last_12_months"><%= gettext("12 months") %></a>
+          <a href="?date_range=last_12_months">{gettext("12 months")}</a>
         </:button>
       </.button_group>
       <.dropdown_picker class="home-filter-dropdown" menu_id="home-filter">
-        <%= gettext("Filter") %>
+        {gettext("Filter")}
         <:content>
           <div class="analytics__header-section__controls__filter">
             <form phx-submit="apply_filters">
@@ -24,12 +24,12 @@
                 <.stack gap="xs">
                   <p class="text--large font--semibold color--text-primary">Filters</p>
                   <p class="text--small font--regular color--text-tertiary">
-                    <%= gettext("Apply filters to the dashboard data") %>
+                    {gettext("Apply filters to the dashboard data")}
                   </p>
                 </.stack>
                 <.stack gap="xl">
                   <p class="text--small font--medium color--text-secondary">
-                    <%= gettext("Ran by") %>
+                    {gettext("Ran by")}
                   </p>
                   <.input
                     type="checkbox"
@@ -62,7 +62,7 @@
                   type="button"
                   phx-click={JS.hide(to: "#home-filter.dropdown-menu")}
                 >
-                  <%= gettext("Cancel") %>
+                  {gettext("Cancel")}
                 </.button>
                 <.button
                   variant="primary"
@@ -71,7 +71,7 @@
                   phx-click={JS.hide(to: "#home-filter.dropdown-menu")}
                   class="analytics__header-section__controls__filter__content__footer__apply-button"
                 >
-                  <%= gettext("Apply") %>
+                  {gettext("Apply")}
                 </.button>
               </.stack>
             </form>

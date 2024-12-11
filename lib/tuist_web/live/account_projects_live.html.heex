@@ -1,7 +1,7 @@
 <%= if not Enum.empty?(@projects) do %>
   <div class="account__projects page">
     <h2 class="account__projects__title text--extraExtraLarge font--semibold">
-      <%= gettext("Projects") %>
+      {gettext("Projects")}
     </h2>
 
     <div class="account__projects__panel">
@@ -12,7 +12,7 @@
           navigate={~p"/#{@selected_account.name}/#{project.name}"}
         >
           <li>
-            <%= project.name %>
+            {project.name}
           </li>
         </.link>
       </ul>
@@ -29,10 +29,10 @@
       />
       <.stack gap="lg">
         <h2 class="account__projects__get-started__header__title font--semibold text--extraExtraLarge color--text-primary">
-          <%= gettext("Create a project") %>
+          {gettext("Create a project")}
         </h2>
         <p class="account__projects__get-started__header__text text--medium color--text-tertiary">
-          <%= gettext("Let's get you started.") %>
+          {gettext("Let's get you started.")}
         </p>
       </.stack>
     </.stack>
@@ -42,7 +42,7 @@
         <.stack gap="l">
           <.section_header title={gettext("Authenticate")} />
           <p class="text--medium color--text-tertiary">
-            <%= gettext("To authenticate interactions with the server") %>
+            {gettext("To authenticate interactions with the server")}
           </p>
         </.stack>
         <code class="account__projects__code">

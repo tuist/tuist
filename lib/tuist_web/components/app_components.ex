@@ -32,9 +32,9 @@ defmodule TuistWeb.AppComponents do
     ~H"""
     <div class="section-header">
       <.stack gap="xs">
-        <p class="text--large color--text-primary font--semibold"><%= @title %></p>
+        <p class="text--large color--text-primary font--semibold">{@title}</p>
         <%= if @subtitle != nil do %>
-          <p class="text--small color--text-tertiary font--regular"><%= @subtitle %></p>
+          <p class="text--small color--text-tertiary font--regular">{@subtitle}</p>
         <% end %>
       </.stack>
     </div>
@@ -51,7 +51,7 @@ defmodule TuistWeb.AppComponents do
   def card(assigns) do
     ~H"""
     <div class={"card #{@class}"}>
-      <%= render_slot(@inner_block) %>
+      {render_slot(@inner_block)}
     </div>
     """
   end
@@ -72,7 +72,7 @@ defmodule TuistWeb.AppComponents do
       class={"stack stack--#{@direction} stack--#{@direction}--#{@gap} #{@class}"}
       style={if not is_nil(@align), do: "align-items: #{@align};"}
     >
-      <%= render_slot(@inner_block) %>
+      {render_slot(@inner_block)}
     </div>
     """
   end
@@ -103,10 +103,10 @@ defmodule TuistWeb.AppComponents do
       >
         <:icon_start>
           <%= if @icon != [] do %>
-            <%= render_slot(@icon) %>
+            {render_slot(@icon)}
           <% end %>
         </:icon_start>
-        <%= render_slot(@inner_block) %>
+        {render_slot(@inner_block)}
         <:icon>
           <%= if @icon == [] do %>
             <.chevron_down_icon />
@@ -120,7 +120,7 @@ defmodule TuistWeb.AppComponents do
         hidden
         phx-click-away={JS.hide(to: "##{@menu_id}")}
       >
-        <%= render_slot(@content) %>
+        {render_slot(@content)}
       </div>
     </div>
     """
@@ -153,7 +153,7 @@ defmodule TuistWeb.AppComponents do
       <%= if @loading do %>
         <span class="loader"></span>
       <% else %>
-        <%= render_slot(@icon_start) %>
+        {render_slot(@icon_start)}
         <span class={"text--#{case @size do
         "small" -> "small"
         "medium" -> "small"
@@ -162,9 +162,9 @@ defmodule TuistWeb.AppComponents do
         "extraExtraLarge" -> "large"
       end
       } font--semibold"}>
-          <%= render_slot(@inner_block) %>
+          {render_slot(@inner_block)}
         </span>
-        <%= render_slot(@icon) %>
+        {render_slot(@icon)}
       <% end %>
     </button>
     """
@@ -182,8 +182,8 @@ defmodule TuistWeb.AppComponents do
     ~H"""
     <button class="social-button" class="auth-form__primary-action">
       <.stack direction="horizontal" gap="lg">
-        <%= render_slot(@icon) %>
-        <span class="text--medium font--semibold"><%= render_slot(@inner_block) %></span>
+        {render_slot(@icon)}
+        <span class="text--medium font--semibold">{render_slot(@inner_block)}</span>
       </.stack>
     </button>
     """
@@ -217,7 +217,7 @@ defmodule TuistWeb.AppComponents do
           end
         }>
           <span class="text--small font--semibold">
-            <%= render_slot(button) %>
+            {render_slot(button)}
           </span>
         </button>
       <% end %>
@@ -280,7 +280,7 @@ defmodule TuistWeb.AppComponents do
             <.close_icon />
           </button>
           <div id={"#{@id}-content"} class="modal__dialog__container__content">
-            <%= render_slot(@inner_block) %>
+            {render_slot(@inner_block)}
           </div>
         </.focus_wrap>
       </div>
@@ -298,8 +298,8 @@ defmodule TuistWeb.AppComponents do
   def badge(assigns) do
     ~H"""
     <div class={"badge badge--#{@kind}"}>
-      <%= render_slot(@icon) %>
-      <span class="text--extraSmall font--medium badge__text"><%= @title %></span>
+      {render_slot(@icon)}
+      <span class="text--extraSmall font--medium badge__text">{@title}</span>
     </div>
     """
   end
@@ -312,8 +312,8 @@ defmodule TuistWeb.AppComponents do
     ~H"""
     <button class={"badge-group badge--#{@kind}"}>
       <.stack class="text--extraSmall font--medium" direction="horizontal" gap="xs">
-        <span class="badge__type"><%= @title %></span>
-        <span class="badge__text"><%= @message %></span>
+        <span class="badge__type">{@title}</span>
+        <span class="badge__text">{@message}</span>
         <.close_icon />
       </.stack>
     </button>
@@ -397,9 +397,9 @@ defmodule TuistWeb.AppComponents do
     ~H"""
     <.form :let={f} for={@for} as={@as} {@rest}>
       <div class="mt-10 space-y-8 bg-white">
-        <%= render_slot(@inner_block, f) %>
+        {render_slot(@inner_block, f)}
         <div :for={action <- @actions} class="mt-2 flex items-center justify-between gap-6">
-          <%= render_slot(action, f) %>
+          {render_slot(action, f)}
         </div>
       </div>
     </.form>
@@ -476,12 +476,12 @@ defmodule TuistWeb.AppComponents do
       <label class="checkbox-container__label text--small font--medium color--text-secondary">
         <input type="hidden" name={@name} value="false" />
         <input type="checkbox" id={@id} name={@name} value="true" checked={@checked} {@rest} />
-        <%= @label %>
+        {@label}
         <%= if @inner_block != [] do %>
-          <%= render_slot(@inner_block) %>
+          {render_slot(@inner_block)}
         <% end %>
       </label>
-      <.error :for={msg <- @errors}><%= msg %></.error>
+      <.error :for={msg <- @errors}>{msg}</.error>
     </div>
     """
   end
@@ -513,12 +513,12 @@ defmodule TuistWeb.AppComponents do
       <label class="radio-container__label text--small font--medium color--text-secondary">
         <input type="hidden" name={@name} value="false" />
         <input type="radio" id={@id} name={@name} value="true" checked={@checked} {@rest} />
-        <%= @label %>
+        {@label}
         <%= if @inner_block != [] do %>
-          <%= render_slot(@inner_block) %>
+          {render_slot(@inner_block)}
         <% end %>
       </label>
-      <.error :for={msg <- @errors}><%= msg %></.error>
+      <.error :for={msg <- @errors}>{msg}</.error>
     </div>
     """
   end
@@ -526,7 +526,7 @@ defmodule TuistWeb.AppComponents do
   def input(%{type: "select"} = assigns) do
     ~H"""
     <div phx-feedback-for={@name}>
-      <.label for={@id}><%= @label %></.label>
+      <.label for={@id}>{@label}</.label>
       <select
         id={@id}
         name={@name}
@@ -534,10 +534,10 @@ defmodule TuistWeb.AppComponents do
         multiple={@multiple}
         {@rest}
       >
-        <option :if={@prompt} value=""><%= @prompt %></option>
-        <%= Phoenix.HTML.Form.options_for_select(@options, @value) %>
+        <option :if={@prompt} value="">{@prompt}</option>
+        {Phoenix.HTML.Form.options_for_select(@options, @value)}
       </select>
-      <.error :for={msg <- @errors}><%= msg %></.error>
+      <.error :for={msg <- @errors}>{msg}</.error>
     </div>
     """
   end
@@ -545,7 +545,7 @@ defmodule TuistWeb.AppComponents do
   def input(%{type: "textarea"} = assigns) do
     ~H"""
     <div phx-feedback-for={@name}>
-      <.label for={@id}><%= @label %></.label>
+      <.label for={@id}>{@label}</.label>
       <textarea
         id={@id}
         name={@name}
@@ -557,7 +557,7 @@ defmodule TuistWeb.AppComponents do
         ]}
         {@rest}
       ><%= Phoenix.HTML.Form.normalize_value("textarea", @value) %></textarea>
-      <.error :for={msg <- @errors}><%= msg %></.error>
+      <.error :for={msg <- @errors}>{msg}</.error>
     </div>
     """
   end
@@ -566,7 +566,7 @@ defmodule TuistWeb.AppComponents do
   def input(assigns) do
     ~H"""
     <.stack gap="sm">
-      <.label for={@id}><%= @label %></.label>
+      <.label for={@id}>{@label}</.label>
       <input
         type={@type}
         name={@name}
@@ -579,7 +579,7 @@ defmodule TuistWeb.AppComponents do
         {@rest}
       />
       <p :for={msg <- @errors} class="color--text-error-primary text--small font--regular">
-        <%= msg %>
+        {msg}
       </p>
     </.stack>
     """
@@ -594,7 +594,7 @@ defmodule TuistWeb.AppComponents do
   def label(assigns) do
     ~H"""
     <label for={@for} class="text--small font--medium color--text-secondary">
-      <%= render_slot(@inner_block) %>
+      {render_slot(@inner_block)}
     </label>
     """
   end
@@ -608,7 +608,7 @@ defmodule TuistWeb.AppComponents do
     ~H"""
     <p class="mt-3 flex gap-3 text-sm leading-6 text-rose-600 phx-no-feedback:hidden">
       <.icon name="hero-exclamation-circle-mini" class="mt-0.5 h-5 w-5 flex-none" />
-      <%= render_slot(@inner_block) %>
+      {render_slot(@inner_block)}
     </p>
     """
   end
@@ -627,13 +627,13 @@ defmodule TuistWeb.AppComponents do
     <header class={[@actions != [] && "flex items-center justify-between gap-6", @class]}>
       <div>
         <h1 class="text-lg font-semibold leading-8 text-zinc-800">
-          <%= render_slot(@inner_block) %>
+          {render_slot(@inner_block)}
         </h1>
         <p :if={@subtitle != []} class="mt-2 text-sm leading-6 text-zinc-600">
-          <%= render_slot(@subtitle) %>
+          {render_slot(@subtitle)}
         </p>
       </div>
-      <div class="flex-none"><%= render_slot(@actions) %></div>
+      <div class="flex-none">{render_slot(@actions)}</div>
     </header>
     """
   end
@@ -689,14 +689,14 @@ defmodule TuistWeb.AppComponents do
       <.link navigate={@uri} class="pagination-link">
         <.button variant="secondary" size="small" disabled={@disabled?}>
           <:icon_start><.arrow_left_icon /></:icon_start>
-          <%= gettext("Previous") %>
+          {gettext("Previous")}
         </.button>
       </.link>
     <% else %>
       <.link navigate={@uri} class="pagination-link">
         <.button variant="secondary" size="small" disabled={@disabled?}>
           <:icon><.arrow_right_icon /></:icon>
-          <%= gettext("Next") %>
+          {gettext("Next")}
         </.button>
       </.link>
     <% end %>
@@ -750,17 +750,17 @@ defmodule TuistWeb.AppComponents do
         <.stack gap="xl" class="table-container__empty-state">
           <.featured_icon>
             <%= if @empty_state_icon != [] do %>
-              <%= render_slot(@empty_state_icon) %>
+              {render_slot(@empty_state_icon)}
             <% else %>
               <.search_icon />
             <% end %>
           </.featured_icon>
           <.stack gap="xs" class="table-container__empty-state__labels">
             <p class="text--medium font--semibold color--text-primary">
-              <%= @empty_state_title %>
+              {@empty_state_title}
             </p>
             <p class="text--small font--regular color--text-tertiary">
-              <%= @empty_state_subtitle %>
+              {@empty_state_subtitle}
             </p>
           </.stack>
         </.stack>
@@ -768,7 +768,7 @@ defmodule TuistWeb.AppComponents do
         <table>
           <thead>
             <tr>
-              <th :for={col <- @col}><%= col[:label] %></th>
+              <th :for={col <- @col}>{col[:label]}</th>
             </tr>
           </thead>
           <tbody id={@id} phx-update={match?(%Phoenix.LiveView.LiveStream{}, @rows) && "stream"}>
@@ -784,11 +784,11 @@ defmodule TuistWeb.AppComponents do
               >
                 <%= if not is_nil(@row_link) do %>
                   <.link href={@row_link.(row)} class="table-container__data-container">
-                    <%= render_slot(col, @row_item.(row)) %>
+                    {render_slot(col, @row_item.(row))}
                   </.link>
                 <% else %>
                   <div class="table-container__data-container">
-                    <%= render_slot(col, @row_item.(row)) %>
+                    {render_slot(col, @row_item.(row))}
                   </div>
                 <% end %>
               </td>
@@ -797,7 +797,7 @@ defmodule TuistWeb.AppComponents do
         </table>
         <%= if @footer != [] do %>
           <div class="table-container__footer">
-            <%= render_slot(@footer) %>
+            {render_slot(@footer)}
           </div>
         <% end %>
       <% end %>
@@ -824,8 +824,8 @@ defmodule TuistWeb.AppComponents do
     <div class="mt-14">
       <dl class="-my-4 divide-y divide-zinc-100">
         <div :for={item <- @item} class="flex gap-4 py-4 text-sm leading-6 sm:gap-8">
-          <dt class="w-1/4 flex-none text-zinc-500"><%= item.title %></dt>
-          <dd class="text-zinc-700"><%= render_slot(item) %></dd>
+          <dt class="w-1/4 flex-none text-zinc-500">{item.title}</dt>
+          <dd class="text-zinc-700">{render_slot(item)}</dd>
         </div>
       </dl>
     </div>
@@ -850,7 +850,7 @@ defmodule TuistWeb.AppComponents do
         class="text-sm font-semibold leading-6 text-zinc-900 hover:text-zinc-700"
       >
         <.icon name="hero-arrow-left-solid" class="h-3 w-3" />
-        <%= render_slot(@inner_block) %>
+        {render_slot(@inner_block)}
       </.link>
     </div>
     """

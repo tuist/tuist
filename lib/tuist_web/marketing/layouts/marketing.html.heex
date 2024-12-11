@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="csrf-token" content={get_csrf_token()} />
     <.live_title>
-      <%= assigns[:head_title] || "Tuist" %>
+      {assigns[:head_title] || "Tuist"}
     </.live_title>
     <TuistWeb.LayoutComponents.head_meta_meta_tags {assigns} />
     <TuistWeb.LayoutComponents.head_x_meta_tags {assigns} />
@@ -91,7 +91,7 @@
   </head>
   <body data-scrollable="true">
     <TuistWeb.Marketing.MarketingLayoutComponents.header current_path={@current_path} {assigns} />
-    <%= @inner_content %>
+    {@inner_content}
     <TuistWeb.Marketing.MarketingLayoutComponents.footer />
 
     <div class="marketing__component__cookies" id="cookies-banner" phx-hook="CookiesBanner">
@@ -101,15 +101,15 @@
       <div class="marketing__component__cookies__content">
         <div class="marketing__component__cookies__content__body" src="">
           <p class="marketing__component__cookies__content__body__title">
-            <%= gettext("We use cookies") %>
+            {gettext("We use cookies")}
           </p>
           <p class="marketing__component__cookies__content__body__description">
-            <%= raw(
+            {raw(
               gettext(
                 "This site uses cookies. By continuing to use our site, you agree to %{use_of_cookies}.",
                 use_of_cookies: "<a href=\"#{~p"/cookies"}\">#{gettext("use of cookies")}</a>"
               )
-            ) %>
+            )}
           </p>
         </div>
 
@@ -118,7 +118,7 @@
           class="marketing__component__cookies__content__button"
           phx-click={JS.dispatch("accept-cookies")}
         >
-          <%= gettext("Accept") %>
+          {gettext("Accept")}
         </TuistWeb.Marketing.MarketingLayoutComponents.primary_button>
       </div>
     </div>

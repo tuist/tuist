@@ -21,7 +21,7 @@ defmodule TuistWeb.HeadlessComponents do
   def headless_dropdown(assigns) do
     ~H"""
     <div class={"headless_dropdown #{@class}"}>
-      <%= render_slot(
+      {render_slot(
         @activator,
         %{
           "aria-expanded" => "false",
@@ -29,9 +29,9 @@ defmodule TuistWeb.HeadlessComponents do
           "phx-click" => JS.toggle(to: "##{@dropdown_id}"),
           "phx-window-keydown" => JS.hide(to: "##{@dropdown_id}")
         }
-      ) %>
+      )}
       <div id={@dropdown_id} hidden phx-click-away={JS.hide(to: "##{@dropdown_id}")}>
-        <%= render_slot(@inner_block) %>
+        {render_slot(@inner_block)}
       </div>
     </div>
     """

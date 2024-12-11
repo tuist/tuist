@@ -1,14 +1,14 @@
 <div class="test-cases page">
   <.stack gap="xl">
     <.stack gap="xs">
-      <h5><%= @test_case.name %></h5>
+      <h5>{@test_case.name}</h5>
       <p class="text--small font--regular color--text-tertiary">
-        <%= gettext("Project: %{project_name}",
+        {gettext("Project: %{project_name}",
           project_name: String.split(@test_case.project_identifier) |> hd()
-        ) %>
+        )}
       </p>
       <p class="text--small font--regular color--text-tertiary">
-        <%= gettext("Module: %{module_name}", module_name: @test_case.module_name) %>
+        {gettext("Module: %{module_name}", module_name: @test_case.module_name)}
       </p>
     </.stack>
     <.table
@@ -22,7 +22,7 @@
       empty_state_title={gettext("No runs")}
     >
       <:col :let={test_case_run} label={gettext("Command")}>
-        <%= test_case_run.command_event.command_arguments || test_case_run.command_event.name %>
+        {test_case_run.command_event.command_arguments || test_case_run.command_event.name}
       </:col>
       <:col :let={test_case_run} label={gettext("Status")}>
         <.stack direction="horizontal">
@@ -36,12 +36,12 @@
         <.command_event_ran_by_badge command_event={test_case_run.command_event} />
       </:col>
       <:col :let={test_case_run} label={gettext("Module hash")}>
-        <%= if is_nil(test_case_run.module_hash),
+        {if is_nil(test_case_run.module_hash),
           do: gettext("Unknown"),
-          else: test_case_run.module_hash %>
+          else: test_case_run.module_hash}
       </:col>
       <:col :let={test_case_run} label={gettext("Ran at")}>
-        <%= Timex.from_now(test_case_run.inserted_at) %>
+        {Timex.from_now(test_case_run.inserted_at)}
       </:col>
       <:footer>
         <.pagination

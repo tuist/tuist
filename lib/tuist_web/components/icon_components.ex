@@ -9,7 +9,7 @@ defmodule TuistWeb.Components.IconComponents do
   def featured_icon(assigns) do
     ~H"""
     <div class="featured-icon">
-      <%= render_slot(@inner_block, assigns) %>
+      {render_slot(@inner_block, assigns)}
     </div>
     """
   end

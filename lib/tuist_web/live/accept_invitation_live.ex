@@ -50,7 +50,7 @@ defmodule TuistWeb.AcceptInvitationLive do
       <div>
         <.button>
           <a href={~p"/"} class="color--text-primary">
-            <%= gettext("Dashboard") %>
+            {gettext("Dashboard")}
           </a>
         </.button>
       </div>

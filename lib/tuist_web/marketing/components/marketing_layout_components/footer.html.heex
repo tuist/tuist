@@ -7,7 +7,7 @@
         alt={gettext("Tuist Icon")}
       />
       <h2 class="marketing__footer__header__title__text font-m-strong">
-        <%= gettext("Tuist") %>
+        {gettext("Tuist")}
       </h2>
     </div>
 
@@ -29,7 +29,7 @@
         </div>
 
         <div class="marketing__footer__header__status__text font-xxs">
-          <%= gettext("Ongoing incident") %>
+          {gettext("Ongoing incident")}
         </div>
       </.link>
     <% else %>
@@ -48,7 +48,7 @@
         </div>
 
         <div class="marketing__footer__header__status__text font-xxs">
-          <%= gettext("All systems are normal") %>
+          {gettext("All systems are normal")}
         </div>
       </.link>
     <% end %>
@@ -134,7 +134,7 @@
     <div class="marketing__footer__main__links">
       <div class="marketing__footer__main__links__social">
         <h3 class="marketing__footer__main__links__social__title font-xxs-strong">
-          <%= gettext("Stay in touch") %>
+          {gettext("Stay in touch")}
         </h3>
         <div class="marketing__footer__main__links__social__items">
           <.link href={Tuist.Environment.get_url(:slack)} target="_blank">
@@ -162,15 +162,15 @@
 
   <div class="marketing__footer__footer">
     <.link href={~p"/terms"} class="marketing__footer__footer__link font-xxs">
-      <%= gettext("Terms of service") %>
+      {gettext("Terms of service")}
     </.link>
     <span>|</span>
     <.link href={~p"/privacy"} class="marketing__footer__footer__link font-xxs">
-      <%= gettext("Privacy policy") %>
+      {gettext("Privacy policy")}
     </.link>
     <span>|</span>
     <.link href={~p"/cookies"} class="marketing__footer__footer__link font-xxs">
-      <%= gettext("Cookie policy") %>
+      {gettext("Cookie policy")}
     </.link>
   </div>
 </footer>

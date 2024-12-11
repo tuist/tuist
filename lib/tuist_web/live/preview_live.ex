@@ -78,10 +78,10 @@ defmodule TuistWeb.PreviewLive do
     ~H"""
     <div class="preview__extra-metadata-item">
       <p class="preview__extra-metadata-item__title">
-        <%= @title %>
+        {@title}
       </p>
       <p class="preview__extra-metadata-item__value">
-        <%= @value %>
+        {@value}
       </p>
     </div>
     """

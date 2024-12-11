@@ -67,7 +67,7 @@ defmodule TuistWeb.ProjectRunsLive do
   def command_event_run_link(assigns) do
     ~H"""
     <.link href={"runs/#{@command_event.id}"}>
-      <%= render_slot(@inner_block) %>
+      {render_slot(@inner_block)}
     </.link>
     """
   end

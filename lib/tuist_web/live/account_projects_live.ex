@@ -30,18 +30,18 @@ defmodule TuistWeb.AccountProjectsLive do
     ~H"""
     <.card>
       <div class="account__projects__get-started__more-card__icon">
-        <%= render_slot(@icon) %>
+        {render_slot(@icon)}
       </div>
       <.stack gap="sm" class="account__projects__get-started__more-card__header">
         <p class="text--extraLarge color--text-primary font--semibold">
-          <%= @title %>
+          {@title}
         </p>
         <p class="text--medium color--text-tertiary font--regular">
-          <%= @subtitle %>
+          {@subtitle}
         </p>
       </.stack>
       <a href={@link} target="_blank" class="account__projects__get-started__more-card__link">
-        <span class="font--semibold"><%= @link_text %></span>
+        <span class="font--semibold">{@link_text}</span>
         <.arrow_right_icon />
       </a>
     </.card>

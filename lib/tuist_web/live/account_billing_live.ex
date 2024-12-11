@@ -173,15 +173,15 @@ defmodule TuistWeb.AccountBillingLive do
         <.stack gap="xs">
           <p class="text--large font--semibold color--text-primary">
             <%= if @plan == :air do %>
-              <%= gettext("Confirm downgrade to the Air plan") %>
+              {gettext("Confirm downgrade to the Air plan")}
             <% else %>
-              <%= gettext("Confirm upgrade to the Pro plan") %>
+              {gettext("Confirm upgrade to the Pro plan")}
             <% end %>
           </p>
           <p class="text--small font--regular color--text-tertiary">
-            <%= gettext(
+            {gettext(
               "Upon clicking confirm, your monthly invoice will be adjusted and your credit card will be charged immediately. Changing the plan resets your billing cycle and may result in a prorated charge for previous usage."
-            ) %>
+            )}
           </p>
         </.stack>
         <.stack direction="horizontal" gap="lg" class="billing__confirm-modal__button-group">
@@ -191,7 +191,7 @@ defmodule TuistWeb.AccountBillingLive do
             type="button"
             phx-click={JS.exec("data-cancel", to: "##{@id}")}
           >
-            <%= gettext("Cancel") %>
+            {gettext("Cancel")}
           </.button>
           <.button
             variant="primary"
@@ -202,7 +202,7 @@ defmodule TuistWeb.AccountBillingLive do
             data-plan-changed={JS.exec("data-cancel", to: "##{@id}")}
             loading={@loading}
           >
-            <%= gettext("Confirm") %>
+            {gettext("Confirm")}
           </.button>
         </.stack>
       </.stack>
@@ -223,7 +223,7 @@ defmodule TuistWeb.AccountBillingLive do
     <.stack gap="4xl" class="billing__pricing-tier-card">
       <.stack gap="xl">
         <p class="text--large font--semibold color--text-tertiary">
-          <%= @title %>
+          {@title}
         </p>
         <.stack
           gap="xs"
@@ -233,23 +233,23 @@ defmodule TuistWeb.AccountBillingLive do
         >
           <%= if not is_nil(@price) do %>
             <h3 class="font--semibold color--text-primary">
-              <%= @price %>
+              {@price}
             </h3>
             <p class="text--medium font--medium color--text-tertiary billing__pricing-tier-card__per-month-label">
               <%= if not is_nil(assigns[:price_extra]) do %>
-                <%= @price_extra %>
+                {@price_extra}
               <% end %>
             </p>
           <% else %>
-            <h3 class="font--semibold color--text-primary"><%= gettext("Custom") %></h3>
+            <h3 class="font--semibold color--text-primary">{gettext("Custom")}</h3>
           <% end %>
         </.stack>
         <p class="text--medium font--regular color--text-tertiary">
-          <%= @description %>
+          {@description}
         </p>
       </.stack>
       <div class="billing__pricing-tier-card__action">
-        <%= render_slot(@inner_block) %>
+        {render_slot(@inner_block)}
       </div>
       <.stack gap="3xl">
         <.stack gap="xl" class="billing__pricing-tier-card__features-list">
@@ -263,14 +263,14 @@ defmodule TuistWeb.AccountBillingLive do
               <%= if is_tuple(feature) do %>
                 <.stack gap="xs">
                   <p class="text--medium font--medium color--text-secondary">
-                    <%= elem(feature, 0) %>
+                    {elem(feature, 0)}
                   </p>
                   <p class="text--small font--regular color--text-tertiary">
-                    <%= elem(feature, 1) %>
+                    {elem(feature, 1)}
                   </p>
                 </.stack>
               <% else %>
-                <p class="text--medium font--medium color--text-secondary"><%= feature %></p>
+                <p class="text--medium font--medium color--text-secondary">{feature}</p>
               <% end %>
             </.stack>
           <% end %>

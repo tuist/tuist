@@ -1,5 +1,5 @@
 <div class="previews page">
-  <h2 class="previews__title"><%= gettext("Previews") %></h2>
+  <h2 class="previews__title">{gettext("Previews")}</h2>
   <.table
     id="previews"
     rows={@command_events}
@@ -11,7 +11,7 @@
     empty_state_title={gettext("No previews")}
   >
     <:col :let={command_event} label={gettext("Name")}>
-      <%= command_event.preview.display_name %>
+      {command_event.preview.display_name}
     </:col>
     <:col :let={command_event} label={gettext("Supported platforms")}>
       <.supported_platforms_badges preview={command_event.preview} />
@@ -20,13 +20,13 @@
       <.command_event_ran_by_badge command_event={command_event} />
     </:col>
     <:col :let={command_event} label={gettext("Branch")}>
-      <%= command_event.git_branch || "None" %>
+      {command_event.git_branch || "None"}
     </:col>
     <:col :let={command_event} label={gettext("Commit SHA")}>
-      <%= (command_event.git_commit_sha || "None") |> String.slice(0, 7) %>
+      {(command_event.git_commit_sha || "None") |> String.slice(0, 7)}
     </:col>
     <:col :let={command_event} label={gettext("Created at")}>
-      <%= Timex.from_now(command_event.created_at) %>
+      {Timex.from_now(command_event.created_at)}
     </:col>
   </.table>
   <.pagination

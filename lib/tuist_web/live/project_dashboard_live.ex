@@ -185,10 +185,10 @@ defmodule TuistWeb.ProjectDashboardLive do
     ~H"""
     <div class="analytics-section">
       <div class="analytics-section__header">
-        <p class="analytics-section__header__highlight-header"><%= @title %></p>
+        <p class="analytics-section__header__highlight-header">{@title}</p>
         <div class="analytics-section__header__highlight">
           <h4 class="analytics-section__header__highlight-title text--extraExtraLarge">
-            <%= @summary_value %>
+            {@summary_value}
           </h4>
           <%= if @trend != 0 do %>
             <div class={"analytics-section__header__change analytics-section__header__change--#{if @trend_positive do "positive" else "negative" end}"}>
@@ -197,7 +197,7 @@ defmodule TuistWeb.ProjectDashboardLive do
               <% else %>
                 <.trend_up_icon />
               <% end %>
-              <span class="text--medium font--medium"><%= abs(Float.round(@trend, 1)) %> %</span>
+              <span class="text--medium font--medium">{abs(Float.round(@trend, 1))} %</span>
             </div>
           <% end %>
         </div>

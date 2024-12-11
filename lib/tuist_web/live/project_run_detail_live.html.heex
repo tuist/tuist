@@ -3,7 +3,7 @@
     <.stack direction="horizontal" class="run-detail__header">
       <.stack gap="lg" direction="horizontal">
         <h5>
-          <%= "tuist " <> (@command_event.command_arguments || @command_event.name) %>
+          {"tuist " <> (@command_event.command_arguments || @command_event.name)}
         </h5>
         <.command_event_status_badge command_event={@command_event} />
       </.stack>
@@ -13,7 +13,7 @@
             <:icon_start>
               <.download_icon />
             </:icon_start>
-            <%= gettext("Result") %>
+            {gettext("Result")}
           </.button>
         </.link>
       <% end %>
@@ -92,19 +92,19 @@
             <.command_event_status_badge command_event={@command_event} />
           </.run_detail_row>
           <.run_detail_row title={gettext("Duration")}>
-            <%= gettext("%{duration} s", duration: Float.round(@command_event.duration / 1000, 1)) %>
+            {gettext("%{duration} s", duration: Float.round(@command_event.duration / 1000, 1))}
           </.run_detail_row>
           <.run_detail_row title={gettext("Finished at")}>
-            <%= Calendar.strftime(@command_event.created_at, "%b %d %Y, %I:%M:%S") %>
+            {Calendar.strftime(@command_event.created_at, "%b %d %Y, %I:%M:%S")}
           </.run_detail_row>
           <.run_detail_row title={gettext("Tuist version")}>
-            <%= @command_event.tuist_version %>
+            {@command_event.tuist_version}
           </.run_detail_row>
           <.run_detail_row title={gettext("Swift version")}>
-            <%= @command_event.swift_version %>
+            {@command_event.swift_version}
           </.run_detail_row>
           <.run_detail_row title={gettext("macOS version")}>
-            <%= @command_event.macos_version %>
+            {@command_event.macos_version}
           </.run_detail_row>
         </.stack>
       </.stack>

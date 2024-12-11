@@ -116,10 +116,10 @@ defmodule TuistWeb.ProjectRunDetailLive do
     ~H"""
     <.stack direction="horizontal" gap="9xl" class="run-detail__details__row">
       <span class="text--small font--semibold color--text-secondary run-detail__details__row__title">
-        <%= @title %>
+        {@title}
       </span>
       <span class="text--small font--regular color--text-primary run-detail__details__row__value">
-        <%= render_slot(@inner_block) %>
+        {render_slot(@inner_block)}
       </span>
     </.stack>
     """
@@ -164,11 +164,11 @@ defmodule TuistWeb.ProjectRunDetailLive do
             empty_state_title={gettext("No targets")}
           >
             <:col :let={target} label={gettext("Name")}>
-              <%= target.name %>
+              {target.name}
             </:col>
             <:col :let={target} label={@badge_column_label}>
               <div class="run-detail__target-breakdown__table__badge-container">
-                <%= render_slot(@badge, target) %>
+                {render_slot(@badge, target)}
               </div>
             </:col>
           </.table>

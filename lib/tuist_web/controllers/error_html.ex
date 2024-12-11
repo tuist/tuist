@@ -99,17 +99,17 @@ defmodule TuistWeb.ErrorHTML do
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="csrf-token" content={get_csrf_token()} />
-        <.live_title><%= "#{@head_title || gettext("Error")} · Tuist" %></.live_title>
+        <.live_title>{"#{@head_title || gettext("Error")} · Tuist"}</.live_title>
         <link phx-track-static rel="stylesheet" href={~p"/css/app.css"} />
         <link phx-track-static rel="stylesheet" href={~p"/css/app/pages/error.css"} />
       </head>
       <body>
         <div class="page error-page">
-          <p class="text--medium font--semibold color--text-brand-secondary"><%= @error_name %></p>
-          <h2 class="color--text-primary error-page__title"><%= @title %></h2>
-          <p class="text--extraLarge font--regular color--text-tertiary"><%= @message %></p>
+          <p class="text--medium font--semibold color--text-brand-secondary">{@error_name}</p>
+          <h2 class="color--text-primary error-page__title">{@title}</h2>
+          <p class="text--extraLarge font--regular color--text-tertiary">{@message}</p>
           <.button variant="secondary" class="error-page__home-button">
-            <a href={~p"/"}><%= gettext("Take me home") %></a>
+            <a href={~p"/"}>{gettext("Take me home")}</a>
           </.button>
         </div>
       </body>

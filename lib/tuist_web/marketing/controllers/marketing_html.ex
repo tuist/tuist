@@ -18,10 +18,10 @@ defmodule TuistWeb.Marketing.MarketingHTML do
     <div class="marketing__home__section__highlights__item">
       <div class="marketing__home__section__highlights__item__main">
         <h3 class="font-xxl-strong marketing__home__section__highlights__item__main__title">
-          <%= @title %>
+          {@title}
         </h3>
         <p class="font-m marketing__home__section__highlights__item__main__subtitle">
-          <%= @subtitle %>
+          {@subtitle}
         </p>
       </div>
       <div
@@ -35,7 +35,7 @@ defmodule TuistWeb.Marketing.MarketingHTML do
           target={@cta_target}
           href={@cta_href}
         >
-          <%= raw(@cta_text) %>
+          {raw(@cta_text)}
         </.secondary_button>
       </div>
     </div>
@@ -75,30 +75,30 @@ defmodule TuistWeb.Marketing.MarketingHTML do
         phx-click={@toggle_feature}
       >
         <div class="marketing__home__section__features__feature__banner__title font-xl-strong">
-          <%= @title %>
+          {@title}
         </div>
         <div class="marketing__home__section__features__feature__banner__index font-xl-strong">
-          <%= "0#{@index}" %>
+          {"0#{@index}"}
         </div>
       </div>
 
       <div class="marketing__home__section__features__feature__main">
         <div class="marketing__home__section__features__feature__main__header">
           <div class="marketing__home__section__features__feature__main__header__logo">
-            <%= render_slot(@logo) %>
+            {render_slot(@logo)}
           </div>
           <h2 class="marketing__home__section__features__feature__main__header__title font-xxxl-strong">
-            <%= @title %>
+            {@title}
           </h2>
         </div>
 
         <div class="marketing__home__section__features__feature__main__body">
           <div class="marketing__home__section__features__feature__main__body__description font-l-strong">
-            <%= render_slot(@description) %>
+            {render_slot(@description)}
           </div>
           <div class="marketing__home__section__features__feature__main__body__features">
             <h3 class="marketing__home__section__features__feature__main__body__features__title font-l-strong">
-              <%= gettext("Features") %>
+              {gettext("Features")}
             </h3>
             <ul class="marketing__home__section__features__feature__main__body__features__list">
               <li
@@ -106,14 +106,14 @@ defmodule TuistWeb.Marketing.MarketingHTML do
                 class="marketing__home__section__features__feature__main__body__features__list__feature font-m"
               >
                 <TuistWeb.Marketing.MarketingIcons.check_circle_icon class="marketing__home__section__features__feature__main__body__features__list__feature__icon" />
-                <div><%= feature %></div>
+                <div>{feature}</div>
               </li>
             </ul>
           </div>
         </div>
 
         <div class="marketing__home__section__features__feature__illustration">
-          <%= render_slot(@illustration) %>
+          {render_slot(@illustration)}
         </div>
       </div>
     </div>

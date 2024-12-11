@@ -20,12 +20,12 @@ defmodule TuistWeb.UserConfirmationLive do
       <.simple_form for={@form} id="confirmation_form" phx-submit="confirm_account" class="auth-form">
         <.input field={@form[:token]} type="hidden" />
         <.button type="submit" variant="primary" class="auth-form__primary-action">
-          <%= gettext("Confirm my account") %>
+          {gettext("Confirm my account")}
         </.button>
       </.simple_form>
 
       <.link href={~p"/users/log_in"} class="text--small font--semibold">
-        <%= gettext("Back to log in") %>
+        {gettext("Back to log in")}
       </.link>
 
       <.flash_group flash={@flash} />

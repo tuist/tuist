@@ -30,10 +30,10 @@ defmodule TuistWeb.UserLoginLive do
         />
         <.stack gap="lg">
           <h5 class="auth-header__title font--semibold color--text-primary">
-            <%= gettext("Log in to your account") %>
+            {gettext("Log in to your account")}
           </h5>
           <p class="text--medium color--text-tertiary">
-            <%= gettext("Welcome back! Please enter your details.") %>
+            {gettext("Welcome back! Please enter your details.")}
           </p>
         </.stack>
       </.stack>
@@ -70,14 +70,14 @@ defmodule TuistWeb.UserLoginLive do
                   label={gettext("Keep me logged in")}
                 />
                 <a href={~p"/users/reset_password"} class="text--small font--semibold">
-                  <%= gettext("Forgot your password?") %>
+                  {gettext("Forgot your password?")}
                 </a>
               </.stack>
             <% end %>
             <.stack gap="xl">
               <%= if @mail_configured? do %>
                 <.button type="submit" variant="primary" class="auth-form__primary-action">
-                  <%= gettext("Sign in") %>
+                  {gettext("Sign in")}
                 </.button>
               <% end %>
             </.stack>
@@ -86,7 +86,7 @@ defmodule TuistWeb.UserLoginLive do
         <%= if @github_auth_configured? do %>
           <.social_button>
             <a href={~p"/users/auth/github"}>
-              <%= gettext("Sign in with GitHub") %>
+              {gettext("Sign in with GitHub")}
             </a>
             <:icon><.github_icon /></:icon>
           </.social_button>
@@ -94,7 +94,7 @@ defmodule TuistWeb.UserLoginLive do
         <%= if @google_configured? do %>
           <.social_button>
             <a href={~p"/users/auth/google"}>
-              <%= gettext("Sign in with Google") %>
+              {gettext("Sign in with Google")}
             </a>
             <:icon><.google_icon /></:icon>
           </.social_button>
@@ -102,7 +102,7 @@ defmodule TuistWeb.UserLoginLive do
         <%= if @okta_configured? do %>
           <.social_button>
             <a href={~p"/users/auth/okta"}>
-              <%= gettext("Sign in with Okta") %>
+              {gettext("Sign in with Okta")}
             </a>
             <:icon><.okta_icon /></:icon>
           </.social_button>
@@ -112,10 +112,10 @@ defmodule TuistWeb.UserLoginLive do
       <%= if @mail_configured? do %>
         <.stack direction="horizontal" gap="xs">
           <span class="text--small font--regular color--text-tertiary">
-            <%= gettext("Don't have an account?") %>
+            {gettext("Don't have an account?")}
           </span>
           <a href={~p"/users/register"} class="text--small font--semibold">
-            <%= gettext("Sign up") %>
+            {gettext("Sign up")}
           </a>
         </.stack>
       <% end %>
