@@ -1,4 +1,4 @@
-import { $ } from "execa";
+import { execa } from "execa";
 import { temporaryDirectoryTask } from "tempy";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -10,14 +10,18 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDirectory = path.join(__dirname, "../../..");
 
 // Schema
-await $`swift build --product ProjectDescription --configuration debug --package-path ${rootDirectory}`;
-await $`swift build --product tuist --configuration debug --package-path ${rootDirectory}`;
+await execa({
+  stdio: "inherit",
+})`swift build --product ProjectDescription --configuration debug --package-path ${rootDirectory}`;
+await execa({
+  stdio: "inherit",
+})`swift build --product tuist --configuration debug --package-path ${rootDirectory}`;
 var dumpedCLISchema;
 await temporaryDirectoryTask(async (tmpDir) => {
   // I'm passing --path to sandbox the execution since we are only interested in the schema and nothing else.
-  dumpedCLISchema = await $`${path.join(
+  dumpedCLISchema = await execa({ stdio: "inherit" })`${path.join(
     rootDirectory,
-    ".build/debug/tuist"
+    ".build/debug/tuist",
   )} --experimental-dump-help --path ${tmpDir}`;
 });
 const { stdout } = dumpedCLISchema;
@@ -74,7 +78,7 @@ const template = ejs.compile(
 <% }); -%>
 <% } -%>
 `,
-  {}
+  {},
 );
 
 function content(command) {
@@ -118,7 +122,7 @@ export async function loadData(locale) {
   function parseCommand(
     command,
     parentCommand = "tuist",
-    parentPath = `/${locale}/cli/`
+    parentPath = `/${locale}/cli/`,
   ) {
     const output = {
       text: command.commandName,
@@ -131,7 +135,7 @@ export async function loadData(locale) {
         return parseCommand(
           subcommand,
           parentCommand + " " + command.commandName,
-          path.join(parentPath, command.commandName)
+          path.join(parentPath, command.commandName),
         );
       });
     }
