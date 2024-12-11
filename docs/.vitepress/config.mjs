@@ -148,7 +148,7 @@ export default defineConfig({
   titleTemplate: ":title | Tuist",
   description: "Scale your Xcode app development",
   srcDir: "docs",
-  lastUpdated: true,
+  lastUpdated: false,
   locales: {
     en: {
       label: "English",
