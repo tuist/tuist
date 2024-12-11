@@ -9,7 +9,7 @@ devDependencies:
     specifier: ^3.1.10
     version: 3.1.10
   execa:
-    specifier: ^9.5.2
+    specifier: ^9.3.1
     version: 9.5.2
   fast-glob:
     specifier: ^3.3.2
