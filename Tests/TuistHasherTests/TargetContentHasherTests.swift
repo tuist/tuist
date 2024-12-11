@@ -99,4 +99,47 @@ final class TargetContentHasherTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(got.hash, "hash-app-settings_hash-iPad-iPhone-additional_string_one-additional_string_two")
     }
+
+    func test_hash_with_additional_strings() async throws {
+        // Given
+        let target = GraphTarget.test(project: .test())
+        given(sourceFilesContentHasher)
+            .hash(identifier: .any, sources: .any)
+            .willReturn(MerkleNode(hash: "sources_hash", identifier: "sources"))
+        given(resourcesContentHasher)
+            .hash(identifier: .any, resources: .any)
+            .willReturn(MerkleNode(hash: "resources_hash", identifier: "resources"))
+        given(copyFilesContentHasher)
+            .hash(identifier: .any, copyFiles: .any)
+            .willReturn(MerkleNode(hash: "copy_files_hash", identifier: "copy_files"))
+        given(coreDataModelsContentHasher!)
+            .hash(coreDataModels: .any)
+            .willReturn("core_data_models_hash")
+        given(dependenciesContentHasher)
+            .hash(graphTarget: .any, hashedTargets: .any, hashedPaths: .any)
+            .willReturn(DependenciesContentHash(hashedPaths: [:], hash: "dependencies_hash"))
+        given(targetScriptsContentHasher)
+            .hash(targetScripts: .any, sourceRootPath: .any)
+            .willReturn("target_scripts_hash")
+        given(contentHasher)
+            .hash(Parameter<[String: String]>.any)
+            .willReturn("dictionary_hash")
+        given(deploymentTargetContentHasher)
+            .hash(deploymentTargets: .any)
+            .willReturn("deployment_targets_hash")
+
+        // When
+        let got = try await subject.contentHash(
+            for: target,
+            hashedTargets: [:],
+            hashedPaths: [:],
+            additionalStrings: ["additional_string"]
+        )
+
+        // Then
+        XCTAssertEqual(
+            got.hash,
+            "Target-app-io.tuist.Target-Target-dependencies_hash-sources_hash-resources_hash-copy_files_hash-core_data_models_hash-target_scripts_hash-dictionary_hash-iPad-iPhone-additional_string-iPad-iPhone-deployment_targets_hash-settings_hash"
+        )
+    }
 }
