@@ -1,3 +1,7 @@
+environment:
+  groups:
+    - github_credentials
+
 workflows:
   lint:
     name: Lint
