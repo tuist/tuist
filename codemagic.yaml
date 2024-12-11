@@ -4,6 +4,8 @@ workflows:
     max_build_duration: 60
     environment:
       xcode: 16.1
+      groups:
+        - github_credentials
     scripts:
       - name: Set environment variables
         script: |
@@ -31,6 +33,8 @@ workflows:
     max_build_duration: 60
     environment:
       xcode: 16.1
+      groups:
+        - github_credentials
     scripts:
       - name: Set environment variables
         script: |
@@ -50,6 +54,7 @@ workflows:
       xcode: 16.1
       groups:
         - tuist
+        - github_credentials
     scripts:
       - name: Set environment variables
         script: |
@@ -73,6 +78,7 @@ workflows:
       xcode: 16.1
       groups:
         - tuist
+        - github_credentials
     cache:
       cache_paths:
         - $CM_BUILD_DIR/.build
@@ -97,6 +103,7 @@ workflows:
       xcode: 16.1
       groups:
         - tuist
+        - github_credentials
     cache:
       cache_paths:
         - $CM_BUILD_DIR/.build
@@ -121,7 +128,6 @@ workflows:
         - pattern: "main"
           include: true
       cancel_previous_builds: true
-
   deploy_docs:
     name: Deploy Documentation
     max_build_duration: 60
@@ -129,6 +135,7 @@ workflows:
       xcode: 16.1
       groups:
         - tuist
+        - github_credentials
     scripts:
       - name: Set environment variables
         script: |
@@ -163,6 +170,7 @@ workflows:
       xcode: 16.1
       groups:
         - tuist
+        - github_credentials
     cache:
       cache_paths:
         - $CM_BUILD_DIR/.build
@@ -192,6 +200,7 @@ workflows:
       xcode: 16.1
       groups:
         - tuist
+        - github_credentials
     cache:
       cache_paths:
         - $CM_BUILD_DIR/.build
@@ -221,6 +230,7 @@ workflows:
       xcode: 16.1
       groups:
         - tuist
+        - github_credentials
     cache:
       cache_paths:
         - $CM_BUILD_DIR/.build
@@ -250,6 +260,7 @@ workflows:
       xcode: 16.1
       groups:
         - tuist
+        - github_credentials
     cache:
       cache_paths:
         - $CM_BUILD_DIR/.build
@@ -278,6 +289,7 @@ workflows:
       xcode: 16.1
       groups:
         - tuist
+        - github_credentials
     cache:
       cache_paths:
         - $CM_BUILD_DIR/.build
