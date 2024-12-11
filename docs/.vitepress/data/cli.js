@@ -1,4 +1,4 @@
-import { execa } from "execa";
+import { execa, $ } from "execa";
 import { temporaryDirectoryTask } from "tempy";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -19,7 +19,7 @@ await execa({
 var dumpedCLISchema;
 await temporaryDirectoryTask(async (tmpDir) => {
   // I'm passing --path to sandbox the execution since we are only interested in the schema and nothing else.
-  dumpedCLISchema = await execa({ stdio: "inherit" })`${path.join(
+  dumpedCLISchema = await $`${path.join(
     rootDirectory,
     ".build/debug/tuist",
   )} --experimental-dump-help --path ${tmpDir}`;
