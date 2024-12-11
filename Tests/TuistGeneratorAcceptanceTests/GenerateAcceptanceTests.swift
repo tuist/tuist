@@ -1048,7 +1048,8 @@ final class GenerateAcceptanceTestAppWithNonLocalAppDependencies: TuistAcceptanc
         try await setUpFixture(.appWithExecutableNonLocalDependencies)
         try await run(InstallCommand.self)
         try await run(GenerateCommand.self)
-        try await run(BuildCommand.self, "MainApp")
+        try await run(BuildCommand.self, "TestHost")
+        try await run(BuildCommand.self, "App-Workspace")
 
         let xcodeproj = try XcodeProj(
             pathString: fixturePath.appending(components: "MainApp", "MainApp.xcodeproj").pathString
@@ -1060,7 +1061,7 @@ final class GenerateAcceptanceTestAppWithNonLocalAppDependencies: TuistAcceptanc
 
         let dependenciesBuildPhase = buildPhases.first(where: { $0.name() == "Dependencies" }) as? PBXCopyFilesBuildPhase
         let targetFileNames = dependenciesBuildPhase?.files?.compactMap { $0.file?.nameOrPath }.sorted()
-        let expectedTargetFileNames = ["AppExtension.appex", "WatchApp.app"]
+        let expectedTargetFileNames = ["AppExtension.appex"]
         XCTAssertEqual(targetFileNames, expectedTargetFileNames)
 
         let testTarget = try XCTUnwrapTarget("MainAppTests", in: xcodeproj)
