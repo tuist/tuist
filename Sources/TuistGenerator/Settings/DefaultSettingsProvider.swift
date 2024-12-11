@@ -158,6 +158,11 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
             )
         }
 
+        /// This allows running the project directly withou specifying CODE_SIGN_IDENTITY
+        if target.supportsCatalyst {
+            settings.overlay(with: ["CODE_SIGN_IDENTITY": "-"], for: .macOS)
+        }
+
         return settings
     }
 

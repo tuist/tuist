@@ -47,7 +47,9 @@ extension XcodeBuildDestination {
             )
             return .device(deviceAndRuntime.device.udid)
         case .macOS:
-            return .mac
+            // Mac Catalyst builds only support applications
+            let isCatalystApplication = target.product == .app && target.supportsCatalyst
+            return isCatalystApplication ? .macCatalyst : .mac
         }
     }
 }

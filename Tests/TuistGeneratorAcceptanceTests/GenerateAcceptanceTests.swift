@@ -917,6 +917,21 @@ final class GenerateAcceptanceTestiOSAppWithWeaklyLinkedFramework: TuistAcceptan
     }
 }
 
+final class GenerateAcceptanceTestiOSAppWithCatalyst: TuistAcceptanceTestCase {
+    func test_ios_app_with_catalyst() async throws {
+        try await setUpFixture(.iosAppWithCatalyst)
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self, "App", "--platform", "macos")
+        try await run(BuildCommand.self, "App", "--platform", "ios")
+
+        try await XCTAssertProductWithDestinationContainsResource(
+            "App.app",
+            destination: "Debug-maccatalyst",
+            resource: "Info.plist"
+        )
+    }
+}
+
 final class GenerateAcceptanceTestSPMPackage: TuistAcceptanceTestCase {
     func test_spm_package() async throws {
         try await setUpFixture(.spmPackage)
