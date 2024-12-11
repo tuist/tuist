@@ -1663,6 +1663,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "HossamYoussof",
+      "name": "Hossam Youssof",
+      "avatar_url": "https://avatars.githubusercontent.com/u/6381926?v=4",
+      "profile": "https://github.com/HossamYoussof",
+      "contributions": [
+        "doc"
+      ]
     }
   ],
   "contributorsPerLine": 7,
