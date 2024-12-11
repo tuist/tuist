@@ -24,6 +24,16 @@ components:
         - organizations
       title: OrganizationList
       type: object
+    AccountFullToken:
+      description: A new account token.
+      properties:
+        token:
+          description: The generated account token.
+          type: string
+      required:
+        - token
+      title: AccountFullToken
+      type: object
     ArtifactUploadID:
       description: The upload has been initiated and a ID is returned to upload the various parts using multi-part uploads
       properties:
@@ -437,6 +447,28 @@ components:
       title: ProjectToken
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.ProjectToken
+    AccountTokenRequest:
+      description: The request to create a new account token.
+      properties:
+        scopes:
+          description: The scopes for the new account token.
+          items:
+            description: The scope of the token.
+            enum:
+              - account_registry_read
+            title: AccountTokenScope
+            type: string
+          type: array
+      required:
+        - scopes
+      title: AccountTokenRequest
+      type: object
+    AccountTokenScope:
+      description: The scope of the token.
+      enum:
+        - account_registry_read
+      title: AccountTokenScope
+      type: string
     OrganizationUsage:
       description: The usage of an organization.
       properties:
@@ -618,6 +650,106 @@ info:
     url: http://localhost:8080/images/open-graph/squared.png
 openapi: 3.0.0
 paths:
+  /api/cache/multipart/complete:
+    post:
+      callbacks: {}
+      description: Given the upload ID and all the parts with their ETags, this endpoint completes the multipart upload. The cache will then be able to serve the artifact.
+      operationId: completeCacheArtifactMultipartUpload
+      parameters:
+        - description: The category of the cache. It's used to differentiate between different types of caches.
+          in: query
+          name: cache_category
+          required: false
+          schema:
+            $ref: '#/components/schemas/CacheCategory'
+        - description: The project identifier '{account_name}/{project_name}'.
+          in: query
+          name: project_id
+          required: true
+          schema:
+            type: string
+        - description: The hash that uniquely identifies the artifact in the cache.
+          in: query
+          name: hash
+          required: true
+          schema:
+            type: string
+        - description: The upload ID.
+          in: query
+          name: upload_id
+          required: true
+          schema:
+            type: string
+        - description: The name of the artifact.
+          in: query
+          name: name
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                parts:
+                  items:
+                    properties:
+                      etag:
+                        description: The ETag of the part
+                        type: string
+                      part_number:
+                        description: The part number
+                        type: integer
+                    type: object
+                  type: array
+              type: object
+        description: Multi-part upload parts
+        required: false
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                description: This response confirms that the upload has been completed successfully. The cache will now be able to serve the artifact.
+                properties:
+                  data:
+                    properties: {}
+                    type: object
+                  status:
+                    default: success
+                    enum:
+                      - success
+                    type: string
+                title: CacheArtifactMultipartUploadCompletion
+                type: object
+          description: The upload has been completed
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        402:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The account has an invalid plan
+        403:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        404:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The project doesn't exist
+      summary: It completes a multi-part upload.
+      tags:
+        - Cache
   /api/analytics:
     post:
       callbacks: {}
@@ -754,6 +886,105 @@ paths:
       summary: Create a a new command analytics event
       tags:
         - Analytics
+  /api/projects/{account_handle}/{project_handle}/previews/start:
+    post:
+      callbacks: {}
+      description: The endpoint returns an upload ID that can be used to generate URLs for the individual parts and complete the upload.
+      operationId: startPreviewsMultipartUpload
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                bundle_identifier:
+                  description: The bundle identifier of the preview.
+                  type: string
+                display_name:
+                  description: The display name of the preview.
+                  type: string
+                supported_platforms:
+                  description: The supported platforms of the preview.
+                  items:
+                    $ref: '#/components/schemas/PreviewSupportedPlatform'
+                  type: array
+                type:
+                  default: app_bundle
+                  description: The type of the preview to upload.
+                  enum:
+                    - app_bundle
+                    - ipa
+                  type: string
+                version:
+                  description: The version of the preview.
+                  type: string
+              type: object
+        description: Preview upload request params
+        required: false
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                description: The upload has been initiated and preview and upload unique identifier are returned to upload the various parts using multi-part uploads
+                properties:
+                  data:
+                    description: Data that contains preview and upload unique identifier associated with the multipart upload to use when uploading parts
+                    properties:
+                      preview_id:
+                        description: The id of the preview.
+                        type: string
+                      upload_id:
+                        description: The upload ID
+                        type: string
+                    required:
+                      - upload_id
+                      - preview_id
+                    type: object
+                  status:
+                    default: success
+                    enum:
+                      - success
+                    type: string
+                required:
+                  - status
+                  - data
+                title: PreviewArtifactUpload
+                type: object
+          description: The upload has been started
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        403:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        404:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The project doesn't exist
+      summary: It initiates a multipart upload for a preview artifact.
+      tags:
+        - Previews
   /api/auth:
     post:
       callbacks: {}
@@ -791,6 +1022,41 @@ paths:
                 $ref: '#/components/schemas/Error'
           description: Invalid email or password.
       summary: Authenticate with email and password.
+      tags:
+        - Authentication
+  /api/auth/refresh_token:
+    post:
+      callbacks: {}
+      description: This endpoint returns new tokens for a given refresh token if the refresh token is valid.
+      operationId: refreshToken
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                refresh_token:
+                  description: User refresh token
+                  type: string
+              required:
+                - refresh_token
+              type: object
+        description: Token params
+        required: false
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthenticationTokens'
+          description: Succcessfully generated new API tokens.
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to issue new tokens
+      summary: Request new tokens.
       tags:
         - Authentication
   /api/auth/device_code/{device_code}:
@@ -840,68 +1106,250 @@ paths:
       summary: Get a specific device code.
       tags:
         - Authentication
-  /api/auth/refresh_token:
+  /api/runs/{run_id}/start:
     post:
       callbacks: {}
-      description: This endpoint returns new tokens for a given refresh token if the refresh token is valid.
-      operationId: refreshToken
+      description: The endpoint returns an upload ID that can be used to generate URLs for the individual parts and complete the upload.
+      operationId: startAnalyticsArtifactMultipartUpload
+      parameters:
+        - description: The id of the command event.
+          in: path
+          name: run_id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommandEventArtifact'
+        description: Artifact to upload
+        required: false
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArtifactUploadID'
+          description: The upload has been started
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        403:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        404:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The command event doesn't exist
+      summary: It initiates a multipart upload for a command event artifact.
+      tags:
+        - Analytics
+  /api/projects:
+    get:
+      callbacks: {}
+      operationId: listProjects
+      parameters: []
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                properties:
+                  projects:
+                    items:
+                      $ref: '#/components/schemas/Project'
+                    type: array
+                required:
+                  - projects
+                type: object
+          description: List of projects
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+      summary: List projects the authenticated user has access to.
+      tags:
+        - Projects
+    post:
+      callbacks: {}
+      operationId: createProject
       parameters: []
       requestBody:
         content:
           application/json:
             schema:
               properties:
-                refresh_token:
-                  description: User refresh token
+                full_handle:
+                  description: The full handle of the project that should be created.
+                  example: tuist/tuist
                   type: string
-              required:
-                - refresh_token
+                name:
+                  deprecated: true
+                  description: The name of the project that should be created.
+                  type: string
+                organization:
+                  deprecated: true
+                  description: Organization to create the project with. If not specified, the project will be created with the current user's personal account.
+                  type: string
               type: object
-        description: Token params
+        description: Projects params
         required: false
       responses:
         200:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AuthenticationTokens'
-          description: Succcessfully generated new API tokens.
+                $ref: '#/components/schemas/Project'
+          description: The project was created
+        400:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The account was not found
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        403:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+      summary: Create a new project.
+      tags:
+        - Projects
+  /api/projects/{account_handle}/{project_handle}/tokens:
+    get:
+      callbacks: {}
+      description: This endpoint returns all tokens for a given project.
+      operationId: listProjectTokens
+      parameters:
+        - description: The account handle.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+        - description: The project handle.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                description: A list of project tokens.
+                properties:
+                  tokens:
+                    items:
+                      $ref: '#/components/schemas/ProjectToken'
+                    type: array
+                required:
+                  - tokens
+                title: Tokens
+                type: object
+          description: A list of project tokens.
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to list tokens
+        403:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authorized to list tokens
+        404:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The project was not found
+      summary: List all project tokens.
+      tags:
+        - Project tokens
+    post:
+      callbacks: {}
+      description: This endpoint returns a new project token.
+      operationId: createProjectToken
+      parameters:
+        - description: The account handle.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+        - description: The project handle.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                description: A new project token.
+                properties:
+                  token:
+                    description: The generated project token.
+                    type: string
+                required:
+                  - token
+                title: ProjectFullToken
+                type: object
+          description: A project token was generated
         401:
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: You need to be authenticated to issue new tokens
-      summary: Request new tokens.
+        403:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authorized to issue new tokens
+        404:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The project was not found
+      summary: Create a new project token.
       tags:
-        - Authentication
-  /api/cache:
+        - Project tokens
+  /api/organizations/{organization_name}/usage:
     get:
       callbacks: {}
-      description: This endpoint returns a signed URL that can be used to download an artifact from the cache.
-      operationId: downloadCacheArtifact
+      description: Returns the usage of the organization with the given identifier. (e.g. number of remote cache hits)
+      operationId: showOrganizationUsage
       parameters:
-        - description: The category of the cache. It's used to differentiate between different types of caches.
-          in: query
-          name: cache_category
-          required: false
-          schema:
-            $ref: '#/components/schemas/CacheCategory'
-        - description: The project identifier '{account_name}/{project_name}'.
-          in: query
-          name: project_id
-          required: true
-          schema:
-            type: string
-        - description: The hash that uniquely identifies the artifact in the cache.
-          in: query
-          name: hash
-          required: true
-          schema:
-            type: string
-        - description: The name of the artifact.
-          in: query
-          name: name
+        - description: The name of the organization to show.
+          in: path
+          name: organization_name
           required: true
           schema:
             type: string
@@ -910,20 +1358,14 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/CacheArtifactDownloadURL'
-          description: The artifact exists and is downloadable
+                $ref: '#/components/schemas/OrganizationUsage'
+          description: The organization usage
         401:
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: You need to be authenticated to access this resource
-        402:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The account has an invalid plan
         403:
           content:
             application/json:
@@ -935,103 +1377,15 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: The project or the cache artifact doesn't exist
-      summary: Downloads an artifact from the cache.
+          description: The organization with the given name was not found
+      summary: Shows the usage of an organization
       tags:
-        - Cache
-  /api/cache/exists:
-    get:
-      callbacks: {}
-      deprecated: true
-      description: This endpoint checks if an artifact exists in the cache. It returns a 404 status code if the artifact does not exist.
-      operationId: cacheArtifactExists
-      parameters:
-        - description: The category of the cache. It's used to differentiate between different types of caches.
-          in: query
-          name: cache_category
-          required: false
-          schema:
-            $ref: '#/components/schemas/CacheCategory'
-        - description: The project identifier '{account_name}/{project_name}'.
-          in: query
-          name: project_id
-          required: true
-          schema:
-            type: string
-        - description: The hash that uniquely identifies the artifact in the cache.
-          in: query
-          name: hash
-          required: true
-          schema:
-            type: string
-        - description: The name of the artifact.
-          in: query
-          name: name
-          required: true
-          schema:
-            type: string
-      responses:
-        200:
-          content:
-            application/json:
-              schema:
-                description: The artifact exists in the cache and can be downloaded
-                properties:
-                  data:
-                    properties: {}
-                    type: object
-                  status:
-                    default: success
-                    enum:
-                      - success
-                    type: string
-                title: CacheArtifactExistence
-                type: object
-          description: The artifact exists
-        401:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: You need to be authenticated to access this resource
-        402:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The account has an invalid plan
-        403:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The authenticated subject is not authorized to perform this action
-        404:
-          content:
-            application/json:
-              schema:
-                properties:
-                  error:
-                    items:
-                      properties:
-                        code:
-                          default: not_found
-                          type: string
-                        message:
-                          type: string
-                      type: object
-                    type: array
-                title: AbsentCacheArtifact
-                type: object
-          description: The artifact doesn't exist
-      summary: It checks if an artifact exists in the cache.
-      tags:
-        - Cache
-  /api/cache/multipart/complete:
+        - Organizations
+  /api/cache/multipart/start:
     post:
       callbacks: {}
-      description: Given the upload ID and all the parts with their ETags, this endpoint completes the multipart upload. The cache will then be able to serve the artifact.
-      operationId: completeCacheArtifactMultipartUpload
+      description: The endpoint returns an upload ID that can be used to generate URLs for the individual parts and complete the upload.
+      operationId: startCacheArtifactMultipartUpload
       parameters:
         - description: The category of the cache. It's used to differentiate between different types of caches.
           in: query
@@ -1051,55 +1405,19 @@ paths:
           required: true
           schema:
             type: string
-        - description: The upload ID.
-          in: query
-          name: upload_id
-          required: true
-          schema:
-            type: string
         - description: The name of the artifact.
           in: query
           name: name
           required: true
           schema:
             type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              properties:
-                parts:
-                  items:
-                    properties:
-                      etag:
-                        description: The ETag of the part
-                        type: string
-                      part_number:
-                        description: The part number
-                        type: integer
-                    type: object
-                  type: array
-              type: object
-        description: Multi-part upload parts
-        required: false
       responses:
         200:
           content:
             application/json:
               schema:
-                description: This response confirms that the upload has been completed successfully. The cache will now be able to serve the artifact.
-                properties:
-                  data:
-                    properties: {}
-                    type: object
-                  status:
-                    default: success
-                    enum:
-                      - success
-                    type: string
-                title: CacheArtifactMultipartUploadCompletion
-                type: object
-          description: The upload has been completed
+                $ref: '#/components/schemas/ArtifactUploadID'
+          description: The upload has been started
         401:
           content:
             application/json:
@@ -1124,7 +1442,65 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The project doesn't exist
-      summary: It completes a multi-part upload.
+      summary: It initiates a multipart upload in the cache.
+      tags:
+        - Cache
+  /api/projects/{account_handle}/{project_handle}/cache/ac/{hash}:
+    get:
+      callbacks: {}
+      description: This endpoint gets an item from the action cache.
+      operationId: getCacheActionItem
+      parameters:
+        - description: The name of the account that the project belongs to.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+        - description: The name of the project the cache action item belongs to.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+        - description: The hash that uniquely identifies an item in the action cache.
+          in: path
+          name: hash
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CacheActionItem'
+          description: The item exists in the action cache
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        402:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The account has an invalid plan
+        403:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        404:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The item doesn't exist in the actino cache
+      summary: Get a cache action item.
       tags:
         - Cache
   /api/cache/multipart/generate-url:
@@ -1209,43 +1585,55 @@ paths:
       summary: It generates a signed URL for uploading a part.
       tags:
         - Cache
-  /api/cache/multipart/start:
+  /api/projects/{account_handle}/{project_handle}/cache/ac:
     post:
       callbacks: {}
-      description: The endpoint returns an upload ID that can be used to generate URLs for the individual parts and complete the upload.
-      operationId: startCacheArtifactMultipartUpload
+      description: The endpoint caches a given action item without uploading a file. To upload files, use the multipart upload instead.
+      operationId: uploadCacheActionItem
       parameters:
-        - description: The category of the cache. It's used to differentiate between different types of caches.
-          in: query
-          name: cache_category
-          required: false
-          schema:
-            $ref: '#/components/schemas/CacheCategory'
-        - description: The project identifier '{account_name}/{project_name}'.
-          in: query
-          name: project_id
+        - description: The name of the account that the project belongs to.
+          in: path
+          name: account_handle
           required: true
           schema:
             type: string
-        - description: The hash that uniquely identifies the artifact in the cache.
-          in: query
-          name: hash
+        - description: The name of the project to clean cache for
+          in: path
+          name: project_handle
           required: true
           schema:
             type: string
-        - description: The name of the artifact.
-          in: query
-          name: name
-          required: true
-          schema:
-            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                hash:
+                  description: The hash of the cache action item.
+                  type: string
+              title: CacheActionItemUploadParams
+              type: object
+        description: Cache action item upload params
+        required: false
       responses:
         200:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ArtifactUploadID'
-          description: The upload has been started
+                $ref: '#/components/schemas/CacheActionItem'
+          description: The request is valid but the cache action item already exists
+        201:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CacheActionItem'
+          description: The action item was cached
+        400:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The request has missing or invalid parameters
         401:
           content:
             application/json:
@@ -1270,80 +1658,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The project doesn't exist
-      summary: It initiates a multipart upload in the cache.
+      summary: It uploads a given cache action item.
       tags:
         - Cache
-  /api/organizations:
-    get:
-      callbacks: {}
-      description: Returns all the organizations the authenticated subject is part of.
-      operationId: listOrganizations
-      parameters: []
-      responses:
-        200:
-          content:
-            application/json:
-              schema:
-                description: The list of organizations the authenticated subject is part of.
-                properties:
-                  organizations:
-                    items:
-                      $ref: '#/components/schemas/Organization'
-                    type: array
-                required:
-                  - organizations
-                title: OrganizationList
-                type: object
-          description: The list of organizations
-        401:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: You need to be authenticated to access this resource
-        403:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The authenticated subject is not authorized to perform this action
-      summary: Lists the organizations
-      tags:
-        - Organizations
-    post:
-      callbacks: {}
-      description: Creates an organization with the given name.
-      operationId: createOrganization
-      parameters: []
-      requestBody:
-        content:
-          application/json:
-            schema:
-              properties:
-                name:
-                  description: The name of the organization that should be created.
-                  type: string
-              required:
-                - name
-              type: object
-        description: Organization params
-        required: false
-      responses:
-        200:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Organization'
-          description: The organization was created
-        400:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The organization could not be created due to a validation error
-      summary: Creates an organization
-      tags:
-        - Organizations
   /api/organizations/{organization_name}:
     delete:
       callbacks: {}
@@ -1547,6 +1864,232 @@ paths:
       summary: Updates an organization
       tags:
         - Organizations
+  /api/projects/{account_handle}/{project_handle}/previews/generate-url:
+    post:
+      callbacks: {}
+      description: Given an upload ID and a part number, this endpoint returns a signed URL that can be used to upload a part of a multipart upload. The URL is short-lived and expires in 120 seconds.
+      operationId: generatePreviewsMultipartUploadURL
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                multipart_upload_part:
+                  $ref: '#/components/schemas/ArtifactMultipartUploadPart'
+                preview_id:
+                  description: The id of the preview.
+                  type: string
+              required:
+                - multipart_upload_part
+                - preview_id
+              type: object
+        description: Artifact to generate a signed URL for
+        required: false
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArtifactMultipartUploadURL'
+          description: The URL has been generated
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        403:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        404:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The project doesn't exist
+      summary: It generates a signed URL for uploading a part.
+      tags:
+        - Previews
+  /api/accounts/{account_handle}/tokens:
+    post:
+      callbacks: {}
+      description: This endpoint returns a new account token.
+      operationId: createAccountToken
+      parameters:
+        - description: The account handle.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              description: The request to create a new account token.
+              properties:
+                scopes:
+                  description: The scopes for the new account token.
+                  items:
+                    description: The scope of the token.
+                    enum:
+                      - account_registry_read
+                    title: AccountTokenScope
+                    type: string
+                  type: array
+              required:
+                - scopes
+              title: AccountTokenRequest
+              type: object
+        description: Create account token params
+        required: false
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                description: A new account token.
+                properties:
+                  token:
+                    description: The generated account token.
+                    type: string
+                required:
+                  - token
+                title: AccountFullToken
+                type: object
+          description: An account token was generated
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to issue new tokens
+        403:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authorized to issue new tokens
+        404:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The account was not found
+      summary: Create a new account token.
+      tags: []
+  /api/runs/{run_id}/generate-url:
+    post:
+      callbacks: {}
+      description: Given an upload ID and a part number, this endpoint returns a signed URL that can be used to upload a part of a multipart upload. The URL is short-lived and expires in 120 seconds.
+      operationId: generateAnalyticsArtifactMultipartUploadURL
+      parameters:
+        - description: The id of the command event.
+          in: path
+          name: run_id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                command_event_artifact:
+                  $ref: '#/components/schemas/CommandEventArtifact'
+                multipart_upload_part:
+                  $ref: '#/components/schemas/ArtifactMultipartUploadPart'
+              required:
+                - command_event_artifact
+                - multipart_upload_part
+              type: object
+        description: Artifact to generate a signed URL for
+        required: false
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArtifactMultipartUploadURL'
+          description: The URL has been generated
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        403:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        404:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The project doesn't exist
+      summary: It generates a signed URL for uploading a part.
+      tags:
+        - Analytics
+  /api/projects/{account_handle}/{project_handle}/cache/clean:
+    put:
+      callbacks: {}
+      operationId: cleanCache
+      parameters:
+        - description: The name of the account that the project belongs to.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+        - description: The name of the project to clean cache for
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+      responses:
+        204:
+          description: The cache has been successfully cleaned
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        403:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        404:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The project was not found
+      summary: Cleans cache for a given project
+      tags:
+        - Cache
   /api/organizations/{organization_name}/invitations:
     delete:
       callbacks: {}
@@ -1654,6 +2197,606 @@ paths:
       summary: Creates an invitation
       tags:
         - Invitations
+  /api/projects/{account_handle}/{project_handle}/previews:
+    get:
+      callbacks: {}
+      description: This endpoint returns a list of previews for a given project.
+      operationId: listPreviews
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+        - description: The display name of previews.
+          in: query
+          name: display_name
+          required: false
+          schema:
+            type: string
+        - description: The preview version specifier. Currently, accepts a commit SHA, branch name, or latest.
+          in: query
+          name: specifier
+          required: false
+          schema:
+            type: string
+        - description: ''
+          in: query
+          name: supported_platforms
+          required: false
+          schema:
+            description: The supported platforms of the preview.
+            items:
+              $ref: '#/components/schemas/PreviewSupportedPlatform'
+            type: array
+        - description: ''
+          in: query
+          name: page_size
+          required: false
+          schema:
+            default: 10
+            description: The maximum number of preview to return in a single page.
+            maximum: 20
+            minimum: 1
+            title: PreviewIndexPageSize
+            type: integer
+        - description: ''
+          in: query
+          name: page
+          required: false
+          schema:
+            default: 1
+            description: The page number to return.
+            minimum: 1
+            title: PreviewIndexPage
+            type: integer
+        - description: Distinct fields – no two previews will be returned with this field having the same value.
+          in: query
+          name: distinct_field
+          required: false
+          schema:
+            enum:
+              - bundle_identifier
+            type: string
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                properties:
+                  previews:
+                    description: Previews list.
+                    items:
+                      $ref: '#/components/schemas/Preview'
+                    type: array
+                required:
+                  - previews
+                title: PreviewsIndex
+                type: object
+          description: Successful response for listing previews.
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        403:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+      summary: List previews.
+      tags:
+        - Previews
+  /api/cache:
+    get:
+      callbacks: {}
+      description: This endpoint returns a signed URL that can be used to download an artifact from the cache.
+      operationId: downloadCacheArtifact
+      parameters:
+        - description: The category of the cache. It's used to differentiate between different types of caches.
+          in: query
+          name: cache_category
+          required: false
+          schema:
+            $ref: '#/components/schemas/CacheCategory'
+        - description: The project identifier '{account_name}/{project_name}'.
+          in: query
+          name: project_id
+          required: true
+          schema:
+            type: string
+        - description: The hash that uniquely identifies the artifact in the cache.
+          in: query
+          name: hash
+          required: true
+          schema:
+            type: string
+        - description: The name of the artifact.
+          in: query
+          name: name
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CacheArtifactDownloadURL'
+          description: The artifact exists and is downloadable
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        402:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The account has an invalid plan
+        403:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        404:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The project or the cache artifact doesn't exist
+      summary: Downloads an artifact from the cache.
+      tags:
+        - Cache
+  /api/runs/{run_id}/complete:
+    post:
+      callbacks: {}
+      description: Given the upload ID and all the parts with their ETags, this endpoint completes the multipart upload.
+      operationId: completeAnalyticsArtifactMultipartUpload
+      parameters:
+        - description: The id of the command event.
+          in: path
+          name: run_id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                command_event_artifact:
+                  $ref: '#/components/schemas/CommandEventArtifact'
+                multipart_upload_parts:
+                  $ref: '#/components/schemas/ArtifactMultipartUploadParts'
+              required:
+                - command_event_artifact
+                - multipart_upload_parts
+              type: object
+        description: Command event artifact multipart upload completion
+        required: false
+      responses:
+        204:
+          description: The upload has been completed
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        403:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        404:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The project doesn't exist
+        500:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: An internal server error occurred
+      summary: It completes a multi-part upload.
+      tags:
+        - Analytics
+  /api/organizations:
+    get:
+      callbacks: {}
+      description: Returns all the organizations the authenticated subject is part of.
+      operationId: listOrganizations
+      parameters: []
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                description: The list of organizations the authenticated subject is part of.
+                properties:
+                  organizations:
+                    items:
+                      $ref: '#/components/schemas/Organization'
+                    type: array
+                required:
+                  - organizations
+                title: OrganizationList
+                type: object
+          description: The list of organizations
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        403:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+      summary: Lists the organizations
+      tags:
+        - Organizations
+    post:
+      callbacks: {}
+      description: Creates an organization with the given name.
+      operationId: createOrganization
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                name:
+                  description: The name of the organization that should be created.
+                  type: string
+              required:
+                - name
+              type: object
+        description: Organization params
+        required: false
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+          description: The organization was created
+        400:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The organization could not be created due to a validation error
+      summary: Creates an organization
+      tags:
+        - Organizations
+  /api/projects/{account_handle}/{project_handle}/previews/{preview_id}:
+    get:
+      callbacks: {}
+      description: This endpoint returns a preview with a given id, including the url to download the preview.
+      operationId: downloadPreview
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+        - description: The id of the preview.
+          in: path
+          name: preview_id
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Preview'
+          description: The preview exists and can be downloaded
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        403:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        404:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The preview does not exist
+      summary: Returns a preview with a given id.
+      tags:
+        - Previews
+  /api/cache/exists:
+    get:
+      callbacks: {}
+      deprecated: true
+      description: This endpoint checks if an artifact exists in the cache. It returns a 404 status code if the artifact does not exist.
+      operationId: cacheArtifactExists
+      parameters:
+        - description: The category of the cache. It's used to differentiate between different types of caches.
+          in: query
+          name: cache_category
+          required: false
+          schema:
+            $ref: '#/components/schemas/CacheCategory'
+        - description: The project identifier '{account_name}/{project_name}'.
+          in: query
+          name: project_id
+          required: true
+          schema:
+            type: string
+        - description: The hash that uniquely identifies the artifact in the cache.
+          in: query
+          name: hash
+          required: true
+          schema:
+            type: string
+        - description: The name of the artifact.
+          in: query
+          name: name
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                description: The artifact exists in the cache and can be downloaded
+                properties:
+                  data:
+                    properties: {}
+                    type: object
+                  status:
+                    default: success
+                    enum:
+                      - success
+                    type: string
+                title: CacheArtifactExistence
+                type: object
+          description: The artifact exists
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        402:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The account has an invalid plan
+        403:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        404:
+          content:
+            application/json:
+              schema:
+                properties:
+                  error:
+                    items:
+                      properties:
+                        code:
+                          default: not_found
+                          type: string
+                        message:
+                          type: string
+                      type: object
+                    type: array
+                title: AbsentCacheArtifact
+                type: object
+          description: The artifact doesn't exist
+      summary: It checks if an artifact exists in the cache.
+      tags:
+        - Cache
+  /api/projects/{account_handle}/{project_handle}/tokens/{id}:
+    delete:
+      callbacks: {}
+      operationId: revokeProjectToken
+      parameters:
+        - description: The account handle.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+        - description: The project handle.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+        - description: The ID of the project token
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        204:
+          description: The project token was revoked
+        400:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The provided token ID is not valid
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        403:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        404:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The project token was not found
+      summary: Revokes a project token.
+      tags:
+        - Project tokens
+  /api/projects/{account_handle}/{project_handle}:
+    get:
+      callbacks: {}
+      operationId: showProject
+      parameters:
+        - description: The name of the account that the project belongs to.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+        - description: The name of the project to show
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+          description: The project to show
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        403:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        404:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The project was not found
+      summary: Returns a project based on the handle.
+      tags:
+        - Projects
+    put:
+      callbacks: {}
+      description: Updates a project with given parameters.
+      operationId: updateProject
+      parameters:
+        - description: The handle of the project's account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+        - description: The handle of the project to update.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                default_branch:
+                  description: The default branch for the project.
+                  type: string
+                repository_url:
+                  description: The repository URL for the project.
+                  type: string
+                visibility:
+                  description: The visibility of the project. Public projects are visible to everyone, private projects are only visible to the project's members.
+                  enum:
+                    - public
+                    - private
+                  type: string
+              type: object
+        description: Project update params
+        required: false
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+          description: The updated project
+        400:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The request is invalid, for example when attempting to link the project to a repository the authenticated user doesn't have access to.
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        403:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        404:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The project with the given account and project handles was not found
+      summary: Updates a project
+      tags:
+        - Projects
   /api/organizations/{organization_name}/members/{user_name}:
     delete:
       callbacks: {}
@@ -1771,422 +2914,11 @@ paths:
       summary: Updates a member in an organization
       tags:
         - Organizations
-  /api/organizations/{organization_name}/usage:
-    get:
-      callbacks: {}
-      description: Returns the usage of the organization with the given identifier. (e.g. number of remote cache hits)
-      operationId: showOrganizationUsage
-      parameters:
-        - description: The name of the organization to show.
-          in: path
-          name: organization_name
-          required: true
-          schema:
-            type: string
-      responses:
-        200:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/OrganizationUsage'
-          description: The organization usage
-        401:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: You need to be authenticated to access this resource
-        403:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The authenticated subject is not authorized to perform this action
-        404:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The organization with the given name was not found
-      summary: Shows the usage of an organization
-      tags:
-        - Organizations
-  /api/projects:
-    get:
-      callbacks: {}
-      operationId: listProjects
-      parameters: []
-      responses:
-        200:
-          content:
-            application/json:
-              schema:
-                properties:
-                  projects:
-                    items:
-                      $ref: '#/components/schemas/Project'
-                    type: array
-                required:
-                  - projects
-                type: object
-          description: List of projects
-        401:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: You need to be authenticated to access this resource
-      summary: List projects the authenticated user has access to.
-      tags:
-        - Projects
+  /api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons:
     post:
       callbacks: {}
-      operationId: createProject
-      parameters: []
-      requestBody:
-        content:
-          application/json:
-            schema:
-              properties:
-                full_handle:
-                  description: The full handle of the project that should be created.
-                  example: tuist/tuist
-                  type: string
-                name:
-                  deprecated: true
-                  description: The name of the project that should be created.
-                  type: string
-                organization:
-                  deprecated: true
-                  description: Organization to create the project with. If not specified, the project will be created with the current user's personal account.
-                  type: string
-              type: object
-        description: Projects params
-        required: false
-      responses:
-        200:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Project'
-          description: The project was created
-        400:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The account was not found
-        401:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: You need to be authenticated to access this resource
-        403:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The authenticated subject is not authorized to perform this action
-      summary: Create a new project.
-      tags:
-        - Projects
-  /api/projects/{account_handle}/{project_handle}:
-    get:
-      callbacks: {}
-      operationId: showProject
-      parameters:
-        - description: The name of the account that the project belongs to.
-          in: path
-          name: account_handle
-          required: true
-          schema:
-            type: string
-        - description: The name of the project to show
-          in: path
-          name: project_handle
-          required: true
-          schema:
-            type: string
-      responses:
-        200:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Project'
-          description: The project to show
-        401:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: You need to be authenticated to access this resource
-        403:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The authenticated subject is not authorized to perform this action
-        404:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The project was not found
-      summary: Returns a project based on the handle.
-      tags:
-        - Projects
-    put:
-      callbacks: {}
-      description: Updates a project with given parameters.
-      operationId: updateProject
-      parameters:
-        - description: The handle of the project's account.
-          in: path
-          name: account_handle
-          required: true
-          schema:
-            type: string
-        - description: The handle of the project to update.
-          in: path
-          name: project_handle
-          required: true
-          schema:
-            type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              properties:
-                default_branch:
-                  description: The default branch for the project.
-                  type: string
-                repository_url:
-                  description: The repository URL for the project.
-                  type: string
-                visibility:
-                  description: The visibility of the project. Public projects are visible to everyone, private projects are only visible to the project's members.
-                  enum:
-                    - public
-                    - private
-                  type: string
-              type: object
-        description: Project update params
-        required: false
-      responses:
-        200:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Project'
-          description: The updated project
-        400:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The request is invalid, for example when attempting to link the project to a repository the authenticated user doesn't have access to.
-        401:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: You need to be authenticated to access this resource
-        403:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The authenticated subject is not authorized to perform this action
-        404:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The project with the given account and project handles was not found
-      summary: Updates a project
-      tags:
-        - Projects
-  /api/projects/{account_handle}/{project_handle}/cache/ac:
-    post:
-      callbacks: {}
-      description: The endpoint caches a given action item without uploading a file. To upload files, use the multipart upload instead.
-      operationId: uploadCacheActionItem
-      parameters:
-        - description: The name of the account that the project belongs to.
-          in: path
-          name: account_handle
-          required: true
-          schema:
-            type: string
-        - description: The name of the project to clean cache for
-          in: path
-          name: project_handle
-          required: true
-          schema:
-            type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              properties:
-                hash:
-                  description: The hash of the cache action item.
-                  type: string
-              title: CacheActionItemUploadParams
-              type: object
-        description: Cache action item upload params
-        required: false
-      responses:
-        200:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CacheActionItem'
-          description: The request is valid but the cache action item already exists
-        201:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CacheActionItem'
-          description: The action item was cached
-        400:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The request has missing or invalid parameters
-        401:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: You need to be authenticated to access this resource
-        402:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The account has an invalid plan
-        403:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The authenticated subject is not authorized to perform this action
-        404:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The project doesn't exist
-      summary: It uploads a given cache action item.
-      tags:
-        - Cache
-  /api/projects/{account_handle}/{project_handle}/cache/ac/{hash}:
-    get:
-      callbacks: {}
-      description: This endpoint gets an item from the action cache.
-      operationId: getCacheActionItem
-      parameters:
-        - description: The name of the account that the project belongs to.
-          in: path
-          name: account_handle
-          required: true
-          schema:
-            type: string
-        - description: The name of the project the cache action item belongs to.
-          in: path
-          name: project_handle
-          required: true
-          schema:
-            type: string
-        - description: The hash that uniquely identifies an item in the action cache.
-          in: path
-          name: hash
-          required: true
-          schema:
-            type: string
-      responses:
-        200:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CacheActionItem'
-          description: The item exists in the action cache
-        401:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: You need to be authenticated to access this resource
-        402:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The account has an invalid plan
-        403:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The authenticated subject is not authorized to perform this action
-        404:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The item doesn't exist in the actino cache
-      summary: Get a cache action item.
-      tags:
-        - Cache
-  /api/projects/{account_handle}/{project_handle}/cache/clean:
-    put:
-      callbacks: {}
-      operationId: cleanCache
-      parameters:
-        - description: The name of the account that the project belongs to.
-          in: path
-          name: account_handle
-          required: true
-          schema:
-            type: string
-        - description: The name of the project to clean cache for
-          in: path
-          name: project_handle
-          required: true
-          schema:
-            type: string
-      responses:
-        204:
-          description: The cache has been successfully cleaned
-        401:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: You need to be authenticated to access this resource
-        403:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The authenticated subject is not authorized to perform this action
-        404:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The project was not found
-      summary: Cleans cache for a given project
-      tags:
-        - Cache
-  /api/projects/{account_handle}/{project_handle}/previews:
-    get:
-      callbacks: {}
-      description: This endpoint returns a list of previews for a given project.
-      operationId: listPreviews
+      description: The endpoint uploads a preview icon.
+      operationId: uploadPreviewIcon
       parameters:
         - description: The handle of the account.
           in: path
@@ -2200,72 +2932,19 @@ paths:
           required: true
           schema:
             type: string
-        - description: The display name of previews.
-          in: query
-          name: display_name
-          required: false
+        - description: The preview identifier.
+          in: path
+          name: preview_id
+          required: true
           schema:
-            type: string
-        - description: The preview version specifier. Currently, accepts a commit SHA, branch name, or latest.
-          in: query
-          name: specifier
-          required: false
-          schema:
-            type: string
-        - description: ''
-          in: query
-          name: supported_platforms
-          required: false
-          schema:
-            description: The supported platforms of the preview.
-            items:
-              $ref: '#/components/schemas/PreviewSupportedPlatform'
-            type: array
-        - description: ''
-          in: query
-          name: page_size
-          required: false
-          schema:
-            default: 10
-            description: The maximum number of preview to return in a single page.
-            maximum: 20
-            minimum: 1
-            title: PreviewIndexPageSize
-            type: integer
-        - description: ''
-          in: query
-          name: page
-          required: false
-          schema:
-            default: 1
-            description: The page number to return.
-            minimum: 1
-            title: PreviewIndexPage
-            type: integer
-        - description: Distinct fields – no two previews will be returned with this field having the same value.
-          in: query
-          name: distinct_field
-          required: false
-          schema:
-            enum:
-              - bundle_identifier
             type: string
       responses:
         200:
           content:
             application/json:
               schema:
-                properties:
-                  previews:
-                    description: Previews list.
-                    items:
-                      $ref: '#/components/schemas/Preview'
-                    type: array
-                required:
-                  - previews
-                title: PreviewsIndex
-                type: object
-          description: Successful response for listing previews.
+                $ref: '#/components/schemas/ArtifactUploadURL'
+          description: The presigned upload URL
         401:
           content:
             application/json:
@@ -2278,7 +2957,13 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The authenticated subject is not authorized to perform this action
-      summary: List previews.
+        404:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The project or preview doesn't exist
+      summary: Uploads a preview icon.
       tags:
         - Previews
   /api/projects/{account_handle}/{project_handle}/previews/complete:
@@ -2344,432 +3029,6 @@ paths:
       summary: It completes a multi-part upload.
       tags:
         - Previews
-  /api/projects/{account_handle}/{project_handle}/previews/generate-url:
-    post:
-      callbacks: {}
-      description: Given an upload ID and a part number, this endpoint returns a signed URL that can be used to upload a part of a multipart upload. The URL is short-lived and expires in 120 seconds.
-      operationId: generatePreviewsMultipartUploadURL
-      parameters:
-        - description: The handle of the account.
-          in: path
-          name: account_handle
-          required: true
-          schema:
-            type: string
-        - description: The handle of the project.
-          in: path
-          name: project_handle
-          required: true
-          schema:
-            type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              properties:
-                multipart_upload_part:
-                  $ref: '#/components/schemas/ArtifactMultipartUploadPart'
-                preview_id:
-                  description: The id of the preview.
-                  type: string
-              required:
-                - multipart_upload_part
-                - preview_id
-              type: object
-        description: Artifact to generate a signed URL for
-        required: false
-      responses:
-        200:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ArtifactMultipartUploadURL'
-          description: The URL has been generated
-        401:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: You need to be authenticated to access this resource
-        403:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The authenticated subject is not authorized to perform this action
-        404:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The project doesn't exist
-      summary: It generates a signed URL for uploading a part.
-      tags:
-        - Previews
-  /api/projects/{account_handle}/{project_handle}/previews/start:
-    post:
-      callbacks: {}
-      description: The endpoint returns an upload ID that can be used to generate URLs for the individual parts and complete the upload.
-      operationId: startPreviewsMultipartUpload
-      parameters:
-        - description: The handle of the account.
-          in: path
-          name: account_handle
-          required: true
-          schema:
-            type: string
-        - description: The handle of the project.
-          in: path
-          name: project_handle
-          required: true
-          schema:
-            type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              properties:
-                bundle_identifier:
-                  description: The bundle identifier of the preview.
-                  type: string
-                display_name:
-                  description: The display name of the preview.
-                  type: string
-                supported_platforms:
-                  description: The supported platforms of the preview.
-                  items:
-                    $ref: '#/components/schemas/PreviewSupportedPlatform'
-                  type: array
-                type:
-                  default: app_bundle
-                  description: The type of the preview to upload.
-                  enum:
-                    - app_bundle
-                    - ipa
-                  type: string
-                version:
-                  description: The version of the preview.
-                  type: string
-              type: object
-        description: Preview upload request params
-        required: false
-      responses:
-        200:
-          content:
-            application/json:
-              schema:
-                description: The upload has been initiated and preview and upload unique identifier are returned to upload the various parts using multi-part uploads
-                properties:
-                  data:
-                    description: Data that contains preview and upload unique identifier associated with the multipart upload to use when uploading parts
-                    properties:
-                      preview_id:
-                        description: The id of the preview.
-                        type: string
-                      upload_id:
-                        description: The upload ID
-                        type: string
-                    required:
-                      - upload_id
-                      - preview_id
-                    type: object
-                  status:
-                    default: success
-                    enum:
-                      - success
-                    type: string
-                required:
-                  - status
-                  - data
-                title: PreviewArtifactUpload
-                type: object
-          description: The upload has been started
-        401:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: You need to be authenticated to access this resource
-        403:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The authenticated subject is not authorized to perform this action
-        404:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The project doesn't exist
-      summary: It initiates a multipart upload for a preview artifact.
-      tags:
-        - Previews
-  /api/projects/{account_handle}/{project_handle}/previews/{preview_id}:
-    get:
-      callbacks: {}
-      description: This endpoint returns a preview with a given id, including the url to download the preview.
-      operationId: downloadPreview
-      parameters:
-        - description: The handle of the account.
-          in: path
-          name: account_handle
-          required: true
-          schema:
-            type: string
-        - description: The handle of the project.
-          in: path
-          name: project_handle
-          required: true
-          schema:
-            type: string
-        - description: The id of the preview.
-          in: path
-          name: preview_id
-          required: true
-          schema:
-            type: string
-      responses:
-        200:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Preview'
-          description: The preview exists and can be downloaded
-        401:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: You need to be authenticated to access this resource
-        403:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The authenticated subject is not authorized to perform this action
-        404:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The preview does not exist
-      summary: Returns a preview with a given id.
-      tags:
-        - Previews
-  /api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons:
-    post:
-      callbacks: {}
-      description: The endpoint uploads a preview icon.
-      operationId: uploadPreviewIcon
-      parameters:
-        - description: The handle of the account.
-          in: path
-          name: account_handle
-          required: true
-          schema:
-            type: string
-        - description: The handle of the project.
-          in: path
-          name: project_handle
-          required: true
-          schema:
-            type: string
-        - description: The preview identifier.
-          in: path
-          name: preview_id
-          required: true
-          schema:
-            type: string
-      responses:
-        200:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ArtifactUploadURL'
-          description: The presigned upload URL
-        401:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: You need to be authenticated to access this resource
-        403:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The authenticated subject is not authorized to perform this action
-        404:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The project or preview doesn't exist
-      summary: Uploads a preview icon.
-      tags:
-        - Previews
-  /api/projects/{account_handle}/{project_handle}/tokens:
-    get:
-      callbacks: {}
-      description: This endpoint returns all tokens for a given project.
-      operationId: listProjectTokens
-      parameters:
-        - description: The account handle.
-          in: path
-          name: account_handle
-          required: true
-          schema:
-            type: string
-        - description: The project handle.
-          in: path
-          name: project_handle
-          required: true
-          schema:
-            type: string
-      responses:
-        200:
-          content:
-            application/json:
-              schema:
-                description: A list of project tokens.
-                properties:
-                  tokens:
-                    items:
-                      $ref: '#/components/schemas/ProjectToken'
-                    type: array
-                required:
-                  - tokens
-                title: Tokens
-                type: object
-          description: A list of project tokens.
-        401:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: You need to be authenticated to list tokens
-        403:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: You need to be authorized to list tokens
-        404:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The project was not found
-      summary: List all project tokens.
-      tags:
-        - Project tokens
-    post:
-      callbacks: {}
-      description: This endpoint returns a new project token.
-      operationId: createProjectToken
-      parameters:
-        - description: The account handle.
-          in: path
-          name: account_handle
-          required: true
-          schema:
-            type: string
-        - description: The project handle.
-          in: path
-          name: project_handle
-          required: true
-          schema:
-            type: string
-      responses:
-        200:
-          content:
-            application/json:
-              schema:
-                description: A new project token.
-                properties:
-                  token:
-                    description: The generated project token.
-                    type: string
-                required:
-                  - token
-                title: ProjectFullToken
-                type: object
-          description: A project token was generated
-        401:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: You need to be authenticated to issue new tokens
-        403:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: You need to be authorized to issue new tokens
-        404:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The project was not found
-      summary: Create a new project token.
-      tags:
-        - Project tokens
-  /api/projects/{account_handle}/{project_handle}/tokens/{id}:
-    delete:
-      callbacks: {}
-      operationId: revokeProjectToken
-      parameters:
-        - description: The account handle.
-          in: path
-          name: account_handle
-          required: true
-          schema:
-            type: string
-        - description: The project handle.
-          in: path
-          name: project_handle
-          required: true
-          schema:
-            type: string
-        - description: The ID of the project token
-          in: path
-          name: id
-          required: true
-          schema:
-            type: string
-      responses:
-        204:
-          description: The project token was revoked
-        400:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The provided token ID is not valid
-        401:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: You need to be authenticated to access this resource
-        403:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The authenticated subject is not authorized to perform this action
-        404:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The project token was not found
-      summary: Revokes a project token.
-      tags:
-        - Project tokens
   /api/projects/{id}:
     delete:
       callbacks: {}
@@ -2805,63 +3064,6 @@ paths:
       summary: Deletes a project with a given id.
       tags:
         - Projects
-  /api/runs/{run_id}/complete:
-    post:
-      callbacks: {}
-      description: Given the upload ID and all the parts with their ETags, this endpoint completes the multipart upload.
-      operationId: completeAnalyticsArtifactMultipartUpload
-      parameters:
-        - description: The id of the command event.
-          in: path
-          name: run_id
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        content:
-          application/json:
-            schema:
-              properties:
-                command_event_artifact:
-                  $ref: '#/components/schemas/CommandEventArtifact'
-                multipart_upload_parts:
-                  $ref: '#/components/schemas/ArtifactMultipartUploadParts'
-              required:
-                - command_event_artifact
-                - multipart_upload_parts
-              type: object
-        description: Command event artifact multipart upload completion
-        required: false
-      responses:
-        204:
-          description: The upload has been completed
-        401:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: You need to be authenticated to access this resource
-        403:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The authenticated subject is not authorized to perform this action
-        404:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The project doesn't exist
-        500:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: An internal server error occurred
-      summary: It completes a multi-part upload.
-      tags:
-        - Analytics
   /api/runs/{run_id}/complete_artifacts_uploads:
     put:
       callbacks: {}
@@ -2911,108 +3113,6 @@ paths:
                 $ref: '#/components/schemas/Error'
           description: The command event doesn't exist
       summary: Completes artifacts uploads for a given command event
-      tags:
-        - Analytics
-  /api/runs/{run_id}/generate-url:
-    post:
-      callbacks: {}
-      description: Given an upload ID and a part number, this endpoint returns a signed URL that can be used to upload a part of a multipart upload. The URL is short-lived and expires in 120 seconds.
-      operationId: generateAnalyticsArtifactMultipartUploadURL
-      parameters:
-        - description: The id of the command event.
-          in: path
-          name: run_id
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        content:
-          application/json:
-            schema:
-              properties:
-                command_event_artifact:
-                  $ref: '#/components/schemas/CommandEventArtifact'
-                multipart_upload_part:
-                  $ref: '#/components/schemas/ArtifactMultipartUploadPart'
-              required:
-                - command_event_artifact
-                - multipart_upload_part
-              type: object
-        description: Artifact to generate a signed URL for
-        required: false
-      responses:
-        200:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ArtifactMultipartUploadURL'
-          description: The URL has been generated
-        401:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: You need to be authenticated to access this resource
-        403:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The authenticated subject is not authorized to perform this action
-        404:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The project doesn't exist
-      summary: It generates a signed URL for uploading a part.
-      tags:
-        - Analytics
-  /api/runs/{run_id}/start:
-    post:
-      callbacks: {}
-      description: The endpoint returns an upload ID that can be used to generate URLs for the individual parts and complete the upload.
-      operationId: startAnalyticsArtifactMultipartUpload
-      parameters:
-        - description: The id of the command event.
-          in: path
-          name: run_id
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CommandEventArtifact'
-        description: Artifact to upload
-        required: false
-      responses:
-        200:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ArtifactUploadID'
-          description: The upload has been started
-        401:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: You need to be authenticated to access this resource
-        403:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The authenticated subject is not authorized to perform this action
-        404:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The command event doesn't exist
-      summary: It initiates a multipart upload for a command event artifact.
       tags:
         - Analytics
 security:

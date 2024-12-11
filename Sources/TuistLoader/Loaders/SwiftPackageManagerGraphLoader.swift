@@ -60,10 +60,7 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
     private let fileSystem: FileSysteming
 
     public init(
-        swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(
-            system: System.shared,
-            fileSystem: FileSystem()
-        ),
+        swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(),
         packageInfoMapper: PackageInfoMapping = PackageInfoMapper(),
         manifestLoader: ManifestLoading = ManifestLoader(),
         fileSystem: FileSysteming = FileSystem()
