@@ -68,7 +68,7 @@ defmodule Tuist.Billing do
         popular: false,
         description: gettext("Create your plan or self-host your instance."),
         price: gettext("Custom"),
-        cta: {:secondary, gettext("Contact sales"), "mailto:sales@tuist.io"},
+        cta: {:secondary, gettext("Contact sales"), "mailto:contact@tuist.io"},
         features: [
           {gettext("Custom terms"), gettext("Tailored agreements to meet your specific needs")},
           {gettext("On-premise"), gettext("Self-host your instance of Tuist")},

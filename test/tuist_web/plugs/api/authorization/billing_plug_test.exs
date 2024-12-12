@@ -75,7 +75,7 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
     # Then
     assert json_response(got, :payment_required) == %{
              "message" => ~s"""
-             The 'Tuist Enterprise' plan of the account '#{account.name}' is not active. You can contact sales@tuist.io to renovate your plan.
+             The 'Tuist Enterprise' plan of the account '#{account.name}' is not active. You can contact contact@tuist.io to renovate your plan.
              """
            }
   end

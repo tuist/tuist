@@ -149,10 +149,14 @@ defmodule TuistWeb.Marketing.MarketingController do
       {gettext(
          "Why is your pricing model more accessible compared to traditional enterprise models?"
        ),
-       gettext(~S"""
-       <p>Our commitment to open-source and our core values shape our unique approach to pricing. Unlike many models that try to extract every dollar from you with "contact sales" calls, limited demos, and other sales tactics, we believe in fairness and transparency. We treat everyone equally and set prices that are fair for all. By choosing our services, you are not only getting a great product but also supporting the development of more open-source projects. We see building a thriving business as a long-term journey, not a short-term sprint filled with shady practices. You can <a href="#{~p"/blog/2024/11/05/our-pricing-philosophy"}">read more</a> about our philosophy.</p>
-       <p>By supporting Tuist, you are also supporting the development of more open-source software for the Swift ecosystem.</p>
-       """)},
+       gettext(
+         ~S"""
+         <p>Our commitment to open-source and our core values shape our unique approach to pricing. Unlike many models that try to extract every dollar from you with "contact sales" calls, limited demos, and other sales tactics, we believe in fairness and transparency. We treat everyone equally and set prices that are fair for all. By choosing our services, you are not only getting a great product but also supporting the development of more open-source projects. We see building a thriving business as a long-term journey, not a short-term sprint filled with shady practices. You can %{read_more}  about our philosophy.</p>
+         <p>By supporting Tuist, you are also supporting the development of more open-source software for the Swift ecosystem.</p>
+         """,
+         read_more:
+           "<a href=\"#{~p"/blog/2024/11/05/our-pricing-philosophy"}\">#{gettext("read more")}</a>"
+       )},
       {gettext("How can I estimate the cost of my project?"),
        gettext(
          "You can set up the Air plan, and use the features for a few days to get a usage estimate. If you need a higher limit, let us know and we can help you set up a custom plan."

@@ -66,7 +66,7 @@ defmodule TuistWeb.API.Authorization.BillingPlug do
         |> put_status(:payment_required)
         |> json(%{
           message: ~s"""
-          The 'Tuist Enterprise' plan of the account '#{account.name}' is not active. You can contact sales@tuist.io to renovate your plan.
+          The 'Tuist Enterprise' plan of the account '#{account.name}' is not active. You can contact contact@tuist.io to renovate your plan.
           """
         })
         |> halt()
