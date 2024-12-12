@@ -1,0 +1,15 @@
+{
+  "authentication": {
+    "staging.tuist.dev": {
+      "loginAPIPath": "/api/accounts/tuist/registry/swift/login",
+      "type": "token"
+    }
+  },
+  "registries": {
+    "[default]": {
+      "supportsAvailability": false,
+      "url": "https://staging.tuist.dev/api/accounts/tuist/registry/swift"
+    }
+  },
+  "version": 1
+}
