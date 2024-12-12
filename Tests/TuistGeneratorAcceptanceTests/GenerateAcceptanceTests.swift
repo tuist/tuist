@@ -944,6 +944,12 @@ final class GenerateAcceptanceTestSPMPackage: TuistAcceptanceTestCase {
         try await run(TestCommand.self, "--platform", "ios")
         try await run(TestCommand.self, "MyPackage", "--platform", "macos")
     }
+
+    func test_spm_package_with_local_dependency() async throws {
+        try await setUpFixture(.spmPackageWithLocalDependency)
+        try await run(in: "FirstPackage", InstallCommand.self)
+        try await run(in: "FirstPackage", GenerateCommand.self)
+    }
 }
 
 final class GenerateAcceptanceTestAppWithDefaultConfiguration: TuistAcceptanceTestCase {

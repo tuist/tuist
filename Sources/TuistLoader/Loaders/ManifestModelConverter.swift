@@ -63,7 +63,12 @@ public final class ManifestModelConverter: ManifestModelConverting {
         externalDependencies: [String: [XcodeGraph.TargetDependency]],
         type: XcodeGraph.ProjectType
     ) async throws -> XcodeGraph.Project {
-        let rootDirectory: AbsolutePath = try await rootDirectoryLocator.locate(from: path)
+        let rootDirectory: AbsolutePath = switch type {
+        case .local:
+            try await rootDirectoryLocator.locate(from: path)
+        case .external:
+            (try? await rootDirectoryLocator.locate(from: path)) ?? path
+        }
         let generatorPaths = GeneratorPaths(
             manifestDirectory: path,
             rootDirectory: rootDirectory
