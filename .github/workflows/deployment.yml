@@ -96,6 +96,14 @@ jobs:
       - uses: superfly/flyctl-actions/setup-flyctl@master
       - name: Fly
         run: flyctl deploy --remote-only -c fly.toml --build-arg TUIST_HOSTED=1 --build-arg MIX_ENV=prod --build-arg TUIST_VERSION=${{ steps.version.outputs.version }} --build-arg APP_REVISION=$GITHUB_SHA --wait-timeout 3600
+      - name: Notify about the deployment in Slack
+        uses: slackapi/slack-github-action@v2.0.0
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-type: webhook-trigger
+          payload: |
+            commit: "${{ env.GITHUB_SHA }}"
+            environment: "production"
   production-hotfix:
     environment:
       name: production
@@ -123,3 +131,11 @@ jobs:
       - uses: superfly/flyctl-actions/setup-flyctl@master
       - name: Fly
         run: flyctl deploy --remote-only -c fly.toml --build-arg TUIST_HOSTED=1 --build-arg MIX_ENV=prod --build-arg TUIST_VERSION=${{ steps.version.outputs.version }} --build-arg APP_REVISION=$GITHUB_SHA --wait-timeout 3600
+      - name: Notify about the deployment in Slack
+        uses: slackapi/slack-github-action@v2.0.0
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-type: webhook-trigger
+          payload: |
+            commit: "${{ env.GITHUB_SHA }}"
+            environment: "production"
