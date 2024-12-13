@@ -277,6 +277,16 @@ extension SynthesizedResourceInterfaceTemplates {
         let bundle = Bundle.module
         self.init(asset.name, bundle: bundle, label: label)
       }
+    
+      init(_ asset: {{imageType}}) {
+        let bundle = Bundle.module
+        self.init(asset.name, bundle: bundle)
+      }
+    
+      init(_ asset: {{imageType}}, label: Text) {
+        let bundle = Bundle.module
+        self.init(asset.name, bundle: bundle)
+      }
 
       init(decorative asset: {{imageType}}) {
         let bundle = Bundle.module
@@ -284,6 +294,33 @@ extension SynthesizedResourceInterfaceTemplates {
       }
     }
     #endif
+    
+    @available(iOS 11.0, tvOS 11.0,*)
+    @available(watchOS, unavailable)
+    extension UIKit.UIImage {
+       /// Initialize `UIImage` with a Tuist generated image resource
+       convenience init(resource asset: {{imageType}}) {
+            #if !os(watchOS)
+                self.init(named: asset.name, in: Bundle.module, compatibleWith: nil)! 
+            #else
+                self.init()
+            #endif
+       }
+    }
+
+
+    extension {{imageType}} {
+      {% macro imagesBlock assets %}
+      {% for asset in assets %}
+      {% if asset.type == "image" %}
+      static let {{asset.name|swiftIdentifier:"pretty"|lowerFirstWord|escapeReservedKeywords}} = {{param.name}}Asset.{{asset.name|swiftIdentifier:"pretty"|lowerFirstWord|escapeReservedKeywords}}
+      {% elif asset.items %}
+      {% call imagesBlock asset.items %}
+      {% endif %}
+      {% endfor %}
+      {% endmacro %}
+      {% call imagesBlock catalogs.first.assets %}
+    }
 
     {% endif %}
     {% else %}

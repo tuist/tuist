@@ -1,6 +1,6 @@
 import Foundation
 import UIKit
-
+import SwiftUI
 public class ResourcesStaticFramework3 {
     public let name = "StaticFramework3Resources"
     public init() {}
@@ -11,5 +11,13 @@ public class ResourcesStaticFramework3 {
             in: .module,
             compatibleWith: nil
         )
+    }
+    
+    public func loadUIImageWithSynthisizeAccessors() -> UIImage {
+        UIImage(resource: .assetCatalogLogo)
+    }
+
+    public func loadImageWithSynthisizedAccessors() -> Image {
+        Image(.assetCatalogLogo)
     }
 }
