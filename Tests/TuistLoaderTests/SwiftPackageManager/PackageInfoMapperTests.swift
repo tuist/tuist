@@ -1395,6 +1395,57 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
+    func testMap_whenHasHeadersWithCustomModuleMapAndTargetWithDashes() async throws {
+        let basePath = try temporaryPath()
+        let headersPath = basePath.appending(try RelativePath(validating: "Package/Sources/target-with-dashes/include"))
+        let moduleMapPath = headersPath.appending(component: "module.modulemap")
+        let headerPath = headersPath.appending(component: "AnHeader.h")
+        try await fileSystem.makeDirectory(at: headersPath)
+        try fileHandler.write("", path: moduleMapPath, atomically: true)
+        try fileHandler.write("", path: headerPath, atomically: true)
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "target-with-dashes", type: .library(.automatic), targets: ["target-with-dashes"]),
+                    ],
+                    targets: [
+                        .test(
+                            name: "target-with-dashes"
+                        ),
+                    ],
+                    platforms: [.ios],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ]
+        )
+        XCTAssertBetterEqual(
+            project,
+            .testWithDefaultConfigs(
+                name: "Package",
+                targets: [
+                    .test(
+                        "target-with-dashes",
+                        basePath: basePath,
+                        customProductName: "target_with_dashes",
+                        customSettings: [
+                            "HEADER_SEARCH_PATHS": ["$(inherited)", "$(SRCROOT)/Sources/target-with-dashes/include"],
+                            "DEFINES_MODULE": "NO",
+                            "OTHER_CFLAGS": .array(["$(inherited)", "-fmodule-name=target_with_dashes"]),
+                        ],
+                        moduleMap: "$(SRCROOT)/Sources/target-with-dashes/include/module.modulemap"
+                    ),
+                ]
+            )
+        )
+    }
+
     func testMap_whenHasSystemLibrary() async throws {
         let basePath = try temporaryPath()
         let targetPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
