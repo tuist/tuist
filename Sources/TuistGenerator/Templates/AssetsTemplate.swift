@@ -277,12 +277,12 @@ extension SynthesizedResourceInterfaceTemplates {
         let bundle = Bundle.module
         self.init(asset.name, bundle: bundle, label: label)
       }
-    
+
       init(_ asset: {{imageType}}) {
         let bundle = Bundle.module
         self.init(asset.name, bundle: bundle)
       }
-    
+
       init(_ asset: {{imageType}}, label: Text) {
         let bundle = Bundle.module
         self.init(asset.name, bundle: bundle)
@@ -294,7 +294,7 @@ extension SynthesizedResourceInterfaceTemplates {
       }
     }
     #endif
-    
+
     @available(iOS 11.0, tvOS 11.0,*)
     @available(watchOS, unavailable)
     extension UIKit.UIImage {
