@@ -1,4 +1,5 @@
 defmodule Tuist.AuthorizationTest do
+  alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.CommandEventsFixtures
   alias Tuist.PreviewsFixtures
   alias Tuist.BillingFixtures
@@ -1614,5 +1615,55 @@ defmodule Tuist.AuthorizationTest do
 
     # Then
     assert Authorization.can(user, :read, :ops) == true
+  end
+
+  test "can.read.account.registry when the subject is the same account being read and the scopes permit the action" do
+    # Given
+    account = AccountsFixtures.user_fixture(preload: [:account]).account
+
+    # When
+    assert Authorization.can?(
+             :account_registry_read,
+             %AuthenticatedAccount{account: account, scopes: [:account_registry_read]},
+             account
+           ) == true
+  end
+
+  test "can.read.account.registry when the subject is the same account being read and the scopes don't permit the action" do
+    # Given
+    account = AccountsFixtures.user_fixture(preload: [:account]).account
+
+    # When
+    assert Authorization.can?(
+             :account_registry_read,
+             %AuthenticatedAccount{account: account, scopes: [:account_registry_write]},
+             account
+           ) == false
+  end
+
+  test "can.read.account.registry when the subject is not the same account being read" do
+    # Given
+    account = AccountsFixtures.user_fixture(preload: [:account]).account
+    another_account = AccountsFixtures.user_fixture(preload: [:account]).account
+
+    # When
+    assert Authorization.can?(
+             :account_registry_read,
+             %AuthenticatedAccount{account: account, scopes: [:account_registry_read]},
+             another_account
+           ) == false
+  end
+
+  test "can.read.account.registry when the subject is project" do
+    # Given
+    project = ProjectsFixtures.project_fixture()
+    account = AccountsFixtures.user_fixture(preload: [:account]).account
+
+    # When
+    assert Authorization.can?(
+             :account_registry_read,
+             project,
+             account
+           ) == false
   end
 end

@@ -9,6 +9,8 @@ defmodule TuistWeb.API.Registry.SwiftController do
   alias Tuist.Storage
 
   plug(:assign_package when action in [:list_releases, :show_release, :show_package_swift])
+  plug(TuistWeb.API.EnsureAccountPresencePlug)
+  plug(TuistWeb.API.Authorization.AuthorizationPlug, :registry)
 
   def availability(conn, _params) do
     conn |> Plug.Conn.send_resp(200, []) |> Plug.Conn.halt()
@@ -100,7 +102,7 @@ defmodule TuistWeb.API.Registry.SwiftController do
   end
 
   def show_package_swift(
-        %{assigns: %{package: package}} = conn,
+        %{assigns: %{package: package}, params: %{"account_handle" => account_handle}} = conn,
         %{"scope" => scope, "name" => name, "version" => version} = opts
       ) do
     package_release =
@@ -153,7 +155,7 @@ defmodule TuistWeb.API.Registry.SwiftController do
         |> put_status(303)
         |> redirect(
           to:
-            ~p"/api/accounts/account_handle/registry/swift/#{scope}/#{name}/#{version}/Package.swift"
+            ~p"/api/accounts/#{account_handle}/registry/swift/#{scope}/#{name}/#{version}/Package.swift"
         )
       end
     end
@@ -238,5 +240,12 @@ defmodule TuistWeb.API.Registry.SwiftController do
       package ->
         conn |> assign(:package, package)
     end
+  end
+
+  def login(conn, _opts) do
+    conn
+    |> put_resp_header("content-version", "1")
+    |> put_status(:ok)
+    |> json(%{})
   end
 end

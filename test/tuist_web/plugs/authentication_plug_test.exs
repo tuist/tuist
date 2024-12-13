@@ -2,11 +2,40 @@ defmodule TuistWeb.AuthenticationPlugTest do
   use TuistWeb.ConnCase
   use Plug.Test
   use Mimic
+  alias Tuist.Accounts
+  alias Tuist.Accounts.AuthenticatedAccount
   alias TuistWeb.Headers
   alias Tuist.Projects
   alias TuistWeb.AuthenticationPlug
   alias Tuist.AccountsFixtures
   alias Tuist.ProjectsFixtures
+
+  test "loads the authenticated account" do
+    # Given
+    opts = AuthenticationPlug.init(:load_authenticated_subject)
+
+    {account_token, account_token_value} =
+      Accounts.create_account_token(
+        %{
+          account: AccountsFixtures.user_fixture(preload: [:account]).account,
+          scopes: [:account_registry_read]
+        },
+        preload: [:account]
+      )
+
+    conn = conn(:get, "/") |> put_req_header("authorization", "Bearer " <> account_token_value)
+
+    # When
+    got = conn |> AuthenticationPlug.call(opts)
+
+    # Then
+    assert TuistWeb.Authentication.current_authenticated_account(got) == %AuthenticatedAccount{
+             account: account_token.account,
+             scopes: [:account_registry_read]
+           }
+
+    assert TuistWeb.Authentication.authenticated?(got) == true
+  end
 
   test "loads the authenticated user" do
     # Given

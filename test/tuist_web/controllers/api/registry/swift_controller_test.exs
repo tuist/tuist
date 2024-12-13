@@ -1,16 +1,32 @@
 defmodule TuistWeb.API.Registry.SwiftControllerTest do
+  alias Tuist.Accounts.AuthenticatedAccount
+  alias TuistWeb.Authentication
+  alias Tuist.AccountsFixtures
   alias Tuist.Storage
-  alias Tuist.Registry.Swift.PackagesFixtures
   alias Tuist.Registry.Swift.PackagesFixtures
   use TuistWeb.ConnCase, async: false
   use Mimic
 
+  setup %{conn: conn} do
+    user = AccountsFixtures.user_fixture(preload: [:account])
+    account = user.account
+
+    conn =
+      conn
+      |> Authentication.put_current_authenticated_account(%AuthenticatedAccount{
+        account: account,
+        scopes: [:account_registry_read]
+      })
+
+    %{conn: conn, account: account}
+  end
+
   describe "GET /api/accounts/:account_handle/registry/swift/availability" do
-    test "returns :ok response for availability", %{conn: conn} do
+    test "returns :ok response for availability", %{conn: conn, account: account} do
       # When
       conn =
         conn
-        |> get(~p"/api/accounts/account_handle/registry/swift/availability")
+        |> get(~p"/api/accounts/#{account.name}/registry/swift/availability")
 
       # Then
       assert conn.status == 200
@@ -18,12 +34,12 @@ defmodule TuistWeb.API.Registry.SwiftControllerTest do
   end
 
   describe "GET /api/accounts/:account_handle/registry/swift/identifiers" do
-    test "returns empty array when the package does not exist", %{conn: conn} do
+    test "returns empty array when the package does not exist", %{conn: conn, account: account} do
       # When
       conn =
         conn
         |> get(
-          ~p"/api/accounts/account_handle/registry/swift/identifiers?url=https://github.com/Alamofire/Alamofire"
+          ~p"/api/accounts/#{account.name}/registry/swift/identifiers?url=https://github.com/Alamofire/Alamofire"
         )
 
       # Then
@@ -31,12 +47,12 @@ defmodule TuistWeb.API.Registry.SwiftControllerTest do
       assert response["identifiers"] == []
     end
 
-    test "returns empty array when the VCS is unsupported", %{conn: conn} do
+    test "returns empty array when the VCS is unsupported", %{conn: conn, account: account} do
       # When
       conn =
         conn
         |> get(
-          ~p"/api/accounts/account_handle/registry/swift/identifiers?url=https://gitlab.com/Alamofire/Alamofire"
+          ~p"/api/accounts/#{account.name}/registry/swift/identifiers?url=https://gitlab.com/Alamofire/Alamofire"
         )
 
       # Then
@@ -44,7 +60,7 @@ defmodule TuistWeb.API.Registry.SwiftControllerTest do
       assert response["identifiers"] == []
     end
 
-    test "returns the identifier when the package exists", %{conn: conn} do
+    test "returns the identifier when the package exists", %{conn: conn, account: account} do
       # Given
       PackagesFixtures.package_fixture(scope: "Alamofire", name: "Alamofire")
 
@@ -52,7 +68,7 @@ defmodule TuistWeb.API.Registry.SwiftControllerTest do
       conn =
         conn
         |> get(
-          ~p"/api/accounts/account_handle/registry/swift/identifiers?url=https://github.com/Alamofire/Alamofire"
+          ~p"/api/accounts/#{account.name}/registry/swift/identifiers?url=https://github.com/Alamofire/Alamofire"
         )
 
       # Then
@@ -62,7 +78,7 @@ defmodule TuistWeb.API.Registry.SwiftControllerTest do
   end
 
   describe "GET /api/accounts/:account_handle/registry/swift/:scope/:name" do
-    test "returns package releases", %{conn: conn} do
+    test "returns package releases", %{conn: conn, account: account} do
       # Given
       package = PackagesFixtures.package_fixture(scope: "Alamofire", name: "Alamofire")
       PackagesFixtures.package_release_fixture(package_id: package.id, version: "5.0.0")
@@ -71,7 +87,7 @@ defmodule TuistWeb.API.Registry.SwiftControllerTest do
       # When
       conn =
         conn
-        |> get(~p"/api/accounts/account_handle/registry/swift/Alamofire/Alamofire")
+        |> get(~p"/api/accounts/#{account.name}/registry/swift/Alamofire/Alamofire")
 
       # Then
       response = json_response(conn, :ok)
@@ -80,17 +96,20 @@ defmodule TuistWeb.API.Registry.SwiftControllerTest do
                "releases" => %{
                  "5.0.0" => %{
                    "url" =>
-                     "/api/accounts/account_handle/registry/swift/Alamofire/Alamofire/5.0.0"
+                     "/api/accounts/#{account.name}/registry/swift/Alamofire/Alamofire/5.0.0"
                  },
                  "5.0.1" => %{
                    "url" =>
-                     "/api/accounts/account_handle/registry/swift/Alamofire/Alamofire/5.0.1"
+                     "/api/accounts/#{account.name}/registry/swift/Alamofire/Alamofire/5.0.1"
                  }
                }
              }
     end
 
-    test "returns package releases when scope and name casing differs", %{conn: conn} do
+    test "returns package releases when scope and name casing differs", %{
+      conn: conn,
+      account: account
+    } do
       # Given
       package = PackagesFixtures.package_fixture(scope: "Alamofire", name: "Alamofire")
       PackagesFixtures.package_release_fixture(package_id: package.id, version: "5.0.0")
@@ -98,7 +117,7 @@ defmodule TuistWeb.API.Registry.SwiftControllerTest do
       # When
       conn =
         conn
-        |> get(~p"/api/accounts/account_handle/registry/swift/alamofire/alamofire")
+        |> get(~p"/api/accounts/#{account.name}/registry/swift/alamofire/alamofire")
 
       # Then
       response = json_response(conn, :ok)
@@ -107,7 +126,7 @@ defmodule TuistWeb.API.Registry.SwiftControllerTest do
                "releases" => %{
                  "5.0.0" => %{
                    "url" =>
-                     "/api/accounts/account_handle/registry/swift/Alamofire/Alamofire/5.0.0"
+                     "/api/accounts/#{account.name}/registry/swift/Alamofire/Alamofire/5.0.0"
                  }
                }
              }
@@ -115,7 +134,7 @@ defmodule TuistWeb.API.Registry.SwiftControllerTest do
   end
 
   describe "GET /api/accounts/:account_handle/registry/swift/:scope/:name/:version" do
-    test "returns package version", %{conn: conn} do
+    test "returns package version", %{conn: conn, account: account} do
       # Given
       package = PackagesFixtures.package_fixture(scope: "Alamofire", name: "Alamofire")
 
@@ -127,7 +146,7 @@ defmodule TuistWeb.API.Registry.SwiftControllerTest do
 
       # When
       conn =
-        conn |> get(~p"/api/accounts/account_handle/registry/swift/Alamofire/Alamofire/5.0.0")
+        conn |> get(~p"/api/accounts/#{account.name}/registry/swift/Alamofire/Alamofire/5.0.0")
 
       # Then
       response = json_response(conn, :ok)
@@ -145,10 +164,13 @@ defmodule TuistWeb.API.Registry.SwiftControllerTest do
              }
     end
 
-    test "errors and halts the connection if the package is not found", %{conn: conn} do
+    test "errors and halts the connection if the package is not found", %{
+      conn: conn,
+      account: account
+    } do
       # When
       conn =
-        conn |> get(~p"/api/accounts/account_handle/registry/swift/scope/name/5.0.0")
+        conn |> get(~p"/api/accounts/#{account.name}/registry/swift/scope/name/5.0.0")
 
       # Then
       assert conn.halted == true
@@ -158,7 +180,10 @@ defmodule TuistWeb.API.Registry.SwiftControllerTest do
              }
     end
 
-    test "returns not found when the package release does not exist", %{conn: conn} do
+    test "returns not found when the package release does not exist", %{
+      conn: conn,
+      account: account
+    } do
       # Given
       package = PackagesFixtures.package_fixture(scope: "Alamofire", name: "Alamofire")
 
@@ -170,7 +195,7 @@ defmodule TuistWeb.API.Registry.SwiftControllerTest do
 
       # When
       conn =
-        conn |> get(~p"/api/accounts/account_handle/registry/swift/Alamofire/Alamofire/5.0.0")
+        conn |> get(~p"/api/accounts/#{account.name}/registry/swift/Alamofire/Alamofire/5.0.0")
 
       # Then
       assert conn.status == 404
@@ -178,7 +203,7 @@ defmodule TuistWeb.API.Registry.SwiftControllerTest do
   end
 
   describe "GET /api/accounts/:account_handle/registry/swift/:scope/:name/:version/Package.swift" do
-    test "returns Package.swift contents when object exists", %{conn: conn} do
+    test "returns Package.swift contents when object exists", %{conn: conn, account: account} do
       # Given
       package = PackagesFixtures.package_fixture(scope: "Alamofire", name: "Alamofire")
 
@@ -200,7 +225,7 @@ defmodule TuistWeb.API.Registry.SwiftControllerTest do
       conn =
         conn
         |> get(
-          ~p"/api/accounts/account_handle/registry/swift/Alamofire/Alamofire/5.0.0/Package.swift"
+          ~p"/api/accounts/#{account.name}/registry/swift/Alamofire/Alamofire/5.0.0/Package.swift"
         )
 
       # Then
@@ -208,7 +233,10 @@ defmodule TuistWeb.API.Registry.SwiftControllerTest do
       assert get_resp_header(conn, "content-type") == ["text/x-swift; charset=utf-8"]
     end
 
-    test "returns Package.swift contents for a specific Swift version", %{conn: conn} do
+    test "returns Package.swift contents for a specific Swift version", %{
+      conn: conn,
+      account: account
+    } do
       # Given
       package = PackagesFixtures.package_fixture(scope: "Alamofire", name: "Alamofire")
 
@@ -233,7 +261,7 @@ defmodule TuistWeb.API.Registry.SwiftControllerTest do
       conn =
         conn
         |> get(
-          ~p"/api/accounts/account_handle/registry/swift/Alamofire/Alamofire/5.0.0/Package.swift?swift-version=5.2"
+          ~p"/api/accounts/#{account.name}/registry/swift/Alamofire/Alamofire/5.0.0/Package.swift?swift-version=5.2"
         )
 
       # Then
@@ -242,7 +270,7 @@ defmodule TuistWeb.API.Registry.SwiftControllerTest do
     end
 
     test "redirects to Package.swift when the manifest for a specific Swift version doesn't exist",
-         %{conn: conn} do
+         %{conn: conn, account: account} do
       # Given
       package = PackagesFixtures.package_fixture(scope: "Alamofire", name: "Alamofire")
 
@@ -260,15 +288,18 @@ defmodule TuistWeb.API.Registry.SwiftControllerTest do
       conn =
         conn
         |> get(
-          ~p"/api/accounts/account_handle/registry/swift/Alamofire/Alamofire/5.0.0/Package.swift?swift-version=5.2"
+          ~p"/api/accounts/#{account.name}/registry/swift/Alamofire/Alamofire/5.0.0/Package.swift?swift-version=5.2"
         )
 
       # Then
       assert redirected_to(conn, 303) ==
-               "/api/accounts/account_handle/registry/swift/Alamofire/Alamofire/5.0.0/Package.swift"
+               "/api/accounts/#{account.name}/registry/swift/Alamofire/Alamofire/5.0.0/Package.swift"
     end
 
-    test "returns Package.swift with alternate manifests in a Link header", %{conn: conn} do
+    test "returns Package.swift with alternate manifests in a Link header", %{
+      conn: conn,
+      account: account
+    } do
       # Given
       package = PackagesFixtures.package_fixture(scope: "Alamofire", name: "Alamofire")
 
@@ -305,7 +336,7 @@ defmodule TuistWeb.API.Registry.SwiftControllerTest do
       conn =
         conn
         |> get(
-          ~p"/api/accounts/account_handle/registry/swift/Alamofire/Alamofire/5.0.0/Package.swift"
+          ~p"/api/accounts/#{account.name}/registry/swift/Alamofire/Alamofire/5.0.0/Package.swift"
         )
 
       # Then
@@ -316,7 +347,10 @@ defmodule TuistWeb.API.Registry.SwiftControllerTest do
              ]
     end
 
-    test "returns :not_found when the Package.swift doesn't exist", %{conn: conn} do
+    test "returns :not_found when the Package.swift doesn't exist", %{
+      conn: conn,
+      account: account
+    } do
       # Given
       PackagesFixtures.package_fixture(scope: "Alamofire", name: "Alamofire")
 
@@ -329,7 +363,7 @@ defmodule TuistWeb.API.Registry.SwiftControllerTest do
       conn =
         conn
         |> get(
-          ~p"/api/accounts/account_handle/registry/swift/Alamofire/Alamofire/5.0.0/Package.swift"
+          ~p"/api/accounts/#{account.name}/registry/swift/Alamofire/Alamofire/5.0.0/Package.swift"
         )
 
       # Then
@@ -338,7 +372,7 @@ defmodule TuistWeb.API.Registry.SwiftControllerTest do
   end
 
   describe "GET /api/accounts/:account_handle/registry/swift/:scope/:name/:version.zip" do
-    test "returns version source archive", %{conn: conn} do
+    test "returns version source archive", %{conn: conn, account: account} do
       # Given
       PackagesFixtures.package_fixture(scope: "Alamofire", name: "Alamofire")
 
@@ -357,14 +391,17 @@ defmodule TuistWeb.API.Registry.SwiftControllerTest do
       # When
       conn =
         conn
-        |> get(~p"/api/accounts/account_handle/registry/swift/Alamofire/Alamofire/5.0.0.zip")
+        |> get(~p"/api/accounts/#{account.name}/registry/swift/Alamofire/Alamofire/5.0.0.zip")
 
       # Then
       assert response(conn, 200) =~ source_archive_content
       assert get_resp_header(conn, "content-type") == ["application/zip; charset=utf-8"]
     end
 
-    test "returns :not_found when the source archive doesn't exist", %{conn: conn} do
+    test "returns :not_found when the source archive doesn't exist", %{
+      conn: conn,
+      account: account
+    } do
       # Given
       PackagesFixtures.package_fixture(scope: "Alamofire", name: "Alamofire")
 
@@ -376,10 +413,48 @@ defmodule TuistWeb.API.Registry.SwiftControllerTest do
       # When
       conn =
         conn
-        |> get(~p"/api/accounts/account_handle/registry/swift/Alamofire/Alamofire/5.0.0.zip")
+        |> get(~p"/api/accounts/#{account.name}/registry/swift/Alamofire/Alamofire/5.0.0.zip")
 
       # Then
       assert conn.status == 404
+    end
+  end
+
+  describe "POST /api/accounts/:account_handle/registry/swift/login" do
+    test "returns :ok when token exists", %{conn: conn, account: account} do
+      # When
+      response =
+        conn
+        |> post(~p"/api/accounts/#{account.name}/registry/swift/login")
+
+      # Then
+      assert response.status == 200
+    end
+
+    test "returns :ok response when the token is valid", %{conn: conn, account: account} do
+      # When
+      conn =
+        conn
+        |> post(~p"/api/accounts/#{account.name}/registry/swift/login")
+
+      # Then
+      assert conn.status == 200
+    end
+
+    test "returns :unauthorized response when the authenticated account is different", %{
+      conn: conn
+    } do
+      # Given
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      account = user.account
+
+      # When
+      conn =
+        conn
+        |> post(~p"/api/accounts/#{account.name}/registry/swift/login")
+
+      # Then
+      assert conn.status == 401
     end
   end
 end

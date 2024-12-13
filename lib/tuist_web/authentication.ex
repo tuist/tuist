@@ -15,6 +15,7 @@ defmodule TuistWeb.Authentication do
 
   @current_user_key :current_user
   @current_project_key :current_project
+  @current_authenticated_account_key :current_authenticated_account
   # Make the remember me cookie valid for 60 days.
   # If you want bump or reduce this value, also change
   # the token expiry itself in UserToken.
@@ -26,7 +27,9 @@ defmodule TuistWeb.Authentication do
     do: authenticated?(conn.assigns)
 
   def authenticated?(assigns) when is_map(assigns),
-    do: current_user(assigns) != nil or current_project(assigns) != nil
+    do:
+      current_user(assigns) != nil or current_project(assigns) != nil or
+        current_authenticated_account(assigns) != nil
 
   def current_user(%Plug.Conn{} = conn) do
     current_user(conn.assigns)
@@ -44,11 +47,27 @@ defmodule TuistWeb.Authentication do
 
   def current_project(assigns) when is_map(assigns), do: assigns[@current_project_key]
 
+  def current_authenticated_account(%Plug.Conn{} = conn),
+    do: current_authenticated_account(conn.assigns)
+
+  def current_authenticated_account(assigns) when is_map(assigns),
+    do: assigns[@current_authenticated_account_key]
+
   def authenticated_subject(conn) do
-    case current_user(conn) do
-      nil -> current_project(conn)
+    user = current_user(conn)
+    project = current_project(conn)
+    authenticated_account = current_authenticated_account(conn)
+
+    cond do
       user -> user
+      project -> project
+      authenticated_account -> authenticated_account
+      true -> nil
     end
+  end
+
+  def put_current_authenticated_account(%Plug.Conn{} = conn, authenticated_account) do
+    assign(conn, @current_authenticated_account_key, authenticated_account)
   end
 
   def put_current_user(%Plug.Conn{} = conn, user) do
@@ -85,6 +104,13 @@ defmodule TuistWeb.Authentication do
       @current_project_key,
       project |> Repo.preload(:account)
     )
+  end
+
+  def account_token(conn) do
+    case conn |> get_req_header("authorization") do
+      ["Bearer " <> token] -> Accounts.account_token(token)
+      _ -> {:error, :not_found}
+    end
   end
 
   def get_app_installation_token_for_repository(conn) do

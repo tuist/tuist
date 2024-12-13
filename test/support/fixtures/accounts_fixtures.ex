@@ -68,4 +68,15 @@ defmodule Tuist.AccountsFixtures do
     [_, token | _] = String.split(captured_email.html_body, "[TOKEN]")
     token
   end
+
+  def account_token_fixture(opts \\ []) do
+    account =
+      Keyword.get_lazy(opts, :account, fn -> user_fixture(preload: [:account]).account end)
+
+    scopes = Keyword.get(opts, :scopes, [])
+
+    {account_token, _} = Accounts.create_account_token(%{account: account, scopes: scopes})
+
+    account_token
+  end
 end

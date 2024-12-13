@@ -19,13 +19,39 @@ defmodule Tuist.Authorization do
       allow :public_project
 
       desc "Allows users of a project's account to read the project cache."
-      allow user_role: :user
+      allow [:authenticated_as_user, user_role: :user]
 
       desc "Allows the admin of a project's account to read the project cache."
-      allow user_role: :admin
+      allow [:authenticated_as_user, user_role: :admin]
 
       desc "Allows the authenticated project to read the cache if it matches the project whose cache is being read."
-      allow :matches_authenticated_project
+      allow [:authenticated_as_project, :projects_match]
+    end
+  end
+
+  object :account_registry do
+    action :read do
+      desc "Allows users of an account to read its registry."
+      allow [:authenticated_as_user, user_role: :user]
+
+      desc "Allows the admin of an account to read its registry."
+      allow [:authenticated_as_user, user_role: :admin]
+
+      desc "Allows the authenticated account to read the account registry if it matches the account whose registry is being read."
+      allow [:authenticated_as_account, :accounts_match, scopes_permit: :account_registry_read]
+
+      desc "Allows the authenticated project to read the cache if it matches the project whose cache is being read."
+      allow [:authenticated_as_project, :accounts_match]
+    end
+  end
+
+  object :account_token do
+    action :create do
+      desc "Allows users of an account to create an account token."
+      allow [:authenticated_as_user, user_role: :user]
+
+      desc "Allows the admin of an account to create an account token."
+      allow [:authenticated_as_user, user_role: :admin]
     end
   end
 

@@ -5,11 +5,13 @@ defmodule TuistWeb.AuthenticationPlug do
   @moduledoc """
   A plug that deals with authentication of requests.
   """
+  alias Tuist.Accounts.AuthenticatedAccount
   alias TuistWeb.Headers
   alias Tuist.Projects
   alias TuistWeb.WarningsHeaderPlug
   alias Tuist.Accounts.User
   alias Tuist.Projects.Project
+
   def init(:load_authenticated_subject = opts), do: opts
   def init({:require_authentication, _} = opts), do: opts
 
@@ -61,6 +63,9 @@ defmodule TuistWeb.AuthenticationPlug do
 
       %User{} = user ->
         conn |> TuistWeb.Authentication.put_current_user(user)
+
+      %AuthenticatedAccount{} = authenticated_account ->
+        conn |> TuistWeb.Authentication.put_current_authenticated_account(authenticated_account)
 
       nil ->
         conn

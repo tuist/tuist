@@ -49,6 +49,7 @@ defmodule TuistWeb.Router do
 
   pipeline :api_registry_swift do
     plug :accepts, ["swift-registry-v1-json", "swift-registry-v1-zip", "swift-registry-v1-api"]
+    plug TuistWeb.AuthenticationPlug, :load_authenticated_subject
   end
 
   pipeline :authenticated_api do
@@ -131,6 +132,12 @@ defmodule TuistWeb.Router do
 
   scope "/api", TuistWeb.API do
     pipe_through [:open_api, :authenticated_api, :on_premise_api]
+
+    scope "/accounts/:account_handle" do
+      scope "/tokens" do
+        post "/", AccountTokensController, :create
+      end
+    end
 
     post "/analytics", AnalyticsController, :create
     post "/runs/:run_id/start", AnalyticsController, :multipart_start
@@ -223,6 +230,7 @@ defmodule TuistWeb.Router do
         get "/:scope/:name/:version", SwiftController, :show_release
         get "/:scope/:name/:version/Package.swift", SwiftController, :show_package_swift
         get "/availability", SwiftController, :availability
+        post "/login", SwiftController, :login
       end
     end
   end

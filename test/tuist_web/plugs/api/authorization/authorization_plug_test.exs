@@ -1,4 +1,5 @@
 defmodule TuistWeb.API.Authorization.AuthorizationPlugTest do
+  alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Repo
   alias TuistWeb.API.Authorization.AuthorizationPlug
   alias Tuist.Accounts
@@ -6,6 +7,27 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlugTest do
   alias Tuist.AccountsFixtures
   alias TuistWeb.API.EnsureProjectPresencePlug
   use TuistWeb.ConnCase
+
+  test "returns the connection when the authenticated account can read its registry" do
+    # Given
+    account = AccountsFixtures.user_fixture(preload: [:account]).account
+
+    opts = AuthorizationPlug.init(:registry)
+
+    conn =
+      build_conn(:get, ~p"/api/accounts/#{account.name}/registry/swift/availability")
+      |> assign(:url_account, account)
+      |> TuistWeb.Authentication.put_current_authenticated_account(%AuthenticatedAccount{
+        account: account,
+        scopes: [:account_registry_read]
+      })
+
+    # When
+    got = conn |> AuthorizationPlug.call(opts)
+
+    # Then
+    assert conn == got
+  end
 
   test "returns a 403 and halts the connection if the authenticated subject is not authorized" do
     # Given

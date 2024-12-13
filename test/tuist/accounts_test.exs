@@ -1,4 +1,6 @@
 defmodule Tuist.AccountsTest do
+  alias Tuist.Accounts.AccountToken
+  alias Tuist.Base64
   use Tuist.DataCase, async: false
   use Tuist.StubCase, billing: true
 
@@ -1736,6 +1738,56 @@ defmodule Tuist.AccountsTest do
 
       # Then
       assert [user_one.id, user_three.id] == Enum.map(got, & &1.id) |> Enum.sort()
+    end
+  end
+
+  describe "account_token/1" do
+    test "returns account token" do
+      # Given
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+
+      {account_token, account_token_value} =
+        Accounts.create_account_token(%{account: account, scopes: [:account_registry_read]})
+
+      # When
+      {:ok, got} = Accounts.account_token(account_token_value)
+
+      # Then
+      assert got.id == account_token.id
+    end
+
+    test "returns invalid if the token is invalid" do
+      # When
+      got = Accounts.account_token("invalid-token")
+
+      # Then
+      assert {:error, :invalid_token} == got
+    end
+
+    test "returns not found if the token does not exist" do
+      # When
+      got = Accounts.account_token("tuist_0fcc7a05-4f0d-490d-8545-1fe3171a2880_some-hash")
+
+      # Then
+      assert {:error, :not_found} == got
+    end
+  end
+
+  describe "create_account_token/1" do
+    test "creates account token" do
+      # Given
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+
+      Base64
+      |> expect(:encode, fn _ -> "generated-hash" end)
+
+      # When
+      {_, got_token_value} =
+        Accounts.create_account_token(%{account: account, scopes: [:account_registry_read]})
+
+      # Then
+      %{id: token_id} = Repo.one(AccountToken)
+      assert "tuist_#{token_id}_generated-hash" == got_token_value
     end
   end
 end

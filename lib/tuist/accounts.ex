@@ -2,12 +2,14 @@ defmodule Tuist.Accounts do
   @moduledoc ~S"""
   A module that provides functions to interact with the accounts in the system.
   """
+  alias Tuist.Accounts.AccountToken
   alias Ecto.Changeset
   alias Tuist.Projects.Project
   alias Tuist.CommandEvents.Event
   alias Tuist.Environment
   alias Tuist.Accounts.UserNotifier
   alias Tuist.Repo
+  alias Tuist.Base64
 
   alias Tuist.Accounts.{
     User,
@@ -1067,5 +1069,82 @@ defmodule Tuist.Accounts do
     |> :crypto.strong_rand_bytes()
     |> Base.url_encode64(padding: false)
     |> binary_part(0, length)
+  end
+
+  def create_account_token(%{account: %Account{} = account, scopes: scopes}, opts \\ []) do
+    preload = opts |> Keyword.get(:preload, [])
+    token_hash = Base64.encode(:crypto.strong_rand_bytes(20))
+
+    encrypted_token_hash =
+      Bcrypt.hash_pwd_salt(token_hash <> Environment.secret_key_password())
+
+    token =
+      %AccountToken{}
+      |> AccountToken.create_changeset(%{
+        account_id: account.id,
+        encrypted_token_hash: encrypted_token_hash,
+        scopes: scopes
+      })
+      |> Repo.insert!()
+      |> Repo.preload(preload)
+
+    {token, "tuist_#{token.id}_#{token_hash}"}
+  end
+
+  def account_token(full_token, opts \\ []) do
+    preload = opts |> Keyword.get(:preload, [])
+    full_token_components = String.split(full_token, "_")
+
+    if length(full_token_components) != 3 do
+      {:error, :invalid_token}
+    else
+      [_audience, token_id, token_hash] = full_token_components
+
+      token =
+        from(t in AccountToken,
+          where: t.id == ^token_id
+        )
+        |> Repo.one()
+        |> Repo.preload(preload)
+
+      cond do
+        is_nil(token) ->
+          {:error, :not_found}
+
+        verify_pass(token, token_hash) ->
+          {:ok, token}
+
+        true ->
+          {:error, :invalid_token}
+      end
+    end
+  end
+
+  # Bcrypt does CPU-intensive operations and it can easily slow-down requests when
+  # there are bursts of requests coming through the API.
+  defp verify_pass(token, token_hash) do
+    validate = fn ->
+      Bcrypt.verify_pass(
+        token_hash <> Tuist.Environment.secret_key_password(),
+        token.encrypted_token_hash
+      )
+    end
+
+    if Tuist.Environment.env() == :test do
+      validate.()
+    else
+      Cachex.transaction!(:tuist, [token, token_hash], fn cache ->
+        {:ok, cached_valid?} = Cachex.get(cache, [token, token_hash])
+
+        # credo:disable-for-next-line Credo.Check.Refactor.Nesting
+        if is_nil(cached_valid?) do
+          valid? = validate.()
+          Cachex.put(cache, [token, token_hash], valid?, ttl: :timer.minutes(2))
+          valid?
+        else
+          cached_valid?
+        end
+      end)
+    end
   end
 end

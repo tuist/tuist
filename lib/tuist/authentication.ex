@@ -2,6 +2,7 @@ defmodule Tuist.Authentication do
   @moduledoc ~S"""
   A module to deal with authentication in the system.
   """
+  alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Projects
   alias Tuist.Accounts
 
@@ -14,10 +15,26 @@ defmodule Tuist.Authentication do
         user = Accounts.get_user_by_token(token)
 
         if is_nil(user) do
-          Projects.get_project_by_full_token(token)
+          account_or_project_token(token)
         else
           user
         end
+    end
+  end
+
+  defp account_or_project_token(token) do
+    project_token = Projects.get_project_by_full_token(token)
+
+    if is_nil(project_token) do
+      case Accounts.account_token(token, preload: [:account]) do
+        {:ok, account_token} ->
+          %AuthenticatedAccount{account: account_token.account, scopes: account_token.scopes}
+
+        _ ->
+          nil
+      end
+    else
+      project_token
     end
   end
 
