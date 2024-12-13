@@ -13,6 +13,7 @@ defmodule Mix.Tasks.Secrets.Edit do
   EDITOR="zed --wait" mix secrets.edit --env dev
   """
   use Mix.Task
+  use Boundary, classify_to: Tuist.Mix
 
   def run(args) do
     {parsed, _} = OptionParser.parse!(args, strict: [env: :string])

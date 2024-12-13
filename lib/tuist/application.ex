@@ -5,6 +5,7 @@ defmodule Tuist.Application do
   alias Tuist.Environment
   import Environment, only: [run_if_error_tracking_enabled: 1]
   require Logger
+  use Boundary, top_level?: true, deps: [Tuist, TuistWeb]
 
   @impl true
   def start(_type, _args) do

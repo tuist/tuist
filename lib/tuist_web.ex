@@ -16,6 +16,7 @@ defmodule TuistWeb do
   below. Instead, define additional modules and import
   those modules here.
   """
+  use Boundary, deps: [Tuist], exports: [Endpoint]
 
   def static_paths,
     do: ~w(assets fonts images favicon.ico robots.txt js css .well-known marketing)

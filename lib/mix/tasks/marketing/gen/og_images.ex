@@ -3,6 +3,7 @@ defmodule Mix.Tasks.Marketing.Gen.OgImages do
   This task generates the open graph images dynamically for all the marketing routes
   """
   use Mix.Task
+  use Boundary, classify_to: Tuist.Mix
 
   def run(_args) do
     og_images_directory =

@@ -4,6 +4,7 @@ defmodule Mix.Tasks.Db.Create do
   """
   use Mix.Task
   import Mix.Ecto
+  use Boundary, classify_to: Tuist.Mix
 
   def run(args) do
     Mix.Tasks.Ecto.Create.run(args)

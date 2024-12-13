@@ -9,7 +9,8 @@ defmodule Tuist.MixProject do
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: [:prod, :stag, :can] |> Enum.member?(Mix.env()),
       aliases: aliases(),
-      deps: deps()
+      deps: deps(),
+      compilers: [:boundary] ++ Mix.compilers()
     ]
   end
 
@@ -112,7 +113,8 @@ defmodule Tuist.MixProject do
       {:let_me, "~> 1.2"},
       {:ua_parser, "~> 1.8"},
       {:money, "~> 1.12"},
-      {:image, "~> 0.55.0"}
+      {:image, "~> 0.55.0"},
+      {:boundary, "~> 0.10", runtime: false}
     ]
   end
 
