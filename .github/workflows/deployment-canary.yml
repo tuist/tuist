@@ -47,5 +47,5 @@ jobs:
           webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
           webhook-type: webhook-trigger
           payload: |
-            commit: "${{ env.GITHUB_SHA }}"
+            commit: "${{ github.sha }}"
             environment: "canary"

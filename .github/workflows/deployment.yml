@@ -102,7 +102,7 @@ jobs:
           webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
           webhook-type: webhook-trigger
           payload: |
-            commit: "${{ env.GITHUB_SHA }}"
+            commit: "${{ github.sha }}"
             environment: "production"
   production-hotfix:
     environment:
@@ -137,5 +137,5 @@ jobs:
           webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
           webhook-type: webhook-trigger
           payload: |
-            commit: "${{ env.GITHUB_SHA }}"
+            commit: "${{ github.sha }}"
             environment: "production"
