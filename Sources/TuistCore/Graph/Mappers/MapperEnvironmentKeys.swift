@@ -12,6 +12,10 @@ private struct InitialGraphKey: MapperEnvironmentKey {
     static var defaultValue: Graph?
 }
 
+private struct InitialGraphWithSourcesKey: MapperEnvironmentKey {
+    static var defaultValue: Graph?
+}
+
 private struct TargetTestHashesKey: MapperEnvironmentKey {
     static var defaultValue: [AbsolutePath: [String: String]] = [:]
 }
@@ -39,6 +43,11 @@ extension MapperEnvironment {
     public var initialGraph: Graph? {
         get { self[InitialGraphKey.self] }
         set { self[InitialGraphKey.self] = newValue }
+    }
+
+    public var initialGraphWithSources: Graph? {
+        get { self[InitialGraphWithSourcesKey.self] }
+        set { self[InitialGraphWithSourcesKey.self] = newValue }
     }
 
     public var targetHashes: [CommandEventGraphTarget: String] {
