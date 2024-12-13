@@ -1033,6 +1033,15 @@ final class GenerateAcceptanceTestAppWithRevenueCat: TuistAcceptanceTestCase {
     }
 }
 
+final class GenerateAcceptanceTestAppWithSwiftCMark: TuistAcceptanceTestCase {
+    func test_app_with_swift_cmark() async throws {
+        try await setUpFixture(.appWithSwiftCMark)
+        try await run(InstallCommand.self)
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self)
+    }
+}
+
 final class GenerateAcceptanceTestAppWithSPMModuleAliases: TuistAcceptanceTestCase {
     func test_app_with_spm_module_aliases() async throws {
         try await setUpFixture(.appWithSpmModuleAliases)
