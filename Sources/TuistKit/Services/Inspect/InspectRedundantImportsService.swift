@@ -1,8 +1,8 @@
-import TuistSupport
-import TuistLoader
-import XcodeGraph
 import Path
 import TuistCore
+import TuistLoader
+import TuistSupport
+import XcodeGraph
 
 final class InspectRedundantImportsService {
     private let configLoader: ConfigLoading
