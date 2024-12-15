@@ -1,7 +1,6 @@
 import FileSystem
 import Foundation
 import Mockable
-import MockableTest
 import Path
 import TuistCore
 import TuistLoader
@@ -16,29 +15,29 @@ final class LintRedundantImportsServiceTests: TuistUnitTestCase {
     private var configLoader: MockConfigLoading!
     private var generatorFactory: MockGeneratorFactorying!
     private var targetScanner: MockTargetImportsScanning!
-    private var subject: InspectImportsService!
+    private var subject: InspectRedundantImportsService!
     private var generator: MockGenerating!
 
-    override func setUp() async throws {
-        try await super.setUp()
+    override func setUp() {
+        super.setUp()
         configLoader = MockConfigLoading()
         generatorFactory = MockGeneratorFactorying()
         targetScanner = MockTargetImportsScanning()
         generator = MockGenerating()
-        subject = InspectImportsService(
+        subject = InspectRedundantImportsService(
             generatorFactory: generatorFactory,
             configLoader: configLoader,
-            targetScanner: targetScanner
+            graphImportsLinter: GraphImportsLinter(targetScanner: targetScanner)
         )
     }
 
-    override func tearDown() async throws {
+    override func tearDown() {
         configLoader = nil
         generatorFactory = nil
         targetScanner = nil
         generator = nil
         subject = nil
-        try await super.tearDown()
+        super.tearDown()
     }
 
     func test_run_throwsAnError_when_thereAreIssues() async throws {
@@ -60,12 +59,8 @@ final class LintRedundantImportsServiceTests: TuistUnitTestCase {
         given(targetScanner).imports(for: .value(app)).willReturn(Set([]))
         given(targetScanner).imports(for: .value(framework)).willReturn(Set([]))
 
-        let expectedError = InspectRedundantImportsServiceError.redundantImportsFound([
-            InspectImportsServiceErrorIssue(target: "App", implicitDependencies: Set(["Framework"])),
-        ])
-
         // When
-        await XCTAssertThrowsSpecific({ try await subject.run(path: path.pathString, inspectType: .redundant) }, expectedError)
+        await XCTAssertThrowsSpecific(try await subject.run(path: path.pathString), LintingError())
     }
 
     func test_run_doesntThrowAnyErrors_when_thereAreNoIssues() async throws {
@@ -88,6 +83,6 @@ final class LintRedundantImportsServiceTests: TuistUnitTestCase {
         given(targetScanner).imports(for: .value(framework)).willReturn(Set([]))
 
         // When
-        try await subject.run(path: path.pathString, inspectType: .redundant)
+        try await subject.run(path: path.pathString)
     }
 }
