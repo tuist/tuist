@@ -37,7 +37,7 @@ final class LintImplicitImportsServiceTests: TuistUnitTestCase {
         targetScanner = nil
         generator = nil
         subject = nil
-        super.tearDown()
+         super.tearDown()
     }
 
     func test_run_throwsAnError_when_thereAreIssues() async throws {
