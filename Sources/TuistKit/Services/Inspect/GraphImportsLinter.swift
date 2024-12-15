@@ -58,7 +58,7 @@ final class GraphImportsLinter {
         }
         return observedTargetImports.map { target, implicitDependencies in
             return LintingIssue(
-                reason: " - \(target) \(inspectType == .implicit ? "implicitly" : "redundantly") depends on: \(implicitDependencies.joined(separator: ", "))",
+                reason: " - \(target.productName) \(inspectType == .implicit ? "implicitly" : "redundantly") depends on: \(implicitDependencies.joined(separator: ", "))",
                 severity: .error
             )
         }
