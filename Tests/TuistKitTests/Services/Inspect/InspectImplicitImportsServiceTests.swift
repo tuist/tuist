@@ -18,8 +18,8 @@ final class LintImplicitImportsServiceTests: TuistUnitTestCase {
     private var subject: InspectImplicitImportsService!
     private var generator: MockGenerating!
 
-    override func setUp() async throws {
-        try await super.setUp()
+    override func setUp() {
+        super.setUp()
         configLoader = MockConfigLoading()
         generatorFactory = MockGeneratorFactorying()
         targetScanner = MockTargetImportsScanning()
@@ -31,13 +31,13 @@ final class LintImplicitImportsServiceTests: TuistUnitTestCase {
         )
     }
 
-    override func tearDown() async throws {
+    override func tearDown() {
         configLoader = nil
         generatorFactory = nil
         targetScanner = nil
         generator = nil
         subject = nil
-        try await super.tearDown()
+        super.tearDown()
     }
 
     func test_run_throwsAnError_when_thereAreIssues() async throws {
