@@ -1,6 +1,6 @@
 import TuistCore
-import XcodeGraph
 import TuistLoader
+import XcodeGraph
 
 enum InspectType {
     case redundant
@@ -44,7 +44,7 @@ final class GraphImportsLinter {
                 graphTraverser: graphTraverser,
                 target: target
             )
-            
+
             let observedImports = switch inspectType {
             case .redundant:
                 explicitTargetDependencies.subtracting(sourceDependencies)
@@ -57,7 +57,10 @@ final class GraphImportsLinter {
             }
         }
         return observedTargetImports.map { target, implicitDependencies in
-            return LintingIssue(reason: " - \(target) \(inspectType == .implicit ? "implicitly" : "redundantly") depends on: \(implicitDependencies.joined(separator: ", "))", severity: .error)
+            return LintingIssue(
+                reason: " - \(target) \(inspectType == .implicit ? "implicitly" : "redundantly") depends on: \(implicitDependencies.joined(separator: ", "))",
+                severity: .error
+            )
         }
     }
 
