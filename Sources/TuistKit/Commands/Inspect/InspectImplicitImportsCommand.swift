@@ -18,7 +18,7 @@ struct InspectImplicitImportsCommand: AsyncParsableCommand {
     var path: String?
 
     func run() async throws {
-        try await InspectImportsService()
-            .run(path: path, inspectType: .implicit)
+        try await InspectImplicitImportsService()
+            .run(path: path)
     }
 }

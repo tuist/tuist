@@ -93,16 +93,11 @@ final class InspectImportsService {
         ServiceContext.current?.logger?.log(level: .info, "We did not find any \(inspectType == .implicit ? "implicit" : "redundant") dependencies in your project.")
     }
 
-<<<<<<< HEAD
-    private func lint(graphTraverser: GraphTraverser) async throws -> [InspectImplicitImportsServiceErrorIssue] {
-        let allInternalTargets = graphTraverser
-=======
     private func lint(
         graphTraverser: GraphTraverser,
         inspectType: InspectType
     ) async throws -> [InspectImportsServiceErrorIssue] {
-        var allTargets = graphTraverser
->>>>>>> 86e8cbb62 (Remove bundle targets)
+        var allInternalTargets = graphTraverser
             .allInternalTargets()
         let allTargets = allInternalTargets.union(graphTraverser.allExternalTargets())
 

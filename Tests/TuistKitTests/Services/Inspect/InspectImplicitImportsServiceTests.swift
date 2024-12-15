@@ -15,7 +15,7 @@ final class LintImplicitImportsServiceTests: TuistUnitTestCase {
     private var configLoader: MockConfigLoading!
     private var generatorFactory: MockGeneratorFactorying!
     private var targetScanner: MockTargetImportsScanning!
-    private var subject: InspectImportsService!
+    private var subject: InspectImplicitImportsService!
     private var generator: MockGenerating!
 
     override func setUp() async throws {
@@ -24,10 +24,10 @@ final class LintImplicitImportsServiceTests: TuistUnitTestCase {
         generatorFactory = MockGeneratorFactorying()
         targetScanner = MockTargetImportsScanning()
         generator = MockGenerating()
-        subject = InspectImportsService(
+        subject = InspectImplicitImportsService(
             generatorFactory: generatorFactory,
             configLoader: configLoader,
-            targetScanner: targetScanner
+            graphImportsLinter: GraphImportsLinter(targetScanner: targetScanner)
         )
     }
 
@@ -55,12 +55,14 @@ final class LintImplicitImportsServiceTests: TuistUnitTestCase {
         given(targetScanner).imports(for: .value(app)).willReturn(Set(["Framework"]))
         given(targetScanner).imports(for: .value(framework)).willReturn(Set([]))
 
-        let expectedError = InspectImplicitImportsServiceError.implicitImportsFound([
-            InspectImportsServiceErrorIssue(target: "App", implicitDependencies: Set(["Framework"])),
-        ])
+//        let expectedError = InspectImplicitImportsServiceError.implicitImportsFound([
+//            InspectImportsServiceErrorIssue(target: "App", implicitDependencies: Set(["Framework"])),
+//        ])
+        
+        let expectedError = LintingError()
 
         // When
-        await XCTAssertThrowsSpecific({ try await subject.run(path: path.pathString, inspectType: .implicit) }, expectedError)
+        await XCTAssertThrowsSpecific(try await subject.run(path: path.pathString), expectedError)
     }
 
     func test_run_when_external_package_target_is_implicitly_imported() async throws {
@@ -81,12 +83,14 @@ final class LintImplicitImportsServiceTests: TuistUnitTestCase {
         given(generator).load(path: .value(path)).willReturn(graph)
         given(targetScanner).imports(for: .value(app)).willReturn(Set(["PackageTarget"]))
 
-        let expectedError = InspectImplicitImportsServiceError.implicitImportsFound([
-            InspectImplicitImportsServiceErrorIssue(target: "App", implicitDependencies: Set(["PackageTarget"])),
-        ])
+        let expectedError = LintingError.init()
+        
+//        InspectImplicitImportsServiceError.implicitImportsFound([
+//            InspectImplicitImportsServiceErrorIssue(target: "App", implicitDependencies: Set(["PackageTarget"])),
+//        ])
 
         // When / Then
-        await XCTAssertThrowsSpecific({ try await subject.run(path: path.pathString) }, expectedError)
+        await XCTAssertThrowsSpecific(try await subject.run(path: path.pathString), expectedError)
     }
 
     func test_run_when_external_package_target_is_explicitly_imported() async throws {
@@ -174,6 +178,6 @@ final class LintImplicitImportsServiceTests: TuistUnitTestCase {
         given(targetScanner).imports(for: .value(framework)).willReturn(Set([]))
 
         // When
-        try await subject.run(path: path.pathString, inspectType: .implicit)
+        try await subject.run(path: path.pathString)
     }
 }

@@ -18,7 +18,7 @@ struct InspectRedundantImportsCommand: AsyncParsableCommand {
     var path: String?
 
     func run() async throws {
-        try await InspectImportsService()
-            .run(path: path, inspectType: .redundant)
+        try await InspectRedundantImportsService()
+            .run(path: path)
     }
 }
