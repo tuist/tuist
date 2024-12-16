@@ -1,5 +1,5 @@
 {
-  "originHash" : "0c414c57d7e49511967579ef2d188ec6144684a2624b29f5c91de7da2d3f4edf",
+  "originHash" : "b8f05e72f92502c8a64d3c7de7e52008c863ac6c8ce5b6a613b147dde7214b4e",
   "pins" : [
     {
       "identity" : "aexml",
@@ -310,10 +310,10 @@
     {
       "identity" : "xcodegraph",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/tuist/XcodeGraph.git",
+      "location" : "https://github.com/foyoodo/XcodeGraph.git",
       "state" : {
-        "revision" : "6dae7e2ce73b3335cb92d4c0829d4e0c35a72990",
-        "version" : "0.19.4"
+        "branch" : "feature/mac-catalyst-with-macos-bundle",
+        "revision" : "3c7f35ad861495d515fb8821f86c7271aaadd162"
       }
     },
     {
