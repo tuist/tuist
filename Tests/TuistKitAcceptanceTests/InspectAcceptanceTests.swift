@@ -1,8 +1,8 @@
 import Foundation
 import ServiceContextModule
 import TuistAcceptanceTesting
-import XCTest
 import TuistCore
+import XCTest
 @testable import TuistKit
 
 final class LintAcceptanceTests: TuistAcceptanceTestCase {
@@ -18,9 +18,9 @@ final class LintAcceptanceTests: TuistAcceptanceTestCase {
         try await setUpFixture(.iosAppWithImplicitDependencies)
         await XCTAssertThrowsSpecific(try await run(InspectImplicitImportsCommand.self), LintingError())
         XCTAssertStandardOutput(pattern: """
-The following implicit dependencies were found:
- - FrameworkA implicitly depends on: FrameworkB
-""")
+        The following implicit dependencies were found:
+         - FrameworkA implicitly depends on: FrameworkB
+        """)
 
 //        catch let error as InspectImplicitImportsServiceError {
 //            XCTAssertEqual(
