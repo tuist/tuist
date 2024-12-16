@@ -1441,7 +1441,7 @@ public class GraphTraverser: GraphTraversing {
         }
     }
 
-    func canDependencyEmbedAsPlugin(dependency: GraphDependency) -> Bool {
+    private func canDependencyEmbedAsPlugin(dependency: GraphDependency) -> Bool {
         guard case let GraphDependency.target(name, path, _) = dependency,
               let graphTarget = target(path: path, name: name)
         else { return false }
