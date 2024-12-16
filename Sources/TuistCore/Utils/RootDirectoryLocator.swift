@@ -74,6 +74,12 @@ public final class RootDirectoryLocator: RootDirectoryLocating {
         } else if try await fileSystem.exists(path.appending(component: ".git"), isDirectory: true) {
             cache(rootDirectory: path, for: source)
             return path
+        } else if try await fileSystem.exists(
+            path.appending(component: Constants.SwiftPackageManager.packageSwiftName),
+            isDirectory: false
+        ) {
+            cache(rootDirectory: path, for: source)
+            return path
         } else if !path.isRoot {
             return try await locate(from: path.parentDirectory, source: source)
         }
