@@ -77,17 +77,13 @@ open class TuistAcceptanceTestCase: XCTestCase {
         )
     }
 
-    public func run(in directory: String, _ command: (some AsyncParsableCommand).Type, _ arguments: [String] = []) async throws {
+    public func run(_ command: (some AsyncParsableCommand).Type, _ arguments: [String] = []) async throws {
         let arguments = [
-            "--path", fixturePath.appending(component: directory).pathString,
+            "--path", fixturePath.pathString,
         ] + arguments
 
         var parsedCommand = try command.parse(arguments)
         try await parsedCommand.run()
-    }
-
-    public func run(_ command: (some AsyncParsableCommand).Type, _ arguments: [String] = []) async throws {
-        try await run(in: ".", command, arguments)
     }
 
     public func run(_ command: InitCommand.Type, _ arguments: String...) async throws {
@@ -189,13 +185,13 @@ open class TuistAcceptanceTestCase: XCTestCase {
     }
 
     public func run(_ command: GenerateCommand.Type, _ arguments: String...) async throws {
-        try await run(in: ".", command, arguments)
+        try await run(command, arguments)
     }
 
-    public func run(in directory: String, _ command: GenerateCommand.Type, _ arguments: [String] = []) async throws {
+    public func run(_ command: GenerateCommand.Type, _ arguments: [String] = []) async throws {
         let arguments = [
             "--no-open",
-            "--path", fixturePath.appending(component: directory).pathString,
+            "--path", fixturePath.pathString,
         ] + arguments
 
         let parsedCommand = try command.parse(arguments)
