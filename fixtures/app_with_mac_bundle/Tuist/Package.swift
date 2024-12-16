@@ -12,6 +12,6 @@
 let package = Package(
     name: "App",
     dependencies: [
-        .package(path: "../ResourcesFramework")
+        .package(path: "../ResourcesFramework"),
     ]
 )
