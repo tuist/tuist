@@ -25,9 +25,6 @@ tuist registry login
 
 Now you can access the registry! To resolve dependencies from the registry instead of from source control, follow the section below based on your setup.
 
-> [!NOTE] AUTHENTICATION ON THE CI
-> To log in to the registry on the CI, ensure that a <LocalizedLink href="/server/introduction/authentication#as-a-project">project token</LocalizedLink> is present. Otherwise, run the same `registry login` command as you would locally.
-
 ### Xcode projects {#xcode-projects}
 
 > [!IMPORTANT] Support for Xcode projects is coming soon.
@@ -74,4 +71,39 @@ dependencies: [
 -   .package(url: "https://github.com/pointfreeco/swift-composable-architecture", from: "0.1.0")
 +   .package(id: "pointfreeco.swift-composable-architecture", from: "0.1.0")
 ]
+```
+
+## Continuous Integration (CI) {#continuous-integration-ci}
+
+To use the registry on your CI, you need to ensure that you have logged in to the registry by running `tuist registry login` as part of your workflow.
+
+Since the registry credentials are stored in a keychain, you need to set it up as well. Note some CI providers or automation tools like Fastlane already create a temporary keychain or provide a built-in way how to create one. However, you can also create one by creating a custom step with the following code:
+```bash
+TMP_DIRECTORY=$(mktemp -d)
+KEYCHAIN_PATH=$TMP_DIRECTORY/keychain.keychain
+KEYCHAIN_PASSWORD=$(uuidgen)
+security create-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
+security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+security default-keychain -s $KEYCHAIN_PATH
+security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
+```
+
+An example workflow for GitHub Actions could then look like this:
+```yaml
+name: Build
+
+jobs:
+  build:
+    steps:
+      - # Your set up steps...
+      - run: tuist registry login
+      - run: |
+        TMP_DIRECTORY=$(mktemp -d)
+        KEYCHAIN_PATH=$TMP_DIRECTORY/keychain.keychain
+        KEYCHAIN_PASSWORD=$(uuidgen)
+        security create-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
+        security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+        security default-keychain -s $KEYCHAIN_PATH
+        security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
+      - run: tuist build
 ```
