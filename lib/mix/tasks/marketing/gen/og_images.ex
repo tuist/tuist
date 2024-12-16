@@ -28,6 +28,11 @@ defmodule Mix.Tasks.Marketing.Gen.OgImages do
       "About us",
       Path.join(og_images_directory, "about.jpg")
     )
+
+    Tuist.Marketing.OpenGraph.generate_og_image(
+      "Swift Stories Newsletter",
+      Path.join(og_images_directory, "swift-stories.jpg")
+    )
   end
 
   defp generate_posts_og_images(og_images_directory) do

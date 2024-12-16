@@ -1,0 +1,51 @@
+<main
+  class="marketing__newsletter"
+  aria-label={gettext("Swift Stories newsletter's subscription form")}
+>
+  <h1 class="marketing__newsletter__title">{gettext("Swift Stories")}</h1>
+
+  <p class="marketing__newsletter__description">
+    {gettext(
+      "A newsletter crafted by the Tuist team, featuring curated reads from the Swift ecosystem and beyond. Each edition highlights the most insightful articles, tutorials, and ideas shaping the Swift community, delivered straight to your inbox."
+    )}
+  </p>
+
+  <h2 class="marketing__newsletter__subscribe__title">{gettext("Subscribe")}</h2>
+
+  <form
+    class="marketing__newsletter__subscribe__title__form"
+    method="post"
+    action="https://lists.tuist.dev/subscription/form"
+    class="listmonk-form"
+  >
+    <input type="hidden" name="nonce" />
+
+    <span class="marketing__newsletter__subscribe__title__form__description">
+      {gettext("Newsletter issues are sent bi-weekly and you can unsubscribe at any time.")}
+    </span>
+
+    <p>
+      <input
+        type="email"
+        name="email"
+        required
+        placeholder="E-mail"
+        class="marketing__newsletter__subscribe__title__form__field"
+      />
+    </p>
+    <p>
+      <input
+        type="text"
+        name="name"
+        placeholder="Name (optional)"
+        class="marketing__newsletter__subscribe__title__form__field"
+      />
+    </p>
+
+    <input id="cf94c" type="hidden" name="l" checked value="cf94c8de-3ca9-4cea-a3db-3675accaf588" />
+
+    <.primary_button type="submit" size="medium">
+      {gettext("Subscribe")}
+    </.primary_button>
+  </form>
+</main>

@@ -44,6 +44,29 @@ defmodule TuistWeb.Marketing.MarketingController do
     |> render(:about, layout: false)
   end
 
+  def newsletter(conn, _params) do
+    conn
+    |> assign_structured_data(get_organization_structured_data())
+    |> assign_structured_data(
+      get_breadcrumbs_structured_data([
+        {gettext("Tuist"), Tuist.Environment.app_url(path: ~p"/")},
+        {gettext("Swift Stories Newsletter"), Tuist.Environment.app_url(path: ~p"/newsletter")}
+      ])
+    )
+    |> assign(
+      :head_image,
+      Tuist.Environment.app_url(path: "/marketing/images/og/generated/swift-stories.jpg")
+    )
+    |> assign(:head_twitter_card, "summary_large_image")
+    |> assign(
+      :head_description,
+      gettext(
+        "A newsletter crafted by the Tuist team, featuring curated reads from the Swift ecosystem and beyond. Each edition highlights the most insightful articles, tutorials, and ideas shaping the Swift community, delivered straight to your inbox."
+      )
+    )
+    |> render(:newsletter, layout: false)
+  end
+
   def blog_rss(conn, _params) do
     posts = Tuist.Marketing.Blog.get_posts()
     last_build_date = posts |> List.last() |> Map.get(:date)

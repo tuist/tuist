@@ -147,17 +147,17 @@ msgstr ""
 msgid "7 days"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:235
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:258
 #, elixir-autogen, elixir-format
 msgid "<p>Tuist has been a game-changer for our large codebase, where multiple engineers collaborate simultaneously. It helps us avoid conflicts in project organization and provides full control over project configuration, allowing us to customize everything to our needs. For a modularized app, Tuist is the perfect ally—its ability to effortlessly reuse configurations across modules has significantly streamlined our development process.</p>\n<p>Additionally, the way Tuist manages package dependencies is outstanding. As soon as you open Xcode, you're ready to jump right into coding without waiting for 30+ packages to resolve every time. It's truly a productivity booster.</p>\n<p>I've been using it since version 1, and it's been incredible to see how the product has evolved and expanded with new features over time. Their effort in resolving underlying issues and evolving the product has made Tuist a mature, reliable tool that we can depend on.</p>\n"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:259
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:282
 #, elixir-autogen, elixir-format
 msgid "<p>Tuist has revolutionized our iOS development workflow at DraftKings. Its automation capabilities have streamlined project generation, build settings, and dependency management. With modularization, we maximize code sharing across apps, reducing duplication. Code generation allows us to quickly bootstrap new products that seamlessly integrate with existing ones through centralized dependency management. The build caching feature can significantly improve build times, both locally and in CI/CD environment. Tuist is an indispensable set of developer tools, greatly enhancing productivity and efficiency. Highly recommended for iOS teams seeking workflow optimization.</p>\n"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:247
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:270
 #, elixir-autogen, elixir-format
 msgid "<p>With macros, external SDKs, and many SPM modules (fully modularized app) Xcode was constantly slow or stuck on my M1 device. SPM kept resolving, code completion didn’t work, and <a href=\"https://github.com/swiftlang/swift-syntax\" target=\"_blank\">swift-syntax</a> compiled forever. All this changed with Tuist. It’s not just for big teams with big apps. Tuist gave me back my productivity as indie developer for my side projects.</p>\n"
 msgstr ""
@@ -323,7 +323,7 @@ msgstr ""
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:106
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:87
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:193
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:136
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:159
 #, elixir-autogen, elixir-format
 msgid "Blog"
 msgstr ""
@@ -568,7 +568,7 @@ msgstr ""
 msgid "Contributors"
 msgstr ""
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:174
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:175
 #, elixir-autogen, elixir-format
 msgid "Cookie policy"
 msgstr ""
@@ -672,7 +672,7 @@ msgstr ""
 msgid "Did you request to reset your password?"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:193
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:216
 #, elixir-autogen, elixir-format
 msgid "Discover our flexible pricing plans at Tuist. Enjoy a free tier with no time limits, and pay only for what you use. Plus, it's free forever for open source projects."
 msgstr ""
@@ -682,7 +682,7 @@ msgstr ""
 msgid "Dive in to learn more about Tuist."
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:168
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:191
 #, elixir-autogen, elixir-format
 msgid "Do you offer discounts for non-profits and open-source?"
 msgstr ""
@@ -951,7 +951,7 @@ msgstr ""
 msgid "Hola %{name}, you can reset your password by clicking the button below:"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:160
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:183
 #, elixir-autogen, elixir-format
 msgid "How can I estimate the cost of my project?"
 msgstr ""
@@ -1025,7 +1025,7 @@ msgstr ""
 msgid "Invitation to %{organization_name}"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:164
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:187
 #, elixir-autogen, elixir-format
 msgid "Is there a free trial on paid plans?"
 msgstr ""
@@ -1354,7 +1354,7 @@ msgstr ""
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:105
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:84
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:187
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:188
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:211
 #, elixir-autogen, elixir-format
 msgid "Pricing"
 msgstr ""
@@ -1364,7 +1364,7 @@ msgstr ""
 msgid "Priority support"
 msgstr ""
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:170
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:171
 #, elixir-autogen, elixir-format
 msgid "Privacy policy"
 msgstr ""
@@ -1586,7 +1586,7 @@ msgstr ""
 msgid "Sign up with Okta"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:291
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:314
 #, elixir-autogen, elixir-format
 msgid "Since adopting Tuist in our iOS project, we’ve seen major improvements in scalability and productivity. It simplifies module management, allowing us to apply consistent rules and configurations across the project, strengthening our modularization strategy. Its flexibility lets us easily customize the project to fit our needs. For instance, we can use dynamic frameworks during development and static frameworks in other environments, giving us better control. Tuist has also improved build times, boosted Xcode performance, and eliminated merge conflicts by not tracking Xcode project files in Git. Overall, it has made our development process faster and more efficient, allowing the team to focus on building features without being slowed down by tool limitations."
 msgstr ""
@@ -1676,7 +1676,7 @@ msgstr ""
 msgid "Status"
 msgstr ""
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:138
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:139
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:203
 #: lib/tuist_web/marketing/live/marketing_blog_live.html.heex:7
 #, elixir-autogen, elixir-format
@@ -1694,6 +1694,8 @@ msgid "Stay updated with the latest changes and improvements in Tuist. Read our 
 msgstr ""
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:125
+#: lib/tuist_web/marketing/controllers/marketing_html/newsletter.html.heex:13
+#: lib/tuist_web/marketing/controllers/marketing_html/newsletter.html.heex:48
 #, elixir-autogen, elixir-format
 msgid "Subscribe"
 msgstr ""
@@ -1749,7 +1751,7 @@ msgstr ""
 msgid "Teams using Tuist"
 msgstr ""
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:166
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:167
 #, elixir-autogen, elixir-format
 msgid "Terms of service"
 msgstr ""
@@ -1867,9 +1869,10 @@ msgstr ""
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:10
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:31
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:135
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:187
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:218
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:52
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:158
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:210
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:241
 #, elixir-autogen, elixir-format
 msgid "Tuist"
 msgstr ""
@@ -1932,7 +1935,7 @@ msgstr ""
 msgid "Tuist extends Apple's tools, helping you ship apps that stand out."
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:269
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:292
 #, elixir-autogen, elixir-format
 msgid "Tuist has allowed us to migrate our existing monolythic codebase to a modular one. We extracted our different domains into specific modules. It allowed us to remove extra dependencies, ease testability and made our development cycles faster than ever. It even allowed us to bring up “Test Apps” for speeding up our development on each module. Tuist is a game changer in iOS project life."
 msgstr ""
@@ -2055,7 +2058,7 @@ msgstr ""
 msgid "Users 💜 Tuist"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:279
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:302
 #, elixir-autogen, elixir-format
 msgid "Using Tuist in our current project has been a game-changer. It has significantly de-stressed our build times and reduced conflicts within the team, allowing us to focus more on development and less on configuration issues. Tuist has seamlessly integrated into our workflow and has proven to be an essential tool in our pipeline. We’re confident that it will continue to enhance our productivity and collaboration in future projects."
 msgstr ""
@@ -2136,7 +2139,7 @@ msgstr ""
 msgid "We embrace standards to ensure long-term success while respecting everyone's freedom to choose their own paths and tools."
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:165
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:188
 #, elixir-autogen, elixir-format
 msgid "We have a generous free tier on every paid plan so you can try out the features before paying any money."
 msgstr ""
@@ -2176,7 +2179,7 @@ msgstr ""
 msgid "Welcome back! Please enter your details."
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:149
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:172
 #, elixir-autogen, elixir-format
 msgid "Why is your pricing model more accessible compared to traditional enterprise models?"
 msgstr ""
@@ -2191,7 +2194,7 @@ msgstr ""
 msgid "Years building an OSS foundation"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:169
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:192
 #, elixir-autogen, elixir-format
 msgid "Yes, we do. Please reach out to oss@tuist.io for more information."
 msgstr ""
@@ -2226,7 +2229,7 @@ msgstr ""
 msgid "You can close the tab and continue 🎉"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:161
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:184
 #, elixir-autogen, elixir-format
 msgid "You can set up the Air plan, and use the features for a few days to get a usage estimate. If you need a higher limit, let us know and we can help you set up a custom plan."
 msgstr ""
@@ -2394,12 +2397,12 @@ msgstr ""
 msgid "Mobile-first CI/CD with first class support for iOS team. Supporting the Tuist with fast and reliable CI environments."
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:152
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:175
 #, elixir-autogen, elixir-format, fuzzy
 msgid "<p>Our commitment to open-source and our core values shape our unique approach to pricing. Unlike many models that try to extract every dollar from you with \"contact sales\" calls, limited demos, and other sales tactics, we believe in fairness and transparency. We treat everyone equally and set prices that are fair for all. By choosing our services, you are not only getting a great product but also supporting the development of more open-source projects. We see building a thriving business as a long-term journey, not a short-term sprint filled with shady practices. You can %{read_more}  about our philosophy.</p>\n<p>By supporting Tuist, you are also supporting the development of more open-source software for the Swift ecosystem.</p>\n"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:158
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:181
 #, elixir-autogen, elixir-format, fuzzy
 msgid "read more"
 msgstr ""
@@ -2407,4 +2410,35 @@ msgstr ""
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:120
 #, elixir-autogen, elixir-format
 msgid "Longevity manifesto"
+msgstr ""
+
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:63
+#: lib/tuist_web/marketing/controllers/marketing_html/newsletter.html.heex:8
+#, elixir-autogen, elixir-format
+msgid "A newsletter crafted by the Tuist team, featuring curated reads from the Swift ecosystem and beyond. Each edition highlights the most insightful articles, tutorials, and ideas shaping the Swift community, delivered straight to your inbox."
+msgstr ""
+
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:131
+#, elixir-autogen, elixir-format
+msgid "Newsletter"
+msgstr ""
+
+#: lib/tuist_web/marketing/controllers/marketing_html/newsletter.html.heex:24
+#, elixir-autogen, elixir-format
+msgid "Newsletter issues are sent bi-weekly and you can unsubscribe at any time."
+msgstr ""
+
+#: lib/tuist_web/marketing/controllers/marketing_html/newsletter.html.heex:5
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Swift Stories"
+msgstr ""
+
+#: lib/tuist_web/marketing/controllers/marketing_html/newsletter.html.heex:3
+#, elixir-autogen, elixir-format
+msgid "Swift Stories newsletter's subscription form"
+msgstr ""
+
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:53
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Swift Stories Newsletter"
 msgstr ""

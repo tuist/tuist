@@ -121,6 +121,9 @@ defmodule TuistWeb.Router do
     end
 
     get "/about", TuistWeb.Marketing.MarketingController, :about, metadata: %{type: :marketing}
+
+    get "/newsletter", TuistWeb.Marketing.MarketingController, :newsletter,
+      metadata: %{type: :marketing}
   end
 
   scope "/" do
