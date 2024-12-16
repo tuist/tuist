@@ -14,11 +14,11 @@ public class ResourcesStaticFramework3 {
         )
     }
 
-    public func loadUIImageWithSynthisizeAccessors() -> UIImage {
+    public func loadUIImageWithSynthesizedAccessors() -> UIImage {
         UIImage(resource: .assetCatalogLogo)
     }
 
-    public func loadImageWithSynthisizedAccessors() -> Image {
+    public func loadImageWithSynthesizedAccessors() -> Image {
         Image(.assetCatalogLogo)
     }
 }
