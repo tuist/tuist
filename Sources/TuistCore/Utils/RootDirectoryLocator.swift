@@ -56,7 +56,7 @@ public final class RootDirectoryLocator: RootDirectoryLocating {
     public func locate(from path: AbsolutePath) async throws -> AbsolutePath? {
         if let path = try await locate(from: path, source: path) {
             return path
-        } else if try await fileSystem.exists(
+        } else if try await fileSystem.exists(path, isDirectory: true), try await fileSystem.exists(
             path.appending(component: Constants.SwiftPackageManager.packageSwiftName),
             isDirectory: false
         ) {
