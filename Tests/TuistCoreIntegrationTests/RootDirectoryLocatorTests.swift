@@ -169,7 +169,7 @@ final class RootDirectoryLocatorTests: TuistTestCase {
         ].map { temporaryDirectory.appending(try RelativePath(validating: $0)) })
     }
 
-    func test_locate_when_a_spm_manifest_file_exists() async throws {
+    func test_locate_when_a_swiftpm_manifest_file_exists() async throws {
         // Given
         let temporaryDirectory = try temporaryPath()
         try await createFiles(["SomePackage/\(Constants.SwiftPackageManager.packageSwiftName)"])
