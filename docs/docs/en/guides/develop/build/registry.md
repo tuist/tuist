@@ -12,15 +12,15 @@ description: Optimize your Swift package resolution times by leveraging the Tuis
 > [!IMPORTANT] REMOTE PROJECT REQUIRED
 > This feature requires a <LocalizedLink href="/server/introduction/accounts-and-projects">remote project</LocalizedLink>.
 
-As the number of dependencies grows, so does the time to resolve them. While other package managers like [CocoaPods](https://cocoapods.org/) or [npm](https://www.npmjs.com/) are centralized, Swift Package Manager is not. Because of that, SwiftPM needs to resolve dependencies by doing a deep clone of each repository, which can be time-consuming. To address this, Tuist provides an implementation of the [Package Registry](https://github.com/swiftlang/swift-package-manager/blob/main/Documentation/PackageRegistry/PackageRegistryUsage.md), so you can download only the commit you _actually need_. If the package is in the [Swift Package Index](https://swiftpackageindex.com/), it's also in the Tuist Registry.
+As the number of dependencies grows, so does the time to resolve them. While other package managers like [CocoaPods](https://cocoapods.org/) or [npm](https://www.npmjs.com/) are centralized, Swift Package Manager is not. Because of that, SwiftPM needs to resolve dependencies by doing a deep clone of each repository, which can be time-consuming. To address this, Tuist provides an implementation of the [Package Registry](https://github.com/swiftlang/swift-package-manager/blob/main/Documentation/PackageRegistry/PackageRegistryUsage.md), so you can download only the commit you _actually need_. The packages in the registry are based on the [Swift Package Index](https://swiftpackageindex.com/) – if you can find a package there, the package is also available in the Tuist Registry. Additionally, the packages are distributed across the globe using an edge storage for minimum latency when resolving them.
 
 ## Usage {#usage}
 
 To set up and login to the registry, `cd` into your project's directory and run:
 
 ```bash
-tuist registry setup
-tuist registry login
+tuist registry setup # Creates a `registries.json` file with the default registry configuration.
+tuist registry login # Logs you into the registry.
 ```
 
 Now you can access the registry! To resolve dependencies from the registry instead of from source control, follow the section below based on your setup.
@@ -77,7 +77,7 @@ dependencies: [
 
 To use the registry on your CI, you need to ensure that you have logged in to the registry by running `tuist registry login` as part of your workflow.
 
-Since the registry credentials are stored in a keychain, you need to set it up as well. Note some CI providers or automation tools like Fastlane already create a temporary keychain or provide a built-in way how to create one. However, you can also create one by creating a custom step with the following code:
+Since the registry credentials are stored in a keychain, you need to set it up as well. Note some CI providers or automation tools like [Fastlane](https://fastlane.tools/) already create a temporary keychain or provide a built-in way how to create one. However, you can also create one by creating a custom step with the following code:
 ```bash
 TMP_DIRECTORY=$(mktemp -d)
 KEYCHAIN_PATH=$TMP_DIRECTORY/keychain.keychain
