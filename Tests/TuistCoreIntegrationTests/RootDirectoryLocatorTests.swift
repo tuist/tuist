@@ -182,7 +182,7 @@ final class RootDirectoryLocatorTests: TuistTestCase {
         XCTAssertEqual(got, temporaryDirectory.appending(try RelativePath(validating: "SomePackage")))
     }
 
-    func test_locate_when_a_tuist_directory_and_spm_manifest_exists() async throws {
+    func test_locate_when_a_tuist_directory_and_swiftpm_manifest_exists() async throws {
         // Given
         let temporaryDirectory = try temporaryPath()
         try createFolders(["this/is/a/very/nested/directory/\(Constants.SwiftPackageManager.packageSwiftName)", "this/is/Tuist/"])
