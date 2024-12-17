@@ -1,5 +1,5 @@
 ---
-title: Selecting testing
+title: Selective testing
 titleTemplate: :title · Test · Develop · Guides · Tuist
 description: Use selective testing to run only the tests that have changed since the last successful test run.
 ---
