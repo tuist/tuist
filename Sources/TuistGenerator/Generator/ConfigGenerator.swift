@@ -320,6 +320,7 @@ final class ConfigGenerator: ConfigGenerating {
         if target.destinations.contains(.iPad) { deviceFamilyValues.append(2) }
         if target.destinations.contains(.appleTv) { deviceFamilyValues.append(3) }
         if target.destinations.contains(.appleWatch) { deviceFamilyValues.append(4) }
+        if target.destinations.contains(.macCatalyst) { deviceFamilyValues.append(6) }
         if target.destinations.contains(.appleVision) { deviceFamilyValues.append(7) }
 
         if !deviceFamilyValues.isEmpty {
