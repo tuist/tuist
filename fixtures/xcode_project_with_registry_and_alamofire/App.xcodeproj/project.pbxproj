@@ -10,17 +10,13 @@
 		F8410D042D0B3F810052EC6E /* Alamofire in Frameworks */ = {isa = PBXBuildFile; productRef = F8410D032D0B3F810052EC6E /* Alamofire */; };
 		F8DE78AF2C4E957C0023B168 /* App.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8DE78AE2C4E957C0023B168 /* App.swift */; };
 		F8DE78B12C4E957C0023B168 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8DE78B02C4E957C0023B168 /* ContentView.swift */; };
-		F8DE78B32C4E957D0023B168 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = F8DE78B22C4E957D0023B168 /* Assets.xcassets */; };
-		F8DE78B72C4E957D0023B168 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = F8DE78B62C4E957D0023B168 /* Preview Assets.xcassets */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		F8DE78AB2C4E957C0023B168 /* App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = App.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		F8DE78AE2C4E957C0023B168 /* App.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App.swift; sourceTree = "<group>"; };
 		F8DE78B02C4E957C0023B168 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
-		F8DE78B22C4E957D0023B168 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		F8DE78B42C4E957D0023B168 /* App.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = App.entitlements; sourceTree = "<group>"; };
-		F8DE78B62C4E957D0023B168 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -56,19 +52,9 @@
 			children = (
 				F8DE78AE2C4E957C0023B168 /* App.swift */,
 				F8DE78B02C4E957C0023B168 /* ContentView.swift */,
-				F8DE78B22C4E957D0023B168 /* Assets.xcassets */,
 				F8DE78B42C4E957D0023B168 /* App.entitlements */,
-				F8DE78B52C4E957D0023B168 /* Preview Content */,
 			);
 			path = App;
-			sourceTree = "<group>";
-		};
-		F8DE78B52C4E957D0023B168 /* Preview Content */ = {
-			isa = PBXGroup;
-			children = (
-				F8DE78B62C4E957D0023B168 /* Preview Assets.xcassets */,
-			);
-			path = "Preview Content";
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -132,8 +118,6 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				F8DE78B72C4E957D0023B168 /* Preview Assets.xcassets in Resources */,
-				F8DE78B32C4E957D0023B168 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -275,7 +259,6 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_ASSET_PATHS = "\"App/Preview Content\"";
 				DEVELOPMENT_TEAM = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -315,7 +298,6 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_ASSET_PATHS = "\"App/Preview Content\"";
 				DEVELOPMENT_TEAM = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
