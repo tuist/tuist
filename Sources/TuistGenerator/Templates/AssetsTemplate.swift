@@ -307,7 +307,7 @@ extension SynthesizedResourceInterfaceTemplates {
             #endif
        }
     }
-    
+
     // swiftlint:disable identifier_name line_length nesting type_body_length type_name
     extension {{imageType}} {
       {% if catalogs.count > 1 or param.forceFileNameEnum %}
