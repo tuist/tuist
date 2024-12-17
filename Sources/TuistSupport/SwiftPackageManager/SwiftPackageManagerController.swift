@@ -1,3 +1,4 @@
+import Command
 import FileSystem
 import Foundation
 import Mockable
@@ -43,18 +44,45 @@ public protocol SwiftPackageManagerControlling {
         buildPath: AbsolutePath,
         outputPath: AbsolutePath
     ) async throws
+
+    /// Logs in to the package registry
+    /// - Parameters:
+    ///     - token: Token to log in with.
+    ///     - registryURL: The URL of the registry to use for logging in.
+    func packageRegistryLogin(
+        token: String,
+        registryURL: Foundation.URL
+    ) async throws
+
+    /// Log out of the package registry
+    /// - Parameters:
+    ///     - registryURL: The URL of the registry to log out of.
+    func packageRegistryLogout(
+        registryURL: Foundation.URL
+    ) async throws
 }
 
-public final class SwiftPackageManagerController: SwiftPackageManagerControlling {
+public struct SwiftPackageManagerController: SwiftPackageManagerControlling {
     private let system: Systeming
     private let fileSystem: FileSysteming
+    private let commandRunner: CommandRunning
 
-    public init(
+    public init() {
+        self.init(
+            system: System.shared,
+            fileSystem: FileSystem(),
+            commandRunner: CommandRunner(logger: logger)
+        )
+    }
+
+    init(
         system: Systeming,
-        fileSystem: FileSysteming
+        fileSystem: FileSysteming,
+        commandRunner: CommandRunning
     ) {
         self.system = system
         self.fileSystem = fileSystem
+        self.commandRunner = commandRunner
     }
 
     public func resolve(at path: AbsolutePath, arguments: [String], printOutput: Bool) throws {
@@ -134,6 +162,38 @@ public final class SwiftPackageManagerController: SwiftPackageManagerControlling
             buildPath.appending(components: arm64Target, "release", product).pathString,
             buildPath.appending(components: x64Target, "release", product).pathString,
         ])
+    }
+
+    public func packageRegistryLogin(
+        token: String,
+        registryURL: Foundation.URL
+    ) async throws {
+        _ = try await commandRunner.run(
+            arguments: [
+                "/usr/bin/swift",
+                "package-registry",
+                "login",
+                registryURL.appending(path: "login").absoluteString,
+                "--token",
+                token,
+                "--no-confirm",
+            ]
+        )
+        .concatenatedString()
+    }
+
+    public func packageRegistryLogout(
+        registryURL: Foundation.URL
+    ) async throws {
+        _ = try await commandRunner.run(
+            arguments: [
+                "/usr/bin/swift",
+                "package-registry",
+                "logout",
+                registryURL.appending(path: "logout").absoluteString,
+            ]
+        )
+        .concatenatedString()
     }
 
     // MARK: - Helpers

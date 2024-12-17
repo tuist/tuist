@@ -487,6 +487,13 @@ export function guidesSidebar(locale) {
               ),
               link: `/${locale}/guides/develop/build/cache`,
             },
+            {
+              text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${localizedString(
+                locale,
+                "sidebars.guides.items.develop.items.build.items.registry.text",
+              )} ${xcodeProjCompatibleBadge(locale)}</span>`,
+              link: `/${locale}/guides/develop/build/registry`,
+            },
           ],
         },
         {

@@ -62,8 +62,8 @@ public struct Tuist: Codable, Equatable, Sendable {
         generationOptions: GenerationOptions = .options(),
         installOptions: InstallOptions = .options()
     ) {
-        var fullHandle = cloud?.projectId ?? fullHandle
-        var url = cloud?.url ?? url
+        let fullHandle = cloud?.projectId ?? fullHandle
+        let url = cloud?.url ?? url
         var generationOptions = generationOptions
         if let cloud {
             generationOptions.optionalAuthentication = cloud.options.contains(.optional)
