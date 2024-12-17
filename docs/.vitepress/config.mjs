@@ -291,6 +291,7 @@ export default defineConfig({
 /guides/dashboard/on-premise/install /server/on-premise/install 301
 /guides/dashboard/on-premise/metrics /server/on-premise/metrics 301
 /:locale/references/project-description/structs/config /:locale/references/project-description/structs/tuist  301
+/:locale/guides/develop/test/smart-runner /:locale/guides/develop/test/selective-testing 301
 /documentation/tuist/* / 301
 ${await fs.readFile(path.join(import.meta.dirname, "locale-redirects.txt"), {
   encoding: "utf-8",
