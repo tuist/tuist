@@ -238,7 +238,8 @@ public class GraphTraverser: GraphTraversing {
             from: .target(name: name, path: path),
             test: { dependency in
                 isDependencyResourceBundle(dependency: dependency) &&
-                    !(isDependencyExternal(dependency) || dependency.isPrecompiled)
+                    !(isDependencyExternal(dependency) || dependency.isPrecompiled) &&
+                    !(target.canEmbedPlugins() && canDependencyEmbedAsPlugin(dependency: dependency))
             },
             skip: canHostResources
         )
@@ -1438,6 +1439,13 @@ public class GraphTraverser: GraphTraversing {
         default:
             return false
         }
+    }
+
+    private func canDependencyEmbedAsPlugin(dependency: GraphDependency) -> Bool {
+        guard case let GraphDependency.target(name, path, _) = dependency,
+              let graphTarget = target(path: path, name: name)
+        else { return false }
+        return graphTarget.target.isEmbeddablePlugin()
     }
 
     func unitTestHost(path: Path.AbsolutePath, name: String) -> GraphTarget? {
