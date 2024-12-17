@@ -131,10 +131,7 @@ public class ManifestLoader: ManifestLoading {
             projectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactory(),
             manifestFilesLocator: ManifestFilesLocator(),
             xcodeController: XcodeController.shared,
-            swiftPackageManagerController: SwiftPackageManagerController(
-                system: System.shared,
-                fileSystem: FileSystem()
-            ),
+            swiftPackageManagerController: SwiftPackageManagerController(),
             packageInfoLoader: PackageInfoLoader()
         )
     }
