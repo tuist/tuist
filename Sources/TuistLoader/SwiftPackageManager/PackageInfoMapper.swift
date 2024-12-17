@@ -1009,7 +1009,9 @@ extension ProjectDescription.Settings {
             settings: settings
         )
 
-        var settingsDictionary: XcodeGraph.SettingsDictionary = [:]
+        var settingsDictionary: XcodeGraph.SettingsDictionary = [
+            "OTHER_SWIFT_FLAGS": ["$(inherited)"],
+        ]
 
         // Force enable testing search paths
         let forceEnabledTestingSearchPath: Set<String> = [
