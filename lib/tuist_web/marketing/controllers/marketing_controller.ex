@@ -146,10 +146,17 @@ defmodule TuistWeb.Marketing.MarketingController do
       |> assign(:head_keywords, post.tags)
       |> assign(
         :head_image,
-        Tuist.Environment.app_url(
-          path: "/marketing/images/og/generated#{post.slug}.jpg",
-          marketing: true
-        )
+        if post.og_image_path do
+          Tuist.Environment.app_url(
+            path: post.og_image_path,
+            marketing: true
+          )
+        else
+          Tuist.Environment.app_url(
+            path: "/marketing/images/og/generated#{post.slug}.jpg",
+            marketing: true
+          )
+        end
       )
       |> assign(:head_twitter_card, "summary_large_image")
       |> assign_structured_data(get_blog_post_structured_markup_data(post))

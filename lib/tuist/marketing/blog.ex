@@ -81,6 +81,13 @@ defmodule Tuist.Marketing.Blog do
         "x_handle" => "CharlesP000",
         "mastodon_url" => "https://mastodon.social/@charlespisciotta",
         "github_handle" => "cpisciotta"
+      },
+      "aatakankarsli" => %{
+        "role" => "Senior Developer at Trendyol",
+        "name" => "Atakan Karslı",
+        "x_handle" => "AtakanKarsli_",
+        "github_handle" => "atakankarsli",
+        "image_href" => "/marketing/images/authors/aatakankarsli.jpg"
       }
     }
   end

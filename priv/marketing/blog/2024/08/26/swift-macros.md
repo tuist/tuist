@@ -4,7 +4,6 @@ category: "product"
 tags: ["Swift"]
 excerpt: "Swift Macros, while powerful, can hinder build times. This blog post explains why and what we can do to mitigate the issue."
 author: pepicrft
-highlighted: true
 ---
 
 [Swift Macros](https://docs.swift.org/swift-book/documentation/the-swift-programming-language/macros/) were introduced in September 2023 alongside Xcode 15 and have become a powerful tool for developers to leverage the compiler to generate code. The community quickly adopted them and started building and [sharing them](https://github.com/krzysztofzablocki/Swift-Macros) as Swift Packages that teams could integrate into their projects. At Tuist, we started using [Mockable](https://github.com/Kolos65/Mockable) as a tool to generate mocks from protocols, which we had previously been doing manually.
