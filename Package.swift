@@ -509,7 +509,7 @@ let package = Package(
         ),
         .package(url: "https://github.com/tuist/Path", .upToNextMajor(from: "0.3.0")),
         .package(
-            url: "https://github.com/foyoodo/XcodeGraph.git", branch: "feature/mac-catalyst-with-macos-bundle"
+            url: "https://github.com/tuist/XcodeGraph.git", exact: "1.1.0"
         ),
         .package(url: "https://github.com/tuist/FileSystem.git", .upToNextMajor(from: "0.6.17")),
         .package(url: "https://github.com/tuist/Command.git", exact: "0.8.0"),
