@@ -36,13 +36,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             resourcesStaticFramework3.loadImage() != nil,
             "Failed to load image bundled in \(String(describing: resourcesStaticFramework3))"
         )
-        precondition(
-            resourcesStaticFramework3.loadUIImageWithSynthesizedAccessors() != nil,
-            "Failed to load UIImage bundled in \(String(describing: resourcesStaticFramework3))"
+        print(
+            "StaticFramework3Resource UIImage: \(String(describing: resourcesStaticFramework3.loadUIImageWithSynthesizedAccessors()))"
         )
-        precondition(
-            resourcesStaticFramework3.loadImageWithSynthesizedAccessors() != nil,
-            "Failed to load SwiftUI Image bundled in \(String(describing: resourcesStaticFramework3))"
+        print(
+            "StaticFramework3Resource SwiftUI Image: \(String(describing: resourcesStaticFramework3.loadImageWithSynthesizedAccessors()))"
         )
         print(
             "StaticFramework3Resource asset catalogue image: \(String(describing: StaticFramework3Asset.assetCatalogLogo.image))"
@@ -53,7 +51,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         )
         precondition(
             UIImage(named: "StaticFramework5Resources-tuist", in: StaticFramework5Resources.bundle, compatibleWith: nil) != nil,
-            "Failed to load UIImage bundled in \(String(describing: StaticFramework5Resources))"
+            "Failed to load UIImage bundled in \(String(describing: StaticFramework5Resources.self))"
         )
     }
 

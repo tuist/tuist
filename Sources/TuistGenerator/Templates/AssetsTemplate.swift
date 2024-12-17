@@ -307,20 +307,49 @@ extension SynthesizedResourceInterfaceTemplates {
             #endif
        }
     }
-
-
+    
+    // swiftlint:disable identifier_name line_length nesting type_body_length type_name
     extension {{imageType}} {
+      {% if catalogs.count > 1 or param.forceFileNameEnum %}
+
+      {% macro nameSpacedSingleImagesBlock1 catalogName assets %}
+      {% for asset in assets %}
+      {% if asset.type == "image" %}
+      static let {{catalogName|swiftIdentifier:"pretty"|lowercase|escapeReservedKeywords}}_{{asset.name|swiftIdentifier:"pretty"|lowerFirstWord|escapeReservedKeywords}} = {{param.name}}Asset.{{catalogName|swiftIdentifier:"pretty"|escapeReservedKeywords}}.{{asset.name|swiftIdentifier:"pretty"|lowerFirstWord|escapeReservedKeywords}}
+      {% elif asset.type == "symbol" %}
+      static let {{catalogName|swiftIdentifier:"pretty"|lowercase|escapeReservedKeywords}}_{{asset.name|swiftIdentifier:"pretty"|lowerFirstWord|escapeReservedKeywords}} = {{param.name}}Asset.{{catalogName|swiftIdentifier:"pretty"|escapeReservedKeywords}}.{{asset.name|swiftIdentifier:"pretty"|lowerFirstWord|escapeReservedKeywords}}
+      {% elif asset.items %}
+      {% call nameSpacedSingleImagesBlock1 catalogName asset.items %}
+      {% endif %}
+      {% endfor %}
+      {% endmacro %}
+
+      {% macro nameSpacedImagesBlock1 catalogs %}
+      {% for catalog in catalogs %}
+      {% call nameSpacedSingleImagesBlock1 catalog.name catalog.assets %}
+      {% endfor %}
+      {% endmacro %}
+
+      {% call nameSpacedImagesBlock1 catalogs %}
+
+      {% else %}
+
       {% macro imagesBlock assets %}
       {% for asset in assets %}
       {% if asset.type == "image" %}
+      static let {{asset.name|swiftIdentifier:"pretty"|lowerFirstWord|escapeReservedKeywords}} = {{param.name}}Asset.{{asset.name|swiftIdentifier:"pretty"|lowerFirstWord|escapeReservedKeywords}}
+      {% elif asset.type == "symbol" %}
       static let {{asset.name|swiftIdentifier:"pretty"|lowerFirstWord|escapeReservedKeywords}} = {{param.name}}Asset.{{asset.name|swiftIdentifier:"pretty"|lowerFirstWord|escapeReservedKeywords}}
       {% elif asset.items %}
       {% call imagesBlock asset.items %}
       {% endif %}
       {% endfor %}
       {% endmacro %}
+
       {% call imagesBlock catalogs.first.assets %}
+      {% endif %}
     }
+    // swiftlint:enable identifier_name line_length nesting type_body_length type_name
 
     {% endif %}
     {% else %}
