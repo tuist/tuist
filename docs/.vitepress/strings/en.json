@@ -265,6 +265,9 @@
               "items": {
                 "cache": {
                   "text": "Cache"
+                },
+                "registry": {
+                  "text": "Registry"
                 }
               }
             },

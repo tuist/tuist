@@ -83,6 +83,7 @@ let targets: [Target] = [
             "TuistServer",
             "FileSystem",
             "TuistCache",
+            .product(name: "Command", package: "Command"),
             .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
             .byName(name: "AnyCodable"),
         ],
@@ -119,6 +120,7 @@ let targets: [Target] = [
             "ZIPFoundation",
             "Mockable",
             "FileSystem",
+            "Command",
         ],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),

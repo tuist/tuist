@@ -14,6 +14,7 @@ public enum TuistAcceptanceFixtures {
     case appWithPlugins
     case appWithPreviews
     case appWithRealm
+    case appWithRegistryAndAlamofire
     case appWithRevenueCat
     case appWithSpmDependencies
     case appWithSpmModuleAliases
@@ -81,6 +82,7 @@ public enum TuistAcceptanceFixtures {
     case multiplatformAppWithMacrosAndEmbeddedWatchOSApp
     case multiplatformAppWithSdk
     case multiplatformµFeatureUnitTestsWithExplicitDependencies
+    case packageWithRegistryAndAlamofire
     case plugin
     case projectWithClassPrefix
     case projectWithFileHeaderTemplate
@@ -91,6 +93,7 @@ public enum TuistAcceptanceFixtures {
     case workspaceWithFileHeaderTemplate
     case workspaceWithInlineFileHeaderTemplate
     case xcodeApp
+    case xcodeProjectWithRegistryAndAlamofire
     case appWithExecutableNonLocalDependencies
     case appWithGeneratedSources
     case custom(String)
@@ -123,6 +126,8 @@ public enum TuistAcceptanceFixtures {
             return "app_with_previews"
         case .appWithRealm:
             return "app_with_realm"
+        case .appWithRegistryAndAlamofire:
+            return "app_with_registry_and_alamofire"
         case .appWithRevenueCat:
             return "app_with_revenue_cat"
         case .appWithSpmDependencies:
@@ -257,6 +262,8 @@ public enum TuistAcceptanceFixtures {
             return "multiplatform_app_with_sdk"
         case .multiplatformµFeatureUnitTestsWithExplicitDependencies:
             return "multiplatform_µFeature_unit_tests_with_explicit_dependencies"
+        case .packageWithRegistryAndAlamofire:
+            return "package_with_registry_and_alamofire"
         case .plugin:
             return "plugin"
         case .projectWithClassPrefix:
@@ -277,6 +284,8 @@ public enum TuistAcceptanceFixtures {
             return "workspace_with_inline_file_header_template"
         case .xcodeApp:
             return "xcode_app"
+        case .xcodeProjectWithRegistryAndAlamofire:
+            return "xcode_project_with_registry_and_alamofire"
         case .appWithExecutableNonLocalDependencies:
             return "app_with_executable_non_local_dependencies"
         case .appWithGeneratedSources:
