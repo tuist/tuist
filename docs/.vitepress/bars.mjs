@@ -507,9 +507,9 @@ export function guidesSidebar(locale) {
             {
               text: localizedString(
                 locale,
-                "sidebars.guides.items.develop.items.test.items.smart-runner.text",
+                "sidebars.guides.items.develop.items.test.items.selective-testing.text",
               ),
-              link: `/${locale}/guides/develop/test/smart-runner`,
+              link: `/${locale}/guides/develop/test/selective-testing`,
             },
             {
               text: localizedString(
