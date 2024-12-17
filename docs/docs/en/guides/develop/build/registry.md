@@ -7,7 +7,7 @@ description: Optimize your Swift package resolution times by leveraging the Tuis
 # Registry {#registry}
 
 > [!WARNING] BETA
-> This feature is currently in beta. If you encounter any issues, please report them at our <LocalizedLink href="https://community.tuist.dev/c/troubleshooting-how-to/6">community forum</LocalizedLink>.
+> This feature is currently in beta. If you encounter any issues, please report them at our <a href="https://community.tuist.dev/c/troubleshooting-how-to/6" target="_blank">community forum</a>.
 
 > [!IMPORTANT] REMOTE PROJECT REQUIRED
 > This feature requires a <LocalizedLink href="/server/introduction/accounts-and-projects">remote project</LocalizedLink>.
