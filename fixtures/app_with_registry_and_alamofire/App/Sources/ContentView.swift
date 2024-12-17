@@ -4,7 +4,7 @@ import SwiftUI
 public struct ContentView: View {
     public init() {
         // Use Alamofire to make sure it links fine
-        _ = AF.download("http://www.tuist.io")
+        _ = AF.download("http://tuist.dev")
     }
 
     public var body: some View {
