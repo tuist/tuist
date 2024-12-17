@@ -1,10 +1,10 @@
 ---
-title: Smart test runner
+title: Selective testing
 titleTemplate: :title · Test · Develop · Guides · Tuist
-description: Use smart test selection to run only the tests that need to be run.
+description: Use selective testing to run only the tests that have changed since the last successful test run.
 ---
 
-# Smart test runner {#smart-test-runner}
+# Selective testing {#selective-testing}
 
 > [!IMPORTANT] REMOTE PROJECT REQUIRED
 > This feature requires a <LocalizedLink href="/server/introduction/accounts-and-projects">remote project</LocalizedLink>.
