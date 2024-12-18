@@ -15,7 +15,7 @@ description: Tuist에서 계정과 프로젝트를 생성하고 관리하는 방
 
 [GitHub](https://github.com)에 익숙하다면 개인 계정과 조직 계정을 가질 수 있고 이 계정들은 URL을 구성할 때 식별자로 사용된다는 개념과 유사합니다.
 
-> [!NOTE] CLI-FIRST\
+> [!NOTE] CLI-FIRST
 > 계정과 프로젝트를 관리하기 위한 동작은 대부분 CLI를 통해서 수행됩니다. 우리는 계정과 프로젝트를 쉽게 관리하기 위한 웹 인터페이스를 개발 중입니다.
 
 <LocalizedLink href="/cli/organization">`tuist organization`</LocalizedLink> 하위 명령어를 통해 조직을 관리할 수 있습니다.
@@ -32,6 +32,6 @@ Tuist 프로젝트든 Xcode 프로젝트든 원격 프로젝트를 통해 계정
 let tuist = Tuist(fullHandle: "{account-handle}/{project-handle}") // e.g. tuist/tuist
 ```
 
-> [!IMPORTANT] TUIST 프로젝트 전용 기능\ <LocalizedLink href="/guides/develop/build/cache">바이너리 캐싱</LocalizedLink>과 같은 기능은 Tuist 프로젝트가 있어야 사용할 수 있습니다. Xcode 프로젝트를 사용한다면 해당 기능을 사용할 수 없습니다.
+> [!IMPORTANT] TUIST 프로젝트 전용 기능 <LocalizedLink href="/guides/develop/build/cache">바이너리 캐싱</LocalizedLink>과 같은 기능은 Tuist 프로젝트가 있어야 사용할 수 있습니다. Xcode 프로젝트를 사용한다면 해당 기능을 사용할 수 없습니다.
 
 프로젝트 URL은 전체 식별자를 사용하여 구성됩니다. 예를 들어, Tuist 대시보드는 프로젝트의 전체 식별자가 `tuist/tuist`라면 [cloud.tuist.io/tuist/tuist](https://cloud.tuist.io/tuist/tuist)으로 접근할 수 있습니다.

@@ -15,7 +15,7 @@ description: 이 문서는 Tuist의 개발을 위한 원칙을 설명합니다.
 - 일본어
 - 러시아어
 
-> [!TIP] 새로운 언어 요청\
+> [!TIP] 새로운 언어 요청
 > Tuist에 새로운 언어를 지원해야 된다면, 커뮤니티에 의논할 수 있도록 [커뮤니티 포럼에 주제](https://community.tuist.io/c/general/4)를 새로 생성해 주세요.
 
 ## 번역 방법
@@ -54,12 +54,12 @@ description: 이 문서는 Tuist의 개발을 위한 원칙을 설명합니다.
 
 ::: details Example with custom container
 ```markdown
-    ::: warning 루트 변수\
+    ::: warning 루트 변수
     매니페스트의 루트에 있어야 하는 변수는...
     :::
 
     # Instead of
-    ::: 주의 루트 변수\
+    ::: 주의 루트 변수
     매니페스트의 루트에 있어야 하는 변수는...
     :::
 ````

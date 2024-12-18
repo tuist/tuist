@@ -12,5 +12,5 @@ description: Tuist에는 왜 서버가 필요하고 이것이 앱 개발을 확�
 
 우리는 여러 팀이 프로젝트를 확장하기 위해 서버를 설정하고 유지 관리하는 것에 대해 걱정할 필요가 없다고 믿습니다. 그래서 우리는 <LocalizedLink href="/guides/develop/projects">Tuist</LocalizedLink>와 [Xcode 프로젝트](https://developer.apple.com/documentation/xcode/creating-an-xcode-project-for-an-app)를 통합하여 프로젝트와 팀을 확장할 수 있도록 지원하는 서버를 구축했습니다.
 
-> [!TIP] 프로젝트와 워크플로우에 슈퍼파워 부여\
+> [!TIP] 프로젝트와 워크플로우에 슈퍼파워 부여
 > 서버를 프로젝트와 워크플로우에 부여할 수 있는 슈퍼파워라고 생각합니다. <LocalizedLink href="/guides/develop/build/cache">바이너리 캐싱</LocalizedLink>과 같은 슈퍼파워는 <LocalizedLink href="/guides/develop/projects">Tuist 프로젝트</LocalizedLink>를 요구하지만, 다른 슈퍼파워는 일반 Xcode 프로젝트에서 잘 동작합니다.

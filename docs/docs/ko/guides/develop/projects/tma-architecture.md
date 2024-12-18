@@ -10,7 +10,7 @@ TMA는 Apple OS 애플리케이션을 구조화 하는 아키텍처 접근 방�
 
 이 가이드라인은 아키텍처의 원칙을 소개하며, 다른 계층의 애플리케이션 기능을 식별하고 연결하는데 도움을 줍니다. 이 아키텍처를 사용하기로 결정한다면, 도움이 되는 팁, 툴, 그리고 충고도 소개합니다.
 
-> [!INFO] µFEATURES\
+> [!INFO] µFEATURES
 > 이 아키텍처는 이전에 µFeatures로 알려진 아키텍처 입니다. 우리는 이 아키텍처의 목적과 원칙이 더 잘 반영되도록 The Modular Architecture (TMA) 로 이름을 변경했습니다.
 
 ## 주요 원칙 {#core-principle}
@@ -37,10 +37,10 @@ TMA는 Apple OS 애플리케이션을 구조화 하는 아키텍처 접근 방�
 | `FeatureTesting`   | `FeatureInterface`          | 테스트 데이터와 모의 객체 |
 | `FeatureExample`   | `FeatureTesting`, `Feature` | 예제 앱           |
 
-> [!TIP] UI 프리뷰\
+> [!TIP] UI 프리뷰
 > `Feature`는 UI 프리뷰를 사용하기 위해 Development Asset으로 `FeatureTesting`을 사용할 수 있습니다.
 
-> [!IMPORTANT] 테스트 타겟 대신 컴파일러 지시문\
+> [!IMPORTANT] 테스트 타겟 대신 컴파일러 지시문
 > 또한, `Debug`로 컴파일할 때 `Feature`나 `FeatureInterface`에 테스트 데이터와 모의 객체를 포함하기 위해 컴파일러 지시문을 사용할 수 있습니다. 그래프를 단순화할 수 있지만, 결국 앱을 실행하는데 필요하지 않은 코드를 컴파일하게 될 수 있습니다.
 
 ## 왜 모듈인가 {#why-a-module}
@@ -87,7 +87,7 @@ func productType() -> Product {
 }
 ```
 
-> [!IMPORTANT] MERGEABLE LIBRARIES\
+> [!IMPORTANT] MERGEABLE LIBRARIES
 > Apple은 [mergeable libraries](https://developer.apple.com/documentation/xcode/configuring-your-project-to-use-mergeable-libraries)를 도입하여 정적 라이브러리와 동적 라이브러리 간 변환의 번거로움을 줄이려고 했습니다. 하지만 이것은 빌드 시 항상 동일한 결과를 가져오지 않고 최적화가 어려워 지기 때문에 권장하지 않습니다.
 
 ## 코드 {#code}

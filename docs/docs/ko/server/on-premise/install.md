@@ -8,7 +8,7 @@ description: Tuist를 인프라에 설치하는 방법을 배워봅니다.
 
 인프라에 대한 더 많은 제어를 요구하는 조직을 위해 Tuist 서버의 자체 호스팅 버전을 제공합니다. 이 버전은 Tuist를 자체 인프라에 호스팅하여 사용자의 데이터가 안전하고 비공개로 유지되도록 보장합니다.
 
-> [!IMPORTANT] 기업 고객 전용\
+> [!IMPORTANT] 기업 고객 전용
 > Tuist의 On-Premise 버전은 Enterprise 플랜을 가입한 조직만 사용 가능합니다. 이 버전에 관심있다면, [contact@tuist.io](mailto:contact@tuist.io)로 연락 바랍니다.
 
 ## 출시 주기 {#release-cadence}
@@ -17,7 +17,7 @@ Tuist 서버는 **매주 월요일에 출시되며** 버전 이름은 `{MAJOR}.Y
 
 CLI의 주요 구성 요소는 On-premise 사용자와의 조정이 필요한 Tuist 서버에서의 주요 변경 사항을 표시하는데 사용됩니다. 우리가 이것을 사용할 것이라고 기대해서는 안되며 필요한 경우, 전환이 원활하도록 함께 협력할 것입니다.
 
-> [!NOTE] 릴리즈 노트\
+> [!NOTE] 릴리즈 노트
 > 이미지가 게시되는 레지스트리와 연결된 `tuist/registry` 리포지토리에 연결 권한이 부여됩니다. 모든 릴리즈는 해당 리포지토리의 GitHub 릴리즈에 게시되고 변경 사항은 릴리즈 노트에 포함됩니다.
 
 ## 실행 환경 요구 사항 {#runtime-requirements}
@@ -36,7 +36,7 @@ Docker 이미지를 실행하는 것 외에도, 관계형 데이터를 저장하
 
 뛰어난 성능 측정을 위해 우리는 [Timescale Postgres 확장](https://www.timescale.com/)을 사용합니다. Postgres 데이터베이스가 실행되는 머신에 TimescaleDB가 설치되어 있는지 확인해야 합니다. 자세한 설치 방법은 [여기](https://docs.timescale.com/self-hosted/latest/install/)에서 확인할 수 있습니다. Timescale 확장을 설치할 수 없는 경우, Prometheus 메트릭을 사용하여 자체 대시보드를 설정할 수 있습니다.
 
-> [!INFO] 마이그레이션\
+> [!INFO] 마이그레이션
 > Docker 이미지의 엔트리포인트는 컨테이너가 실행되기 전에 자동으로 대기 중인 스킴 마이그레이션을 실행합니다.
 
 ### 저장소 {#storage}
@@ -47,7 +47,7 @@ Docker 이미지를 실행하는 것 외에도, 관계형 데이터를 저장하
 
 서비스의 구성은 실행 시 환경 변수를 통해 이루어집니다. 환경 변수는 민감한 정보이므로, 이를 암호화하여 안전한 비밀번호 관리 솔루션에 저장하길 권장합니다. Tuist는 이러한 변수를 최대한 신중하게 처리하고 로그에 절대로 표시되지 않도록 보장하므로 안심할 수 있습니다.
 
-> [!NOTE] 시작 검증\
+> [!NOTE] 시작 검증
 > 필요한 변수는 시작할 때 검증됩니다. 필요한 변수가 누락되면 실행이 실패하고 오류 메세지에 누락된 변수가 상세히 표시됩니다.
 
 ### 라이센스 구성 {#license-configuration}
@@ -58,7 +58,7 @@ On-premise 사용자는 환경 변수로 설정해야 하는 라이센스 키�
 | --------------- | ---------------------------------------------------- | ----- | --- | -------- |
 | `TUIST_LICENSE` | 서비스 수준 계약 (SLA) 을 체결한 후 제공되는 라이센스 | Yes   |     | `******` |
 
-> [!IMPORTANT] 만료일\
+> [!IMPORTANT] 만료일
 > 라이센스는 만료일이 있습니다. 사용자가 서버와 상호 작용하는 Tuist 명령어를 사용할 때, 라이센스가 30일 이내에 만료가 된다면 경고가 표시됩니다. 라이센스를 갱신하고 싶다면 [contact@tuist.io](mailto:contact@tuist.io)로 연락 바랍니다.
 
 ### 기본 환경 구성 {#base-environment-configuration}
@@ -111,7 +111,7 @@ On-premise 사용자는 환경 변수로 설정해야 하는 라이센스 키�
 
 [OAuth 2](https://developers.google.com/identity/protocols/oauth2)를 사용하여 Google 인증을 설정할 수 있습니다. 이를 위해, OAuth 클라이언트 ID 타입의 새로운 자격 증명을 생성해야 합니다. 자격 증명을 생성할 때, 애플리케이션 타입으로 "Web Application"을 선택하고, 이름을 `Tuist`로 설정하고, 리다이렉트 URI를 호스팅되는 서비스가 실행되는 `base_url`을 활용하여 `{base_url}/users/auth/google/callback`으로 설정합니다. 앱을 생성한 후에 클라이언트 ID와 클라이언트 비밀키를 복사하고 각각 환경 변수 `GOOGLE_CLIENT_ID`와 `GOOGLE_CLIENT_SECRET`로 설정합니다.
 
-> [!NOTE] 동의 화면 범위\
+> [!NOTE] 동의 화면 범위
 > 동의 화면을 생성해야 할 수도 있습니다. 그렇게 할 때, `userinfo.email`과 `openid` 범위를 추가하고 내부 앱으로 표시해야 합니다.
 
 #### Okta {#okta}
@@ -152,7 +152,7 @@ Tuist는 API를 통해 업로드된 산출물을 저장하기 위한 저장소�
 | `TUIST_S3_PROTOCOL`                                  | 저장소 제공자와 연결할 때 사용하는 프로토콜 (`http1` 또는 `http2`)              | No    | `http2` | `http2`                                    |
 | `TUIST_S3_VIRTUAL_HOST`                              | URL이 서브도메인 (가상 호스트) 으로 버킷 이름을 구성해야 하는지 여부. | No    | No      | `1`                                        |
 
-> [!NOTE] 환경 변수에서 Web Identity Token을 사용한 AWS 인증\
+> [!NOTE] 환경 변수에서 Web Identity Token을 사용한 AWS 인증
 > 저장소 제공자가 AWS이고 웹 아이덴티티 토큰을 사용하여 인증하려는 경우에 환경 변수 `TUIST_S3_AUTHENTICATION_METHOD`를 `aws_web_identity_token_from_env_vars`로 설정할 수 있습니다. 그러면 Tuist는 기존의 AWS 환경 변수를 사용하여 인증을 진행할 수 있습니다.
 
 #### Google Cloud Storage {#google-cloud-storage}
@@ -177,7 +177,7 @@ Tuist는 Pull Request에 자동으로 댓글을 게시하는 등의 추가 기�
 
 On-premise 사용자는 이미지를 가져올 수 있는 컨테이너 레지스트리를 가지는 [tuist/registry](https://github.com/cloud/registry)에 위치한 리포지토리에 대한 접근 권한을 부여 받습니다. 현재 컨테이너 레지스트리는 개인 사용자에게만 인증을 허용합니다. 따라서 리포지토리 접근 권한이 있는 사용자는 Tuist 조직 내에서 **개인 접근 토큰**을 생성해야 하고 패키지를 읽을 수 있는 권한이 있는지 확인해야 합니다. 제출 하면 우리는 이 토큰을 빠르게 승인할 것입니다.
 
-> [!IMPORTANT] 사용자 토큰 VS 조직 범위 토큰\
+> [!IMPORTANT] 사용자 토큰 VS 조직 범위 토큰
 > 개인이 기업 조직을 떠난 경우 개인 접근 토큰은 개인과 연결되어 있으므로, 개인 접근 토큰을 사용하는 것이 문제가 될 수 있습니다. GitHub은 이런 문제를 인지하고 있으며, GitHub 앱에서 생성한 토큰을 사용하여 인증할 수 있는 해결책을 적극적으로 개발 중입니다.
 
 ### Docker 이미지 가져오기 {#pulling-the-docker-image}
@@ -347,7 +347,7 @@ volumes:
 
 Tuist는 인스턴스를 관리하기 위해 사용할 수 있는 유틸리티를 `/ops/`에서 제공합니다.
 
-> [!IMPORTANT] 인증\
+> [!IMPORTANT] 인증
 > `TUIST_OPS_USER_HANDLES` 환경 변수에 작성된 사용자만 `/ops/` 엔드포인트에 접근할 수 있습니다.
 
 - **오류 (`/ops/errors`):** 애플리케이션에서 발생한 오류를 볼 수 있습니다. 이것은 디버깅과 문제의 원인을 파악하는데 유용하고, 우리는 문제가 발생할 경우 이 정보를 공유해 달라고 요청할 수 있습니다.

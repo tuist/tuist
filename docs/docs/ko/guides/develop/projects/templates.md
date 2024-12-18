@@ -54,7 +54,7 @@ let template = Template(
 tuist scaffold name_of_template --name Name --platform macos
 ```
 
-> [!NOTE]\
+> [!NOTE]
 > 플랫폼은 옵셔널 인수이므로, `--platform macos` 인수없이 명령어 호출도 가능합니다.
 
 `.string`과 `.files`가 유연성을 제공하지 않으면, `.file` 케이스를 통해 [Stencil](https://stencil.fuller.li/en/latest/) 템플릿 언어를 활용할 수 있습니다. 그 외에 여기에 정의된 필터를 추가적으로 사용할 수도 있습니다.

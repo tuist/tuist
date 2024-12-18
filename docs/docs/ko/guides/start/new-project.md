@@ -74,7 +74,7 @@ let project = Project(
 
 :::
 
-> [!NOTE]\
+> [!NOTE]
 > 유지 보수를 최소화 하기 위해 템플릿은 가능한 짧게 유지합니다. 프레임워크와 같이 애플리케이션이 아닌 프로젝트를 생성하고 싶으면, `tuist init`을 사용하여 생성된 프로젝트를 필요에 따라 수정할 수 있습니다.
 
 ## 수동으로 프로젝트 생성 {#manually-creating-a-project}
@@ -116,5 +116,5 @@ let tuist = Tuist()
 
 :::
 
-> [!IMPORTANT]\
+> [!IMPORTANT]
 > Tuist는 `Tuist/` 디렉토리를 사용하여 프로젝트의 루트를 결정하고, 그 디렉토리에서 다른 매니페스트 파일을 찾습니다. 원하는 편집기로 해당 파일을 생성하고, `tuist edit`를 사용하여 Xcode로 프로젝트를 수정할 수 있습니다.

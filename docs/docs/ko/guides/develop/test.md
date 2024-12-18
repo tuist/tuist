@@ -38,7 +38,7 @@ tuist test --no-selective-testing
 
 ## Pull/merge request 의견 {#pullmerge-request-comments}
 
-> [!IMPORTANT] 요구 사항\
+> [!IMPORTANT] 요구 사항
 > Pull/merge request 의견을 자동으로 받으려면 <LocalizedLink href="/server/introduction/accounts-and-projects">원격 프로젝트</LocalizedLink>를 <LocalizedLink href="/server/introduction/integrations#git-platforms">Git 플랫폼</LocalizedLink>과 통합해야 합니다.
 
 CI 환경에서 테스트를 수행할 때 트리거된 CI 빌드의 pull/merge request와 테스트 결과를 연동할 수 있습니다. 이를 통해 pull/merge request에 테스트 결과를 게시할 수 있습니다.
