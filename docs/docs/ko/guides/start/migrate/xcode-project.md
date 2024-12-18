@@ -193,7 +193,7 @@ let project = Project(
             ], // [!code ++]
             settings: .settings(configurations: [ // [!code ++]
                 .debug(name: "Debug", xcconfig: "./xcconfigs/TargetX.xcconfig"), // [!code ++]
-                .debug(name: "Release", xcconfig: "./xcconfigs/TargetX.xcconfig"), // [!code ++]
+                .release(name: "Release", xcconfig: "./xcconfigs/TargetX.xcconfig"), // [!code ++]
             ]) // [!code ++]
         ), // [!code ++]
     ]
