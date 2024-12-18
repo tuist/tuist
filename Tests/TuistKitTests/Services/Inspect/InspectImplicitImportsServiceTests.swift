@@ -96,7 +96,7 @@ final class LintImplicitImportsServiceTests: TuistUnitTestCase {
         let app = Target.test(name: "App", product: .app)
         let project = Project.test(path: path, targets: [app])
         let testTarget = Target.test(name: "PackageTarget", product: .app)
-        let externalProject = Project.test(path: path, targets: [testTarget], isExternal: true)
+        let externalProject = Project.test(path: path, targets: [testTarget], type: .external())
         let graph = Graph.test(
             path: path,
             projects: [path: project, "/a": externalProject],
@@ -122,7 +122,7 @@ final class LintImplicitImportsServiceTests: TuistUnitTestCase {
         let project = Project.test(path: path, targets: [app])
         let testTarget = Target.test(name: "PackageTarget", product: .app)
         let externalTargetDependency = Target.test(name: "PackageTargetDependency", product: .app)
-        let externalProject = Project.test(path: path, targets: [testTarget, externalTargetDependency], isExternal: true)
+        let externalProject = Project.test(path: path, targets: [testTarget, externalTargetDependency], type: .external())
         let graph = Graph.test(
             path: path,
             projects: [path: project, "/a": externalProject],

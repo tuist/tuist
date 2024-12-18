@@ -24,10 +24,7 @@ public final class PackageSettingsLoader: PackageSettingsLoading {
 
     public init(
         manifestLoader: ManifestLoading = ManifestLoader(),
-        swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(
-            system: System.shared,
-            fileSystem: FileSystem()
-        ),
+        swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(),
         manifestFilesLocator: ManifestFilesLocating = ManifestFilesLocator(),
         rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator()
     ) {

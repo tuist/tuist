@@ -576,6 +576,7 @@ Thanks goes to these wonderful people:
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/brianvar"><img src="https://avatars.githubusercontent.com/u/115399684?v=4" width="100px;" alt=""/><br /><sub><b>brianvar</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/HossamYoussof"><img src="https://avatars.githubusercontent.com/u/6381926?v=4" width="100px;" alt=""/><br /><sub><b>Hossam Youssof</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/devMinseok"><img src="https://avatars.githubusercontent.com/u/51021614?v=4" width="100px;" alt=""/><br /><sub><b>Minseok Kang</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/alpanyukov"><img src="https://avatars.githubusercontent.com/u/36258478?v=4" width="100px;" alt=""/><br /><sub><b>Alexander</b></sub></a></td>
     </tr>
   </tbody>
 </table>

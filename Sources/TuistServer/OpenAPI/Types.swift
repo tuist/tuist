@@ -11,47 +11,6 @@ import struct Foundation.Date
 #endif
 /// A type that performs HTTP operations defined by the OpenAPI document.
 internal protocol APIProtocol: Sendable {
-    /// Create a a new command analytics event
-    ///
-    /// - Remark: HTTP `POST /api/analytics`.
-    /// - Remark: Generated from `#/paths//api/analytics/post(createCommandEvent)`.
-    func createCommandEvent(_ input: Operations.createCommandEvent.Input) async throws -> Operations.createCommandEvent.Output
-    /// Authenticate with email and password.
-    ///
-    /// This endpoint returns API tokens for a given email and password.
-    ///
-    /// - Remark: HTTP `POST /api/auth`.
-    /// - Remark: Generated from `#/paths//api/auth/post(authenticate)`.
-    func authenticate(_ input: Operations.authenticate.Input) async throws -> Operations.authenticate.Output
-    /// Get a specific device code.
-    ///
-    /// This endpoint returns a token for a given device code if the device code is authenticated.
-    ///
-    /// - Remark: HTTP `GET /api/auth/device_code/{device_code}`.
-    /// - Remark: Generated from `#/paths//api/auth/device_code/{device_code}/get(getDeviceCode)`.
-    func getDeviceCode(_ input: Operations.getDeviceCode.Input) async throws -> Operations.getDeviceCode.Output
-    /// Request new tokens.
-    ///
-    /// This endpoint returns new tokens for a given refresh token if the refresh token is valid.
-    ///
-    /// - Remark: HTTP `POST /api/auth/refresh_token`.
-    /// - Remark: Generated from `#/paths//api/auth/refresh_token/post(refreshToken)`.
-    func refreshToken(_ input: Operations.refreshToken.Input) async throws -> Operations.refreshToken.Output
-    /// Downloads an artifact from the cache.
-    ///
-    /// This endpoint returns a signed URL that can be used to download an artifact from the cache.
-    ///
-    /// - Remark: HTTP `GET /api/cache`.
-    /// - Remark: Generated from `#/paths//api/cache/get(downloadCacheArtifact)`.
-    func downloadCacheArtifact(_ input: Operations.downloadCacheArtifact.Input) async throws -> Operations.downloadCacheArtifact.Output
-    /// It checks if an artifact exists in the cache.
-    ///
-    /// This endpoint checks if an artifact exists in the cache. It returns a 404 status code if the artifact does not exist.
-    ///
-    /// - Remark: HTTP `GET /api/cache/exists`.
-    /// - Remark: Generated from `#/paths//api/cache/exists/get(cacheArtifactExists)`.
-    @available(*, deprecated)
-    func cacheArtifactExists(_ input: Operations.cacheArtifactExists.Input) async throws -> Operations.cacheArtifactExists.Output
     /// It completes a multi-part upload.
     ///
     /// Given the upload ID and all the parts with their ETags, this endpoint completes the multipart upload. The cache will then be able to serve the artifact.
@@ -59,13 +18,77 @@ internal protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /api/cache/multipart/complete`.
     /// - Remark: Generated from `#/paths//api/cache/multipart/complete/post(completeCacheArtifactMultipartUpload)`.
     func completeCacheArtifactMultipartUpload(_ input: Operations.completeCacheArtifactMultipartUpload.Input) async throws -> Operations.completeCacheArtifactMultipartUpload.Output
-    /// It generates a signed URL for uploading a part.
+    /// Create a a new command analytics event
     ///
-    /// Given an upload ID and a part number, this endpoint returns a signed URL that can be used to upload a part of a multipart upload. The URL is short-lived and expires in 120 seconds.
+    /// - Remark: HTTP `POST /api/analytics`.
+    /// - Remark: Generated from `#/paths//api/analytics/post(createCommandEvent)`.
+    func createCommandEvent(_ input: Operations.createCommandEvent.Input) async throws -> Operations.createCommandEvent.Output
+    /// It initiates a multipart upload for a preview artifact.
     ///
-    /// - Remark: HTTP `POST /api/cache/multipart/generate-url`.
-    /// - Remark: Generated from `#/paths//api/cache/multipart/generate-url/post(generateCacheArtifactMultipartUploadURL)`.
-    func generateCacheArtifactMultipartUploadURL(_ input: Operations.generateCacheArtifactMultipartUploadURL.Input) async throws -> Operations.generateCacheArtifactMultipartUploadURL.Output
+    /// The endpoint returns an upload ID that can be used to generate URLs for the individual parts and complete the upload.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/previews/start`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/start/post(startPreviewsMultipartUpload)`.
+    func startPreviewsMultipartUpload(_ input: Operations.startPreviewsMultipartUpload.Input) async throws -> Operations.startPreviewsMultipartUpload.Output
+    /// Authenticate with email and password.
+    ///
+    /// This endpoint returns API tokens for a given email and password.
+    ///
+    /// - Remark: HTTP `POST /api/auth`.
+    /// - Remark: Generated from `#/paths//api/auth/post(authenticate)`.
+    func authenticate(_ input: Operations.authenticate.Input) async throws -> Operations.authenticate.Output
+    /// Request new tokens.
+    ///
+    /// This endpoint returns new tokens for a given refresh token if the refresh token is valid.
+    ///
+    /// - Remark: HTTP `POST /api/auth/refresh_token`.
+    /// - Remark: Generated from `#/paths//api/auth/refresh_token/post(refreshToken)`.
+    func refreshToken(_ input: Operations.refreshToken.Input) async throws -> Operations.refreshToken.Output
+    /// Get a specific device code.
+    ///
+    /// This endpoint returns a token for a given device code if the device code is authenticated.
+    ///
+    /// - Remark: HTTP `GET /api/auth/device_code/{device_code}`.
+    /// - Remark: Generated from `#/paths//api/auth/device_code/{device_code}/get(getDeviceCode)`.
+    func getDeviceCode(_ input: Operations.getDeviceCode.Input) async throws -> Operations.getDeviceCode.Output
+    /// It initiates a multipart upload for a command event artifact.
+    ///
+    /// The endpoint returns an upload ID that can be used to generate URLs for the individual parts and complete the upload.
+    ///
+    /// - Remark: HTTP `POST /api/runs/{run_id}/start`.
+    /// - Remark: Generated from `#/paths//api/runs/{run_id}/start/post(startAnalyticsArtifactMultipartUpload)`.
+    func startAnalyticsArtifactMultipartUpload(_ input: Operations.startAnalyticsArtifactMultipartUpload.Input) async throws -> Operations.startAnalyticsArtifactMultipartUpload.Output
+    /// List projects the authenticated user has access to.
+    ///
+    /// - Remark: HTTP `GET /api/projects`.
+    /// - Remark: Generated from `#/paths//api/projects/get(listProjects)`.
+    func listProjects(_ input: Operations.listProjects.Input) async throws -> Operations.listProjects.Output
+    /// Create a new project.
+    ///
+    /// - Remark: HTTP `POST /api/projects`.
+    /// - Remark: Generated from `#/paths//api/projects/post(createProject)`.
+    func createProject(_ input: Operations.createProject.Input) async throws -> Operations.createProject.Output
+    /// List all project tokens.
+    ///
+    /// This endpoint returns all tokens for a given project.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tokens`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/get(listProjectTokens)`.
+    func listProjectTokens(_ input: Operations.listProjectTokens.Input) async throws -> Operations.listProjectTokens.Output
+    /// Create a new project token.
+    ///
+    /// This endpoint returns a new project token.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tokens`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/post(createProjectToken)`.
+    func createProjectToken(_ input: Operations.createProjectToken.Input) async throws -> Operations.createProjectToken.Output
+    /// Shows the usage of an organization
+    ///
+    /// Returns the usage of the organization with the given identifier. (e.g. number of remote cache hits)
+    ///
+    /// - Remark: HTTP `GET /api/organizations/{organization_name}/usage`.
+    /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/usage/get(showOrganizationUsage)`.
+    func showOrganizationUsage(_ input: Operations.showOrganizationUsage.Input) async throws -> Operations.showOrganizationUsage.Output
     /// It initiates a multipart upload in the cache.
     ///
     /// The endpoint returns an upload ID that can be used to generate URLs for the individual parts and complete the upload.
@@ -73,20 +96,27 @@ internal protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /api/cache/multipart/start`.
     /// - Remark: Generated from `#/paths//api/cache/multipart/start/post(startCacheArtifactMultipartUpload)`.
     func startCacheArtifactMultipartUpload(_ input: Operations.startCacheArtifactMultipartUpload.Input) async throws -> Operations.startCacheArtifactMultipartUpload.Output
-    /// Lists the organizations
+    /// Get a cache action item.
     ///
-    /// Returns all the organizations the authenticated subject is part of.
+    /// This endpoint gets an item from the action cache.
     ///
-    /// - Remark: HTTP `GET /api/organizations`.
-    /// - Remark: Generated from `#/paths//api/organizations/get(listOrganizations)`.
-    func listOrganizations(_ input: Operations.listOrganizations.Input) async throws -> Operations.listOrganizations.Output
-    /// Creates an organization
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/cache/ac/{hash}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/ac/{hash}/get(getCacheActionItem)`.
+    func getCacheActionItem(_ input: Operations.getCacheActionItem.Input) async throws -> Operations.getCacheActionItem.Output
+    /// It generates a signed URL for uploading a part.
     ///
-    /// Creates an organization with the given name.
+    /// Given an upload ID and a part number, this endpoint returns a signed URL that can be used to upload a part of a multipart upload. The URL is short-lived and expires in 120 seconds.
     ///
-    /// - Remark: HTTP `POST /api/organizations`.
-    /// - Remark: Generated from `#/paths//api/organizations/post(createOrganization)`.
-    func createOrganization(_ input: Operations.createOrganization.Input) async throws -> Operations.createOrganization.Output
+    /// - Remark: HTTP `POST /api/cache/multipart/generate-url`.
+    /// - Remark: Generated from `#/paths//api/cache/multipart/generate-url/post(generateCacheArtifactMultipartUploadURL)`.
+    func generateCacheArtifactMultipartUploadURL(_ input: Operations.generateCacheArtifactMultipartUploadURL.Input) async throws -> Operations.generateCacheArtifactMultipartUploadURL.Output
+    /// It uploads a given cache action item.
+    ///
+    /// The endpoint caches a given action item without uploading a file. To upload files, use the multipart upload instead.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/cache/ac`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/ac/post(uploadCacheActionItem)`.
+    func uploadCacheActionItem(_ input: Operations.uploadCacheActionItem.Input) async throws -> Operations.uploadCacheActionItem.Output
     /// Shows an organization
     ///
     /// Returns the organization with the given identifier.
@@ -115,6 +145,32 @@ internal protocol APIProtocol: Sendable {
     /// - Remark: HTTP `DELETE /api/organizations/{organization_name}`.
     /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/delete(deleteOrganization)`.
     func deleteOrganization(_ input: Operations.deleteOrganization.Input) async throws -> Operations.deleteOrganization.Output
+    /// It generates a signed URL for uploading a part.
+    ///
+    /// Given an upload ID and a part number, this endpoint returns a signed URL that can be used to upload a part of a multipart upload. The URL is short-lived and expires in 120 seconds.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/previews/generate-url`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/generate-url/post(generatePreviewsMultipartUploadURL)`.
+    func generatePreviewsMultipartUploadURL(_ input: Operations.generatePreviewsMultipartUploadURL.Input) async throws -> Operations.generatePreviewsMultipartUploadURL.Output
+    /// Create a new account token.
+    ///
+    /// This endpoint returns a new account token.
+    ///
+    /// - Remark: HTTP `POST /api/accounts/{account_handle}/tokens`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/tokens/post(createAccountToken)`.
+    func createAccountToken(_ input: Operations.createAccountToken.Input) async throws -> Operations.createAccountToken.Output
+    /// It generates a signed URL for uploading a part.
+    ///
+    /// Given an upload ID and a part number, this endpoint returns a signed URL that can be used to upload a part of a multipart upload. The URL is short-lived and expires in 120 seconds.
+    ///
+    /// - Remark: HTTP `POST /api/runs/{run_id}/generate-url`.
+    /// - Remark: Generated from `#/paths//api/runs/{run_id}/generate-url/post(generateAnalyticsArtifactMultipartUploadURL)`.
+    func generateAnalyticsArtifactMultipartUploadURL(_ input: Operations.generateAnalyticsArtifactMultipartUploadURL.Input) async throws -> Operations.generateAnalyticsArtifactMultipartUploadURL.Output
+    /// Cleans cache for a given project
+    ///
+    /// - Remark: HTTP `PUT /api/projects/{account_handle}/{project_handle}/cache/clean`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/clean/put(cleanCache)`.
+    func cleanCache(_ input: Operations.cleanCache.Input) async throws -> Operations.cleanCache.Output
     /// Creates an invitation
     ///
     /// Invites a user with a given email to a given organization.
@@ -129,6 +185,73 @@ internal protocol APIProtocol: Sendable {
     /// - Remark: HTTP `DELETE /api/organizations/{organization_name}/invitations`.
     /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/invitations/delete(cancelInvitation)`.
     func cancelInvitation(_ input: Operations.cancelInvitation.Input) async throws -> Operations.cancelInvitation.Output
+    /// List previews.
+    ///
+    /// This endpoint returns a list of previews for a given project.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/previews`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/get(listPreviews)`.
+    func listPreviews(_ input: Operations.listPreviews.Input) async throws -> Operations.listPreviews.Output
+    /// Downloads an artifact from the cache.
+    ///
+    /// This endpoint returns a signed URL that can be used to download an artifact from the cache.
+    ///
+    /// - Remark: HTTP `GET /api/cache`.
+    /// - Remark: Generated from `#/paths//api/cache/get(downloadCacheArtifact)`.
+    func downloadCacheArtifact(_ input: Operations.downloadCacheArtifact.Input) async throws -> Operations.downloadCacheArtifact.Output
+    /// It completes a multi-part upload.
+    ///
+    /// Given the upload ID and all the parts with their ETags, this endpoint completes the multipart upload.
+    ///
+    /// - Remark: HTTP `POST /api/runs/{run_id}/complete`.
+    /// - Remark: Generated from `#/paths//api/runs/{run_id}/complete/post(completeAnalyticsArtifactMultipartUpload)`.
+    func completeAnalyticsArtifactMultipartUpload(_ input: Operations.completeAnalyticsArtifactMultipartUpload.Input) async throws -> Operations.completeAnalyticsArtifactMultipartUpload.Output
+    /// Lists the organizations
+    ///
+    /// Returns all the organizations the authenticated subject is part of.
+    ///
+    /// - Remark: HTTP `GET /api/organizations`.
+    /// - Remark: Generated from `#/paths//api/organizations/get(listOrganizations)`.
+    func listOrganizations(_ input: Operations.listOrganizations.Input) async throws -> Operations.listOrganizations.Output
+    /// Creates an organization
+    ///
+    /// Creates an organization with the given name.
+    ///
+    /// - Remark: HTTP `POST /api/organizations`.
+    /// - Remark: Generated from `#/paths//api/organizations/post(createOrganization)`.
+    func createOrganization(_ input: Operations.createOrganization.Input) async throws -> Operations.createOrganization.Output
+    /// Returns a preview with a given id.
+    ///
+    /// This endpoint returns a preview with a given id, including the url to download the preview.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/previews/{preview_id}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/get(downloadPreview)`.
+    func downloadPreview(_ input: Operations.downloadPreview.Input) async throws -> Operations.downloadPreview.Output
+    /// It checks if an artifact exists in the cache.
+    ///
+    /// This endpoint checks if an artifact exists in the cache. It returns a 404 status code if the artifact does not exist.
+    ///
+    /// - Remark: HTTP `GET /api/cache/exists`.
+    /// - Remark: Generated from `#/paths//api/cache/exists/get(cacheArtifactExists)`.
+    @available(*, deprecated)
+    func cacheArtifactExists(_ input: Operations.cacheArtifactExists.Input) async throws -> Operations.cacheArtifactExists.Output
+    /// Revokes a project token.
+    ///
+    /// - Remark: HTTP `DELETE /api/projects/{account_handle}/{project_handle}/tokens/{id}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/{id}/delete(revokeProjectToken)`.
+    func revokeProjectToken(_ input: Operations.revokeProjectToken.Input) async throws -> Operations.revokeProjectToken.Output
+    /// Returns a project based on the handle.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/get(showProject)`.
+    func showProject(_ input: Operations.showProject.Input) async throws -> Operations.showProject.Output
+    /// Updates a project
+    ///
+    /// Updates a project with given parameters.
+    ///
+    /// - Remark: HTTP `PUT /api/projects/{account_handle}/{project_handle}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/put(updateProject)`.
+    func updateProject(_ input: Operations.updateProject.Input) async throws -> Operations.updateProject.Output
     /// Updates a member in an organization
     ///
     /// Updates a member in a given organization
@@ -143,89 +266,6 @@ internal protocol APIProtocol: Sendable {
     /// - Remark: HTTP `DELETE /api/organizations/{organization_name}/members/{user_name}`.
     /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/members/{user_name}/delete(removeOrganizationMember)`.
     func removeOrganizationMember(_ input: Operations.removeOrganizationMember.Input) async throws -> Operations.removeOrganizationMember.Output
-    /// Shows the usage of an organization
-    ///
-    /// Returns the usage of the organization with the given identifier. (e.g. number of remote cache hits)
-    ///
-    /// - Remark: HTTP `GET /api/organizations/{organization_name}/usage`.
-    /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/usage/get(showOrganizationUsage)`.
-    func showOrganizationUsage(_ input: Operations.showOrganizationUsage.Input) async throws -> Operations.showOrganizationUsage.Output
-    /// List projects the authenticated user has access to.
-    ///
-    /// - Remark: HTTP `GET /api/projects`.
-    /// - Remark: Generated from `#/paths//api/projects/get(listProjects)`.
-    func listProjects(_ input: Operations.listProjects.Input) async throws -> Operations.listProjects.Output
-    /// Create a new project.
-    ///
-    /// - Remark: HTTP `POST /api/projects`.
-    /// - Remark: Generated from `#/paths//api/projects/post(createProject)`.
-    func createProject(_ input: Operations.createProject.Input) async throws -> Operations.createProject.Output
-    /// Returns a project based on the handle.
-    ///
-    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/get(showProject)`.
-    func showProject(_ input: Operations.showProject.Input) async throws -> Operations.showProject.Output
-    /// Updates a project
-    ///
-    /// Updates a project with given parameters.
-    ///
-    /// - Remark: HTTP `PUT /api/projects/{account_handle}/{project_handle}`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/put(updateProject)`.
-    func updateProject(_ input: Operations.updateProject.Input) async throws -> Operations.updateProject.Output
-    /// It uploads a given cache action item.
-    ///
-    /// The endpoint caches a given action item without uploading a file. To upload files, use the multipart upload instead.
-    ///
-    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/cache/ac`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/ac/post(uploadCacheActionItem)`.
-    func uploadCacheActionItem(_ input: Operations.uploadCacheActionItem.Input) async throws -> Operations.uploadCacheActionItem.Output
-    /// Get a cache action item.
-    ///
-    /// This endpoint gets an item from the action cache.
-    ///
-    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/cache/ac/{hash}`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/ac/{hash}/get(getCacheActionItem)`.
-    func getCacheActionItem(_ input: Operations.getCacheActionItem.Input) async throws -> Operations.getCacheActionItem.Output
-    /// Cleans cache for a given project
-    ///
-    /// - Remark: HTTP `PUT /api/projects/{account_handle}/{project_handle}/cache/clean`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/clean/put(cleanCache)`.
-    func cleanCache(_ input: Operations.cleanCache.Input) async throws -> Operations.cleanCache.Output
-    /// List previews.
-    ///
-    /// This endpoint returns a list of previews for a given project.
-    ///
-    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/previews`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/get(listPreviews)`.
-    func listPreviews(_ input: Operations.listPreviews.Input) async throws -> Operations.listPreviews.Output
-    /// It completes a multi-part upload.
-    ///
-    /// Given the upload ID and all the parts with their ETags, this endpoint completes the multipart upload.
-    ///
-    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/previews/complete`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/complete/post(completePreviewsMultipartUpload)`.
-    func completePreviewsMultipartUpload(_ input: Operations.completePreviewsMultipartUpload.Input) async throws -> Operations.completePreviewsMultipartUpload.Output
-    /// It generates a signed URL for uploading a part.
-    ///
-    /// Given an upload ID and a part number, this endpoint returns a signed URL that can be used to upload a part of a multipart upload. The URL is short-lived and expires in 120 seconds.
-    ///
-    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/previews/generate-url`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/generate-url/post(generatePreviewsMultipartUploadURL)`.
-    func generatePreviewsMultipartUploadURL(_ input: Operations.generatePreviewsMultipartUploadURL.Input) async throws -> Operations.generatePreviewsMultipartUploadURL.Output
-    /// It initiates a multipart upload for a preview artifact.
-    ///
-    /// The endpoint returns an upload ID that can be used to generate URLs for the individual parts and complete the upload.
-    ///
-    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/previews/start`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/start/post(startPreviewsMultipartUpload)`.
-    func startPreviewsMultipartUpload(_ input: Operations.startPreviewsMultipartUpload.Input) async throws -> Operations.startPreviewsMultipartUpload.Output
-    /// Returns a preview with a given id.
-    ///
-    /// This endpoint returns a preview with a given id, including the url to download the preview.
-    ///
-    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/previews/{preview_id}`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/get(downloadPreview)`.
-    func downloadPreview(_ input: Operations.downloadPreview.Input) async throws -> Operations.downloadPreview.Output
     /// Uploads a preview icon.
     ///
     /// The endpoint uploads a preview icon.
@@ -233,37 +273,18 @@ internal protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/post(uploadPreviewIcon)`.
     func uploadPreviewIcon(_ input: Operations.uploadPreviewIcon.Input) async throws -> Operations.uploadPreviewIcon.Output
-    /// List all project tokens.
+    /// It completes a multi-part upload.
     ///
-    /// This endpoint returns all tokens for a given project.
+    /// Given the upload ID and all the parts with their ETags, this endpoint completes the multipart upload.
     ///
-    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tokens`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/get(listProjectTokens)`.
-    func listProjectTokens(_ input: Operations.listProjectTokens.Input) async throws -> Operations.listProjectTokens.Output
-    /// Create a new project token.
-    ///
-    /// This endpoint returns a new project token.
-    ///
-    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tokens`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/post(createProjectToken)`.
-    func createProjectToken(_ input: Operations.createProjectToken.Input) async throws -> Operations.createProjectToken.Output
-    /// Revokes a project token.
-    ///
-    /// - Remark: HTTP `DELETE /api/projects/{account_handle}/{project_handle}/tokens/{id}`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/{id}/delete(revokeProjectToken)`.
-    func revokeProjectToken(_ input: Operations.revokeProjectToken.Input) async throws -> Operations.revokeProjectToken.Output
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/previews/complete`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/complete/post(completePreviewsMultipartUpload)`.
+    func completePreviewsMultipartUpload(_ input: Operations.completePreviewsMultipartUpload.Input) async throws -> Operations.completePreviewsMultipartUpload.Output
     /// Deletes a project with a given id.
     ///
     /// - Remark: HTTP `DELETE /api/projects/{id}`.
     /// - Remark: Generated from `#/paths//api/projects/{id}/delete(deleteProject)`.
     func deleteProject(_ input: Operations.deleteProject.Input) async throws -> Operations.deleteProject.Output
-    /// It completes a multi-part upload.
-    ///
-    /// Given the upload ID and all the parts with their ETags, this endpoint completes the multipart upload.
-    ///
-    /// - Remark: HTTP `POST /api/runs/{run_id}/complete`.
-    /// - Remark: Generated from `#/paths//api/runs/{run_id}/complete/post(completeAnalyticsArtifactMultipartUpload)`.
-    func completeAnalyticsArtifactMultipartUpload(_ input: Operations.completeAnalyticsArtifactMultipartUpload.Input) async throws -> Operations.completeAnalyticsArtifactMultipartUpload.Output
     /// Completes artifacts uploads for a given command event
     ///
     /// Given a command event, it marks all artifact uploads as finished and does extra processing of a given command run, such as test flakiness detection.
@@ -271,24 +292,27 @@ internal protocol APIProtocol: Sendable {
     /// - Remark: HTTP `PUT /api/runs/{run_id}/complete_artifacts_uploads`.
     /// - Remark: Generated from `#/paths//api/runs/{run_id}/complete_artifacts_uploads/put(completeAnalyticsArtifactsUploads)`.
     func completeAnalyticsArtifactsUploads(_ input: Operations.completeAnalyticsArtifactsUploads.Input) async throws -> Operations.completeAnalyticsArtifactsUploads.Output
-    /// It generates a signed URL for uploading a part.
-    ///
-    /// Given an upload ID and a part number, this endpoint returns a signed URL that can be used to upload a part of a multipart upload. The URL is short-lived and expires in 120 seconds.
-    ///
-    /// - Remark: HTTP `POST /api/runs/{run_id}/generate-url`.
-    /// - Remark: Generated from `#/paths//api/runs/{run_id}/generate-url/post(generateAnalyticsArtifactMultipartUploadURL)`.
-    func generateAnalyticsArtifactMultipartUploadURL(_ input: Operations.generateAnalyticsArtifactMultipartUploadURL.Input) async throws -> Operations.generateAnalyticsArtifactMultipartUploadURL.Output
-    /// It initiates a multipart upload for a command event artifact.
-    ///
-    /// The endpoint returns an upload ID that can be used to generate URLs for the individual parts and complete the upload.
-    ///
-    /// - Remark: HTTP `POST /api/runs/{run_id}/start`.
-    /// - Remark: Generated from `#/paths//api/runs/{run_id}/start/post(startAnalyticsArtifactMultipartUpload)`.
-    func startAnalyticsArtifactMultipartUpload(_ input: Operations.startAnalyticsArtifactMultipartUpload.Input) async throws -> Operations.startAnalyticsArtifactMultipartUpload.Output
 }
 
 /// Convenience overloads for operation inputs.
 extension APIProtocol {
+    /// It completes a multi-part upload.
+    ///
+    /// Given the upload ID and all the parts with their ETags, this endpoint completes the multipart upload. The cache will then be able to serve the artifact.
+    ///
+    /// - Remark: HTTP `POST /api/cache/multipart/complete`.
+    /// - Remark: Generated from `#/paths//api/cache/multipart/complete/post(completeCacheArtifactMultipartUpload)`.
+    internal func completeCacheArtifactMultipartUpload(
+        query: Operations.completeCacheArtifactMultipartUpload.Input.Query,
+        headers: Operations.completeCacheArtifactMultipartUpload.Input.Headers = .init(),
+        body: Operations.completeCacheArtifactMultipartUpload.Input.Body? = nil
+    ) async throws -> Operations.completeCacheArtifactMultipartUpload.Output {
+        try await completeCacheArtifactMultipartUpload(Operations.completeCacheArtifactMultipartUpload.Input(
+            query: query,
+            headers: headers,
+            body: body
+        ))
+    }
     /// Create a a new command analytics event
     ///
     /// - Remark: HTTP `POST /api/analytics`.
@@ -300,6 +324,23 @@ extension APIProtocol {
     ) async throws -> Operations.createCommandEvent.Output {
         try await createCommandEvent(Operations.createCommandEvent.Input(
             query: query,
+            headers: headers,
+            body: body
+        ))
+    }
+    /// It initiates a multipart upload for a preview artifact.
+    ///
+    /// The endpoint returns an upload ID that can be used to generate URLs for the individual parts and complete the upload.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/previews/start`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/start/post(startPreviewsMultipartUpload)`.
+    internal func startPreviewsMultipartUpload(
+        path: Operations.startPreviewsMultipartUpload.Input.Path,
+        headers: Operations.startPreviewsMultipartUpload.Input.Headers = .init(),
+        body: Operations.startPreviewsMultipartUpload.Input.Body? = nil
+    ) async throws -> Operations.startPreviewsMultipartUpload.Output {
+        try await startPreviewsMultipartUpload(Operations.startPreviewsMultipartUpload.Input(
+            path: path,
             headers: headers,
             body: body
         ))
@@ -319,21 +360,6 @@ extension APIProtocol {
             body: body
         ))
     }
-    /// Get a specific device code.
-    ///
-    /// This endpoint returns a token for a given device code if the device code is authenticated.
-    ///
-    /// - Remark: HTTP `GET /api/auth/device_code/{device_code}`.
-    /// - Remark: Generated from `#/paths//api/auth/device_code/{device_code}/get(getDeviceCode)`.
-    internal func getDeviceCode(
-        path: Operations.getDeviceCode.Input.Path,
-        headers: Operations.getDeviceCode.Input.Headers = .init()
-    ) async throws -> Operations.getDeviceCode.Output {
-        try await getDeviceCode(Operations.getDeviceCode.Input(
-            path: path,
-            headers: headers
-        ))
-    }
     /// Request new tokens.
     ///
     /// This endpoint returns new tokens for a given refresh token if the refresh token is valid.
@@ -349,66 +375,100 @@ extension APIProtocol {
             body: body
         ))
     }
-    /// Downloads an artifact from the cache.
+    /// Get a specific device code.
     ///
-    /// This endpoint returns a signed URL that can be used to download an artifact from the cache.
+    /// This endpoint returns a token for a given device code if the device code is authenticated.
     ///
-    /// - Remark: HTTP `GET /api/cache`.
-    /// - Remark: Generated from `#/paths//api/cache/get(downloadCacheArtifact)`.
-    internal func downloadCacheArtifact(
-        query: Operations.downloadCacheArtifact.Input.Query,
-        headers: Operations.downloadCacheArtifact.Input.Headers = .init()
-    ) async throws -> Operations.downloadCacheArtifact.Output {
-        try await downloadCacheArtifact(Operations.downloadCacheArtifact.Input(
-            query: query,
+    /// - Remark: HTTP `GET /api/auth/device_code/{device_code}`.
+    /// - Remark: Generated from `#/paths//api/auth/device_code/{device_code}/get(getDeviceCode)`.
+    internal func getDeviceCode(
+        path: Operations.getDeviceCode.Input.Path,
+        headers: Operations.getDeviceCode.Input.Headers = .init()
+    ) async throws -> Operations.getDeviceCode.Output {
+        try await getDeviceCode(Operations.getDeviceCode.Input(
+            path: path,
             headers: headers
         ))
     }
-    /// It checks if an artifact exists in the cache.
+    /// It initiates a multipart upload for a command event artifact.
     ///
-    /// This endpoint checks if an artifact exists in the cache. It returns a 404 status code if the artifact does not exist.
+    /// The endpoint returns an upload ID that can be used to generate URLs for the individual parts and complete the upload.
     ///
-    /// - Remark: HTTP `GET /api/cache/exists`.
-    /// - Remark: Generated from `#/paths//api/cache/exists/get(cacheArtifactExists)`.
-    @available(*, deprecated)
-    internal func cacheArtifactExists(
-        query: Operations.cacheArtifactExists.Input.Query,
-        headers: Operations.cacheArtifactExists.Input.Headers = .init()
-    ) async throws -> Operations.cacheArtifactExists.Output {
-        try await cacheArtifactExists(Operations.cacheArtifactExists.Input(
-            query: query,
-            headers: headers
-        ))
-    }
-    /// It completes a multi-part upload.
-    ///
-    /// Given the upload ID and all the parts with their ETags, this endpoint completes the multipart upload. The cache will then be able to serve the artifact.
-    ///
-    /// - Remark: HTTP `POST /api/cache/multipart/complete`.
-    /// - Remark: Generated from `#/paths//api/cache/multipart/complete/post(completeCacheArtifactMultipartUpload)`.
-    internal func completeCacheArtifactMultipartUpload(
-        query: Operations.completeCacheArtifactMultipartUpload.Input.Query,
-        headers: Operations.completeCacheArtifactMultipartUpload.Input.Headers = .init(),
-        body: Operations.completeCacheArtifactMultipartUpload.Input.Body? = nil
-    ) async throws -> Operations.completeCacheArtifactMultipartUpload.Output {
-        try await completeCacheArtifactMultipartUpload(Operations.completeCacheArtifactMultipartUpload.Input(
-            query: query,
+    /// - Remark: HTTP `POST /api/runs/{run_id}/start`.
+    /// - Remark: Generated from `#/paths//api/runs/{run_id}/start/post(startAnalyticsArtifactMultipartUpload)`.
+    internal func startAnalyticsArtifactMultipartUpload(
+        path: Operations.startAnalyticsArtifactMultipartUpload.Input.Path,
+        headers: Operations.startAnalyticsArtifactMultipartUpload.Input.Headers = .init(),
+        body: Operations.startAnalyticsArtifactMultipartUpload.Input.Body? = nil
+    ) async throws -> Operations.startAnalyticsArtifactMultipartUpload.Output {
+        try await startAnalyticsArtifactMultipartUpload(Operations.startAnalyticsArtifactMultipartUpload.Input(
+            path: path,
             headers: headers,
             body: body
         ))
     }
-    /// It generates a signed URL for uploading a part.
+    /// List projects the authenticated user has access to.
     ///
-    /// Given an upload ID and a part number, this endpoint returns a signed URL that can be used to upload a part of a multipart upload. The URL is short-lived and expires in 120 seconds.
+    /// - Remark: HTTP `GET /api/projects`.
+    /// - Remark: Generated from `#/paths//api/projects/get(listProjects)`.
+    internal func listProjects(headers: Operations.listProjects.Input.Headers = .init()) async throws -> Operations.listProjects.Output {
+        try await listProjects(Operations.listProjects.Input(headers: headers))
+    }
+    /// Create a new project.
     ///
-    /// - Remark: HTTP `POST /api/cache/multipart/generate-url`.
-    /// - Remark: Generated from `#/paths//api/cache/multipart/generate-url/post(generateCacheArtifactMultipartUploadURL)`.
-    internal func generateCacheArtifactMultipartUploadURL(
-        query: Operations.generateCacheArtifactMultipartUploadURL.Input.Query,
-        headers: Operations.generateCacheArtifactMultipartUploadURL.Input.Headers = .init()
-    ) async throws -> Operations.generateCacheArtifactMultipartUploadURL.Output {
-        try await generateCacheArtifactMultipartUploadURL(Operations.generateCacheArtifactMultipartUploadURL.Input(
-            query: query,
+    /// - Remark: HTTP `POST /api/projects`.
+    /// - Remark: Generated from `#/paths//api/projects/post(createProject)`.
+    internal func createProject(
+        headers: Operations.createProject.Input.Headers = .init(),
+        body: Operations.createProject.Input.Body? = nil
+    ) async throws -> Operations.createProject.Output {
+        try await createProject(Operations.createProject.Input(
+            headers: headers,
+            body: body
+        ))
+    }
+    /// List all project tokens.
+    ///
+    /// This endpoint returns all tokens for a given project.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tokens`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/get(listProjectTokens)`.
+    internal func listProjectTokens(
+        path: Operations.listProjectTokens.Input.Path,
+        headers: Operations.listProjectTokens.Input.Headers = .init()
+    ) async throws -> Operations.listProjectTokens.Output {
+        try await listProjectTokens(Operations.listProjectTokens.Input(
+            path: path,
+            headers: headers
+        ))
+    }
+    /// Create a new project token.
+    ///
+    /// This endpoint returns a new project token.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tokens`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/post(createProjectToken)`.
+    internal func createProjectToken(
+        path: Operations.createProjectToken.Input.Path,
+        headers: Operations.createProjectToken.Input.Headers = .init()
+    ) async throws -> Operations.createProjectToken.Output {
+        try await createProjectToken(Operations.createProjectToken.Input(
+            path: path,
+            headers: headers
+        ))
+    }
+    /// Shows the usage of an organization
+    ///
+    /// Returns the usage of the organization with the given identifier. (e.g. number of remote cache hits)
+    ///
+    /// - Remark: HTTP `GET /api/organizations/{organization_name}/usage`.
+    /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/usage/get(showOrganizationUsage)`.
+    internal func showOrganizationUsage(
+        path: Operations.showOrganizationUsage.Input.Path,
+        headers: Operations.showOrganizationUsage.Input.Headers = .init()
+    ) async throws -> Operations.showOrganizationUsage.Output {
+        try await showOrganizationUsage(Operations.showOrganizationUsage.Input(
+            path: path,
             headers: headers
         ))
     }
@@ -427,26 +487,49 @@ extension APIProtocol {
             headers: headers
         ))
     }
-    /// Lists the organizations
+    /// Get a cache action item.
     ///
-    /// Returns all the organizations the authenticated subject is part of.
+    /// This endpoint gets an item from the action cache.
     ///
-    /// - Remark: HTTP `GET /api/organizations`.
-    /// - Remark: Generated from `#/paths//api/organizations/get(listOrganizations)`.
-    internal func listOrganizations(headers: Operations.listOrganizations.Input.Headers = .init()) async throws -> Operations.listOrganizations.Output {
-        try await listOrganizations(Operations.listOrganizations.Input(headers: headers))
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/cache/ac/{hash}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/ac/{hash}/get(getCacheActionItem)`.
+    internal func getCacheActionItem(
+        path: Operations.getCacheActionItem.Input.Path,
+        headers: Operations.getCacheActionItem.Input.Headers = .init()
+    ) async throws -> Operations.getCacheActionItem.Output {
+        try await getCacheActionItem(Operations.getCacheActionItem.Input(
+            path: path,
+            headers: headers
+        ))
     }
-    /// Creates an organization
+    /// It generates a signed URL for uploading a part.
     ///
-    /// Creates an organization with the given name.
+    /// Given an upload ID and a part number, this endpoint returns a signed URL that can be used to upload a part of a multipart upload. The URL is short-lived and expires in 120 seconds.
     ///
-    /// - Remark: HTTP `POST /api/organizations`.
-    /// - Remark: Generated from `#/paths//api/organizations/post(createOrganization)`.
-    internal func createOrganization(
-        headers: Operations.createOrganization.Input.Headers = .init(),
-        body: Operations.createOrganization.Input.Body? = nil
-    ) async throws -> Operations.createOrganization.Output {
-        try await createOrganization(Operations.createOrganization.Input(
+    /// - Remark: HTTP `POST /api/cache/multipart/generate-url`.
+    /// - Remark: Generated from `#/paths//api/cache/multipart/generate-url/post(generateCacheArtifactMultipartUploadURL)`.
+    internal func generateCacheArtifactMultipartUploadURL(
+        query: Operations.generateCacheArtifactMultipartUploadURL.Input.Query,
+        headers: Operations.generateCacheArtifactMultipartUploadURL.Input.Headers = .init()
+    ) async throws -> Operations.generateCacheArtifactMultipartUploadURL.Output {
+        try await generateCacheArtifactMultipartUploadURL(Operations.generateCacheArtifactMultipartUploadURL.Input(
+            query: query,
+            headers: headers
+        ))
+    }
+    /// It uploads a given cache action item.
+    ///
+    /// The endpoint caches a given action item without uploading a file. To upload files, use the multipart upload instead.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/cache/ac`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/ac/post(uploadCacheActionItem)`.
+    internal func uploadCacheActionItem(
+        path: Operations.uploadCacheActionItem.Input.Path,
+        headers: Operations.uploadCacheActionItem.Input.Headers = .init(),
+        body: Operations.uploadCacheActionItem.Input.Body? = nil
+    ) async throws -> Operations.uploadCacheActionItem.Output {
+        try await uploadCacheActionItem(Operations.uploadCacheActionItem.Input(
+            path: path,
             headers: headers,
             body: body
         ))
@@ -515,6 +598,70 @@ extension APIProtocol {
             headers: headers
         ))
     }
+    /// It generates a signed URL for uploading a part.
+    ///
+    /// Given an upload ID and a part number, this endpoint returns a signed URL that can be used to upload a part of a multipart upload. The URL is short-lived and expires in 120 seconds.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/previews/generate-url`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/generate-url/post(generatePreviewsMultipartUploadURL)`.
+    internal func generatePreviewsMultipartUploadURL(
+        path: Operations.generatePreviewsMultipartUploadURL.Input.Path,
+        headers: Operations.generatePreviewsMultipartUploadURL.Input.Headers = .init(),
+        body: Operations.generatePreviewsMultipartUploadURL.Input.Body? = nil
+    ) async throws -> Operations.generatePreviewsMultipartUploadURL.Output {
+        try await generatePreviewsMultipartUploadURL(Operations.generatePreviewsMultipartUploadURL.Input(
+            path: path,
+            headers: headers,
+            body: body
+        ))
+    }
+    /// Create a new account token.
+    ///
+    /// This endpoint returns a new account token.
+    ///
+    /// - Remark: HTTP `POST /api/accounts/{account_handle}/tokens`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/tokens/post(createAccountToken)`.
+    internal func createAccountToken(
+        path: Operations.createAccountToken.Input.Path,
+        headers: Operations.createAccountToken.Input.Headers = .init(),
+        body: Operations.createAccountToken.Input.Body? = nil
+    ) async throws -> Operations.createAccountToken.Output {
+        try await createAccountToken(Operations.createAccountToken.Input(
+            path: path,
+            headers: headers,
+            body: body
+        ))
+    }
+    /// It generates a signed URL for uploading a part.
+    ///
+    /// Given an upload ID and a part number, this endpoint returns a signed URL that can be used to upload a part of a multipart upload. The URL is short-lived and expires in 120 seconds.
+    ///
+    /// - Remark: HTTP `POST /api/runs/{run_id}/generate-url`.
+    /// - Remark: Generated from `#/paths//api/runs/{run_id}/generate-url/post(generateAnalyticsArtifactMultipartUploadURL)`.
+    internal func generateAnalyticsArtifactMultipartUploadURL(
+        path: Operations.generateAnalyticsArtifactMultipartUploadURL.Input.Path,
+        headers: Operations.generateAnalyticsArtifactMultipartUploadURL.Input.Headers = .init(),
+        body: Operations.generateAnalyticsArtifactMultipartUploadURL.Input.Body? = nil
+    ) async throws -> Operations.generateAnalyticsArtifactMultipartUploadURL.Output {
+        try await generateAnalyticsArtifactMultipartUploadURL(Operations.generateAnalyticsArtifactMultipartUploadURL.Input(
+            path: path,
+            headers: headers,
+            body: body
+        ))
+    }
+    /// Cleans cache for a given project
+    ///
+    /// - Remark: HTTP `PUT /api/projects/{account_handle}/{project_handle}/cache/clean`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/clean/put(cleanCache)`.
+    internal func cleanCache(
+        path: Operations.cleanCache.Input.Path,
+        headers: Operations.cleanCache.Input.Headers = .init()
+    ) async throws -> Operations.cleanCache.Output {
+        try await cleanCache(Operations.cleanCache.Input(
+            path: path,
+            headers: headers
+        ))
+    }
     /// Creates an invitation
     ///
     /// Invites a user with a given email to a given organization.
@@ -544,6 +691,153 @@ extension APIProtocol {
         body: Operations.cancelInvitation.Input.Body? = nil
     ) async throws -> Operations.cancelInvitation.Output {
         try await cancelInvitation(Operations.cancelInvitation.Input(
+            path: path,
+            headers: headers,
+            body: body
+        ))
+    }
+    /// List previews.
+    ///
+    /// This endpoint returns a list of previews for a given project.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/previews`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/get(listPreviews)`.
+    internal func listPreviews(
+        path: Operations.listPreviews.Input.Path,
+        query: Operations.listPreviews.Input.Query = .init(),
+        headers: Operations.listPreviews.Input.Headers = .init()
+    ) async throws -> Operations.listPreviews.Output {
+        try await listPreviews(Operations.listPreviews.Input(
+            path: path,
+            query: query,
+            headers: headers
+        ))
+    }
+    /// Downloads an artifact from the cache.
+    ///
+    /// This endpoint returns a signed URL that can be used to download an artifact from the cache.
+    ///
+    /// - Remark: HTTP `GET /api/cache`.
+    /// - Remark: Generated from `#/paths//api/cache/get(downloadCacheArtifact)`.
+    internal func downloadCacheArtifact(
+        query: Operations.downloadCacheArtifact.Input.Query,
+        headers: Operations.downloadCacheArtifact.Input.Headers = .init()
+    ) async throws -> Operations.downloadCacheArtifact.Output {
+        try await downloadCacheArtifact(Operations.downloadCacheArtifact.Input(
+            query: query,
+            headers: headers
+        ))
+    }
+    /// It completes a multi-part upload.
+    ///
+    /// Given the upload ID and all the parts with their ETags, this endpoint completes the multipart upload.
+    ///
+    /// - Remark: HTTP `POST /api/runs/{run_id}/complete`.
+    /// - Remark: Generated from `#/paths//api/runs/{run_id}/complete/post(completeAnalyticsArtifactMultipartUpload)`.
+    internal func completeAnalyticsArtifactMultipartUpload(
+        path: Operations.completeAnalyticsArtifactMultipartUpload.Input.Path,
+        headers: Operations.completeAnalyticsArtifactMultipartUpload.Input.Headers = .init(),
+        body: Operations.completeAnalyticsArtifactMultipartUpload.Input.Body? = nil
+    ) async throws -> Operations.completeAnalyticsArtifactMultipartUpload.Output {
+        try await completeAnalyticsArtifactMultipartUpload(Operations.completeAnalyticsArtifactMultipartUpload.Input(
+            path: path,
+            headers: headers,
+            body: body
+        ))
+    }
+    /// Lists the organizations
+    ///
+    /// Returns all the organizations the authenticated subject is part of.
+    ///
+    /// - Remark: HTTP `GET /api/organizations`.
+    /// - Remark: Generated from `#/paths//api/organizations/get(listOrganizations)`.
+    internal func listOrganizations(headers: Operations.listOrganizations.Input.Headers = .init()) async throws -> Operations.listOrganizations.Output {
+        try await listOrganizations(Operations.listOrganizations.Input(headers: headers))
+    }
+    /// Creates an organization
+    ///
+    /// Creates an organization with the given name.
+    ///
+    /// - Remark: HTTP `POST /api/organizations`.
+    /// - Remark: Generated from `#/paths//api/organizations/post(createOrganization)`.
+    internal func createOrganization(
+        headers: Operations.createOrganization.Input.Headers = .init(),
+        body: Operations.createOrganization.Input.Body? = nil
+    ) async throws -> Operations.createOrganization.Output {
+        try await createOrganization(Operations.createOrganization.Input(
+            headers: headers,
+            body: body
+        ))
+    }
+    /// Returns a preview with a given id.
+    ///
+    /// This endpoint returns a preview with a given id, including the url to download the preview.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/previews/{preview_id}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/get(downloadPreview)`.
+    internal func downloadPreview(
+        path: Operations.downloadPreview.Input.Path,
+        headers: Operations.downloadPreview.Input.Headers = .init()
+    ) async throws -> Operations.downloadPreview.Output {
+        try await downloadPreview(Operations.downloadPreview.Input(
+            path: path,
+            headers: headers
+        ))
+    }
+    /// It checks if an artifact exists in the cache.
+    ///
+    /// This endpoint checks if an artifact exists in the cache. It returns a 404 status code if the artifact does not exist.
+    ///
+    /// - Remark: HTTP `GET /api/cache/exists`.
+    /// - Remark: Generated from `#/paths//api/cache/exists/get(cacheArtifactExists)`.
+    @available(*, deprecated)
+    internal func cacheArtifactExists(
+        query: Operations.cacheArtifactExists.Input.Query,
+        headers: Operations.cacheArtifactExists.Input.Headers = .init()
+    ) async throws -> Operations.cacheArtifactExists.Output {
+        try await cacheArtifactExists(Operations.cacheArtifactExists.Input(
+            query: query,
+            headers: headers
+        ))
+    }
+    /// Revokes a project token.
+    ///
+    /// - Remark: HTTP `DELETE /api/projects/{account_handle}/{project_handle}/tokens/{id}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/{id}/delete(revokeProjectToken)`.
+    internal func revokeProjectToken(
+        path: Operations.revokeProjectToken.Input.Path,
+        headers: Operations.revokeProjectToken.Input.Headers = .init()
+    ) async throws -> Operations.revokeProjectToken.Output {
+        try await revokeProjectToken(Operations.revokeProjectToken.Input(
+            path: path,
+            headers: headers
+        ))
+    }
+    /// Returns a project based on the handle.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/get(showProject)`.
+    internal func showProject(
+        path: Operations.showProject.Input.Path,
+        headers: Operations.showProject.Input.Headers = .init()
+    ) async throws -> Operations.showProject.Output {
+        try await showProject(Operations.showProject.Input(
+            path: path,
+            headers: headers
+        ))
+    }
+    /// Updates a project
+    ///
+    /// Updates a project with given parameters.
+    ///
+    /// - Remark: HTTP `PUT /api/projects/{account_handle}/{project_handle}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/put(updateProject)`.
+    internal func updateProject(
+        path: Operations.updateProject.Input.Path,
+        headers: Operations.updateProject.Input.Headers = .init(),
+        body: Operations.updateProject.Input.Body? = nil
+    ) async throws -> Operations.updateProject.Output {
+        try await updateProject(Operations.updateProject.Input(
             path: path,
             headers: headers,
             body: body
@@ -581,130 +875,18 @@ extension APIProtocol {
             headers: headers
         ))
     }
-    /// Shows the usage of an organization
+    /// Uploads a preview icon.
     ///
-    /// Returns the usage of the organization with the given identifier. (e.g. number of remote cache hits)
+    /// The endpoint uploads a preview icon.
     ///
-    /// - Remark: HTTP `GET /api/organizations/{organization_name}/usage`.
-    /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/usage/get(showOrganizationUsage)`.
-    internal func showOrganizationUsage(
-        path: Operations.showOrganizationUsage.Input.Path,
-        headers: Operations.showOrganizationUsage.Input.Headers = .init()
-    ) async throws -> Operations.showOrganizationUsage.Output {
-        try await showOrganizationUsage(Operations.showOrganizationUsage.Input(
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/post(uploadPreviewIcon)`.
+    internal func uploadPreviewIcon(
+        path: Operations.uploadPreviewIcon.Input.Path,
+        headers: Operations.uploadPreviewIcon.Input.Headers = .init()
+    ) async throws -> Operations.uploadPreviewIcon.Output {
+        try await uploadPreviewIcon(Operations.uploadPreviewIcon.Input(
             path: path,
-            headers: headers
-        ))
-    }
-    /// List projects the authenticated user has access to.
-    ///
-    /// - Remark: HTTP `GET /api/projects`.
-    /// - Remark: Generated from `#/paths//api/projects/get(listProjects)`.
-    internal func listProjects(headers: Operations.listProjects.Input.Headers = .init()) async throws -> Operations.listProjects.Output {
-        try await listProjects(Operations.listProjects.Input(headers: headers))
-    }
-    /// Create a new project.
-    ///
-    /// - Remark: HTTP `POST /api/projects`.
-    /// - Remark: Generated from `#/paths//api/projects/post(createProject)`.
-    internal func createProject(
-        headers: Operations.createProject.Input.Headers = .init(),
-        body: Operations.createProject.Input.Body? = nil
-    ) async throws -> Operations.createProject.Output {
-        try await createProject(Operations.createProject.Input(
-            headers: headers,
-            body: body
-        ))
-    }
-    /// Returns a project based on the handle.
-    ///
-    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/get(showProject)`.
-    internal func showProject(
-        path: Operations.showProject.Input.Path,
-        headers: Operations.showProject.Input.Headers = .init()
-    ) async throws -> Operations.showProject.Output {
-        try await showProject(Operations.showProject.Input(
-            path: path,
-            headers: headers
-        ))
-    }
-    /// Updates a project
-    ///
-    /// Updates a project with given parameters.
-    ///
-    /// - Remark: HTTP `PUT /api/projects/{account_handle}/{project_handle}`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/put(updateProject)`.
-    internal func updateProject(
-        path: Operations.updateProject.Input.Path,
-        headers: Operations.updateProject.Input.Headers = .init(),
-        body: Operations.updateProject.Input.Body? = nil
-    ) async throws -> Operations.updateProject.Output {
-        try await updateProject(Operations.updateProject.Input(
-            path: path,
-            headers: headers,
-            body: body
-        ))
-    }
-    /// It uploads a given cache action item.
-    ///
-    /// The endpoint caches a given action item without uploading a file. To upload files, use the multipart upload instead.
-    ///
-    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/cache/ac`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/ac/post(uploadCacheActionItem)`.
-    internal func uploadCacheActionItem(
-        path: Operations.uploadCacheActionItem.Input.Path,
-        headers: Operations.uploadCacheActionItem.Input.Headers = .init(),
-        body: Operations.uploadCacheActionItem.Input.Body? = nil
-    ) async throws -> Operations.uploadCacheActionItem.Output {
-        try await uploadCacheActionItem(Operations.uploadCacheActionItem.Input(
-            path: path,
-            headers: headers,
-            body: body
-        ))
-    }
-    /// Get a cache action item.
-    ///
-    /// This endpoint gets an item from the action cache.
-    ///
-    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/cache/ac/{hash}`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/ac/{hash}/get(getCacheActionItem)`.
-    internal func getCacheActionItem(
-        path: Operations.getCacheActionItem.Input.Path,
-        headers: Operations.getCacheActionItem.Input.Headers = .init()
-    ) async throws -> Operations.getCacheActionItem.Output {
-        try await getCacheActionItem(Operations.getCacheActionItem.Input(
-            path: path,
-            headers: headers
-        ))
-    }
-    /// Cleans cache for a given project
-    ///
-    /// - Remark: HTTP `PUT /api/projects/{account_handle}/{project_handle}/cache/clean`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/clean/put(cleanCache)`.
-    internal func cleanCache(
-        path: Operations.cleanCache.Input.Path,
-        headers: Operations.cleanCache.Input.Headers = .init()
-    ) async throws -> Operations.cleanCache.Output {
-        try await cleanCache(Operations.cleanCache.Input(
-            path: path,
-            headers: headers
-        ))
-    }
-    /// List previews.
-    ///
-    /// This endpoint returns a list of previews for a given project.
-    ///
-    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/previews`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/get(listPreviews)`.
-    internal func listPreviews(
-        path: Operations.listPreviews.Input.Path,
-        query: Operations.listPreviews.Input.Query = .init(),
-        headers: Operations.listPreviews.Input.Headers = .init()
-    ) async throws -> Operations.listPreviews.Output {
-        try await listPreviews(Operations.listPreviews.Input(
-            path: path,
-            query: query,
             headers: headers
         ))
     }
@@ -725,113 +907,6 @@ extension APIProtocol {
             body: body
         ))
     }
-    /// It generates a signed URL for uploading a part.
-    ///
-    /// Given an upload ID and a part number, this endpoint returns a signed URL that can be used to upload a part of a multipart upload. The URL is short-lived and expires in 120 seconds.
-    ///
-    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/previews/generate-url`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/generate-url/post(generatePreviewsMultipartUploadURL)`.
-    internal func generatePreviewsMultipartUploadURL(
-        path: Operations.generatePreviewsMultipartUploadURL.Input.Path,
-        headers: Operations.generatePreviewsMultipartUploadURL.Input.Headers = .init(),
-        body: Operations.generatePreviewsMultipartUploadURL.Input.Body? = nil
-    ) async throws -> Operations.generatePreviewsMultipartUploadURL.Output {
-        try await generatePreviewsMultipartUploadURL(Operations.generatePreviewsMultipartUploadURL.Input(
-            path: path,
-            headers: headers,
-            body: body
-        ))
-    }
-    /// It initiates a multipart upload for a preview artifact.
-    ///
-    /// The endpoint returns an upload ID that can be used to generate URLs for the individual parts and complete the upload.
-    ///
-    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/previews/start`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/start/post(startPreviewsMultipartUpload)`.
-    internal func startPreviewsMultipartUpload(
-        path: Operations.startPreviewsMultipartUpload.Input.Path,
-        headers: Operations.startPreviewsMultipartUpload.Input.Headers = .init(),
-        body: Operations.startPreviewsMultipartUpload.Input.Body? = nil
-    ) async throws -> Operations.startPreviewsMultipartUpload.Output {
-        try await startPreviewsMultipartUpload(Operations.startPreviewsMultipartUpload.Input(
-            path: path,
-            headers: headers,
-            body: body
-        ))
-    }
-    /// Returns a preview with a given id.
-    ///
-    /// This endpoint returns a preview with a given id, including the url to download the preview.
-    ///
-    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/previews/{preview_id}`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/get(downloadPreview)`.
-    internal func downloadPreview(
-        path: Operations.downloadPreview.Input.Path,
-        headers: Operations.downloadPreview.Input.Headers = .init()
-    ) async throws -> Operations.downloadPreview.Output {
-        try await downloadPreview(Operations.downloadPreview.Input(
-            path: path,
-            headers: headers
-        ))
-    }
-    /// Uploads a preview icon.
-    ///
-    /// The endpoint uploads a preview icon.
-    ///
-    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/post(uploadPreviewIcon)`.
-    internal func uploadPreviewIcon(
-        path: Operations.uploadPreviewIcon.Input.Path,
-        headers: Operations.uploadPreviewIcon.Input.Headers = .init()
-    ) async throws -> Operations.uploadPreviewIcon.Output {
-        try await uploadPreviewIcon(Operations.uploadPreviewIcon.Input(
-            path: path,
-            headers: headers
-        ))
-    }
-    /// List all project tokens.
-    ///
-    /// This endpoint returns all tokens for a given project.
-    ///
-    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tokens`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/get(listProjectTokens)`.
-    internal func listProjectTokens(
-        path: Operations.listProjectTokens.Input.Path,
-        headers: Operations.listProjectTokens.Input.Headers = .init()
-    ) async throws -> Operations.listProjectTokens.Output {
-        try await listProjectTokens(Operations.listProjectTokens.Input(
-            path: path,
-            headers: headers
-        ))
-    }
-    /// Create a new project token.
-    ///
-    /// This endpoint returns a new project token.
-    ///
-    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tokens`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/post(createProjectToken)`.
-    internal func createProjectToken(
-        path: Operations.createProjectToken.Input.Path,
-        headers: Operations.createProjectToken.Input.Headers = .init()
-    ) async throws -> Operations.createProjectToken.Output {
-        try await createProjectToken(Operations.createProjectToken.Input(
-            path: path,
-            headers: headers
-        ))
-    }
-    /// Revokes a project token.
-    ///
-    /// - Remark: HTTP `DELETE /api/projects/{account_handle}/{project_handle}/tokens/{id}`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/{id}/delete(revokeProjectToken)`.
-    internal func revokeProjectToken(
-        path: Operations.revokeProjectToken.Input.Path,
-        headers: Operations.revokeProjectToken.Input.Headers = .init()
-    ) async throws -> Operations.revokeProjectToken.Output {
-        try await revokeProjectToken(Operations.revokeProjectToken.Input(
-            path: path,
-            headers: headers
-        ))
-    }
     /// Deletes a project with a given id.
     ///
     /// - Remark: HTTP `DELETE /api/projects/{id}`.
@@ -843,23 +918,6 @@ extension APIProtocol {
         try await deleteProject(Operations.deleteProject.Input(
             path: path,
             headers: headers
-        ))
-    }
-    /// It completes a multi-part upload.
-    ///
-    /// Given the upload ID and all the parts with their ETags, this endpoint completes the multipart upload.
-    ///
-    /// - Remark: HTTP `POST /api/runs/{run_id}/complete`.
-    /// - Remark: Generated from `#/paths//api/runs/{run_id}/complete/post(completeAnalyticsArtifactMultipartUpload)`.
-    internal func completeAnalyticsArtifactMultipartUpload(
-        path: Operations.completeAnalyticsArtifactMultipartUpload.Input.Path,
-        headers: Operations.completeAnalyticsArtifactMultipartUpload.Input.Headers = .init(),
-        body: Operations.completeAnalyticsArtifactMultipartUpload.Input.Body? = nil
-    ) async throws -> Operations.completeAnalyticsArtifactMultipartUpload.Output {
-        try await completeAnalyticsArtifactMultipartUpload(Operations.completeAnalyticsArtifactMultipartUpload.Input(
-            path: path,
-            headers: headers,
-            body: body
         ))
     }
     /// Completes artifacts uploads for a given command event
@@ -874,40 +932,6 @@ extension APIProtocol {
         body: Operations.completeAnalyticsArtifactsUploads.Input.Body? = nil
     ) async throws -> Operations.completeAnalyticsArtifactsUploads.Output {
         try await completeAnalyticsArtifactsUploads(Operations.completeAnalyticsArtifactsUploads.Input(
-            path: path,
-            headers: headers,
-            body: body
-        ))
-    }
-    /// It generates a signed URL for uploading a part.
-    ///
-    /// Given an upload ID and a part number, this endpoint returns a signed URL that can be used to upload a part of a multipart upload. The URL is short-lived and expires in 120 seconds.
-    ///
-    /// - Remark: HTTP `POST /api/runs/{run_id}/generate-url`.
-    /// - Remark: Generated from `#/paths//api/runs/{run_id}/generate-url/post(generateAnalyticsArtifactMultipartUploadURL)`.
-    internal func generateAnalyticsArtifactMultipartUploadURL(
-        path: Operations.generateAnalyticsArtifactMultipartUploadURL.Input.Path,
-        headers: Operations.generateAnalyticsArtifactMultipartUploadURL.Input.Headers = .init(),
-        body: Operations.generateAnalyticsArtifactMultipartUploadURL.Input.Body? = nil
-    ) async throws -> Operations.generateAnalyticsArtifactMultipartUploadURL.Output {
-        try await generateAnalyticsArtifactMultipartUploadURL(Operations.generateAnalyticsArtifactMultipartUploadURL.Input(
-            path: path,
-            headers: headers,
-            body: body
-        ))
-    }
-    /// It initiates a multipart upload for a command event artifact.
-    ///
-    /// The endpoint returns an upload ID that can be used to generate URLs for the individual parts and complete the upload.
-    ///
-    /// - Remark: HTTP `POST /api/runs/{run_id}/start`.
-    /// - Remark: Generated from `#/paths//api/runs/{run_id}/start/post(startAnalyticsArtifactMultipartUpload)`.
-    internal func startAnalyticsArtifactMultipartUpload(
-        path: Operations.startAnalyticsArtifactMultipartUpload.Input.Path,
-        headers: Operations.startAnalyticsArtifactMultipartUpload.Input.Headers = .init(),
-        body: Operations.startAnalyticsArtifactMultipartUpload.Input.Body? = nil
-    ) async throws -> Operations.startAnalyticsArtifactMultipartUpload.Output {
-        try await startAnalyticsArtifactMultipartUpload(Operations.startAnalyticsArtifactMultipartUpload.Input(
             path: path,
             headers: headers,
             body: body
@@ -963,6 +987,25 @@ internal enum Components {
             }
             internal enum CodingKeys: String, CodingKey {
                 case organizations
+            }
+        }
+        /// A new account token.
+        ///
+        /// - Remark: Generated from `#/components/schemas/AccountFullToken`.
+        internal struct AccountFullToken: Codable, Hashable, Sendable {
+            /// The generated account token.
+            ///
+            /// - Remark: Generated from `#/components/schemas/AccountFullToken/token`.
+            internal var token: Swift.String
+            /// Creates a new `AccountFullToken`.
+            ///
+            /// - Parameters:
+            ///   - token: The generated account token.
+            internal init(token: Swift.String) {
+                self.token = token
+            }
+            internal enum CodingKeys: String, CodingKey {
+                case token
             }
         }
         /// The upload has been initiated and a ID is returned to upload the various parts using multi-part uploads
@@ -1774,6 +1817,41 @@ internal enum Components {
                 case inserted_at
             }
         }
+        /// The request to create a new account token.
+        ///
+        /// - Remark: Generated from `#/components/schemas/AccountTokenRequest`.
+        internal struct AccountTokenRequest: Codable, Hashable, Sendable {
+            /// The scope of the token.
+            ///
+            /// - Remark: Generated from `#/components/schemas/AccountTokenRequest/scopesPayload`.
+            internal enum scopesPayloadPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case account_registry_read = "account_registry_read"
+            }
+            /// The scopes for the new account token.
+            ///
+            /// - Remark: Generated from `#/components/schemas/AccountTokenRequest/scopes`.
+            internal typealias scopesPayload = [Components.Schemas.AccountTokenRequest.scopesPayloadPayload]
+            /// The scopes for the new account token.
+            ///
+            /// - Remark: Generated from `#/components/schemas/AccountTokenRequest/scopes`.
+            internal var scopes: Components.Schemas.AccountTokenRequest.scopesPayload
+            /// Creates a new `AccountTokenRequest`.
+            ///
+            /// - Parameters:
+            ///   - scopes: The scopes for the new account token.
+            internal init(scopes: Components.Schemas.AccountTokenRequest.scopesPayload) {
+                self.scopes = scopes
+            }
+            internal enum CodingKeys: String, CodingKey {
+                case scopes
+            }
+        }
+        /// The scope of the token.
+        ///
+        /// - Remark: Generated from `#/components/schemas/AccountTokenScope`.
+        internal enum AccountTokenScope: String, Codable, Hashable, Sendable, CaseIterable {
+            case account_registry_read = "account_registry_read"
+        }
         /// The usage of an organization.
         ///
         /// - Remark: Generated from `#/components/schemas/OrganizationUsage`.
@@ -2121,6 +2199,454 @@ internal enum Components {
 
 /// API operations, with input and output types, generated from `#/paths` in the OpenAPI document.
 internal enum Operations {
+    /// It completes a multi-part upload.
+    ///
+    /// Given the upload ID and all the parts with their ETags, this endpoint completes the multipart upload. The cache will then be able to serve the artifact.
+    ///
+    /// - Remark: HTTP `POST /api/cache/multipart/complete`.
+    /// - Remark: Generated from `#/paths//api/cache/multipart/complete/post(completeCacheArtifactMultipartUpload)`.
+    internal enum completeCacheArtifactMultipartUpload {
+        internal static let id: Swift.String = "completeCacheArtifactMultipartUpload"
+        internal struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/cache/multipart/complete/POST/query`.
+            internal struct Query: Sendable, Hashable {
+                /// The category of the cache. It's used to differentiate between different types of caches.
+                ///
+                /// - Remark: Generated from `#/paths/api/cache/multipart/complete/POST/query/cache_category`.
+                internal var cache_category: Components.Schemas.CacheCategory?
+                /// The project identifier '{account_name}/{project_name}'.
+                ///
+                /// - Remark: Generated from `#/paths/api/cache/multipart/complete/POST/query/project_id`.
+                internal var project_id: Swift.String
+                /// The hash that uniquely identifies the artifact in the cache.
+                ///
+                /// - Remark: Generated from `#/paths/api/cache/multipart/complete/POST/query/hash`.
+                internal var hash: Swift.String
+                /// The upload ID.
+                ///
+                /// - Remark: Generated from `#/paths/api/cache/multipart/complete/POST/query/upload_id`.
+                internal var upload_id: Swift.String
+                /// The name of the artifact.
+                ///
+                /// - Remark: Generated from `#/paths/api/cache/multipart/complete/POST/query/name`.
+                internal var name: Swift.String
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - cache_category: The category of the cache. It's used to differentiate between different types of caches.
+                ///   - project_id: The project identifier '{account_name}/{project_name}'.
+                ///   - hash: The hash that uniquely identifies the artifact in the cache.
+                ///   - upload_id: The upload ID.
+                ///   - name: The name of the artifact.
+                internal init(
+                    cache_category: Components.Schemas.CacheCategory? = nil,
+                    project_id: Swift.String,
+                    hash: Swift.String,
+                    upload_id: Swift.String,
+                    name: Swift.String
+                ) {
+                    self.cache_category = cache_category
+                    self.project_id = project_id
+                    self.hash = hash
+                    self.upload_id = upload_id
+                    self.name = name
+                }
+            }
+            internal var query: Operations.completeCacheArtifactMultipartUpload.Input.Query
+            /// - Remark: Generated from `#/paths/api/cache/multipart/complete/POST/header`.
+            internal struct Headers: Sendable, Hashable {
+                internal var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.completeCacheArtifactMultipartUpload.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                internal init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.completeCacheArtifactMultipartUpload.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            internal var headers: Operations.completeCacheArtifactMultipartUpload.Input.Headers
+            /// - Remark: Generated from `#/paths/api/cache/multipart/complete/POST/requestBody`.
+            internal enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/cache/multipart/complete/POST/requestBody/json`.
+                internal struct jsonPayload: Codable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/paths/api/cache/multipart/complete/POST/requestBody/json/partsPayload`.
+                    internal struct partsPayloadPayload: Codable, Hashable, Sendable {
+                        /// The ETag of the part
+                        ///
+                        /// - Remark: Generated from `#/paths/api/cache/multipart/complete/POST/requestBody/json/partsPayload/etag`.
+                        internal var etag: Swift.String?
+                        /// The part number
+                        ///
+                        /// - Remark: Generated from `#/paths/api/cache/multipart/complete/POST/requestBody/json/partsPayload/part_number`.
+                        internal var part_number: Swift.Int?
+                        /// Creates a new `partsPayloadPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - etag: The ETag of the part
+                        ///   - part_number: The part number
+                        internal init(
+                            etag: Swift.String? = nil,
+                            part_number: Swift.Int? = nil
+                        ) {
+                            self.etag = etag
+                            self.part_number = part_number
+                        }
+                        internal enum CodingKeys: String, CodingKey {
+                            case etag
+                            case part_number
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/cache/multipart/complete/POST/requestBody/json/parts`.
+                    internal typealias partsPayload = [Operations.completeCacheArtifactMultipartUpload.Input.Body.jsonPayload.partsPayloadPayload]
+                    /// - Remark: Generated from `#/paths/api/cache/multipart/complete/POST/requestBody/json/parts`.
+                    internal var parts: Operations.completeCacheArtifactMultipartUpload.Input.Body.jsonPayload.partsPayload?
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - parts:
+                    internal init(parts: Operations.completeCacheArtifactMultipartUpload.Input.Body.jsonPayload.partsPayload? = nil) {
+                        self.parts = parts
+                    }
+                    internal enum CodingKeys: String, CodingKey {
+                        case parts
+                    }
+                }
+                /// - Remark: Generated from `#/paths/api/cache/multipart/complete/POST/requestBody/content/application\/json`.
+                case json(Operations.completeCacheArtifactMultipartUpload.Input.Body.jsonPayload)
+            }
+            internal var body: Operations.completeCacheArtifactMultipartUpload.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - query:
+            ///   - headers:
+            ///   - body:
+            internal init(
+                query: Operations.completeCacheArtifactMultipartUpload.Input.Query,
+                headers: Operations.completeCacheArtifactMultipartUpload.Input.Headers = .init(),
+                body: Operations.completeCacheArtifactMultipartUpload.Input.Body? = nil
+            ) {
+                self.query = query
+                self.headers = headers
+                self.body = body
+            }
+        }
+        internal enum Output: Sendable, Hashable {
+            internal struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/cache/multipart/complete/POST/responses/200/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// This response confirms that the upload has been completed successfully. The cache will now be able to serve the artifact.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/cache/multipart/complete/POST/responses/200/content/json`.
+                    internal struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/cache/multipart/complete/POST/responses/200/content/json/data`.
+                        internal var data: OpenAPIRuntime.OpenAPIObjectContainer?
+                        /// - Remark: Generated from `#/paths/api/cache/multipart/complete/POST/responses/200/content/json/status`.
+                        internal enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case success = "success"
+                        }
+                        /// - Remark: Generated from `#/paths/api/cache/multipart/complete/POST/responses/200/content/json/status`.
+                        internal var status: Operations.completeCacheArtifactMultipartUpload.Output.Ok.Body.jsonPayload.statusPayload?
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - data:
+                        ///   - status:
+                        internal init(
+                            data: OpenAPIRuntime.OpenAPIObjectContainer? = nil,
+                            status: Operations.completeCacheArtifactMultipartUpload.Output.Ok.Body.jsonPayload.statusPayload? = nil
+                        ) {
+                            self.data = data
+                            self.status = status
+                        }
+                        internal enum CodingKeys: String, CodingKey {
+                            case data
+                            case status
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/cache/multipart/complete/POST/responses/200/content/application\/json`.
+                    case json(Operations.completeCacheArtifactMultipartUpload.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Operations.completeCacheArtifactMultipartUpload.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.completeCacheArtifactMultipartUpload.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.completeCacheArtifactMultipartUpload.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The upload has been completed
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/multipart/complete/post(completeCacheArtifactMultipartUpload)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.completeCacheArtifactMultipartUpload.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            internal var ok: Operations.completeCacheArtifactMultipartUpload.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/cache/multipart/complete/POST/responses/401/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/cache/multipart/complete/POST/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.completeCacheArtifactMultipartUpload.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.completeCacheArtifactMultipartUpload.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/multipart/complete/post(completeCacheArtifactMultipartUpload)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.completeCacheArtifactMultipartUpload.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            internal var unauthorized: Operations.completeCacheArtifactMultipartUpload.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct Code402: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/cache/multipart/complete/POST/responses/402/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/cache/multipart/complete/POST/responses/402/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.completeCacheArtifactMultipartUpload.Output.Code402.Body
+                /// Creates a new `Code402`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.completeCacheArtifactMultipartUpload.Output.Code402.Body) {
+                    self.body = body
+                }
+            }
+            /// The account has an invalid plan
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/multipart/complete/post(completeCacheArtifactMultipartUpload)/responses/402`.
+            ///
+            /// HTTP response code: `402 code402`.
+            case code402(Operations.completeCacheArtifactMultipartUpload.Output.Code402)
+            /// The associated value of the enum case if `self` is `.code402`.
+            ///
+            /// - Throws: An error if `self` is not `.code402`.
+            /// - SeeAlso: `.code402`.
+            internal var code402: Operations.completeCacheArtifactMultipartUpload.Output.Code402 {
+                get throws {
+                    switch self {
+                    case let .code402(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "code402",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/cache/multipart/complete/POST/responses/403/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/cache/multipart/complete/POST/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.completeCacheArtifactMultipartUpload.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.completeCacheArtifactMultipartUpload.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized to perform this action
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/multipart/complete/post(completeCacheArtifactMultipartUpload)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.completeCacheArtifactMultipartUpload.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            internal var forbidden: Operations.completeCacheArtifactMultipartUpload.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/cache/multipart/complete/POST/responses/404/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/cache/multipart/complete/POST/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.completeCacheArtifactMultipartUpload.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.completeCacheArtifactMultipartUpload.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The project doesn't exist
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/multipart/complete/post(completeCacheArtifactMultipartUpload)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.completeCacheArtifactMultipartUpload.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            internal var notFound: Operations.completeCacheArtifactMultipartUpload.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        internal enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            internal init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            internal var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            internal static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
     /// Create a a new command analytics event
     ///
     /// - Remark: HTTP `POST /api/analytics`.
@@ -2577,6 +3103,427 @@ internal enum Operations {
             }
         }
     }
+    /// It initiates a multipart upload for a preview artifact.
+    ///
+    /// The endpoint returns an upload ID that can be used to generate URLs for the individual parts and complete the upload.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/previews/start`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/start/post(startPreviewsMultipartUpload)`.
+    internal enum startPreviewsMultipartUpload {
+        internal static let id: Swift.String = "startPreviewsMultipartUpload"
+        internal struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/path`.
+            internal struct Path: Sendable, Hashable {
+                /// The handle of the account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/path/account_handle`.
+                internal var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/path/project_handle`.
+                internal var project_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the account.
+                ///   - project_handle: The handle of the project.
+                internal init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                }
+            }
+            internal var path: Operations.startPreviewsMultipartUpload.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/header`.
+            internal struct Headers: Sendable, Hashable {
+                internal var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.startPreviewsMultipartUpload.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                internal init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.startPreviewsMultipartUpload.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            internal var headers: Operations.startPreviewsMultipartUpload.Input.Headers
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/requestBody`.
+            internal enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/requestBody/json`.
+                internal struct jsonPayload: Codable, Hashable, Sendable {
+                    /// The bundle identifier of the preview.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/requestBody/json/bundle_identifier`.
+                    internal var bundle_identifier: Swift.String?
+                    /// The display name of the preview.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/requestBody/json/display_name`.
+                    internal var display_name: Swift.String?
+                    /// The supported platforms of the preview.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/requestBody/json/supported_platforms`.
+                    internal var supported_platforms: [Components.Schemas.PreviewSupportedPlatform]?
+                    /// The type of the preview to upload.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/requestBody/json/type`.
+                    internal enum _typePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                        case app_bundle = "app_bundle"
+                        case ipa = "ipa"
+                    }
+                    /// The type of the preview to upload.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/requestBody/json/type`.
+                    internal var _type: Operations.startPreviewsMultipartUpload.Input.Body.jsonPayload._typePayload?
+                    /// The version of the preview.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/requestBody/json/version`.
+                    internal var version: Swift.String?
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - bundle_identifier: The bundle identifier of the preview.
+                    ///   - display_name: The display name of the preview.
+                    ///   - supported_platforms: The supported platforms of the preview.
+                    ///   - _type: The type of the preview to upload.
+                    ///   - version: The version of the preview.
+                    internal init(
+                        bundle_identifier: Swift.String? = nil,
+                        display_name: Swift.String? = nil,
+                        supported_platforms: [Components.Schemas.PreviewSupportedPlatform]? = nil,
+                        _type: Operations.startPreviewsMultipartUpload.Input.Body.jsonPayload._typePayload? = nil,
+                        version: Swift.String? = nil
+                    ) {
+                        self.bundle_identifier = bundle_identifier
+                        self.display_name = display_name
+                        self.supported_platforms = supported_platforms
+                        self._type = _type
+                        self.version = version
+                    }
+                    internal enum CodingKeys: String, CodingKey {
+                        case bundle_identifier
+                        case display_name
+                        case supported_platforms
+                        case _type = "type"
+                        case version
+                    }
+                }
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/requestBody/content/application\/json`.
+                case json(Operations.startPreviewsMultipartUpload.Input.Body.jsonPayload)
+            }
+            internal var body: Operations.startPreviewsMultipartUpload.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            ///   - body:
+            internal init(
+                path: Operations.startPreviewsMultipartUpload.Input.Path,
+                headers: Operations.startPreviewsMultipartUpload.Input.Headers = .init(),
+                body: Operations.startPreviewsMultipartUpload.Input.Body? = nil
+            ) {
+                self.path = path
+                self.headers = headers
+                self.body = body
+            }
+        }
+        internal enum Output: Sendable, Hashable {
+            internal struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/responses/200/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// The upload has been initiated and preview and upload unique identifier are returned to upload the various parts using multi-part uploads
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/responses/200/content/json`.
+                    internal struct jsonPayload: Codable, Hashable, Sendable {
+                        /// Data that contains preview and upload unique identifier associated with the multipart upload to use when uploading parts
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/responses/200/content/json/data`.
+                        internal struct dataPayload: Codable, Hashable, Sendable {
+                            /// The id of the preview.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/responses/200/content/json/data/preview_id`.
+                            internal var preview_id: Swift.String
+                            /// The upload ID
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/responses/200/content/json/data/upload_id`.
+                            internal var upload_id: Swift.String
+                            /// Creates a new `dataPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - preview_id: The id of the preview.
+                            ///   - upload_id: The upload ID
+                            internal init(
+                                preview_id: Swift.String,
+                                upload_id: Swift.String
+                            ) {
+                                self.preview_id = preview_id
+                                self.upload_id = upload_id
+                            }
+                            internal enum CodingKeys: String, CodingKey {
+                                case preview_id
+                                case upload_id
+                            }
+                        }
+                        /// Data that contains preview and upload unique identifier associated with the multipart upload to use when uploading parts
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/responses/200/content/json/data`.
+                        internal var data: Operations.startPreviewsMultipartUpload.Output.Ok.Body.jsonPayload.dataPayload
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/responses/200/content/json/status`.
+                        internal enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case success = "success"
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/responses/200/content/json/status`.
+                        internal var status: Operations.startPreviewsMultipartUpload.Output.Ok.Body.jsonPayload.statusPayload
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - data: Data that contains preview and upload unique identifier associated with the multipart upload to use when uploading parts
+                        ///   - status:
+                        internal init(
+                            data: Operations.startPreviewsMultipartUpload.Output.Ok.Body.jsonPayload.dataPayload,
+                            status: Operations.startPreviewsMultipartUpload.Output.Ok.Body.jsonPayload.statusPayload
+                        ) {
+                            self.data = data
+                            self.status = status
+                        }
+                        internal enum CodingKeys: String, CodingKey {
+                            case data
+                            case status
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/responses/200/content/application\/json`.
+                    case json(Operations.startPreviewsMultipartUpload.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Operations.startPreviewsMultipartUpload.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.startPreviewsMultipartUpload.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.startPreviewsMultipartUpload.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The upload has been started
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/start/post(startPreviewsMultipartUpload)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.startPreviewsMultipartUpload.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            internal var ok: Operations.startPreviewsMultipartUpload.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/responses/401/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.startPreviewsMultipartUpload.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.startPreviewsMultipartUpload.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/start/post(startPreviewsMultipartUpload)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.startPreviewsMultipartUpload.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            internal var unauthorized: Operations.startPreviewsMultipartUpload.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/responses/403/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.startPreviewsMultipartUpload.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.startPreviewsMultipartUpload.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized to perform this action
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/start/post(startPreviewsMultipartUpload)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.startPreviewsMultipartUpload.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            internal var forbidden: Operations.startPreviewsMultipartUpload.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/responses/404/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.startPreviewsMultipartUpload.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.startPreviewsMultipartUpload.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The project doesn't exist
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/start/post(startPreviewsMultipartUpload)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.startPreviewsMultipartUpload.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            internal var notFound: Operations.startPreviewsMultipartUpload.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        internal enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            internal init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            internal var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            internal static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
     /// Authenticate with email and password.
     ///
     /// This endpoint returns API tokens for a given email and password.
@@ -2735,6 +3682,197 @@ internal enum Operations {
             /// - Throws: An error if `self` is not `.unauthorized`.
             /// - SeeAlso: `.unauthorized`.
             internal var unauthorized: Operations.authenticate.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        internal enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            internal init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            internal var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            internal static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Request new tokens.
+    ///
+    /// This endpoint returns new tokens for a given refresh token if the refresh token is valid.
+    ///
+    /// - Remark: HTTP `POST /api/auth/refresh_token`.
+    /// - Remark: Generated from `#/paths//api/auth/refresh_token/post(refreshToken)`.
+    internal enum refreshToken {
+        internal static let id: Swift.String = "refreshToken"
+        internal struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/auth/refresh_token/POST/header`.
+            internal struct Headers: Sendable, Hashable {
+                internal var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.refreshToken.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                internal init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.refreshToken.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            internal var headers: Operations.refreshToken.Input.Headers
+            /// - Remark: Generated from `#/paths/api/auth/refresh_token/POST/requestBody`.
+            internal enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/auth/refresh_token/POST/requestBody/json`.
+                internal struct jsonPayload: Codable, Hashable, Sendable {
+                    /// User refresh token
+                    ///
+                    /// - Remark: Generated from `#/paths/api/auth/refresh_token/POST/requestBody/json/refresh_token`.
+                    internal var refresh_token: Swift.String
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - refresh_token: User refresh token
+                    internal init(refresh_token: Swift.String) {
+                        self.refresh_token = refresh_token
+                    }
+                    internal enum CodingKeys: String, CodingKey {
+                        case refresh_token
+                    }
+                }
+                /// - Remark: Generated from `#/paths/api/auth/refresh_token/POST/requestBody/content/application\/json`.
+                case json(Operations.refreshToken.Input.Body.jsonPayload)
+            }
+            internal var body: Operations.refreshToken.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            ///   - body:
+            internal init(
+                headers: Operations.refreshToken.Input.Headers = .init(),
+                body: Operations.refreshToken.Input.Body? = nil
+            ) {
+                self.headers = headers
+                self.body = body
+            }
+        }
+        internal enum Output: Sendable, Hashable {
+            internal struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/auth/refresh_token/POST/responses/200/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/auth/refresh_token/POST/responses/200/content/application\/json`.
+                    case json(Components.Schemas.AuthenticationTokens)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas.AuthenticationTokens {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.refreshToken.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.refreshToken.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Succcessfully generated new API tokens.
+            ///
+            /// - Remark: Generated from `#/paths//api/auth/refresh_token/post(refreshToken)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.refreshToken.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            internal var ok: Operations.refreshToken.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/auth/refresh_token/POST/responses/401/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/auth/refresh_token/POST/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.refreshToken.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.refreshToken.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to issue new tokens
+            ///
+            /// - Remark: Generated from `#/paths//api/auth/refresh_token/post(refreshToken)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.refreshToken.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            internal var unauthorized: Operations.refreshToken.Output.Unauthorized {
                 get throws {
                     switch self {
                     case let .unauthorized(response):
@@ -3050,74 +4188,75 @@ internal enum Operations {
             }
         }
     }
-    /// Request new tokens.
+    /// It initiates a multipart upload for a command event artifact.
     ///
-    /// This endpoint returns new tokens for a given refresh token if the refresh token is valid.
+    /// The endpoint returns an upload ID that can be used to generate URLs for the individual parts and complete the upload.
     ///
-    /// - Remark: HTTP `POST /api/auth/refresh_token`.
-    /// - Remark: Generated from `#/paths//api/auth/refresh_token/post(refreshToken)`.
-    internal enum refreshToken {
-        internal static let id: Swift.String = "refreshToken"
+    /// - Remark: HTTP `POST /api/runs/{run_id}/start`.
+    /// - Remark: Generated from `#/paths//api/runs/{run_id}/start/post(startAnalyticsArtifactMultipartUpload)`.
+    internal enum startAnalyticsArtifactMultipartUpload {
+        internal static let id: Swift.String = "startAnalyticsArtifactMultipartUpload"
         internal struct Input: Sendable, Hashable {
-            /// - Remark: Generated from `#/paths/api/auth/refresh_token/POST/header`.
+            /// - Remark: Generated from `#/paths/api/runs/{run_id}/start/POST/path`.
+            internal struct Path: Sendable, Hashable {
+                /// The id of the command event.
+                ///
+                /// - Remark: Generated from `#/paths/api/runs/{run_id}/start/POST/path/run_id`.
+                internal var run_id: Swift.Int
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - run_id: The id of the command event.
+                internal init(run_id: Swift.Int) {
+                    self.run_id = run_id
+                }
+            }
+            internal var path: Operations.startAnalyticsArtifactMultipartUpload.Input.Path
+            /// - Remark: Generated from `#/paths/api/runs/{run_id}/start/POST/header`.
             internal struct Headers: Sendable, Hashable {
-                internal var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.refreshToken.AcceptableContentType>]
+                internal var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.startAnalyticsArtifactMultipartUpload.AcceptableContentType>]
                 /// Creates a new `Headers`.
                 ///
                 /// - Parameters:
                 ///   - accept:
-                internal init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.refreshToken.AcceptableContentType>] = .defaultValues()) {
+                internal init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.startAnalyticsArtifactMultipartUpload.AcceptableContentType>] = .defaultValues()) {
                     self.accept = accept
                 }
             }
-            internal var headers: Operations.refreshToken.Input.Headers
-            /// - Remark: Generated from `#/paths/api/auth/refresh_token/POST/requestBody`.
+            internal var headers: Operations.startAnalyticsArtifactMultipartUpload.Input.Headers
+            /// - Remark: Generated from `#/paths/api/runs/{run_id}/start/POST/requestBody`.
             internal enum Body: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/auth/refresh_token/POST/requestBody/json`.
-                internal struct jsonPayload: Codable, Hashable, Sendable {
-                    /// User refresh token
-                    ///
-                    /// - Remark: Generated from `#/paths/api/auth/refresh_token/POST/requestBody/json/refresh_token`.
-                    internal var refresh_token: Swift.String
-                    /// Creates a new `jsonPayload`.
-                    ///
-                    /// - Parameters:
-                    ///   - refresh_token: User refresh token
-                    internal init(refresh_token: Swift.String) {
-                        self.refresh_token = refresh_token
-                    }
-                    internal enum CodingKeys: String, CodingKey {
-                        case refresh_token
-                    }
-                }
-                /// - Remark: Generated from `#/paths/api/auth/refresh_token/POST/requestBody/content/application\/json`.
-                case json(Operations.refreshToken.Input.Body.jsonPayload)
+                /// - Remark: Generated from `#/paths/api/runs/{run_id}/start/POST/requestBody/content/application\/json`.
+                case json(Components.Schemas.CommandEventArtifact)
             }
-            internal var body: Operations.refreshToken.Input.Body?
+            internal var body: Operations.startAnalyticsArtifactMultipartUpload.Input.Body?
             /// Creates a new `Input`.
             ///
             /// - Parameters:
+            ///   - path:
             ///   - headers:
             ///   - body:
             internal init(
-                headers: Operations.refreshToken.Input.Headers = .init(),
-                body: Operations.refreshToken.Input.Body? = nil
+                path: Operations.startAnalyticsArtifactMultipartUpload.Input.Path,
+                headers: Operations.startAnalyticsArtifactMultipartUpload.Input.Headers = .init(),
+                body: Operations.startAnalyticsArtifactMultipartUpload.Input.Body? = nil
             ) {
+                self.path = path
                 self.headers = headers
                 self.body = body
             }
         }
         internal enum Output: Sendable, Hashable {
             internal struct Ok: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/auth/refresh_token/POST/responses/200/content`.
+                /// - Remark: Generated from `#/paths/api/runs/{run_id}/start/POST/responses/200/content`.
                 internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/auth/refresh_token/POST/responses/200/content/application\/json`.
-                    case json(Components.Schemas.AuthenticationTokens)
+                    /// - Remark: Generated from `#/paths/api/runs/{run_id}/start/POST/responses/200/content/application\/json`.
+                    case json(Components.Schemas.ArtifactUploadID)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas.AuthenticationTokens {
+                    internal var json: Components.Schemas.ArtifactUploadID {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -3127,26 +4266,26 @@ internal enum Operations {
                     }
                 }
                 /// Received HTTP response body
-                internal var body: Operations.refreshToken.Output.Ok.Body
+                internal var body: Operations.startAnalyticsArtifactMultipartUpload.Output.Ok.Body
                 /// Creates a new `Ok`.
                 ///
                 /// - Parameters:
                 ///   - body: Received HTTP response body
-                internal init(body: Operations.refreshToken.Output.Ok.Body) {
+                internal init(body: Operations.startAnalyticsArtifactMultipartUpload.Output.Ok.Body) {
                     self.body = body
                 }
             }
-            /// Succcessfully generated new API tokens.
+            /// The upload has been started
             ///
-            /// - Remark: Generated from `#/paths//api/auth/refresh_token/post(refreshToken)/responses/200`.
+            /// - Remark: Generated from `#/paths//api/runs/{run_id}/start/post(startAnalyticsArtifactMultipartUpload)/responses/200`.
             ///
             /// HTTP response code: `200 ok`.
-            case ok(Operations.refreshToken.Output.Ok)
+            case ok(Operations.startAnalyticsArtifactMultipartUpload.Output.Ok)
             /// The associated value of the enum case if `self` is `.ok`.
             ///
             /// - Throws: An error if `self` is not `.ok`.
             /// - SeeAlso: `.ok`.
-            internal var ok: Operations.refreshToken.Output.Ok {
+            internal var ok: Operations.startAnalyticsArtifactMultipartUpload.Output.Ok {
                 get throws {
                     switch self {
                     case let .ok(response):
@@ -3160,9 +4299,9 @@ internal enum Operations {
                 }
             }
             internal struct Unauthorized: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/auth/refresh_token/POST/responses/401/content`.
+                /// - Remark: Generated from `#/paths/api/runs/{run_id}/start/POST/responses/401/content`.
                 internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/auth/refresh_token/POST/responses/401/content/application\/json`.
+                    /// - Remark: Generated from `#/paths/api/runs/{run_id}/start/POST/responses/401/content/application\/json`.
                     case json(Components.Schemas._Error)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
@@ -3178,26 +4317,1137 @@ internal enum Operations {
                     }
                 }
                 /// Received HTTP response body
-                internal var body: Operations.refreshToken.Output.Unauthorized.Body
+                internal var body: Operations.startAnalyticsArtifactMultipartUpload.Output.Unauthorized.Body
                 /// Creates a new `Unauthorized`.
                 ///
                 /// - Parameters:
                 ///   - body: Received HTTP response body
-                internal init(body: Operations.refreshToken.Output.Unauthorized.Body) {
+                internal init(body: Operations.startAnalyticsArtifactMultipartUpload.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/runs/{run_id}/start/post(startAnalyticsArtifactMultipartUpload)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.startAnalyticsArtifactMultipartUpload.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            internal var unauthorized: Operations.startAnalyticsArtifactMultipartUpload.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/runs/{run_id}/start/POST/responses/403/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/runs/{run_id}/start/POST/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.startAnalyticsArtifactMultipartUpload.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.startAnalyticsArtifactMultipartUpload.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized to perform this action
+            ///
+            /// - Remark: Generated from `#/paths//api/runs/{run_id}/start/post(startAnalyticsArtifactMultipartUpload)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.startAnalyticsArtifactMultipartUpload.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            internal var forbidden: Operations.startAnalyticsArtifactMultipartUpload.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/runs/{run_id}/start/POST/responses/404/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/runs/{run_id}/start/POST/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.startAnalyticsArtifactMultipartUpload.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.startAnalyticsArtifactMultipartUpload.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The command event doesn't exist
+            ///
+            /// - Remark: Generated from `#/paths//api/runs/{run_id}/start/post(startAnalyticsArtifactMultipartUpload)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.startAnalyticsArtifactMultipartUpload.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            internal var notFound: Operations.startAnalyticsArtifactMultipartUpload.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        internal enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            internal init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            internal var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            internal static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// List projects the authenticated user has access to.
+    ///
+    /// - Remark: HTTP `GET /api/projects`.
+    /// - Remark: Generated from `#/paths//api/projects/get(listProjects)`.
+    internal enum listProjects {
+        internal static let id: Swift.String = "listProjects"
+        internal struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/GET/header`.
+            internal struct Headers: Sendable, Hashable {
+                internal var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listProjects.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                internal init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listProjects.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            internal var headers: Operations.listProjects.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            internal init(headers: Operations.listProjects.Input.Headers = .init()) {
+                self.headers = headers
+            }
+        }
+        internal enum Output: Sendable, Hashable {
+            internal struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/GET/responses/200/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/GET/responses/200/content/json`.
+                    internal struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/projects/GET/responses/200/content/json/projects`.
+                        internal var projects: [Components.Schemas.Project]
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - projects:
+                        internal init(projects: [Components.Schemas.Project]) {
+                            self.projects = projects
+                        }
+                        internal enum CodingKeys: String, CodingKey {
+                            case projects
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/GET/responses/200/content/application\/json`.
+                    case json(Operations.listProjects.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Operations.listProjects.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.listProjects.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.listProjects.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// List of projects
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/get(listProjects)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.listProjects.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            internal var ok: Operations.listProjects.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/GET/responses/401/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/GET/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.listProjects.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.listProjects.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/get(listProjects)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.listProjects.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            internal var unauthorized: Operations.listProjects.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        internal enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            internal init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            internal var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            internal static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Create a new project.
+    ///
+    /// - Remark: HTTP `POST /api/projects`.
+    /// - Remark: Generated from `#/paths//api/projects/post(createProject)`.
+    internal enum createProject {
+        internal static let id: Swift.String = "createProject"
+        internal struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/POST/header`.
+            internal struct Headers: Sendable, Hashable {
+                internal var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createProject.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                internal init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createProject.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            internal var headers: Operations.createProject.Input.Headers
+            /// - Remark: Generated from `#/paths/api/projects/POST/requestBody`.
+            internal enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/POST/requestBody/json`.
+                internal struct jsonPayload: Codable, Hashable, Sendable {
+                    /// The full handle of the project that should be created.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/POST/requestBody/json/full_handle`.
+                    internal var full_handle: Swift.String?
+                    /// The name of the project that should be created.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/POST/requestBody/json/name`.
+                    @available(*, deprecated)
+                    internal var name: Swift.String?
+                    /// Organization to create the project with. If not specified, the project will be created with the current user's personal account.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/POST/requestBody/json/organization`.
+                    @available(*, deprecated)
+                    internal var organization: Swift.String?
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - full_handle: The full handle of the project that should be created.
+                    ///   - name: The name of the project that should be created.
+                    ///   - organization: Organization to create the project with. If not specified, the project will be created with the current user's personal account.
+                    internal init(
+                        full_handle: Swift.String? = nil,
+                        name: Swift.String? = nil,
+                        organization: Swift.String? = nil
+                    ) {
+                        self.full_handle = full_handle
+                        self.name = name
+                        self.organization = organization
+                    }
+                    internal enum CodingKeys: String, CodingKey {
+                        case full_handle
+                        case name
+                        case organization
+                    }
+                }
+                /// - Remark: Generated from `#/paths/api/projects/POST/requestBody/content/application\/json`.
+                case json(Operations.createProject.Input.Body.jsonPayload)
+            }
+            internal var body: Operations.createProject.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            ///   - body:
+            internal init(
+                headers: Operations.createProject.Input.Headers = .init(),
+                body: Operations.createProject.Input.Body? = nil
+            ) {
+                self.headers = headers
+                self.body = body
+            }
+        }
+        internal enum Output: Sendable, Hashable {
+            internal struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/POST/responses/200/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/POST/responses/200/content/application\/json`.
+                    case json(Components.Schemas.Project)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas.Project {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.createProject.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.createProject.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The project was created
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/post(createProject)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.createProject.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            internal var ok: Operations.createProject.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/POST/responses/400/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/POST/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.createProject.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.createProject.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// The account was not found
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/post(createProject)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.createProject.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            internal var badRequest: Operations.createProject.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/POST/responses/401/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/POST/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.createProject.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.createProject.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/post(createProject)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.createProject.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            internal var unauthorized: Operations.createProject.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/POST/responses/403/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/POST/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.createProject.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.createProject.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized to perform this action
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/post(createProject)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.createProject.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            internal var forbidden: Operations.createProject.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        internal enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            internal init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            internal var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            internal static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// List all project tokens.
+    ///
+    /// This endpoint returns all tokens for a given project.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tokens`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/get(listProjectTokens)`.
+    internal enum listProjectTokens {
+        internal static let id: Swift.String = "listProjectTokens"
+        internal struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/GET/path`.
+            internal struct Path: Sendable, Hashable {
+                /// The account handle.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/GET/path/account_handle`.
+                internal var account_handle: Swift.String
+                /// The project handle.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/GET/path/project_handle`.
+                internal var project_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The account handle.
+                ///   - project_handle: The project handle.
+                internal init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                }
+            }
+            internal var path: Operations.listProjectTokens.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/GET/header`.
+            internal struct Headers: Sendable, Hashable {
+                internal var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listProjectTokens.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                internal init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listProjectTokens.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            internal var headers: Operations.listProjectTokens.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            internal init(
+                path: Operations.listProjectTokens.Input.Path,
+                headers: Operations.listProjectTokens.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        internal enum Output: Sendable, Hashable {
+            internal struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/GET/responses/200/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// A list of project tokens.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/GET/responses/200/content/json`.
+                    internal struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/GET/responses/200/content/json/tokens`.
+                        internal var tokens: [Components.Schemas.ProjectToken]
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - tokens:
+                        internal init(tokens: [Components.Schemas.ProjectToken]) {
+                            self.tokens = tokens
+                        }
+                        internal enum CodingKeys: String, CodingKey {
+                            case tokens
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/GET/responses/200/content/application\/json`.
+                    case json(Operations.listProjectTokens.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Operations.listProjectTokens.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.listProjectTokens.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.listProjectTokens.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// A list of project tokens.
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/get(listProjectTokens)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.listProjectTokens.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            internal var ok: Operations.listProjectTokens.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/GET/responses/401/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/GET/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.listProjectTokens.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.listProjectTokens.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to list tokens
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/get(listProjectTokens)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.listProjectTokens.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            internal var unauthorized: Operations.listProjectTokens.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/GET/responses/403/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.listProjectTokens.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.listProjectTokens.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authorized to list tokens
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/get(listProjectTokens)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.listProjectTokens.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            internal var forbidden: Operations.listProjectTokens.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/GET/responses/404/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/GET/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.listProjectTokens.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.listProjectTokens.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The project was not found
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/get(listProjectTokens)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.listProjectTokens.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            internal var notFound: Operations.listProjectTokens.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        internal enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            internal init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            internal var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            internal static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Create a new project token.
+    ///
+    /// This endpoint returns a new project token.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tokens`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/post(createProjectToken)`.
+    internal enum createProjectToken {
+        internal static let id: Swift.String = "createProjectToken"
+        internal struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/POST/path`.
+            internal struct Path: Sendable, Hashable {
+                /// The account handle.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/POST/path/account_handle`.
+                internal var account_handle: Swift.String
+                /// The project handle.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/POST/path/project_handle`.
+                internal var project_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The account handle.
+                ///   - project_handle: The project handle.
+                internal init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                }
+            }
+            internal var path: Operations.createProjectToken.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/POST/header`.
+            internal struct Headers: Sendable, Hashable {
+                internal var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createProjectToken.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                internal init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createProjectToken.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            internal var headers: Operations.createProjectToken.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            internal init(
+                path: Operations.createProjectToken.Input.Path,
+                headers: Operations.createProjectToken.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        internal enum Output: Sendable, Hashable {
+            internal struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/POST/responses/200/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// A new project token.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/POST/responses/200/content/json`.
+                    internal struct jsonPayload: Codable, Hashable, Sendable {
+                        /// The generated project token.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/POST/responses/200/content/json/token`.
+                        internal var token: Swift.String
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - token: The generated project token.
+                        internal init(token: Swift.String) {
+                            self.token = token
+                        }
+                        internal enum CodingKeys: String, CodingKey {
+                            case token
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/POST/responses/200/content/application\/json`.
+                    case json(Operations.createProjectToken.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Operations.createProjectToken.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.createProjectToken.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.createProjectToken.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// A project token was generated
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/post(createProjectToken)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.createProjectToken.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            internal var ok: Operations.createProjectToken.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/POST/responses/401/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/POST/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.createProjectToken.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.createProjectToken.Output.Unauthorized.Body) {
                     self.body = body
                 }
             }
             /// You need to be authenticated to issue new tokens
             ///
-            /// - Remark: Generated from `#/paths//api/auth/refresh_token/post(refreshToken)/responses/401`.
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/post(createProjectToken)/responses/401`.
             ///
             /// HTTP response code: `401 unauthorized`.
-            case unauthorized(Operations.refreshToken.Output.Unauthorized)
+            case unauthorized(Operations.createProjectToken.Output.Unauthorized)
             /// The associated value of the enum case if `self` is `.unauthorized`.
             ///
             /// - Throws: An error if `self` is not `.unauthorized`.
             /// - SeeAlso: `.unauthorized`.
-            internal var unauthorized: Operations.refreshToken.Output.Unauthorized {
+            internal var unauthorized: Operations.createProjectToken.Output.Unauthorized {
                 get throws {
                     switch self {
                     case let .unauthorized(response):
@@ -3205,272 +5455,15 @@ internal enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "unauthorized",
-                            response: self
-                        )
-                    }
-                }
-            }
-            /// Undocumented response.
-            ///
-            /// A response with a code that is not documented in the OpenAPI document.
-            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
-        }
-        internal enum AcceptableContentType: AcceptableProtocol {
-            case json
-            case other(Swift.String)
-            internal init?(rawValue: Swift.String) {
-                switch rawValue.lowercased() {
-                case "application/json":
-                    self = .json
-                default:
-                    self = .other(rawValue)
-                }
-            }
-            internal var rawValue: Swift.String {
-                switch self {
-                case let .other(string):
-                    return string
-                case .json:
-                    return "application/json"
-                }
-            }
-            internal static var allCases: [Self] {
-                [
-                    .json
-                ]
-            }
-        }
-    }
-    /// Downloads an artifact from the cache.
-    ///
-    /// This endpoint returns a signed URL that can be used to download an artifact from the cache.
-    ///
-    /// - Remark: HTTP `GET /api/cache`.
-    /// - Remark: Generated from `#/paths//api/cache/get(downloadCacheArtifact)`.
-    internal enum downloadCacheArtifact {
-        internal static let id: Swift.String = "downloadCacheArtifact"
-        internal struct Input: Sendable, Hashable {
-            /// - Remark: Generated from `#/paths/api/cache/GET/query`.
-            internal struct Query: Sendable, Hashable {
-                /// The category of the cache. It's used to differentiate between different types of caches.
-                ///
-                /// - Remark: Generated from `#/paths/api/cache/GET/query/cache_category`.
-                internal var cache_category: Components.Schemas.CacheCategory?
-                /// The project identifier '{account_name}/{project_name}'.
-                ///
-                /// - Remark: Generated from `#/paths/api/cache/GET/query/project_id`.
-                internal var project_id: Swift.String
-                /// The hash that uniquely identifies the artifact in the cache.
-                ///
-                /// - Remark: Generated from `#/paths/api/cache/GET/query/hash`.
-                internal var hash: Swift.String
-                /// The name of the artifact.
-                ///
-                /// - Remark: Generated from `#/paths/api/cache/GET/query/name`.
-                internal var name: Swift.String
-                /// Creates a new `Query`.
-                ///
-                /// - Parameters:
-                ///   - cache_category: The category of the cache. It's used to differentiate between different types of caches.
-                ///   - project_id: The project identifier '{account_name}/{project_name}'.
-                ///   - hash: The hash that uniquely identifies the artifact in the cache.
-                ///   - name: The name of the artifact.
-                internal init(
-                    cache_category: Components.Schemas.CacheCategory? = nil,
-                    project_id: Swift.String,
-                    hash: Swift.String,
-                    name: Swift.String
-                ) {
-                    self.cache_category = cache_category
-                    self.project_id = project_id
-                    self.hash = hash
-                    self.name = name
-                }
-            }
-            internal var query: Operations.downloadCacheArtifact.Input.Query
-            /// - Remark: Generated from `#/paths/api/cache/GET/header`.
-            internal struct Headers: Sendable, Hashable {
-                internal var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.downloadCacheArtifact.AcceptableContentType>]
-                /// Creates a new `Headers`.
-                ///
-                /// - Parameters:
-                ///   - accept:
-                internal init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.downloadCacheArtifact.AcceptableContentType>] = .defaultValues()) {
-                    self.accept = accept
-                }
-            }
-            internal var headers: Operations.downloadCacheArtifact.Input.Headers
-            /// Creates a new `Input`.
-            ///
-            /// - Parameters:
-            ///   - query:
-            ///   - headers:
-            internal init(
-                query: Operations.downloadCacheArtifact.Input.Query,
-                headers: Operations.downloadCacheArtifact.Input.Headers = .init()
-            ) {
-                self.query = query
-                self.headers = headers
-            }
-        }
-        internal enum Output: Sendable, Hashable {
-            internal struct Ok: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/GET/responses/200/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/cache/GET/responses/200/content/application\/json`.
-                    case json(Components.Schemas.CacheArtifactDownloadURL)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas.CacheArtifactDownloadURL {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.downloadCacheArtifact.Output.Ok.Body
-                /// Creates a new `Ok`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.downloadCacheArtifact.Output.Ok.Body) {
-                    self.body = body
-                }
-            }
-            /// The artifact exists and is downloadable
-            ///
-            /// - Remark: Generated from `#/paths//api/cache/get(downloadCacheArtifact)/responses/200`.
-            ///
-            /// HTTP response code: `200 ok`.
-            case ok(Operations.downloadCacheArtifact.Output.Ok)
-            /// The associated value of the enum case if `self` is `.ok`.
-            ///
-            /// - Throws: An error if `self` is not `.ok`.
-            /// - SeeAlso: `.ok`.
-            internal var ok: Operations.downloadCacheArtifact.Output.Ok {
-                get throws {
-                    switch self {
-                    case let .ok(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "ok",
-                            response: self
-                        )
-                    }
-                }
-            }
-            internal struct Unauthorized: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/GET/responses/401/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/cache/GET/responses/401/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.downloadCacheArtifact.Output.Unauthorized.Body
-                /// Creates a new `Unauthorized`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.downloadCacheArtifact.Output.Unauthorized.Body) {
-                    self.body = body
-                }
-            }
-            /// You need to be authenticated to access this resource
-            ///
-            /// - Remark: Generated from `#/paths//api/cache/get(downloadCacheArtifact)/responses/401`.
-            ///
-            /// HTTP response code: `401 unauthorized`.
-            case unauthorized(Operations.downloadCacheArtifact.Output.Unauthorized)
-            /// The associated value of the enum case if `self` is `.unauthorized`.
-            ///
-            /// - Throws: An error if `self` is not `.unauthorized`.
-            /// - SeeAlso: `.unauthorized`.
-            internal var unauthorized: Operations.downloadCacheArtifact.Output.Unauthorized {
-                get throws {
-                    switch self {
-                    case let .unauthorized(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "unauthorized",
-                            response: self
-                        )
-                    }
-                }
-            }
-            internal struct Code402: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/GET/responses/402/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/cache/GET/responses/402/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.downloadCacheArtifact.Output.Code402.Body
-                /// Creates a new `Code402`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.downloadCacheArtifact.Output.Code402.Body) {
-                    self.body = body
-                }
-            }
-            /// The account has an invalid plan
-            ///
-            /// - Remark: Generated from `#/paths//api/cache/get(downloadCacheArtifact)/responses/402`.
-            ///
-            /// HTTP response code: `402 code402`.
-            case code402(Operations.downloadCacheArtifact.Output.Code402)
-            /// The associated value of the enum case if `self` is `.code402`.
-            ///
-            /// - Throws: An error if `self` is not `.code402`.
-            /// - SeeAlso: `.code402`.
-            internal var code402: Operations.downloadCacheArtifact.Output.Code402 {
-                get throws {
-                    switch self {
-                    case let .code402(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "code402",
                             response: self
                         )
                     }
                 }
             }
             internal struct Forbidden: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/GET/responses/403/content`.
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/POST/responses/403/content`.
                 internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/cache/GET/responses/403/content/application\/json`.
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/POST/responses/403/content/application\/json`.
                     case json(Components.Schemas._Error)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
@@ -3486,26 +5479,26 @@ internal enum Operations {
                     }
                 }
                 /// Received HTTP response body
-                internal var body: Operations.downloadCacheArtifact.Output.Forbidden.Body
+                internal var body: Operations.createProjectToken.Output.Forbidden.Body
                 /// Creates a new `Forbidden`.
                 ///
                 /// - Parameters:
                 ///   - body: Received HTTP response body
-                internal init(body: Operations.downloadCacheArtifact.Output.Forbidden.Body) {
+                internal init(body: Operations.createProjectToken.Output.Forbidden.Body) {
                     self.body = body
                 }
             }
-            /// The authenticated subject is not authorized to perform this action
+            /// You need to be authorized to issue new tokens
             ///
-            /// - Remark: Generated from `#/paths//api/cache/get(downloadCacheArtifact)/responses/403`.
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/post(createProjectToken)/responses/403`.
             ///
             /// HTTP response code: `403 forbidden`.
-            case forbidden(Operations.downloadCacheArtifact.Output.Forbidden)
+            case forbidden(Operations.createProjectToken.Output.Forbidden)
             /// The associated value of the enum case if `self` is `.forbidden`.
             ///
             /// - Throws: An error if `self` is not `.forbidden`.
             /// - SeeAlso: `.forbidden`.
-            internal var forbidden: Operations.downloadCacheArtifact.Output.Forbidden {
+            internal var forbidden: Operations.createProjectToken.Output.Forbidden {
                 get throws {
                     switch self {
                     case let .forbidden(response):
@@ -3519,9 +5512,9 @@ internal enum Operations {
                 }
             }
             internal struct NotFound: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/GET/responses/404/content`.
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/POST/responses/404/content`.
                 internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/cache/GET/responses/404/content/application\/json`.
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/POST/responses/404/content/application\/json`.
                     case json(Components.Schemas._Error)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
@@ -3537,26 +5530,26 @@ internal enum Operations {
                     }
                 }
                 /// Received HTTP response body
-                internal var body: Operations.downloadCacheArtifact.Output.NotFound.Body
+                internal var body: Operations.createProjectToken.Output.NotFound.Body
                 /// Creates a new `NotFound`.
                 ///
                 /// - Parameters:
                 ///   - body: Received HTTP response body
-                internal init(body: Operations.downloadCacheArtifact.Output.NotFound.Body) {
+                internal init(body: Operations.createProjectToken.Output.NotFound.Body) {
                     self.body = body
                 }
             }
-            /// The project or the cache artifact doesn't exist
+            /// The project was not found
             ///
-            /// - Remark: Generated from `#/paths//api/cache/get(downloadCacheArtifact)/responses/404`.
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/post(createProjectToken)/responses/404`.
             ///
             /// HTTP response code: `404 notFound`.
-            case notFound(Operations.downloadCacheArtifact.Output.NotFound)
+            case notFound(Operations.createProjectToken.Output.NotFound)
             /// The associated value of the enum case if `self` is `.notFound`.
             ///
             /// - Throws: An error if `self` is not `.notFound`.
             /// - SeeAlso: `.notFound`.
-            internal var notFound: Operations.downloadCacheArtifact.Output.NotFound {
+            internal var notFound: Operations.createProjectToken.Output.NotFound {
                 get throws {
                     switch self {
                     case let .notFound(response):
@@ -3600,118 +5593,66 @@ internal enum Operations {
             }
         }
     }
-    /// It checks if an artifact exists in the cache.
+    /// Shows the usage of an organization
     ///
-    /// This endpoint checks if an artifact exists in the cache. It returns a 404 status code if the artifact does not exist.
+    /// Returns the usage of the organization with the given identifier. (e.g. number of remote cache hits)
     ///
-    /// - Remark: HTTP `GET /api/cache/exists`.
-    /// - Remark: Generated from `#/paths//api/cache/exists/get(cacheArtifactExists)`.
-    internal enum cacheArtifactExists {
-        internal static let id: Swift.String = "cacheArtifactExists"
+    /// - Remark: HTTP `GET /api/organizations/{organization_name}/usage`.
+    /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/usage/get(showOrganizationUsage)`.
+    internal enum showOrganizationUsage {
+        internal static let id: Swift.String = "showOrganizationUsage"
         internal struct Input: Sendable, Hashable {
-            /// - Remark: Generated from `#/paths/api/cache/exists/GET/query`.
-            internal struct Query: Sendable, Hashable {
-                /// The category of the cache. It's used to differentiate between different types of caches.
+            /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/usage/GET/path`.
+            internal struct Path: Sendable, Hashable {
+                /// The name of the organization to show.
                 ///
-                /// - Remark: Generated from `#/paths/api/cache/exists/GET/query/cache_category`.
-                internal var cache_category: Components.Schemas.CacheCategory?
-                /// The project identifier '{account_name}/{project_name}'.
-                ///
-                /// - Remark: Generated from `#/paths/api/cache/exists/GET/query/project_id`.
-                internal var project_id: Swift.String
-                /// The hash that uniquely identifies the artifact in the cache.
-                ///
-                /// - Remark: Generated from `#/paths/api/cache/exists/GET/query/hash`.
-                internal var hash: Swift.String
-                /// The name of the artifact.
-                ///
-                /// - Remark: Generated from `#/paths/api/cache/exists/GET/query/name`.
-                internal var name: Swift.String
-                /// Creates a new `Query`.
+                /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/usage/GET/path/organization_name`.
+                internal var organization_name: Swift.String
+                /// Creates a new `Path`.
                 ///
                 /// - Parameters:
-                ///   - cache_category: The category of the cache. It's used to differentiate between different types of caches.
-                ///   - project_id: The project identifier '{account_name}/{project_name}'.
-                ///   - hash: The hash that uniquely identifies the artifact in the cache.
-                ///   - name: The name of the artifact.
-                internal init(
-                    cache_category: Components.Schemas.CacheCategory? = nil,
-                    project_id: Swift.String,
-                    hash: Swift.String,
-                    name: Swift.String
-                ) {
-                    self.cache_category = cache_category
-                    self.project_id = project_id
-                    self.hash = hash
-                    self.name = name
+                ///   - organization_name: The name of the organization to show.
+                internal init(organization_name: Swift.String) {
+                    self.organization_name = organization_name
                 }
             }
-            internal var query: Operations.cacheArtifactExists.Input.Query
-            /// - Remark: Generated from `#/paths/api/cache/exists/GET/header`.
+            internal var path: Operations.showOrganizationUsage.Input.Path
+            /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/usage/GET/header`.
             internal struct Headers: Sendable, Hashable {
-                internal var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.cacheArtifactExists.AcceptableContentType>]
+                internal var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.showOrganizationUsage.AcceptableContentType>]
                 /// Creates a new `Headers`.
                 ///
                 /// - Parameters:
                 ///   - accept:
-                internal init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.cacheArtifactExists.AcceptableContentType>] = .defaultValues()) {
+                internal init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.showOrganizationUsage.AcceptableContentType>] = .defaultValues()) {
                     self.accept = accept
                 }
             }
-            internal var headers: Operations.cacheArtifactExists.Input.Headers
+            internal var headers: Operations.showOrganizationUsage.Input.Headers
             /// Creates a new `Input`.
             ///
             /// - Parameters:
-            ///   - query:
+            ///   - path:
             ///   - headers:
             internal init(
-                query: Operations.cacheArtifactExists.Input.Query,
-                headers: Operations.cacheArtifactExists.Input.Headers = .init()
+                path: Operations.showOrganizationUsage.Input.Path,
+                headers: Operations.showOrganizationUsage.Input.Headers = .init()
             ) {
-                self.query = query
+                self.path = path
                 self.headers = headers
             }
         }
         internal enum Output: Sendable, Hashable {
             internal struct Ok: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/200/content`.
+                /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/usage/GET/responses/200/content`.
                 internal enum Body: Sendable, Hashable {
-                    /// The artifact exists in the cache and can be downloaded
-                    ///
-                    /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/200/content/json`.
-                    internal struct jsonPayload: Codable, Hashable, Sendable {
-                        /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/200/content/json/data`.
-                        internal var data: OpenAPIRuntime.OpenAPIObjectContainer?
-                        /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/200/content/json/status`.
-                        internal enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                            case success = "success"
-                        }
-                        /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/200/content/json/status`.
-                        internal var status: Operations.cacheArtifactExists.Output.Ok.Body.jsonPayload.statusPayload?
-                        /// Creates a new `jsonPayload`.
-                        ///
-                        /// - Parameters:
-                        ///   - data:
-                        ///   - status:
-                        internal init(
-                            data: OpenAPIRuntime.OpenAPIObjectContainer? = nil,
-                            status: Operations.cacheArtifactExists.Output.Ok.Body.jsonPayload.statusPayload? = nil
-                        ) {
-                            self.data = data
-                            self.status = status
-                        }
-                        internal enum CodingKeys: String, CodingKey {
-                            case data
-                            case status
-                        }
-                    }
-                    /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/200/content/application\/json`.
-                    case json(Operations.cacheArtifactExists.Output.Ok.Body.jsonPayload)
+                    /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/usage/GET/responses/200/content/application\/json`.
+                    case json(Components.Schemas.OrganizationUsage)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    internal var json: Operations.cacheArtifactExists.Output.Ok.Body.jsonPayload {
+                    internal var json: Components.Schemas.OrganizationUsage {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -3721,26 +5662,26 @@ internal enum Operations {
                     }
                 }
                 /// Received HTTP response body
-                internal var body: Operations.cacheArtifactExists.Output.Ok.Body
+                internal var body: Operations.showOrganizationUsage.Output.Ok.Body
                 /// Creates a new `Ok`.
                 ///
                 /// - Parameters:
                 ///   - body: Received HTTP response body
-                internal init(body: Operations.cacheArtifactExists.Output.Ok.Body) {
+                internal init(body: Operations.showOrganizationUsage.Output.Ok.Body) {
                     self.body = body
                 }
             }
-            /// The artifact exists
+            /// The organization usage
             ///
-            /// - Remark: Generated from `#/paths//api/cache/exists/get(cacheArtifactExists)/responses/200`.
+            /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/usage/get(showOrganizationUsage)/responses/200`.
             ///
             /// HTTP response code: `200 ok`.
-            case ok(Operations.cacheArtifactExists.Output.Ok)
+            case ok(Operations.showOrganizationUsage.Output.Ok)
             /// The associated value of the enum case if `self` is `.ok`.
             ///
             /// - Throws: An error if `self` is not `.ok`.
             /// - SeeAlso: `.ok`.
-            internal var ok: Operations.cacheArtifactExists.Output.Ok {
+            internal var ok: Operations.showOrganizationUsage.Output.Ok {
                 get throws {
                     switch self {
                     case let .ok(response):
@@ -3754,9 +5695,9 @@ internal enum Operations {
                 }
             }
             internal struct Unauthorized: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/401/content`.
+                /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/usage/GET/responses/401/content`.
                 internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/401/content/application\/json`.
+                    /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/usage/GET/responses/401/content/application\/json`.
                     case json(Components.Schemas._Error)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
@@ -3772,26 +5713,26 @@ internal enum Operations {
                     }
                 }
                 /// Received HTTP response body
-                internal var body: Operations.cacheArtifactExists.Output.Unauthorized.Body
+                internal var body: Operations.showOrganizationUsage.Output.Unauthorized.Body
                 /// Creates a new `Unauthorized`.
                 ///
                 /// - Parameters:
                 ///   - body: Received HTTP response body
-                internal init(body: Operations.cacheArtifactExists.Output.Unauthorized.Body) {
+                internal init(body: Operations.showOrganizationUsage.Output.Unauthorized.Body) {
                     self.body = body
                 }
             }
             /// You need to be authenticated to access this resource
             ///
-            /// - Remark: Generated from `#/paths//api/cache/exists/get(cacheArtifactExists)/responses/401`.
+            /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/usage/get(showOrganizationUsage)/responses/401`.
             ///
             /// HTTP response code: `401 unauthorized`.
-            case unauthorized(Operations.cacheArtifactExists.Output.Unauthorized)
+            case unauthorized(Operations.showOrganizationUsage.Output.Unauthorized)
             /// The associated value of the enum case if `self` is `.unauthorized`.
             ///
             /// - Throws: An error if `self` is not `.unauthorized`.
             /// - SeeAlso: `.unauthorized`.
-            internal var unauthorized: Operations.cacheArtifactExists.Output.Unauthorized {
+            internal var unauthorized: Operations.showOrganizationUsage.Output.Unauthorized {
                 get throws {
                     switch self {
                     case let .unauthorized(response):
@@ -3804,61 +5745,10 @@ internal enum Operations {
                     }
                 }
             }
-            internal struct Code402: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/402/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/402/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.cacheArtifactExists.Output.Code402.Body
-                /// Creates a new `Code402`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.cacheArtifactExists.Output.Code402.Body) {
-                    self.body = body
-                }
-            }
-            /// The account has an invalid plan
-            ///
-            /// - Remark: Generated from `#/paths//api/cache/exists/get(cacheArtifactExists)/responses/402`.
-            ///
-            /// HTTP response code: `402 code402`.
-            case code402(Operations.cacheArtifactExists.Output.Code402)
-            /// The associated value of the enum case if `self` is `.code402`.
-            ///
-            /// - Throws: An error if `self` is not `.code402`.
-            /// - SeeAlso: `.code402`.
-            internal var code402: Operations.cacheArtifactExists.Output.Code402 {
-                get throws {
-                    switch self {
-                    case let .code402(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "code402",
-                            response: self
-                        )
-                    }
-                }
-            }
             internal struct Forbidden: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/403/content`.
+                /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/usage/GET/responses/403/content`.
                 internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/403/content/application\/json`.
+                    /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/usage/GET/responses/403/content/application\/json`.
                     case json(Components.Schemas._Error)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
@@ -3874,26 +5764,26 @@ internal enum Operations {
                     }
                 }
                 /// Received HTTP response body
-                internal var body: Operations.cacheArtifactExists.Output.Forbidden.Body
+                internal var body: Operations.showOrganizationUsage.Output.Forbidden.Body
                 /// Creates a new `Forbidden`.
                 ///
                 /// - Parameters:
                 ///   - body: Received HTTP response body
-                internal init(body: Operations.cacheArtifactExists.Output.Forbidden.Body) {
+                internal init(body: Operations.showOrganizationUsage.Output.Forbidden.Body) {
                     self.body = body
                 }
             }
             /// The authenticated subject is not authorized to perform this action
             ///
-            /// - Remark: Generated from `#/paths//api/cache/exists/get(cacheArtifactExists)/responses/403`.
+            /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/usage/get(showOrganizationUsage)/responses/403`.
             ///
             /// HTTP response code: `403 forbidden`.
-            case forbidden(Operations.cacheArtifactExists.Output.Forbidden)
+            case forbidden(Operations.showOrganizationUsage.Output.Forbidden)
             /// The associated value of the enum case if `self` is `.forbidden`.
             ///
             /// - Throws: An error if `self` is not `.forbidden`.
             /// - SeeAlso: `.forbidden`.
-            internal var forbidden: Operations.cacheArtifactExists.Output.Forbidden {
+            internal var forbidden: Operations.showOrganizationUsage.Output.Forbidden {
                 get throws {
                     switch self {
                     case let .forbidden(response):
@@ -3907,55 +5797,15 @@ internal enum Operations {
                 }
             }
             internal struct NotFound: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/404/content`.
+                /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/usage/GET/responses/404/content`.
                 internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/404/content/json`.
-                    internal struct jsonPayload: Codable, Hashable, Sendable {
-                        /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/404/content/json/errorPayload`.
-                        internal struct errorPayloadPayload: Codable, Hashable, Sendable {
-                            /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/404/content/json/errorPayload/code`.
-                            internal var code: Swift.String?
-                            /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/404/content/json/errorPayload/message`.
-                            internal var message: Swift.String?
-                            /// Creates a new `errorPayloadPayload`.
-                            ///
-                            /// - Parameters:
-                            ///   - code:
-                            ///   - message:
-                            internal init(
-                                code: Swift.String? = nil,
-                                message: Swift.String? = nil
-                            ) {
-                                self.code = code
-                                self.message = message
-                            }
-                            internal enum CodingKeys: String, CodingKey {
-                                case code
-                                case message
-                            }
-                        }
-                        /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/404/content/json/error`.
-                        internal typealias errorPayload = [Operations.cacheArtifactExists.Output.NotFound.Body.jsonPayload.errorPayloadPayload]
-                        /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/404/content/json/error`.
-                        internal var error: Operations.cacheArtifactExists.Output.NotFound.Body.jsonPayload.errorPayload?
-                        /// Creates a new `jsonPayload`.
-                        ///
-                        /// - Parameters:
-                        ///   - error:
-                        internal init(error: Operations.cacheArtifactExists.Output.NotFound.Body.jsonPayload.errorPayload? = nil) {
-                            self.error = error
-                        }
-                        internal enum CodingKeys: String, CodingKey {
-                            case error
-                        }
-                    }
-                    /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/404/content/application\/json`.
-                    case json(Operations.cacheArtifactExists.Output.NotFound.Body.jsonPayload)
+                    /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/usage/GET/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    internal var json: Operations.cacheArtifactExists.Output.NotFound.Body.jsonPayload {
+                    internal var json: Components.Schemas._Error {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -3965,26 +5815,26 @@ internal enum Operations {
                     }
                 }
                 /// Received HTTP response body
-                internal var body: Operations.cacheArtifactExists.Output.NotFound.Body
+                internal var body: Operations.showOrganizationUsage.Output.NotFound.Body
                 /// Creates a new `NotFound`.
                 ///
                 /// - Parameters:
                 ///   - body: Received HTTP response body
-                internal init(body: Operations.cacheArtifactExists.Output.NotFound.Body) {
+                internal init(body: Operations.showOrganizationUsage.Output.NotFound.Body) {
                     self.body = body
                 }
             }
-            /// The artifact doesn't exist
+            /// The organization with the given name was not found
             ///
-            /// - Remark: Generated from `#/paths//api/cache/exists/get(cacheArtifactExists)/responses/404`.
+            /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/usage/get(showOrganizationUsage)/responses/404`.
             ///
             /// HTTP response code: `404 notFound`.
-            case notFound(Operations.cacheArtifactExists.Output.NotFound)
+            case notFound(Operations.showOrganizationUsage.Output.NotFound)
             /// The associated value of the enum case if `self` is `.notFound`.
             ///
             /// - Throws: An error if `self` is not `.notFound`.
             /// - SeeAlso: `.notFound`.
-            internal var notFound: Operations.cacheArtifactExists.Output.NotFound {
+            internal var notFound: Operations.showOrganizationUsage.Output.NotFound {
                 get throws {
                     switch self {
                     case let .notFound(response):
@@ -4028,36 +5878,32 @@ internal enum Operations {
             }
         }
     }
-    /// It completes a multi-part upload.
+    /// It initiates a multipart upload in the cache.
     ///
-    /// Given the upload ID and all the parts with their ETags, this endpoint completes the multipart upload. The cache will then be able to serve the artifact.
+    /// The endpoint returns an upload ID that can be used to generate URLs for the individual parts and complete the upload.
     ///
-    /// - Remark: HTTP `POST /api/cache/multipart/complete`.
-    /// - Remark: Generated from `#/paths//api/cache/multipart/complete/post(completeCacheArtifactMultipartUpload)`.
-    internal enum completeCacheArtifactMultipartUpload {
-        internal static let id: Swift.String = "completeCacheArtifactMultipartUpload"
+    /// - Remark: HTTP `POST /api/cache/multipart/start`.
+    /// - Remark: Generated from `#/paths//api/cache/multipart/start/post(startCacheArtifactMultipartUpload)`.
+    internal enum startCacheArtifactMultipartUpload {
+        internal static let id: Swift.String = "startCacheArtifactMultipartUpload"
         internal struct Input: Sendable, Hashable {
-            /// - Remark: Generated from `#/paths/api/cache/multipart/complete/POST/query`.
+            /// - Remark: Generated from `#/paths/api/cache/multipart/start/POST/query`.
             internal struct Query: Sendable, Hashable {
                 /// The category of the cache. It's used to differentiate between different types of caches.
                 ///
-                /// - Remark: Generated from `#/paths/api/cache/multipart/complete/POST/query/cache_category`.
+                /// - Remark: Generated from `#/paths/api/cache/multipart/start/POST/query/cache_category`.
                 internal var cache_category: Components.Schemas.CacheCategory?
                 /// The project identifier '{account_name}/{project_name}'.
                 ///
-                /// - Remark: Generated from `#/paths/api/cache/multipart/complete/POST/query/project_id`.
+                /// - Remark: Generated from `#/paths/api/cache/multipart/start/POST/query/project_id`.
                 internal var project_id: Swift.String
                 /// The hash that uniquely identifies the artifact in the cache.
                 ///
-                /// - Remark: Generated from `#/paths/api/cache/multipart/complete/POST/query/hash`.
+                /// - Remark: Generated from `#/paths/api/cache/multipart/start/POST/query/hash`.
                 internal var hash: Swift.String
-                /// The upload ID.
-                ///
-                /// - Remark: Generated from `#/paths/api/cache/multipart/complete/POST/query/upload_id`.
-                internal var upload_id: Swift.String
                 /// The name of the artifact.
                 ///
-                /// - Remark: Generated from `#/paths/api/cache/multipart/complete/POST/query/name`.
+                /// - Remark: Generated from `#/paths/api/cache/multipart/start/POST/query/name`.
                 internal var name: Swift.String
                 /// Creates a new `Query`.
                 ///
@@ -4065,141 +5911,56 @@ internal enum Operations {
                 ///   - cache_category: The category of the cache. It's used to differentiate between different types of caches.
                 ///   - project_id: The project identifier '{account_name}/{project_name}'.
                 ///   - hash: The hash that uniquely identifies the artifact in the cache.
-                ///   - upload_id: The upload ID.
                 ///   - name: The name of the artifact.
                 internal init(
                     cache_category: Components.Schemas.CacheCategory? = nil,
                     project_id: Swift.String,
                     hash: Swift.String,
-                    upload_id: Swift.String,
                     name: Swift.String
                 ) {
                     self.cache_category = cache_category
                     self.project_id = project_id
                     self.hash = hash
-                    self.upload_id = upload_id
                     self.name = name
                 }
             }
-            internal var query: Operations.completeCacheArtifactMultipartUpload.Input.Query
-            /// - Remark: Generated from `#/paths/api/cache/multipart/complete/POST/header`.
+            internal var query: Operations.startCacheArtifactMultipartUpload.Input.Query
+            /// - Remark: Generated from `#/paths/api/cache/multipart/start/POST/header`.
             internal struct Headers: Sendable, Hashable {
-                internal var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.completeCacheArtifactMultipartUpload.AcceptableContentType>]
+                internal var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.startCacheArtifactMultipartUpload.AcceptableContentType>]
                 /// Creates a new `Headers`.
                 ///
                 /// - Parameters:
                 ///   - accept:
-                internal init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.completeCacheArtifactMultipartUpload.AcceptableContentType>] = .defaultValues()) {
+                internal init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.startCacheArtifactMultipartUpload.AcceptableContentType>] = .defaultValues()) {
                     self.accept = accept
                 }
             }
-            internal var headers: Operations.completeCacheArtifactMultipartUpload.Input.Headers
-            /// - Remark: Generated from `#/paths/api/cache/multipart/complete/POST/requestBody`.
-            internal enum Body: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/multipart/complete/POST/requestBody/json`.
-                internal struct jsonPayload: Codable, Hashable, Sendable {
-                    /// - Remark: Generated from `#/paths/api/cache/multipart/complete/POST/requestBody/json/partsPayload`.
-                    internal struct partsPayloadPayload: Codable, Hashable, Sendable {
-                        /// The ETag of the part
-                        ///
-                        /// - Remark: Generated from `#/paths/api/cache/multipart/complete/POST/requestBody/json/partsPayload/etag`.
-                        internal var etag: Swift.String?
-                        /// The part number
-                        ///
-                        /// - Remark: Generated from `#/paths/api/cache/multipart/complete/POST/requestBody/json/partsPayload/part_number`.
-                        internal var part_number: Swift.Int?
-                        /// Creates a new `partsPayloadPayload`.
-                        ///
-                        /// - Parameters:
-                        ///   - etag: The ETag of the part
-                        ///   - part_number: The part number
-                        internal init(
-                            etag: Swift.String? = nil,
-                            part_number: Swift.Int? = nil
-                        ) {
-                            self.etag = etag
-                            self.part_number = part_number
-                        }
-                        internal enum CodingKeys: String, CodingKey {
-                            case etag
-                            case part_number
-                        }
-                    }
-                    /// - Remark: Generated from `#/paths/api/cache/multipart/complete/POST/requestBody/json/parts`.
-                    internal typealias partsPayload = [Operations.completeCacheArtifactMultipartUpload.Input.Body.jsonPayload.partsPayloadPayload]
-                    /// - Remark: Generated from `#/paths/api/cache/multipart/complete/POST/requestBody/json/parts`.
-                    internal var parts: Operations.completeCacheArtifactMultipartUpload.Input.Body.jsonPayload.partsPayload?
-                    /// Creates a new `jsonPayload`.
-                    ///
-                    /// - Parameters:
-                    ///   - parts:
-                    internal init(parts: Operations.completeCacheArtifactMultipartUpload.Input.Body.jsonPayload.partsPayload? = nil) {
-                        self.parts = parts
-                    }
-                    internal enum CodingKeys: String, CodingKey {
-                        case parts
-                    }
-                }
-                /// - Remark: Generated from `#/paths/api/cache/multipart/complete/POST/requestBody/content/application\/json`.
-                case json(Operations.completeCacheArtifactMultipartUpload.Input.Body.jsonPayload)
-            }
-            internal var body: Operations.completeCacheArtifactMultipartUpload.Input.Body?
+            internal var headers: Operations.startCacheArtifactMultipartUpload.Input.Headers
             /// Creates a new `Input`.
             ///
             /// - Parameters:
             ///   - query:
             ///   - headers:
-            ///   - body:
             internal init(
-                query: Operations.completeCacheArtifactMultipartUpload.Input.Query,
-                headers: Operations.completeCacheArtifactMultipartUpload.Input.Headers = .init(),
-                body: Operations.completeCacheArtifactMultipartUpload.Input.Body? = nil
+                query: Operations.startCacheArtifactMultipartUpload.Input.Query,
+                headers: Operations.startCacheArtifactMultipartUpload.Input.Headers = .init()
             ) {
                 self.query = query
                 self.headers = headers
-                self.body = body
             }
         }
         internal enum Output: Sendable, Hashable {
             internal struct Ok: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/multipart/complete/POST/responses/200/content`.
+                /// - Remark: Generated from `#/paths/api/cache/multipart/start/POST/responses/200/content`.
                 internal enum Body: Sendable, Hashable {
-                    /// This response confirms that the upload has been completed successfully. The cache will now be able to serve the artifact.
-                    ///
-                    /// - Remark: Generated from `#/paths/api/cache/multipart/complete/POST/responses/200/content/json`.
-                    internal struct jsonPayload: Codable, Hashable, Sendable {
-                        /// - Remark: Generated from `#/paths/api/cache/multipart/complete/POST/responses/200/content/json/data`.
-                        internal var data: OpenAPIRuntime.OpenAPIObjectContainer?
-                        /// - Remark: Generated from `#/paths/api/cache/multipart/complete/POST/responses/200/content/json/status`.
-                        internal enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                            case success = "success"
-                        }
-                        /// - Remark: Generated from `#/paths/api/cache/multipart/complete/POST/responses/200/content/json/status`.
-                        internal var status: Operations.completeCacheArtifactMultipartUpload.Output.Ok.Body.jsonPayload.statusPayload?
-                        /// Creates a new `jsonPayload`.
-                        ///
-                        /// - Parameters:
-                        ///   - data:
-                        ///   - status:
-                        internal init(
-                            data: OpenAPIRuntime.OpenAPIObjectContainer? = nil,
-                            status: Operations.completeCacheArtifactMultipartUpload.Output.Ok.Body.jsonPayload.statusPayload? = nil
-                        ) {
-                            self.data = data
-                            self.status = status
-                        }
-                        internal enum CodingKeys: String, CodingKey {
-                            case data
-                            case status
-                        }
-                    }
-                    /// - Remark: Generated from `#/paths/api/cache/multipart/complete/POST/responses/200/content/application\/json`.
-                    case json(Operations.completeCacheArtifactMultipartUpload.Output.Ok.Body.jsonPayload)
+                    /// - Remark: Generated from `#/paths/api/cache/multipart/start/POST/responses/200/content/application\/json`.
+                    case json(Components.Schemas.ArtifactUploadID)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    internal var json: Operations.completeCacheArtifactMultipartUpload.Output.Ok.Body.jsonPayload {
+                    internal var json: Components.Schemas.ArtifactUploadID {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -4209,26 +5970,26 @@ internal enum Operations {
                     }
                 }
                 /// Received HTTP response body
-                internal var body: Operations.completeCacheArtifactMultipartUpload.Output.Ok.Body
+                internal var body: Operations.startCacheArtifactMultipartUpload.Output.Ok.Body
                 /// Creates a new `Ok`.
                 ///
                 /// - Parameters:
                 ///   - body: Received HTTP response body
-                internal init(body: Operations.completeCacheArtifactMultipartUpload.Output.Ok.Body) {
+                internal init(body: Operations.startCacheArtifactMultipartUpload.Output.Ok.Body) {
                     self.body = body
                 }
             }
-            /// The upload has been completed
+            /// The upload has been started
             ///
-            /// - Remark: Generated from `#/paths//api/cache/multipart/complete/post(completeCacheArtifactMultipartUpload)/responses/200`.
+            /// - Remark: Generated from `#/paths//api/cache/multipart/start/post(startCacheArtifactMultipartUpload)/responses/200`.
             ///
             /// HTTP response code: `200 ok`.
-            case ok(Operations.completeCacheArtifactMultipartUpload.Output.Ok)
+            case ok(Operations.startCacheArtifactMultipartUpload.Output.Ok)
             /// The associated value of the enum case if `self` is `.ok`.
             ///
             /// - Throws: An error if `self` is not `.ok`.
             /// - SeeAlso: `.ok`.
-            internal var ok: Operations.completeCacheArtifactMultipartUpload.Output.Ok {
+            internal var ok: Operations.startCacheArtifactMultipartUpload.Output.Ok {
                 get throws {
                     switch self {
                     case let .ok(response):
@@ -4242,9 +6003,9 @@ internal enum Operations {
                 }
             }
             internal struct Unauthorized: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/multipart/complete/POST/responses/401/content`.
+                /// - Remark: Generated from `#/paths/api/cache/multipart/start/POST/responses/401/content`.
                 internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/cache/multipart/complete/POST/responses/401/content/application\/json`.
+                    /// - Remark: Generated from `#/paths/api/cache/multipart/start/POST/responses/401/content/application\/json`.
                     case json(Components.Schemas._Error)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
@@ -4260,26 +6021,26 @@ internal enum Operations {
                     }
                 }
                 /// Received HTTP response body
-                internal var body: Operations.completeCacheArtifactMultipartUpload.Output.Unauthorized.Body
+                internal var body: Operations.startCacheArtifactMultipartUpload.Output.Unauthorized.Body
                 /// Creates a new `Unauthorized`.
                 ///
                 /// - Parameters:
                 ///   - body: Received HTTP response body
-                internal init(body: Operations.completeCacheArtifactMultipartUpload.Output.Unauthorized.Body) {
+                internal init(body: Operations.startCacheArtifactMultipartUpload.Output.Unauthorized.Body) {
                     self.body = body
                 }
             }
             /// You need to be authenticated to access this resource
             ///
-            /// - Remark: Generated from `#/paths//api/cache/multipart/complete/post(completeCacheArtifactMultipartUpload)/responses/401`.
+            /// - Remark: Generated from `#/paths//api/cache/multipart/start/post(startCacheArtifactMultipartUpload)/responses/401`.
             ///
             /// HTTP response code: `401 unauthorized`.
-            case unauthorized(Operations.completeCacheArtifactMultipartUpload.Output.Unauthorized)
+            case unauthorized(Operations.startCacheArtifactMultipartUpload.Output.Unauthorized)
             /// The associated value of the enum case if `self` is `.unauthorized`.
             ///
             /// - Throws: An error if `self` is not `.unauthorized`.
             /// - SeeAlso: `.unauthorized`.
-            internal var unauthorized: Operations.completeCacheArtifactMultipartUpload.Output.Unauthorized {
+            internal var unauthorized: Operations.startCacheArtifactMultipartUpload.Output.Unauthorized {
                 get throws {
                     switch self {
                     case let .unauthorized(response):
@@ -4293,9 +6054,9 @@ internal enum Operations {
                 }
             }
             internal struct Code402: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/multipart/complete/POST/responses/402/content`.
+                /// - Remark: Generated from `#/paths/api/cache/multipart/start/POST/responses/402/content`.
                 internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/cache/multipart/complete/POST/responses/402/content/application\/json`.
+                    /// - Remark: Generated from `#/paths/api/cache/multipart/start/POST/responses/402/content/application\/json`.
                     case json(Components.Schemas._Error)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
@@ -4311,26 +6072,26 @@ internal enum Operations {
                     }
                 }
                 /// Received HTTP response body
-                internal var body: Operations.completeCacheArtifactMultipartUpload.Output.Code402.Body
+                internal var body: Operations.startCacheArtifactMultipartUpload.Output.Code402.Body
                 /// Creates a new `Code402`.
                 ///
                 /// - Parameters:
                 ///   - body: Received HTTP response body
-                internal init(body: Operations.completeCacheArtifactMultipartUpload.Output.Code402.Body) {
+                internal init(body: Operations.startCacheArtifactMultipartUpload.Output.Code402.Body) {
                     self.body = body
                 }
             }
             /// The account has an invalid plan
             ///
-            /// - Remark: Generated from `#/paths//api/cache/multipart/complete/post(completeCacheArtifactMultipartUpload)/responses/402`.
+            /// - Remark: Generated from `#/paths//api/cache/multipart/start/post(startCacheArtifactMultipartUpload)/responses/402`.
             ///
             /// HTTP response code: `402 code402`.
-            case code402(Operations.completeCacheArtifactMultipartUpload.Output.Code402)
+            case code402(Operations.startCacheArtifactMultipartUpload.Output.Code402)
             /// The associated value of the enum case if `self` is `.code402`.
             ///
             /// - Throws: An error if `self` is not `.code402`.
             /// - SeeAlso: `.code402`.
-            internal var code402: Operations.completeCacheArtifactMultipartUpload.Output.Code402 {
+            internal var code402: Operations.startCacheArtifactMultipartUpload.Output.Code402 {
                 get throws {
                     switch self {
                     case let .code402(response):
@@ -4344,9 +6105,9 @@ internal enum Operations {
                 }
             }
             internal struct Forbidden: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/multipart/complete/POST/responses/403/content`.
+                /// - Remark: Generated from `#/paths/api/cache/multipart/start/POST/responses/403/content`.
                 internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/cache/multipart/complete/POST/responses/403/content/application\/json`.
+                    /// - Remark: Generated from `#/paths/api/cache/multipart/start/POST/responses/403/content/application\/json`.
                     case json(Components.Schemas._Error)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
@@ -4362,26 +6123,26 @@ internal enum Operations {
                     }
                 }
                 /// Received HTTP response body
-                internal var body: Operations.completeCacheArtifactMultipartUpload.Output.Forbidden.Body
+                internal var body: Operations.startCacheArtifactMultipartUpload.Output.Forbidden.Body
                 /// Creates a new `Forbidden`.
                 ///
                 /// - Parameters:
                 ///   - body: Received HTTP response body
-                internal init(body: Operations.completeCacheArtifactMultipartUpload.Output.Forbidden.Body) {
+                internal init(body: Operations.startCacheArtifactMultipartUpload.Output.Forbidden.Body) {
                     self.body = body
                 }
             }
             /// The authenticated subject is not authorized to perform this action
             ///
-            /// - Remark: Generated from `#/paths//api/cache/multipart/complete/post(completeCacheArtifactMultipartUpload)/responses/403`.
+            /// - Remark: Generated from `#/paths//api/cache/multipart/start/post(startCacheArtifactMultipartUpload)/responses/403`.
             ///
             /// HTTP response code: `403 forbidden`.
-            case forbidden(Operations.completeCacheArtifactMultipartUpload.Output.Forbidden)
+            case forbidden(Operations.startCacheArtifactMultipartUpload.Output.Forbidden)
             /// The associated value of the enum case if `self` is `.forbidden`.
             ///
             /// - Throws: An error if `self` is not `.forbidden`.
             /// - SeeAlso: `.forbidden`.
-            internal var forbidden: Operations.completeCacheArtifactMultipartUpload.Output.Forbidden {
+            internal var forbidden: Operations.startCacheArtifactMultipartUpload.Output.Forbidden {
                 get throws {
                     switch self {
                     case let .forbidden(response):
@@ -4395,9 +6156,9 @@ internal enum Operations {
                 }
             }
             internal struct NotFound: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/multipart/complete/POST/responses/404/content`.
+                /// - Remark: Generated from `#/paths/api/cache/multipart/start/POST/responses/404/content`.
                 internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/cache/multipart/complete/POST/responses/404/content/application\/json`.
+                    /// - Remark: Generated from `#/paths/api/cache/multipart/start/POST/responses/404/content/application\/json`.
                     case json(Components.Schemas._Error)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
@@ -4413,26 +6174,378 @@ internal enum Operations {
                     }
                 }
                 /// Received HTTP response body
-                internal var body: Operations.completeCacheArtifactMultipartUpload.Output.NotFound.Body
+                internal var body: Operations.startCacheArtifactMultipartUpload.Output.NotFound.Body
                 /// Creates a new `NotFound`.
                 ///
                 /// - Parameters:
                 ///   - body: Received HTTP response body
-                internal init(body: Operations.completeCacheArtifactMultipartUpload.Output.NotFound.Body) {
+                internal init(body: Operations.startCacheArtifactMultipartUpload.Output.NotFound.Body) {
                     self.body = body
                 }
             }
             /// The project doesn't exist
             ///
-            /// - Remark: Generated from `#/paths//api/cache/multipart/complete/post(completeCacheArtifactMultipartUpload)/responses/404`.
+            /// - Remark: Generated from `#/paths//api/cache/multipart/start/post(startCacheArtifactMultipartUpload)/responses/404`.
             ///
             /// HTTP response code: `404 notFound`.
-            case notFound(Operations.completeCacheArtifactMultipartUpload.Output.NotFound)
+            case notFound(Operations.startCacheArtifactMultipartUpload.Output.NotFound)
             /// The associated value of the enum case if `self` is `.notFound`.
             ///
             /// - Throws: An error if `self` is not `.notFound`.
             /// - SeeAlso: `.notFound`.
-            internal var notFound: Operations.completeCacheArtifactMultipartUpload.Output.NotFound {
+            internal var notFound: Operations.startCacheArtifactMultipartUpload.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        internal enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            internal init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            internal var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            internal static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Get a cache action item.
+    ///
+    /// This endpoint gets an item from the action cache.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/cache/ac/{hash}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/ac/{hash}/get(getCacheActionItem)`.
+    internal enum getCacheActionItem {
+        internal static let id: Swift.String = "getCacheActionItem"
+        internal struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/ac/{hash}/GET/path`.
+            internal struct Path: Sendable, Hashable {
+                /// The name of the account that the project belongs to.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/ac/{hash}/GET/path/account_handle`.
+                internal var account_handle: Swift.String
+                /// The name of the project the cache action item belongs to.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/ac/{hash}/GET/path/project_handle`.
+                internal var project_handle: Swift.String
+                /// The hash that uniquely identifies an item in the action cache.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/ac/{hash}/GET/path/hash`.
+                internal var hash: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The name of the account that the project belongs to.
+                ///   - project_handle: The name of the project the cache action item belongs to.
+                ///   - hash: The hash that uniquely identifies an item in the action cache.
+                internal init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String,
+                    hash: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                    self.hash = hash
+                }
+            }
+            internal var path: Operations.getCacheActionItem.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/ac/{hash}/GET/header`.
+            internal struct Headers: Sendable, Hashable {
+                internal var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getCacheActionItem.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                internal init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getCacheActionItem.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            internal var headers: Operations.getCacheActionItem.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            internal init(
+                path: Operations.getCacheActionItem.Input.Path,
+                headers: Operations.getCacheActionItem.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        internal enum Output: Sendable, Hashable {
+            internal struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/ac/{hash}/GET/responses/200/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/ac/{hash}/GET/responses/200/content/application\/json`.
+                    case json(Components.Schemas.CacheActionItem)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas.CacheActionItem {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.getCacheActionItem.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.getCacheActionItem.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The item exists in the action cache
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/ac/{hash}/get(getCacheActionItem)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.getCacheActionItem.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            internal var ok: Operations.getCacheActionItem.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/ac/{hash}/GET/responses/401/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/ac/{hash}/GET/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.getCacheActionItem.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.getCacheActionItem.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/ac/{hash}/get(getCacheActionItem)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.getCacheActionItem.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            internal var unauthorized: Operations.getCacheActionItem.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct Code402: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/ac/{hash}/GET/responses/402/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/ac/{hash}/GET/responses/402/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.getCacheActionItem.Output.Code402.Body
+                /// Creates a new `Code402`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.getCacheActionItem.Output.Code402.Body) {
+                    self.body = body
+                }
+            }
+            /// The account has an invalid plan
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/ac/{hash}/get(getCacheActionItem)/responses/402`.
+            ///
+            /// HTTP response code: `402 code402`.
+            case code402(Operations.getCacheActionItem.Output.Code402)
+            /// The associated value of the enum case if `self` is `.code402`.
+            ///
+            /// - Throws: An error if `self` is not `.code402`.
+            /// - SeeAlso: `.code402`.
+            internal var code402: Operations.getCacheActionItem.Output.Code402 {
+                get throws {
+                    switch self {
+                    case let .code402(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "code402",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/ac/{hash}/GET/responses/403/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/ac/{hash}/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.getCacheActionItem.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.getCacheActionItem.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized to perform this action
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/ac/{hash}/get(getCacheActionItem)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.getCacheActionItem.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            internal var forbidden: Operations.getCacheActionItem.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/ac/{hash}/GET/responses/404/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/ac/{hash}/GET/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.getCacheActionItem.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.getCacheActionItem.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The item doesn't exist in the actino cache
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/ac/{hash}/get(getCacheActionItem)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.getCacheActionItem.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            internal var notFound: Operations.getCacheActionItem.Output.NotFound {
                 get throws {
                     switch self {
                     case let .notFound(response):
@@ -4856,89 +6969,101 @@ internal enum Operations {
             }
         }
     }
-    /// It initiates a multipart upload in the cache.
+    /// It uploads a given cache action item.
     ///
-    /// The endpoint returns an upload ID that can be used to generate URLs for the individual parts and complete the upload.
+    /// The endpoint caches a given action item without uploading a file. To upload files, use the multipart upload instead.
     ///
-    /// - Remark: HTTP `POST /api/cache/multipart/start`.
-    /// - Remark: Generated from `#/paths//api/cache/multipart/start/post(startCacheArtifactMultipartUpload)`.
-    internal enum startCacheArtifactMultipartUpload {
-        internal static let id: Swift.String = "startCacheArtifactMultipartUpload"
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/cache/ac`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/ac/post(uploadCacheActionItem)`.
+    internal enum uploadCacheActionItem {
+        internal static let id: Swift.String = "uploadCacheActionItem"
         internal struct Input: Sendable, Hashable {
-            /// - Remark: Generated from `#/paths/api/cache/multipart/start/POST/query`.
-            internal struct Query: Sendable, Hashable {
-                /// The category of the cache. It's used to differentiate between different types of caches.
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/ac/POST/path`.
+            internal struct Path: Sendable, Hashable {
+                /// The name of the account that the project belongs to.
                 ///
-                /// - Remark: Generated from `#/paths/api/cache/multipart/start/POST/query/cache_category`.
-                internal var cache_category: Components.Schemas.CacheCategory?
-                /// The project identifier '{account_name}/{project_name}'.
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/ac/POST/path/account_handle`.
+                internal var account_handle: Swift.String
+                /// The name of the project to clean cache for
                 ///
-                /// - Remark: Generated from `#/paths/api/cache/multipart/start/POST/query/project_id`.
-                internal var project_id: Swift.String
-                /// The hash that uniquely identifies the artifact in the cache.
-                ///
-                /// - Remark: Generated from `#/paths/api/cache/multipart/start/POST/query/hash`.
-                internal var hash: Swift.String
-                /// The name of the artifact.
-                ///
-                /// - Remark: Generated from `#/paths/api/cache/multipart/start/POST/query/name`.
-                internal var name: Swift.String
-                /// Creates a new `Query`.
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/ac/POST/path/project_handle`.
+                internal var project_handle: Swift.String
+                /// Creates a new `Path`.
                 ///
                 /// - Parameters:
-                ///   - cache_category: The category of the cache. It's used to differentiate between different types of caches.
-                ///   - project_id: The project identifier '{account_name}/{project_name}'.
-                ///   - hash: The hash that uniquely identifies the artifact in the cache.
-                ///   - name: The name of the artifact.
+                ///   - account_handle: The name of the account that the project belongs to.
+                ///   - project_handle: The name of the project to clean cache for
                 internal init(
-                    cache_category: Components.Schemas.CacheCategory? = nil,
-                    project_id: Swift.String,
-                    hash: Swift.String,
-                    name: Swift.String
+                    account_handle: Swift.String,
+                    project_handle: Swift.String
                 ) {
-                    self.cache_category = cache_category
-                    self.project_id = project_id
-                    self.hash = hash
-                    self.name = name
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
                 }
             }
-            internal var query: Operations.startCacheArtifactMultipartUpload.Input.Query
-            /// - Remark: Generated from `#/paths/api/cache/multipart/start/POST/header`.
+            internal var path: Operations.uploadCacheActionItem.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/ac/POST/header`.
             internal struct Headers: Sendable, Hashable {
-                internal var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.startCacheArtifactMultipartUpload.AcceptableContentType>]
+                internal var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.uploadCacheActionItem.AcceptableContentType>]
                 /// Creates a new `Headers`.
                 ///
                 /// - Parameters:
                 ///   - accept:
-                internal init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.startCacheArtifactMultipartUpload.AcceptableContentType>] = .defaultValues()) {
+                internal init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.uploadCacheActionItem.AcceptableContentType>] = .defaultValues()) {
                     self.accept = accept
                 }
             }
-            internal var headers: Operations.startCacheArtifactMultipartUpload.Input.Headers
+            internal var headers: Operations.uploadCacheActionItem.Input.Headers
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/ac/POST/requestBody`.
+            internal enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/ac/POST/requestBody/json`.
+                internal struct jsonPayload: Codable, Hashable, Sendable {
+                    /// The hash of the cache action item.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/ac/POST/requestBody/json/hash`.
+                    internal var hash: Swift.String?
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - hash: The hash of the cache action item.
+                    internal init(hash: Swift.String? = nil) {
+                        self.hash = hash
+                    }
+                    internal enum CodingKeys: String, CodingKey {
+                        case hash
+                    }
+                }
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/ac/POST/requestBody/content/application\/json`.
+                case json(Operations.uploadCacheActionItem.Input.Body.jsonPayload)
+            }
+            internal var body: Operations.uploadCacheActionItem.Input.Body?
             /// Creates a new `Input`.
             ///
             /// - Parameters:
-            ///   - query:
+            ///   - path:
             ///   - headers:
+            ///   - body:
             internal init(
-                query: Operations.startCacheArtifactMultipartUpload.Input.Query,
-                headers: Operations.startCacheArtifactMultipartUpload.Input.Headers = .init()
+                path: Operations.uploadCacheActionItem.Input.Path,
+                headers: Operations.uploadCacheActionItem.Input.Headers = .init(),
+                body: Operations.uploadCacheActionItem.Input.Body? = nil
             ) {
-                self.query = query
+                self.path = path
                 self.headers = headers
+                self.body = body
             }
         }
         internal enum Output: Sendable, Hashable {
             internal struct Ok: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/multipart/start/POST/responses/200/content`.
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/ac/POST/responses/200/content`.
                 internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/cache/multipart/start/POST/responses/200/content/application\/json`.
-                    case json(Components.Schemas.ArtifactUploadID)
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/ac/POST/responses/200/content/application\/json`.
+                    case json(Components.Schemas.CacheActionItem)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas.ArtifactUploadID {
+                    internal var json: Components.Schemas.CacheActionItem {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -4948,26 +7073,26 @@ internal enum Operations {
                     }
                 }
                 /// Received HTTP response body
-                internal var body: Operations.startCacheArtifactMultipartUpload.Output.Ok.Body
+                internal var body: Operations.uploadCacheActionItem.Output.Ok.Body
                 /// Creates a new `Ok`.
                 ///
                 /// - Parameters:
                 ///   - body: Received HTTP response body
-                internal init(body: Operations.startCacheArtifactMultipartUpload.Output.Ok.Body) {
+                internal init(body: Operations.uploadCacheActionItem.Output.Ok.Body) {
                     self.body = body
                 }
             }
-            /// The upload has been started
+            /// The request is valid but the cache action item already exists
             ///
-            /// - Remark: Generated from `#/paths//api/cache/multipart/start/post(startCacheArtifactMultipartUpload)/responses/200`.
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/ac/post(uploadCacheActionItem)/responses/200`.
             ///
             /// HTTP response code: `200 ok`.
-            case ok(Operations.startCacheArtifactMultipartUpload.Output.Ok)
+            case ok(Operations.uploadCacheActionItem.Output.Ok)
             /// The associated value of the enum case if `self` is `.ok`.
             ///
             /// - Throws: An error if `self` is not `.ok`.
             /// - SeeAlso: `.ok`.
-            internal var ok: Operations.startCacheArtifactMultipartUpload.Output.Ok {
+            internal var ok: Operations.uploadCacheActionItem.Output.Ok {
                 get throws {
                     switch self {
                     case let .ok(response):
@@ -4980,10 +7105,61 @@ internal enum Operations {
                     }
                 }
             }
-            internal struct Unauthorized: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/multipart/start/POST/responses/401/content`.
+            internal struct Created: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/ac/POST/responses/201/content`.
                 internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/cache/multipart/start/POST/responses/401/content/application\/json`.
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/ac/POST/responses/201/content/application\/json`.
+                    case json(Components.Schemas.CacheActionItem)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas.CacheActionItem {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.uploadCacheActionItem.Output.Created.Body
+                /// Creates a new `Created`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.uploadCacheActionItem.Output.Created.Body) {
+                    self.body = body
+                }
+            }
+            /// The action item was cached
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/ac/post(uploadCacheActionItem)/responses/201`.
+            ///
+            /// HTTP response code: `201 created`.
+            case created(Operations.uploadCacheActionItem.Output.Created)
+            /// The associated value of the enum case if `self` is `.created`.
+            ///
+            /// - Throws: An error if `self` is not `.created`.
+            /// - SeeAlso: `.created`.
+            internal var created: Operations.uploadCacheActionItem.Output.Created {
+                get throws {
+                    switch self {
+                    case let .created(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "created",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/ac/POST/responses/400/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/ac/POST/responses/400/content/application\/json`.
                     case json(Components.Schemas._Error)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
@@ -4999,26 +7175,77 @@ internal enum Operations {
                     }
                 }
                 /// Received HTTP response body
-                internal var body: Operations.startCacheArtifactMultipartUpload.Output.Unauthorized.Body
+                internal var body: Operations.uploadCacheActionItem.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.uploadCacheActionItem.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// The request has missing or invalid parameters
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/ac/post(uploadCacheActionItem)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.uploadCacheActionItem.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            internal var badRequest: Operations.uploadCacheActionItem.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/ac/POST/responses/401/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/ac/POST/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.uploadCacheActionItem.Output.Unauthorized.Body
                 /// Creates a new `Unauthorized`.
                 ///
                 /// - Parameters:
                 ///   - body: Received HTTP response body
-                internal init(body: Operations.startCacheArtifactMultipartUpload.Output.Unauthorized.Body) {
+                internal init(body: Operations.uploadCacheActionItem.Output.Unauthorized.Body) {
                     self.body = body
                 }
             }
             /// You need to be authenticated to access this resource
             ///
-            /// - Remark: Generated from `#/paths//api/cache/multipart/start/post(startCacheArtifactMultipartUpload)/responses/401`.
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/ac/post(uploadCacheActionItem)/responses/401`.
             ///
             /// HTTP response code: `401 unauthorized`.
-            case unauthorized(Operations.startCacheArtifactMultipartUpload.Output.Unauthorized)
+            case unauthorized(Operations.uploadCacheActionItem.Output.Unauthorized)
             /// The associated value of the enum case if `self` is `.unauthorized`.
             ///
             /// - Throws: An error if `self` is not `.unauthorized`.
             /// - SeeAlso: `.unauthorized`.
-            internal var unauthorized: Operations.startCacheArtifactMultipartUpload.Output.Unauthorized {
+            internal var unauthorized: Operations.uploadCacheActionItem.Output.Unauthorized {
                 get throws {
                     switch self {
                     case let .unauthorized(response):
@@ -5032,9 +7259,9 @@ internal enum Operations {
                 }
             }
             internal struct Code402: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/multipart/start/POST/responses/402/content`.
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/ac/POST/responses/402/content`.
                 internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/cache/multipart/start/POST/responses/402/content/application\/json`.
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/ac/POST/responses/402/content/application\/json`.
                     case json(Components.Schemas._Error)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
@@ -5050,26 +7277,26 @@ internal enum Operations {
                     }
                 }
                 /// Received HTTP response body
-                internal var body: Operations.startCacheArtifactMultipartUpload.Output.Code402.Body
+                internal var body: Operations.uploadCacheActionItem.Output.Code402.Body
                 /// Creates a new `Code402`.
                 ///
                 /// - Parameters:
                 ///   - body: Received HTTP response body
-                internal init(body: Operations.startCacheArtifactMultipartUpload.Output.Code402.Body) {
+                internal init(body: Operations.uploadCacheActionItem.Output.Code402.Body) {
                     self.body = body
                 }
             }
             /// The account has an invalid plan
             ///
-            /// - Remark: Generated from `#/paths//api/cache/multipart/start/post(startCacheArtifactMultipartUpload)/responses/402`.
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/ac/post(uploadCacheActionItem)/responses/402`.
             ///
             /// HTTP response code: `402 code402`.
-            case code402(Operations.startCacheArtifactMultipartUpload.Output.Code402)
+            case code402(Operations.uploadCacheActionItem.Output.Code402)
             /// The associated value of the enum case if `self` is `.code402`.
             ///
             /// - Throws: An error if `self` is not `.code402`.
             /// - SeeAlso: `.code402`.
-            internal var code402: Operations.startCacheArtifactMultipartUpload.Output.Code402 {
+            internal var code402: Operations.uploadCacheActionItem.Output.Code402 {
                 get throws {
                     switch self {
                     case let .code402(response):
@@ -5083,9 +7310,9 @@ internal enum Operations {
                 }
             }
             internal struct Forbidden: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/multipart/start/POST/responses/403/content`.
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/ac/POST/responses/403/content`.
                 internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/cache/multipart/start/POST/responses/403/content/application\/json`.
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/ac/POST/responses/403/content/application\/json`.
                     case json(Components.Schemas._Error)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
@@ -5101,26 +7328,26 @@ internal enum Operations {
                     }
                 }
                 /// Received HTTP response body
-                internal var body: Operations.startCacheArtifactMultipartUpload.Output.Forbidden.Body
+                internal var body: Operations.uploadCacheActionItem.Output.Forbidden.Body
                 /// Creates a new `Forbidden`.
                 ///
                 /// - Parameters:
                 ///   - body: Received HTTP response body
-                internal init(body: Operations.startCacheArtifactMultipartUpload.Output.Forbidden.Body) {
+                internal init(body: Operations.uploadCacheActionItem.Output.Forbidden.Body) {
                     self.body = body
                 }
             }
             /// The authenticated subject is not authorized to perform this action
             ///
-            /// - Remark: Generated from `#/paths//api/cache/multipart/start/post(startCacheArtifactMultipartUpload)/responses/403`.
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/ac/post(uploadCacheActionItem)/responses/403`.
             ///
             /// HTTP response code: `403 forbidden`.
-            case forbidden(Operations.startCacheArtifactMultipartUpload.Output.Forbidden)
+            case forbidden(Operations.uploadCacheActionItem.Output.Forbidden)
             /// The associated value of the enum case if `self` is `.forbidden`.
             ///
             /// - Throws: An error if `self` is not `.forbidden`.
             /// - SeeAlso: `.forbidden`.
-            internal var forbidden: Operations.startCacheArtifactMultipartUpload.Output.Forbidden {
+            internal var forbidden: Operations.uploadCacheActionItem.Output.Forbidden {
                 get throws {
                     switch self {
                     case let .forbidden(response):
@@ -5134,9 +7361,9 @@ internal enum Operations {
                 }
             }
             internal struct NotFound: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/multipart/start/POST/responses/404/content`.
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/ac/POST/responses/404/content`.
                 internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/cache/multipart/start/POST/responses/404/content/application\/json`.
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/ac/POST/responses/404/content/application\/json`.
                     case json(Components.Schemas._Error)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
@@ -5152,26 +7379,26 @@ internal enum Operations {
                     }
                 }
                 /// Received HTTP response body
-                internal var body: Operations.startCacheArtifactMultipartUpload.Output.NotFound.Body
+                internal var body: Operations.uploadCacheActionItem.Output.NotFound.Body
                 /// Creates a new `NotFound`.
                 ///
                 /// - Parameters:
                 ///   - body: Received HTTP response body
-                internal init(body: Operations.startCacheArtifactMultipartUpload.Output.NotFound.Body) {
+                internal init(body: Operations.uploadCacheActionItem.Output.NotFound.Body) {
                     self.body = body
                 }
             }
             /// The project doesn't exist
             ///
-            /// - Remark: Generated from `#/paths//api/cache/multipart/start/post(startCacheArtifactMultipartUpload)/responses/404`.
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/ac/post(uploadCacheActionItem)/responses/404`.
             ///
             /// HTTP response code: `404 notFound`.
-            case notFound(Operations.startCacheArtifactMultipartUpload.Output.NotFound)
+            case notFound(Operations.uploadCacheActionItem.Output.NotFound)
             /// The associated value of the enum case if `self` is `.notFound`.
             ///
             /// - Throws: An error if `self` is not `.notFound`.
             /// - SeeAlso: `.notFound`.
-            internal var notFound: Operations.startCacheArtifactMultipartUpload.Output.NotFound {
+            internal var notFound: Operations.uploadCacheActionItem.Output.NotFound {
                 get throws {
                     switch self {
                     case let .notFound(response):
@@ -5179,428 +7406,6 @@ internal enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "notFound",
-                            response: self
-                        )
-                    }
-                }
-            }
-            /// Undocumented response.
-            ///
-            /// A response with a code that is not documented in the OpenAPI document.
-            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
-        }
-        internal enum AcceptableContentType: AcceptableProtocol {
-            case json
-            case other(Swift.String)
-            internal init?(rawValue: Swift.String) {
-                switch rawValue.lowercased() {
-                case "application/json":
-                    self = .json
-                default:
-                    self = .other(rawValue)
-                }
-            }
-            internal var rawValue: Swift.String {
-                switch self {
-                case let .other(string):
-                    return string
-                case .json:
-                    return "application/json"
-                }
-            }
-            internal static var allCases: [Self] {
-                [
-                    .json
-                ]
-            }
-        }
-    }
-    /// Lists the organizations
-    ///
-    /// Returns all the organizations the authenticated subject is part of.
-    ///
-    /// - Remark: HTTP `GET /api/organizations`.
-    /// - Remark: Generated from `#/paths//api/organizations/get(listOrganizations)`.
-    internal enum listOrganizations {
-        internal static let id: Swift.String = "listOrganizations"
-        internal struct Input: Sendable, Hashable {
-            /// - Remark: Generated from `#/paths/api/organizations/GET/header`.
-            internal struct Headers: Sendable, Hashable {
-                internal var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listOrganizations.AcceptableContentType>]
-                /// Creates a new `Headers`.
-                ///
-                /// - Parameters:
-                ///   - accept:
-                internal init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listOrganizations.AcceptableContentType>] = .defaultValues()) {
-                    self.accept = accept
-                }
-            }
-            internal var headers: Operations.listOrganizations.Input.Headers
-            /// Creates a new `Input`.
-            ///
-            /// - Parameters:
-            ///   - headers:
-            internal init(headers: Operations.listOrganizations.Input.Headers = .init()) {
-                self.headers = headers
-            }
-        }
-        internal enum Output: Sendable, Hashable {
-            internal struct Ok: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/organizations/GET/responses/200/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// The list of organizations the authenticated subject is part of.
-                    ///
-                    /// - Remark: Generated from `#/paths/api/organizations/GET/responses/200/content/json`.
-                    internal struct jsonPayload: Codable, Hashable, Sendable {
-                        /// - Remark: Generated from `#/paths/api/organizations/GET/responses/200/content/json/organizations`.
-                        internal var organizations: [Components.Schemas.Organization]
-                        /// Creates a new `jsonPayload`.
-                        ///
-                        /// - Parameters:
-                        ///   - organizations:
-                        internal init(organizations: [Components.Schemas.Organization]) {
-                            self.organizations = organizations
-                        }
-                        internal enum CodingKeys: String, CodingKey {
-                            case organizations
-                        }
-                    }
-                    /// - Remark: Generated from `#/paths/api/organizations/GET/responses/200/content/application\/json`.
-                    case json(Operations.listOrganizations.Output.Ok.Body.jsonPayload)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Operations.listOrganizations.Output.Ok.Body.jsonPayload {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.listOrganizations.Output.Ok.Body
-                /// Creates a new `Ok`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.listOrganizations.Output.Ok.Body) {
-                    self.body = body
-                }
-            }
-            /// The list of organizations
-            ///
-            /// - Remark: Generated from `#/paths//api/organizations/get(listOrganizations)/responses/200`.
-            ///
-            /// HTTP response code: `200 ok`.
-            case ok(Operations.listOrganizations.Output.Ok)
-            /// The associated value of the enum case if `self` is `.ok`.
-            ///
-            /// - Throws: An error if `self` is not `.ok`.
-            /// - SeeAlso: `.ok`.
-            internal var ok: Operations.listOrganizations.Output.Ok {
-                get throws {
-                    switch self {
-                    case let .ok(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "ok",
-                            response: self
-                        )
-                    }
-                }
-            }
-            internal struct Unauthorized: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/organizations/GET/responses/401/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/organizations/GET/responses/401/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.listOrganizations.Output.Unauthorized.Body
-                /// Creates a new `Unauthorized`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.listOrganizations.Output.Unauthorized.Body) {
-                    self.body = body
-                }
-            }
-            /// You need to be authenticated to access this resource
-            ///
-            /// - Remark: Generated from `#/paths//api/organizations/get(listOrganizations)/responses/401`.
-            ///
-            /// HTTP response code: `401 unauthorized`.
-            case unauthorized(Operations.listOrganizations.Output.Unauthorized)
-            /// The associated value of the enum case if `self` is `.unauthorized`.
-            ///
-            /// - Throws: An error if `self` is not `.unauthorized`.
-            /// - SeeAlso: `.unauthorized`.
-            internal var unauthorized: Operations.listOrganizations.Output.Unauthorized {
-                get throws {
-                    switch self {
-                    case let .unauthorized(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "unauthorized",
-                            response: self
-                        )
-                    }
-                }
-            }
-            internal struct Forbidden: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/organizations/GET/responses/403/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/organizations/GET/responses/403/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.listOrganizations.Output.Forbidden.Body
-                /// Creates a new `Forbidden`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.listOrganizations.Output.Forbidden.Body) {
-                    self.body = body
-                }
-            }
-            /// The authenticated subject is not authorized to perform this action
-            ///
-            /// - Remark: Generated from `#/paths//api/organizations/get(listOrganizations)/responses/403`.
-            ///
-            /// HTTP response code: `403 forbidden`.
-            case forbidden(Operations.listOrganizations.Output.Forbidden)
-            /// The associated value of the enum case if `self` is `.forbidden`.
-            ///
-            /// - Throws: An error if `self` is not `.forbidden`.
-            /// - SeeAlso: `.forbidden`.
-            internal var forbidden: Operations.listOrganizations.Output.Forbidden {
-                get throws {
-                    switch self {
-                    case let .forbidden(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "forbidden",
-                            response: self
-                        )
-                    }
-                }
-            }
-            /// Undocumented response.
-            ///
-            /// A response with a code that is not documented in the OpenAPI document.
-            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
-        }
-        internal enum AcceptableContentType: AcceptableProtocol {
-            case json
-            case other(Swift.String)
-            internal init?(rawValue: Swift.String) {
-                switch rawValue.lowercased() {
-                case "application/json":
-                    self = .json
-                default:
-                    self = .other(rawValue)
-                }
-            }
-            internal var rawValue: Swift.String {
-                switch self {
-                case let .other(string):
-                    return string
-                case .json:
-                    return "application/json"
-                }
-            }
-            internal static var allCases: [Self] {
-                [
-                    .json
-                ]
-            }
-        }
-    }
-    /// Creates an organization
-    ///
-    /// Creates an organization with the given name.
-    ///
-    /// - Remark: HTTP `POST /api/organizations`.
-    /// - Remark: Generated from `#/paths//api/organizations/post(createOrganization)`.
-    internal enum createOrganization {
-        internal static let id: Swift.String = "createOrganization"
-        internal struct Input: Sendable, Hashable {
-            /// - Remark: Generated from `#/paths/api/organizations/POST/header`.
-            internal struct Headers: Sendable, Hashable {
-                internal var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createOrganization.AcceptableContentType>]
-                /// Creates a new `Headers`.
-                ///
-                /// - Parameters:
-                ///   - accept:
-                internal init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createOrganization.AcceptableContentType>] = .defaultValues()) {
-                    self.accept = accept
-                }
-            }
-            internal var headers: Operations.createOrganization.Input.Headers
-            /// - Remark: Generated from `#/paths/api/organizations/POST/requestBody`.
-            internal enum Body: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/organizations/POST/requestBody/json`.
-                internal struct jsonPayload: Codable, Hashable, Sendable {
-                    /// The name of the organization that should be created.
-                    ///
-                    /// - Remark: Generated from `#/paths/api/organizations/POST/requestBody/json/name`.
-                    internal var name: Swift.String
-                    /// Creates a new `jsonPayload`.
-                    ///
-                    /// - Parameters:
-                    ///   - name: The name of the organization that should be created.
-                    internal init(name: Swift.String) {
-                        self.name = name
-                    }
-                    internal enum CodingKeys: String, CodingKey {
-                        case name
-                    }
-                }
-                /// - Remark: Generated from `#/paths/api/organizations/POST/requestBody/content/application\/json`.
-                case json(Operations.createOrganization.Input.Body.jsonPayload)
-            }
-            internal var body: Operations.createOrganization.Input.Body?
-            /// Creates a new `Input`.
-            ///
-            /// - Parameters:
-            ///   - headers:
-            ///   - body:
-            internal init(
-                headers: Operations.createOrganization.Input.Headers = .init(),
-                body: Operations.createOrganization.Input.Body? = nil
-            ) {
-                self.headers = headers
-                self.body = body
-            }
-        }
-        internal enum Output: Sendable, Hashable {
-            internal struct Ok: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/organizations/POST/responses/200/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/organizations/POST/responses/200/content/application\/json`.
-                    case json(Components.Schemas.Organization)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas.Organization {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.createOrganization.Output.Ok.Body
-                /// Creates a new `Ok`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.createOrganization.Output.Ok.Body) {
-                    self.body = body
-                }
-            }
-            /// The organization was created
-            ///
-            /// - Remark: Generated from `#/paths//api/organizations/post(createOrganization)/responses/200`.
-            ///
-            /// HTTP response code: `200 ok`.
-            case ok(Operations.createOrganization.Output.Ok)
-            /// The associated value of the enum case if `self` is `.ok`.
-            ///
-            /// - Throws: An error if `self` is not `.ok`.
-            /// - SeeAlso: `.ok`.
-            internal var ok: Operations.createOrganization.Output.Ok {
-                get throws {
-                    switch self {
-                    case let .ok(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "ok",
-                            response: self
-                        )
-                    }
-                }
-            }
-            internal struct BadRequest: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/organizations/POST/responses/400/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/organizations/POST/responses/400/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.createOrganization.Output.BadRequest.Body
-                /// Creates a new `BadRequest`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.createOrganization.Output.BadRequest.Body) {
-                    self.body = body
-                }
-            }
-            /// The organization could not be created due to a validation error
-            ///
-            /// - Remark: Generated from `#/paths//api/organizations/post(createOrganization)/responses/400`.
-            ///
-            /// HTTP response code: `400 badRequest`.
-            case badRequest(Operations.createOrganization.Output.BadRequest)
-            /// The associated value of the enum case if `self` is `.badRequest`.
-            ///
-            /// - Throws: An error if `self` is not `.badRequest`.
-            /// - SeeAlso: `.badRequest`.
-            internal var badRequest: Operations.createOrganization.Output.BadRequest {
-                get throws {
-                    switch self {
-                    case let .badRequest(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "badRequest",
                             response: self
                         )
                     }
@@ -6943,6 +8748,1261 @@ internal enum Operations {
             }
         }
     }
+    /// It generates a signed URL for uploading a part.
+    ///
+    /// Given an upload ID and a part number, this endpoint returns a signed URL that can be used to upload a part of a multipart upload. The URL is short-lived and expires in 120 seconds.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/previews/generate-url`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/generate-url/post(generatePreviewsMultipartUploadURL)`.
+    internal enum generatePreviewsMultipartUploadURL {
+        internal static let id: Swift.String = "generatePreviewsMultipartUploadURL"
+        internal struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/generate-url/POST/path`.
+            internal struct Path: Sendable, Hashable {
+                /// The handle of the account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/generate-url/POST/path/account_handle`.
+                internal var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/generate-url/POST/path/project_handle`.
+                internal var project_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the account.
+                ///   - project_handle: The handle of the project.
+                internal init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                }
+            }
+            internal var path: Operations.generatePreviewsMultipartUploadURL.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/generate-url/POST/header`.
+            internal struct Headers: Sendable, Hashable {
+                internal var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.generatePreviewsMultipartUploadURL.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                internal init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.generatePreviewsMultipartUploadURL.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            internal var headers: Operations.generatePreviewsMultipartUploadURL.Input.Headers
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/generate-url/POST/requestBody`.
+            internal enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/generate-url/POST/requestBody/json`.
+                internal struct jsonPayload: Codable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/generate-url/POST/requestBody/json/multipart_upload_part`.
+                    internal var multipart_upload_part: Components.Schemas.ArtifactMultipartUploadPart
+                    /// The id of the preview.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/generate-url/POST/requestBody/json/preview_id`.
+                    internal var preview_id: Swift.String
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - multipart_upload_part:
+                    ///   - preview_id: The id of the preview.
+                    internal init(
+                        multipart_upload_part: Components.Schemas.ArtifactMultipartUploadPart,
+                        preview_id: Swift.String
+                    ) {
+                        self.multipart_upload_part = multipart_upload_part
+                        self.preview_id = preview_id
+                    }
+                    internal enum CodingKeys: String, CodingKey {
+                        case multipart_upload_part
+                        case preview_id
+                    }
+                }
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/generate-url/POST/requestBody/content/application\/json`.
+                case json(Operations.generatePreviewsMultipartUploadURL.Input.Body.jsonPayload)
+            }
+            internal var body: Operations.generatePreviewsMultipartUploadURL.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            ///   - body:
+            internal init(
+                path: Operations.generatePreviewsMultipartUploadURL.Input.Path,
+                headers: Operations.generatePreviewsMultipartUploadURL.Input.Headers = .init(),
+                body: Operations.generatePreviewsMultipartUploadURL.Input.Body? = nil
+            ) {
+                self.path = path
+                self.headers = headers
+                self.body = body
+            }
+        }
+        internal enum Output: Sendable, Hashable {
+            internal struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/generate-url/POST/responses/200/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/generate-url/POST/responses/200/content/application\/json`.
+                    case json(Components.Schemas.ArtifactMultipartUploadURL)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas.ArtifactMultipartUploadURL {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.generatePreviewsMultipartUploadURL.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.generatePreviewsMultipartUploadURL.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The URL has been generated
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/generate-url/post(generatePreviewsMultipartUploadURL)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.generatePreviewsMultipartUploadURL.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            internal var ok: Operations.generatePreviewsMultipartUploadURL.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/generate-url/POST/responses/401/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/generate-url/POST/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.generatePreviewsMultipartUploadURL.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.generatePreviewsMultipartUploadURL.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/generate-url/post(generatePreviewsMultipartUploadURL)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.generatePreviewsMultipartUploadURL.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            internal var unauthorized: Operations.generatePreviewsMultipartUploadURL.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/generate-url/POST/responses/403/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/generate-url/POST/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.generatePreviewsMultipartUploadURL.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.generatePreviewsMultipartUploadURL.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized to perform this action
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/generate-url/post(generatePreviewsMultipartUploadURL)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.generatePreviewsMultipartUploadURL.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            internal var forbidden: Operations.generatePreviewsMultipartUploadURL.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/generate-url/POST/responses/404/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/generate-url/POST/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.generatePreviewsMultipartUploadURL.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.generatePreviewsMultipartUploadURL.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The project doesn't exist
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/generate-url/post(generatePreviewsMultipartUploadURL)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.generatePreviewsMultipartUploadURL.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            internal var notFound: Operations.generatePreviewsMultipartUploadURL.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        internal enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            internal init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            internal var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            internal static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Create a new account token.
+    ///
+    /// This endpoint returns a new account token.
+    ///
+    /// - Remark: HTTP `POST /api/accounts/{account_handle}/tokens`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/tokens/post(createAccountToken)`.
+    internal enum createAccountToken {
+        internal static let id: Swift.String = "createAccountToken"
+        internal struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/POST/path`.
+            internal struct Path: Sendable, Hashable {
+                /// The account handle.
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/POST/path/account_handle`.
+                internal var account_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The account handle.
+                internal init(account_handle: Swift.String) {
+                    self.account_handle = account_handle
+                }
+            }
+            internal var path: Operations.createAccountToken.Input.Path
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/POST/header`.
+            internal struct Headers: Sendable, Hashable {
+                internal var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createAccountToken.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                internal init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createAccountToken.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            internal var headers: Operations.createAccountToken.Input.Headers
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/POST/requestBody`.
+            internal enum Body: Sendable, Hashable {
+                /// The request to create a new account token.
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/POST/requestBody/json`.
+                internal struct jsonPayload: Codable, Hashable, Sendable {
+                    /// The scope of the token.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/POST/requestBody/json/scopesPayload`.
+                    internal enum scopesPayloadPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                        case account_registry_read = "account_registry_read"
+                    }
+                    /// The scopes for the new account token.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/POST/requestBody/json/scopes`.
+                    internal typealias scopesPayload = [Operations.createAccountToken.Input.Body.jsonPayload.scopesPayloadPayload]
+                    /// The scopes for the new account token.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/POST/requestBody/json/scopes`.
+                    internal var scopes: Operations.createAccountToken.Input.Body.jsonPayload.scopesPayload
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - scopes: The scopes for the new account token.
+                    internal init(scopes: Operations.createAccountToken.Input.Body.jsonPayload.scopesPayload) {
+                        self.scopes = scopes
+                    }
+                    internal enum CodingKeys: String, CodingKey {
+                        case scopes
+                    }
+                }
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/POST/requestBody/content/application\/json`.
+                case json(Operations.createAccountToken.Input.Body.jsonPayload)
+            }
+            internal var body: Operations.createAccountToken.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            ///   - body:
+            internal init(
+                path: Operations.createAccountToken.Input.Path,
+                headers: Operations.createAccountToken.Input.Headers = .init(),
+                body: Operations.createAccountToken.Input.Body? = nil
+            ) {
+                self.path = path
+                self.headers = headers
+                self.body = body
+            }
+        }
+        internal enum Output: Sendable, Hashable {
+            internal struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/POST/responses/200/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// A new account token.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/POST/responses/200/content/json`.
+                    internal struct jsonPayload: Codable, Hashable, Sendable {
+                        /// The generated account token.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/POST/responses/200/content/json/token`.
+                        internal var token: Swift.String
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - token: The generated account token.
+                        internal init(token: Swift.String) {
+                            self.token = token
+                        }
+                        internal enum CodingKeys: String, CodingKey {
+                            case token
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/POST/responses/200/content/application\/json`.
+                    case json(Operations.createAccountToken.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Operations.createAccountToken.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.createAccountToken.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.createAccountToken.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// An account token was generated
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/tokens/post(createAccountToken)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.createAccountToken.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            internal var ok: Operations.createAccountToken.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/POST/responses/401/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/POST/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.createAccountToken.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.createAccountToken.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to issue new tokens
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/tokens/post(createAccountToken)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.createAccountToken.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            internal var unauthorized: Operations.createAccountToken.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/POST/responses/403/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/POST/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.createAccountToken.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.createAccountToken.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authorized to issue new tokens
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/tokens/post(createAccountToken)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.createAccountToken.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            internal var forbidden: Operations.createAccountToken.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/POST/responses/404/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/POST/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.createAccountToken.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.createAccountToken.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The account was not found
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/tokens/post(createAccountToken)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.createAccountToken.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            internal var notFound: Operations.createAccountToken.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        internal enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            internal init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            internal var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            internal static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// It generates a signed URL for uploading a part.
+    ///
+    /// Given an upload ID and a part number, this endpoint returns a signed URL that can be used to upload a part of a multipart upload. The URL is short-lived and expires in 120 seconds.
+    ///
+    /// - Remark: HTTP `POST /api/runs/{run_id}/generate-url`.
+    /// - Remark: Generated from `#/paths//api/runs/{run_id}/generate-url/post(generateAnalyticsArtifactMultipartUploadURL)`.
+    internal enum generateAnalyticsArtifactMultipartUploadURL {
+        internal static let id: Swift.String = "generateAnalyticsArtifactMultipartUploadURL"
+        internal struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/runs/{run_id}/generate-url/POST/path`.
+            internal struct Path: Sendable, Hashable {
+                /// The id of the command event.
+                ///
+                /// - Remark: Generated from `#/paths/api/runs/{run_id}/generate-url/POST/path/run_id`.
+                internal var run_id: Swift.Int
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - run_id: The id of the command event.
+                internal init(run_id: Swift.Int) {
+                    self.run_id = run_id
+                }
+            }
+            internal var path: Operations.generateAnalyticsArtifactMultipartUploadURL.Input.Path
+            /// - Remark: Generated from `#/paths/api/runs/{run_id}/generate-url/POST/header`.
+            internal struct Headers: Sendable, Hashable {
+                internal var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.generateAnalyticsArtifactMultipartUploadURL.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                internal init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.generateAnalyticsArtifactMultipartUploadURL.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            internal var headers: Operations.generateAnalyticsArtifactMultipartUploadURL.Input.Headers
+            /// - Remark: Generated from `#/paths/api/runs/{run_id}/generate-url/POST/requestBody`.
+            internal enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/runs/{run_id}/generate-url/POST/requestBody/json`.
+                internal struct jsonPayload: Codable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/paths/api/runs/{run_id}/generate-url/POST/requestBody/json/command_event_artifact`.
+                    internal var command_event_artifact: Components.Schemas.CommandEventArtifact
+                    /// - Remark: Generated from `#/paths/api/runs/{run_id}/generate-url/POST/requestBody/json/multipart_upload_part`.
+                    internal var multipart_upload_part: Components.Schemas.ArtifactMultipartUploadPart
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - command_event_artifact:
+                    ///   - multipart_upload_part:
+                    internal init(
+                        command_event_artifact: Components.Schemas.CommandEventArtifact,
+                        multipart_upload_part: Components.Schemas.ArtifactMultipartUploadPart
+                    ) {
+                        self.command_event_artifact = command_event_artifact
+                        self.multipart_upload_part = multipart_upload_part
+                    }
+                    internal enum CodingKeys: String, CodingKey {
+                        case command_event_artifact
+                        case multipart_upload_part
+                    }
+                }
+                /// - Remark: Generated from `#/paths/api/runs/{run_id}/generate-url/POST/requestBody/content/application\/json`.
+                case json(Operations.generateAnalyticsArtifactMultipartUploadURL.Input.Body.jsonPayload)
+            }
+            internal var body: Operations.generateAnalyticsArtifactMultipartUploadURL.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            ///   - body:
+            internal init(
+                path: Operations.generateAnalyticsArtifactMultipartUploadURL.Input.Path,
+                headers: Operations.generateAnalyticsArtifactMultipartUploadURL.Input.Headers = .init(),
+                body: Operations.generateAnalyticsArtifactMultipartUploadURL.Input.Body? = nil
+            ) {
+                self.path = path
+                self.headers = headers
+                self.body = body
+            }
+        }
+        internal enum Output: Sendable, Hashable {
+            internal struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/runs/{run_id}/generate-url/POST/responses/200/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/runs/{run_id}/generate-url/POST/responses/200/content/application\/json`.
+                    case json(Components.Schemas.ArtifactMultipartUploadURL)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas.ArtifactMultipartUploadURL {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.generateAnalyticsArtifactMultipartUploadURL.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.generateAnalyticsArtifactMultipartUploadURL.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The URL has been generated
+            ///
+            /// - Remark: Generated from `#/paths//api/runs/{run_id}/generate-url/post(generateAnalyticsArtifactMultipartUploadURL)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.generateAnalyticsArtifactMultipartUploadURL.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            internal var ok: Operations.generateAnalyticsArtifactMultipartUploadURL.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/runs/{run_id}/generate-url/POST/responses/401/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/runs/{run_id}/generate-url/POST/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.generateAnalyticsArtifactMultipartUploadURL.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.generateAnalyticsArtifactMultipartUploadURL.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/runs/{run_id}/generate-url/post(generateAnalyticsArtifactMultipartUploadURL)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.generateAnalyticsArtifactMultipartUploadURL.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            internal var unauthorized: Operations.generateAnalyticsArtifactMultipartUploadURL.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/runs/{run_id}/generate-url/POST/responses/403/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/runs/{run_id}/generate-url/POST/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.generateAnalyticsArtifactMultipartUploadURL.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.generateAnalyticsArtifactMultipartUploadURL.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized to perform this action
+            ///
+            /// - Remark: Generated from `#/paths//api/runs/{run_id}/generate-url/post(generateAnalyticsArtifactMultipartUploadURL)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.generateAnalyticsArtifactMultipartUploadURL.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            internal var forbidden: Operations.generateAnalyticsArtifactMultipartUploadURL.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/runs/{run_id}/generate-url/POST/responses/404/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/runs/{run_id}/generate-url/POST/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.generateAnalyticsArtifactMultipartUploadURL.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.generateAnalyticsArtifactMultipartUploadURL.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The project doesn't exist
+            ///
+            /// - Remark: Generated from `#/paths//api/runs/{run_id}/generate-url/post(generateAnalyticsArtifactMultipartUploadURL)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.generateAnalyticsArtifactMultipartUploadURL.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            internal var notFound: Operations.generateAnalyticsArtifactMultipartUploadURL.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        internal enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            internal init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            internal var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            internal static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Cleans cache for a given project
+    ///
+    /// - Remark: HTTP `PUT /api/projects/{account_handle}/{project_handle}/cache/clean`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/clean/put(cleanCache)`.
+    internal enum cleanCache {
+        internal static let id: Swift.String = "cleanCache"
+        internal struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/clean/PUT/path`.
+            internal struct Path: Sendable, Hashable {
+                /// The name of the account that the project belongs to.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/clean/PUT/path/account_handle`.
+                internal var account_handle: Swift.String
+                /// The name of the project to clean cache for
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/clean/PUT/path/project_handle`.
+                internal var project_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The name of the account that the project belongs to.
+                ///   - project_handle: The name of the project to clean cache for
+                internal init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                }
+            }
+            internal var path: Operations.cleanCache.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/clean/PUT/header`.
+            internal struct Headers: Sendable, Hashable {
+                internal var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.cleanCache.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                internal init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.cleanCache.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            internal var headers: Operations.cleanCache.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            internal init(
+                path: Operations.cleanCache.Input.Path,
+                headers: Operations.cleanCache.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        internal enum Output: Sendable, Hashable {
+            internal struct NoContent: Sendable, Hashable {
+                /// Creates a new `NoContent`.
+                internal init() {}
+            }
+            /// The cache has been successfully cleaned
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/clean/put(cleanCache)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            case noContent(Operations.cleanCache.Output.NoContent)
+            /// The associated value of the enum case if `self` is `.noContent`.
+            ///
+            /// - Throws: An error if `self` is not `.noContent`.
+            /// - SeeAlso: `.noContent`.
+            internal var noContent: Operations.cleanCache.Output.NoContent {
+                get throws {
+                    switch self {
+                    case let .noContent(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "noContent",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/clean/PUT/responses/401/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/clean/PUT/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.cleanCache.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.cleanCache.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/clean/put(cleanCache)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.cleanCache.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            internal var unauthorized: Operations.cleanCache.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/clean/PUT/responses/403/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/clean/PUT/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.cleanCache.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.cleanCache.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized to perform this action
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/clean/put(cleanCache)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.cleanCache.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            internal var forbidden: Operations.cleanCache.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/clean/PUT/responses/404/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/clean/PUT/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.cleanCache.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.cleanCache.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The project was not found
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/clean/put(cleanCache)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.cleanCache.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            internal var notFound: Operations.cleanCache.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        internal enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            internal init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            internal var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            internal static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
     /// Creates an invitation
     ///
     /// Invites a user with a given email to a given organization.
@@ -7549,6 +10609,3193 @@ internal enum Operations {
             /// - Throws: An error if `self` is not `.notFound`.
             /// - SeeAlso: `.notFound`.
             internal var notFound: Operations.cancelInvitation.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        internal enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            internal init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            internal var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            internal static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// List previews.
+    ///
+    /// This endpoint returns a list of previews for a given project.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/previews`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/get(listPreviews)`.
+    internal enum listPreviews {
+        internal static let id: Swift.String = "listPreviews"
+        internal struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/path`.
+            internal struct Path: Sendable, Hashable {
+                /// The handle of the account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/path/account_handle`.
+                internal var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/path/project_handle`.
+                internal var project_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the account.
+                ///   - project_handle: The handle of the project.
+                internal init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                }
+            }
+            internal var path: Operations.listPreviews.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/query`.
+            internal struct Query: Sendable, Hashable {
+                /// The display name of previews.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/query/display_name`.
+                internal var display_name: Swift.String?
+                /// The preview version specifier. Currently, accepts a commit SHA, branch name, or latest.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/query/specifier`.
+                internal var specifier: Swift.String?
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/query/supported_platforms`.
+                internal var supported_platforms: [Components.Schemas.PreviewSupportedPlatform]?
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/query/page_size`.
+                internal var page_size: Swift.Int?
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/query/page`.
+                internal var page: Swift.Int?
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/query/distinct_field`.
+                internal enum distinct_fieldPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case bundle_identifier = "bundle_identifier"
+                }
+                /// Distinct fields – no two previews will be returned with this field having the same value.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/query/distinct_field`.
+                internal var distinct_field: Operations.listPreviews.Input.Query.distinct_fieldPayload?
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - display_name: The display name of previews.
+                ///   - specifier: The preview version specifier. Currently, accepts a commit SHA, branch name, or latest.
+                ///   - supported_platforms:
+                ///   - page_size:
+                ///   - page:
+                ///   - distinct_field: Distinct fields – no two previews will be returned with this field having the same value.
+                internal init(
+                    display_name: Swift.String? = nil,
+                    specifier: Swift.String? = nil,
+                    supported_platforms: [Components.Schemas.PreviewSupportedPlatform]? = nil,
+                    page_size: Swift.Int? = nil,
+                    page: Swift.Int? = nil,
+                    distinct_field: Operations.listPreviews.Input.Query.distinct_fieldPayload? = nil
+                ) {
+                    self.display_name = display_name
+                    self.specifier = specifier
+                    self.supported_platforms = supported_platforms
+                    self.page_size = page_size
+                    self.page = page
+                    self.distinct_field = distinct_field
+                }
+            }
+            internal var query: Operations.listPreviews.Input.Query
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/header`.
+            internal struct Headers: Sendable, Hashable {
+                internal var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listPreviews.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                internal init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listPreviews.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            internal var headers: Operations.listPreviews.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            internal init(
+                path: Operations.listPreviews.Input.Path,
+                query: Operations.listPreviews.Input.Query = .init(),
+                headers: Operations.listPreviews.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+            }
+        }
+        internal enum Output: Sendable, Hashable {
+            internal struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/responses/200/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/responses/200/content/json`.
+                    internal struct jsonPayload: Codable, Hashable, Sendable {
+                        /// Previews list.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/responses/200/content/json/previews`.
+                        internal var previews: [Components.Schemas.Preview]
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - previews: Previews list.
+                        internal init(previews: [Components.Schemas.Preview]) {
+                            self.previews = previews
+                        }
+                        internal enum CodingKeys: String, CodingKey {
+                            case previews
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/responses/200/content/application\/json`.
+                    case json(Operations.listPreviews.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Operations.listPreviews.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.listPreviews.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.listPreviews.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Successful response for listing previews.
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/get(listPreviews)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.listPreviews.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            internal var ok: Operations.listPreviews.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/responses/401/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.listPreviews.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.listPreviews.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/get(listPreviews)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.listPreviews.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            internal var unauthorized: Operations.listPreviews.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/responses/403/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.listPreviews.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.listPreviews.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized to perform this action
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/get(listPreviews)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.listPreviews.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            internal var forbidden: Operations.listPreviews.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        internal enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            internal init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            internal var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            internal static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Downloads an artifact from the cache.
+    ///
+    /// This endpoint returns a signed URL that can be used to download an artifact from the cache.
+    ///
+    /// - Remark: HTTP `GET /api/cache`.
+    /// - Remark: Generated from `#/paths//api/cache/get(downloadCacheArtifact)`.
+    internal enum downloadCacheArtifact {
+        internal static let id: Swift.String = "downloadCacheArtifact"
+        internal struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/cache/GET/query`.
+            internal struct Query: Sendable, Hashable {
+                /// The category of the cache. It's used to differentiate between different types of caches.
+                ///
+                /// - Remark: Generated from `#/paths/api/cache/GET/query/cache_category`.
+                internal var cache_category: Components.Schemas.CacheCategory?
+                /// The project identifier '{account_name}/{project_name}'.
+                ///
+                /// - Remark: Generated from `#/paths/api/cache/GET/query/project_id`.
+                internal var project_id: Swift.String
+                /// The hash that uniquely identifies the artifact in the cache.
+                ///
+                /// - Remark: Generated from `#/paths/api/cache/GET/query/hash`.
+                internal var hash: Swift.String
+                /// The name of the artifact.
+                ///
+                /// - Remark: Generated from `#/paths/api/cache/GET/query/name`.
+                internal var name: Swift.String
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - cache_category: The category of the cache. It's used to differentiate between different types of caches.
+                ///   - project_id: The project identifier '{account_name}/{project_name}'.
+                ///   - hash: The hash that uniquely identifies the artifact in the cache.
+                ///   - name: The name of the artifact.
+                internal init(
+                    cache_category: Components.Schemas.CacheCategory? = nil,
+                    project_id: Swift.String,
+                    hash: Swift.String,
+                    name: Swift.String
+                ) {
+                    self.cache_category = cache_category
+                    self.project_id = project_id
+                    self.hash = hash
+                    self.name = name
+                }
+            }
+            internal var query: Operations.downloadCacheArtifact.Input.Query
+            /// - Remark: Generated from `#/paths/api/cache/GET/header`.
+            internal struct Headers: Sendable, Hashable {
+                internal var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.downloadCacheArtifact.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                internal init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.downloadCacheArtifact.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            internal var headers: Operations.downloadCacheArtifact.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - query:
+            ///   - headers:
+            internal init(
+                query: Operations.downloadCacheArtifact.Input.Query,
+                headers: Operations.downloadCacheArtifact.Input.Headers = .init()
+            ) {
+                self.query = query
+                self.headers = headers
+            }
+        }
+        internal enum Output: Sendable, Hashable {
+            internal struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/cache/GET/responses/200/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/cache/GET/responses/200/content/application\/json`.
+                    case json(Components.Schemas.CacheArtifactDownloadURL)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas.CacheArtifactDownloadURL {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.downloadCacheArtifact.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.downloadCacheArtifact.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The artifact exists and is downloadable
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/get(downloadCacheArtifact)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.downloadCacheArtifact.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            internal var ok: Operations.downloadCacheArtifact.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/cache/GET/responses/401/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/cache/GET/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.downloadCacheArtifact.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.downloadCacheArtifact.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/get(downloadCacheArtifact)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.downloadCacheArtifact.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            internal var unauthorized: Operations.downloadCacheArtifact.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct Code402: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/cache/GET/responses/402/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/cache/GET/responses/402/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.downloadCacheArtifact.Output.Code402.Body
+                /// Creates a new `Code402`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.downloadCacheArtifact.Output.Code402.Body) {
+                    self.body = body
+                }
+            }
+            /// The account has an invalid plan
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/get(downloadCacheArtifact)/responses/402`.
+            ///
+            /// HTTP response code: `402 code402`.
+            case code402(Operations.downloadCacheArtifact.Output.Code402)
+            /// The associated value of the enum case if `self` is `.code402`.
+            ///
+            /// - Throws: An error if `self` is not `.code402`.
+            /// - SeeAlso: `.code402`.
+            internal var code402: Operations.downloadCacheArtifact.Output.Code402 {
+                get throws {
+                    switch self {
+                    case let .code402(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "code402",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/cache/GET/responses/403/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/cache/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.downloadCacheArtifact.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.downloadCacheArtifact.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized to perform this action
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/get(downloadCacheArtifact)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.downloadCacheArtifact.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            internal var forbidden: Operations.downloadCacheArtifact.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/cache/GET/responses/404/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/cache/GET/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.downloadCacheArtifact.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.downloadCacheArtifact.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The project or the cache artifact doesn't exist
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/get(downloadCacheArtifact)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.downloadCacheArtifact.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            internal var notFound: Operations.downloadCacheArtifact.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        internal enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            internal init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            internal var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            internal static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// It completes a multi-part upload.
+    ///
+    /// Given the upload ID and all the parts with their ETags, this endpoint completes the multipart upload.
+    ///
+    /// - Remark: HTTP `POST /api/runs/{run_id}/complete`.
+    /// - Remark: Generated from `#/paths//api/runs/{run_id}/complete/post(completeAnalyticsArtifactMultipartUpload)`.
+    internal enum completeAnalyticsArtifactMultipartUpload {
+        internal static let id: Swift.String = "completeAnalyticsArtifactMultipartUpload"
+        internal struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/runs/{run_id}/complete/POST/path`.
+            internal struct Path: Sendable, Hashable {
+                /// The id of the command event.
+                ///
+                /// - Remark: Generated from `#/paths/api/runs/{run_id}/complete/POST/path/run_id`.
+                internal var run_id: Swift.Int
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - run_id: The id of the command event.
+                internal init(run_id: Swift.Int) {
+                    self.run_id = run_id
+                }
+            }
+            internal var path: Operations.completeAnalyticsArtifactMultipartUpload.Input.Path
+            /// - Remark: Generated from `#/paths/api/runs/{run_id}/complete/POST/header`.
+            internal struct Headers: Sendable, Hashable {
+                internal var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.completeAnalyticsArtifactMultipartUpload.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                internal init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.completeAnalyticsArtifactMultipartUpload.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            internal var headers: Operations.completeAnalyticsArtifactMultipartUpload.Input.Headers
+            /// - Remark: Generated from `#/paths/api/runs/{run_id}/complete/POST/requestBody`.
+            internal enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/runs/{run_id}/complete/POST/requestBody/json`.
+                internal struct jsonPayload: Codable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/paths/api/runs/{run_id}/complete/POST/requestBody/json/command_event_artifact`.
+                    internal var command_event_artifact: Components.Schemas.CommandEventArtifact
+                    /// - Remark: Generated from `#/paths/api/runs/{run_id}/complete/POST/requestBody/json/multipart_upload_parts`.
+                    internal var multipart_upload_parts: Components.Schemas.ArtifactMultipartUploadParts
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - command_event_artifact:
+                    ///   - multipart_upload_parts:
+                    internal init(
+                        command_event_artifact: Components.Schemas.CommandEventArtifact,
+                        multipart_upload_parts: Components.Schemas.ArtifactMultipartUploadParts
+                    ) {
+                        self.command_event_artifact = command_event_artifact
+                        self.multipart_upload_parts = multipart_upload_parts
+                    }
+                    internal enum CodingKeys: String, CodingKey {
+                        case command_event_artifact
+                        case multipart_upload_parts
+                    }
+                }
+                /// - Remark: Generated from `#/paths/api/runs/{run_id}/complete/POST/requestBody/content/application\/json`.
+                case json(Operations.completeAnalyticsArtifactMultipartUpload.Input.Body.jsonPayload)
+            }
+            internal var body: Operations.completeAnalyticsArtifactMultipartUpload.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            ///   - body:
+            internal init(
+                path: Operations.completeAnalyticsArtifactMultipartUpload.Input.Path,
+                headers: Operations.completeAnalyticsArtifactMultipartUpload.Input.Headers = .init(),
+                body: Operations.completeAnalyticsArtifactMultipartUpload.Input.Body? = nil
+            ) {
+                self.path = path
+                self.headers = headers
+                self.body = body
+            }
+        }
+        internal enum Output: Sendable, Hashable {
+            internal struct NoContent: Sendable, Hashable {
+                /// Creates a new `NoContent`.
+                internal init() {}
+            }
+            /// The upload has been completed
+            ///
+            /// - Remark: Generated from `#/paths//api/runs/{run_id}/complete/post(completeAnalyticsArtifactMultipartUpload)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            case noContent(Operations.completeAnalyticsArtifactMultipartUpload.Output.NoContent)
+            /// The associated value of the enum case if `self` is `.noContent`.
+            ///
+            /// - Throws: An error if `self` is not `.noContent`.
+            /// - SeeAlso: `.noContent`.
+            internal var noContent: Operations.completeAnalyticsArtifactMultipartUpload.Output.NoContent {
+                get throws {
+                    switch self {
+                    case let .noContent(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "noContent",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/runs/{run_id}/complete/POST/responses/401/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/runs/{run_id}/complete/POST/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.completeAnalyticsArtifactMultipartUpload.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.completeAnalyticsArtifactMultipartUpload.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/runs/{run_id}/complete/post(completeAnalyticsArtifactMultipartUpload)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.completeAnalyticsArtifactMultipartUpload.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            internal var unauthorized: Operations.completeAnalyticsArtifactMultipartUpload.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/runs/{run_id}/complete/POST/responses/403/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/runs/{run_id}/complete/POST/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.completeAnalyticsArtifactMultipartUpload.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.completeAnalyticsArtifactMultipartUpload.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized to perform this action
+            ///
+            /// - Remark: Generated from `#/paths//api/runs/{run_id}/complete/post(completeAnalyticsArtifactMultipartUpload)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.completeAnalyticsArtifactMultipartUpload.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            internal var forbidden: Operations.completeAnalyticsArtifactMultipartUpload.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/runs/{run_id}/complete/POST/responses/404/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/runs/{run_id}/complete/POST/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.completeAnalyticsArtifactMultipartUpload.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.completeAnalyticsArtifactMultipartUpload.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The project doesn't exist
+            ///
+            /// - Remark: Generated from `#/paths//api/runs/{run_id}/complete/post(completeAnalyticsArtifactMultipartUpload)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.completeAnalyticsArtifactMultipartUpload.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            internal var notFound: Operations.completeAnalyticsArtifactMultipartUpload.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct InternalServerError: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/runs/{run_id}/complete/POST/responses/500/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/runs/{run_id}/complete/POST/responses/500/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.completeAnalyticsArtifactMultipartUpload.Output.InternalServerError.Body
+                /// Creates a new `InternalServerError`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.completeAnalyticsArtifactMultipartUpload.Output.InternalServerError.Body) {
+                    self.body = body
+                }
+            }
+            /// An internal server error occurred
+            ///
+            /// - Remark: Generated from `#/paths//api/runs/{run_id}/complete/post(completeAnalyticsArtifactMultipartUpload)/responses/500`.
+            ///
+            /// HTTP response code: `500 internalServerError`.
+            case internalServerError(Operations.completeAnalyticsArtifactMultipartUpload.Output.InternalServerError)
+            /// The associated value of the enum case if `self` is `.internalServerError`.
+            ///
+            /// - Throws: An error if `self` is not `.internalServerError`.
+            /// - SeeAlso: `.internalServerError`.
+            internal var internalServerError: Operations.completeAnalyticsArtifactMultipartUpload.Output.InternalServerError {
+                get throws {
+                    switch self {
+                    case let .internalServerError(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "internalServerError",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        internal enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            internal init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            internal var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            internal static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Lists the organizations
+    ///
+    /// Returns all the organizations the authenticated subject is part of.
+    ///
+    /// - Remark: HTTP `GET /api/organizations`.
+    /// - Remark: Generated from `#/paths//api/organizations/get(listOrganizations)`.
+    internal enum listOrganizations {
+        internal static let id: Swift.String = "listOrganizations"
+        internal struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/organizations/GET/header`.
+            internal struct Headers: Sendable, Hashable {
+                internal var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listOrganizations.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                internal init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listOrganizations.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            internal var headers: Operations.listOrganizations.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            internal init(headers: Operations.listOrganizations.Input.Headers = .init()) {
+                self.headers = headers
+            }
+        }
+        internal enum Output: Sendable, Hashable {
+            internal struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/organizations/GET/responses/200/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// The list of organizations the authenticated subject is part of.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/organizations/GET/responses/200/content/json`.
+                    internal struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/organizations/GET/responses/200/content/json/organizations`.
+                        internal var organizations: [Components.Schemas.Organization]
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - organizations:
+                        internal init(organizations: [Components.Schemas.Organization]) {
+                            self.organizations = organizations
+                        }
+                        internal enum CodingKeys: String, CodingKey {
+                            case organizations
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/organizations/GET/responses/200/content/application\/json`.
+                    case json(Operations.listOrganizations.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Operations.listOrganizations.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.listOrganizations.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.listOrganizations.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The list of organizations
+            ///
+            /// - Remark: Generated from `#/paths//api/organizations/get(listOrganizations)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.listOrganizations.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            internal var ok: Operations.listOrganizations.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/organizations/GET/responses/401/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/organizations/GET/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.listOrganizations.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.listOrganizations.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/organizations/get(listOrganizations)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.listOrganizations.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            internal var unauthorized: Operations.listOrganizations.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/organizations/GET/responses/403/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/organizations/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.listOrganizations.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.listOrganizations.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized to perform this action
+            ///
+            /// - Remark: Generated from `#/paths//api/organizations/get(listOrganizations)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.listOrganizations.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            internal var forbidden: Operations.listOrganizations.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        internal enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            internal init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            internal var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            internal static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Creates an organization
+    ///
+    /// Creates an organization with the given name.
+    ///
+    /// - Remark: HTTP `POST /api/organizations`.
+    /// - Remark: Generated from `#/paths//api/organizations/post(createOrganization)`.
+    internal enum createOrganization {
+        internal static let id: Swift.String = "createOrganization"
+        internal struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/organizations/POST/header`.
+            internal struct Headers: Sendable, Hashable {
+                internal var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createOrganization.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                internal init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createOrganization.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            internal var headers: Operations.createOrganization.Input.Headers
+            /// - Remark: Generated from `#/paths/api/organizations/POST/requestBody`.
+            internal enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/organizations/POST/requestBody/json`.
+                internal struct jsonPayload: Codable, Hashable, Sendable {
+                    /// The name of the organization that should be created.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/organizations/POST/requestBody/json/name`.
+                    internal var name: Swift.String
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - name: The name of the organization that should be created.
+                    internal init(name: Swift.String) {
+                        self.name = name
+                    }
+                    internal enum CodingKeys: String, CodingKey {
+                        case name
+                    }
+                }
+                /// - Remark: Generated from `#/paths/api/organizations/POST/requestBody/content/application\/json`.
+                case json(Operations.createOrganization.Input.Body.jsonPayload)
+            }
+            internal var body: Operations.createOrganization.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            ///   - body:
+            internal init(
+                headers: Operations.createOrganization.Input.Headers = .init(),
+                body: Operations.createOrganization.Input.Body? = nil
+            ) {
+                self.headers = headers
+                self.body = body
+            }
+        }
+        internal enum Output: Sendable, Hashable {
+            internal struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/organizations/POST/responses/200/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/organizations/POST/responses/200/content/application\/json`.
+                    case json(Components.Schemas.Organization)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas.Organization {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.createOrganization.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.createOrganization.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The organization was created
+            ///
+            /// - Remark: Generated from `#/paths//api/organizations/post(createOrganization)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.createOrganization.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            internal var ok: Operations.createOrganization.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/organizations/POST/responses/400/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/organizations/POST/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.createOrganization.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.createOrganization.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// The organization could not be created due to a validation error
+            ///
+            /// - Remark: Generated from `#/paths//api/organizations/post(createOrganization)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.createOrganization.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            internal var badRequest: Operations.createOrganization.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        internal enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            internal init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            internal var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            internal static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Returns a preview with a given id.
+    ///
+    /// This endpoint returns a preview with a given id, including the url to download the preview.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/previews/{preview_id}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/get(downloadPreview)`.
+    internal enum downloadPreview {
+        internal static let id: Swift.String = "downloadPreview"
+        internal struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/GET/path`.
+            internal struct Path: Sendable, Hashable {
+                /// The handle of the account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/GET/path/account_handle`.
+                internal var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/GET/path/project_handle`.
+                internal var project_handle: Swift.String
+                /// The id of the preview.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/GET/path/preview_id`.
+                internal var preview_id: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the account.
+                ///   - project_handle: The handle of the project.
+                ///   - preview_id: The id of the preview.
+                internal init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String,
+                    preview_id: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                    self.preview_id = preview_id
+                }
+            }
+            internal var path: Operations.downloadPreview.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/GET/header`.
+            internal struct Headers: Sendable, Hashable {
+                internal var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.downloadPreview.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                internal init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.downloadPreview.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            internal var headers: Operations.downloadPreview.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            internal init(
+                path: Operations.downloadPreview.Input.Path,
+                headers: Operations.downloadPreview.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        internal enum Output: Sendable, Hashable {
+            internal struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/GET/responses/200/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/GET/responses/200/content/application\/json`.
+                    case json(Components.Schemas.Preview)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas.Preview {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.downloadPreview.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.downloadPreview.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The preview exists and can be downloaded
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/get(downloadPreview)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.downloadPreview.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            internal var ok: Operations.downloadPreview.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/GET/responses/401/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/GET/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.downloadPreview.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.downloadPreview.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/get(downloadPreview)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.downloadPreview.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            internal var unauthorized: Operations.downloadPreview.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/GET/responses/403/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.downloadPreview.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.downloadPreview.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized to perform this action
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/get(downloadPreview)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.downloadPreview.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            internal var forbidden: Operations.downloadPreview.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/GET/responses/404/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/GET/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.downloadPreview.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.downloadPreview.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The preview does not exist
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/get(downloadPreview)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.downloadPreview.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            internal var notFound: Operations.downloadPreview.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        internal enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            internal init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            internal var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            internal static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// It checks if an artifact exists in the cache.
+    ///
+    /// This endpoint checks if an artifact exists in the cache. It returns a 404 status code if the artifact does not exist.
+    ///
+    /// - Remark: HTTP `GET /api/cache/exists`.
+    /// - Remark: Generated from `#/paths//api/cache/exists/get(cacheArtifactExists)`.
+    internal enum cacheArtifactExists {
+        internal static let id: Swift.String = "cacheArtifactExists"
+        internal struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/cache/exists/GET/query`.
+            internal struct Query: Sendable, Hashable {
+                /// The category of the cache. It's used to differentiate between different types of caches.
+                ///
+                /// - Remark: Generated from `#/paths/api/cache/exists/GET/query/cache_category`.
+                internal var cache_category: Components.Schemas.CacheCategory?
+                /// The project identifier '{account_name}/{project_name}'.
+                ///
+                /// - Remark: Generated from `#/paths/api/cache/exists/GET/query/project_id`.
+                internal var project_id: Swift.String
+                /// The hash that uniquely identifies the artifact in the cache.
+                ///
+                /// - Remark: Generated from `#/paths/api/cache/exists/GET/query/hash`.
+                internal var hash: Swift.String
+                /// The name of the artifact.
+                ///
+                /// - Remark: Generated from `#/paths/api/cache/exists/GET/query/name`.
+                internal var name: Swift.String
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - cache_category: The category of the cache. It's used to differentiate between different types of caches.
+                ///   - project_id: The project identifier '{account_name}/{project_name}'.
+                ///   - hash: The hash that uniquely identifies the artifact in the cache.
+                ///   - name: The name of the artifact.
+                internal init(
+                    cache_category: Components.Schemas.CacheCategory? = nil,
+                    project_id: Swift.String,
+                    hash: Swift.String,
+                    name: Swift.String
+                ) {
+                    self.cache_category = cache_category
+                    self.project_id = project_id
+                    self.hash = hash
+                    self.name = name
+                }
+            }
+            internal var query: Operations.cacheArtifactExists.Input.Query
+            /// - Remark: Generated from `#/paths/api/cache/exists/GET/header`.
+            internal struct Headers: Sendable, Hashable {
+                internal var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.cacheArtifactExists.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                internal init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.cacheArtifactExists.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            internal var headers: Operations.cacheArtifactExists.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - query:
+            ///   - headers:
+            internal init(
+                query: Operations.cacheArtifactExists.Input.Query,
+                headers: Operations.cacheArtifactExists.Input.Headers = .init()
+            ) {
+                self.query = query
+                self.headers = headers
+            }
+        }
+        internal enum Output: Sendable, Hashable {
+            internal struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/200/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// The artifact exists in the cache and can be downloaded
+                    ///
+                    /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/200/content/json`.
+                    internal struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/200/content/json/data`.
+                        internal var data: OpenAPIRuntime.OpenAPIObjectContainer?
+                        /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/200/content/json/status`.
+                        internal enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case success = "success"
+                        }
+                        /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/200/content/json/status`.
+                        internal var status: Operations.cacheArtifactExists.Output.Ok.Body.jsonPayload.statusPayload?
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - data:
+                        ///   - status:
+                        internal init(
+                            data: OpenAPIRuntime.OpenAPIObjectContainer? = nil,
+                            status: Operations.cacheArtifactExists.Output.Ok.Body.jsonPayload.statusPayload? = nil
+                        ) {
+                            self.data = data
+                            self.status = status
+                        }
+                        internal enum CodingKeys: String, CodingKey {
+                            case data
+                            case status
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/200/content/application\/json`.
+                    case json(Operations.cacheArtifactExists.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Operations.cacheArtifactExists.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.cacheArtifactExists.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.cacheArtifactExists.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The artifact exists
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/exists/get(cacheArtifactExists)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.cacheArtifactExists.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            internal var ok: Operations.cacheArtifactExists.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/401/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.cacheArtifactExists.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.cacheArtifactExists.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/exists/get(cacheArtifactExists)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.cacheArtifactExists.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            internal var unauthorized: Operations.cacheArtifactExists.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct Code402: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/402/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/402/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.cacheArtifactExists.Output.Code402.Body
+                /// Creates a new `Code402`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.cacheArtifactExists.Output.Code402.Body) {
+                    self.body = body
+                }
+            }
+            /// The account has an invalid plan
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/exists/get(cacheArtifactExists)/responses/402`.
+            ///
+            /// HTTP response code: `402 code402`.
+            case code402(Operations.cacheArtifactExists.Output.Code402)
+            /// The associated value of the enum case if `self` is `.code402`.
+            ///
+            /// - Throws: An error if `self` is not `.code402`.
+            /// - SeeAlso: `.code402`.
+            internal var code402: Operations.cacheArtifactExists.Output.Code402 {
+                get throws {
+                    switch self {
+                    case let .code402(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "code402",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/403/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.cacheArtifactExists.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.cacheArtifactExists.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized to perform this action
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/exists/get(cacheArtifactExists)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.cacheArtifactExists.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            internal var forbidden: Operations.cacheArtifactExists.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/404/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/404/content/json`.
+                    internal struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/404/content/json/errorPayload`.
+                        internal struct errorPayloadPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/404/content/json/errorPayload/code`.
+                            internal var code: Swift.String?
+                            /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/404/content/json/errorPayload/message`.
+                            internal var message: Swift.String?
+                            /// Creates a new `errorPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - code:
+                            ///   - message:
+                            internal init(
+                                code: Swift.String? = nil,
+                                message: Swift.String? = nil
+                            ) {
+                                self.code = code
+                                self.message = message
+                            }
+                            internal enum CodingKeys: String, CodingKey {
+                                case code
+                                case message
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/404/content/json/error`.
+                        internal typealias errorPayload = [Operations.cacheArtifactExists.Output.NotFound.Body.jsonPayload.errorPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/404/content/json/error`.
+                        internal var error: Operations.cacheArtifactExists.Output.NotFound.Body.jsonPayload.errorPayload?
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - error:
+                        internal init(error: Operations.cacheArtifactExists.Output.NotFound.Body.jsonPayload.errorPayload? = nil) {
+                            self.error = error
+                        }
+                        internal enum CodingKeys: String, CodingKey {
+                            case error
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/404/content/application\/json`.
+                    case json(Operations.cacheArtifactExists.Output.NotFound.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Operations.cacheArtifactExists.Output.NotFound.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.cacheArtifactExists.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.cacheArtifactExists.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The artifact doesn't exist
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/exists/get(cacheArtifactExists)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.cacheArtifactExists.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            internal var notFound: Operations.cacheArtifactExists.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        internal enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            internal init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            internal var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            internal static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Revokes a project token.
+    ///
+    /// - Remark: HTTP `DELETE /api/projects/{account_handle}/{project_handle}/tokens/{id}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/{id}/delete(revokeProjectToken)`.
+    internal enum revokeProjectToken {
+        internal static let id: Swift.String = "revokeProjectToken"
+        internal struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/{id}/DELETE/path`.
+            internal struct Path: Sendable, Hashable {
+                /// The account handle.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/{id}/DELETE/path/account_handle`.
+                internal var account_handle: Swift.String
+                /// The project handle.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/{id}/DELETE/path/project_handle`.
+                internal var project_handle: Swift.String
+                /// The ID of the project token
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/{id}/DELETE/path/id`.
+                internal var id: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The account handle.
+                ///   - project_handle: The project handle.
+                ///   - id: The ID of the project token
+                internal init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String,
+                    id: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                    self.id = id
+                }
+            }
+            internal var path: Operations.revokeProjectToken.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/{id}/DELETE/header`.
+            internal struct Headers: Sendable, Hashable {
+                internal var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.revokeProjectToken.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                internal init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.revokeProjectToken.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            internal var headers: Operations.revokeProjectToken.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            internal init(
+                path: Operations.revokeProjectToken.Input.Path,
+                headers: Operations.revokeProjectToken.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        internal enum Output: Sendable, Hashable {
+            internal struct NoContent: Sendable, Hashable {
+                /// Creates a new `NoContent`.
+                internal init() {}
+            }
+            /// The project token was revoked
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/{id}/delete(revokeProjectToken)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            case noContent(Operations.revokeProjectToken.Output.NoContent)
+            /// The associated value of the enum case if `self` is `.noContent`.
+            ///
+            /// - Throws: An error if `self` is not `.noContent`.
+            /// - SeeAlso: `.noContent`.
+            internal var noContent: Operations.revokeProjectToken.Output.NoContent {
+                get throws {
+                    switch self {
+                    case let .noContent(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "noContent",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/{id}/DELETE/responses/400/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/{id}/DELETE/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.revokeProjectToken.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.revokeProjectToken.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// The provided token ID is not valid
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/{id}/delete(revokeProjectToken)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.revokeProjectToken.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            internal var badRequest: Operations.revokeProjectToken.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/{id}/DELETE/responses/401/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/{id}/DELETE/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.revokeProjectToken.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.revokeProjectToken.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/{id}/delete(revokeProjectToken)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.revokeProjectToken.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            internal var unauthorized: Operations.revokeProjectToken.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/{id}/DELETE/responses/403/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/{id}/DELETE/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.revokeProjectToken.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.revokeProjectToken.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized to perform this action
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/{id}/delete(revokeProjectToken)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.revokeProjectToken.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            internal var forbidden: Operations.revokeProjectToken.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/{id}/DELETE/responses/404/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/{id}/DELETE/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.revokeProjectToken.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.revokeProjectToken.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The project token was not found
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/{id}/delete(revokeProjectToken)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.revokeProjectToken.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            internal var notFound: Operations.revokeProjectToken.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        internal enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            internal init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            internal var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            internal static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Returns a project based on the handle.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/get(showProject)`.
+    internal enum showProject {
+        internal static let id: Swift.String = "showProject"
+        internal struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/GET/path`.
+            internal struct Path: Sendable, Hashable {
+                /// The name of the account that the project belongs to.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/GET/path/account_handle`.
+                internal var account_handle: Swift.String
+                /// The name of the project to show
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/GET/path/project_handle`.
+                internal var project_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The name of the account that the project belongs to.
+                ///   - project_handle: The name of the project to show
+                internal init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                }
+            }
+            internal var path: Operations.showProject.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/GET/header`.
+            internal struct Headers: Sendable, Hashable {
+                internal var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.showProject.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                internal init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.showProject.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            internal var headers: Operations.showProject.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            internal init(
+                path: Operations.showProject.Input.Path,
+                headers: Operations.showProject.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        internal enum Output: Sendable, Hashable {
+            internal struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/GET/responses/200/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/GET/responses/200/content/application\/json`.
+                    case json(Components.Schemas.Project)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas.Project {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.showProject.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.showProject.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The project to show
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/get(showProject)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.showProject.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            internal var ok: Operations.showProject.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/GET/responses/401/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/GET/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.showProject.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.showProject.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/get(showProject)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.showProject.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            internal var unauthorized: Operations.showProject.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/GET/responses/403/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.showProject.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.showProject.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized to perform this action
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/get(showProject)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.showProject.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            internal var forbidden: Operations.showProject.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/GET/responses/404/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/GET/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.showProject.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.showProject.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The project was not found
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/get(showProject)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.showProject.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            internal var notFound: Operations.showProject.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        internal enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            internal init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            internal var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            internal static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Updates a project
+    ///
+    /// Updates a project with given parameters.
+    ///
+    /// - Remark: HTTP `PUT /api/projects/{account_handle}/{project_handle}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/put(updateProject)`.
+    internal enum updateProject {
+        internal static let id: Swift.String = "updateProject"
+        internal struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/PUT/path`.
+            internal struct Path: Sendable, Hashable {
+                /// The handle of the project's account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/PUT/path/account_handle`.
+                internal var account_handle: Swift.String
+                /// The handle of the project to update.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/PUT/path/project_handle`.
+                internal var project_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the project's account.
+                ///   - project_handle: The handle of the project to update.
+                internal init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                }
+            }
+            internal var path: Operations.updateProject.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/PUT/header`.
+            internal struct Headers: Sendable, Hashable {
+                internal var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.updateProject.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                internal init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.updateProject.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            internal var headers: Operations.updateProject.Input.Headers
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/PUT/requestBody`.
+            internal enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/PUT/requestBody/json`.
+                internal struct jsonPayload: Codable, Hashable, Sendable {
+                    /// The default branch for the project.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/PUT/requestBody/json/default_branch`.
+                    internal var default_branch: Swift.String?
+                    /// The repository URL for the project.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/PUT/requestBody/json/repository_url`.
+                    internal var repository_url: Swift.String?
+                    /// The visibility of the project. Public projects are visible to everyone, private projects are only visible to the project's members.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/PUT/requestBody/json/visibility`.
+                    internal enum visibilityPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                        case _public = "public"
+                        case _private = "private"
+                    }
+                    /// The visibility of the project. Public projects are visible to everyone, private projects are only visible to the project's members.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/PUT/requestBody/json/visibility`.
+                    internal var visibility: Operations.updateProject.Input.Body.jsonPayload.visibilityPayload?
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - default_branch: The default branch for the project.
+                    ///   - repository_url: The repository URL for the project.
+                    ///   - visibility: The visibility of the project. Public projects are visible to everyone, private projects are only visible to the project's members.
+                    internal init(
+                        default_branch: Swift.String? = nil,
+                        repository_url: Swift.String? = nil,
+                        visibility: Operations.updateProject.Input.Body.jsonPayload.visibilityPayload? = nil
+                    ) {
+                        self.default_branch = default_branch
+                        self.repository_url = repository_url
+                        self.visibility = visibility
+                    }
+                    internal enum CodingKeys: String, CodingKey {
+                        case default_branch
+                        case repository_url
+                        case visibility
+                    }
+                }
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/PUT/requestBody/content/application\/json`.
+                case json(Operations.updateProject.Input.Body.jsonPayload)
+            }
+            internal var body: Operations.updateProject.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            ///   - body:
+            internal init(
+                path: Operations.updateProject.Input.Path,
+                headers: Operations.updateProject.Input.Headers = .init(),
+                body: Operations.updateProject.Input.Body? = nil
+            ) {
+                self.path = path
+                self.headers = headers
+                self.body = body
+            }
+        }
+        internal enum Output: Sendable, Hashable {
+            internal struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/PUT/responses/200/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/PUT/responses/200/content/application\/json`.
+                    case json(Components.Schemas.Project)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas.Project {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.updateProject.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.updateProject.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The updated project
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/put(updateProject)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.updateProject.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            internal var ok: Operations.updateProject.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/PUT/responses/400/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/PUT/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.updateProject.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.updateProject.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// The request is invalid, for example when attempting to link the project to a repository the authenticated user doesn't have access to.
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/put(updateProject)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.updateProject.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            internal var badRequest: Operations.updateProject.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/PUT/responses/401/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/PUT/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.updateProject.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.updateProject.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/put(updateProject)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.updateProject.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            internal var unauthorized: Operations.updateProject.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/PUT/responses/403/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/PUT/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.updateProject.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.updateProject.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized to perform this action
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/put(updateProject)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.updateProject.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            internal var forbidden: Operations.updateProject.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/PUT/responses/404/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/PUT/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.updateProject.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.updateProject.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The project with the given account and project handles was not found
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/put(updateProject)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.updateProject.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            internal var notFound: Operations.updateProject.Output.NotFound {
                 get throws {
                     switch self {
                     case let .notFound(response):
@@ -8315,2704 +14562,82 @@ internal enum Operations {
             }
         }
     }
-    /// Shows the usage of an organization
+    /// Uploads a preview icon.
     ///
-    /// Returns the usage of the organization with the given identifier. (e.g. number of remote cache hits)
+    /// The endpoint uploads a preview icon.
     ///
-    /// - Remark: HTTP `GET /api/organizations/{organization_name}/usage`.
-    /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/usage/get(showOrganizationUsage)`.
-    internal enum showOrganizationUsage {
-        internal static let id: Swift.String = "showOrganizationUsage"
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/post(uploadPreviewIcon)`.
+    internal enum uploadPreviewIcon {
+        internal static let id: Swift.String = "uploadPreviewIcon"
         internal struct Input: Sendable, Hashable {
-            /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/usage/GET/path`.
-            internal struct Path: Sendable, Hashable {
-                /// The name of the organization to show.
-                ///
-                /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/usage/GET/path/organization_name`.
-                internal var organization_name: Swift.String
-                /// Creates a new `Path`.
-                ///
-                /// - Parameters:
-                ///   - organization_name: The name of the organization to show.
-                internal init(organization_name: Swift.String) {
-                    self.organization_name = organization_name
-                }
-            }
-            internal var path: Operations.showOrganizationUsage.Input.Path
-            /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/usage/GET/header`.
-            internal struct Headers: Sendable, Hashable {
-                internal var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.showOrganizationUsage.AcceptableContentType>]
-                /// Creates a new `Headers`.
-                ///
-                /// - Parameters:
-                ///   - accept:
-                internal init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.showOrganizationUsage.AcceptableContentType>] = .defaultValues()) {
-                    self.accept = accept
-                }
-            }
-            internal var headers: Operations.showOrganizationUsage.Input.Headers
-            /// Creates a new `Input`.
-            ///
-            /// - Parameters:
-            ///   - path:
-            ///   - headers:
-            internal init(
-                path: Operations.showOrganizationUsage.Input.Path,
-                headers: Operations.showOrganizationUsage.Input.Headers = .init()
-            ) {
-                self.path = path
-                self.headers = headers
-            }
-        }
-        internal enum Output: Sendable, Hashable {
-            internal struct Ok: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/usage/GET/responses/200/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/usage/GET/responses/200/content/application\/json`.
-                    case json(Components.Schemas.OrganizationUsage)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas.OrganizationUsage {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.showOrganizationUsage.Output.Ok.Body
-                /// Creates a new `Ok`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.showOrganizationUsage.Output.Ok.Body) {
-                    self.body = body
-                }
-            }
-            /// The organization usage
-            ///
-            /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/usage/get(showOrganizationUsage)/responses/200`.
-            ///
-            /// HTTP response code: `200 ok`.
-            case ok(Operations.showOrganizationUsage.Output.Ok)
-            /// The associated value of the enum case if `self` is `.ok`.
-            ///
-            /// - Throws: An error if `self` is not `.ok`.
-            /// - SeeAlso: `.ok`.
-            internal var ok: Operations.showOrganizationUsage.Output.Ok {
-                get throws {
-                    switch self {
-                    case let .ok(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "ok",
-                            response: self
-                        )
-                    }
-                }
-            }
-            internal struct Unauthorized: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/usage/GET/responses/401/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/usage/GET/responses/401/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.showOrganizationUsage.Output.Unauthorized.Body
-                /// Creates a new `Unauthorized`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.showOrganizationUsage.Output.Unauthorized.Body) {
-                    self.body = body
-                }
-            }
-            /// You need to be authenticated to access this resource
-            ///
-            /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/usage/get(showOrganizationUsage)/responses/401`.
-            ///
-            /// HTTP response code: `401 unauthorized`.
-            case unauthorized(Operations.showOrganizationUsage.Output.Unauthorized)
-            /// The associated value of the enum case if `self` is `.unauthorized`.
-            ///
-            /// - Throws: An error if `self` is not `.unauthorized`.
-            /// - SeeAlso: `.unauthorized`.
-            internal var unauthorized: Operations.showOrganizationUsage.Output.Unauthorized {
-                get throws {
-                    switch self {
-                    case let .unauthorized(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "unauthorized",
-                            response: self
-                        )
-                    }
-                }
-            }
-            internal struct Forbidden: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/usage/GET/responses/403/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/usage/GET/responses/403/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.showOrganizationUsage.Output.Forbidden.Body
-                /// Creates a new `Forbidden`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.showOrganizationUsage.Output.Forbidden.Body) {
-                    self.body = body
-                }
-            }
-            /// The authenticated subject is not authorized to perform this action
-            ///
-            /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/usage/get(showOrganizationUsage)/responses/403`.
-            ///
-            /// HTTP response code: `403 forbidden`.
-            case forbidden(Operations.showOrganizationUsage.Output.Forbidden)
-            /// The associated value of the enum case if `self` is `.forbidden`.
-            ///
-            /// - Throws: An error if `self` is not `.forbidden`.
-            /// - SeeAlso: `.forbidden`.
-            internal var forbidden: Operations.showOrganizationUsage.Output.Forbidden {
-                get throws {
-                    switch self {
-                    case let .forbidden(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "forbidden",
-                            response: self
-                        )
-                    }
-                }
-            }
-            internal struct NotFound: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/usage/GET/responses/404/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/usage/GET/responses/404/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.showOrganizationUsage.Output.NotFound.Body
-                /// Creates a new `NotFound`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.showOrganizationUsage.Output.NotFound.Body) {
-                    self.body = body
-                }
-            }
-            /// The organization with the given name was not found
-            ///
-            /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/usage/get(showOrganizationUsage)/responses/404`.
-            ///
-            /// HTTP response code: `404 notFound`.
-            case notFound(Operations.showOrganizationUsage.Output.NotFound)
-            /// The associated value of the enum case if `self` is `.notFound`.
-            ///
-            /// - Throws: An error if `self` is not `.notFound`.
-            /// - SeeAlso: `.notFound`.
-            internal var notFound: Operations.showOrganizationUsage.Output.NotFound {
-                get throws {
-                    switch self {
-                    case let .notFound(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "notFound",
-                            response: self
-                        )
-                    }
-                }
-            }
-            /// Undocumented response.
-            ///
-            /// A response with a code that is not documented in the OpenAPI document.
-            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
-        }
-        internal enum AcceptableContentType: AcceptableProtocol {
-            case json
-            case other(Swift.String)
-            internal init?(rawValue: Swift.String) {
-                switch rawValue.lowercased() {
-                case "application/json":
-                    self = .json
-                default:
-                    self = .other(rawValue)
-                }
-            }
-            internal var rawValue: Swift.String {
-                switch self {
-                case let .other(string):
-                    return string
-                case .json:
-                    return "application/json"
-                }
-            }
-            internal static var allCases: [Self] {
-                [
-                    .json
-                ]
-            }
-        }
-    }
-    /// List projects the authenticated user has access to.
-    ///
-    /// - Remark: HTTP `GET /api/projects`.
-    /// - Remark: Generated from `#/paths//api/projects/get(listProjects)`.
-    internal enum listProjects {
-        internal static let id: Swift.String = "listProjects"
-        internal struct Input: Sendable, Hashable {
-            /// - Remark: Generated from `#/paths/api/projects/GET/header`.
-            internal struct Headers: Sendable, Hashable {
-                internal var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listProjects.AcceptableContentType>]
-                /// Creates a new `Headers`.
-                ///
-                /// - Parameters:
-                ///   - accept:
-                internal init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listProjects.AcceptableContentType>] = .defaultValues()) {
-                    self.accept = accept
-                }
-            }
-            internal var headers: Operations.listProjects.Input.Headers
-            /// Creates a new `Input`.
-            ///
-            /// - Parameters:
-            ///   - headers:
-            internal init(headers: Operations.listProjects.Input.Headers = .init()) {
-                self.headers = headers
-            }
-        }
-        internal enum Output: Sendable, Hashable {
-            internal struct Ok: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/GET/responses/200/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/GET/responses/200/content/json`.
-                    internal struct jsonPayload: Codable, Hashable, Sendable {
-                        /// - Remark: Generated from `#/paths/api/projects/GET/responses/200/content/json/projects`.
-                        internal var projects: [Components.Schemas.Project]
-                        /// Creates a new `jsonPayload`.
-                        ///
-                        /// - Parameters:
-                        ///   - projects:
-                        internal init(projects: [Components.Schemas.Project]) {
-                            self.projects = projects
-                        }
-                        internal enum CodingKeys: String, CodingKey {
-                            case projects
-                        }
-                    }
-                    /// - Remark: Generated from `#/paths/api/projects/GET/responses/200/content/application\/json`.
-                    case json(Operations.listProjects.Output.Ok.Body.jsonPayload)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Operations.listProjects.Output.Ok.Body.jsonPayload {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.listProjects.Output.Ok.Body
-                /// Creates a new `Ok`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.listProjects.Output.Ok.Body) {
-                    self.body = body
-                }
-            }
-            /// List of projects
-            ///
-            /// - Remark: Generated from `#/paths//api/projects/get(listProjects)/responses/200`.
-            ///
-            /// HTTP response code: `200 ok`.
-            case ok(Operations.listProjects.Output.Ok)
-            /// The associated value of the enum case if `self` is `.ok`.
-            ///
-            /// - Throws: An error if `self` is not `.ok`.
-            /// - SeeAlso: `.ok`.
-            internal var ok: Operations.listProjects.Output.Ok {
-                get throws {
-                    switch self {
-                    case let .ok(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "ok",
-                            response: self
-                        )
-                    }
-                }
-            }
-            internal struct Unauthorized: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/GET/responses/401/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/GET/responses/401/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.listProjects.Output.Unauthorized.Body
-                /// Creates a new `Unauthorized`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.listProjects.Output.Unauthorized.Body) {
-                    self.body = body
-                }
-            }
-            /// You need to be authenticated to access this resource
-            ///
-            /// - Remark: Generated from `#/paths//api/projects/get(listProjects)/responses/401`.
-            ///
-            /// HTTP response code: `401 unauthorized`.
-            case unauthorized(Operations.listProjects.Output.Unauthorized)
-            /// The associated value of the enum case if `self` is `.unauthorized`.
-            ///
-            /// - Throws: An error if `self` is not `.unauthorized`.
-            /// - SeeAlso: `.unauthorized`.
-            internal var unauthorized: Operations.listProjects.Output.Unauthorized {
-                get throws {
-                    switch self {
-                    case let .unauthorized(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "unauthorized",
-                            response: self
-                        )
-                    }
-                }
-            }
-            /// Undocumented response.
-            ///
-            /// A response with a code that is not documented in the OpenAPI document.
-            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
-        }
-        internal enum AcceptableContentType: AcceptableProtocol {
-            case json
-            case other(Swift.String)
-            internal init?(rawValue: Swift.String) {
-                switch rawValue.lowercased() {
-                case "application/json":
-                    self = .json
-                default:
-                    self = .other(rawValue)
-                }
-            }
-            internal var rawValue: Swift.String {
-                switch self {
-                case let .other(string):
-                    return string
-                case .json:
-                    return "application/json"
-                }
-            }
-            internal static var allCases: [Self] {
-                [
-                    .json
-                ]
-            }
-        }
-    }
-    /// Create a new project.
-    ///
-    /// - Remark: HTTP `POST /api/projects`.
-    /// - Remark: Generated from `#/paths//api/projects/post(createProject)`.
-    internal enum createProject {
-        internal static let id: Swift.String = "createProject"
-        internal struct Input: Sendable, Hashable {
-            /// - Remark: Generated from `#/paths/api/projects/POST/header`.
-            internal struct Headers: Sendable, Hashable {
-                internal var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createProject.AcceptableContentType>]
-                /// Creates a new `Headers`.
-                ///
-                /// - Parameters:
-                ///   - accept:
-                internal init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createProject.AcceptableContentType>] = .defaultValues()) {
-                    self.accept = accept
-                }
-            }
-            internal var headers: Operations.createProject.Input.Headers
-            /// - Remark: Generated from `#/paths/api/projects/POST/requestBody`.
-            internal enum Body: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/POST/requestBody/json`.
-                internal struct jsonPayload: Codable, Hashable, Sendable {
-                    /// The full handle of the project that should be created.
-                    ///
-                    /// - Remark: Generated from `#/paths/api/projects/POST/requestBody/json/full_handle`.
-                    internal var full_handle: Swift.String?
-                    /// The name of the project that should be created.
-                    ///
-                    /// - Remark: Generated from `#/paths/api/projects/POST/requestBody/json/name`.
-                    @available(*, deprecated)
-                    internal var name: Swift.String?
-                    /// Organization to create the project with. If not specified, the project will be created with the current user's personal account.
-                    ///
-                    /// - Remark: Generated from `#/paths/api/projects/POST/requestBody/json/organization`.
-                    @available(*, deprecated)
-                    internal var organization: Swift.String?
-                    /// Creates a new `jsonPayload`.
-                    ///
-                    /// - Parameters:
-                    ///   - full_handle: The full handle of the project that should be created.
-                    ///   - name: The name of the project that should be created.
-                    ///   - organization: Organization to create the project with. If not specified, the project will be created with the current user's personal account.
-                    internal init(
-                        full_handle: Swift.String? = nil,
-                        name: Swift.String? = nil,
-                        organization: Swift.String? = nil
-                    ) {
-                        self.full_handle = full_handle
-                        self.name = name
-                        self.organization = organization
-                    }
-                    internal enum CodingKeys: String, CodingKey {
-                        case full_handle
-                        case name
-                        case organization
-                    }
-                }
-                /// - Remark: Generated from `#/paths/api/projects/POST/requestBody/content/application\/json`.
-                case json(Operations.createProject.Input.Body.jsonPayload)
-            }
-            internal var body: Operations.createProject.Input.Body?
-            /// Creates a new `Input`.
-            ///
-            /// - Parameters:
-            ///   - headers:
-            ///   - body:
-            internal init(
-                headers: Operations.createProject.Input.Headers = .init(),
-                body: Operations.createProject.Input.Body? = nil
-            ) {
-                self.headers = headers
-                self.body = body
-            }
-        }
-        internal enum Output: Sendable, Hashable {
-            internal struct Ok: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/POST/responses/200/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/POST/responses/200/content/application\/json`.
-                    case json(Components.Schemas.Project)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas.Project {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.createProject.Output.Ok.Body
-                /// Creates a new `Ok`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.createProject.Output.Ok.Body) {
-                    self.body = body
-                }
-            }
-            /// The project was created
-            ///
-            /// - Remark: Generated from `#/paths//api/projects/post(createProject)/responses/200`.
-            ///
-            /// HTTP response code: `200 ok`.
-            case ok(Operations.createProject.Output.Ok)
-            /// The associated value of the enum case if `self` is `.ok`.
-            ///
-            /// - Throws: An error if `self` is not `.ok`.
-            /// - SeeAlso: `.ok`.
-            internal var ok: Operations.createProject.Output.Ok {
-                get throws {
-                    switch self {
-                    case let .ok(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "ok",
-                            response: self
-                        )
-                    }
-                }
-            }
-            internal struct BadRequest: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/POST/responses/400/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/POST/responses/400/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.createProject.Output.BadRequest.Body
-                /// Creates a new `BadRequest`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.createProject.Output.BadRequest.Body) {
-                    self.body = body
-                }
-            }
-            /// The account was not found
-            ///
-            /// - Remark: Generated from `#/paths//api/projects/post(createProject)/responses/400`.
-            ///
-            /// HTTP response code: `400 badRequest`.
-            case badRequest(Operations.createProject.Output.BadRequest)
-            /// The associated value of the enum case if `self` is `.badRequest`.
-            ///
-            /// - Throws: An error if `self` is not `.badRequest`.
-            /// - SeeAlso: `.badRequest`.
-            internal var badRequest: Operations.createProject.Output.BadRequest {
-                get throws {
-                    switch self {
-                    case let .badRequest(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "badRequest",
-                            response: self
-                        )
-                    }
-                }
-            }
-            internal struct Unauthorized: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/POST/responses/401/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/POST/responses/401/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.createProject.Output.Unauthorized.Body
-                /// Creates a new `Unauthorized`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.createProject.Output.Unauthorized.Body) {
-                    self.body = body
-                }
-            }
-            /// You need to be authenticated to access this resource
-            ///
-            /// - Remark: Generated from `#/paths//api/projects/post(createProject)/responses/401`.
-            ///
-            /// HTTP response code: `401 unauthorized`.
-            case unauthorized(Operations.createProject.Output.Unauthorized)
-            /// The associated value of the enum case if `self` is `.unauthorized`.
-            ///
-            /// - Throws: An error if `self` is not `.unauthorized`.
-            /// - SeeAlso: `.unauthorized`.
-            internal var unauthorized: Operations.createProject.Output.Unauthorized {
-                get throws {
-                    switch self {
-                    case let .unauthorized(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "unauthorized",
-                            response: self
-                        )
-                    }
-                }
-            }
-            internal struct Forbidden: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/POST/responses/403/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/POST/responses/403/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.createProject.Output.Forbidden.Body
-                /// Creates a new `Forbidden`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.createProject.Output.Forbidden.Body) {
-                    self.body = body
-                }
-            }
-            /// The authenticated subject is not authorized to perform this action
-            ///
-            /// - Remark: Generated from `#/paths//api/projects/post(createProject)/responses/403`.
-            ///
-            /// HTTP response code: `403 forbidden`.
-            case forbidden(Operations.createProject.Output.Forbidden)
-            /// The associated value of the enum case if `self` is `.forbidden`.
-            ///
-            /// - Throws: An error if `self` is not `.forbidden`.
-            /// - SeeAlso: `.forbidden`.
-            internal var forbidden: Operations.createProject.Output.Forbidden {
-                get throws {
-                    switch self {
-                    case let .forbidden(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "forbidden",
-                            response: self
-                        )
-                    }
-                }
-            }
-            /// Undocumented response.
-            ///
-            /// A response with a code that is not documented in the OpenAPI document.
-            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
-        }
-        internal enum AcceptableContentType: AcceptableProtocol {
-            case json
-            case other(Swift.String)
-            internal init?(rawValue: Swift.String) {
-                switch rawValue.lowercased() {
-                case "application/json":
-                    self = .json
-                default:
-                    self = .other(rawValue)
-                }
-            }
-            internal var rawValue: Swift.String {
-                switch self {
-                case let .other(string):
-                    return string
-                case .json:
-                    return "application/json"
-                }
-            }
-            internal static var allCases: [Self] {
-                [
-                    .json
-                ]
-            }
-        }
-    }
-    /// Returns a project based on the handle.
-    ///
-    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/get(showProject)`.
-    internal enum showProject {
-        internal static let id: Swift.String = "showProject"
-        internal struct Input: Sendable, Hashable {
-            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/GET/path`.
-            internal struct Path: Sendable, Hashable {
-                /// The name of the account that the project belongs to.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/GET/path/account_handle`.
-                internal var account_handle: Swift.String
-                /// The name of the project to show
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/GET/path/project_handle`.
-                internal var project_handle: Swift.String
-                /// Creates a new `Path`.
-                ///
-                /// - Parameters:
-                ///   - account_handle: The name of the account that the project belongs to.
-                ///   - project_handle: The name of the project to show
-                internal init(
-                    account_handle: Swift.String,
-                    project_handle: Swift.String
-                ) {
-                    self.account_handle = account_handle
-                    self.project_handle = project_handle
-                }
-            }
-            internal var path: Operations.showProject.Input.Path
-            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/GET/header`.
-            internal struct Headers: Sendable, Hashable {
-                internal var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.showProject.AcceptableContentType>]
-                /// Creates a new `Headers`.
-                ///
-                /// - Parameters:
-                ///   - accept:
-                internal init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.showProject.AcceptableContentType>] = .defaultValues()) {
-                    self.accept = accept
-                }
-            }
-            internal var headers: Operations.showProject.Input.Headers
-            /// Creates a new `Input`.
-            ///
-            /// - Parameters:
-            ///   - path:
-            ///   - headers:
-            internal init(
-                path: Operations.showProject.Input.Path,
-                headers: Operations.showProject.Input.Headers = .init()
-            ) {
-                self.path = path
-                self.headers = headers
-            }
-        }
-        internal enum Output: Sendable, Hashable {
-            internal struct Ok: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/GET/responses/200/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/GET/responses/200/content/application\/json`.
-                    case json(Components.Schemas.Project)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas.Project {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.showProject.Output.Ok.Body
-                /// Creates a new `Ok`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.showProject.Output.Ok.Body) {
-                    self.body = body
-                }
-            }
-            /// The project to show
-            ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/get(showProject)/responses/200`.
-            ///
-            /// HTTP response code: `200 ok`.
-            case ok(Operations.showProject.Output.Ok)
-            /// The associated value of the enum case if `self` is `.ok`.
-            ///
-            /// - Throws: An error if `self` is not `.ok`.
-            /// - SeeAlso: `.ok`.
-            internal var ok: Operations.showProject.Output.Ok {
-                get throws {
-                    switch self {
-                    case let .ok(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "ok",
-                            response: self
-                        )
-                    }
-                }
-            }
-            internal struct Unauthorized: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/GET/responses/401/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/GET/responses/401/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.showProject.Output.Unauthorized.Body
-                /// Creates a new `Unauthorized`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.showProject.Output.Unauthorized.Body) {
-                    self.body = body
-                }
-            }
-            /// You need to be authenticated to access this resource
-            ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/get(showProject)/responses/401`.
-            ///
-            /// HTTP response code: `401 unauthorized`.
-            case unauthorized(Operations.showProject.Output.Unauthorized)
-            /// The associated value of the enum case if `self` is `.unauthorized`.
-            ///
-            /// - Throws: An error if `self` is not `.unauthorized`.
-            /// - SeeAlso: `.unauthorized`.
-            internal var unauthorized: Operations.showProject.Output.Unauthorized {
-                get throws {
-                    switch self {
-                    case let .unauthorized(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "unauthorized",
-                            response: self
-                        )
-                    }
-                }
-            }
-            internal struct Forbidden: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/GET/responses/403/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/GET/responses/403/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.showProject.Output.Forbidden.Body
-                /// Creates a new `Forbidden`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.showProject.Output.Forbidden.Body) {
-                    self.body = body
-                }
-            }
-            /// The authenticated subject is not authorized to perform this action
-            ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/get(showProject)/responses/403`.
-            ///
-            /// HTTP response code: `403 forbidden`.
-            case forbidden(Operations.showProject.Output.Forbidden)
-            /// The associated value of the enum case if `self` is `.forbidden`.
-            ///
-            /// - Throws: An error if `self` is not `.forbidden`.
-            /// - SeeAlso: `.forbidden`.
-            internal var forbidden: Operations.showProject.Output.Forbidden {
-                get throws {
-                    switch self {
-                    case let .forbidden(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "forbidden",
-                            response: self
-                        )
-                    }
-                }
-            }
-            internal struct NotFound: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/GET/responses/404/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/GET/responses/404/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.showProject.Output.NotFound.Body
-                /// Creates a new `NotFound`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.showProject.Output.NotFound.Body) {
-                    self.body = body
-                }
-            }
-            /// The project was not found
-            ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/get(showProject)/responses/404`.
-            ///
-            /// HTTP response code: `404 notFound`.
-            case notFound(Operations.showProject.Output.NotFound)
-            /// The associated value of the enum case if `self` is `.notFound`.
-            ///
-            /// - Throws: An error if `self` is not `.notFound`.
-            /// - SeeAlso: `.notFound`.
-            internal var notFound: Operations.showProject.Output.NotFound {
-                get throws {
-                    switch self {
-                    case let .notFound(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "notFound",
-                            response: self
-                        )
-                    }
-                }
-            }
-            /// Undocumented response.
-            ///
-            /// A response with a code that is not documented in the OpenAPI document.
-            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
-        }
-        internal enum AcceptableContentType: AcceptableProtocol {
-            case json
-            case other(Swift.String)
-            internal init?(rawValue: Swift.String) {
-                switch rawValue.lowercased() {
-                case "application/json":
-                    self = .json
-                default:
-                    self = .other(rawValue)
-                }
-            }
-            internal var rawValue: Swift.String {
-                switch self {
-                case let .other(string):
-                    return string
-                case .json:
-                    return "application/json"
-                }
-            }
-            internal static var allCases: [Self] {
-                [
-                    .json
-                ]
-            }
-        }
-    }
-    /// Updates a project
-    ///
-    /// Updates a project with given parameters.
-    ///
-    /// - Remark: HTTP `PUT /api/projects/{account_handle}/{project_handle}`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/put(updateProject)`.
-    internal enum updateProject {
-        internal static let id: Swift.String = "updateProject"
-        internal struct Input: Sendable, Hashable {
-            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/PUT/path`.
-            internal struct Path: Sendable, Hashable {
-                /// The handle of the project's account.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/PUT/path/account_handle`.
-                internal var account_handle: Swift.String
-                /// The handle of the project to update.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/PUT/path/project_handle`.
-                internal var project_handle: Swift.String
-                /// Creates a new `Path`.
-                ///
-                /// - Parameters:
-                ///   - account_handle: The handle of the project's account.
-                ///   - project_handle: The handle of the project to update.
-                internal init(
-                    account_handle: Swift.String,
-                    project_handle: Swift.String
-                ) {
-                    self.account_handle = account_handle
-                    self.project_handle = project_handle
-                }
-            }
-            internal var path: Operations.updateProject.Input.Path
-            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/PUT/header`.
-            internal struct Headers: Sendable, Hashable {
-                internal var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.updateProject.AcceptableContentType>]
-                /// Creates a new `Headers`.
-                ///
-                /// - Parameters:
-                ///   - accept:
-                internal init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.updateProject.AcceptableContentType>] = .defaultValues()) {
-                    self.accept = accept
-                }
-            }
-            internal var headers: Operations.updateProject.Input.Headers
-            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/PUT/requestBody`.
-            internal enum Body: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/PUT/requestBody/json`.
-                internal struct jsonPayload: Codable, Hashable, Sendable {
-                    /// The default branch for the project.
-                    ///
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/PUT/requestBody/json/default_branch`.
-                    internal var default_branch: Swift.String?
-                    /// The repository URL for the project.
-                    ///
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/PUT/requestBody/json/repository_url`.
-                    internal var repository_url: Swift.String?
-                    /// The visibility of the project. Public projects are visible to everyone, private projects are only visible to the project's members.
-                    ///
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/PUT/requestBody/json/visibility`.
-                    internal enum visibilityPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                        case _public = "public"
-                        case _private = "private"
-                    }
-                    /// The visibility of the project. Public projects are visible to everyone, private projects are only visible to the project's members.
-                    ///
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/PUT/requestBody/json/visibility`.
-                    internal var visibility: Operations.updateProject.Input.Body.jsonPayload.visibilityPayload?
-                    /// Creates a new `jsonPayload`.
-                    ///
-                    /// - Parameters:
-                    ///   - default_branch: The default branch for the project.
-                    ///   - repository_url: The repository URL for the project.
-                    ///   - visibility: The visibility of the project. Public projects are visible to everyone, private projects are only visible to the project's members.
-                    internal init(
-                        default_branch: Swift.String? = nil,
-                        repository_url: Swift.String? = nil,
-                        visibility: Operations.updateProject.Input.Body.jsonPayload.visibilityPayload? = nil
-                    ) {
-                        self.default_branch = default_branch
-                        self.repository_url = repository_url
-                        self.visibility = visibility
-                    }
-                    internal enum CodingKeys: String, CodingKey {
-                        case default_branch
-                        case repository_url
-                        case visibility
-                    }
-                }
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/PUT/requestBody/content/application\/json`.
-                case json(Operations.updateProject.Input.Body.jsonPayload)
-            }
-            internal var body: Operations.updateProject.Input.Body?
-            /// Creates a new `Input`.
-            ///
-            /// - Parameters:
-            ///   - path:
-            ///   - headers:
-            ///   - body:
-            internal init(
-                path: Operations.updateProject.Input.Path,
-                headers: Operations.updateProject.Input.Headers = .init(),
-                body: Operations.updateProject.Input.Body? = nil
-            ) {
-                self.path = path
-                self.headers = headers
-                self.body = body
-            }
-        }
-        internal enum Output: Sendable, Hashable {
-            internal struct Ok: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/PUT/responses/200/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/PUT/responses/200/content/application\/json`.
-                    case json(Components.Schemas.Project)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas.Project {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.updateProject.Output.Ok.Body
-                /// Creates a new `Ok`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.updateProject.Output.Ok.Body) {
-                    self.body = body
-                }
-            }
-            /// The updated project
-            ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/put(updateProject)/responses/200`.
-            ///
-            /// HTTP response code: `200 ok`.
-            case ok(Operations.updateProject.Output.Ok)
-            /// The associated value of the enum case if `self` is `.ok`.
-            ///
-            /// - Throws: An error if `self` is not `.ok`.
-            /// - SeeAlso: `.ok`.
-            internal var ok: Operations.updateProject.Output.Ok {
-                get throws {
-                    switch self {
-                    case let .ok(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "ok",
-                            response: self
-                        )
-                    }
-                }
-            }
-            internal struct BadRequest: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/PUT/responses/400/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/PUT/responses/400/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.updateProject.Output.BadRequest.Body
-                /// Creates a new `BadRequest`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.updateProject.Output.BadRequest.Body) {
-                    self.body = body
-                }
-            }
-            /// The request is invalid, for example when attempting to link the project to a repository the authenticated user doesn't have access to.
-            ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/put(updateProject)/responses/400`.
-            ///
-            /// HTTP response code: `400 badRequest`.
-            case badRequest(Operations.updateProject.Output.BadRequest)
-            /// The associated value of the enum case if `self` is `.badRequest`.
-            ///
-            /// - Throws: An error if `self` is not `.badRequest`.
-            /// - SeeAlso: `.badRequest`.
-            internal var badRequest: Operations.updateProject.Output.BadRequest {
-                get throws {
-                    switch self {
-                    case let .badRequest(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "badRequest",
-                            response: self
-                        )
-                    }
-                }
-            }
-            internal struct Unauthorized: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/PUT/responses/401/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/PUT/responses/401/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.updateProject.Output.Unauthorized.Body
-                /// Creates a new `Unauthorized`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.updateProject.Output.Unauthorized.Body) {
-                    self.body = body
-                }
-            }
-            /// You need to be authenticated to access this resource
-            ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/put(updateProject)/responses/401`.
-            ///
-            /// HTTP response code: `401 unauthorized`.
-            case unauthorized(Operations.updateProject.Output.Unauthorized)
-            /// The associated value of the enum case if `self` is `.unauthorized`.
-            ///
-            /// - Throws: An error if `self` is not `.unauthorized`.
-            /// - SeeAlso: `.unauthorized`.
-            internal var unauthorized: Operations.updateProject.Output.Unauthorized {
-                get throws {
-                    switch self {
-                    case let .unauthorized(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "unauthorized",
-                            response: self
-                        )
-                    }
-                }
-            }
-            internal struct Forbidden: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/PUT/responses/403/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/PUT/responses/403/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.updateProject.Output.Forbidden.Body
-                /// Creates a new `Forbidden`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.updateProject.Output.Forbidden.Body) {
-                    self.body = body
-                }
-            }
-            /// The authenticated subject is not authorized to perform this action
-            ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/put(updateProject)/responses/403`.
-            ///
-            /// HTTP response code: `403 forbidden`.
-            case forbidden(Operations.updateProject.Output.Forbidden)
-            /// The associated value of the enum case if `self` is `.forbidden`.
-            ///
-            /// - Throws: An error if `self` is not `.forbidden`.
-            /// - SeeAlso: `.forbidden`.
-            internal var forbidden: Operations.updateProject.Output.Forbidden {
-                get throws {
-                    switch self {
-                    case let .forbidden(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "forbidden",
-                            response: self
-                        )
-                    }
-                }
-            }
-            internal struct NotFound: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/PUT/responses/404/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/PUT/responses/404/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.updateProject.Output.NotFound.Body
-                /// Creates a new `NotFound`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.updateProject.Output.NotFound.Body) {
-                    self.body = body
-                }
-            }
-            /// The project with the given account and project handles was not found
-            ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/put(updateProject)/responses/404`.
-            ///
-            /// HTTP response code: `404 notFound`.
-            case notFound(Operations.updateProject.Output.NotFound)
-            /// The associated value of the enum case if `self` is `.notFound`.
-            ///
-            /// - Throws: An error if `self` is not `.notFound`.
-            /// - SeeAlso: `.notFound`.
-            internal var notFound: Operations.updateProject.Output.NotFound {
-                get throws {
-                    switch self {
-                    case let .notFound(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "notFound",
-                            response: self
-                        )
-                    }
-                }
-            }
-            /// Undocumented response.
-            ///
-            /// A response with a code that is not documented in the OpenAPI document.
-            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
-        }
-        internal enum AcceptableContentType: AcceptableProtocol {
-            case json
-            case other(Swift.String)
-            internal init?(rawValue: Swift.String) {
-                switch rawValue.lowercased() {
-                case "application/json":
-                    self = .json
-                default:
-                    self = .other(rawValue)
-                }
-            }
-            internal var rawValue: Swift.String {
-                switch self {
-                case let .other(string):
-                    return string
-                case .json:
-                    return "application/json"
-                }
-            }
-            internal static var allCases: [Self] {
-                [
-                    .json
-                ]
-            }
-        }
-    }
-    /// It uploads a given cache action item.
-    ///
-    /// The endpoint caches a given action item without uploading a file. To upload files, use the multipart upload instead.
-    ///
-    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/cache/ac`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/ac/post(uploadCacheActionItem)`.
-    internal enum uploadCacheActionItem {
-        internal static let id: Swift.String = "uploadCacheActionItem"
-        internal struct Input: Sendable, Hashable {
-            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/ac/POST/path`.
-            internal struct Path: Sendable, Hashable {
-                /// The name of the account that the project belongs to.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/ac/POST/path/account_handle`.
-                internal var account_handle: Swift.String
-                /// The name of the project to clean cache for
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/ac/POST/path/project_handle`.
-                internal var project_handle: Swift.String
-                /// Creates a new `Path`.
-                ///
-                /// - Parameters:
-                ///   - account_handle: The name of the account that the project belongs to.
-                ///   - project_handle: The name of the project to clean cache for
-                internal init(
-                    account_handle: Swift.String,
-                    project_handle: Swift.String
-                ) {
-                    self.account_handle = account_handle
-                    self.project_handle = project_handle
-                }
-            }
-            internal var path: Operations.uploadCacheActionItem.Input.Path
-            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/ac/POST/header`.
-            internal struct Headers: Sendable, Hashable {
-                internal var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.uploadCacheActionItem.AcceptableContentType>]
-                /// Creates a new `Headers`.
-                ///
-                /// - Parameters:
-                ///   - accept:
-                internal init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.uploadCacheActionItem.AcceptableContentType>] = .defaultValues()) {
-                    self.accept = accept
-                }
-            }
-            internal var headers: Operations.uploadCacheActionItem.Input.Headers
-            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/ac/POST/requestBody`.
-            internal enum Body: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/ac/POST/requestBody/json`.
-                internal struct jsonPayload: Codable, Hashable, Sendable {
-                    /// The hash of the cache action item.
-                    ///
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/ac/POST/requestBody/json/hash`.
-                    internal var hash: Swift.String?
-                    /// Creates a new `jsonPayload`.
-                    ///
-                    /// - Parameters:
-                    ///   - hash: The hash of the cache action item.
-                    internal init(hash: Swift.String? = nil) {
-                        self.hash = hash
-                    }
-                    internal enum CodingKeys: String, CodingKey {
-                        case hash
-                    }
-                }
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/ac/POST/requestBody/content/application\/json`.
-                case json(Operations.uploadCacheActionItem.Input.Body.jsonPayload)
-            }
-            internal var body: Operations.uploadCacheActionItem.Input.Body?
-            /// Creates a new `Input`.
-            ///
-            /// - Parameters:
-            ///   - path:
-            ///   - headers:
-            ///   - body:
-            internal init(
-                path: Operations.uploadCacheActionItem.Input.Path,
-                headers: Operations.uploadCacheActionItem.Input.Headers = .init(),
-                body: Operations.uploadCacheActionItem.Input.Body? = nil
-            ) {
-                self.path = path
-                self.headers = headers
-                self.body = body
-            }
-        }
-        internal enum Output: Sendable, Hashable {
-            internal struct Ok: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/ac/POST/responses/200/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/ac/POST/responses/200/content/application\/json`.
-                    case json(Components.Schemas.CacheActionItem)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas.CacheActionItem {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.uploadCacheActionItem.Output.Ok.Body
-                /// Creates a new `Ok`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.uploadCacheActionItem.Output.Ok.Body) {
-                    self.body = body
-                }
-            }
-            /// The request is valid but the cache action item already exists
-            ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/ac/post(uploadCacheActionItem)/responses/200`.
-            ///
-            /// HTTP response code: `200 ok`.
-            case ok(Operations.uploadCacheActionItem.Output.Ok)
-            /// The associated value of the enum case if `self` is `.ok`.
-            ///
-            /// - Throws: An error if `self` is not `.ok`.
-            /// - SeeAlso: `.ok`.
-            internal var ok: Operations.uploadCacheActionItem.Output.Ok {
-                get throws {
-                    switch self {
-                    case let .ok(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "ok",
-                            response: self
-                        )
-                    }
-                }
-            }
-            internal struct Created: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/ac/POST/responses/201/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/ac/POST/responses/201/content/application\/json`.
-                    case json(Components.Schemas.CacheActionItem)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas.CacheActionItem {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.uploadCacheActionItem.Output.Created.Body
-                /// Creates a new `Created`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.uploadCacheActionItem.Output.Created.Body) {
-                    self.body = body
-                }
-            }
-            /// The action item was cached
-            ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/ac/post(uploadCacheActionItem)/responses/201`.
-            ///
-            /// HTTP response code: `201 created`.
-            case created(Operations.uploadCacheActionItem.Output.Created)
-            /// The associated value of the enum case if `self` is `.created`.
-            ///
-            /// - Throws: An error if `self` is not `.created`.
-            /// - SeeAlso: `.created`.
-            internal var created: Operations.uploadCacheActionItem.Output.Created {
-                get throws {
-                    switch self {
-                    case let .created(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "created",
-                            response: self
-                        )
-                    }
-                }
-            }
-            internal struct BadRequest: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/ac/POST/responses/400/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/ac/POST/responses/400/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.uploadCacheActionItem.Output.BadRequest.Body
-                /// Creates a new `BadRequest`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.uploadCacheActionItem.Output.BadRequest.Body) {
-                    self.body = body
-                }
-            }
-            /// The request has missing or invalid parameters
-            ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/ac/post(uploadCacheActionItem)/responses/400`.
-            ///
-            /// HTTP response code: `400 badRequest`.
-            case badRequest(Operations.uploadCacheActionItem.Output.BadRequest)
-            /// The associated value of the enum case if `self` is `.badRequest`.
-            ///
-            /// - Throws: An error if `self` is not `.badRequest`.
-            /// - SeeAlso: `.badRequest`.
-            internal var badRequest: Operations.uploadCacheActionItem.Output.BadRequest {
-                get throws {
-                    switch self {
-                    case let .badRequest(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "badRequest",
-                            response: self
-                        )
-                    }
-                }
-            }
-            internal struct Unauthorized: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/ac/POST/responses/401/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/ac/POST/responses/401/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.uploadCacheActionItem.Output.Unauthorized.Body
-                /// Creates a new `Unauthorized`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.uploadCacheActionItem.Output.Unauthorized.Body) {
-                    self.body = body
-                }
-            }
-            /// You need to be authenticated to access this resource
-            ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/ac/post(uploadCacheActionItem)/responses/401`.
-            ///
-            /// HTTP response code: `401 unauthorized`.
-            case unauthorized(Operations.uploadCacheActionItem.Output.Unauthorized)
-            /// The associated value of the enum case if `self` is `.unauthorized`.
-            ///
-            /// - Throws: An error if `self` is not `.unauthorized`.
-            /// - SeeAlso: `.unauthorized`.
-            internal var unauthorized: Operations.uploadCacheActionItem.Output.Unauthorized {
-                get throws {
-                    switch self {
-                    case let .unauthorized(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "unauthorized",
-                            response: self
-                        )
-                    }
-                }
-            }
-            internal struct Code402: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/ac/POST/responses/402/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/ac/POST/responses/402/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.uploadCacheActionItem.Output.Code402.Body
-                /// Creates a new `Code402`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.uploadCacheActionItem.Output.Code402.Body) {
-                    self.body = body
-                }
-            }
-            /// The account has an invalid plan
-            ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/ac/post(uploadCacheActionItem)/responses/402`.
-            ///
-            /// HTTP response code: `402 code402`.
-            case code402(Operations.uploadCacheActionItem.Output.Code402)
-            /// The associated value of the enum case if `self` is `.code402`.
-            ///
-            /// - Throws: An error if `self` is not `.code402`.
-            /// - SeeAlso: `.code402`.
-            internal var code402: Operations.uploadCacheActionItem.Output.Code402 {
-                get throws {
-                    switch self {
-                    case let .code402(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "code402",
-                            response: self
-                        )
-                    }
-                }
-            }
-            internal struct Forbidden: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/ac/POST/responses/403/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/ac/POST/responses/403/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.uploadCacheActionItem.Output.Forbidden.Body
-                /// Creates a new `Forbidden`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.uploadCacheActionItem.Output.Forbidden.Body) {
-                    self.body = body
-                }
-            }
-            /// The authenticated subject is not authorized to perform this action
-            ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/ac/post(uploadCacheActionItem)/responses/403`.
-            ///
-            /// HTTP response code: `403 forbidden`.
-            case forbidden(Operations.uploadCacheActionItem.Output.Forbidden)
-            /// The associated value of the enum case if `self` is `.forbidden`.
-            ///
-            /// - Throws: An error if `self` is not `.forbidden`.
-            /// - SeeAlso: `.forbidden`.
-            internal var forbidden: Operations.uploadCacheActionItem.Output.Forbidden {
-                get throws {
-                    switch self {
-                    case let .forbidden(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "forbidden",
-                            response: self
-                        )
-                    }
-                }
-            }
-            internal struct NotFound: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/ac/POST/responses/404/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/ac/POST/responses/404/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.uploadCacheActionItem.Output.NotFound.Body
-                /// Creates a new `NotFound`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.uploadCacheActionItem.Output.NotFound.Body) {
-                    self.body = body
-                }
-            }
-            /// The project doesn't exist
-            ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/ac/post(uploadCacheActionItem)/responses/404`.
-            ///
-            /// HTTP response code: `404 notFound`.
-            case notFound(Operations.uploadCacheActionItem.Output.NotFound)
-            /// The associated value of the enum case if `self` is `.notFound`.
-            ///
-            /// - Throws: An error if `self` is not `.notFound`.
-            /// - SeeAlso: `.notFound`.
-            internal var notFound: Operations.uploadCacheActionItem.Output.NotFound {
-                get throws {
-                    switch self {
-                    case let .notFound(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "notFound",
-                            response: self
-                        )
-                    }
-                }
-            }
-            /// Undocumented response.
-            ///
-            /// A response with a code that is not documented in the OpenAPI document.
-            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
-        }
-        internal enum AcceptableContentType: AcceptableProtocol {
-            case json
-            case other(Swift.String)
-            internal init?(rawValue: Swift.String) {
-                switch rawValue.lowercased() {
-                case "application/json":
-                    self = .json
-                default:
-                    self = .other(rawValue)
-                }
-            }
-            internal var rawValue: Swift.String {
-                switch self {
-                case let .other(string):
-                    return string
-                case .json:
-                    return "application/json"
-                }
-            }
-            internal static var allCases: [Self] {
-                [
-                    .json
-                ]
-            }
-        }
-    }
-    /// Get a cache action item.
-    ///
-    /// This endpoint gets an item from the action cache.
-    ///
-    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/cache/ac/{hash}`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/ac/{hash}/get(getCacheActionItem)`.
-    internal enum getCacheActionItem {
-        internal static let id: Swift.String = "getCacheActionItem"
-        internal struct Input: Sendable, Hashable {
-            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/ac/{hash}/GET/path`.
-            internal struct Path: Sendable, Hashable {
-                /// The name of the account that the project belongs to.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/ac/{hash}/GET/path/account_handle`.
-                internal var account_handle: Swift.String
-                /// The name of the project the cache action item belongs to.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/ac/{hash}/GET/path/project_handle`.
-                internal var project_handle: Swift.String
-                /// The hash that uniquely identifies an item in the action cache.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/ac/{hash}/GET/path/hash`.
-                internal var hash: Swift.String
-                /// Creates a new `Path`.
-                ///
-                /// - Parameters:
-                ///   - account_handle: The name of the account that the project belongs to.
-                ///   - project_handle: The name of the project the cache action item belongs to.
-                ///   - hash: The hash that uniquely identifies an item in the action cache.
-                internal init(
-                    account_handle: Swift.String,
-                    project_handle: Swift.String,
-                    hash: Swift.String
-                ) {
-                    self.account_handle = account_handle
-                    self.project_handle = project_handle
-                    self.hash = hash
-                }
-            }
-            internal var path: Operations.getCacheActionItem.Input.Path
-            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/ac/{hash}/GET/header`.
-            internal struct Headers: Sendable, Hashable {
-                internal var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getCacheActionItem.AcceptableContentType>]
-                /// Creates a new `Headers`.
-                ///
-                /// - Parameters:
-                ///   - accept:
-                internal init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getCacheActionItem.AcceptableContentType>] = .defaultValues()) {
-                    self.accept = accept
-                }
-            }
-            internal var headers: Operations.getCacheActionItem.Input.Headers
-            /// Creates a new `Input`.
-            ///
-            /// - Parameters:
-            ///   - path:
-            ///   - headers:
-            internal init(
-                path: Operations.getCacheActionItem.Input.Path,
-                headers: Operations.getCacheActionItem.Input.Headers = .init()
-            ) {
-                self.path = path
-                self.headers = headers
-            }
-        }
-        internal enum Output: Sendable, Hashable {
-            internal struct Ok: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/ac/{hash}/GET/responses/200/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/ac/{hash}/GET/responses/200/content/application\/json`.
-                    case json(Components.Schemas.CacheActionItem)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas.CacheActionItem {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.getCacheActionItem.Output.Ok.Body
-                /// Creates a new `Ok`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.getCacheActionItem.Output.Ok.Body) {
-                    self.body = body
-                }
-            }
-            /// The item exists in the action cache
-            ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/ac/{hash}/get(getCacheActionItem)/responses/200`.
-            ///
-            /// HTTP response code: `200 ok`.
-            case ok(Operations.getCacheActionItem.Output.Ok)
-            /// The associated value of the enum case if `self` is `.ok`.
-            ///
-            /// - Throws: An error if `self` is not `.ok`.
-            /// - SeeAlso: `.ok`.
-            internal var ok: Operations.getCacheActionItem.Output.Ok {
-                get throws {
-                    switch self {
-                    case let .ok(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "ok",
-                            response: self
-                        )
-                    }
-                }
-            }
-            internal struct Unauthorized: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/ac/{hash}/GET/responses/401/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/ac/{hash}/GET/responses/401/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.getCacheActionItem.Output.Unauthorized.Body
-                /// Creates a new `Unauthorized`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.getCacheActionItem.Output.Unauthorized.Body) {
-                    self.body = body
-                }
-            }
-            /// You need to be authenticated to access this resource
-            ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/ac/{hash}/get(getCacheActionItem)/responses/401`.
-            ///
-            /// HTTP response code: `401 unauthorized`.
-            case unauthorized(Operations.getCacheActionItem.Output.Unauthorized)
-            /// The associated value of the enum case if `self` is `.unauthorized`.
-            ///
-            /// - Throws: An error if `self` is not `.unauthorized`.
-            /// - SeeAlso: `.unauthorized`.
-            internal var unauthorized: Operations.getCacheActionItem.Output.Unauthorized {
-                get throws {
-                    switch self {
-                    case let .unauthorized(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "unauthorized",
-                            response: self
-                        )
-                    }
-                }
-            }
-            internal struct Code402: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/ac/{hash}/GET/responses/402/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/ac/{hash}/GET/responses/402/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.getCacheActionItem.Output.Code402.Body
-                /// Creates a new `Code402`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.getCacheActionItem.Output.Code402.Body) {
-                    self.body = body
-                }
-            }
-            /// The account has an invalid plan
-            ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/ac/{hash}/get(getCacheActionItem)/responses/402`.
-            ///
-            /// HTTP response code: `402 code402`.
-            case code402(Operations.getCacheActionItem.Output.Code402)
-            /// The associated value of the enum case if `self` is `.code402`.
-            ///
-            /// - Throws: An error if `self` is not `.code402`.
-            /// - SeeAlso: `.code402`.
-            internal var code402: Operations.getCacheActionItem.Output.Code402 {
-                get throws {
-                    switch self {
-                    case let .code402(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "code402",
-                            response: self
-                        )
-                    }
-                }
-            }
-            internal struct Forbidden: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/ac/{hash}/GET/responses/403/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/ac/{hash}/GET/responses/403/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.getCacheActionItem.Output.Forbidden.Body
-                /// Creates a new `Forbidden`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.getCacheActionItem.Output.Forbidden.Body) {
-                    self.body = body
-                }
-            }
-            /// The authenticated subject is not authorized to perform this action
-            ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/ac/{hash}/get(getCacheActionItem)/responses/403`.
-            ///
-            /// HTTP response code: `403 forbidden`.
-            case forbidden(Operations.getCacheActionItem.Output.Forbidden)
-            /// The associated value of the enum case if `self` is `.forbidden`.
-            ///
-            /// - Throws: An error if `self` is not `.forbidden`.
-            /// - SeeAlso: `.forbidden`.
-            internal var forbidden: Operations.getCacheActionItem.Output.Forbidden {
-                get throws {
-                    switch self {
-                    case let .forbidden(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "forbidden",
-                            response: self
-                        )
-                    }
-                }
-            }
-            internal struct NotFound: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/ac/{hash}/GET/responses/404/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/ac/{hash}/GET/responses/404/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.getCacheActionItem.Output.NotFound.Body
-                /// Creates a new `NotFound`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.getCacheActionItem.Output.NotFound.Body) {
-                    self.body = body
-                }
-            }
-            /// The item doesn't exist in the actino cache
-            ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/ac/{hash}/get(getCacheActionItem)/responses/404`.
-            ///
-            /// HTTP response code: `404 notFound`.
-            case notFound(Operations.getCacheActionItem.Output.NotFound)
-            /// The associated value of the enum case if `self` is `.notFound`.
-            ///
-            /// - Throws: An error if `self` is not `.notFound`.
-            /// - SeeAlso: `.notFound`.
-            internal var notFound: Operations.getCacheActionItem.Output.NotFound {
-                get throws {
-                    switch self {
-                    case let .notFound(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "notFound",
-                            response: self
-                        )
-                    }
-                }
-            }
-            /// Undocumented response.
-            ///
-            /// A response with a code that is not documented in the OpenAPI document.
-            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
-        }
-        internal enum AcceptableContentType: AcceptableProtocol {
-            case json
-            case other(Swift.String)
-            internal init?(rawValue: Swift.String) {
-                switch rawValue.lowercased() {
-                case "application/json":
-                    self = .json
-                default:
-                    self = .other(rawValue)
-                }
-            }
-            internal var rawValue: Swift.String {
-                switch self {
-                case let .other(string):
-                    return string
-                case .json:
-                    return "application/json"
-                }
-            }
-            internal static var allCases: [Self] {
-                [
-                    .json
-                ]
-            }
-        }
-    }
-    /// Cleans cache for a given project
-    ///
-    /// - Remark: HTTP `PUT /api/projects/{account_handle}/{project_handle}/cache/clean`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/clean/put(cleanCache)`.
-    internal enum cleanCache {
-        internal static let id: Swift.String = "cleanCache"
-        internal struct Input: Sendable, Hashable {
-            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/clean/PUT/path`.
-            internal struct Path: Sendable, Hashable {
-                /// The name of the account that the project belongs to.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/clean/PUT/path/account_handle`.
-                internal var account_handle: Swift.String
-                /// The name of the project to clean cache for
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/clean/PUT/path/project_handle`.
-                internal var project_handle: Swift.String
-                /// Creates a new `Path`.
-                ///
-                /// - Parameters:
-                ///   - account_handle: The name of the account that the project belongs to.
-                ///   - project_handle: The name of the project to clean cache for
-                internal init(
-                    account_handle: Swift.String,
-                    project_handle: Swift.String
-                ) {
-                    self.account_handle = account_handle
-                    self.project_handle = project_handle
-                }
-            }
-            internal var path: Operations.cleanCache.Input.Path
-            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/clean/PUT/header`.
-            internal struct Headers: Sendable, Hashable {
-                internal var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.cleanCache.AcceptableContentType>]
-                /// Creates a new `Headers`.
-                ///
-                /// - Parameters:
-                ///   - accept:
-                internal init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.cleanCache.AcceptableContentType>] = .defaultValues()) {
-                    self.accept = accept
-                }
-            }
-            internal var headers: Operations.cleanCache.Input.Headers
-            /// Creates a new `Input`.
-            ///
-            /// - Parameters:
-            ///   - path:
-            ///   - headers:
-            internal init(
-                path: Operations.cleanCache.Input.Path,
-                headers: Operations.cleanCache.Input.Headers = .init()
-            ) {
-                self.path = path
-                self.headers = headers
-            }
-        }
-        internal enum Output: Sendable, Hashable {
-            internal struct NoContent: Sendable, Hashable {
-                /// Creates a new `NoContent`.
-                internal init() {}
-            }
-            /// The cache has been successfully cleaned
-            ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/clean/put(cleanCache)/responses/204`.
-            ///
-            /// HTTP response code: `204 noContent`.
-            case noContent(Operations.cleanCache.Output.NoContent)
-            /// The associated value of the enum case if `self` is `.noContent`.
-            ///
-            /// - Throws: An error if `self` is not `.noContent`.
-            /// - SeeAlso: `.noContent`.
-            internal var noContent: Operations.cleanCache.Output.NoContent {
-                get throws {
-                    switch self {
-                    case let .noContent(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "noContent",
-                            response: self
-                        )
-                    }
-                }
-            }
-            internal struct Unauthorized: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/clean/PUT/responses/401/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/clean/PUT/responses/401/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.cleanCache.Output.Unauthorized.Body
-                /// Creates a new `Unauthorized`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.cleanCache.Output.Unauthorized.Body) {
-                    self.body = body
-                }
-            }
-            /// You need to be authenticated to access this resource
-            ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/clean/put(cleanCache)/responses/401`.
-            ///
-            /// HTTP response code: `401 unauthorized`.
-            case unauthorized(Operations.cleanCache.Output.Unauthorized)
-            /// The associated value of the enum case if `self` is `.unauthorized`.
-            ///
-            /// - Throws: An error if `self` is not `.unauthorized`.
-            /// - SeeAlso: `.unauthorized`.
-            internal var unauthorized: Operations.cleanCache.Output.Unauthorized {
-                get throws {
-                    switch self {
-                    case let .unauthorized(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "unauthorized",
-                            response: self
-                        )
-                    }
-                }
-            }
-            internal struct Forbidden: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/clean/PUT/responses/403/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/clean/PUT/responses/403/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.cleanCache.Output.Forbidden.Body
-                /// Creates a new `Forbidden`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.cleanCache.Output.Forbidden.Body) {
-                    self.body = body
-                }
-            }
-            /// The authenticated subject is not authorized to perform this action
-            ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/clean/put(cleanCache)/responses/403`.
-            ///
-            /// HTTP response code: `403 forbidden`.
-            case forbidden(Operations.cleanCache.Output.Forbidden)
-            /// The associated value of the enum case if `self` is `.forbidden`.
-            ///
-            /// - Throws: An error if `self` is not `.forbidden`.
-            /// - SeeAlso: `.forbidden`.
-            internal var forbidden: Operations.cleanCache.Output.Forbidden {
-                get throws {
-                    switch self {
-                    case let .forbidden(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "forbidden",
-                            response: self
-                        )
-                    }
-                }
-            }
-            internal struct NotFound: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/clean/PUT/responses/404/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache/clean/PUT/responses/404/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.cleanCache.Output.NotFound.Body
-                /// Creates a new `NotFound`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.cleanCache.Output.NotFound.Body) {
-                    self.body = body
-                }
-            }
-            /// The project was not found
-            ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/clean/put(cleanCache)/responses/404`.
-            ///
-            /// HTTP response code: `404 notFound`.
-            case notFound(Operations.cleanCache.Output.NotFound)
-            /// The associated value of the enum case if `self` is `.notFound`.
-            ///
-            /// - Throws: An error if `self` is not `.notFound`.
-            /// - SeeAlso: `.notFound`.
-            internal var notFound: Operations.cleanCache.Output.NotFound {
-                get throws {
-                    switch self {
-                    case let .notFound(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "notFound",
-                            response: self
-                        )
-                    }
-                }
-            }
-            /// Undocumented response.
-            ///
-            /// A response with a code that is not documented in the OpenAPI document.
-            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
-        }
-        internal enum AcceptableContentType: AcceptableProtocol {
-            case json
-            case other(Swift.String)
-            internal init?(rawValue: Swift.String) {
-                switch rawValue.lowercased() {
-                case "application/json":
-                    self = .json
-                default:
-                    self = .other(rawValue)
-                }
-            }
-            internal var rawValue: Swift.String {
-                switch self {
-                case let .other(string):
-                    return string
-                case .json:
-                    return "application/json"
-                }
-            }
-            internal static var allCases: [Self] {
-                [
-                    .json
-                ]
-            }
-        }
-    }
-    /// List previews.
-    ///
-    /// This endpoint returns a list of previews for a given project.
-    ///
-    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/previews`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/get(listPreviews)`.
-    internal enum listPreviews {
-        internal static let id: Swift.String = "listPreviews"
-        internal struct Input: Sendable, Hashable {
-            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/path`.
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/POST/path`.
             internal struct Path: Sendable, Hashable {
                 /// The handle of the account.
                 ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/path/account_handle`.
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/POST/path/account_handle`.
                 internal var account_handle: Swift.String
                 /// The handle of the project.
                 ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/path/project_handle`.
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/POST/path/project_handle`.
                 internal var project_handle: Swift.String
+                /// The preview identifier.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/POST/path/preview_id`.
+                internal var preview_id: Swift.String
                 /// Creates a new `Path`.
                 ///
                 /// - Parameters:
                 ///   - account_handle: The handle of the account.
                 ///   - project_handle: The handle of the project.
+                ///   - preview_id: The preview identifier.
                 internal init(
                     account_handle: Swift.String,
-                    project_handle: Swift.String
+                    project_handle: Swift.String,
+                    preview_id: Swift.String
                 ) {
                     self.account_handle = account_handle
                     self.project_handle = project_handle
+                    self.preview_id = preview_id
                 }
             }
-            internal var path: Operations.listPreviews.Input.Path
-            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/query`.
-            internal struct Query: Sendable, Hashable {
-                /// The display name of previews.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/query/display_name`.
-                internal var display_name: Swift.String?
-                /// The preview version specifier. Currently, accepts a commit SHA, branch name, or latest.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/query/specifier`.
-                internal var specifier: Swift.String?
-                ///
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/query/supported_platforms`.
-                internal var supported_platforms: [Components.Schemas.PreviewSupportedPlatform]?
-                ///
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/query/page_size`.
-                internal var page_size: Swift.Int?
-                ///
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/query/page`.
-                internal var page: Swift.Int?
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/query/distinct_field`.
-                internal enum distinct_fieldPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                    case bundle_identifier = "bundle_identifier"
-                }
-                /// Distinct fields – no two previews will be returned with this field having the same value.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/query/distinct_field`.
-                internal var distinct_field: Operations.listPreviews.Input.Query.distinct_fieldPayload?
-                /// Creates a new `Query`.
-                ///
-                /// - Parameters:
-                ///   - display_name: The display name of previews.
-                ///   - specifier: The preview version specifier. Currently, accepts a commit SHA, branch name, or latest.
-                ///   - supported_platforms:
-                ///   - page_size:
-                ///   - page:
-                ///   - distinct_field: Distinct fields – no two previews will be returned with this field having the same value.
-                internal init(
-                    display_name: Swift.String? = nil,
-                    specifier: Swift.String? = nil,
-                    supported_platforms: [Components.Schemas.PreviewSupportedPlatform]? = nil,
-                    page_size: Swift.Int? = nil,
-                    page: Swift.Int? = nil,
-                    distinct_field: Operations.listPreviews.Input.Query.distinct_fieldPayload? = nil
-                ) {
-                    self.display_name = display_name
-                    self.specifier = specifier
-                    self.supported_platforms = supported_platforms
-                    self.page_size = page_size
-                    self.page = page
-                    self.distinct_field = distinct_field
-                }
-            }
-            internal var query: Operations.listPreviews.Input.Query
-            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/header`.
+            internal var path: Operations.uploadPreviewIcon.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/POST/header`.
             internal struct Headers: Sendable, Hashable {
-                internal var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listPreviews.AcceptableContentType>]
+                internal var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.uploadPreviewIcon.AcceptableContentType>]
                 /// Creates a new `Headers`.
                 ///
                 /// - Parameters:
                 ///   - accept:
-                internal init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listPreviews.AcceptableContentType>] = .defaultValues()) {
+                internal init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.uploadPreviewIcon.AcceptableContentType>] = .defaultValues()) {
                     self.accept = accept
                 }
             }
-            internal var headers: Operations.listPreviews.Input.Headers
+            internal var headers: Operations.uploadPreviewIcon.Input.Headers
             /// Creates a new `Input`.
             ///
             /// - Parameters:
             ///   - path:
-            ///   - query:
             ///   - headers:
             internal init(
-                path: Operations.listPreviews.Input.Path,
-                query: Operations.listPreviews.Input.Query = .init(),
-                headers: Operations.listPreviews.Input.Headers = .init()
+                path: Operations.uploadPreviewIcon.Input.Path,
+                headers: Operations.uploadPreviewIcon.Input.Headers = .init()
             ) {
                 self.path = path
-                self.query = query
                 self.headers = headers
             }
         }
         internal enum Output: Sendable, Hashable {
             internal struct Ok: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/responses/200/content`.
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/POST/responses/200/content`.
                 internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/responses/200/content/json`.
-                    internal struct jsonPayload: Codable, Hashable, Sendable {
-                        /// Previews list.
-                        ///
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/responses/200/content/json/previews`.
-                        internal var previews: [Components.Schemas.Preview]
-                        /// Creates a new `jsonPayload`.
-                        ///
-                        /// - Parameters:
-                        ///   - previews: Previews list.
-                        internal init(previews: [Components.Schemas.Preview]) {
-                            self.previews = previews
-                        }
-                        internal enum CodingKeys: String, CodingKey {
-                            case previews
-                        }
-                    }
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/responses/200/content/application\/json`.
-                    case json(Operations.listPreviews.Output.Ok.Body.jsonPayload)
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/POST/responses/200/content/application\/json`.
+                    case json(Components.Schemas.ArtifactUploadURL)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    internal var json: Operations.listPreviews.Output.Ok.Body.jsonPayload {
+                    internal var json: Components.Schemas.ArtifactUploadURL {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -11022,26 +14647,26 @@ internal enum Operations {
                     }
                 }
                 /// Received HTTP response body
-                internal var body: Operations.listPreviews.Output.Ok.Body
+                internal var body: Operations.uploadPreviewIcon.Output.Ok.Body
                 /// Creates a new `Ok`.
                 ///
                 /// - Parameters:
                 ///   - body: Received HTTP response body
-                internal init(body: Operations.listPreviews.Output.Ok.Body) {
+                internal init(body: Operations.uploadPreviewIcon.Output.Ok.Body) {
                     self.body = body
                 }
             }
-            /// Successful response for listing previews.
+            /// The presigned upload URL
             ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/get(listPreviews)/responses/200`.
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/post(uploadPreviewIcon)/responses/200`.
             ///
             /// HTTP response code: `200 ok`.
-            case ok(Operations.listPreviews.Output.Ok)
+            case ok(Operations.uploadPreviewIcon.Output.Ok)
             /// The associated value of the enum case if `self` is `.ok`.
             ///
             /// - Throws: An error if `self` is not `.ok`.
             /// - SeeAlso: `.ok`.
-            internal var ok: Operations.listPreviews.Output.Ok {
+            internal var ok: Operations.uploadPreviewIcon.Output.Ok {
                 get throws {
                     switch self {
                     case let .ok(response):
@@ -11055,9 +14680,9 @@ internal enum Operations {
                 }
             }
             internal struct Unauthorized: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/responses/401/content`.
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/POST/responses/401/content`.
                 internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/responses/401/content/application\/json`.
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/POST/responses/401/content/application\/json`.
                     case json(Components.Schemas._Error)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
@@ -11073,26 +14698,26 @@ internal enum Operations {
                     }
                 }
                 /// Received HTTP response body
-                internal var body: Operations.listPreviews.Output.Unauthorized.Body
+                internal var body: Operations.uploadPreviewIcon.Output.Unauthorized.Body
                 /// Creates a new `Unauthorized`.
                 ///
                 /// - Parameters:
                 ///   - body: Received HTTP response body
-                internal init(body: Operations.listPreviews.Output.Unauthorized.Body) {
+                internal init(body: Operations.uploadPreviewIcon.Output.Unauthorized.Body) {
                     self.body = body
                 }
             }
             /// You need to be authenticated to access this resource
             ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/get(listPreviews)/responses/401`.
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/post(uploadPreviewIcon)/responses/401`.
             ///
             /// HTTP response code: `401 unauthorized`.
-            case unauthorized(Operations.listPreviews.Output.Unauthorized)
+            case unauthorized(Operations.uploadPreviewIcon.Output.Unauthorized)
             /// The associated value of the enum case if `self` is `.unauthorized`.
             ///
             /// - Throws: An error if `self` is not `.unauthorized`.
             /// - SeeAlso: `.unauthorized`.
-            internal var unauthorized: Operations.listPreviews.Output.Unauthorized {
+            internal var unauthorized: Operations.uploadPreviewIcon.Output.Unauthorized {
                 get throws {
                     switch self {
                     case let .unauthorized(response):
@@ -11106,9 +14731,9 @@ internal enum Operations {
                 }
             }
             internal struct Forbidden: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/responses/403/content`.
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/POST/responses/403/content`.
                 internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/GET/responses/403/content/application\/json`.
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/POST/responses/403/content/application\/json`.
                     case json(Components.Schemas._Error)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
@@ -11124,26 +14749,26 @@ internal enum Operations {
                     }
                 }
                 /// Received HTTP response body
-                internal var body: Operations.listPreviews.Output.Forbidden.Body
+                internal var body: Operations.uploadPreviewIcon.Output.Forbidden.Body
                 /// Creates a new `Forbidden`.
                 ///
                 /// - Parameters:
                 ///   - body: Received HTTP response body
-                internal init(body: Operations.listPreviews.Output.Forbidden.Body) {
+                internal init(body: Operations.uploadPreviewIcon.Output.Forbidden.Body) {
                     self.body = body
                 }
             }
             /// The authenticated subject is not authorized to perform this action
             ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/get(listPreviews)/responses/403`.
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/post(uploadPreviewIcon)/responses/403`.
             ///
             /// HTTP response code: `403 forbidden`.
-            case forbidden(Operations.listPreviews.Output.Forbidden)
+            case forbidden(Operations.uploadPreviewIcon.Output.Forbidden)
             /// The associated value of the enum case if `self` is `.forbidden`.
             ///
             /// - Throws: An error if `self` is not `.forbidden`.
             /// - SeeAlso: `.forbidden`.
-            internal var forbidden: Operations.listPreviews.Output.Forbidden {
+            internal var forbidden: Operations.uploadPreviewIcon.Output.Forbidden {
                 get throws {
                     switch self {
                     case let .forbidden(response):
@@ -11151,6 +14776,57 @@ internal enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/POST/responses/404/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/POST/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.uploadPreviewIcon.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.uploadPreviewIcon.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The project or preview doesn't exist
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/post(uploadPreviewIcon)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.uploadPreviewIcon.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            internal var notFound: Operations.uploadPreviewIcon.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
                             response: self
                         )
                     }
@@ -11517,2307 +15193,6 @@ internal enum Operations {
             }
         }
     }
-    /// It generates a signed URL for uploading a part.
-    ///
-    /// Given an upload ID and a part number, this endpoint returns a signed URL that can be used to upload a part of a multipart upload. The URL is short-lived and expires in 120 seconds.
-    ///
-    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/previews/generate-url`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/generate-url/post(generatePreviewsMultipartUploadURL)`.
-    internal enum generatePreviewsMultipartUploadURL {
-        internal static let id: Swift.String = "generatePreviewsMultipartUploadURL"
-        internal struct Input: Sendable, Hashable {
-            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/generate-url/POST/path`.
-            internal struct Path: Sendable, Hashable {
-                /// The handle of the account.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/generate-url/POST/path/account_handle`.
-                internal var account_handle: Swift.String
-                /// The handle of the project.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/generate-url/POST/path/project_handle`.
-                internal var project_handle: Swift.String
-                /// Creates a new `Path`.
-                ///
-                /// - Parameters:
-                ///   - account_handle: The handle of the account.
-                ///   - project_handle: The handle of the project.
-                internal init(
-                    account_handle: Swift.String,
-                    project_handle: Swift.String
-                ) {
-                    self.account_handle = account_handle
-                    self.project_handle = project_handle
-                }
-            }
-            internal var path: Operations.generatePreviewsMultipartUploadURL.Input.Path
-            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/generate-url/POST/header`.
-            internal struct Headers: Sendable, Hashable {
-                internal var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.generatePreviewsMultipartUploadURL.AcceptableContentType>]
-                /// Creates a new `Headers`.
-                ///
-                /// - Parameters:
-                ///   - accept:
-                internal init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.generatePreviewsMultipartUploadURL.AcceptableContentType>] = .defaultValues()) {
-                    self.accept = accept
-                }
-            }
-            internal var headers: Operations.generatePreviewsMultipartUploadURL.Input.Headers
-            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/generate-url/POST/requestBody`.
-            internal enum Body: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/generate-url/POST/requestBody/json`.
-                internal struct jsonPayload: Codable, Hashable, Sendable {
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/generate-url/POST/requestBody/json/multipart_upload_part`.
-                    internal var multipart_upload_part: Components.Schemas.ArtifactMultipartUploadPart
-                    /// The id of the preview.
-                    ///
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/generate-url/POST/requestBody/json/preview_id`.
-                    internal var preview_id: Swift.String
-                    /// Creates a new `jsonPayload`.
-                    ///
-                    /// - Parameters:
-                    ///   - multipart_upload_part:
-                    ///   - preview_id: The id of the preview.
-                    internal init(
-                        multipart_upload_part: Components.Schemas.ArtifactMultipartUploadPart,
-                        preview_id: Swift.String
-                    ) {
-                        self.multipart_upload_part = multipart_upload_part
-                        self.preview_id = preview_id
-                    }
-                    internal enum CodingKeys: String, CodingKey {
-                        case multipart_upload_part
-                        case preview_id
-                    }
-                }
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/generate-url/POST/requestBody/content/application\/json`.
-                case json(Operations.generatePreviewsMultipartUploadURL.Input.Body.jsonPayload)
-            }
-            internal var body: Operations.generatePreviewsMultipartUploadURL.Input.Body?
-            /// Creates a new `Input`.
-            ///
-            /// - Parameters:
-            ///   - path:
-            ///   - headers:
-            ///   - body:
-            internal init(
-                path: Operations.generatePreviewsMultipartUploadURL.Input.Path,
-                headers: Operations.generatePreviewsMultipartUploadURL.Input.Headers = .init(),
-                body: Operations.generatePreviewsMultipartUploadURL.Input.Body? = nil
-            ) {
-                self.path = path
-                self.headers = headers
-                self.body = body
-            }
-        }
-        internal enum Output: Sendable, Hashable {
-            internal struct Ok: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/generate-url/POST/responses/200/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/generate-url/POST/responses/200/content/application\/json`.
-                    case json(Components.Schemas.ArtifactMultipartUploadURL)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas.ArtifactMultipartUploadURL {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.generatePreviewsMultipartUploadURL.Output.Ok.Body
-                /// Creates a new `Ok`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.generatePreviewsMultipartUploadURL.Output.Ok.Body) {
-                    self.body = body
-                }
-            }
-            /// The URL has been generated
-            ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/generate-url/post(generatePreviewsMultipartUploadURL)/responses/200`.
-            ///
-            /// HTTP response code: `200 ok`.
-            case ok(Operations.generatePreviewsMultipartUploadURL.Output.Ok)
-            /// The associated value of the enum case if `self` is `.ok`.
-            ///
-            /// - Throws: An error if `self` is not `.ok`.
-            /// - SeeAlso: `.ok`.
-            internal var ok: Operations.generatePreviewsMultipartUploadURL.Output.Ok {
-                get throws {
-                    switch self {
-                    case let .ok(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "ok",
-                            response: self
-                        )
-                    }
-                }
-            }
-            internal struct Unauthorized: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/generate-url/POST/responses/401/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/generate-url/POST/responses/401/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.generatePreviewsMultipartUploadURL.Output.Unauthorized.Body
-                /// Creates a new `Unauthorized`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.generatePreviewsMultipartUploadURL.Output.Unauthorized.Body) {
-                    self.body = body
-                }
-            }
-            /// You need to be authenticated to access this resource
-            ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/generate-url/post(generatePreviewsMultipartUploadURL)/responses/401`.
-            ///
-            /// HTTP response code: `401 unauthorized`.
-            case unauthorized(Operations.generatePreviewsMultipartUploadURL.Output.Unauthorized)
-            /// The associated value of the enum case if `self` is `.unauthorized`.
-            ///
-            /// - Throws: An error if `self` is not `.unauthorized`.
-            /// - SeeAlso: `.unauthorized`.
-            internal var unauthorized: Operations.generatePreviewsMultipartUploadURL.Output.Unauthorized {
-                get throws {
-                    switch self {
-                    case let .unauthorized(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "unauthorized",
-                            response: self
-                        )
-                    }
-                }
-            }
-            internal struct Forbidden: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/generate-url/POST/responses/403/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/generate-url/POST/responses/403/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.generatePreviewsMultipartUploadURL.Output.Forbidden.Body
-                /// Creates a new `Forbidden`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.generatePreviewsMultipartUploadURL.Output.Forbidden.Body) {
-                    self.body = body
-                }
-            }
-            /// The authenticated subject is not authorized to perform this action
-            ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/generate-url/post(generatePreviewsMultipartUploadURL)/responses/403`.
-            ///
-            /// HTTP response code: `403 forbidden`.
-            case forbidden(Operations.generatePreviewsMultipartUploadURL.Output.Forbidden)
-            /// The associated value of the enum case if `self` is `.forbidden`.
-            ///
-            /// - Throws: An error if `self` is not `.forbidden`.
-            /// - SeeAlso: `.forbidden`.
-            internal var forbidden: Operations.generatePreviewsMultipartUploadURL.Output.Forbidden {
-                get throws {
-                    switch self {
-                    case let .forbidden(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "forbidden",
-                            response: self
-                        )
-                    }
-                }
-            }
-            internal struct NotFound: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/generate-url/POST/responses/404/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/generate-url/POST/responses/404/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.generatePreviewsMultipartUploadURL.Output.NotFound.Body
-                /// Creates a new `NotFound`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.generatePreviewsMultipartUploadURL.Output.NotFound.Body) {
-                    self.body = body
-                }
-            }
-            /// The project doesn't exist
-            ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/generate-url/post(generatePreviewsMultipartUploadURL)/responses/404`.
-            ///
-            /// HTTP response code: `404 notFound`.
-            case notFound(Operations.generatePreviewsMultipartUploadURL.Output.NotFound)
-            /// The associated value of the enum case if `self` is `.notFound`.
-            ///
-            /// - Throws: An error if `self` is not `.notFound`.
-            /// - SeeAlso: `.notFound`.
-            internal var notFound: Operations.generatePreviewsMultipartUploadURL.Output.NotFound {
-                get throws {
-                    switch self {
-                    case let .notFound(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "notFound",
-                            response: self
-                        )
-                    }
-                }
-            }
-            /// Undocumented response.
-            ///
-            /// A response with a code that is not documented in the OpenAPI document.
-            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
-        }
-        internal enum AcceptableContentType: AcceptableProtocol {
-            case json
-            case other(Swift.String)
-            internal init?(rawValue: Swift.String) {
-                switch rawValue.lowercased() {
-                case "application/json":
-                    self = .json
-                default:
-                    self = .other(rawValue)
-                }
-            }
-            internal var rawValue: Swift.String {
-                switch self {
-                case let .other(string):
-                    return string
-                case .json:
-                    return "application/json"
-                }
-            }
-            internal static var allCases: [Self] {
-                [
-                    .json
-                ]
-            }
-        }
-    }
-    /// It initiates a multipart upload for a preview artifact.
-    ///
-    /// The endpoint returns an upload ID that can be used to generate URLs for the individual parts and complete the upload.
-    ///
-    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/previews/start`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/start/post(startPreviewsMultipartUpload)`.
-    internal enum startPreviewsMultipartUpload {
-        internal static let id: Swift.String = "startPreviewsMultipartUpload"
-        internal struct Input: Sendable, Hashable {
-            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/path`.
-            internal struct Path: Sendable, Hashable {
-                /// The handle of the account.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/path/account_handle`.
-                internal var account_handle: Swift.String
-                /// The handle of the project.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/path/project_handle`.
-                internal var project_handle: Swift.String
-                /// Creates a new `Path`.
-                ///
-                /// - Parameters:
-                ///   - account_handle: The handle of the account.
-                ///   - project_handle: The handle of the project.
-                internal init(
-                    account_handle: Swift.String,
-                    project_handle: Swift.String
-                ) {
-                    self.account_handle = account_handle
-                    self.project_handle = project_handle
-                }
-            }
-            internal var path: Operations.startPreviewsMultipartUpload.Input.Path
-            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/header`.
-            internal struct Headers: Sendable, Hashable {
-                internal var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.startPreviewsMultipartUpload.AcceptableContentType>]
-                /// Creates a new `Headers`.
-                ///
-                /// - Parameters:
-                ///   - accept:
-                internal init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.startPreviewsMultipartUpload.AcceptableContentType>] = .defaultValues()) {
-                    self.accept = accept
-                }
-            }
-            internal var headers: Operations.startPreviewsMultipartUpload.Input.Headers
-            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/requestBody`.
-            internal enum Body: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/requestBody/json`.
-                internal struct jsonPayload: Codable, Hashable, Sendable {
-                    /// The bundle identifier of the preview.
-                    ///
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/requestBody/json/bundle_identifier`.
-                    internal var bundle_identifier: Swift.String?
-                    /// The display name of the preview.
-                    ///
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/requestBody/json/display_name`.
-                    internal var display_name: Swift.String?
-                    /// The supported platforms of the preview.
-                    ///
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/requestBody/json/supported_platforms`.
-                    internal var supported_platforms: [Components.Schemas.PreviewSupportedPlatform]?
-                    /// The type of the preview to upload.
-                    ///
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/requestBody/json/type`.
-                    internal enum _typePayload: String, Codable, Hashable, Sendable, CaseIterable {
-                        case app_bundle = "app_bundle"
-                        case ipa = "ipa"
-                    }
-                    /// The type of the preview to upload.
-                    ///
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/requestBody/json/type`.
-                    internal var _type: Operations.startPreviewsMultipartUpload.Input.Body.jsonPayload._typePayload?
-                    /// The version of the preview.
-                    ///
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/requestBody/json/version`.
-                    internal var version: Swift.String?
-                    /// Creates a new `jsonPayload`.
-                    ///
-                    /// - Parameters:
-                    ///   - bundle_identifier: The bundle identifier of the preview.
-                    ///   - display_name: The display name of the preview.
-                    ///   - supported_platforms: The supported platforms of the preview.
-                    ///   - _type: The type of the preview to upload.
-                    ///   - version: The version of the preview.
-                    internal init(
-                        bundle_identifier: Swift.String? = nil,
-                        display_name: Swift.String? = nil,
-                        supported_platforms: [Components.Schemas.PreviewSupportedPlatform]? = nil,
-                        _type: Operations.startPreviewsMultipartUpload.Input.Body.jsonPayload._typePayload? = nil,
-                        version: Swift.String? = nil
-                    ) {
-                        self.bundle_identifier = bundle_identifier
-                        self.display_name = display_name
-                        self.supported_platforms = supported_platforms
-                        self._type = _type
-                        self.version = version
-                    }
-                    internal enum CodingKeys: String, CodingKey {
-                        case bundle_identifier
-                        case display_name
-                        case supported_platforms
-                        case _type = "type"
-                        case version
-                    }
-                }
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/requestBody/content/application\/json`.
-                case json(Operations.startPreviewsMultipartUpload.Input.Body.jsonPayload)
-            }
-            internal var body: Operations.startPreviewsMultipartUpload.Input.Body?
-            /// Creates a new `Input`.
-            ///
-            /// - Parameters:
-            ///   - path:
-            ///   - headers:
-            ///   - body:
-            internal init(
-                path: Operations.startPreviewsMultipartUpload.Input.Path,
-                headers: Operations.startPreviewsMultipartUpload.Input.Headers = .init(),
-                body: Operations.startPreviewsMultipartUpload.Input.Body? = nil
-            ) {
-                self.path = path
-                self.headers = headers
-                self.body = body
-            }
-        }
-        internal enum Output: Sendable, Hashable {
-            internal struct Ok: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/responses/200/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// The upload has been initiated and preview and upload unique identifier are returned to upload the various parts using multi-part uploads
-                    ///
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/responses/200/content/json`.
-                    internal struct jsonPayload: Codable, Hashable, Sendable {
-                        /// Data that contains preview and upload unique identifier associated with the multipart upload to use when uploading parts
-                        ///
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/responses/200/content/json/data`.
-                        internal struct dataPayload: Codable, Hashable, Sendable {
-                            /// The id of the preview.
-                            ///
-                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/responses/200/content/json/data/preview_id`.
-                            internal var preview_id: Swift.String
-                            /// The upload ID
-                            ///
-                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/responses/200/content/json/data/upload_id`.
-                            internal var upload_id: Swift.String
-                            /// Creates a new `dataPayload`.
-                            ///
-                            /// - Parameters:
-                            ///   - preview_id: The id of the preview.
-                            ///   - upload_id: The upload ID
-                            internal init(
-                                preview_id: Swift.String,
-                                upload_id: Swift.String
-                            ) {
-                                self.preview_id = preview_id
-                                self.upload_id = upload_id
-                            }
-                            internal enum CodingKeys: String, CodingKey {
-                                case preview_id
-                                case upload_id
-                            }
-                        }
-                        /// Data that contains preview and upload unique identifier associated with the multipart upload to use when uploading parts
-                        ///
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/responses/200/content/json/data`.
-                        internal var data: Operations.startPreviewsMultipartUpload.Output.Ok.Body.jsonPayload.dataPayload
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/responses/200/content/json/status`.
-                        internal enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                            case success = "success"
-                        }
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/responses/200/content/json/status`.
-                        internal var status: Operations.startPreviewsMultipartUpload.Output.Ok.Body.jsonPayload.statusPayload
-                        /// Creates a new `jsonPayload`.
-                        ///
-                        /// - Parameters:
-                        ///   - data: Data that contains preview and upload unique identifier associated with the multipart upload to use when uploading parts
-                        ///   - status:
-                        internal init(
-                            data: Operations.startPreviewsMultipartUpload.Output.Ok.Body.jsonPayload.dataPayload,
-                            status: Operations.startPreviewsMultipartUpload.Output.Ok.Body.jsonPayload.statusPayload
-                        ) {
-                            self.data = data
-                            self.status = status
-                        }
-                        internal enum CodingKeys: String, CodingKey {
-                            case data
-                            case status
-                        }
-                    }
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/responses/200/content/application\/json`.
-                    case json(Operations.startPreviewsMultipartUpload.Output.Ok.Body.jsonPayload)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Operations.startPreviewsMultipartUpload.Output.Ok.Body.jsonPayload {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.startPreviewsMultipartUpload.Output.Ok.Body
-                /// Creates a new `Ok`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.startPreviewsMultipartUpload.Output.Ok.Body) {
-                    self.body = body
-                }
-            }
-            /// The upload has been started
-            ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/start/post(startPreviewsMultipartUpload)/responses/200`.
-            ///
-            /// HTTP response code: `200 ok`.
-            case ok(Operations.startPreviewsMultipartUpload.Output.Ok)
-            /// The associated value of the enum case if `self` is `.ok`.
-            ///
-            /// - Throws: An error if `self` is not `.ok`.
-            /// - SeeAlso: `.ok`.
-            internal var ok: Operations.startPreviewsMultipartUpload.Output.Ok {
-                get throws {
-                    switch self {
-                    case let .ok(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "ok",
-                            response: self
-                        )
-                    }
-                }
-            }
-            internal struct Unauthorized: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/responses/401/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/responses/401/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.startPreviewsMultipartUpload.Output.Unauthorized.Body
-                /// Creates a new `Unauthorized`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.startPreviewsMultipartUpload.Output.Unauthorized.Body) {
-                    self.body = body
-                }
-            }
-            /// You need to be authenticated to access this resource
-            ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/start/post(startPreviewsMultipartUpload)/responses/401`.
-            ///
-            /// HTTP response code: `401 unauthorized`.
-            case unauthorized(Operations.startPreviewsMultipartUpload.Output.Unauthorized)
-            /// The associated value of the enum case if `self` is `.unauthorized`.
-            ///
-            /// - Throws: An error if `self` is not `.unauthorized`.
-            /// - SeeAlso: `.unauthorized`.
-            internal var unauthorized: Operations.startPreviewsMultipartUpload.Output.Unauthorized {
-                get throws {
-                    switch self {
-                    case let .unauthorized(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "unauthorized",
-                            response: self
-                        )
-                    }
-                }
-            }
-            internal struct Forbidden: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/responses/403/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/responses/403/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.startPreviewsMultipartUpload.Output.Forbidden.Body
-                /// Creates a new `Forbidden`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.startPreviewsMultipartUpload.Output.Forbidden.Body) {
-                    self.body = body
-                }
-            }
-            /// The authenticated subject is not authorized to perform this action
-            ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/start/post(startPreviewsMultipartUpload)/responses/403`.
-            ///
-            /// HTTP response code: `403 forbidden`.
-            case forbidden(Operations.startPreviewsMultipartUpload.Output.Forbidden)
-            /// The associated value of the enum case if `self` is `.forbidden`.
-            ///
-            /// - Throws: An error if `self` is not `.forbidden`.
-            /// - SeeAlso: `.forbidden`.
-            internal var forbidden: Operations.startPreviewsMultipartUpload.Output.Forbidden {
-                get throws {
-                    switch self {
-                    case let .forbidden(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "forbidden",
-                            response: self
-                        )
-                    }
-                }
-            }
-            internal struct NotFound: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/responses/404/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/responses/404/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.startPreviewsMultipartUpload.Output.NotFound.Body
-                /// Creates a new `NotFound`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.startPreviewsMultipartUpload.Output.NotFound.Body) {
-                    self.body = body
-                }
-            }
-            /// The project doesn't exist
-            ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/start/post(startPreviewsMultipartUpload)/responses/404`.
-            ///
-            /// HTTP response code: `404 notFound`.
-            case notFound(Operations.startPreviewsMultipartUpload.Output.NotFound)
-            /// The associated value of the enum case if `self` is `.notFound`.
-            ///
-            /// - Throws: An error if `self` is not `.notFound`.
-            /// - SeeAlso: `.notFound`.
-            internal var notFound: Operations.startPreviewsMultipartUpload.Output.NotFound {
-                get throws {
-                    switch self {
-                    case let .notFound(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "notFound",
-                            response: self
-                        )
-                    }
-                }
-            }
-            /// Undocumented response.
-            ///
-            /// A response with a code that is not documented in the OpenAPI document.
-            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
-        }
-        internal enum AcceptableContentType: AcceptableProtocol {
-            case json
-            case other(Swift.String)
-            internal init?(rawValue: Swift.String) {
-                switch rawValue.lowercased() {
-                case "application/json":
-                    self = .json
-                default:
-                    self = .other(rawValue)
-                }
-            }
-            internal var rawValue: Swift.String {
-                switch self {
-                case let .other(string):
-                    return string
-                case .json:
-                    return "application/json"
-                }
-            }
-            internal static var allCases: [Self] {
-                [
-                    .json
-                ]
-            }
-        }
-    }
-    /// Returns a preview with a given id.
-    ///
-    /// This endpoint returns a preview with a given id, including the url to download the preview.
-    ///
-    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/previews/{preview_id}`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/get(downloadPreview)`.
-    internal enum downloadPreview {
-        internal static let id: Swift.String = "downloadPreview"
-        internal struct Input: Sendable, Hashable {
-            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/GET/path`.
-            internal struct Path: Sendable, Hashable {
-                /// The handle of the account.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/GET/path/account_handle`.
-                internal var account_handle: Swift.String
-                /// The handle of the project.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/GET/path/project_handle`.
-                internal var project_handle: Swift.String
-                /// The id of the preview.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/GET/path/preview_id`.
-                internal var preview_id: Swift.String
-                /// Creates a new `Path`.
-                ///
-                /// - Parameters:
-                ///   - account_handle: The handle of the account.
-                ///   - project_handle: The handle of the project.
-                ///   - preview_id: The id of the preview.
-                internal init(
-                    account_handle: Swift.String,
-                    project_handle: Swift.String,
-                    preview_id: Swift.String
-                ) {
-                    self.account_handle = account_handle
-                    self.project_handle = project_handle
-                    self.preview_id = preview_id
-                }
-            }
-            internal var path: Operations.downloadPreview.Input.Path
-            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/GET/header`.
-            internal struct Headers: Sendable, Hashable {
-                internal var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.downloadPreview.AcceptableContentType>]
-                /// Creates a new `Headers`.
-                ///
-                /// - Parameters:
-                ///   - accept:
-                internal init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.downloadPreview.AcceptableContentType>] = .defaultValues()) {
-                    self.accept = accept
-                }
-            }
-            internal var headers: Operations.downloadPreview.Input.Headers
-            /// Creates a new `Input`.
-            ///
-            /// - Parameters:
-            ///   - path:
-            ///   - headers:
-            internal init(
-                path: Operations.downloadPreview.Input.Path,
-                headers: Operations.downloadPreview.Input.Headers = .init()
-            ) {
-                self.path = path
-                self.headers = headers
-            }
-        }
-        internal enum Output: Sendable, Hashable {
-            internal struct Ok: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/GET/responses/200/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/GET/responses/200/content/application\/json`.
-                    case json(Components.Schemas.Preview)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas.Preview {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.downloadPreview.Output.Ok.Body
-                /// Creates a new `Ok`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.downloadPreview.Output.Ok.Body) {
-                    self.body = body
-                }
-            }
-            /// The preview exists and can be downloaded
-            ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/get(downloadPreview)/responses/200`.
-            ///
-            /// HTTP response code: `200 ok`.
-            case ok(Operations.downloadPreview.Output.Ok)
-            /// The associated value of the enum case if `self` is `.ok`.
-            ///
-            /// - Throws: An error if `self` is not `.ok`.
-            /// - SeeAlso: `.ok`.
-            internal var ok: Operations.downloadPreview.Output.Ok {
-                get throws {
-                    switch self {
-                    case let .ok(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "ok",
-                            response: self
-                        )
-                    }
-                }
-            }
-            internal struct Unauthorized: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/GET/responses/401/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/GET/responses/401/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.downloadPreview.Output.Unauthorized.Body
-                /// Creates a new `Unauthorized`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.downloadPreview.Output.Unauthorized.Body) {
-                    self.body = body
-                }
-            }
-            /// You need to be authenticated to access this resource
-            ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/get(downloadPreview)/responses/401`.
-            ///
-            /// HTTP response code: `401 unauthorized`.
-            case unauthorized(Operations.downloadPreview.Output.Unauthorized)
-            /// The associated value of the enum case if `self` is `.unauthorized`.
-            ///
-            /// - Throws: An error if `self` is not `.unauthorized`.
-            /// - SeeAlso: `.unauthorized`.
-            internal var unauthorized: Operations.downloadPreview.Output.Unauthorized {
-                get throws {
-                    switch self {
-                    case let .unauthorized(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "unauthorized",
-                            response: self
-                        )
-                    }
-                }
-            }
-            internal struct Forbidden: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/GET/responses/403/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/GET/responses/403/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.downloadPreview.Output.Forbidden.Body
-                /// Creates a new `Forbidden`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.downloadPreview.Output.Forbidden.Body) {
-                    self.body = body
-                }
-            }
-            /// The authenticated subject is not authorized to perform this action
-            ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/get(downloadPreview)/responses/403`.
-            ///
-            /// HTTP response code: `403 forbidden`.
-            case forbidden(Operations.downloadPreview.Output.Forbidden)
-            /// The associated value of the enum case if `self` is `.forbidden`.
-            ///
-            /// - Throws: An error if `self` is not `.forbidden`.
-            /// - SeeAlso: `.forbidden`.
-            internal var forbidden: Operations.downloadPreview.Output.Forbidden {
-                get throws {
-                    switch self {
-                    case let .forbidden(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "forbidden",
-                            response: self
-                        )
-                    }
-                }
-            }
-            internal struct NotFound: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/GET/responses/404/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/GET/responses/404/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.downloadPreview.Output.NotFound.Body
-                /// Creates a new `NotFound`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.downloadPreview.Output.NotFound.Body) {
-                    self.body = body
-                }
-            }
-            /// The preview does not exist
-            ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/get(downloadPreview)/responses/404`.
-            ///
-            /// HTTP response code: `404 notFound`.
-            case notFound(Operations.downloadPreview.Output.NotFound)
-            /// The associated value of the enum case if `self` is `.notFound`.
-            ///
-            /// - Throws: An error if `self` is not `.notFound`.
-            /// - SeeAlso: `.notFound`.
-            internal var notFound: Operations.downloadPreview.Output.NotFound {
-                get throws {
-                    switch self {
-                    case let .notFound(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "notFound",
-                            response: self
-                        )
-                    }
-                }
-            }
-            /// Undocumented response.
-            ///
-            /// A response with a code that is not documented in the OpenAPI document.
-            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
-        }
-        internal enum AcceptableContentType: AcceptableProtocol {
-            case json
-            case other(Swift.String)
-            internal init?(rawValue: Swift.String) {
-                switch rawValue.lowercased() {
-                case "application/json":
-                    self = .json
-                default:
-                    self = .other(rawValue)
-                }
-            }
-            internal var rawValue: Swift.String {
-                switch self {
-                case let .other(string):
-                    return string
-                case .json:
-                    return "application/json"
-                }
-            }
-            internal static var allCases: [Self] {
-                [
-                    .json
-                ]
-            }
-        }
-    }
-    /// Uploads a preview icon.
-    ///
-    /// The endpoint uploads a preview icon.
-    ///
-    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/post(uploadPreviewIcon)`.
-    internal enum uploadPreviewIcon {
-        internal static let id: Swift.String = "uploadPreviewIcon"
-        internal struct Input: Sendable, Hashable {
-            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/POST/path`.
-            internal struct Path: Sendable, Hashable {
-                /// The handle of the account.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/POST/path/account_handle`.
-                internal var account_handle: Swift.String
-                /// The handle of the project.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/POST/path/project_handle`.
-                internal var project_handle: Swift.String
-                /// The preview identifier.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/POST/path/preview_id`.
-                internal var preview_id: Swift.String
-                /// Creates a new `Path`.
-                ///
-                /// - Parameters:
-                ///   - account_handle: The handle of the account.
-                ///   - project_handle: The handle of the project.
-                ///   - preview_id: The preview identifier.
-                internal init(
-                    account_handle: Swift.String,
-                    project_handle: Swift.String,
-                    preview_id: Swift.String
-                ) {
-                    self.account_handle = account_handle
-                    self.project_handle = project_handle
-                    self.preview_id = preview_id
-                }
-            }
-            internal var path: Operations.uploadPreviewIcon.Input.Path
-            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/POST/header`.
-            internal struct Headers: Sendable, Hashable {
-                internal var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.uploadPreviewIcon.AcceptableContentType>]
-                /// Creates a new `Headers`.
-                ///
-                /// - Parameters:
-                ///   - accept:
-                internal init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.uploadPreviewIcon.AcceptableContentType>] = .defaultValues()) {
-                    self.accept = accept
-                }
-            }
-            internal var headers: Operations.uploadPreviewIcon.Input.Headers
-            /// Creates a new `Input`.
-            ///
-            /// - Parameters:
-            ///   - path:
-            ///   - headers:
-            internal init(
-                path: Operations.uploadPreviewIcon.Input.Path,
-                headers: Operations.uploadPreviewIcon.Input.Headers = .init()
-            ) {
-                self.path = path
-                self.headers = headers
-            }
-        }
-        internal enum Output: Sendable, Hashable {
-            internal struct Ok: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/POST/responses/200/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/POST/responses/200/content/application\/json`.
-                    case json(Components.Schemas.ArtifactUploadURL)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas.ArtifactUploadURL {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.uploadPreviewIcon.Output.Ok.Body
-                /// Creates a new `Ok`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.uploadPreviewIcon.Output.Ok.Body) {
-                    self.body = body
-                }
-            }
-            /// The presigned upload URL
-            ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/post(uploadPreviewIcon)/responses/200`.
-            ///
-            /// HTTP response code: `200 ok`.
-            case ok(Operations.uploadPreviewIcon.Output.Ok)
-            /// The associated value of the enum case if `self` is `.ok`.
-            ///
-            /// - Throws: An error if `self` is not `.ok`.
-            /// - SeeAlso: `.ok`.
-            internal var ok: Operations.uploadPreviewIcon.Output.Ok {
-                get throws {
-                    switch self {
-                    case let .ok(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "ok",
-                            response: self
-                        )
-                    }
-                }
-            }
-            internal struct Unauthorized: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/POST/responses/401/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/POST/responses/401/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.uploadPreviewIcon.Output.Unauthorized.Body
-                /// Creates a new `Unauthorized`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.uploadPreviewIcon.Output.Unauthorized.Body) {
-                    self.body = body
-                }
-            }
-            /// You need to be authenticated to access this resource
-            ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/post(uploadPreviewIcon)/responses/401`.
-            ///
-            /// HTTP response code: `401 unauthorized`.
-            case unauthorized(Operations.uploadPreviewIcon.Output.Unauthorized)
-            /// The associated value of the enum case if `self` is `.unauthorized`.
-            ///
-            /// - Throws: An error if `self` is not `.unauthorized`.
-            /// - SeeAlso: `.unauthorized`.
-            internal var unauthorized: Operations.uploadPreviewIcon.Output.Unauthorized {
-                get throws {
-                    switch self {
-                    case let .unauthorized(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "unauthorized",
-                            response: self
-                        )
-                    }
-                }
-            }
-            internal struct Forbidden: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/POST/responses/403/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/POST/responses/403/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.uploadPreviewIcon.Output.Forbidden.Body
-                /// Creates a new `Forbidden`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.uploadPreviewIcon.Output.Forbidden.Body) {
-                    self.body = body
-                }
-            }
-            /// The authenticated subject is not authorized to perform this action
-            ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/post(uploadPreviewIcon)/responses/403`.
-            ///
-            /// HTTP response code: `403 forbidden`.
-            case forbidden(Operations.uploadPreviewIcon.Output.Forbidden)
-            /// The associated value of the enum case if `self` is `.forbidden`.
-            ///
-            /// - Throws: An error if `self` is not `.forbidden`.
-            /// - SeeAlso: `.forbidden`.
-            internal var forbidden: Operations.uploadPreviewIcon.Output.Forbidden {
-                get throws {
-                    switch self {
-                    case let .forbidden(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "forbidden",
-                            response: self
-                        )
-                    }
-                }
-            }
-            internal struct NotFound: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/POST/responses/404/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/POST/responses/404/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.uploadPreviewIcon.Output.NotFound.Body
-                /// Creates a new `NotFound`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.uploadPreviewIcon.Output.NotFound.Body) {
-                    self.body = body
-                }
-            }
-            /// The project or preview doesn't exist
-            ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons/post(uploadPreviewIcon)/responses/404`.
-            ///
-            /// HTTP response code: `404 notFound`.
-            case notFound(Operations.uploadPreviewIcon.Output.NotFound)
-            /// The associated value of the enum case if `self` is `.notFound`.
-            ///
-            /// - Throws: An error if `self` is not `.notFound`.
-            /// - SeeAlso: `.notFound`.
-            internal var notFound: Operations.uploadPreviewIcon.Output.NotFound {
-                get throws {
-                    switch self {
-                    case let .notFound(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "notFound",
-                            response: self
-                        )
-                    }
-                }
-            }
-            /// Undocumented response.
-            ///
-            /// A response with a code that is not documented in the OpenAPI document.
-            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
-        }
-        internal enum AcceptableContentType: AcceptableProtocol {
-            case json
-            case other(Swift.String)
-            internal init?(rawValue: Swift.String) {
-                switch rawValue.lowercased() {
-                case "application/json":
-                    self = .json
-                default:
-                    self = .other(rawValue)
-                }
-            }
-            internal var rawValue: Swift.String {
-                switch self {
-                case let .other(string):
-                    return string
-                case .json:
-                    return "application/json"
-                }
-            }
-            internal static var allCases: [Self] {
-                [
-                    .json
-                ]
-            }
-        }
-    }
-    /// List all project tokens.
-    ///
-    /// This endpoint returns all tokens for a given project.
-    ///
-    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tokens`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/get(listProjectTokens)`.
-    internal enum listProjectTokens {
-        internal static let id: Swift.String = "listProjectTokens"
-        internal struct Input: Sendable, Hashable {
-            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/GET/path`.
-            internal struct Path: Sendable, Hashable {
-                /// The account handle.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/GET/path/account_handle`.
-                internal var account_handle: Swift.String
-                /// The project handle.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/GET/path/project_handle`.
-                internal var project_handle: Swift.String
-                /// Creates a new `Path`.
-                ///
-                /// - Parameters:
-                ///   - account_handle: The account handle.
-                ///   - project_handle: The project handle.
-                internal init(
-                    account_handle: Swift.String,
-                    project_handle: Swift.String
-                ) {
-                    self.account_handle = account_handle
-                    self.project_handle = project_handle
-                }
-            }
-            internal var path: Operations.listProjectTokens.Input.Path
-            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/GET/header`.
-            internal struct Headers: Sendable, Hashable {
-                internal var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listProjectTokens.AcceptableContentType>]
-                /// Creates a new `Headers`.
-                ///
-                /// - Parameters:
-                ///   - accept:
-                internal init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listProjectTokens.AcceptableContentType>] = .defaultValues()) {
-                    self.accept = accept
-                }
-            }
-            internal var headers: Operations.listProjectTokens.Input.Headers
-            /// Creates a new `Input`.
-            ///
-            /// - Parameters:
-            ///   - path:
-            ///   - headers:
-            internal init(
-                path: Operations.listProjectTokens.Input.Path,
-                headers: Operations.listProjectTokens.Input.Headers = .init()
-            ) {
-                self.path = path
-                self.headers = headers
-            }
-        }
-        internal enum Output: Sendable, Hashable {
-            internal struct Ok: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/GET/responses/200/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// A list of project tokens.
-                    ///
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/GET/responses/200/content/json`.
-                    internal struct jsonPayload: Codable, Hashable, Sendable {
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/GET/responses/200/content/json/tokens`.
-                        internal var tokens: [Components.Schemas.ProjectToken]
-                        /// Creates a new `jsonPayload`.
-                        ///
-                        /// - Parameters:
-                        ///   - tokens:
-                        internal init(tokens: [Components.Schemas.ProjectToken]) {
-                            self.tokens = tokens
-                        }
-                        internal enum CodingKeys: String, CodingKey {
-                            case tokens
-                        }
-                    }
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/GET/responses/200/content/application\/json`.
-                    case json(Operations.listProjectTokens.Output.Ok.Body.jsonPayload)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Operations.listProjectTokens.Output.Ok.Body.jsonPayload {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.listProjectTokens.Output.Ok.Body
-                /// Creates a new `Ok`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.listProjectTokens.Output.Ok.Body) {
-                    self.body = body
-                }
-            }
-            /// A list of project tokens.
-            ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/get(listProjectTokens)/responses/200`.
-            ///
-            /// HTTP response code: `200 ok`.
-            case ok(Operations.listProjectTokens.Output.Ok)
-            /// The associated value of the enum case if `self` is `.ok`.
-            ///
-            /// - Throws: An error if `self` is not `.ok`.
-            /// - SeeAlso: `.ok`.
-            internal var ok: Operations.listProjectTokens.Output.Ok {
-                get throws {
-                    switch self {
-                    case let .ok(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "ok",
-                            response: self
-                        )
-                    }
-                }
-            }
-            internal struct Unauthorized: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/GET/responses/401/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/GET/responses/401/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.listProjectTokens.Output.Unauthorized.Body
-                /// Creates a new `Unauthorized`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.listProjectTokens.Output.Unauthorized.Body) {
-                    self.body = body
-                }
-            }
-            /// You need to be authenticated to list tokens
-            ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/get(listProjectTokens)/responses/401`.
-            ///
-            /// HTTP response code: `401 unauthorized`.
-            case unauthorized(Operations.listProjectTokens.Output.Unauthorized)
-            /// The associated value of the enum case if `self` is `.unauthorized`.
-            ///
-            /// - Throws: An error if `self` is not `.unauthorized`.
-            /// - SeeAlso: `.unauthorized`.
-            internal var unauthorized: Operations.listProjectTokens.Output.Unauthorized {
-                get throws {
-                    switch self {
-                    case let .unauthorized(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "unauthorized",
-                            response: self
-                        )
-                    }
-                }
-            }
-            internal struct Forbidden: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/GET/responses/403/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/GET/responses/403/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.listProjectTokens.Output.Forbidden.Body
-                /// Creates a new `Forbidden`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.listProjectTokens.Output.Forbidden.Body) {
-                    self.body = body
-                }
-            }
-            /// You need to be authorized to list tokens
-            ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/get(listProjectTokens)/responses/403`.
-            ///
-            /// HTTP response code: `403 forbidden`.
-            case forbidden(Operations.listProjectTokens.Output.Forbidden)
-            /// The associated value of the enum case if `self` is `.forbidden`.
-            ///
-            /// - Throws: An error if `self` is not `.forbidden`.
-            /// - SeeAlso: `.forbidden`.
-            internal var forbidden: Operations.listProjectTokens.Output.Forbidden {
-                get throws {
-                    switch self {
-                    case let .forbidden(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "forbidden",
-                            response: self
-                        )
-                    }
-                }
-            }
-            internal struct NotFound: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/GET/responses/404/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/GET/responses/404/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.listProjectTokens.Output.NotFound.Body
-                /// Creates a new `NotFound`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.listProjectTokens.Output.NotFound.Body) {
-                    self.body = body
-                }
-            }
-            /// The project was not found
-            ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/get(listProjectTokens)/responses/404`.
-            ///
-            /// HTTP response code: `404 notFound`.
-            case notFound(Operations.listProjectTokens.Output.NotFound)
-            /// The associated value of the enum case if `self` is `.notFound`.
-            ///
-            /// - Throws: An error if `self` is not `.notFound`.
-            /// - SeeAlso: `.notFound`.
-            internal var notFound: Operations.listProjectTokens.Output.NotFound {
-                get throws {
-                    switch self {
-                    case let .notFound(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "notFound",
-                            response: self
-                        )
-                    }
-                }
-            }
-            /// Undocumented response.
-            ///
-            /// A response with a code that is not documented in the OpenAPI document.
-            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
-        }
-        internal enum AcceptableContentType: AcceptableProtocol {
-            case json
-            case other(Swift.String)
-            internal init?(rawValue: Swift.String) {
-                switch rawValue.lowercased() {
-                case "application/json":
-                    self = .json
-                default:
-                    self = .other(rawValue)
-                }
-            }
-            internal var rawValue: Swift.String {
-                switch self {
-                case let .other(string):
-                    return string
-                case .json:
-                    return "application/json"
-                }
-            }
-            internal static var allCases: [Self] {
-                [
-                    .json
-                ]
-            }
-        }
-    }
-    /// Create a new project token.
-    ///
-    /// This endpoint returns a new project token.
-    ///
-    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tokens`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/post(createProjectToken)`.
-    internal enum createProjectToken {
-        internal static let id: Swift.String = "createProjectToken"
-        internal struct Input: Sendable, Hashable {
-            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/POST/path`.
-            internal struct Path: Sendable, Hashable {
-                /// The account handle.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/POST/path/account_handle`.
-                internal var account_handle: Swift.String
-                /// The project handle.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/POST/path/project_handle`.
-                internal var project_handle: Swift.String
-                /// Creates a new `Path`.
-                ///
-                /// - Parameters:
-                ///   - account_handle: The account handle.
-                ///   - project_handle: The project handle.
-                internal init(
-                    account_handle: Swift.String,
-                    project_handle: Swift.String
-                ) {
-                    self.account_handle = account_handle
-                    self.project_handle = project_handle
-                }
-            }
-            internal var path: Operations.createProjectToken.Input.Path
-            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/POST/header`.
-            internal struct Headers: Sendable, Hashable {
-                internal var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createProjectToken.AcceptableContentType>]
-                /// Creates a new `Headers`.
-                ///
-                /// - Parameters:
-                ///   - accept:
-                internal init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createProjectToken.AcceptableContentType>] = .defaultValues()) {
-                    self.accept = accept
-                }
-            }
-            internal var headers: Operations.createProjectToken.Input.Headers
-            /// Creates a new `Input`.
-            ///
-            /// - Parameters:
-            ///   - path:
-            ///   - headers:
-            internal init(
-                path: Operations.createProjectToken.Input.Path,
-                headers: Operations.createProjectToken.Input.Headers = .init()
-            ) {
-                self.path = path
-                self.headers = headers
-            }
-        }
-        internal enum Output: Sendable, Hashable {
-            internal struct Ok: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/POST/responses/200/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// A new project token.
-                    ///
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/POST/responses/200/content/json`.
-                    internal struct jsonPayload: Codable, Hashable, Sendable {
-                        /// The generated project token.
-                        ///
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/POST/responses/200/content/json/token`.
-                        internal var token: Swift.String
-                        /// Creates a new `jsonPayload`.
-                        ///
-                        /// - Parameters:
-                        ///   - token: The generated project token.
-                        internal init(token: Swift.String) {
-                            self.token = token
-                        }
-                        internal enum CodingKeys: String, CodingKey {
-                            case token
-                        }
-                    }
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/POST/responses/200/content/application\/json`.
-                    case json(Operations.createProjectToken.Output.Ok.Body.jsonPayload)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Operations.createProjectToken.Output.Ok.Body.jsonPayload {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.createProjectToken.Output.Ok.Body
-                /// Creates a new `Ok`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.createProjectToken.Output.Ok.Body) {
-                    self.body = body
-                }
-            }
-            /// A project token was generated
-            ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/post(createProjectToken)/responses/200`.
-            ///
-            /// HTTP response code: `200 ok`.
-            case ok(Operations.createProjectToken.Output.Ok)
-            /// The associated value of the enum case if `self` is `.ok`.
-            ///
-            /// - Throws: An error if `self` is not `.ok`.
-            /// - SeeAlso: `.ok`.
-            internal var ok: Operations.createProjectToken.Output.Ok {
-                get throws {
-                    switch self {
-                    case let .ok(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "ok",
-                            response: self
-                        )
-                    }
-                }
-            }
-            internal struct Unauthorized: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/POST/responses/401/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/POST/responses/401/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.createProjectToken.Output.Unauthorized.Body
-                /// Creates a new `Unauthorized`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.createProjectToken.Output.Unauthorized.Body) {
-                    self.body = body
-                }
-            }
-            /// You need to be authenticated to issue new tokens
-            ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/post(createProjectToken)/responses/401`.
-            ///
-            /// HTTP response code: `401 unauthorized`.
-            case unauthorized(Operations.createProjectToken.Output.Unauthorized)
-            /// The associated value of the enum case if `self` is `.unauthorized`.
-            ///
-            /// - Throws: An error if `self` is not `.unauthorized`.
-            /// - SeeAlso: `.unauthorized`.
-            internal var unauthorized: Operations.createProjectToken.Output.Unauthorized {
-                get throws {
-                    switch self {
-                    case let .unauthorized(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "unauthorized",
-                            response: self
-                        )
-                    }
-                }
-            }
-            internal struct Forbidden: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/POST/responses/403/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/POST/responses/403/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.createProjectToken.Output.Forbidden.Body
-                /// Creates a new `Forbidden`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.createProjectToken.Output.Forbidden.Body) {
-                    self.body = body
-                }
-            }
-            /// You need to be authorized to issue new tokens
-            ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/post(createProjectToken)/responses/403`.
-            ///
-            /// HTTP response code: `403 forbidden`.
-            case forbidden(Operations.createProjectToken.Output.Forbidden)
-            /// The associated value of the enum case if `self` is `.forbidden`.
-            ///
-            /// - Throws: An error if `self` is not `.forbidden`.
-            /// - SeeAlso: `.forbidden`.
-            internal var forbidden: Operations.createProjectToken.Output.Forbidden {
-                get throws {
-                    switch self {
-                    case let .forbidden(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "forbidden",
-                            response: self
-                        )
-                    }
-                }
-            }
-            internal struct NotFound: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/POST/responses/404/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/POST/responses/404/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.createProjectToken.Output.NotFound.Body
-                /// Creates a new `NotFound`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.createProjectToken.Output.NotFound.Body) {
-                    self.body = body
-                }
-            }
-            /// The project was not found
-            ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/post(createProjectToken)/responses/404`.
-            ///
-            /// HTTP response code: `404 notFound`.
-            case notFound(Operations.createProjectToken.Output.NotFound)
-            /// The associated value of the enum case if `self` is `.notFound`.
-            ///
-            /// - Throws: An error if `self` is not `.notFound`.
-            /// - SeeAlso: `.notFound`.
-            internal var notFound: Operations.createProjectToken.Output.NotFound {
-                get throws {
-                    switch self {
-                    case let .notFound(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "notFound",
-                            response: self
-                        )
-                    }
-                }
-            }
-            /// Undocumented response.
-            ///
-            /// A response with a code that is not documented in the OpenAPI document.
-            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
-        }
-        internal enum AcceptableContentType: AcceptableProtocol {
-            case json
-            case other(Swift.String)
-            internal init?(rawValue: Swift.String) {
-                switch rawValue.lowercased() {
-                case "application/json":
-                    self = .json
-                default:
-                    self = .other(rawValue)
-                }
-            }
-            internal var rawValue: Swift.String {
-                switch self {
-                case let .other(string):
-                    return string
-                case .json:
-                    return "application/json"
-                }
-            }
-            internal static var allCases: [Self] {
-                [
-                    .json
-                ]
-            }
-        }
-    }
-    /// Revokes a project token.
-    ///
-    /// - Remark: HTTP `DELETE /api/projects/{account_handle}/{project_handle}/tokens/{id}`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/{id}/delete(revokeProjectToken)`.
-    internal enum revokeProjectToken {
-        internal static let id: Swift.String = "revokeProjectToken"
-        internal struct Input: Sendable, Hashable {
-            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/{id}/DELETE/path`.
-            internal struct Path: Sendable, Hashable {
-                /// The account handle.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/{id}/DELETE/path/account_handle`.
-                internal var account_handle: Swift.String
-                /// The project handle.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/{id}/DELETE/path/project_handle`.
-                internal var project_handle: Swift.String
-                /// The ID of the project token
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/{id}/DELETE/path/id`.
-                internal var id: Swift.String
-                /// Creates a new `Path`.
-                ///
-                /// - Parameters:
-                ///   - account_handle: The account handle.
-                ///   - project_handle: The project handle.
-                ///   - id: The ID of the project token
-                internal init(
-                    account_handle: Swift.String,
-                    project_handle: Swift.String,
-                    id: Swift.String
-                ) {
-                    self.account_handle = account_handle
-                    self.project_handle = project_handle
-                    self.id = id
-                }
-            }
-            internal var path: Operations.revokeProjectToken.Input.Path
-            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/{id}/DELETE/header`.
-            internal struct Headers: Sendable, Hashable {
-                internal var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.revokeProjectToken.AcceptableContentType>]
-                /// Creates a new `Headers`.
-                ///
-                /// - Parameters:
-                ///   - accept:
-                internal init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.revokeProjectToken.AcceptableContentType>] = .defaultValues()) {
-                    self.accept = accept
-                }
-            }
-            internal var headers: Operations.revokeProjectToken.Input.Headers
-            /// Creates a new `Input`.
-            ///
-            /// - Parameters:
-            ///   - path:
-            ///   - headers:
-            internal init(
-                path: Operations.revokeProjectToken.Input.Path,
-                headers: Operations.revokeProjectToken.Input.Headers = .init()
-            ) {
-                self.path = path
-                self.headers = headers
-            }
-        }
-        internal enum Output: Sendable, Hashable {
-            internal struct NoContent: Sendable, Hashable {
-                /// Creates a new `NoContent`.
-                internal init() {}
-            }
-            /// The project token was revoked
-            ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/{id}/delete(revokeProjectToken)/responses/204`.
-            ///
-            /// HTTP response code: `204 noContent`.
-            case noContent(Operations.revokeProjectToken.Output.NoContent)
-            /// The associated value of the enum case if `self` is `.noContent`.
-            ///
-            /// - Throws: An error if `self` is not `.noContent`.
-            /// - SeeAlso: `.noContent`.
-            internal var noContent: Operations.revokeProjectToken.Output.NoContent {
-                get throws {
-                    switch self {
-                    case let .noContent(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "noContent",
-                            response: self
-                        )
-                    }
-                }
-            }
-            internal struct BadRequest: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/{id}/DELETE/responses/400/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/{id}/DELETE/responses/400/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.revokeProjectToken.Output.BadRequest.Body
-                /// Creates a new `BadRequest`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.revokeProjectToken.Output.BadRequest.Body) {
-                    self.body = body
-                }
-            }
-            /// The provided token ID is not valid
-            ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/{id}/delete(revokeProjectToken)/responses/400`.
-            ///
-            /// HTTP response code: `400 badRequest`.
-            case badRequest(Operations.revokeProjectToken.Output.BadRequest)
-            /// The associated value of the enum case if `self` is `.badRequest`.
-            ///
-            /// - Throws: An error if `self` is not `.badRequest`.
-            /// - SeeAlso: `.badRequest`.
-            internal var badRequest: Operations.revokeProjectToken.Output.BadRequest {
-                get throws {
-                    switch self {
-                    case let .badRequest(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "badRequest",
-                            response: self
-                        )
-                    }
-                }
-            }
-            internal struct Unauthorized: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/{id}/DELETE/responses/401/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/{id}/DELETE/responses/401/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.revokeProjectToken.Output.Unauthorized.Body
-                /// Creates a new `Unauthorized`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.revokeProjectToken.Output.Unauthorized.Body) {
-                    self.body = body
-                }
-            }
-            /// You need to be authenticated to access this resource
-            ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/{id}/delete(revokeProjectToken)/responses/401`.
-            ///
-            /// HTTP response code: `401 unauthorized`.
-            case unauthorized(Operations.revokeProjectToken.Output.Unauthorized)
-            /// The associated value of the enum case if `self` is `.unauthorized`.
-            ///
-            /// - Throws: An error if `self` is not `.unauthorized`.
-            /// - SeeAlso: `.unauthorized`.
-            internal var unauthorized: Operations.revokeProjectToken.Output.Unauthorized {
-                get throws {
-                    switch self {
-                    case let .unauthorized(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "unauthorized",
-                            response: self
-                        )
-                    }
-                }
-            }
-            internal struct Forbidden: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/{id}/DELETE/responses/403/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/{id}/DELETE/responses/403/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.revokeProjectToken.Output.Forbidden.Body
-                /// Creates a new `Forbidden`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.revokeProjectToken.Output.Forbidden.Body) {
-                    self.body = body
-                }
-            }
-            /// The authenticated subject is not authorized to perform this action
-            ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/{id}/delete(revokeProjectToken)/responses/403`.
-            ///
-            /// HTTP response code: `403 forbidden`.
-            case forbidden(Operations.revokeProjectToken.Output.Forbidden)
-            /// The associated value of the enum case if `self` is `.forbidden`.
-            ///
-            /// - Throws: An error if `self` is not `.forbidden`.
-            /// - SeeAlso: `.forbidden`.
-            internal var forbidden: Operations.revokeProjectToken.Output.Forbidden {
-                get throws {
-                    switch self {
-                    case let .forbidden(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "forbidden",
-                            response: self
-                        )
-                    }
-                }
-            }
-            internal struct NotFound: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/{id}/DELETE/responses/404/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tokens/{id}/DELETE/responses/404/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.revokeProjectToken.Output.NotFound.Body
-                /// Creates a new `NotFound`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.revokeProjectToken.Output.NotFound.Body) {
-                    self.body = body
-                }
-            }
-            /// The project token was not found
-            ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/{id}/delete(revokeProjectToken)/responses/404`.
-            ///
-            /// HTTP response code: `404 notFound`.
-            case notFound(Operations.revokeProjectToken.Output.NotFound)
-            /// The associated value of the enum case if `self` is `.notFound`.
-            ///
-            /// - Throws: An error if `self` is not `.notFound`.
-            /// - SeeAlso: `.notFound`.
-            internal var notFound: Operations.revokeProjectToken.Output.NotFound {
-                get throws {
-                    switch self {
-                    case let .notFound(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "notFound",
-                            response: self
-                        )
-                    }
-                }
-            }
-            /// Undocumented response.
-            ///
-            /// A response with a code that is not documented in the OpenAPI document.
-            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
-        }
-        internal enum AcceptableContentType: AcceptableProtocol {
-            case json
-            case other(Swift.String)
-            internal init?(rawValue: Swift.String) {
-                switch rawValue.lowercased() {
-                case "application/json":
-                    self = .json
-                default:
-                    self = .other(rawValue)
-                }
-            }
-            internal var rawValue: Swift.String {
-                switch self {
-                case let .other(string):
-                    return string
-                case .json:
-                    return "application/json"
-                }
-            }
-            internal static var allCases: [Self] {
-                [
-                    .json
-                ]
-            }
-        }
-    }
     /// Deletes a project with a given id.
     ///
     /// - Remark: HTTP `DELETE /api/projects/{id}`.
@@ -14041,350 +15416,6 @@ internal enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "notFound",
-                            response: self
-                        )
-                    }
-                }
-            }
-            /// Undocumented response.
-            ///
-            /// A response with a code that is not documented in the OpenAPI document.
-            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
-        }
-        internal enum AcceptableContentType: AcceptableProtocol {
-            case json
-            case other(Swift.String)
-            internal init?(rawValue: Swift.String) {
-                switch rawValue.lowercased() {
-                case "application/json":
-                    self = .json
-                default:
-                    self = .other(rawValue)
-                }
-            }
-            internal var rawValue: Swift.String {
-                switch self {
-                case let .other(string):
-                    return string
-                case .json:
-                    return "application/json"
-                }
-            }
-            internal static var allCases: [Self] {
-                [
-                    .json
-                ]
-            }
-        }
-    }
-    /// It completes a multi-part upload.
-    ///
-    /// Given the upload ID and all the parts with their ETags, this endpoint completes the multipart upload.
-    ///
-    /// - Remark: HTTP `POST /api/runs/{run_id}/complete`.
-    /// - Remark: Generated from `#/paths//api/runs/{run_id}/complete/post(completeAnalyticsArtifactMultipartUpload)`.
-    internal enum completeAnalyticsArtifactMultipartUpload {
-        internal static let id: Swift.String = "completeAnalyticsArtifactMultipartUpload"
-        internal struct Input: Sendable, Hashable {
-            /// - Remark: Generated from `#/paths/api/runs/{run_id}/complete/POST/path`.
-            internal struct Path: Sendable, Hashable {
-                /// The id of the command event.
-                ///
-                /// - Remark: Generated from `#/paths/api/runs/{run_id}/complete/POST/path/run_id`.
-                internal var run_id: Swift.Int
-                /// Creates a new `Path`.
-                ///
-                /// - Parameters:
-                ///   - run_id: The id of the command event.
-                internal init(run_id: Swift.Int) {
-                    self.run_id = run_id
-                }
-            }
-            internal var path: Operations.completeAnalyticsArtifactMultipartUpload.Input.Path
-            /// - Remark: Generated from `#/paths/api/runs/{run_id}/complete/POST/header`.
-            internal struct Headers: Sendable, Hashable {
-                internal var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.completeAnalyticsArtifactMultipartUpload.AcceptableContentType>]
-                /// Creates a new `Headers`.
-                ///
-                /// - Parameters:
-                ///   - accept:
-                internal init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.completeAnalyticsArtifactMultipartUpload.AcceptableContentType>] = .defaultValues()) {
-                    self.accept = accept
-                }
-            }
-            internal var headers: Operations.completeAnalyticsArtifactMultipartUpload.Input.Headers
-            /// - Remark: Generated from `#/paths/api/runs/{run_id}/complete/POST/requestBody`.
-            internal enum Body: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/runs/{run_id}/complete/POST/requestBody/json`.
-                internal struct jsonPayload: Codable, Hashable, Sendable {
-                    /// - Remark: Generated from `#/paths/api/runs/{run_id}/complete/POST/requestBody/json/command_event_artifact`.
-                    internal var command_event_artifact: Components.Schemas.CommandEventArtifact
-                    /// - Remark: Generated from `#/paths/api/runs/{run_id}/complete/POST/requestBody/json/multipart_upload_parts`.
-                    internal var multipart_upload_parts: Components.Schemas.ArtifactMultipartUploadParts
-                    /// Creates a new `jsonPayload`.
-                    ///
-                    /// - Parameters:
-                    ///   - command_event_artifact:
-                    ///   - multipart_upload_parts:
-                    internal init(
-                        command_event_artifact: Components.Schemas.CommandEventArtifact,
-                        multipart_upload_parts: Components.Schemas.ArtifactMultipartUploadParts
-                    ) {
-                        self.command_event_artifact = command_event_artifact
-                        self.multipart_upload_parts = multipart_upload_parts
-                    }
-                    internal enum CodingKeys: String, CodingKey {
-                        case command_event_artifact
-                        case multipart_upload_parts
-                    }
-                }
-                /// - Remark: Generated from `#/paths/api/runs/{run_id}/complete/POST/requestBody/content/application\/json`.
-                case json(Operations.completeAnalyticsArtifactMultipartUpload.Input.Body.jsonPayload)
-            }
-            internal var body: Operations.completeAnalyticsArtifactMultipartUpload.Input.Body?
-            /// Creates a new `Input`.
-            ///
-            /// - Parameters:
-            ///   - path:
-            ///   - headers:
-            ///   - body:
-            internal init(
-                path: Operations.completeAnalyticsArtifactMultipartUpload.Input.Path,
-                headers: Operations.completeAnalyticsArtifactMultipartUpload.Input.Headers = .init(),
-                body: Operations.completeAnalyticsArtifactMultipartUpload.Input.Body? = nil
-            ) {
-                self.path = path
-                self.headers = headers
-                self.body = body
-            }
-        }
-        internal enum Output: Sendable, Hashable {
-            internal struct NoContent: Sendable, Hashable {
-                /// Creates a new `NoContent`.
-                internal init() {}
-            }
-            /// The upload has been completed
-            ///
-            /// - Remark: Generated from `#/paths//api/runs/{run_id}/complete/post(completeAnalyticsArtifactMultipartUpload)/responses/204`.
-            ///
-            /// HTTP response code: `204 noContent`.
-            case noContent(Operations.completeAnalyticsArtifactMultipartUpload.Output.NoContent)
-            /// The associated value of the enum case if `self` is `.noContent`.
-            ///
-            /// - Throws: An error if `self` is not `.noContent`.
-            /// - SeeAlso: `.noContent`.
-            internal var noContent: Operations.completeAnalyticsArtifactMultipartUpload.Output.NoContent {
-                get throws {
-                    switch self {
-                    case let .noContent(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "noContent",
-                            response: self
-                        )
-                    }
-                }
-            }
-            internal struct Unauthorized: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/runs/{run_id}/complete/POST/responses/401/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/runs/{run_id}/complete/POST/responses/401/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.completeAnalyticsArtifactMultipartUpload.Output.Unauthorized.Body
-                /// Creates a new `Unauthorized`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.completeAnalyticsArtifactMultipartUpload.Output.Unauthorized.Body) {
-                    self.body = body
-                }
-            }
-            /// You need to be authenticated to access this resource
-            ///
-            /// - Remark: Generated from `#/paths//api/runs/{run_id}/complete/post(completeAnalyticsArtifactMultipartUpload)/responses/401`.
-            ///
-            /// HTTP response code: `401 unauthorized`.
-            case unauthorized(Operations.completeAnalyticsArtifactMultipartUpload.Output.Unauthorized)
-            /// The associated value of the enum case if `self` is `.unauthorized`.
-            ///
-            /// - Throws: An error if `self` is not `.unauthorized`.
-            /// - SeeAlso: `.unauthorized`.
-            internal var unauthorized: Operations.completeAnalyticsArtifactMultipartUpload.Output.Unauthorized {
-                get throws {
-                    switch self {
-                    case let .unauthorized(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "unauthorized",
-                            response: self
-                        )
-                    }
-                }
-            }
-            internal struct Forbidden: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/runs/{run_id}/complete/POST/responses/403/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/runs/{run_id}/complete/POST/responses/403/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.completeAnalyticsArtifactMultipartUpload.Output.Forbidden.Body
-                /// Creates a new `Forbidden`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.completeAnalyticsArtifactMultipartUpload.Output.Forbidden.Body) {
-                    self.body = body
-                }
-            }
-            /// The authenticated subject is not authorized to perform this action
-            ///
-            /// - Remark: Generated from `#/paths//api/runs/{run_id}/complete/post(completeAnalyticsArtifactMultipartUpload)/responses/403`.
-            ///
-            /// HTTP response code: `403 forbidden`.
-            case forbidden(Operations.completeAnalyticsArtifactMultipartUpload.Output.Forbidden)
-            /// The associated value of the enum case if `self` is `.forbidden`.
-            ///
-            /// - Throws: An error if `self` is not `.forbidden`.
-            /// - SeeAlso: `.forbidden`.
-            internal var forbidden: Operations.completeAnalyticsArtifactMultipartUpload.Output.Forbidden {
-                get throws {
-                    switch self {
-                    case let .forbidden(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "forbidden",
-                            response: self
-                        )
-                    }
-                }
-            }
-            internal struct NotFound: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/runs/{run_id}/complete/POST/responses/404/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/runs/{run_id}/complete/POST/responses/404/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.completeAnalyticsArtifactMultipartUpload.Output.NotFound.Body
-                /// Creates a new `NotFound`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.completeAnalyticsArtifactMultipartUpload.Output.NotFound.Body) {
-                    self.body = body
-                }
-            }
-            /// The project doesn't exist
-            ///
-            /// - Remark: Generated from `#/paths//api/runs/{run_id}/complete/post(completeAnalyticsArtifactMultipartUpload)/responses/404`.
-            ///
-            /// HTTP response code: `404 notFound`.
-            case notFound(Operations.completeAnalyticsArtifactMultipartUpload.Output.NotFound)
-            /// The associated value of the enum case if `self` is `.notFound`.
-            ///
-            /// - Throws: An error if `self` is not `.notFound`.
-            /// - SeeAlso: `.notFound`.
-            internal var notFound: Operations.completeAnalyticsArtifactMultipartUpload.Output.NotFound {
-                get throws {
-                    switch self {
-                    case let .notFound(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "notFound",
-                            response: self
-                        )
-                    }
-                }
-            }
-            internal struct InternalServerError: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/runs/{run_id}/complete/POST/responses/500/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/runs/{run_id}/complete/POST/responses/500/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.completeAnalyticsArtifactMultipartUpload.Output.InternalServerError.Body
-                /// Creates a new `InternalServerError`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.completeAnalyticsArtifactMultipartUpload.Output.InternalServerError.Body) {
-                    self.body = body
-                }
-            }
-            /// An internal server error occurred
-            ///
-            /// - Remark: Generated from `#/paths//api/runs/{run_id}/complete/post(completeAnalyticsArtifactMultipartUpload)/responses/500`.
-            ///
-            /// HTTP response code: `500 internalServerError`.
-            case internalServerError(Operations.completeAnalyticsArtifactMultipartUpload.Output.InternalServerError)
-            /// The associated value of the enum case if `self` is `.internalServerError`.
-            ///
-            /// - Throws: An error if `self` is not `.internalServerError`.
-            /// - SeeAlso: `.internalServerError`.
-            internal var internalServerError: Operations.completeAnalyticsArtifactMultipartUpload.Output.InternalServerError {
-                get throws {
-                    switch self {
-                    case let .internalServerError(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "internalServerError",
                             response: self
                         )
                     }
@@ -14665,617 +15696,6 @@ internal enum Operations {
             /// - Throws: An error if `self` is not `.notFound`.
             /// - SeeAlso: `.notFound`.
             internal var notFound: Operations.completeAnalyticsArtifactsUploads.Output.NotFound {
-                get throws {
-                    switch self {
-                    case let .notFound(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "notFound",
-                            response: self
-                        )
-                    }
-                }
-            }
-            /// Undocumented response.
-            ///
-            /// A response with a code that is not documented in the OpenAPI document.
-            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
-        }
-        internal enum AcceptableContentType: AcceptableProtocol {
-            case json
-            case other(Swift.String)
-            internal init?(rawValue: Swift.String) {
-                switch rawValue.lowercased() {
-                case "application/json":
-                    self = .json
-                default:
-                    self = .other(rawValue)
-                }
-            }
-            internal var rawValue: Swift.String {
-                switch self {
-                case let .other(string):
-                    return string
-                case .json:
-                    return "application/json"
-                }
-            }
-            internal static var allCases: [Self] {
-                [
-                    .json
-                ]
-            }
-        }
-    }
-    /// It generates a signed URL for uploading a part.
-    ///
-    /// Given an upload ID and a part number, this endpoint returns a signed URL that can be used to upload a part of a multipart upload. The URL is short-lived and expires in 120 seconds.
-    ///
-    /// - Remark: HTTP `POST /api/runs/{run_id}/generate-url`.
-    /// - Remark: Generated from `#/paths//api/runs/{run_id}/generate-url/post(generateAnalyticsArtifactMultipartUploadURL)`.
-    internal enum generateAnalyticsArtifactMultipartUploadURL {
-        internal static let id: Swift.String = "generateAnalyticsArtifactMultipartUploadURL"
-        internal struct Input: Sendable, Hashable {
-            /// - Remark: Generated from `#/paths/api/runs/{run_id}/generate-url/POST/path`.
-            internal struct Path: Sendable, Hashable {
-                /// The id of the command event.
-                ///
-                /// - Remark: Generated from `#/paths/api/runs/{run_id}/generate-url/POST/path/run_id`.
-                internal var run_id: Swift.Int
-                /// Creates a new `Path`.
-                ///
-                /// - Parameters:
-                ///   - run_id: The id of the command event.
-                internal init(run_id: Swift.Int) {
-                    self.run_id = run_id
-                }
-            }
-            internal var path: Operations.generateAnalyticsArtifactMultipartUploadURL.Input.Path
-            /// - Remark: Generated from `#/paths/api/runs/{run_id}/generate-url/POST/header`.
-            internal struct Headers: Sendable, Hashable {
-                internal var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.generateAnalyticsArtifactMultipartUploadURL.AcceptableContentType>]
-                /// Creates a new `Headers`.
-                ///
-                /// - Parameters:
-                ///   - accept:
-                internal init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.generateAnalyticsArtifactMultipartUploadURL.AcceptableContentType>] = .defaultValues()) {
-                    self.accept = accept
-                }
-            }
-            internal var headers: Operations.generateAnalyticsArtifactMultipartUploadURL.Input.Headers
-            /// - Remark: Generated from `#/paths/api/runs/{run_id}/generate-url/POST/requestBody`.
-            internal enum Body: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/runs/{run_id}/generate-url/POST/requestBody/json`.
-                internal struct jsonPayload: Codable, Hashable, Sendable {
-                    /// - Remark: Generated from `#/paths/api/runs/{run_id}/generate-url/POST/requestBody/json/command_event_artifact`.
-                    internal var command_event_artifact: Components.Schemas.CommandEventArtifact
-                    /// - Remark: Generated from `#/paths/api/runs/{run_id}/generate-url/POST/requestBody/json/multipart_upload_part`.
-                    internal var multipart_upload_part: Components.Schemas.ArtifactMultipartUploadPart
-                    /// Creates a new `jsonPayload`.
-                    ///
-                    /// - Parameters:
-                    ///   - command_event_artifact:
-                    ///   - multipart_upload_part:
-                    internal init(
-                        command_event_artifact: Components.Schemas.CommandEventArtifact,
-                        multipart_upload_part: Components.Schemas.ArtifactMultipartUploadPart
-                    ) {
-                        self.command_event_artifact = command_event_artifact
-                        self.multipart_upload_part = multipart_upload_part
-                    }
-                    internal enum CodingKeys: String, CodingKey {
-                        case command_event_artifact
-                        case multipart_upload_part
-                    }
-                }
-                /// - Remark: Generated from `#/paths/api/runs/{run_id}/generate-url/POST/requestBody/content/application\/json`.
-                case json(Operations.generateAnalyticsArtifactMultipartUploadURL.Input.Body.jsonPayload)
-            }
-            internal var body: Operations.generateAnalyticsArtifactMultipartUploadURL.Input.Body?
-            /// Creates a new `Input`.
-            ///
-            /// - Parameters:
-            ///   - path:
-            ///   - headers:
-            ///   - body:
-            internal init(
-                path: Operations.generateAnalyticsArtifactMultipartUploadURL.Input.Path,
-                headers: Operations.generateAnalyticsArtifactMultipartUploadURL.Input.Headers = .init(),
-                body: Operations.generateAnalyticsArtifactMultipartUploadURL.Input.Body? = nil
-            ) {
-                self.path = path
-                self.headers = headers
-                self.body = body
-            }
-        }
-        internal enum Output: Sendable, Hashable {
-            internal struct Ok: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/runs/{run_id}/generate-url/POST/responses/200/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/runs/{run_id}/generate-url/POST/responses/200/content/application\/json`.
-                    case json(Components.Schemas.ArtifactMultipartUploadURL)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas.ArtifactMultipartUploadURL {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.generateAnalyticsArtifactMultipartUploadURL.Output.Ok.Body
-                /// Creates a new `Ok`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.generateAnalyticsArtifactMultipartUploadURL.Output.Ok.Body) {
-                    self.body = body
-                }
-            }
-            /// The URL has been generated
-            ///
-            /// - Remark: Generated from `#/paths//api/runs/{run_id}/generate-url/post(generateAnalyticsArtifactMultipartUploadURL)/responses/200`.
-            ///
-            /// HTTP response code: `200 ok`.
-            case ok(Operations.generateAnalyticsArtifactMultipartUploadURL.Output.Ok)
-            /// The associated value of the enum case if `self` is `.ok`.
-            ///
-            /// - Throws: An error if `self` is not `.ok`.
-            /// - SeeAlso: `.ok`.
-            internal var ok: Operations.generateAnalyticsArtifactMultipartUploadURL.Output.Ok {
-                get throws {
-                    switch self {
-                    case let .ok(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "ok",
-                            response: self
-                        )
-                    }
-                }
-            }
-            internal struct Unauthorized: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/runs/{run_id}/generate-url/POST/responses/401/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/runs/{run_id}/generate-url/POST/responses/401/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.generateAnalyticsArtifactMultipartUploadURL.Output.Unauthorized.Body
-                /// Creates a new `Unauthorized`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.generateAnalyticsArtifactMultipartUploadURL.Output.Unauthorized.Body) {
-                    self.body = body
-                }
-            }
-            /// You need to be authenticated to access this resource
-            ///
-            /// - Remark: Generated from `#/paths//api/runs/{run_id}/generate-url/post(generateAnalyticsArtifactMultipartUploadURL)/responses/401`.
-            ///
-            /// HTTP response code: `401 unauthorized`.
-            case unauthorized(Operations.generateAnalyticsArtifactMultipartUploadURL.Output.Unauthorized)
-            /// The associated value of the enum case if `self` is `.unauthorized`.
-            ///
-            /// - Throws: An error if `self` is not `.unauthorized`.
-            /// - SeeAlso: `.unauthorized`.
-            internal var unauthorized: Operations.generateAnalyticsArtifactMultipartUploadURL.Output.Unauthorized {
-                get throws {
-                    switch self {
-                    case let .unauthorized(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "unauthorized",
-                            response: self
-                        )
-                    }
-                }
-            }
-            internal struct Forbidden: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/runs/{run_id}/generate-url/POST/responses/403/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/runs/{run_id}/generate-url/POST/responses/403/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.generateAnalyticsArtifactMultipartUploadURL.Output.Forbidden.Body
-                /// Creates a new `Forbidden`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.generateAnalyticsArtifactMultipartUploadURL.Output.Forbidden.Body) {
-                    self.body = body
-                }
-            }
-            /// The authenticated subject is not authorized to perform this action
-            ///
-            /// - Remark: Generated from `#/paths//api/runs/{run_id}/generate-url/post(generateAnalyticsArtifactMultipartUploadURL)/responses/403`.
-            ///
-            /// HTTP response code: `403 forbidden`.
-            case forbidden(Operations.generateAnalyticsArtifactMultipartUploadURL.Output.Forbidden)
-            /// The associated value of the enum case if `self` is `.forbidden`.
-            ///
-            /// - Throws: An error if `self` is not `.forbidden`.
-            /// - SeeAlso: `.forbidden`.
-            internal var forbidden: Operations.generateAnalyticsArtifactMultipartUploadURL.Output.Forbidden {
-                get throws {
-                    switch self {
-                    case let .forbidden(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "forbidden",
-                            response: self
-                        )
-                    }
-                }
-            }
-            internal struct NotFound: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/runs/{run_id}/generate-url/POST/responses/404/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/runs/{run_id}/generate-url/POST/responses/404/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.generateAnalyticsArtifactMultipartUploadURL.Output.NotFound.Body
-                /// Creates a new `NotFound`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.generateAnalyticsArtifactMultipartUploadURL.Output.NotFound.Body) {
-                    self.body = body
-                }
-            }
-            /// The project doesn't exist
-            ///
-            /// - Remark: Generated from `#/paths//api/runs/{run_id}/generate-url/post(generateAnalyticsArtifactMultipartUploadURL)/responses/404`.
-            ///
-            /// HTTP response code: `404 notFound`.
-            case notFound(Operations.generateAnalyticsArtifactMultipartUploadURL.Output.NotFound)
-            /// The associated value of the enum case if `self` is `.notFound`.
-            ///
-            /// - Throws: An error if `self` is not `.notFound`.
-            /// - SeeAlso: `.notFound`.
-            internal var notFound: Operations.generateAnalyticsArtifactMultipartUploadURL.Output.NotFound {
-                get throws {
-                    switch self {
-                    case let .notFound(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "notFound",
-                            response: self
-                        )
-                    }
-                }
-            }
-            /// Undocumented response.
-            ///
-            /// A response with a code that is not documented in the OpenAPI document.
-            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
-        }
-        internal enum AcceptableContentType: AcceptableProtocol {
-            case json
-            case other(Swift.String)
-            internal init?(rawValue: Swift.String) {
-                switch rawValue.lowercased() {
-                case "application/json":
-                    self = .json
-                default:
-                    self = .other(rawValue)
-                }
-            }
-            internal var rawValue: Swift.String {
-                switch self {
-                case let .other(string):
-                    return string
-                case .json:
-                    return "application/json"
-                }
-            }
-            internal static var allCases: [Self] {
-                [
-                    .json
-                ]
-            }
-        }
-    }
-    /// It initiates a multipart upload for a command event artifact.
-    ///
-    /// The endpoint returns an upload ID that can be used to generate URLs for the individual parts and complete the upload.
-    ///
-    /// - Remark: HTTP `POST /api/runs/{run_id}/start`.
-    /// - Remark: Generated from `#/paths//api/runs/{run_id}/start/post(startAnalyticsArtifactMultipartUpload)`.
-    internal enum startAnalyticsArtifactMultipartUpload {
-        internal static let id: Swift.String = "startAnalyticsArtifactMultipartUpload"
-        internal struct Input: Sendable, Hashable {
-            /// - Remark: Generated from `#/paths/api/runs/{run_id}/start/POST/path`.
-            internal struct Path: Sendable, Hashable {
-                /// The id of the command event.
-                ///
-                /// - Remark: Generated from `#/paths/api/runs/{run_id}/start/POST/path/run_id`.
-                internal var run_id: Swift.Int
-                /// Creates a new `Path`.
-                ///
-                /// - Parameters:
-                ///   - run_id: The id of the command event.
-                internal init(run_id: Swift.Int) {
-                    self.run_id = run_id
-                }
-            }
-            internal var path: Operations.startAnalyticsArtifactMultipartUpload.Input.Path
-            /// - Remark: Generated from `#/paths/api/runs/{run_id}/start/POST/header`.
-            internal struct Headers: Sendable, Hashable {
-                internal var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.startAnalyticsArtifactMultipartUpload.AcceptableContentType>]
-                /// Creates a new `Headers`.
-                ///
-                /// - Parameters:
-                ///   - accept:
-                internal init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.startAnalyticsArtifactMultipartUpload.AcceptableContentType>] = .defaultValues()) {
-                    self.accept = accept
-                }
-            }
-            internal var headers: Operations.startAnalyticsArtifactMultipartUpload.Input.Headers
-            /// - Remark: Generated from `#/paths/api/runs/{run_id}/start/POST/requestBody`.
-            internal enum Body: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/runs/{run_id}/start/POST/requestBody/content/application\/json`.
-                case json(Components.Schemas.CommandEventArtifact)
-            }
-            internal var body: Operations.startAnalyticsArtifactMultipartUpload.Input.Body?
-            /// Creates a new `Input`.
-            ///
-            /// - Parameters:
-            ///   - path:
-            ///   - headers:
-            ///   - body:
-            internal init(
-                path: Operations.startAnalyticsArtifactMultipartUpload.Input.Path,
-                headers: Operations.startAnalyticsArtifactMultipartUpload.Input.Headers = .init(),
-                body: Operations.startAnalyticsArtifactMultipartUpload.Input.Body? = nil
-            ) {
-                self.path = path
-                self.headers = headers
-                self.body = body
-            }
-        }
-        internal enum Output: Sendable, Hashable {
-            internal struct Ok: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/runs/{run_id}/start/POST/responses/200/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/runs/{run_id}/start/POST/responses/200/content/application\/json`.
-                    case json(Components.Schemas.ArtifactUploadID)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas.ArtifactUploadID {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.startAnalyticsArtifactMultipartUpload.Output.Ok.Body
-                /// Creates a new `Ok`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.startAnalyticsArtifactMultipartUpload.Output.Ok.Body) {
-                    self.body = body
-                }
-            }
-            /// The upload has been started
-            ///
-            /// - Remark: Generated from `#/paths//api/runs/{run_id}/start/post(startAnalyticsArtifactMultipartUpload)/responses/200`.
-            ///
-            /// HTTP response code: `200 ok`.
-            case ok(Operations.startAnalyticsArtifactMultipartUpload.Output.Ok)
-            /// The associated value of the enum case if `self` is `.ok`.
-            ///
-            /// - Throws: An error if `self` is not `.ok`.
-            /// - SeeAlso: `.ok`.
-            internal var ok: Operations.startAnalyticsArtifactMultipartUpload.Output.Ok {
-                get throws {
-                    switch self {
-                    case let .ok(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "ok",
-                            response: self
-                        )
-                    }
-                }
-            }
-            internal struct Unauthorized: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/runs/{run_id}/start/POST/responses/401/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/runs/{run_id}/start/POST/responses/401/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.startAnalyticsArtifactMultipartUpload.Output.Unauthorized.Body
-                /// Creates a new `Unauthorized`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.startAnalyticsArtifactMultipartUpload.Output.Unauthorized.Body) {
-                    self.body = body
-                }
-            }
-            /// You need to be authenticated to access this resource
-            ///
-            /// - Remark: Generated from `#/paths//api/runs/{run_id}/start/post(startAnalyticsArtifactMultipartUpload)/responses/401`.
-            ///
-            /// HTTP response code: `401 unauthorized`.
-            case unauthorized(Operations.startAnalyticsArtifactMultipartUpload.Output.Unauthorized)
-            /// The associated value of the enum case if `self` is `.unauthorized`.
-            ///
-            /// - Throws: An error if `self` is not `.unauthorized`.
-            /// - SeeAlso: `.unauthorized`.
-            internal var unauthorized: Operations.startAnalyticsArtifactMultipartUpload.Output.Unauthorized {
-                get throws {
-                    switch self {
-                    case let .unauthorized(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "unauthorized",
-                            response: self
-                        )
-                    }
-                }
-            }
-            internal struct Forbidden: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/runs/{run_id}/start/POST/responses/403/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/runs/{run_id}/start/POST/responses/403/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.startAnalyticsArtifactMultipartUpload.Output.Forbidden.Body
-                /// Creates a new `Forbidden`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.startAnalyticsArtifactMultipartUpload.Output.Forbidden.Body) {
-                    self.body = body
-                }
-            }
-            /// The authenticated subject is not authorized to perform this action
-            ///
-            /// - Remark: Generated from `#/paths//api/runs/{run_id}/start/post(startAnalyticsArtifactMultipartUpload)/responses/403`.
-            ///
-            /// HTTP response code: `403 forbidden`.
-            case forbidden(Operations.startAnalyticsArtifactMultipartUpload.Output.Forbidden)
-            /// The associated value of the enum case if `self` is `.forbidden`.
-            ///
-            /// - Throws: An error if `self` is not `.forbidden`.
-            /// - SeeAlso: `.forbidden`.
-            internal var forbidden: Operations.startAnalyticsArtifactMultipartUpload.Output.Forbidden {
-                get throws {
-                    switch self {
-                    case let .forbidden(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "forbidden",
-                            response: self
-                        )
-                    }
-                }
-            }
-            internal struct NotFound: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/runs/{run_id}/start/POST/responses/404/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/runs/{run_id}/start/POST/responses/404/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.startAnalyticsArtifactMultipartUpload.Output.NotFound.Body
-                /// Creates a new `NotFound`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.startAnalyticsArtifactMultipartUpload.Output.NotFound.Body) {
-                    self.body = body
-                }
-            }
-            /// The command event doesn't exist
-            ///
-            /// - Remark: Generated from `#/paths//api/runs/{run_id}/start/post(startAnalyticsArtifactMultipartUpload)/responses/404`.
-            ///
-            /// HTTP response code: `404 notFound`.
-            case notFound(Operations.startAnalyticsArtifactMultipartUpload.Output.NotFound)
-            /// The associated value of the enum case if `self` is `.notFound`.
-            ///
-            /// - Throws: An error if `self` is not `.notFound`.
-            /// - SeeAlso: `.notFound`.
-            internal var notFound: Operations.startAnalyticsArtifactMultipartUpload.Output.NotFound {
                 get throws {
                     switch self {
                     case let .notFound(response):
