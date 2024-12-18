@@ -207,6 +207,15 @@ public enum EnvKey: String, CaseIterable {
     case organizationUpdateMemberRole = "TUIST_ORGANIZATION_UPDATE_MEMBER_ROLE"
     case organizationUpdateMemberPath = "TUIST_ORGANIZATION_UPDATE_MEMBER_PATH"
 
+    // REGISTRY LOGIN
+    case registryLoginPath = "TUIST_REGISTRY_LOGIN_PATH"
+
+    // REGISTRY LOGOUT
+    case registryLogoutPath = "TUIST_REGISTRY_LOGOUT_PATH"
+
+    // REGISTRY SETUP
+    case registrySetUpPath = "TUIST_REGISTRY_SETUP_PATH"
+
     // AUTH
     case authPath = "TUIST_AUTH_PATH"
     case authEmail = "TUIST_AUTH_EMAIL"

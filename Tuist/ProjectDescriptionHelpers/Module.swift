@@ -199,7 +199,9 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.acceptanceTesting.targetName),
                     .target(name: Module.support.testingTargetName!),
                     .target(name: Module.support.targetName),
+                    .target(name: Module.kit.targetName),
                     .external(name: "XcodeProj"),
+                    .external(name: "Command"),
                 ]
             case .kit:
                 [
@@ -278,6 +280,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "Logging"),
                     .external(name: "ZIPFoundation"),
                     .external(name: "Difference"),
+                    .external(name: "Command"),
                 ]
             case .kit:
                 [
@@ -451,6 +454,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "XcodeGraph"),
                     .external(name: "SwiftToolsSupport"),
                     .external(name: "FileSystem"),
+                    .external(name: "Command"),
                 ]
             case .projectDescription:
                 [
@@ -647,6 +651,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "Difference"),
                     .external(name: "SwiftToolsSupport"),
                     .external(name: "FileSystem"),
+                    .external(name: "Command"),
                 ]
             case .kit:
                 []

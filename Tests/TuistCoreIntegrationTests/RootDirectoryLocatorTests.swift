@@ -168,4 +168,30 @@ final class RootDirectoryLocatorTests: TuistTestCase {
             "APlugin/",
         ].map { temporaryDirectory.appending(try RelativePath(validating: $0)) })
     }
+
+    func test_locate_when_a_swiftpm_manifest_file_exists() async throws {
+        // Given
+        let temporaryDirectory = try temporaryPath()
+        try await createFiles(["SomePackage/\(Constants.SwiftPackageManager.packageSwiftName)"])
+
+        // When
+        let got = try await subject
+            .locate(from: temporaryDirectory.appending(try RelativePath(validating: "SomePackage")))
+
+        // Then
+        XCTAssertEqual(got, temporaryDirectory.appending(try RelativePath(validating: "SomePackage")))
+    }
+
+    func test_locate_when_a_tuist_directory_and_swiftpm_manifest_exists() async throws {
+        // Given
+        let temporaryDirectory = try temporaryPath()
+        try createFolders(["this/is/a/very/nested/directory/\(Constants.SwiftPackageManager.packageSwiftName)", "this/is/Tuist/"])
+
+        // When
+        let got = try await subject
+            .locate(from: temporaryDirectory.appending(try RelativePath(validating: "this/is/a/very/nested/directory")))
+
+        // Then
+        XCTAssertEqual(got, temporaryDirectory.appending(try RelativePath(validating: "this/is")))
+    }
 }
