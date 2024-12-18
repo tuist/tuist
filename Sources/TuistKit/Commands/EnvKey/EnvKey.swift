@@ -236,6 +236,9 @@ public enum EnvKey: String, CaseIterable {
     case sharePlatform = "TUIST_SHARE_PLATFORM"
     case shareJSON = "TUIST_SHARE_JSON"
     case shareDerivedDataPath = "TUIST_SHARE_DERIVED_DATA_PATH"
+
+    // CACHE
+    case externalOnly = "TUIST_CACHE_EXTERNAL_ONLY"
 }
 
 extension EnvKey {
