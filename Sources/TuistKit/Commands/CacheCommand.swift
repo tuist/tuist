@@ -42,7 +42,8 @@ public struct CacheCommand: AsyncParsableCommand, HasTrackableParameters {
     var targets: [String] = []
 
     @Flag(
-        help: "If passed, the command doesn't cache the targets passed in the `--targets` argument, but only their dependencies"
+        help: "If passed, the command doesn't cache the targets passed in the `--targets` argument, but only their dependencies",
+        envKey: .externalOnly
     )
     var externalOnly: Bool = false
 
