@@ -179,7 +179,7 @@ let project = Project(
     name: "MyApp",
     settings: .settings(configurations: [
         .debug(name: "Debug", xcconfig: "./xcconfigs/Project.xcconfig"),
-        .debug(name: "Release", xcconfig: "./xcconfigs/Project.xcconfig"),
+        .release(name: "Release", xcconfig: "./xcconfigs/Project.xcconfig"),
     ]),
     targets: [
         .target( // [!code ++]
