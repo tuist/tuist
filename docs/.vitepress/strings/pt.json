@@ -265,14 +265,17 @@
               "items": {
                 "cache": {
                   "text": "Cache"
+                },
+                "registry": {
+                  "text": "Registry"
                 }
               }
             },
             "test": {
               "text": "Test",
               "items": {
-                "smart-runner": {
-                  "text": "Smart runner"
+                "selective-testing": {
+                  "text": "Selective testing"
                 },
                 "flakiness": {
                   "text": "Flakiness"
