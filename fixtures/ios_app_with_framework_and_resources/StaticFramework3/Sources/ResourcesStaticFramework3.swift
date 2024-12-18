@@ -15,10 +15,10 @@ public class ResourcesStaticFramework3 {
     }
 
     public func loadUIImageWithSynthesizedAccessors() -> UIImage {
-        UIImage(resource: .assetCatalogLogo)
+        UIImage(resource: StaticFramework3Images.assetCatalogLogo)
     }
 
     public func loadImageWithSynthesizedAccessors() -> Image {
-        Image(.assetCatalogLogo)
+        Image(StaticFramework3Images.assetCatalogLogo)
     }
 }
