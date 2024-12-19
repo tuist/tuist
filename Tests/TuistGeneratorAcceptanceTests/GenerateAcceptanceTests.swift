@@ -1189,8 +1189,8 @@ final class GenerateAcceptanceTestParallelizable: TuistAcceptanceTestCase {
 
         try XCTAssertContainsParallelizable(
             xcodeprojPath: xcodeprojPath,
-            scheme: "App",
-            testTarget: "App",
+            scheme: "MacFramework",
+            testTarget: "MacFrameworkTests",
             parallelizable: .none
         )
     }
@@ -1203,8 +1203,8 @@ final class GenerateAcceptanceTestParallelizable: TuistAcceptanceTestCase {
 
         try XCTAssertContainsParallelizable(
             xcodeprojPath: xcodeprojPath,
-            scheme: "MacFrameworkScheme",
-            testTarget: "MacFrameworkTests",
+            scheme: "MacFrameworkParallelizableTests",
+            testTarget: "MacFrameworkParallelizableTests",
             parallelizable: .all
         )
     }
