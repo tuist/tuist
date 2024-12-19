@@ -1,0 +1,25 @@
+{
+  "configurations" : [
+    {
+      "id" : "5593C5D6-168C-4F41-90AA-9ED1D72825E1",
+      "name" : "Configuration 1",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+
+  },
+  "testTargets" : [
+    {
+      "parallelizable" : false,
+      "target" : {
+        "containerPath" : "container:App.xcodeproj",
+        "identifier" : "AppTests",
+        "name" : "AppTests"
+      }
+    }
+  ],
+  "version" : 1
+}
