@@ -4,7 +4,7 @@ titleTemplate: :title · Start · Guides · Tuist
 description: Learn how to create a new project with Tuist.
 ---
 
-# Create a new project {#create-a-new-project}
+# Создание нового проекта {#create-a-new-project}
 
 The most straightforward way to start a new project with Tuist is to use the `tuist init` command. This command generates a new project with a default structure and configuration.
 
