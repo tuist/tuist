@@ -12,10 +12,8 @@ extension ProjectAutomation.Graph {
         // generate targets projects only
         let projects = targetsAndDependencies
             .map(\.key.project)
+            .uniqued()
             .reduce(into: [String: ProjectAutomation.Project]()) {
-                guard $0[$1.path.pathString] == nil else {
-                    return
-                }
                 $0[$1.path.pathString] = ProjectAutomation.Project.from($1)
             }
 
