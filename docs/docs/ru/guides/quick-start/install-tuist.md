@@ -1,6 +1,6 @@
 ---
 title: Установка Tuist
-titleTemplate: :title · Quick-start · Guides · Tuist
+titleTemplate: :title · Начало · Руководства · Tuist
 description: Узнайте, как установить Tuist в вашей среде.
 ---
 
