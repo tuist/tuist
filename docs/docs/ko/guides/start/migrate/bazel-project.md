@@ -17,7 +17,7 @@ Bazel은 소프트웨어를 빌드하고 테스트하는 방식을 정의하는 
 
 ::: code-group
 
-```starlark [BUILD (Bazel)]
+```txt [BUILD (Bazel)]
 swift_library(
     name = "MyLibrary.library",
     srcs = glob(["**/*.swift"]),
@@ -40,7 +40,7 @@ let project = Project(
 
 :::code-group
 
-```starlark [BUILD (Bazel)]
+```txt [BUILD (Bazel)]
 ios_unit_test(
     name = "MyLibraryTests",
     bundle_id = "io.tuist.MyLibraryTests",

@@ -1,6 +1,6 @@
 ---
 title: Optimize workflows
-titleTemplate: :title · Quick-start · Guides · Tuist
+titleTemplate: :title · Начало · Руководства · Tuist
 description: Learn how to optimize workflows with Tuist.
 ---
 
@@ -59,5 +59,5 @@ tuist project tokens create my-handle/MyApp
 
 Then expose the token as an environment variable `TUIST_CONFIG_TOKEN` in your CI environment. The presence of the token will automatically enable the optimizations and insights.
 
-> [!IMPORTANT] CI ENVIRONMENT DETECTION
-> Tuist only uses the token when it detects it's running on a CI environment. If your CI environment is not detected, you can force the token usage by setting the environment variable `CI` to `1`.
+> [!IMPORTANT] ОБНАРУЖЕНИЕ СРЕДЫ CI
+> Tuist использует токен только в том случае, если обнаруживает, что работает в среде CI. Если ваше окружение CI не обнаружено, вы можете принудительно использовать токен, установив переменную окружения `CI` в значение `1`.

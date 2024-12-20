@@ -189,7 +189,7 @@
           "text": "Start",
           "items": {
             "new-project": {
-              "text": "Create a new project"
+              "text": "Создание нового проекта"
             },
             "swift-package": {
               "text": "Try with a Swift Package"
@@ -265,14 +265,17 @@
               "items": {
                 "cache": {
                   "text": "Cache"
+                },
+                "registry": {
+                  "text": "Registry"
                 }
               }
             },
             "test": {
               "text": "Test",
               "items": {
-                "smart-runner": {
-                  "text": "Smart runner"
+                "selective-testing": {
+                  "text": "Selective testing"
                 },
                 "flakiness": {
                   "text": "Flakiness"

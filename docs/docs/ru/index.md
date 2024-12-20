@@ -1,11 +1,11 @@
 ---
-title: What is Tuist?
-description: Extend your Apple native tooling to better apps at scale.
+title: Что такое Tuist?
+description: Расширьте свои Apple инструменты для улучшения масштабирования приложений.
 ---
 
 # Tuist {#tuist}
 
-In the world of app development, particularly for platforms like Apple's, organizations often encounter **productivity roadblocks.** These can include sluggish compilation times, unreliable tests, and intricate automation workflows that drain resources. Traditionally, companies address these issues by forming dedicated platform teams. These specialists maintain codebase health and integrity, freeing other developers to focus on feature creation. However, this approach can be expensive and risky, as the departure of key team members can severely impact productivity.
+В мире разработки приложений, особенно для платформ Apple, компании часто сталкиваются с **препятствиями к продуктивности**. Это может быть медленное время компиляции, ненадежные тесты и сложные рабочие процессы автоматизации, которые истощают ресурсы. Обычно компании решают эти проблемы, создавая платформенные команды. Эти специалисты поддерживают работоспособность и целостность кодовой базы проекта, позволяя другим разработчикам сосредоточиться на продуктовых задачах. Однако такой подход может быть дорогостоящим и рискованным, поскольку уход ключевых членов команды может серьезно повлиять на производительность.
 
 **Tuist is a toolchain designed to accelerate and enhance app development.** We integrate seamlessly with official tools and systems, meeting developers in familiar territory. By shouldering the burden of tool and system integration, we enable teams to channel their energy into feature development and improving the overall developer experience. In essence, Tuist serves as your virtual platform team. We're with you every step of the way - from the spark of an app idea to its user launch - tackling challenges as they arise.
 

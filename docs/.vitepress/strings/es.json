@@ -265,14 +265,17 @@
               "items": {
                 "cache": {
                   "text": "Cachea"
+                },
+                "registry": {
+                  "text": "Registry"
                 }
               }
             },
             "test": {
               "text": "Testea",
               "items": {
-                "smart-runner": {
-                  "text": "Ejecutador inteligente"
+                "selective-testing": {
+                  "text": "Selective testing"
                 },
                 "flakiness": {
                   "text": "Flakiness"
