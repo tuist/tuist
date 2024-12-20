@@ -1,12 +1,12 @@
 ---
-title: Use Tuist with a Swift Package
-titleTemplate: :title · Start · Guides · Tuist
-description: Learn how to use Tuist with a Swift Package.
+title: Использование Tuist с Swift Package
+titleTemplate: :title · Начало · Руководства · Тuist
+description: Узнайте, как использовать Tuist с Swift Package.
 ---
 
-# Using Tuist with a Swift Package <Badge type="warning" text="beta" /> {#using-tuist-with-a-swift-package-badge-typewarning-textbeta-}
+# Использование Tuist с Swift Package <Badge type="warning" text="beta" /> {#using-tuist-with-a-swift-package-badge-typewarning-textbeta-}
 
-Tuist supports using `Package.swift` as a DSL for your projects and it converts your package targets into a native Xcode project and targets.
+Tuist поддерживает использование `Package.swift` в качестве DSL для проектов и преобразует ваши пакетные модули в Xcode проект и модули Xcode.
 
 > [!WARNING]
 > The aim of this feature is to provide an easy way for developers to assess the impact of adopting Tuist in their Swift Packages. Therefore, we don't plan to support the full range of Swift Package Manager features nor to bring every Tuist's unique features like <LocalizedLink href="/guides/develop/projects/code-sharing">project description helpers</LocalizedLink> to the packages world.
