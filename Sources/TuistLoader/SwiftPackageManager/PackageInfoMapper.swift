@@ -546,8 +546,14 @@ public final class PackageInfoMapper: PackageInfoMapping {
             }
         }
 
+        let targetName = packageModuleAliases[packageInfo.name]?[target.name] ?? target.name
+        let productName = PackageInfoMapper
+            .sanitize(targetName: targetName)
+            .replacingOccurrences(of: "-", with: "_")
+
         let settings = try await Settings.from(
             target: target,
+            productName: productName,
             packageFolder: packageFolder,
             settings: target.settings,
             moduleMap: moduleMap,
@@ -555,15 +561,11 @@ public final class PackageInfoMapper: PackageInfoMapping {
             dependencyModuleAliases: dependencyModuleAliases
         )
 
-        let targetName = packageModuleAliases[packageInfo.name]?[target.name] ?? target.name
-
         return .target(
             name: PackageInfoMapper.sanitize(targetName: targetName),
             destinations: destinations,
             product: product,
-            productName: PackageInfoMapper
-                .sanitize(targetName: targetName)
-                .replacingOccurrences(of: "-", with: "_"),
+            productName: productName,
             bundleId: targetName
                 .replacingOccurrences(of: "_", with: ".").replacingOccurrences(of: "/", with: "."),
             deploymentTargets: deploymentTargets,
@@ -982,6 +984,7 @@ extension ProjectDescription.Settings {
     // swiftlint:disable:next function_body_length
     fileprivate static func from(
         target: PackageInfo.Target,
+        productName: String,
         packageFolder: AbsolutePath,
         settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting],
         moduleMap: ModuleMap?,
@@ -1006,7 +1009,9 @@ extension ProjectDescription.Settings {
             settings: settings
         )
 
-        var settingsDictionary: XcodeGraph.SettingsDictionary = [:]
+        var settingsDictionary: XcodeGraph.SettingsDictionary = [
+            "OTHER_SWIFT_FLAGS": ["$(inherited)"],
+        ]
 
         // Force enable testing search paths
         let forceEnabledTestingSearchPath: Set<String> = [
@@ -1049,10 +1054,10 @@ extension ProjectDescription.Settings {
                 settingsDictionary["DEFINES_MODULE"] = "NO"
                 switch settingsDictionary["OTHER_CFLAGS"] ?? .array(["$(inherited)"]) {
                 case let .array(values):
-                    settingsDictionary["OTHER_CFLAGS"] = .array(values + ["-fmodule-name=\(target.name)"])
+                    settingsDictionary["OTHER_CFLAGS"] = .array(values + ["-fmodule-name=\(productName)"])
                 case let .string(value):
                     settingsDictionary["OTHER_CFLAGS"] = .array(
-                        value.split(separator: " ").map(String.init) + ["-fmodule-name=\(target.name)"]
+                        value.split(separator: " ").map(String.init) + ["-fmodule-name=\(productName)"]
                     )
                 }
             case .none:

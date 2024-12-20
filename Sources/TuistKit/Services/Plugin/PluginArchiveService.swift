@@ -14,10 +14,7 @@ final class PluginArchiveService {
     private let fileSystem: FileSystem
 
     init(
-        swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(
-            system: System.shared,
-            fileSystem: FileSystem()
-        ),
+        swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(),
         packageInfoLoader: PackageInfoLoading = PackageInfoLoader(),
         manifestLoader: ManifestLoading = ManifestLoader(),
         fileArchiverFactory: FileArchivingFactorying = FileArchivingFactory(),

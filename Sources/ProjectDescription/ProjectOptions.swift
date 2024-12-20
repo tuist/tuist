@@ -73,7 +73,7 @@ extension Project.Options {
             targetSchemesGrouping: TargetSchemesGrouping = .byNameSuffix(
                 build: ["Implementation", "Interface", "Mocks", "Testing"],
                 test: ["Tests", "IntegrationTests", "UITests", "SnapshotTests"],
-                run: ["App", "Demo"]
+                run: ["App", "Demo", "Example"]
             ),
             codeCoverageEnabled: Bool = false,
             testingOptions: TestingOptions = [],

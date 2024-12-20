@@ -22,10 +22,7 @@ final class InstallService {
             manifestLoader: CachedManifestLoader(),
             warningController: WarningController.shared
         ),
-        swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(
-            system: System.shared,
-            fileSystem: FileSystem()
-        ),
+        swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(),
         fileHandler: FileHandling = FileHandler.shared,
         fileSystem: FileSysteming = FileSystem(),
         manifestFilesLocator: ManifestFilesLocating = ManifestFilesLocator()

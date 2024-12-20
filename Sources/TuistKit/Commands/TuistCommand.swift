@@ -36,6 +36,7 @@ public struct TuistCommand: AsyncParsableCommand {
                         InstallCommand.self,
                         MigrationCommand.self,
                         PluginCommand.self,
+                        RegistryCommand.self,
                         RunCommand.self,
                         ScaffoldCommand.self,
                         TestCommand.self,

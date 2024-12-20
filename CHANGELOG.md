@@ -1,5 +1,40 @@
 # Changelog
 
+## 4.38.1 - 2024-12-18
+
+### CLI
+
+- no changes
+
+### CLI (Server features)
+
+- no changes
+
+## 4.37.0 - 2024-12-11
+
+### CLI
+
+#### Changed
+
+- Update vitepress [#7102](https://github.com/tuist/tuist/pull/7102) by [@fortmarek](https://github.com/fortmarek)
+
+#### Added
+
+- Document new accounts, previews, and projects metrics [#7141](https://github.com/tuist/tuist/pull/7141) by [@pepicrft](https://github.com/pepicrft)
+- Add support for building Mac Catalyst apps [#7134](https://github.com/tuist/tuist/pull/7134) by [@foyoodo](https://github.com/foyoodo)
+
+#### Fixed
+
+- Remove duplicate Path dependency to fix warning. [#7131](https://github.com/tuist/tuist/pull/7131) by [@michaelmcguire](https://github.com/michaelmcguire)
+- Documentation: Fix typo, remove duplicated import [#7135](https://github.com/tuist/tuist/pull/7135) by [@mikeger](https://github.com/mikeger)
+- Fix bundle access synthesized interface for static libraries with Objective-C code [#7147](https://github.com/tuist/tuist/pull/7147) by [@brianvar](https://github.com/brianvar)
+- Remove unnecessary Copy Executables build phase. [#7136](https://github.com/tuist/tuist/pull/7136) by [@TamarMilchtaich](https://github.com/TamarMilchtaich)
+- Fix not hashing additional strings such as configuration [#7154](https://github.com/tuist/tuist/pull/7154) by [@fortmarek](https://github.com/fortmarek)
+
+### CLI (Server features)
+
+- no changes
+
 ## 4.36.0 - 2024-11-27
 
 ### CLI

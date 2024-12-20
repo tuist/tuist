@@ -1654,6 +1654,42 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "brianvar",
+      "name": "brianvar",
+      "avatar_url": "https://avatars.githubusercontent.com/u/115399684?v=4",
+      "profile": "https://github.com/brianvar",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "HossamYoussof",
+      "name": "Hossam Youssof",
+      "avatar_url": "https://avatars.githubusercontent.com/u/6381926?v=4",
+      "profile": "https://github.com/HossamYoussof",
+      "contributions": [
+        "doc"
+      ]
+    },
+    {
+      "login": "devMinseok",
+      "name": "Minseok Kang",
+      "avatar_url": "https://avatars.githubusercontent.com/u/51021614?v=4",
+      "profile": "https://github.com/devMinseok",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "alpanyukov",
+      "name": "Alexander",
+      "avatar_url": "https://avatars.githubusercontent.com/u/36258478?v=4",
+      "profile": "https://github.com/alpanyukov",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,

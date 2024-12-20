@@ -13,14 +13,6 @@ let project = Project(
             resources: []
         ),
         .target(
-            name: "WatchApp",
-            destinations: [.appleWatch],
-            product: .app,
-            bundleId: "io.tuist.App.watchkitapp",
-            infoPlist: .default,
-            resources: "Targets/WatchApp/**"
-        ),
-        .target(
             name: "AppExtension",
             destinations: .iOS,
             product: .appExtension,

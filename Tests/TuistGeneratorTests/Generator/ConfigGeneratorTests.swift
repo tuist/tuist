@@ -511,7 +511,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         let releaseConfig = configurationList?.configuration(name: "Release")
 
         let expectedSettings: SettingsDictionary = [
-            "TARGETED_DEVICE_FAMILY": "1,2",
+            "TARGETED_DEVICE_FAMILY": "1,2,6",
             "IPHONEOS_DEPLOYMENT_TARGET": "13.1",
             "SUPPORTS_MACCATALYST": "YES",
             "DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER": "YES",

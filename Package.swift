@@ -83,6 +83,7 @@ let targets: [Target] = [
             "TuistServer",
             "FileSystem",
             "TuistCache",
+            .product(name: "Command", package: "Command"),
             .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
             .byName(name: "AnyCodable"),
         ],
@@ -119,6 +120,7 @@ let targets: [Target] = [
             "ZIPFoundation",
             "Mockable",
             "FileSystem",
+            "Command",
         ],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
@@ -509,7 +511,7 @@ let package = Package(
         ),
         .package(url: "https://github.com/tuist/Path", .upToNextMajor(from: "0.3.0")),
         .package(
-            url: "https://github.com/tuist/XcodeGraph.git", exact: "0.19.4"
+            url: "https://github.com/tuist/XcodeGraph.git", exact: "1.1.0"
         ),
         .package(url: "https://github.com/tuist/FileSystem.git", .upToNextMajor(from: "0.6.17")),
         .package(url: "https://github.com/tuist/Command.git", exact: "0.8.0"),

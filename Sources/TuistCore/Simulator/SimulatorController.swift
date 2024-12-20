@@ -66,7 +66,7 @@ public protocol SimulatorControlling {
     ) async throws -> String
 
     /// Returns the simulator destination for the macOS platform
-    func macOSDestination() -> String
+    func macOSDestination(catalyst: Bool) -> String
 
     /// Returns the list of simulator devices that are available in the system.
     func devices() async throws -> [SimulatorDevice]
@@ -322,7 +322,7 @@ public final class SimulatorController: SimulatorControlling {
         return "id=\(deviceAndRuntime.device.udid)"
     }
 
-    public func macOSDestination() -> String {
+    public func macOSDestination(catalyst: Bool = false) -> String {
         let arch: String
         switch devEnvironment.architecture {
         case .arm64:
@@ -330,7 +330,12 @@ public final class SimulatorController: SimulatorControlling {
         case .x8664:
             arch = "x86_64"
         }
-        return "platform=macOS,arch=\(arch)"
+        let destination = "platform=macOS,arch=\(arch)"
+        if catalyst {
+            return destination + ",variant=Mac Catalyst"
+        } else {
+            return destination
+        }
     }
 }
 

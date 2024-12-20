@@ -6,7 +6,7 @@ let project = Project(
     targets: [
         .target(
             name: "MainApp",
-            destinations: [.iPhone],
+            destinations: .iOS,
             product: .app,
             bundleId: "io.tuist.app",
             deploymentTargets: .iOS("13.0"),
@@ -14,7 +14,6 @@ let project = Project(
             sources: ["Targets/App/Sources/**"],
             dependencies: [
                 .project(target: "AppExtension", path: "../HelperAppTargets"),
-                .project(target: "WatchApp", path: "../HelperAppTargets"),
             ]
         ),
         .target(
@@ -27,7 +26,10 @@ let project = Project(
             dependencies: [
                 .target(name: "MainApp"),
                 .project(target: "TestHost", path: "../HelperAppTargets"),
-            ]
+            ],
+            settings: .settings(
+                base: SettingsDictionary().merging(["TEST_HOST": "$(BUILT_PRODUCTS_DIR)/TestHost.app/TestHost"])
+            )
         ),
     ]
 )
