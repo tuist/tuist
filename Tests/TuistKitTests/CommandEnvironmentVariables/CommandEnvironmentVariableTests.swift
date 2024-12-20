@@ -883,4 +883,14 @@ final class CommandEnvironmentVariableTests: XCTestCase {
         ])
         XCTAssertEqual(commandWithArgs.path, "/new/logout/path")
     }
+    
+    func testCacheCommandUsesEnvVars() throws {
+        setVariable(.externalOnly, value: "true")
+        
+        let commandWithEnvVars = try CacheCommand.parse([])
+        XCTAssertEqual(commandWithEnvVars.externalOnly, true)
+        
+        let commandWithArgs = try CacheCommand.parse(["--external-only"])
+        XCTAssertEqual(commandWithArgs.externalOnly, true)
+    }
 }
