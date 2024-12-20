@@ -883,7 +883,7 @@ final class CommandEnvironmentVariableTests: XCTestCase {
         ])
         XCTAssertEqual(commandWithArgs.path, "/new/logout/path")
     }
-    
+
     func testCacheCommandUsesEnvVars() throws {
         setVariable(.cacheExternalOnly, value: "true")
         setVariable(.cacheGenerateOnly, value: "true")
@@ -891,7 +891,7 @@ final class CommandEnvironmentVariableTests: XCTestCase {
         setVariable(.cacheConfiguration, value: "CacheConfig")
         setVariable(.cachePath, value: "/cache/path")
         setVariable(.cacheTargets, value: "Fmk1,Fmk2")
-        
+
         let commandWithEnvVars = try CacheCommand.parse([])
         XCTAssertEqual(commandWithEnvVars.externalOnly, true)
         XCTAssertEqual(commandWithEnvVars.generateOnly, true)
@@ -899,15 +899,15 @@ final class CommandEnvironmentVariableTests: XCTestCase {
         XCTAssertEqual(commandWithEnvVars.configuration, "CacheConfig")
         XCTAssertEqual(commandWithEnvVars.path, "/cache/path")
         XCTAssertEqual(commandWithEnvVars.targets, ["Fmk1", "Fmk2"])
-        
+
         let commandWithArgs = try CacheCommand.parse([
-            "--external-only", 
+            "--external-only",
             "--generate-only",
             "--print-hashes",
             "--configuration", "CacheConfig",
             "--path", "/cache/path",
             "--",
-            "Fmk1", "Fmk2"
+            "Fmk1", "Fmk2",
         ])
         XCTAssertEqual(commandWithArgs.externalOnly, true)
         XCTAssertEqual(commandWithArgs.generateOnly, true)
