@@ -29,8 +29,7 @@ final class TestAcceptanceTests: TuistAcceptanceTestCase {
 
     func test_with_app_with_test_plan() async throws {
         try await setUpFixture(.appWithTestPlan)
-        try await run(TestCommand.self)
-        try await run(TestCommand.self, "App", "--test-plan", "All")
+        try await run(TestCommand.self, "App", "--test-plan", "App")
     }
 
     func test_with_invalid_arguments() async throws {

@@ -223,4 +223,54 @@ extension TuistAcceptanceTestCase {
             line: line
         )
     }
+    
+    /// Asserts the parallelization set on a specific testable target.
+    /// - Parameters:
+    ///   - xcodeprojPath: A specific `.xcodeproj` file path.
+    ///   - scheme: A specific scheme name.
+    ///   - testTarget: A specific test target name.
+    ///   - parallelization: The type of parallelization setting to be asserted.
+    ///   For example, ".all, .swiftTestingOnly" or ".none".
+    public func XCTAssertParallelization(
+        xcodeprojPath: AbsolutePath,
+        scheme: String,
+        testTarget: String,
+        parallelization: XCScheme.TestParallelization,
+        file: StaticString = #file,
+        line: UInt = #line
+    ) throws {
+        let xcodeproj = try XcodeProj(pathString: xcodeprojPath.pathString)
+
+        guard let scheme = xcodeproj.sharedData?.schemes
+            .filter({ $0.name == scheme })
+            .first
+        else {
+            XCTFail(
+                "The '\(scheme)' scheme doesn't exist.",
+                file: file,
+                line: line
+            )
+            return
+        }
+
+        guard let testableTarget = scheme.testAction?.testables
+            .filter({ $0.buildableReference.blueprintName == testTarget })
+            .first
+        else {
+            XCTFail(
+                "The '\(testTarget)' testable target doesn't exist.",
+                file: file,
+                line: line
+            )
+            return
+        }
+
+        XCTAssertEqual(
+            testableTarget.parallelization,
+            parallelization,
+            "The '\(testableTarget)' testable target doesn't have parallelizable set.",
+            file: file,
+            line: line
+        )
+    }
 }

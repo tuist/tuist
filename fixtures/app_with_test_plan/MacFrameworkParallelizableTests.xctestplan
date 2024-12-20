@@ -1,0 +1,24 @@
+{
+  "configurations" : [
+    {
+      "id" : "1496794E-F1D7-47F1-8A71-135D07ED9B59",
+      "name" : "Configuration 1",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+
+  },
+  "testTargets" : [
+    {
+      "target" : {
+        "containerPath" : "container:App.xcodeproj",
+        "identifier" : "04D3BF9D5539379EED1FDA1D",
+        "name" : "MacFrameworkParallelizableTests"
+      }
+    }
+  ],
+  "version" : 1
+}
