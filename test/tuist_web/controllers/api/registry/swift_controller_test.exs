@@ -210,7 +210,7 @@ defmodule TuistWeb.API.Registry.SwiftControllerTest do
       PackagesFixtures.package_release_fixture(package_id: package.id, version: "5.0.0")
 
       Storage
-      |> stub(:object_exists?, fn "registry/swift/Alamofire/Alamofire/5.0.0/Package.swift" ->
+      |> stub(:object_exists?, fn "registry/swift/alamofire/alamofire/5.0.0/Package.swift" ->
         true
       end)
 
@@ -245,7 +245,7 @@ defmodule TuistWeb.API.Registry.SwiftControllerTest do
       Storage
       |> stub(
         :object_exists?,
-        fn "registry/swift/Alamofire/Alamofire/5.0.0/Package@swift-5.2.swift" ->
+        fn "registry/swift/alamofire/alamofire/5.0.0/Package@swift-5.2.swift" ->
           true
         end
       )
@@ -279,7 +279,7 @@ defmodule TuistWeb.API.Registry.SwiftControllerTest do
       Storage
       |> stub(
         :object_exists?,
-        fn "registry/swift/Alamofire/Alamofire/5.0.0/Package@swift-5.2.swift" ->
+        fn "registry/swift/alamofire/alamofire/5.0.0/Package@swift-5.2.swift" ->
           false
         end
       )
@@ -321,7 +321,7 @@ defmodule TuistWeb.API.Registry.SwiftControllerTest do
       )
 
       Storage
-      |> stub(:object_exists?, fn "registry/swift/Alamofire/Alamofire/5.0.0/Package.swift" ->
+      |> stub(:object_exists?, fn "registry/swift/alamofire/alamofire/5.0.0/Package.swift" ->
         true
       end)
 
@@ -355,7 +355,7 @@ defmodule TuistWeb.API.Registry.SwiftControllerTest do
       PackagesFixtures.package_fixture(scope: "Alamofire", name: "Alamofire")
 
       Storage
-      |> stub(:object_exists?, fn "registry/swift/Alamofire/Alamofire/5.0.0/Package.swift" ->
+      |> stub(:object_exists?, fn "registry/swift/alamofire/alamofire/5.0.0/Package.swift" ->
         false
       end)
 
@@ -377,7 +377,7 @@ defmodule TuistWeb.API.Registry.SwiftControllerTest do
       PackagesFixtures.package_fixture(scope: "Alamofire", name: "Alamofire")
 
       Storage
-      |> stub(:object_exists?, fn "registry/swift/Alamofire/Alamofire/5.0.0/source_archive.zip" ->
+      |> stub(:object_exists?, fn "registry/swift/alamofire/alamofire/5.0.0/source_archive.zip" ->
         true
       end)
 
@@ -406,7 +406,7 @@ defmodule TuistWeb.API.Registry.SwiftControllerTest do
       PackagesFixtures.package_fixture(scope: "Alamofire", name: "Alamofire")
 
       Storage
-      |> stub(:object_exists?, fn "registry/swift/Alamofire/Alamofire/5.0.0/source_archive.zip" ->
+      |> stub(:object_exists?, fn "registry/swift/alamofire/alamofire/5.0.0/source_archive.zip" ->
         false
       end)
 
