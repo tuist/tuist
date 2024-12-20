@@ -2,6 +2,7 @@
 @import "./app/utilities.css";
 @import "./app/layouts.css";
 @import "./app/components.css";
+@import "./app/pages.css";
 
 body {
   margin: 0;

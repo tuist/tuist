@@ -43,7 +43,6 @@ defmodule Tuist.MixProject do
       {:phoenix_live_view, "~> 1.0.0"},
       {:floki, ">= 0.33.0"},
       {:phoenix_live_dashboard, "~> 0.8.3"},
-      {:esbuild, "~> 0.8", runtime: Mix.env() == :dev},
       {:heroicons,
        github: "tailwindlabs/heroicons",
        tag: "v2.1.1",
@@ -131,10 +130,9 @@ defmodule Tuist.MixProject do
       "ecto.setup": ["ecto.create", "ecto.migrate", "run priv/repo/seeds.exs"],
       "ecto.reset": ["ecto.drop", "ecto.create", "ecto.load", "ecto.migrate"],
       test: ["ecto.create --quiet", "ecto.migrate --quiet", "test"],
-      "assets.setup": ["esbuild.install --if-missing"],
-      "assets.build": ["esbuild app"],
+      "assets.setup": [],
+      "assets.build": [],
       "assets.deploy": [
-        "esbuild app --minify",
         "phx.digest"
       ]
     ]

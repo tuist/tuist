@@ -9,20 +9,20 @@
     </.live_title>
     <TuistWeb.LayoutComponents.head_meta_meta_tags {assigns} />
     <TuistWeb.LayoutComponents.head_x_meta_tags {assigns} />
-    <!-- Assets -->
-    <link phx-track-static rel="stylesheet" href={~p"/css/app.css"} />
-    <link phx-track-static rel="stylesheet" href={~p"/css/app/pages/account_projects.css"} />
-    <link phx-track-static rel="stylesheet" href={~p"/css/app/pages/auth.css"} />
-    <link phx-track-static rel="stylesheet" href={~p"/css/app/pages/account_billing.css"} />
-    <link phx-track-static rel="stylesheet" href={~p"/css/app/pages/project_analytics.css"} />
-    <link phx-track-static rel="stylesheet" href={~p"/css/app/pages/project_run_detail.css"} />
-    <link phx-track-static rel="stylesheet" href={~p"/css/app/pages/project_runs.css"} />
-    <link phx-track-static rel="stylesheet" href={~p"/css/app/pages/project_tests.css"} />
-    <link phx-track-static rel="stylesheet" href={~p"/css/app/pages/preview.css"} />
-    <link phx-track-static rel="stylesheet" href={~p"/css/app/pages/previews.css"} />
-    <script defer phx-track-static type="module" src={~p"/assets/app.js"}>
+    
+<!-- Import Maps -->
+    <script type="importmap">
+      {
+        "imports": {
+          "phoenix_html": "https://cdn.jsdelivr.net/npm/phoenix_html@4.1.1/+esm",
+          "phoenix": "https://cdn.jsdelivr.net/npm/phoenix@1.7.14/+esm",
+          "phoenix_live_view": "https://cdn.jsdelivr.net/npm/phoenix_live_view@1.0.0/+esm"
+        }
+      }
     </script>
-    <script defer phx-track-static type="text/javascript" src={~p"/js/Chart.js"}>
+    <!-- Assets -->
+    <link phx-track-static rel="stylesheet" href={~p"/app/css/app.css"} />
+    <script defer phx-track-static type="module" src={~p"/app/js/app.js"}>
     </script>
     <script>
       function cssvar(name) {

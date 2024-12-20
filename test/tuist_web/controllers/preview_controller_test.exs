@@ -30,7 +30,7 @@ defmodule TuistWeb.PreviewControllerTest do
         |> get(~p"/#{project.account.name}/#{project.name}/previews/latest/badge.svg")
 
       # Then
-      assert redirected_to(conn) == ~p"/images/previews-badge.svg"
+      assert redirected_to(conn) == ~p"/app/images/previews-badge.svg"
     end
   end
 

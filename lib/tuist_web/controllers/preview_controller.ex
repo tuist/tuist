@@ -18,7 +18,7 @@ defmodule TuistWeb.PreviewController do
 
   def latest_badge(conn, _params) do
     conn
-    |> redirect(to: ~p"/images/previews-badge.svg")
+    |> redirect(to: ~p"/app/images/previews-badge.svg")
   end
 
   def latest(
