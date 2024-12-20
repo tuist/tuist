@@ -236,6 +236,14 @@ public enum EnvKey: String, CaseIterable {
     case sharePlatform = "TUIST_SHARE_PLATFORM"
     case shareJSON = "TUIST_SHARE_JSON"
     case shareDerivedDataPath = "TUIST_SHARE_DERIVED_DATA_PATH"
+
+    // CACHE
+    case cacheExternalOnly = "TUIST_CACHE_EXTERNAL_ONLY"
+    case cacheGenerateOnly = "TUIST_CACHE_GENERATE_ONLY"
+    case cachePrintHashes = "TUIST_CACHE_PRINT_HASHES"
+    case cacheConfiguration = "TUIST_CACHE_CONFIGURATION"
+    case cachePath = "TUIST_CACHE_PATH"
+    case cacheTargets = "TUIST_CACHE_TARGETS"
 }
 
 extension EnvKey {
