@@ -189,7 +189,7 @@
           "text": "Start",
           "items": {
             "new-project": {
-              "text": "Create a new project"
+              "text": "Создание нового проекта"
             },
             "swift-package": {
               "text": "Try with a Swift Package"
