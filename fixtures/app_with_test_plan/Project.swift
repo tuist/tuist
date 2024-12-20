@@ -78,7 +78,7 @@ let project = Project(
     ],
     schemes: [
         .scheme(
-            name: "App",
+            name: "AppScheme",
             buildAction: .buildAction(targets: ["App"]),
             testAction: .testPlans([
                 .relativeToManifest("App.xctestplan")
@@ -96,7 +96,7 @@ let project = Project(
             ])
         ),
         .scheme(
-            name: "MacFrameworkParallelizableTests",
+            name: "MacFrameworkParallelizableScheme",
             buildAction: .buildAction(targets: ["MacFramework"]),
             testAction: .testPlans([
                 .relativeToManifest("MacFrameworkParallelizableTests.xctestplan")
