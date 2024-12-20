@@ -76,7 +76,7 @@ dependencies: [
 ]
 ```
 
-## Continuous Integration (CI) {#continuous-integration-ci}
+## Непрерывная интеграция (CI) {#continuous-integration-ci}
 
 To use the registry on your CI, you need to ensure that you have logged in to the registry by running `tuist registry login` as part of your workflow.
 
