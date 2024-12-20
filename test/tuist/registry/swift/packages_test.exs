@@ -116,6 +116,30 @@ defmodule Tuist.Registry.Swift.PackagesTest do
              ]
     end
 
+    test "skips package release with a v prefix when its semantic variant has already been created" do
+      # Given
+      package =
+        PackagesFixtures.package_fixture(
+          scope: "Alamofire",
+          name: "Alamofire"
+        )
+
+      PackagesFixtures.package_release_fixture(package_id: package.id, version: "5.10.2")
+
+      VCS
+      |> stub(:get_tags, fn _ ->
+        [
+          %Tag{name: "v5.10.2"}
+        ]
+      end)
+
+      # When
+      got = Packages.create_missing_package_releases(%{package: package, token: "github_token"})
+
+      # Then
+      assert got == []
+    end
+
     test "creates missing package releases where versions are in the format of vX.Y.Z" do
       # Given
       package =

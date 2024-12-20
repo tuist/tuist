@@ -62,7 +62,7 @@ defmodule Tuist.Registry.Swift.Packages do
     |> Enum.map(& &1.name)
     |> Enum.filter(fn version ->
       Regex.match?(~r/^v?\d+\.\d+\.\d+$/, version) and
-        not Enum.any?(package.package_releases, &(&1.version == version))
+        not Enum.any?(package.package_releases, &(&1.version == semantic_version(version)))
     end)
     |> Enum.map(fn version ->
       create_package_release(%{
@@ -73,15 +73,16 @@ defmodule Tuist.Registry.Swift.Packages do
     end)
   end
 
+  defp semantic_version(version) do
+    version
+    |> String.trim_leading("v")
+  end
+
   def create_package_release(%{
         package: %Package{id: package_id, scope: scope, name: name},
         version: version,
         token: token
       }) do
-    semantic_version =
-      version
-      |> String.trim_leading("v")
-
     {:ok, file_list} =
       VCS.get_source_archive_by_tag_and_repository_full_handle(%{
         provider: :github,
@@ -109,7 +110,7 @@ defmodule Tuist.Registry.Swift.Packages do
 
     {:ok, {_, data}} = Zip.create("source_archive.zip", file_list, [:memory])
 
-    object_key = "registry/swift/#{scope}/#{name}/#{semantic_version}/source_archive.zip"
+    object_key = "registry/swift/#{scope}/#{name}/#{semantic_version(version)}/source_archive.zip"
     Storage.put_object(object_key, data)
 
     checksum =
@@ -124,7 +125,7 @@ defmodule Tuist.Registry.Swift.Packages do
       |> PackageRelease.create_changeset(%{
         package_id: package_id,
         checksum: checksum,
-        version: semantic_version
+        version: semantic_version(version)
       })
       |> Repo.insert!()
 
