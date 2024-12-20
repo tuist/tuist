@@ -9,4 +9,10 @@ final class MacFrameworkTests: XCTestCase {
 
         XCTAssertEqual("MacFramework.hello()", sut.hello())
     }
+    
+    func testWorld() {
+        let sut = MacFramework()
+        
+        XCTAssertEqual("MacFramework.world()", sut.world())
+    }
 }

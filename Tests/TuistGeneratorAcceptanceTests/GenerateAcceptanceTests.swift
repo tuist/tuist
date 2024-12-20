@@ -1180,18 +1180,18 @@ final class GenerateAcceptanceTestAppWithMacBundle: TuistAcceptanceTestCase {
     }
 }
 
-final class GenerateAcceptanceTestParallelizable: TuistAcceptanceTestCase {
+final class GenerateAcceptanceTestParallelization: TuistAcceptanceTestCase {
     func test_app_parallelizable_none_from_app_test_plan() async throws {
         try await setUpFixture(.appWithTestPlan)
         try await run(TestCommand.self)
 
         let xcodeprojPath = fixturePath.appending(components: ["App.xcodeproj"])
 
-        try XCTAssertContainsParallelizable(
+        try XCTAssertParallelization(
             xcodeprojPath: xcodeprojPath,
-            scheme: "MacFramework",
-            testTarget: "MacFrameworkTests",
-            parallelizable: .none
+            scheme: "App",
+            testTarget: "AppTests",
+            parallelization: .none
         )
     }
 
@@ -1201,11 +1201,11 @@ final class GenerateAcceptanceTestParallelizable: TuistAcceptanceTestCase {
 
         let xcodeprojPath = fixturePath.appending(components: ["App.xcodeproj"])
 
-        try XCTAssertContainsParallelizable(
+        try XCTAssertParallelization(
             xcodeprojPath: xcodeprojPath,
             scheme: "MacFrameworkParallelizableTests",
             testTarget: "MacFrameworkParallelizableTests",
-            parallelizable: .all
+            parallelization: .all
         )
     }
 
@@ -1215,11 +1215,11 @@ final class GenerateAcceptanceTestParallelizable: TuistAcceptanceTestCase {
 
         let xcodeprojPath = fixturePath.appending(components: ["App.xcodeproj"])
 
-        try XCTAssertContainsParallelizable(
+        try XCTAssertParallelization(
             xcodeprojPath: xcodeprojPath,
-            scheme: "MacFrameworkScheme",
+            scheme: "MacFrameworkParallelizableTests",
             testTarget: "MacFrameworkParallelizableTests",
-            parallelizable: .swiftTestingOnly
+            parallelization: .swiftTestingOnly
         )
     }
 }

@@ -1,7 +1,7 @@
 {
   "configurations" : [
     {
-      "id" : "73D986E5-2697-4EBC-B103-FDCEA825C9CC",
+      "id" : "5A476085-968E-4E12-8584-D25D716CBC17",
       "name" : "Configuration 1",
       "options" : {
 
@@ -13,13 +13,13 @@
   },
   "testTargets" : [
     {
-      "parallelizable" : false,
+      "parallelizable" : true,
       "target" : {
         "containerPath" : "container:App.xcodeproj",
-        "identifier" : "99DCC7BD0ABB09C467644299",
-        "name" : "AppTests"
+        "identifier" : "3A196401860CE777FF5FBA54",
+        "name" : "MacFrameworkTests"
       }
     }
   ],
-  "version" : 1
+  "version" : 2
 }

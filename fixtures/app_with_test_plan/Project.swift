@@ -80,7 +80,9 @@ let project = Project(
         .scheme(
             name: "App",
             buildAction: .buildAction(targets: ["App"]),
-            testAction: .testPlans([.relativeToManifest("App.xctestplan")]),
+            testAction: .testPlans([
+                .relativeToManifest("App.xctestplan")
+            ]),
             runAction: .runAction(
                 configuration: .debug,
                 executable: "App"
@@ -89,7 +91,17 @@ let project = Project(
         .scheme(
             name: "MacFrameworkScheme",
             buildAction: .buildAction(targets: ["MacFramework"]),
-            testAction: .testPlans([.relativeToManifest("MacFramework.xctestplan")])
+            testAction: .testPlans([
+                .relativeToManifest("MacFramework.xctestplan")
+            ])
+        ),
+        .scheme(
+            name: "MacFrameworkParallelizableTests",
+            buildAction: .buildAction(targets: ["MacFramework"]),
+            testAction: .testPlans([
+                .relativeToManifest("MacFrameworkParallelizableTests.xctestplan")
+            ])
         )
-    ]
+    ],
+    additionalFiles: [.glob(pattern: "*.xctestplan")]
 )

@@ -224,18 +224,18 @@ extension TuistAcceptanceTestCase {
         )
     }
     
-    /// Asserts the parallelizable set on a specific testable target.
+    /// Asserts the parallelization set on a specific testable target.
     /// - Parameters:
     ///   - xcodeprojPath: A specific `.xcodeproj` file path.
     ///   - scheme: A specific scheme name.
     ///   - testTarget: A specific test target name.
-    ///   - parallelizable: The type of parallelizable setting to be asserted.
+    ///   - parallelization: The type of parallelization setting to be asserted.
     ///   For example, ".all, .swiftTestingOnly" or ".none".
-    public func XCTAssertContainsParallelizable(
+    public func XCTAssertParallelization(
         xcodeprojPath: AbsolutePath,
         scheme: String,
         testTarget: String,
-        parallelizable: XCScheme.TestParallelization,
+        parallelization: XCScheme.TestParallelization,
         file: StaticString = #file,
         line: UInt = #line
     ) throws {
@@ -267,7 +267,7 @@ extension TuistAcceptanceTestCase {
 
         XCTAssertEqual(
             testableTarget.parallelization,
-            parallelizable,
+            parallelization,
             "The '\(testableTarget)' testable target doesn't have parallelizable set.",
             file: file,
             line: line
