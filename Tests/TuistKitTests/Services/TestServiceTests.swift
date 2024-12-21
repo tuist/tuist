@@ -1641,6 +1641,144 @@ final class TestServiceTests: TuistUnitTestCase {
             .cacheItems()
             .setCalled(1)
     }
+    
+    func test_run_test_plan_with_no_explicit_targets() async throws {
+        // Given
+        givenGenerator()
+        let testPlan = "TestPlan"
+        let testPlanPath = try AbsolutePath(validating: "/testPlan/\(testPlan)")
+        let projectPath = try temporaryPath().appending(component: "Project")
+        let projectTestableSchemes = [
+            Scheme.test(
+                name: "TestScheme",
+                testAction: .test(
+                    targets: [],
+                    testPlans: [
+                        .init(
+                            path: testPlanPath,
+                            testTargets: [
+                                .test(
+                                    target: TargetReference(
+                                        projectPath: projectPath,
+                                        name: "TargetA"
+                                    )
+                                ),
+                            ],
+                            isDefault: true
+                        ),
+                    ]
+                )
+            )
+        ]
+
+        let graph: Graph = .test(
+            workspace: .test(
+                schemes: [
+                    Scheme.test(name: "App-Workspace"),
+                ]
+            ),
+            projects: [
+                projectPath: .test(
+                    path: projectPath,
+                    targets: [
+                        .test(
+                            name: "TargetA",
+                            bundleId: "io.tuist.TargetA"
+                        ),
+                        .test(
+                            name: "TargetB",
+                            bundleId: "io.tuist.TargetB"
+                        ),
+                    ],
+                    schemes: projectTestableSchemes
+                ),
+            ]
+        )
+
+        var environment = MapperEnvironment()
+        environment.targetCacheItems = [
+            projectPath: [
+                "a": CacheItem.test(
+                    name: "A"
+                ),
+                "b": CacheItem.test(
+                    name: "B"
+                ),
+            ],
+        ]
+        environment.initialGraph = graph
+        environment.targetTestHashes = [
+            projectPath: [
+                "TargetA": "hash-a",
+                "TargetB": "hash-b",
+            ],
+        ]
+        given(generator)
+            .generateWithGraph(path: .any)
+            .willProduce { path in
+                (
+                    path,
+                    graph,
+                    environment
+                )
+            }
+
+        given(buildGraphInspector)
+            .testableSchemes(graphTraverser: .any)
+            .willReturn(projectTestableSchemes)
+        given(buildGraphInspector)
+            .testableTarget(
+                scheme: .any,
+                testPlan: .value(testPlan),
+                testTargets: .any,
+                skipTestTargets: .any,
+                graphTraverser: .any
+            )
+            .willProduce { scheme, _, _, _, _ in
+                GraphTarget.test(
+                    target: Target.test(
+                        name: scheme.name
+                    )
+                )
+            }
+        given(buildGraphInspector)
+            .workspaceSchemes(graphTraverser: .any)
+            .willReturn([])
+
+        // When
+        try await testRun(
+            schemeName: "TestScheme",
+            path: try temporaryPath(),
+            testPlanConfiguration: TestPlanConfiguration(testPlan: testPlan)
+        )
+
+        // Then
+        XCTAssertEqual(testedSchemes, ["TestScheme"])
+        verify(cacheStorage)
+            .store(
+                .value(
+                    [
+                        CacheStorableItem(name: "TargetA", hash: "hash-a"): [],
+                    ]
+                ),
+                cacheCategory: .value(.selectiveTests)
+            )
+            .called(1)
+        verify(analyticsDelegate)
+            .selectiveTestsAnalytics(
+                newValue: .value(
+                    SelectiveTestsAnalytics(
+                        testTargets: ["TargetA"],
+                        localTestTargetHits: [],
+                        remoteTestTargetHits: []
+                    )
+                )
+            )
+            .setCalled(1)
+        verify(analyticsDelegate)
+            .cacheItems()
+            .setCalled(1)
+    }
 
     func test_run_test_plan_failure() async throws {
         // Given

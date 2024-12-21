@@ -360,7 +360,7 @@ final class TestService { // swiftlint:disable:this type_body_length
         let graphTraverser = GraphTraverser(graph: graph)
         let testSchemes = schemes
             .filter {
-                $0.testAction.map { !$0.targets.isEmpty } ?? false
+                $0.testAction.map { !$0.targets.isEmpty } ?? false || !self.testActionTargets(for: $0, testPlanConfiguration: testPlanConfiguration, graph: graph).isEmpty
             }
 
         guard shouldRunTest(
@@ -486,7 +486,7 @@ final class TestService { // swiftlint:disable:this type_body_length
 
         let testSchemes = schemes
             .filter {
-                $0.testAction.map { !$0.targets.isEmpty } ?? false
+                $0.testAction.map { !$0.targets.isEmpty } ?? false || !self.testActionTargets(for: $0, testPlanConfiguration: testPlanConfiguration, graph: graph).isEmpty
             }
 
         if testSchemes.isEmpty {
@@ -526,25 +526,32 @@ final class TestService { // swiftlint:disable:this type_body_length
         testPlanConfiguration: TestPlanConfiguration?,
         graph: Graph
     ) -> [GraphTarget] {
-        return schemes
-            .flatMap {
-                if let testPlanConfiguration {
-                    return $0.testAction?.testPlans?
-                        .first(
-                            where: { $0.name == testPlanConfiguration.testPlan }
-                        )?.testTargets.map(\.target) ?? []
-                } else {
-                    return $0.testAction?.targets.map(\.target) ?? []
-                }
+        return schemes.flatMap { testActionTargets(for: $0, testPlanConfiguration: testPlanConfiguration, graph: graph) }
+    }
+    
+    private func testActionTargets(
+        for scheme: Scheme,
+        testPlanConfiguration: TestPlanConfiguration?,
+        graph: Graph
+    ) -> [GraphTarget] {
+        let targets =
+        if let testPlanConfiguration {
+            scheme.testAction?.testPlans?
+                .first(
+                    where: { $0.name == testPlanConfiguration.testPlan }
+                )?.testTargets.map(\.target) ?? []
+        } else {
+            scheme.testAction?.targets.map(\.target) ?? []
+        }
+        
+        return targets.compactMap {
+            guard let project = graph.projects[$0.projectPath],
+                  let target = project.targets[$0.name]
+            else {
+                return nil
             }
-            .compactMap {
-                guard let project = graph.projects[$0.projectPath],
-                      let target = project.targets[$0.name]
-                else {
-                    return nil
-                }
-                return GraphTarget(path: project.path, target: target, project: project)
-            }
+            return GraphTarget(path: project.path, target: target, project: project)
+        }
     }
 
     private func storeSuccessfulTestHashes(
