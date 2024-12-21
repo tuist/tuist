@@ -7,7 +7,7 @@ description: Узнайте, как объявлять зависимости в
 # Зависимости {#dependencies}
 
 Когда проект растет, обычная практика – разделить проект на несколько модулей, чтобы переиспользовать код, определить границы и улучшить время сборки.
-Multiple targets means defining dependencies between them forming a **dependency graph**, which might include external dependencies as well.
+Многомодульность означает определение зависимостей между ними, формируя **граф зависимостей**, который также может включать и внешние зависимости.
 
 ## XcodeProj-codified graphs {#xcodeprojcodified-graphs}
 
