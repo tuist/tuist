@@ -1641,7 +1641,7 @@ final class TestServiceTests: TuistUnitTestCase {
             .cacheItems()
             .setCalled(1)
     }
-    
+
     func test_run_test_plan_with_no_explicit_targets() async throws {
         // Given
         givenGenerator()
@@ -1668,7 +1668,7 @@ final class TestServiceTests: TuistUnitTestCase {
                         ),
                     ]
                 )
-            )
+            ),
         ]
 
         let graph: Graph = .test(
