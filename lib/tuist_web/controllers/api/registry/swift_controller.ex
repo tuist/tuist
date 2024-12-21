@@ -116,13 +116,17 @@ defmodule TuistWeb.API.Registry.SwiftController do
 
     swift_version = opts["swift-version"]
 
-    object_key = "registry/swift/#{scope}/#{name}/#{version}" |> String.downcase()
-
     object_key =
       if is_nil(swift_version) do
-        object_key <> "/Package.swift"
+        Packages.package_object_key(%{scope: scope, name: name},
+          version: version,
+          path: "Package.swift"
+        )
       else
-        object_key <> "/Package@swift-#{swift_version}.swift"
+        Packages.package_object_key(%{scope: scope, name: name},
+          version: version,
+          path: "Package@swift-#{swift_version}.swift"
+        )
       end
 
     if not is_nil(package_release) and Storage.object_exists?(object_key) do
@@ -195,7 +199,10 @@ defmodule TuistWeb.API.Registry.SwiftController do
 
   def download_release(conn, %{"scope" => scope, "name" => name, "version" => version}) do
     object_key =
-      "registry/swift/#{scope}/#{name}/#{version}/source_archive.zip" |> String.downcase()
+      Packages.package_object_key(%{scope: scope, name: name},
+        version: version,
+        path: "source_archive.zip"
+      )
 
     if Storage.object_exists?(object_key) do
       conn

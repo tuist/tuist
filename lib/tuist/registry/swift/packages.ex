@@ -110,7 +110,12 @@ defmodule Tuist.Registry.Swift.Packages do
 
     {:ok, {_, data}} = Zip.create("source_archive.zip", file_list, [:memory])
 
-    object_key = "registry/swift/#{scope}/#{name}/#{semantic_version(version)}/source_archive.zip"
+    object_key =
+      package_object_key(%{scope: scope, name: name},
+        version: version,
+        path: "source_archive.zip"
+      )
+
     Storage.put_object(object_key, data)
 
     checksum =
@@ -217,7 +222,7 @@ defmodule Tuist.Registry.Swift.Packages do
       )
 
     Storage.put_object(
-      "registry/swift/#{scope}/#{name}/#{version}/#{path}",
+      package_object_key(%{scope: scope, name: name}, version: version, path: path),
       package_manifest_content
       |> replace_package_by_name_references_with_product_in_package_manifest()
     )
@@ -278,7 +283,7 @@ defmodule Tuist.Registry.Swift.Packages do
 
   def package_manifest_as_string(%{scope: scope, name: name, version: version}) do
     object_key =
-      "registry/swift/#{scope}/#{name}/#{version}/Package.swift"
+      package_object_key(%{scope: scope, name: name}, version: version, path: "Package.swift")
 
     if Storage.object_exists?(object_key) do
       package_manifest =
@@ -302,6 +307,25 @@ defmodule Tuist.Registry.Swift.Packages do
       {:ok, package_manifest}
     else
       {:error, :not_found}
+    end
+  end
+
+  def package_object_key(%{scope: scope, name: name}, opts \\ []) do
+    version = Keyword.get(opts, :version, nil)
+    path = Keyword.get(opts, :path, nil)
+    object_key = "registry/swift/#{scope}/#{name}" |> String.downcase()
+
+    object_key =
+      if is_nil(version) do
+        object_key
+      else
+        object_key <> "/#{semantic_version(version)}"
+      end
+
+    if is_nil(path) do
+      object_key
+    else
+      object_key <> "/#{path}"
     end
   end
 end

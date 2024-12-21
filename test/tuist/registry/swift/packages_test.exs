@@ -66,10 +66,10 @@ defmodule Tuist.Registry.Swift.PackagesTest do
 
       Storage
       |> stub(:put_object, fn
-        "registry/swift/Alamofire/Alamofire/5.10.2/Package.swift", _ -> :ok
-        "registry/swift/Alamofire/Alamofire/5.10.2/source_archive.zip", _ -> :ok
-        "registry/swift/Alamofire/Alamofire/5.10.0/Package.swift", _ -> :ok
-        "registry/swift/Alamofire/Alamofire/5.10.0/source_archive.zip", _ -> :ok
+        "registry/swift/alamofire/alamofire/5.10.2/Package.swift", _ -> :ok
+        "registry/swift/alamofire/alamofire/5.10.2/source_archive.zip", _ -> :ok
+        "registry/swift/alamofire/alamofire/5.10.0/Package.swift", _ -> :ok
+        "registry/swift/alamofire/alamofire/5.10.0/source_archive.zip", _ -> :ok
       end)
 
       VCS
@@ -150,8 +150,8 @@ defmodule Tuist.Registry.Swift.PackagesTest do
 
       Storage
       |> stub(:put_object, fn
-        "registry/swift/Alamofire/Alamofire/5.10.2/Package.swift", _ -> :ok
-        "registry/swift/Alamofire/Alamofire/5.10.2/source_archive.zip", _ -> :ok
+        "registry/swift/alamofire/alamofire/5.10.2/Package.swift", _ -> :ok
+        "registry/swift/alamofire/alamofire/5.10.2/source_archive.zip", _ -> :ok
       end)
 
       VCS
@@ -364,15 +364,15 @@ defmodule Tuist.Registry.Swift.PackagesTest do
 
       Storage
       |> stub(:put_object, fn
-        "registry/swift/Alamofire/Alamofire/5.10.2/Package.swift",
+        "registry/swift/alamofire/alamofire/5.10.2/Package.swift",
         ^expected_package_manifest_content ->
           :ok
 
-        "registry/swift/Alamofire/Alamofire/5.10.2/Package@swift-5.9.swift",
+        "registry/swift/alamofire/alamofire/5.10.2/Package@swift-5.9.swift",
         ^expected_package_manifest_content ->
           :ok
 
-        "registry/swift/Alamofire/Alamofire/5.10.2/source_archive.zip", _ ->
+        "registry/swift/alamofire/alamofire/5.10.2/source_archive.zip", _ ->
           :ok
       end)
 
@@ -430,11 +430,11 @@ defmodule Tuist.Registry.Swift.PackagesTest do
 
       Storage
       |> stub(:put_object, fn
-        "registry/swift/Alamofire/Alamofire/5.10.2/Package.swift", _ -> :ok
-        "registry/swift/Alamofire/Alamofire/5.10.2/Package@swift-5.swift", _ -> :ok
-        "registry/swift/Alamofire/Alamofire/5.10.2/Package@swift-5.8.swift", _ -> :ok
-        "registry/swift/Alamofire/Alamofire/5.10.2/Package@swift-5.7.2.swift", _ -> :ok
-        "registry/swift/Alamofire/Alamofire/5.10.2/source_archive.zip", _ -> :ok
+        "registry/swift/alamofire/alamofire/5.10.2/Package.swift", _ -> :ok
+        "registry/swift/alamofire/alamofire/5.10.2/Package@swift-5.swift", _ -> :ok
+        "registry/swift/alamofire/alamofire/5.10.2/Package@swift-5.8.swift", _ -> :ok
+        "registry/swift/alamofire/alamofire/5.10.2/Package@swift-5.7.2.swift", _ -> :ok
+        "registry/swift/alamofire/alamofire/5.10.2/source_archive.zip", _ -> :ok
       end)
 
       VCS
@@ -527,7 +527,7 @@ defmodule Tuist.Registry.Swift.PackagesTest do
 
       Storage
       |> stub(:put_object, fn
-        "registry/swift/My/Package/5.10.2/source_archive.zip", _ -> :ok
+        "registry/swift/my/package/5.10.2/source_archive.zip", _ -> :ok
       end)
 
       VCS
@@ -726,6 +726,42 @@ defmodule Tuist.Registry.Swift.PackagesTest do
                 """}
     end
   end
-end
 
-# targets:[\s\S]*dependencies:[\s\S]
+  describe "package_object_key/2" do
+    test "returns the object key for the package" do
+      # When
+      got = Packages.package_object_key(%{scope: "My", name: "Package"})
+
+      # Then
+      assert got == "registry/swift/my/package"
+    end
+
+    test "returns the object key for the package with version" do
+      # When
+      got = Packages.package_object_key(%{scope: "My", name: "Package"}, version: "5.10.1")
+
+      # Then
+      assert got == "registry/swift/my/package/5.10.1"
+    end
+
+    test "returns the object key for the package with path" do
+      # When
+      got = Packages.package_object_key(%{scope: "My", name: "Package"}, path: "Package.swift")
+
+      # Then
+      assert got == "registry/swift/my/package/Package.swift"
+    end
+
+    test "returns the object key for the package with version and path" do
+      # When
+      got =
+        Packages.package_object_key(%{scope: "My", name: "Package"},
+          version: "5.10.1",
+          path: "Package.swift"
+        )
+
+      # Then
+      assert got == "registry/swift/my/package/5.10.1/Package.swift"
+    end
+  end
+end
