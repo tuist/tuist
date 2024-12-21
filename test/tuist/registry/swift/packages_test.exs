@@ -183,6 +183,80 @@ defmodule Tuist.Registry.Swift.PackagesTest do
              ]
     end
 
+    test "creates missing package releases Package.swift includes references to binaries" do
+      # Given
+      package =
+        PackagesFixtures.package_fixture(
+          scope: "imgly",
+          name: "vesdk-ios-build"
+        )
+
+      Storage
+      |> stub(:put_object, fn
+        "registry/swift/imgly/vesdk-ios-build/5.10.2/Package.swift", _ -> :ok
+        "registry/swift/imgly/vesdk-ios-build/5.10.2/source_archive.zip", _ -> :ok
+      end)
+
+      VCS
+      |> stub(:get_tags, fn _ ->
+        [
+          %Tag{name: "5.10.2"}
+        ]
+      end)
+
+      package_manifest_content = """
+      // swift-tools-version:5.3
+      import PackageDescription
+
+      let package = Package(
+        name: "VideoEditorSDK",
+        platforms: [.iOS(.v9)],
+        products: [
+          .library(name: "ImglyKit", targets: ["ImglyKit"]),
+          .library(name: "VideoEditorSDK", targets: ["VideoEditorSDK"])
+        ],
+        targets: [
+          .binaryTarget(name: "ImglyKit", url: "https://github.com/imgly/vesdk-ios-build/releases/download/10.19.0/VideoEditorSDK.zip", checksum: "e6bd0d2047bba53096c7f09d6e121fb11a345c97028770a002747bc854cfa8b8"),
+          .binaryTarget(name: "VideoEditorSDK", url: "https://github.com/imgly/vesdk-ios-build/releases/download/10.19.0/VideoEditorSDK.zip", checksum: "e6bd0d2047bba53096c7f09d6e121fb11a345c97028770a002747bc854cfa8b8")
+        ]
+      )
+      """
+
+      VCS
+      |> stub(:get_source_archive_by_tag_and_repository_full_handle, fn _ ->
+        {:ok,
+         [
+           {~c"Package.swift", package_manifest_content}
+         ]}
+      end)
+
+      expected_files = [
+        {~c"Package.swift", package_manifest_content}
+      ]
+
+      Zip
+      |> stub(:create, fn name, file_list, _ ->
+        assert file_list == expected_files
+        {:ok, {name, <<>>}}
+      end)
+
+      VCS
+      |> stub(:get_repository_content, fn _, _ ->
+        {:ok, [%Content{path: "File.swift", content: "content"}]}
+      end)
+
+      Base64
+      |> stub(:decode, fn "content" -> "content" end)
+
+      # When
+      got = Packages.create_missing_package_releases(%{package: package, token: "github_token"})
+
+      # Then
+      assert got |> Enum.map(& &1.version) == [
+               "5.10.2"
+             ]
+    end
+
     test "creates missing package releases with fixed Package.swift manifests when package products are referenced by name" do
       # Given
       package =

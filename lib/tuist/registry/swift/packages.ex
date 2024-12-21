@@ -264,6 +264,7 @@ defmodule Tuist.Registry.Swift.Packages do
       Regex.scan(~r/url:\s*"([^"]+)"/, package_manifest)
       |> Enum.map(&List.last/1)
       |> Enum.map(&VCS.get_repository_full_handle_from_url/1)
+      |> Enum.filter(&(String.split(&1, "/") |> Enum.count() == 2))
       |> Enum.map(&get_package_scope_and_name_from_repository_full_handle/1)
 
     Enum.reduce(packages, package_manifest, fn package, package_manifest ->
