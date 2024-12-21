@@ -1,12 +1,12 @@
 ---
-title: Dependencies
-titleTemplate: :title · Projects · Develop · Guides · Tuist
-description: Learn how to declare dependencies in your Tuist project.
+title: Зависимости
+titleTemplate: :title · Проекты · Разработка · Руководства · Tuist
+description: Узнайте, как объявлять зависимости в вашем Tuist проекте.
 ---
 
-# Dependencies {#dependencies}
+# Зависимости {#dependencies}
 
-When a project grows, it's common to split it into multiple targets to share code, define boundaries, and improve build times.
+Когда проект растет, обычная практика – разделить проект на несколько модулей, чтобы переиспользовать код, определить границы и улучшить время сборки.
 Multiple targets means defining dependencies between them forming a **dependency graph**, which might include external dependencies as well.
 
 ## XcodeProj-codified graphs {#xcodeprojcodified-graphs}
