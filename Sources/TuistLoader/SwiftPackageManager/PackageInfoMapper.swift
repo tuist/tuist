@@ -215,7 +215,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                 }
             }
         // Include dependencies added as binary targets
-        let remoteXcframeworksPath = path.appending(components: ["artifacts", "tuist"])
+        let remoteXcframeworksPath = path.appending(components: ["artifacts", path.removingLastComponent().url.lastPathComponent.lowercased()])
         let remoteXcframeworks = try await fileSystem.glob(directory: remoteXcframeworksPath, include: ["**/*.xcframework"])
             .collect()
         for xcframework in remoteXcframeworks {
