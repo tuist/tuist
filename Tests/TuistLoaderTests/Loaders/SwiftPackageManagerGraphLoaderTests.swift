@@ -7,14 +7,14 @@ import XCTest
 @testable import TuistLoader
 
 final class SwiftPackageManagerGraphLoaderTests: TuistUnitTestCase {
-    private var swiftPackageManagerController: MockSwiftPackageManagerController!
+    private var swiftPackageManagerController: MockSwiftPackageManagerControlling!
     private var packageInfoMapper: MockPackageInfoMapping!
     private var manifestLoader: MockManifestLoading!
     private var subject: SwiftPackageManagerGraphLoader!
 
     override func setUp() {
         super.setUp()
-        swiftPackageManagerController = MockSwiftPackageManagerController()
+        swiftPackageManagerController = MockSwiftPackageManagerControlling()
         packageInfoMapper = MockPackageInfoMapping()
         manifestLoader = MockManifestLoading()
         subject = SwiftPackageManagerGraphLoader(

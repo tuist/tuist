@@ -126,7 +126,7 @@ final class BuildAcceptanceTestFrameworkWithSwiftMacroIntegratedWithStandardMeth
     func test_framework_with_swift_macro_integrated_with_standard_method() async throws {
         try await setUpFixture(.frameworkWithSwiftMacro)
         try await run(GenerateCommand.self)
-        try await run(BuildCommand.self, "Framework")
+        try await run(BuildCommand.self, "Framework", "--", "-skipMacroValidation")
     }
 }
 

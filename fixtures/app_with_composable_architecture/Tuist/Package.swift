@@ -8,7 +8,14 @@
         // Customize the product types for specific package product
         // Default is .staticFramework
         // productTypes: ["Alamofire": .framework,]
-        productTypes: [:]
+        productTypes: [:],
+        targetSettings: [
+            "SwiftNavigation": .settings(
+                base: [
+                    "OTHER_SWIFT_FLAGS": .array([]),
+                ]
+            ),
+        ]
     )
 #endif
 

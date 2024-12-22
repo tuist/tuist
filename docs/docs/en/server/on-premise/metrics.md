@@ -55,13 +55,43 @@ A set of metrics related to the Tuist Cache.
 
 ### `tuist_cache_events_total` (counter) {#tuist_cache_events_total-counter}
 
-The total number of Tuist Binary Cache events.
+The total number of binary cache events.
 
 #### Tags {#tuist-cache-events-total-tags}
 
 | Tag | Description |
 |--- | ---- |
 | `event_type` | Can be either of `local_hit`, `remote_hit`, or `miss`. |
+
+### `tuist_cache_uploads_total` (counter) {#tuist_cache_uploads_total-counter}
+
+The number of uploads to the binary cache.
+
+### `tuist_cache_uploaded_bytes` (sum) {#tuist_cache_uploaded_bytes-sum}
+
+The number of bytes uploaded to the binary cache.
+
+### `tuist_cache_downloads_total` (counter) {#tuist_cache_downloads_total-counter}
+
+The number of downloads to the binary cache.
+
+### `tuist_cache_downloaded_bytes` (sum) {#tuist_cache_downloaded_bytes-sum}
+
+The number of bytes downloaded from the binary cache.
+
+---
+
+## Previews metrics {#previews-metrics}
+
+A set of metrics related to the previews feature.
+
+### `tuist_previews_uploads_total` (sum) {#tuist_previews_uploads_total-counter}
+
+The total number of previews uploaded.
+
+### `tuist_previews_downloads_total` (sum) {#tuist_previews_downloads_total-counter}
+
+The total number of previews downloaded.
 
 ---
 
@@ -255,3 +285,27 @@ The total number of times an upload was completed to the remote storage.
 |--- | ---- |
 | `object_key` | The lookup key of the object in the remote storage. |
 | `upload_id` | The upload ID of the multipart upload. |
+
+---
+
+## Projects metrics {#projects-metrics}
+
+A set of metrics related to the projects.
+
+### `tuist_projects_total` (last_value) {#tuist_projects_total-last_value}
+
+The total number of projects.
+
+---
+
+## Accounts metrics {#accounts-metrics}
+
+A set of metrics related to accounts (users and organizations).
+
+### `tuist_accounts_organizations_total` (last_value) {#tuist_accounts_organizations_total-last_value}
+
+The total number of organizations.
+
+### `tuist_accounts_users_total` (last_value) {#tuist_accounts_users_total-last_value}
+
+The total number of users.

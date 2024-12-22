@@ -16,7 +16,7 @@ import XCTest
 final class InstallServiceTests: TuistUnitTestCase {
     private var pluginService: MockPluginService!
     private var configLoader: MockConfigLoading!
-    private var swiftPackageManagerController: MockSwiftPackageManagerController!
+    private var swiftPackageManagerController: MockSwiftPackageManagerControlling!
     private var manifestFilesLocator: MockManifestFilesLocating!
 
     private var subject: InstallService!
@@ -26,7 +26,7 @@ final class InstallServiceTests: TuistUnitTestCase {
 
         pluginService = MockPluginService()
         configLoader = MockConfigLoading()
-        swiftPackageManagerController = MockSwiftPackageManagerController()
+        swiftPackageManagerController = MockSwiftPackageManagerControlling()
         manifestFilesLocator = MockManifestFilesLocating()
 
         subject = InstallService(
@@ -56,6 +56,9 @@ final class InstallServiceTests: TuistUnitTestCase {
         given(manifestFilesLocator)
             .locatePackageManifest(at: .any)
             .willReturn(stubbedPath.appending(components: "Tuist", "Package.swift"))
+        given(swiftPackageManagerController)
+            .update(at: .any, arguments: .any, printOutput: .any)
+            .willReturn()
 
         let stubbedSwiftVersion = TSCUtility.Version(5, 3, 0)
         given(configLoader)
@@ -88,8 +91,12 @@ final class InstallServiceTests: TuistUnitTestCase {
         let savedPackageResolvedContents = try fileHandler.readTextFile(savedPackageResolvedPath)
 
         // Then
-        XCTAssertTrue(swiftPackageManagerController.invokedUpdate)
-        XCTAssertFalse(swiftPackageManagerController.invokedResolve)
+        verify(swiftPackageManagerController)
+            .update(at: .any, arguments: .any, printOutput: .any)
+            .called(1)
+        verify(swiftPackageManagerController)
+            .resolve(at: .any, arguments: .any, printOutput: .any)
+            .called(0)
         XCTAssertEqual(savedPackageResolvedContents, "resolved")
     }
 
@@ -130,6 +137,9 @@ final class InstallServiceTests: TuistUnitTestCase {
         given(manifestFilesLocator)
             .locatePackageManifest(at: .any)
             .willReturn(stubbedPath.appending(components: "Tuist", "Package.swift"))
+        given(swiftPackageManagerController)
+            .resolve(at: .any, arguments: .any, printOutput: .any)
+            .willReturn()
 
         let stubbedSwiftVersion = TSCUtility.Version(5, 3, 0)
         given(configLoader)
@@ -160,8 +170,12 @@ final class InstallServiceTests: TuistUnitTestCase {
         let savedPackageResolvedContents = try fileHandler.readTextFile(savedPackageResolvedPath)
 
         // Then
-        XCTAssertTrue(swiftPackageManagerController.invokedResolve)
-        XCTAssertFalse(swiftPackageManagerController.invokedUpdate)
+        verify(swiftPackageManagerController)
+            .update(at: .any, arguments: .any, printOutput: .any)
+            .called(0)
+        verify(swiftPackageManagerController)
+            .resolve(at: .any, arguments: .any, printOutput: .any)
+            .called(1)
         XCTAssertEqual(savedPackageResolvedContents, "resolved")
     }
 
@@ -179,6 +193,9 @@ final class InstallServiceTests: TuistUnitTestCase {
         given(manifestFilesLocator)
             .locatePackageManifest(at: .any)
             .willReturn(expectedFoundPackageLocation)
+        given(swiftPackageManagerController)
+            .resolve(at: .any, arguments: .any, printOutput: .any)
+            .willReturn()
 
         // Dependencies.swift in root
         try fileHandler.touch(expectedFoundPackageLocation)
@@ -235,10 +252,9 @@ final class InstallServiceTests: TuistUnitTestCase {
             )
         )
 
-        var swiftPackageManagerControllerResolveArguments: [String]?
-        swiftPackageManagerController.resolveStub = { _, arguments, _ in
-            swiftPackageManagerControllerResolveArguments = arguments
-        }
+        given(swiftPackageManagerController)
+            .resolve(at: .any, arguments: .any, printOutput: .any)
+            .willReturn()
 
         // When
         try await subject.run(
@@ -247,9 +263,12 @@ final class InstallServiceTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertTrue(swiftPackageManagerController.invokedResolve)
-        XCTAssertEqual(swiftPackageManagerControllerResolveArguments, ["--replace-scm-with-registry"])
-        XCTAssertFalse(swiftPackageManagerController.invokedUpdate)
+        verify(swiftPackageManagerController)
+            .resolve(at: .any, arguments: .any, printOutput: .any)
+            .called(1)
+        verify(swiftPackageManagerController)
+            .resolve(at: .any, arguments: .value(["--replace-scm-with-registry"]), printOutput: .any)
+            .called(1)
     }
 
     func test_update_with_spm_arguments_from_config() async throws {
@@ -282,10 +301,9 @@ final class InstallServiceTests: TuistUnitTestCase {
             )
         )
 
-        var swiftPackageManagerControllerUpdateArguments: [String]?
-        swiftPackageManagerController.updateStub = { _, arguments, _ in
-            swiftPackageManagerControllerUpdateArguments = arguments
-        }
+        given(swiftPackageManagerController)
+            .update(at: .any, arguments: .any, printOutput: .any)
+            .willReturn()
 
         // When
         try await subject.run(
@@ -294,8 +312,11 @@ final class InstallServiceTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertTrue(swiftPackageManagerController.invokedUpdate)
-        XCTAssertEqual(swiftPackageManagerControllerUpdateArguments, ["--replace-scm-with-registry"])
-        XCTAssertFalse(swiftPackageManagerController.invokedResolve)
+        verify(swiftPackageManagerController)
+            .update(at: .any, arguments: .value(["--replace-scm-with-registry"]), printOutput: .any)
+            .called(1)
+        verify(swiftPackageManagerController)
+            .resolve(at: .any, arguments: .any, printOutput: .any)
+            .called(0)
     }
 }

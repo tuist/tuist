@@ -148,7 +148,7 @@ export default defineConfig({
   titleTemplate: ":title | Tuist",
   description: "Scale your Xcode app development",
   srcDir: "docs",
-  lastUpdated: true,
+  lastUpdated: false,
   locales: {
     en: {
       label: "English",
@@ -291,6 +291,7 @@ export default defineConfig({
 /guides/dashboard/on-premise/install /server/on-premise/install 301
 /guides/dashboard/on-premise/metrics /server/on-premise/metrics 301
 /:locale/references/project-description/structs/config /:locale/references/project-description/structs/tuist  301
+/:locale/guides/develop/test/smart-runner /:locale/guides/develop/test/selective-testing 301
 /documentation/tuist/* / 301
 ${await fs.readFile(path.join(import.meta.dirname, "locale-redirects.txt"), {
   encoding: "utf-8",
@@ -411,8 +412,8 @@ ${await fs.readFile(path.join(import.meta.dirname, "locale-redirects.txt"), {
     },
     socialLinks: [
       { icon: "github", link: "https://github.com/tuist/tuist" },
-      { icon: "x", link: "https://x.com/tuistio" },
       { icon: "mastodon", link: "https://fosstodon.org/@tuist" },
+      { icon: "bluesky", link: "https://bsky.app/profile/tuist.dev" },
       {
         icon: "slack",
         link: "https://join.slack.com/t/tuistapp/shared_invite/zt-1y667mjbk-s2LTRX1YByb9EIITjdLcLw",

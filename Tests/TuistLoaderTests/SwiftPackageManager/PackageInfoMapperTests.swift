@@ -912,6 +912,9 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                                 // Not escaped
                                 "FOO3=3",
                             ],
+                            "OTHER_SWIFT_FLAGS": [
+                                "$(inherited)",
+                            ],
                         ]
                     ),
                 ]
@@ -1396,8 +1399,65 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                             "HEADER_SEARCH_PATHS": ["$(inherited)", "$(SRCROOT)/Sources/Target1/include"],
                             "DEFINES_MODULE": "NO",
                             "OTHER_CFLAGS": .array(["$(inherited)", "-fmodule-name=Target1"]),
+                            "OTHER_SWIFT_FLAGS": [
+                                "$(inherited)",
+                            ],
                         ],
                         moduleMap: "$(SRCROOT)/Sources/Target1/include/module.modulemap"
+                    ),
+                ]
+            )
+        )
+    }
+
+    func testMap_whenHasHeadersWithCustomModuleMapAndTargetWithDashes() async throws {
+        let basePath = try temporaryPath()
+        let headersPath = basePath.appending(try RelativePath(validating: "Package/Sources/target-with-dashes/include"))
+        let moduleMapPath = headersPath.appending(component: "module.modulemap")
+        let headerPath = headersPath.appending(component: "AnHeader.h")
+        try await fileSystem.makeDirectory(at: headersPath)
+        try fileHandler.write("", path: moduleMapPath, atomically: true)
+        try fileHandler.write("", path: headerPath, atomically: true)
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "target-with-dashes", type: .library(.automatic), targets: ["target-with-dashes"]),
+                    ],
+                    targets: [
+                        .test(
+                            name: "target-with-dashes"
+                        ),
+                    ],
+                    platforms: [.ios],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ]
+        )
+        XCTAssertBetterEqual(
+            project,
+            .testWithDefaultConfigs(
+                name: "Package",
+                targets: [
+                    .test(
+                        "target-with-dashes",
+                        basePath: basePath,
+                        customProductName: "target_with_dashes",
+                        customSettings: [
+                            "HEADER_SEARCH_PATHS": ["$(inherited)", "$(SRCROOT)/Sources/target-with-dashes/include"],
+                            "DEFINES_MODULE": "NO",
+                            "OTHER_CFLAGS": .array(["$(inherited)", "-fmodule-name=target_with_dashes"]),
+                            "OTHER_SWIFT_FLAGS": [
+                                "$(inherited)",
+                            ],
+                        ],
+                        moduleMap: "$(SRCROOT)/Sources/target-with-dashes/include/module.modulemap"
                     ),
                 ]
             )
@@ -1446,6 +1506,9 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         customSettings: [
                             "DEFINES_MODULE": "NO",
                             "OTHER_CFLAGS": .array(["$(inherited)", "-fmodule-name=Target1"]),
+                            "OTHER_SWIFT_FLAGS": [
+                                "$(inherited)",
+                            ],
                         ],
                         moduleMap: "$(SRCROOT)/Sources/Target1/module.modulemap"
                     ),
@@ -1533,6 +1596,9 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                             "MODULEMAP_FILE": .string("$(SRCROOT)/Derived/Target1.modulemap"),
                             "DEFINES_MODULE": "NO",
                             "OTHER_CFLAGS": .array(["$(inherited)", "-fmodule-name=Target1"]),
+                            "OTHER_SWIFT_FLAGS": [
+                                "$(inherited)",
+                            ],
                         ]
                     ),
                 ]
@@ -1598,6 +1664,9 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                             ],
                             "DEFINES_MODULE": "NO",
                             "OTHER_CFLAGS": .array(["$(inherited)", "-fmodule-name=Target1"]),
+                            "OTHER_SWIFT_FLAGS": [
+                                "$(inherited)",
+                            ],
                         ],
                         moduleMap: "$(SRCROOT)/Sources/Target1/include/module.modulemap"
                     ),
@@ -1612,6 +1681,9 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                             ],
                             "DEFINES_MODULE": "NO",
                             "OTHER_CFLAGS": .array(["$(inherited)", "-fmodule-name=Dependency1"]),
+                            "OTHER_SWIFT_FLAGS": [
+                                "$(inherited)",
+                            ],
                         ],
                         moduleMap: "$(SRCROOT)/Sources/Dependency1/include/module.modulemap"
                     ),
@@ -1625,6 +1697,9 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                             ],
                             "DEFINES_MODULE": "NO",
                             "OTHER_CFLAGS": .array(["$(inherited)", "-fmodule-name=Dependency2"]),
+                            "OTHER_SWIFT_FLAGS": [
+                                "$(inherited)",
+                            ],
                         ],
                         moduleMap: "$(SRCROOT)/Sources/Dependency2/include/module.modulemap"
                     ),
@@ -1717,6 +1792,9 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                             ],
                             "DEFINES_MODULE": "NO",
                             "OTHER_CFLAGS": .array(["$(inherited)", "-fmodule-name=Target1"]),
+                            "OTHER_SWIFT_FLAGS": [
+                                "$(inherited)",
+                            ],
                         ],
                         moduleMap: "$(SRCROOT)/Sources/Target1/include/module.modulemap"
                     ),
@@ -1791,6 +1869,9 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                             "HEADER_SEARCH_PATHS": ["$(inherited)", "$(SRCROOT)/Custom/Headers"],
                             "DEFINES_MODULE": "NO",
                             "OTHER_CFLAGS": .array(["$(inherited)", "-fmodule-name=Target1"]),
+                            "OTHER_SWIFT_FLAGS": [
+                                "$(inherited)",
+                            ],
                         ],
                         moduleMap: "$(SRCROOT)/Custom/Headers/module.modulemap"
                     ),
@@ -1851,6 +1932,9 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                             "HEADER_SEARCH_PATHS": ["$(inherited)", "$(SRCROOT)/Sources/Dependency1/include"],
                             "DEFINES_MODULE": "NO",
                             "OTHER_CFLAGS": .array(["$(inherited)", "-fmodule-name=Dependency1"]),
+                            "OTHER_SWIFT_FLAGS": [
+                                "$(inherited)",
+                            ],
                         ],
                         moduleMap: "$(SRCROOT)/Derived/Dependency1.modulemap"
                     ),
@@ -2004,11 +2088,16 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     .test(
                         "Target1",
                         basePath: basePath,
-                        customSettings: ["HEADER_SEARCH_PATHS": [
-                            "$(inherited)",
-                            "$(SRCROOT)/Sources/Target1/value",
-                            "\"$(SRCROOT)/Sources/Target1/White Space Folder/value\"",
-                        ]]
+                        customSettings: [
+                            "HEADER_SEARCH_PATHS": [
+                                "$(inherited)",
+                                "$(SRCROOT)/Sources/Target1/value",
+                                "\"$(SRCROOT)/Sources/Target1/White Space Folder/value\"",
+                            ],
+                            "OTHER_SWIFT_FLAGS": [
+                                "$(inherited)",
+                            ],
+                        ]
                     ),
                 ]
             )
@@ -2049,10 +2138,15 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     .test(
                         "Target1",
                         basePath: basePath,
-                        customSettings: ["HEADER_SEARCH_PATHS": [
-                            "$(inherited)",
-                            "$(SRCROOT)/Sources/Target1/value",
-                        ]]
+                        customSettings: [
+                            "HEADER_SEARCH_PATHS": [
+                                "$(inherited)",
+                                "$(SRCROOT)/Sources/Target1/value",
+                            ],
+                            "OTHER_SWIFT_FLAGS": [
+                                "$(inherited)",
+                            ],
+                        ]
                     ),
                 ]
             )
@@ -2097,7 +2191,12 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     .test(
                         "Target1",
                         basePath: basePath,
-                        customSettings: ["GCC_PREPROCESSOR_DEFINITIONS": ["$(inherited)", "key1=1", "key2=value", "key3="]]
+                        customSettings: [
+                            "GCC_PREPROCESSOR_DEFINITIONS": ["$(inherited)", "key1=1", "key2=value", "key3="],
+                            "OTHER_SWIFT_FLAGS": [
+                                "$(inherited)",
+                            ],
+                        ]
                     ),
                 ]
             )
@@ -2141,7 +2240,12 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     .test(
                         "Target1",
                         basePath: basePath,
-                        customSettings: ["GCC_PREPROCESSOR_DEFINITIONS": ["$(inherited)", "key1=1", "key2=value"]]
+                        customSettings: [
+                            "GCC_PREPROCESSOR_DEFINITIONS": ["$(inherited)", "key1=1", "key2=value"],
+                            "OTHER_SWIFT_FLAGS": [
+                                "$(inherited)",
+                            ],
+                        ]
                     ),
                 ]
             )
@@ -2186,6 +2290,9 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         basePath: basePath,
                         customSettings: [
                             "SWIFT_ACTIVE_COMPILATION_CONDITIONS": ["$(inherited)", "key"],
+                            "OTHER_SWIFT_FLAGS": [
+                                "$(inherited)",
+                            ],
                         ]
                     ),
                 ]
@@ -2230,7 +2337,12 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     .test(
                         "Target1",
                         basePath: basePath,
-                        customSettings: ["OTHER_CFLAGS": ["$(inherited)", "key1", "key2", "key3"]]
+                        customSettings: [
+                            "OTHER_CFLAGS": ["$(inherited)", "key1", "key2", "key3"],
+                            "OTHER_SWIFT_FLAGS": [
+                                "$(inherited)",
+                            ],
+                        ]
                     ),
                 ]
             )
@@ -2274,7 +2386,12 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     .test(
                         "Target1",
                         basePath: basePath,
-                        customSettings: ["OTHER_CPLUSPLUSFLAGS": ["$(inherited)", "key1", "key2", "key3"]]
+                        customSettings: [
+                            "OTHER_CPLUSPLUSFLAGS": ["$(inherited)", "key1", "key2", "key3"],
+                            "OTHER_SWIFT_FLAGS": [
+                                "$(inherited)",
+                            ],
+                        ]
                     ),
                 ]
             )
@@ -2492,7 +2609,12 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     .test(
                         "Target1",
                         basePath: basePath,
-                        customSettings: ["OTHER_LDFLAGS": ["$(inherited)", "key1", "key2", "key3"]]
+                        customSettings: [
+                            "OTHER_LDFLAGS": ["$(inherited)", "key1", "key2", "key3"],
+                            "OTHER_SWIFT_FLAGS": [
+                                "$(inherited)",
+                            ],
+                        ]
                     ),
                 ]
             )
@@ -2586,6 +2708,9 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         deploymentTargets: .iOS("12.0"),
                         customSettings: [
                             "OTHER_LDFLAGS": ["$(inherited)", "key1", "key2", "key3"],
+                            "OTHER_SWIFT_FLAGS": [
+                                "$(inherited)",
+                            ],
                         ]
                     ),
                 ]
@@ -2738,6 +2863,9 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                                 "$(inherited)",
                                 "$(SRCROOT)/Sources/Target1/value",
                                 "$(SRCROOT)/Sources/Target1/otherValue",
+                            ],
+                            "OTHER_SWIFT_FLAGS": [
+                                "$(inherited)",
                             ],
                         ]
                     ),
@@ -3510,7 +3638,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 targets: [
                     .test("RxSwift", basePath: basePath, product: .framework),
                 ] + testTargets.map {
-                    let customSettings: ProjectDescription.SettingsDictionary
+                    var customSettings: ProjectDescription.SettingsDictionary
                     var customProductName: String?
                     switch $0 {
                     case "Nimble":
@@ -3524,6 +3652,9 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     default:
                         customSettings = ["ENABLE_TESTING_SEARCH_PATHS": "YES"]
                     }
+                    customSettings["OTHER_SWIFT_FLAGS"] = [
+                        "$(inherited)",
+                    ]
 
                     return .test(
                         $0,
@@ -4112,7 +4243,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         dependencies: [
                             .target(name: "Package2Product", condition: nil),
                         ],
-                        customSettings: ["OTHER_SWIFT_FLAGS": ["-module-alias", "Product=Package2Product"]]
+                        customSettings: ["OTHER_SWIFT_FLAGS": ["$(inherited)", "-module-alias", "Product=Package2Product"]]
                     ),
                 ]
             )
@@ -4170,7 +4301,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         // Then
         XCTAssertBetterEqual(
             project?.targets.first?.settings?.base["OTHER_SWIFT_FLAGS"],
-            nil
+            ["$(inherited)"]
         )
     }
 
@@ -4338,7 +4469,7 @@ extension ProjectDescription.Project {
         Project.test(
             name: name,
             options: options,
-            settings: DependenciesGraph.spmProjectSettings(
+            settings: DependenciesGraph.swiftpmProjectSettings(
                 packageName: name,
                 baseSettings: settings,
                 with: customSettings
@@ -4374,7 +4505,9 @@ extension ProjectDescription.Target {
         headers: ProjectDescription.Headers? = nil,
         dependencies: [ProjectDescription.TargetDependency] = [],
         baseSettings: ProjectDescription.Settings = .settings(),
-        customSettings: ProjectDescription.SettingsDictionary = [:],
+        customSettings: ProjectDescription.SettingsDictionary = [
+            "OTHER_SWIFT_FLAGS": ["$(inherited)"],
+        ],
         moduleMap: String? = nil
     ) -> Self {
         let sources: SourceFilesList?
