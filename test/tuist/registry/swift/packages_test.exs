@@ -420,6 +420,216 @@ defmodule Tuist.Registry.Swift.PackagesTest do
              ]
     end
 
+    test "creates missing package releases when Package.swift manifest has header search paths" do
+      # Given
+      package =
+        PackagesFixtures.package_fixture(
+          scope: "pinterest",
+          name: "PINRemoteImage"
+        )
+
+      VCS
+      |> stub(:get_tags, fn _ ->
+        [
+          %Tag{name: "5.10.2"}
+        ]
+      end)
+
+      initial_package_manifest_content = """
+      // swift-tools-version:5.3
+      // The swift-tools-version declares the minimum version of Swift required to build this package.
+
+      import PackageDescription
+
+      let package = Package(
+          name: "PINRemoteImage",
+          dependencies: [
+              .package(url: "https://github.com/pinterest/PINCache.git", from: "3.0.2"),
+          ],
+          targets: [
+              .target(
+                  name: "PINRemoteImage",
+                  dependencies: ["PINCache"],
+                  path: "Source/Classes",
+                  publicHeadersPath: "include",
+                  cSettings: [
+                      .headerSearchPath("PINCache"),
+                      ]),
+          ]
+      )
+      """
+
+      expected_package_manifest_content = """
+      // swift-tools-version:5.3
+      // The swift-tools-version declares the minimum version of Swift required to build this package.
+
+      import PackageDescription
+
+      let package = Package(
+          name: "PINRemoteImage",
+          dependencies: [
+              .package(url: "https://github.com/pinterest/PINCache.git", from: "3.0.2"),
+          ],
+          targets: [
+              .target(
+                  name: "PINRemoteImage",
+                  dependencies: [.product(name: "PINCache", package: "PINCache")],
+                  path: "Source/Classes",
+                  publicHeadersPath: "include",
+                  cSettings: [
+                      .headerSearchPath("PINCache"),
+                      ]),
+          ]
+      )
+      """
+
+      Storage
+      |> stub(:put_object, fn
+        "registry/swift/pinterest/pinremoteimage/5.10.2/Package.swift", _ ->
+          :ok
+
+        "registry/swift/pinterest/pinremoteimage/5.10.2/source_archive.zip", _ ->
+          :ok
+      end)
+
+      VCS
+      |> stub(:get_source_archive_by_tag_and_repository_full_handle, fn _ ->
+        {:ok,
+         [
+           {~c"Package.swift", initial_package_manifest_content}
+         ]}
+      end)
+
+      expected_files = [
+        {~c"Package.swift", expected_package_manifest_content}
+      ]
+
+      Zip
+      |> stub(:create, fn name, file_list, _ ->
+        assert file_list == expected_files
+        {:ok, {name, <<>>}}
+      end)
+
+      VCS
+      |> stub(:get_repository_content, fn
+        _, [reference: _, path: "Package.swift"] ->
+          {:ok, %Content{content: "content", path: "Package.swift"}}
+
+        _, _ ->
+          {:ok, [%Content{path: "Package.swift"}]}
+      end)
+
+      # When
+      got = Packages.create_missing_package_releases(%{package: package, token: "github_token"})
+
+      # Then
+      assert got |> Enum.map(& &1.version) == [
+               "5.10.2"
+             ]
+    end
+
+    test "creates missing package releases when Package.swift manifest has .byName references" do
+      # Given
+      package =
+        PackagesFixtures.package_fixture(
+          scope: "pinterest",
+          name: "PINRemoteImage"
+        )
+
+      VCS
+      |> stub(:get_tags, fn _ ->
+        [
+          %Tag{name: "5.10.2"}
+        ]
+      end)
+
+      initial_package_manifest_content = """
+      // swift-tools-version:5.3
+      // The swift-tools-version declares the minimum version of Swift required to build this package.
+
+      import PackageDescription
+
+      let package = Package(
+          name: "PINRemoteImage",
+          dependencies: [
+              .package(url: "https://github.com/pinterest/PINCache.git", from: "3.0.2"),
+          ],
+          targets: [
+              .target(
+                  name: "PINRemoteImage",
+                  dependencies: [
+                    .byName(name: "PINCache"),
+                  ]
+          ]
+      )
+      """
+
+      expected_package_manifest_content = """
+      // swift-tools-version:5.3
+      // The swift-tools-version declares the minimum version of Swift required to build this package.
+
+      import PackageDescription
+
+      let package = Package(
+          name: "PINRemoteImage",
+          dependencies: [
+              .package(url: "https://github.com/pinterest/PINCache.git", from: "3.0.2"),
+          ],
+          targets: [
+              .target(
+                  name: "PINRemoteImage",
+                  dependencies: [
+                    .product(name: "PINCache", package: "PINCache"),
+                  ]
+          ]
+      )
+      """
+
+      Storage
+      |> stub(:put_object, fn
+        "registry/swift/pinterest/pinremoteimage/5.10.2/Package.swift", _ ->
+          :ok
+
+        "registry/swift/pinterest/pinremoteimage/5.10.2/source_archive.zip", _ ->
+          :ok
+      end)
+
+      VCS
+      |> stub(:get_source_archive_by_tag_and_repository_full_handle, fn _ ->
+        {:ok,
+         [
+           {~c"Package.swift", initial_package_manifest_content}
+         ]}
+      end)
+
+      expected_files = [
+        {~c"Package.swift", expected_package_manifest_content}
+      ]
+
+      Zip
+      |> stub(:create, fn name, file_list, _ ->
+        assert file_list == expected_files
+        {:ok, {name, <<>>}}
+      end)
+
+      VCS
+      |> stub(:get_repository_content, fn
+        _, [reference: _, path: "Package.swift"] ->
+          {:ok, %Content{content: "content", path: "Package.swift"}}
+
+        _, _ ->
+          {:ok, [%Content{path: "Package.swift"}]}
+      end)
+
+      # When
+      got = Packages.create_missing_package_releases(%{package: package, token: "github_token"})
+
+      # Then
+      assert got |> Enum.map(& &1.version) == [
+               "5.10.2"
+             ]
+    end
+
     test "creates missing package with Package.swift for specific Swift versions" do
       # Given
       package =
