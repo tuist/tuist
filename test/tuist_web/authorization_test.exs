@@ -1,15 +1,15 @@
 defmodule TuistWeb.AuthorizationTest do
-  alias Tuist.PreviewsFixtures
+  alias TuistTestSupport.Fixtures.PreviewsFixtures
   alias TuistWeb.Errors.NotFoundError
-  alias Tuist.CommandEventsFixtures
+  alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistWeb.Authorization
-  alias Tuist.ProjectsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias Tuist.Accounts
-  alias Tuist.AccountsFixtures
+  alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistWeb.Authentication
   use Gettext, backend: TuistWeb.Gettext
   alias TuistWeb.Errors.UnauthorizedError
-  use TuistWeb.ConnCase, async: true
+  use TuistTestSupport.Cases.ConnCase, async: true
 
   use Mimic
 

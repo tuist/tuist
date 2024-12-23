@@ -1,5 +1,5 @@
 defmodule TuistWeb.ErrorJSONTest do
-  use TuistWeb.ConnCase, async: true
+  use TuistTestSupport.Cases.ConnCase, async: true
 
   test "renders 404" do
     assert TuistWeb.ErrorJSON.render("404.json", %{}) == %{errors: %{detail: "Not Found"}}

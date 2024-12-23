@@ -1,4 +1,4 @@
-defmodule Tuist.DataCase do
+defmodule TuistTestSupport.Cases.DataCase do
   @moduledoc """
   This module defines the setup for tests requiring
   access to the application's data layer.
@@ -10,7 +10,7 @@ defmodule Tuist.DataCase do
   we enable the SQL sandbox, so changes done to the database
   are reverted at the end of every test. If you are using
   PostgreSQL, you can even run database tests asynchronously
-  by setting `use Tuist.DataCase, async: true`, although
+  by setting `use TuistTestSupport.Cases.DataCase, async: true`, although
   this option is not recommended for other databases.
   """
   use ExUnit.CaseTemplate
@@ -26,12 +26,13 @@ defmodule Tuist.DataCase do
       import Ecto
       import Ecto.Changeset
       import Ecto.Query
-      import Tuist.DataCase
+      import TuistTestSupport.Cases.DataCase
+      import TuistTestSupport.Utilities
     end
   end
 
   setup tags do
-    Tuist.DataCase.setup_sandbox(tags)
+    TuistTestSupport.Cases.DataCase.setup_sandbox(tags)
     :ok
   end
 

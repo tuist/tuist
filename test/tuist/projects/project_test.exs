@@ -1,8 +1,8 @@
 defmodule Tuist.ProjectTest do
-  alias Tuist.AccountsFixtures
-  alias Tuist.ProjectsFixtures
+  alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias Tuist.Projects.Project
-  use Tuist.DataCase
+  use TuistTestSupport.Cases.DataCase
 
   test "name cannot contain dots" do
     changeset =

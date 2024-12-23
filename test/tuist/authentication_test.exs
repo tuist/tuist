@@ -2,16 +2,15 @@ defmodule Tuist.AuthenticationTest do
   alias Tuist.Accounts
   alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Projects
-  alias Tuist.ProjectsFixtures
-  use Tuist.DataCase
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
+  use TuistTestSupport.Cases.DataCase
   alias Tuist.Authentication
-  alias Tuist.TestUtilities
-  alias Tuist.AccountsFixtures
+  alias TuistTestSupport.Fixtures.AccountsFixtures
   use Mimic
 
   test "authenticated_subject returns nil if the token associated subject doesn't exist" do
     # Given
-    token = TestUtilities.unique_integer() |> Integer.to_string()
+    token = unique_integer() |> Integer.to_string()
 
     # When
     result = Authentication.authenticated_subject(token)

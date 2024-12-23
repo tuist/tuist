@@ -1,4 +1,4 @@
-defmodule Tuist.TestCache do
+defmodule TuistTestSupport.Cache do
   @moduledoc ~S"""
   This module contains the [Nebulex](https://github.com/cabol/nebulex) configuration to disable
   caching for testing purposes.

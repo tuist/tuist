@@ -1,10 +1,10 @@
-defmodule Tuist.StubCase do
+defmodule TuistTestSupport.Cases.StubCase do
   @moduledoc ~S"""
   This module shares common setup for stubbing core services like the billing logic.
   """
-  alias TuistWeb.ConnCase
-  alias Tuist.ProjectsFixtures
-  alias Tuist.AccountsFixtures
+  alias TuistTestSupport.Cases.ConnCase
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistTestSupport.Fixtures.AccountsFixtures
   use ExUnit.CaseTemplate
 
   using options do

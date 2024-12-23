@@ -1,8 +1,8 @@
-defmodule Tuist.PreviewsFixtures do
+defmodule TuistTestSupport.Fixtures.PreviewsFixtures do
   @moduledoc false
 
   alias Tuist.Previews
-  alias Tuist.ProjectsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   def preview_fixture(opts \\ []) do
     project =

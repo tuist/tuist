@@ -1,10 +1,10 @@
 defmodule TuistWeb.UserLoginLiveTest do
-  use TuistWeb.ConnCase
-  use Tuist.LiveCase
+  use TuistTestSupport.Cases.ConnCase
+  use TuistTestSupport.Cases.LiveCase
   use Mimic
 
   import Phoenix.LiveViewTest
-  import Tuist.AccountsFixtures
+  import TuistTestSupport.Fixtures.AccountsFixtures
 
   describe "Log in page" do
     test "renders log in page", %{conn: conn} do

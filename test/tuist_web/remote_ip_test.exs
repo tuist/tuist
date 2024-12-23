@@ -1,5 +1,5 @@
 defmodule TuistWeb.RemoteIpTest do
-  use TuistWeb.ConnCase, async: true
+  use TuistTestSupport.Cases.ConnCase, async: true
 
   use Mimic
 

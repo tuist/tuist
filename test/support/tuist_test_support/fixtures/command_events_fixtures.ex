@@ -1,15 +1,14 @@
-defmodule Tuist.CommandEventsFixtures do
+defmodule TuistTestSupport.Fixtures.CommandEventsFixtures do
   @moduledoc """
   Fixtures for command events.
   """
-  alias Tuist.TestUtilities
   alias Tuist.CommandEvents
   alias Tuist.Time
 
   def command_event_fixture(attrs \\ []) do
     project_id =
       Keyword.get_lazy(attrs, :project_id, fn ->
-        Tuist.ProjectsFixtures.project_fixture().id
+        TuistTestSupport.Fixtures.ProjectsFixtures.project_fixture().id
       end)
 
     CommandEvents.create_command_event(%{
@@ -43,7 +42,7 @@ defmodule Tuist.CommandEventsFixtures do
   def test_case_fixture(attrs \\ []) do
     project_id =
       Keyword.get_lazy(attrs, :project_id, fn ->
-        Tuist.ProjectsFixtures.project_fixture().id
+        TuistTestSupport.Fixtures.ProjectsFixtures.project_fixture().id
       end)
 
     CommandEvents.create_test_case(
@@ -54,7 +53,7 @@ defmodule Tuist.CommandEventsFixtures do
           Keyword.get(
             attrs,
             :identifier,
-            "AppTests/testExample/#{TestUtilities.unique_integer()}"
+            "AppTests/testExample/#{TuistTestSupport.Utilities.unique_integer()}"
           ),
         project_identifier:
           Keyword.get(attrs, :project_identifier, "AppTests/AppTests.xcodeproj"),

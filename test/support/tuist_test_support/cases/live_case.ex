@@ -1,4 +1,4 @@
-defmodule Tuist.LiveCase do
+defmodule TuistTestSupport.Cases.LiveCase do
   @moduledoc ~S"""
   This module stubs some interactions with the outside world that happen from the root layouts.
   Without it, individual live view tests would need to stub it to prevent the real calls from happening.

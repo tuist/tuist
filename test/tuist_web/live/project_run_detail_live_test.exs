@@ -1,16 +1,16 @@
 defmodule TuistWeb.ProjectRunDetailLiveTest do
-  use TuistWeb.ConnCase, async: false
-  use Tuist.LiveCase
+  use TuistTestSupport.Cases.ConnCase, async: false
+  use TuistTestSupport.Cases.LiveCase
   use Mimic
 
   setup :set_mimic_from_context
 
   import Phoenix.LiveViewTest
-  alias Tuist.CommandEventsFixtures
+  alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias Tuist.Accounts
   alias Tuist.CommandEvents
-  alias Tuist.ProjectsFixtures
-  alias Tuist.AccountsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistTestSupport.Fixtures.AccountsFixtures
 
   setup %{conn: conn} do
     user = AccountsFixtures.user_fixture()

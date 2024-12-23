@@ -1,8 +1,8 @@
 defmodule TuistWeb.MarketingOrAppRedirectPlugTest do
-  alias Tuist.ProjectsFixtures
-  alias Tuist.AccountsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistTestSupport.Fixtures.AccountsFixtures
   use Plug.Test
-  use TuistWeb.ConnCase
+  use TuistTestSupport.Cases.ConnCase
   alias TuistWeb.MarketingOrAppRedirectPlug
   alias TuistWeb.Authentication
   use Mimic

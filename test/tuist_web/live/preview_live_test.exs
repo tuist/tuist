@@ -1,10 +1,10 @@
 defmodule TuistWeb.PreviewLiveTest do
   alias TuistWeb.Authentication
-  alias Tuist.CommandEventsFixtures
-  alias Tuist.PreviewsFixtures
-  use TuistWeb.ConnCase, async: false
-  use Tuist.LiveCase
-  use Tuist.StubCase, dashboard_project: true
+  alias TuistTestSupport.Fixtures.CommandEventsFixtures
+  alias TuistTestSupport.Fixtures.PreviewsFixtures
+  use TuistTestSupport.Cases.ConnCase, async: false
+  use TuistTestSupport.Cases.LiveCase
+  use TuistTestSupport.Cases.StubCase, dashboard_project: true
 
   import Phoenix.LiveViewTest
 

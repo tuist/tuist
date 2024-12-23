@@ -1,6 +1,6 @@
 defmodule Tuist.CacheActionItemsTest do
-  alias Tuist.ProjectsFixtures
-  use Tuist.DataCase, async: true
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
+  use TuistTestSupport.Cases.DataCase, async: true
 
   alias Tuist.CacheActionItems
   alias Tuist.Projects.Project

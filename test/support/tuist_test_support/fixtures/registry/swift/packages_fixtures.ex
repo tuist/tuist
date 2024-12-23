@@ -1,15 +1,14 @@
-defmodule Tuist.Registry.Swift.PackagesFixtures do
+defmodule TuistTestSupport.Fixtures.Registry.Swift.PackagesFixtures do
   @moduledoc false
 
-  import Tuist.TestUtilities
   alias Tuist.Registry.Swift.Packages.PackageManifest
   alias Tuist.Registry.Swift.Packages
   alias Tuist.Repo
   alias Tuist.Registry.Swift.Packages.PackageRelease
 
   def package_fixture(opts \\ []) do
-    scope = Keyword.get(opts, :scope, "#{unique_integer()}")
-    name = Keyword.get(opts, :name, "#{unique_integer()}")
+    scope = Keyword.get(opts, :scope, "#{TuistTestSupport.Utilities.unique_integer()}")
+    name = Keyword.get(opts, :name, "#{TuistTestSupport.Utilities.unique_integer()}")
     inserted_at = Keyword.get(opts, :inserted_at, DateTime.utc_now())
     updated_at = Keyword.get(opts, :updated_at, DateTime.utc_now())
     last_updated_releases_at = Keyword.get(opts, :last_updated_releases_at, DateTime.utc_now())
@@ -31,8 +30,8 @@ defmodule Tuist.Registry.Swift.PackagesFixtures do
         package_fixture().id
       end)
 
-    version = Keyword.get(opts, :version, "#{unique_integer()}")
-    checksum = Keyword.get(opts, :checksum, "#{unique_integer()}")
+    version = Keyword.get(opts, :version, "#{TuistTestSupport.Utilities.unique_integer()}")
+    checksum = Keyword.get(opts, :checksum, "#{TuistTestSupport.Utilities.unique_integer()}")
     inserted_at = Keyword.get(opts, :inserted_at, DateTime.utc_now())
 
     %PackageRelease{}

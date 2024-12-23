@@ -1,8 +1,8 @@
 defmodule TuistWeb.BillingControllerTest do
-  use TuistWeb.ConnCase
+  use TuistTestSupport.Cases.ConnCase
 
   alias Tuist.Billing
-  alias Tuist.AccountsFixtures
+  alias TuistTestSupport.Fixtures.AccountsFixtures
   alias Tuist.Accounts
   use Mimic
 

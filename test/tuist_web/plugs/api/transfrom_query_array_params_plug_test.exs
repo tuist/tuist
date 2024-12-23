@@ -1,6 +1,6 @@
 defmodule TuistWeb.API.TransformQueryArrayParamsPlugTest do
   alias TuistWeb.Plugs.API.TransformQueryArrayParamsPlug
-  use TuistWeb.ConnCase
+  use TuistTestSupport.Cases.ConnCase
   use Plug.Test
 
   test "updates query_params when there is only one element" do

@@ -1,5 +1,5 @@
 defmodule Tuist.DownloadControllerTest do
-  use TuistWeb.ConnCase, async: true
+  use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
 
   test "redirects to the browser_download_url", %{conn: conn} do

@@ -1,6 +1,6 @@
 defmodule Tuist.OrganizationTest do
   alias Tuist.Accounts.Organization
-  use Tuist.DataCase
+  use TuistTestSupport.Cases.DataCase
   use Mimic
 
   describe "create_changeset/2" do

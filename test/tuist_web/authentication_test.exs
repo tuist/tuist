@@ -1,13 +1,13 @@
 defmodule TuistWeb.AuthenticationTest do
-  use TuistWeb.ConnCase, async: true
+  use TuistTestSupport.Cases.ConnCase, async: true
 
-  alias Tuist.PreviewsFixtures
+  alias TuistTestSupport.Fixtures.PreviewsFixtures
   alias Tuist.Repo
-  alias Tuist.ProjectsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias Phoenix.LiveView
   alias Tuist.Accounts
   alias TuistWeb.Authentication
-  import Tuist.AccountsFixtures
+  import TuistTestSupport.Fixtures.AccountsFixtures
 
   @remember_me_cookie "_tuist_web_user_remember_me"
 

@@ -1,12 +1,12 @@
 defmodule TuistWeb.AccountBillingLiveTest do
-  use TuistWeb.ConnCase, async: true
-  use Tuist.LiveCase
+  use TuistTestSupport.Cases.ConnCase, async: true
+  use TuistTestSupport.Cases.LiveCase
   use Mimic
 
   import Phoenix.LiveViewTest
   alias Tuist.Billing
   alias Tuist.Accounts
-  alias Tuist.AccountsFixtures
+  alias TuistTestSupport.Fixtures.AccountsFixtures
 
   setup %{conn: conn} do
     user = AccountsFixtures.user_fixture()

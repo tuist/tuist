@@ -1,14 +1,14 @@
 defmodule TuistWeb.PreviewsControllerTest do
-  alias Tuist.CommandEventsFixtures
-  alias Tuist.PreviewsFixtures
+  alias TuistTestSupport.Fixtures.CommandEventsFixtures
+  alias TuistTestSupport.Fixtures.PreviewsFixtures
   alias Tuist.Previews.Preview
   alias Tuist.Repo
   alias TuistWeb.Authentication
   alias Tuist.Storage
-  alias Tuist.AccountsFixtures
+  alias TuistTestSupport.Fixtures.AccountsFixtures
   alias Tuist.Accounts
-  alias Tuist.ProjectsFixtures
-  use TuistWeb.ConnCase, async: false
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
+  use TuistTestSupport.Cases.ConnCase, async: false
   use Mimic
 
   setup do

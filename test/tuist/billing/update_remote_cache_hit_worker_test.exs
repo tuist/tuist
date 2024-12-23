@@ -1,10 +1,10 @@
 defmodule Tuist.Billing.UpdateRemoteCacheHitWorkerTest do
-  alias Tuist.ProjectsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias Tuist.Accounts.Account
-  alias Tuist.AccountsFixtures
-  alias Tuist.CommandEventsFixtures
+  alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias Tuist.Billing.UpdateRemoteCacheHitWorker
-  use Tuist.DataCase, async: true
+  use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
   test "updates the remote cache hit for accounts with subscriptions" do

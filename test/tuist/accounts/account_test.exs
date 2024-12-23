@@ -1,6 +1,6 @@
 defmodule Tuist.AccountTest do
   alias Tuist.Accounts.Account
-  use Tuist.DataCase
+  use TuistTestSupport.Cases.DataCase
   use Mimic
 
   test "account is created when customer_id is present and billing is enabled" do

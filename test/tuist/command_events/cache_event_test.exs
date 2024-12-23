@@ -1,6 +1,6 @@
 defmodule Tuist.CacheEventTest do
   alias Tuist.CommandEvents.CacheEvent
-  use Tuist.DataCase
+  use TuistTestSupport.Cases.DataCase
   use Mimic
 
   describe "create_changeset" do

@@ -1,12 +1,12 @@
 defmodule TuistWeb.PreviewsLiveTest do
-  alias Tuist.ProjectsFixtures
-  alias Tuist.AccountsFixtures
-  alias Tuist.CommandEventsFixtures
-  alias Tuist.PreviewsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.CommandEventsFixtures
+  alias TuistTestSupport.Fixtures.PreviewsFixtures
 
-  use TuistWeb.ConnCase, async: false
-  use Tuist.LiveCase
-  use Tuist.StubCase, dashboard_project: true
+  use TuistTestSupport.Cases.ConnCase, async: false
+  use TuistTestSupport.Cases.LiveCase
+  use TuistTestSupport.Cases.StubCase, dashboard_project: true
   use Mimic
 
   import Phoenix.LiveViewTest

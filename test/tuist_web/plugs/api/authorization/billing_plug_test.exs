@@ -2,10 +2,10 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
   alias Tuist.Billing
   alias Tuist.Billing.Subscription
   alias TuistWeb.API.Authorization.BillingPlug
-  alias Tuist.ProjectsFixtures
-  alias Tuist.AccountsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistWeb.API.EnsureProjectPresencePlug
-  use TuistWeb.ConnCase
+  use TuistTestSupport.Cases.ConnCase
   alias Tuist.Repo
   use Mimic
 

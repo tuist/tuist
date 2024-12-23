@@ -1,6 +1,6 @@
 defmodule TuistWeb.EnsureOnPremiseUsesRecentCLIVersionPlugTest do
   alias TuistWeb.EnsureOnPremiseUsesRecentCLIVersionPlug
-  use TuistWeb.ConnCase, async: true
+  use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
 
   test "returns the same connection if the environment is not on premise", %{conn: conn} do

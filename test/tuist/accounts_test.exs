@@ -1,15 +1,15 @@
 defmodule Tuist.AccountsTest do
   alias Tuist.Accounts.AccountToken
   alias Tuist.Base64
-  use Tuist.DataCase, async: false
-  use Tuist.StubCase, billing: true
+  use TuistTestSupport.Cases.DataCase, async: false
+  use TuistTestSupport.Cases.StubCase, billing: true
 
   alias Tuist.CommandEvents
-  alias Tuist.CommandEventsFixtures
+  alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias Tuist.Projects
-  alias Tuist.ProjectsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias Tuist.Accounts
-  alias Tuist.AccountsFixtures
+  alias TuistTestSupport.Fixtures.AccountsFixtures
   alias Tuist.Environment
 
   use Mimic
@@ -598,7 +598,7 @@ defmodule Tuist.AccountsTest do
     assert organization.id == hd(got).organization.id
   end
 
-  import Tuist.AccountsFixtures
+  import TuistTestSupport.Fixtures.AccountsFixtures
   alias Tuist.Accounts.{User, UserToken}
 
   describe "get_user_by_email/1" do
@@ -1008,7 +1008,7 @@ defmodule Tuist.AccountsTest do
     test "create a user lowercasing the email" do
       # Given
       Environment |> stub(:on_premise?, fn -> false end)
-      email = "#{Tuist.TestUtilities.unique_integer()}@TUIST.io"
+      email = "#{unique_integer()}@TUIST.io"
 
       # When
       {:ok, user} = Accounts.create_user(email, password: valid_user_password())

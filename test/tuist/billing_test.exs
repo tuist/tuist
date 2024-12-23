@@ -1,5 +1,5 @@
 defmodule Tuist.BillingTest do
-  alias Tuist.BillingFixtures
+  alias TuistTestSupport.Fixtures.BillingFixtures
   alias Tuist.Billing.PaymentMethod
   alias Tuist.Billing.Card
   alias Tuist.Billing.Customer
@@ -7,8 +7,8 @@ defmodule Tuist.BillingTest do
   alias Tuist.Accounts
   alias Tuist.Accounts.Account
   alias Tuist.Billing
-  alias Tuist.AccountsFixtures
-  use Tuist.DataCase
+  alias TuistTestSupport.Fixtures.AccountsFixtures
+  use TuistTestSupport.Cases.DataCase
   use Mimic
 
   setup do

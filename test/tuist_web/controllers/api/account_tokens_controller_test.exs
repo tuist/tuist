@@ -1,8 +1,8 @@
 defmodule TuistWeb.API.AccountTokensControllerTest do
-  use TuistWeb.ConnCase, async: true
+  use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
   alias Tuist.Accounts
-  alias Tuist.AccountsFixtures
+  alias TuistTestSupport.Fixtures.AccountsFixtures
 
   describe "POST /accounts/:account_handle/tokens" do
     test "returns new account token for the given user", %{conn: conn} do

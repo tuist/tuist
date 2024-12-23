@@ -1,14 +1,13 @@
 defmodule TuistWeb.RunsControllerTest do
-  use TuistWeb.ConnCase, async: true
+  use TuistTestSupport.Cases.ConnCase, async: true
 
-  alias Tuist.ProjectsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias Tuist.Repo
   alias Tuist.Storage
   alias TuistWeb.Errors.UnauthorizedError
-  alias Tuist.TestUtilities
   alias TuistWeb.Errors.NotFoundError
-  alias Tuist.CommandEventsFixtures
-  alias Tuist.AccountsFixtures
+  alias TuistTestSupport.Fixtures.CommandEventsFixtures
+  alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistWeb.RunsController
   use Mimic
 
@@ -45,7 +44,7 @@ defmodule TuistWeb.RunsControllerTest do
 
       assert_raise NotFoundError, fn ->
         RunsController.download(conn, %{
-          "id" => TestUtilities.unique_integer()
+          "id" => unique_integer()
         })
       end
     end

@@ -1,9 +1,9 @@
 defmodule Tuist.Accounts.Workers.UpdateAccountsCurrentMonthRemoteCacheHitsCountWorkerTest do
-  alias Tuist.CommandEventsFixtures
-  alias Tuist.ProjectsFixtures
-  alias Tuist.AccountsFixtures
+  alias TuistTestSupport.Fixtures.CommandEventsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistTestSupport.Fixtures.AccountsFixtures
   alias Tuist.Accounts.Workers.UpdateAccountsCurrentMonthRemoteCacheHitsCountWorker
-  use Tuist.DataCase
+  use TuistTestSupport.Cases.DataCase
   use Mimic
 
   setup do

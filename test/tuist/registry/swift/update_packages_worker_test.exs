@@ -1,12 +1,12 @@
 defmodule Tuist.Registry.Swift.Workers.UpdatePackagesWorkerTest do
   alias Tuist.VCS.Repositories.Content
   alias Tuist.VCS
-  use Tuist.DataCase, async: true
+  use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
   alias Tuist.Environment
   alias Tuist.Registry.Swift.Packages
-  alias Tuist.Registry.Swift.PackagesFixtures
+  alias TuistTestSupport.Fixtures.Registry.Swift.PackagesFixtures
   alias Tuist.Registry.Swift.Workers.UpdatePackagesWorker
   alias Tuist.Registry.Swift.Packages.Package
 

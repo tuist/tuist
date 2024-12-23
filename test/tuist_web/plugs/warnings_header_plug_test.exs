@@ -1,5 +1,5 @@
 defmodule TuistWeb.WarningsHeaderPlugTest do
-  use TuistWeb.ConnCase, async: true
+  use TuistTestSupport.Cases.ConnCase, async: true
   use Plug.Test
   alias TuistWeb.WarningsHeaderPlug
   alias TuistWeb.Headers

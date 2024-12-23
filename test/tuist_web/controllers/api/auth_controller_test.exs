@@ -2,8 +2,8 @@ defmodule TuistWeb.API.AuthControllerTest do
   alias Tuist.Repo
   alias Tuist.Accounts.DeviceCode
   alias Tuist.Accounts
-  alias Tuist.AccountsFixtures
-  use TuistWeb.ConnCase, async: true
+  alias TuistTestSupport.Fixtures.AccountsFixtures
+  use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
 
   describe "GET /api/auth/device_code" do

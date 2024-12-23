@@ -3,10 +3,10 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlugTest do
   alias Tuist.Repo
   alias TuistWeb.API.Authorization.AuthorizationPlug
   alias Tuist.Accounts
-  alias Tuist.ProjectsFixtures
-  alias Tuist.AccountsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistWeb.API.EnsureProjectPresencePlug
-  use TuistWeb.ConnCase
+  use TuistTestSupport.Cases.ConnCase
 
   test "returns the connection when the authenticated account can read its registry" do
     # Given

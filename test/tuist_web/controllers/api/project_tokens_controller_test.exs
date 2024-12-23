@@ -1,9 +1,9 @@
 defmodule TuistWeb.API.ProjectTokensControllerTest do
-  use TuistWeb.ConnCase, async: true
+  use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
   alias Tuist.Projects
-  alias Tuist.ProjectsFixtures
-  alias Tuist.AccountsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistTestSupport.Fixtures.AccountsFixtures
 
   describe "POST /projects/:account_handle/:project_handle/tokens" do
     test "returns new project access token", %{conn: conn} do

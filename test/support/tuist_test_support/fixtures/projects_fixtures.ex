@@ -1,21 +1,20 @@
-defmodule Tuist.ProjectsFixtures do
+defmodule TuistTestSupport.Fixtures.ProjectsFixtures do
   @moduledoc false
 
-  import Tuist.TestUtilities
   alias Tuist.Repo
   alias Tuist.Projects
 
   def project_fixture(opts \\ []) do
     account_id =
       Keyword.get_lazy(opts, :account_id, fn ->
-        organization_id = Tuist.AccountsFixtures.organization_fixture().id
+        organization_id = TuistTestSupport.Fixtures.AccountsFixtures.organization_fixture().id
 
         Repo.get_by!(Tuist.Accounts.Account,
           organization_id: organization_id
         ).id
       end)
 
-    name = Keyword.get(opts, :name, "#{unique_integer()}")
+    name = Keyword.get(opts, :name, "#{TuistTestSupport.Utilities.unique_integer()}")
     created_at = Keyword.get(opts, :created_at, DateTime.utc_now())
     preload = Keyword.get(opts, :preload, [])
 

@@ -1,6 +1,6 @@
 defmodule TuistWeb.APIControllerTest do
-  use TuistWeb.ConnCase, async: true
-  alias Tuist.AccountsFixtures
+  use TuistTestSupport.Cases.ConnCase, async: true
+  alias TuistTestSupport.Fixtures.AccountsFixtures
   use Mimic
 
   setup do

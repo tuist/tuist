@@ -1,5 +1,5 @@
 defmodule TuistWeb.RateLimitTest do
-  use TuistWeb.ConnCase, async: true
+  use TuistTestSupport.Cases.ConnCase, async: true
 
   alias Tuist.Environment
   alias TuistWeb.RateLimit

@@ -1,7 +1,7 @@
 defmodule Tuist.Registry.Swift.Packages.PackageManifestTest do
-  alias Tuist.Registry.Swift.PackagesFixtures
+  alias TuistTestSupport.Fixtures.Registry.Swift.PackagesFixtures
   alias Tuist.Registry.Swift.Packages.PackageManifest
-  use Tuist.DataCase
+  use TuistTestSupport.Cases.DataCase
 
   describe "create_changeset/1" do
     test "ensures package_release_id is present" do

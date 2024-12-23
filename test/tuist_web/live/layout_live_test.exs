@@ -1,12 +1,12 @@
 defmodule TuistWeb.LayoutLiveTest do
-  use TuistWeb.ConnCase, async: true
-  use Tuist.LiveCase
+  use TuistTestSupport.Cases.ConnCase, async: true
+  use TuistTestSupport.Cases.LiveCase
   use Mimic
 
-  alias Tuist.ProjectsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistWeb.LayoutLive
   alias Tuist.Accounts
-  alias Tuist.AccountsFixtures
+  alias TuistTestSupport.Fixtures.AccountsFixtures
   alias Phoenix.LiveView
   use Mimic
   import Phoenix.LiveViewTest

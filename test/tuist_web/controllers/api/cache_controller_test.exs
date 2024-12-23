@@ -3,12 +3,12 @@ defmodule TuistWeb.API.CacheControllerTest do
   alias Tuist.CacheActionItems.CacheActionItem
   alias Tuist.Repo
   alias Tuist.CommandEvents
-  alias Tuist.AccountsFixtures
+  alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistWeb.Authentication
   alias Tuist.Accounts
-  alias Tuist.ProjectsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias Tuist.Storage
-  use TuistWeb.ConnCase, async: true
+  use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
 
   describe "GET /api/cache" do

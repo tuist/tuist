@@ -1,15 +1,15 @@
 defmodule Tuist.AuthorizationTest do
   alias Tuist.Accounts.AuthenticatedAccount
-  alias Tuist.CommandEventsFixtures
-  alias Tuist.PreviewsFixtures
-  alias Tuist.BillingFixtures
+  alias TuistTestSupport.Fixtures.CommandEventsFixtures
+  alias TuistTestSupport.Fixtures.PreviewsFixtures
+  alias TuistTestSupport.Fixtures.BillingFixtures
   alias Tuist.VCS
   alias Tuist.Accounts
-  alias Tuist.AccountsFixtures
+  alias TuistTestSupport.Fixtures.AccountsFixtures
   alias Tuist.Authorization
-  alias Tuist.ProjectsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias Tuist.Environment
-  use Tuist.DataCase
+  use TuistTestSupport.Cases.DataCase
   use Mimic
 
   test "can.update.account.billing when the subject is the same account being read and it's on-premise" do

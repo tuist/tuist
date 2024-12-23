@@ -1,6 +1,6 @@
 defmodule Tuist.CommandEvents.TestCaseTest do
   alias Tuist.CommandEvents.TestCase
-  use Tuist.DataCase
+  use TuistTestSupport.Cases.DataCase
   use Mimic
 
   describe "create_changeset" do

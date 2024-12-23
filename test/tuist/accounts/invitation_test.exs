@@ -1,7 +1,7 @@
 defmodule Tuist.InvitationTest do
-  alias Tuist.AccountsFixtures
+  alias TuistTestSupport.Fixtures.AccountsFixtures
   alias Tuist.Accounts.Invitation
-  use Tuist.DataCase
+  use TuistTestSupport.Cases.DataCase
   use Mimic
 
   describe "create_changeset" do

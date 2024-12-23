@@ -1,6 +1,6 @@
 defmodule TuistWeb.AuthControllerTest do
-  alias Tuist.AccountsFixtures
-  use TuistWeb.ConnCase, async: true
+  alias TuistTestSupport.Fixtures.AccountsFixtures
+  use TuistTestSupport.Cases.ConnCase, async: true
 
   describe "GET /auth/cli/:device_code" do
     test "redirects to log in when the user is not logged in", %{conn: conn} do

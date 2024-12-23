@@ -1,5 +1,5 @@
 defmodule TuistWeb.AuthenticationPlugTest do
-  use TuistWeb.ConnCase
+  use TuistTestSupport.Cases.ConnCase
   use Plug.Test
   use Mimic
   alias Tuist.Accounts
@@ -7,8 +7,8 @@ defmodule TuistWeb.AuthenticationPlugTest do
   alias TuistWeb.Headers
   alias Tuist.Projects
   alias TuistWeb.AuthenticationPlug
-  alias Tuist.AccountsFixtures
-  alias Tuist.ProjectsFixtures
+  alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   test "loads the authenticated account" do
     # Given

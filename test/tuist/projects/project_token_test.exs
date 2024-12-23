@@ -1,7 +1,7 @@
 defmodule Tuist.Projects.ProjectTokenTest do
-  alias Tuist.ProjectsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias Tuist.Projects.ProjectToken
-  use Tuist.DataCase
+  use TuistTestSupport.Cases.DataCase
 
   describe "create_changeset/1" do
     test "ensures a project_id is present" do

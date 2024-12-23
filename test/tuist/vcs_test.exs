@@ -1,8 +1,8 @@
 defmodule Tuist.VCSTest do
   use ExUnit.Case, async: false
-  use Tuist.StubCase, billing: true
-  alias Tuist.PreviewsFixtures
-  use Tuist.DataCase
+  use TuistTestSupport.Cases.StubCase, billing: true
+  alias TuistTestSupport.Fixtures.PreviewsFixtures
+  use TuistTestSupport.Cases.DataCase
   use Mimic
 
   alias Tuist.GitHub
@@ -10,8 +10,8 @@ defmodule Tuist.VCSTest do
   alias Tuist.VCS
   alias Tuist.VCS.Comment
   alias Tuist.Environment
-  alias Tuist.ProjectsFixtures
-  alias Tuist.CommandEventsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistTestSupport.Fixtures.CommandEventsFixtures
 
   @default_headers [
     {"Accept", "application/vnd.github.v3+json"},

@@ -1,11 +1,11 @@
 defmodule TuistWeb.API.ProjectsControllerTest do
-  use TuistWeb.ConnCase, async: true
-  use Tuist.StubCase, billing: true
+  use TuistTestSupport.Cases.ConnCase, async: true
+  use TuistTestSupport.Cases.StubCase, billing: true
 
   alias Tuist.VCS
   alias Tuist.GitHub
-  alias Tuist.ProjectsFixtures
-  alias Tuist.AccountsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistTestSupport.Fixtures.AccountsFixtures
   alias Tuist.Accounts
   alias Tuist.Projects
   alias TuistWeb.Authentication

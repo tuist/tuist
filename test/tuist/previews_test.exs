@@ -1,10 +1,10 @@
 defmodule Tuist.PreviewsTest do
-  alias Tuist.PreviewsFixtures
-  alias Tuist.CommandEventsFixtures
+  alias TuistTestSupport.Fixtures.PreviewsFixtures
+  alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias Tuist.Previews.Preview
   alias Tuist.Previews
-  alias Tuist.ProjectsFixtures
-  use Tuist.DataCase, async: true
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
+  use TuistTestSupport.Cases.DataCase, async: true
 
   describe "create_preview/1" do
     test "creates a bundle preview" do

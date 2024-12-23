@@ -1,10 +1,10 @@
 defmodule TuistWeb.UserConfirmationLiveTest do
-  use TuistWeb.ConnCase
-  use Tuist.LiveCase
+  use TuistTestSupport.Cases.ConnCase
+  use TuistTestSupport.Cases.LiveCase
   use Mimic
 
   import Phoenix.LiveViewTest
-  import Tuist.AccountsFixtures
+  import TuistTestSupport.Fixtures.AccountsFixtures
 
   alias Tuist.Accounts
   alias Tuist.Repo

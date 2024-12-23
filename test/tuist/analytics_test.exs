@@ -1,8 +1,8 @@
 defmodule Tuist.AnalyticsTest do
-  use Tuist.DataCase, async: true
+  use TuistTestSupport.Cases.DataCase, async: true
   import TelemetryTest
   alias Tuist.Analytics
-  alias Tuist.AccountsFixtures
+  alias TuistTestSupport.Fixtures.AccountsFixtures
   use Mimic
 
   setup [:telemetry_listen]

@@ -1,8 +1,8 @@
 defmodule TuistWeb.UserSessionControllerTest do
-  use TuistWeb.ConnCase, async: true
+  use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
 
-  import Tuist.AccountsFixtures
+  import TuistTestSupport.Fixtures.AccountsFixtures
 
   setup do
     %{user: user_fixture(preload: [:account])}

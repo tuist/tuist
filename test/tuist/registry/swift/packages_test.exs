@@ -7,8 +7,8 @@ defmodule Tuist.Registry.Swift.PackagesTest do
   alias Tuist.Storage
   alias Tuist.Repo
   alias Tuist.Registry.Swift.Packages
-  alias Tuist.Registry.Swift.PackagesFixtures
-  use Tuist.DataCase, async: true
+  alias TuistTestSupport.Fixtures.Registry.Swift.PackagesFixtures
+  use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
   describe "create_package/2" do

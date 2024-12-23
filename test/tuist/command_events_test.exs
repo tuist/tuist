@@ -1,19 +1,19 @@
 defmodule Tuist.CommandEventsTest do
-  alias Tuist.PreviewsFixtures
+  alias TuistTestSupport.Fixtures.PreviewsFixtures
   alias Tuist.CommandEvents.TestCaseRun
   alias Tuist.CommandEvents.TestCase
   alias Tuist.CommandEvents.TargetTestSummary
   alias Tuist.CommandEvents.ResultBundle.ActionTestMetadata
   alias Tuist.CommandEvents.TestSummary
-  alias Tuist.CommandEventsFixtures
+  alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias Tuist.Storage
-  alias Tuist.AccountsFixtures
+  alias TuistTestSupport.Fixtures.AccountsFixtures
   alias Tuist.Accounts
   alias Tuist.CommandEvents
-  alias Tuist.CommandEventsFixtures
-  alias Tuist.ProjectsFixtures
+  alias TuistTestSupport.Fixtures.CommandEventsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias Tuist.Time
-  use Tuist.DataCase
+  use TuistTestSupport.Cases.DataCase
   use Mimic
 
   describe "create_command_event/1" do

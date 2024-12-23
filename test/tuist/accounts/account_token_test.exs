@@ -1,7 +1,7 @@
 defmodule Tuist.Accounts.AccountTokenTest do
-  alias Tuist.AccountsFixtures
+  alias TuistTestSupport.Fixtures.AccountsFixtures
   alias Tuist.Accounts.AccountToken
-  use Tuist.DataCase
+  use TuistTestSupport.Cases.DataCase
 
   describe "create_changeset/1" do
     test "ensures an account_id is present" do

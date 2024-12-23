@@ -1,6 +1,6 @@
 defmodule TuistWeb.OnPremiseLicensePlugTest do
   alias TuistWeb.OnPremiseLicensePlug
-  use TuistWeb.ConnCase
+  use TuistTestSupport.Cases.ConnCase
   use Plug.Test
   use Mimic
 

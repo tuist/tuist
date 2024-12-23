@@ -1,5 +1,5 @@
 defmodule TuistWeb.RedirecToRunsPlugTest do
-  use TuistWeb.ConnCase, async: true
+  use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
   alias TuistWeb.RedirectToRunsPlug
 

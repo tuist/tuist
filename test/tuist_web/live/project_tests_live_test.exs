@@ -1,13 +1,13 @@
 # Temporarily disabled due to performance issues
 # defmodule TuistWeb.ProjectTestsLiveTest do
-#   use TuistWeb.ConnCase
-#   use Tuist.LiveCase
+#   use TuistTestSupport.Cases.ConnCase
+#   use TuistTestSupport.Cases.LiveCase
 #   use Mimic
 
 #   import Phoenix.LiveViewTest
-#   alias Tuist.CommandEventsFixtures
-#   alias Tuist.ProjectsFixtures
-#   alias Tuist.AccountsFixtures
+#   alias TuistTestSupport.Fixtures.CommandEventsFixtures
+#   alias TuistTestSupport.Fixtures.ProjectsFixtures
+#   alias TuistTestSupport.Fixtures.AccountsFixtures
 
 #   setup %{conn: conn} do
 #     user = AccountsFixtures.user_fixture()

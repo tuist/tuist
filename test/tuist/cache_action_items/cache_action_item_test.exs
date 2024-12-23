@@ -1,7 +1,7 @@
 defmodule Tuist.CacheActionItems.CacheActionItemTest do
-  alias Tuist.ProjectsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias Tuist.CacheActionItems.CacheActionItem
-  use Tuist.DataCase
+  use TuistTestSupport.Cases.DataCase
 
   describe "create_changeset/1" do
     test "with valid attributes" do

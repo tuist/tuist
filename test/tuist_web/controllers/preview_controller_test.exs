@@ -1,12 +1,12 @@
 defmodule TuistWeb.PreviewControllerTest do
-  use TuistWeb.ConnCase, async: true
+  use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
 
-  alias Tuist.CommandEventsFixtures
-  alias Tuist.PreviewsFixtures
+  alias TuistTestSupport.Fixtures.CommandEventsFixtures
+  alias TuistTestSupport.Fixtures.PreviewsFixtures
   alias Tuist.Storage
-  alias Tuist.ProjectsFixtures
-  alias Tuist.AccountsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistTestSupport.Fixtures.AccountsFixtures
 
   setup %{conn: conn} do
     user = AccountsFixtures.user_fixture(preload: [:account])

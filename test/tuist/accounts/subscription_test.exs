@@ -1,9 +1,8 @@
 defmodule Tuist.SubscriptionTest do
   alias Tuist.Accounts
-  alias Tuist.AccountsFixtures
-  alias Tuist.TestUtilities
+  alias TuistTestSupport.Fixtures.AccountsFixtures
   alias Tuist.Billing.Subscription
-  use Tuist.DataCase
+  use TuistTestSupport.Cases.DataCase
 
   describe "create_changeset/2" do
     test "plan is required" do
@@ -71,7 +70,7 @@ defmodule Tuist.SubscriptionTest do
     end
 
     test "subscription_id is unique" do
-      subscription_id = "#{TestUtilities.unique_integer()}"
+      subscription_id = "#{unique_integer()}"
 
       organization = AccountsFixtures.organization_fixture()
       account = Accounts.get_account_from_organization(organization)

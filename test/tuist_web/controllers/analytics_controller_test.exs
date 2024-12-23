@@ -1,18 +1,18 @@
 defmodule TuistWeb.AnalyticsControllerTest do
-  alias Tuist.PreviewsFixtures
+  alias TuistTestSupport.Fixtures.PreviewsFixtures
   alias Tuist.VCS
   alias Tuist.Environment
   alias Tuist.CommandEvents.TestCaseRun
   alias Tuist.Repo
   alias Tuist.Storage
-  alias Tuist.CommandEventsFixtures
+  alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias Tuist.CommandEvents
-  alias Tuist.ProjectsFixtures
-  alias Tuist.AccountsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistTestSupport.Fixtures.AccountsFixtures
   alias Tuist.Accounts
   alias TuistWeb.Authentication
   import Ecto.Query, only: [from: 2]
-  use TuistWeb.ConnCase, async: true
+  use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
 
   setup do

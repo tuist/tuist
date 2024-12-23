@@ -1,11 +1,11 @@
 defmodule Tuist.Registry.Swift.Workers.UpdatePackageReleasesWorkerTest do
-  use Tuist.DataCase, async: true
+  use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
   alias Tuist.Environment
   alias Tuist.Time
   alias Tuist.Registry.Swift.Packages
-  alias Tuist.Registry.Swift.PackagesFixtures
+  alias TuistTestSupport.Fixtures.Registry.Swift.PackagesFixtures
   alias Tuist.Registry.Swift.Workers.UpdatePackageReleasesWorker
 
   setup do

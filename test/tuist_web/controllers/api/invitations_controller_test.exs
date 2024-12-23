@@ -1,8 +1,8 @@
 defmodule TuistWeb.API.InvitationsControllerTest do
   alias TuistWeb.Authentication
-  alias Tuist.AccountsFixtures
+  alias TuistTestSupport.Fixtures.AccountsFixtures
   alias Tuist.Accounts
-  use TuistWeb.ConnCase, async: true
+  use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
 
   setup do

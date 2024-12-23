@@ -1,9 +1,9 @@
 defmodule TuistWeb.API.EnsureProjectPresencePlugTest do
   alias Tuist.Storage
-  alias Tuist.CommandEventsFixtures
+  alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias Tuist.Accounts
-  alias Tuist.ProjectsFixtures
-  use TuistWeb.ConnCase
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
+  use TuistTestSupport.Cases.ConnCase
   use Plug.Test
   use Mimic
   alias TuistWeb.API.EnsureProjectPresencePlug

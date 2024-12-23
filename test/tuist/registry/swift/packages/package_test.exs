@@ -1,6 +1,6 @@
 defmodule Tuist.Registry.Swift.Packages.PackageTest do
   alias Tuist.Registry.Swift.Packages.Package
-  use Tuist.DataCase
+  use TuistTestSupport.Cases.DataCase
 
   describe "create_changeset/1" do
     test "ensures a scope is present" do

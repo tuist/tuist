@@ -1,10 +1,10 @@
 defmodule TuistWeb.API.Registry.SwiftControllerTest do
   alias Tuist.Accounts.AuthenticatedAccount
   alias TuistWeb.Authentication
-  alias Tuist.AccountsFixtures
+  alias TuistTestSupport.Fixtures.AccountsFixtures
   alias Tuist.Storage
-  alias Tuist.Registry.Swift.PackagesFixtures
-  use TuistWeb.ConnCase, async: false
+  alias TuistTestSupport.Fixtures.Registry.Swift.PackagesFixtures
+  use TuistTestSupport.Cases.ConnCase, async: false
   use Mimic
 
   setup %{conn: conn} do

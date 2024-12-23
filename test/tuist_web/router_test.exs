@@ -1,7 +1,7 @@
 defmodule TuistWeb.RouterTest do
-  use TuistWeb.ConnCase, async: true
-  use Tuist.StubCase, billing: true
-  alias Tuist.AccountsFixtures
+  use TuistTestSupport.Cases.ConnCase, async: true
+  use TuistTestSupport.Cases.StubCase, billing: true
+  alias TuistTestSupport.Fixtures.AccountsFixtures
 
   test "marketing pages are indexable and followable",
        %{conn: conn} do

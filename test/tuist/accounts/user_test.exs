@@ -1,6 +1,6 @@
 defmodule Tuist.Accounts.UserTest do
-  use Tuist.DataCase
-  alias Tuist.AccountsFixtures
+  use TuistTestSupport.Cases.DataCase
+  alias TuistTestSupport.Fixtures.AccountsFixtures
   alias Tuist.Accounts.User
 
   describe "create_changeset" do

@@ -1,11 +1,11 @@
 defmodule Tuist.Authorization.ChecksTest do
   alias Tuist.Accounts.AuthenticatedAccount
-  use Tuist.DataCase, async: true
+  use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
-  alias Tuist.AccountsFixtures
+  alias TuistTestSupport.Fixtures.AccountsFixtures
   alias Tuist.Accounts
   alias Tuist.Authorization.Checks
-  alias Tuist.ProjectsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   setup do
     user = AccountsFixtures.user_fixture(preload: [:account])
