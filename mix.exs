@@ -68,7 +68,7 @@ defmodule Tuist.MixProject do
       {:ex_aws_s3, "~> 2.5.5"},
       {:configparser_ex, "~> 4.0"},
       {:number, "~> 1.0"},
-      {:mimic, "~> 1.10.1", only: :test},
+      {:mimic, "~> 1.11.0", only: :test},
       {:open_api_spex, "~> 3.18"},
       {:ymlr, "~> 2.0"},
       {:poison, "~> 5.0"},

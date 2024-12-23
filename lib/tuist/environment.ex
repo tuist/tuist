@@ -16,7 +16,9 @@ defmodule Tuist.Environment do
     defstruct [:major, :date]
   end
 
-  def env, do: @env
+  def env() do
+    @env
+  end
 
   @doc ~S"""
   Returns an list with all the supported environments.

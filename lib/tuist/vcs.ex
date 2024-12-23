@@ -35,7 +35,11 @@ defmodule Tuist.VCS do
     )
   end
 
-  def get_tags(%{provider: provider, repository_full_handle: repository_full_handle, token: token}) do
+  def get_tags(%{
+        provider: provider,
+        repository_full_handle: repository_full_handle,
+        token: token
+      }) do
     client = get_client_for_provider(provider)
 
     client.get_tags(%{repository_full_handle: repository_full_handle, token: token})
