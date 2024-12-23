@@ -295,18 +295,20 @@ extension SynthesizedResourceInterfaceTemplates {
     }
     #endif
 
+    #if os(iOS) || os(tvOS) || os(watchOS) || os(visionOS)
     @available(iOS 11.0, tvOS 11.0,*)
     @available(watchOS, unavailable)
     extension UIKit.UIImage {
        /// Initialize `UIImage` with a Tuist generated image resource
        convenience init(resource asset: {{imageType}}) {
             #if !os(watchOS)
-                self.init(named: asset.name, in: Bundle.module, compatibleWith: nil)! 
+                self.init(named: asset.name, in: Bundle.module, compatibleWith: nil)!
             #else
                 self.init()
             #endif
        }
     }
+    #endif
 
     // swiftlint:disable identifier_name line_length nesting type_body_length type_name
     extension {{imageType}} {
