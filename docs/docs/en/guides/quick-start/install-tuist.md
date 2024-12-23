@@ -42,14 +42,10 @@ brew install --formula tuist@x.y.z
 ```
 
 ::: tip VERIFYING THE AUTHENTICITY OF THE BINARIES
-You can verify that your installation's binaries have been built by us by running the following commands and checking that the team ID is `U6LC622NKF`:
+You can verify that your installation's binaries have been built by us by running the following command, which checks if the certificate's team is `U6LC622NKF`:
 
 ```bash
-tuist_path=$(which tuist)
-project_description_path=$(dirname "$tuist_path")/ProjectDescription.framework
-
-codesign -d --verbose=4 "$tuist_path" 2>&1 | grep "TeamIdentifier"
-codesign -d --verbose=4 "$project_description_path" 2>&1 | grep "TeamIdentifier"
+curl -fsSL "https://docs.tuist.dev/verify.sh" | bash
 ```
 :::
 
