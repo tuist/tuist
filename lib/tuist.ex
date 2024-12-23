@@ -61,6 +61,10 @@ defmodule Tuist do
       Storage,
       Time,
       VCS,
-      UUIDv7
+      UUIDv7,
+
+      # Test
+      DataCase,
+      AccountsFixtures
     ]
 end

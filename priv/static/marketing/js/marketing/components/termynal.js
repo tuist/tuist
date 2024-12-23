@@ -69,9 +69,14 @@ export class Termynal {
    * Initialise the widget, get lines, clear container and start animation.
    */
   init() {
+    this.reset();
+    this.start();
+  }
+
+  reset() {
     // Appends dynamically loaded lines to existing line elements.
     this.lines = [...this.container.querySelectorAll(`[${this.pfx}]`)].concat(
-      this.lineData
+      this.lineData,
     );
 
     /**
@@ -86,7 +91,6 @@ export class Termynal {
 
     this.container.setAttribute("data-termynal", "");
     this.container.innerHTML = "";
-    this.start();
   }
 
   /**
@@ -203,9 +207,3 @@ export class Termynal {
     return attrs;
   }
 }
-
-document.addEventListener("DOMContentLoaded", () => {
-  if (document.querySelector("#termynal")) {
-    new Termynal("#termynal", { startDelay: 600, noInit: false });
-  }
-});

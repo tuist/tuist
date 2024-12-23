@@ -1,4 +1,4 @@
-import "./components/termynal.js";
+import { Termynal } from "./components/termynal.js";
 
 function scrollInfinitely(scrollableContainer) {
   scrollableContainer.scrollLeft += 1;
@@ -16,15 +16,50 @@ function scrollInfinitely(scrollableContainer) {
 }
 
 const logosElement = document.querySelector(
-  ".marketing__home__section__companies__logos"
+  ".marketing__home__section__companies__logos",
 );
 if (logosElement) {
   scrollInfinitely(logosElement);
 }
 
 const testimonialsElement = document.querySelector(
-  ".marketing__home__section__testimonials__main"
+  ".marketing__home__section__testimonials__main",
 );
 if (testimonialsElement) {
   scrollInfinitely(testimonialsElement);
 }
+
+// Terminals
+document.addEventListener("DOMContentLoaded", () => {
+  if (document.querySelector("#hero-terminal")) {
+    new Termynal("#hero-terminal", { startDelay: 600, noInit: false });
+  }
+  const previewsTerminalEelement = document.querySelector("#preview-terminal");
+  const previewsVideoElement = document.querySelector("#previews-video");
+  let previewsAnimationPlayed = false;
+
+  if (previewsTerminalEelement && previewsVideoElement) {
+    const termynal = new Termynal(previewsTerminalEelement, {
+      startDelay: 600,
+      noInit: true,
+    });
+
+    const observer = new IntersectionObserver(
+      async (entries, observer) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting && !previewsAnimationPlayed) {
+            termynal.reset();
+            await termynal.start();
+            previewsVideoElement.play();
+            previewsAnimationPlayed = true;
+          }
+        }
+      },
+      {
+        threshold: 0.5,
+      },
+    );
+
+    observer.observe(previewsTerminalEelement);
+  }
+});
