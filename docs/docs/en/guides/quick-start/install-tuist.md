@@ -41,12 +41,20 @@ brew install --formula tuist
 brew install --formula tuist@x.y.z
 ```
 
+::: tip VERIFYING THE AUTHENTICITY OF THE BINARIES
+You can verify that your installation's binaries have been built by us by running the following command, which checks if the certificate's team is `U6LC622NKF`:
+
+```bash
+curl -fsSL "https://docs.tuist.dev/verify.sh" | bash
+```
+:::
+
 ### Shell completions {#shell-completions}
 
 If you have Tuist **globally installed** (e.g., via Homebrew),
 you can install shell completions for Bash and Zsh to autocomplete commands and options.
 
-::: warning What is a global installation
+::: warning WHAT IS A GLOBAL INSTALLATION
 A global installation is an installation that's available in your shell's `$PATH` environment variable. This means you can run `tuist` from any directory in your terminal. This is the default installation method for Homebrew.
 :::
 
