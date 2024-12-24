@@ -6,6 +6,7 @@ import struct TSCUtility.Version
 import TuistCore
 import TuistSupport
 import XcodeGraph
+import ServiceContextModule
 
 enum AppRunnerError: FatalError, Equatable {
     case invalidSimulatorPlatform(String)
@@ -171,11 +172,11 @@ public final class AppRunner: AppRunning {
         })
         else { throw AppRunnerError.selectedPlatformNotFound(simulatorPlatform.caseValue) }
 
-        logger.notice("Installing and launching \(appBundle.infoPlist.name) on \(simulator.device.name)")
+        ServiceContext.$current.get()?.logger?.notice("Installing and launching \(appBundle.infoPlist.name) on \(simulator.device.name)")
         let device = try simulatorController.booted(device: simulator.device)
         try simulatorController.installApp(at: appBundle.path, device: device)
         try await simulatorController.launchApp(bundleId: appBundle.infoPlist.bundleId, device: device, arguments: [])
-        logger.notice("\(appBundle.infoPlist.name) was successfully launched 📲", metadata: .success)
+        ServiceContext.$current.get()?.logger?.notice("\(appBundle.infoPlist.name) was successfully launched 📲", metadata: .success)
     }
 }
 

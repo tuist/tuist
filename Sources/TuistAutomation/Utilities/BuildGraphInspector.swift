@@ -5,6 +5,7 @@ import Path
 import TuistCore
 import TuistSupport
 import XcodeGraph
+import ServiceContextModule
 
 @Mockable
 public protocol BuildGraphInspecting {
@@ -93,7 +94,7 @@ public final class BuildGraphInspector: BuildGraphInspecting {
             if configurations.contains(where: { $0.key.name == configuration }) {
                 arguments.append(.configuration(configuration))
             } else {
-                logger
+                ServiceContext.$current.get()?.logger?
                     .warning(
                         "The scheme's targets don't have the given configuration \(configuration). Defaulting to the scheme's default."
                     )

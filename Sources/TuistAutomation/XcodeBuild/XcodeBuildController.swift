@@ -2,6 +2,7 @@ import Foundation
 import Path
 import TuistCore
 import TuistSupport
+import ServiceContextModule
 
 public final class XcodeBuildController: XcodeBuildControlling {
     // MARK: - Attributes
@@ -311,14 +312,14 @@ public final class XcodeBuildController: XcodeBuildControlling {
             let lines = format(bytes).split(separator: "\n")
             for line in lines where !line.isEmpty {
                 if isError {
-                    logger.error("\(line)")
+                    ServiceContext.$current.get()?.logger?.error("\(line)")
                 } else {
-                    logger.info("\(line)")
+                    ServiceContext.$current.get()?.logger?.info("\(line)")
                 }
             }
         }
         
-        logger.debug("Running xcodebuild command: \(command.joined(separator: " "))")
+        ServiceContext.$current.get()?.logger?.debug("Running xcodebuild command: \(command.joined(separator: " "))")
         
         try system.run(command,
                        verbose: false,

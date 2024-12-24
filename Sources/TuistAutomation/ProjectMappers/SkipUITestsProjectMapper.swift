@@ -2,12 +2,13 @@ import Foundation
 import Path
 import TuistCore
 import XcodeGraph
+import ServiceContextModule
 
 public final class SkipUITestsProjectMapper: ProjectMapping {
     public init() {}
 
     public func map(project: Project) throws -> (Project, [SideEffectDescriptor]) {
-        logger.debug("Transforming project \(project.name): Pruning UI tests targets")
+        ServiceContext.$current.get()?.logger?.debug("Transforming project \(project.name): Pruning UI tests targets")
 
         var project = project
         project.targets = project.targets.mapValues { target in

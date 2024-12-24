@@ -5,6 +5,7 @@ import Mockable
 import Path
 import TuistSupport
 import XcodeGraph
+import ServiceContextModule
 
 enum DeviceControllerError: FatalError {
     case applicationVerificationFailed
@@ -84,7 +85,7 @@ public final class DeviceController: DeviceControlling {
         at path: AbsolutePath,
         device: PhysicalDevice
     ) async throws {
-        logger.debug("Installing app at \(path) on simulator device with id \(device.id)")
+        ServiceContext.$current.get()?.logger?.debug("Installing app at \(path) on simulator device with id \(device.id)")
         do {
             _ = try await commandRunner.run(
                 arguments: [
@@ -108,7 +109,7 @@ public final class DeviceController: DeviceControlling {
         bundleId: String,
         device: PhysicalDevice
     ) async throws {
-        logger.debug("Launching app with bundle id \(bundleId) on a physical device with id \(device.id)")
+        ServiceContext.$current.get()?.logger?.debug("Launching app with bundle id \(bundleId) on a physical device with id \(device.id)")
         _ = try await commandRunner.run(
             arguments: [
                 "/usr/bin/xcrun", "devicectl",

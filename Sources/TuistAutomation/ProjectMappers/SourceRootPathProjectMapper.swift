@@ -2,6 +2,7 @@ import Foundation
 import Path
 import TuistCore
 import XcodeGraph
+import ServiceContextModule
 
 /// Automation commands create their own project in temporary directory
 /// This means `SRCROOT` has a different path from the directory where `.xcodeproj` resides
@@ -12,7 +13,7 @@ public final class SourceRootPathProjectMapper: ProjectMapping {
     public init() {}
 
     public func map(project: Project) throws -> (Project, [SideEffectDescriptor]) {
-        logger.debug("Transforming project \(project.name): Setting $SRCROOT to \(project.name)")
+        ServiceContext.$current.get()?.logger?.debug("Transforming project \(project.name): Setting $SRCROOT to \(project.name)")
 
         var project = project
         var base = project.settings.base
