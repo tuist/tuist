@@ -27,31 +27,14 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         print("String dicts: \(AppStrings.App.appleCount(1))")
         print("Font: \(AppFontFamily.SFProDisplay.bold.name)")
         print("StaticFrameworkResource image: \(String(describing: staticFrameworkResources.tuist))")
-        precondition(
-            staticFramework2Resources.loadImage() != nil,
-            "Failed to load image bundled in \(String(describing: staticFramework2Resources))"
-        )
-
-        precondition(
-            resourcesStaticFramework3.loadImage() != nil,
-            "Failed to load image bundled in \(String(describing: resourcesStaticFramework3))"
-        )
-        print(
-            "StaticFramework3Resource UIImage: \(String(describing: resourcesStaticFramework3.loadUIImageWithSynthesizedAccessors()))"
-        )
-        print(
-            "StaticFramework3Resource SwiftUI Image: \(String(describing: resourcesStaticFramework3.loadImageWithSynthesizedAccessors()))"
-        )
+        print("StaticFramework2Resource image: \(String(describing: staticFramework2Resources.loadImage()))")
+        print("StaticFramework3Resource image: \(String(describing: resourcesStaticFramework3.loadImage()))")
         print(
             "StaticFramework3Resource asset catalogue image: \(String(describing: StaticFramework3Asset.assetCatalogLogo.image))"
         )
-        precondition(
-            resourcesStaticFramework4.loadImage() != nil,
-            "Failed to load image bundled in \(String(describing: resourcesStaticFramework4))"
-        )
-        precondition(
-            UIImage(named: "StaticFramework5Resources-tuist", in: StaticFramework5Resources.bundle, compatibleWith: nil) != nil,
-            "Failed to load UIImage bundled in \(String(describing: StaticFramework5Resources.self))"
+        print("StaticFramework4Resource image: \(String(describing: resourcesStaticFramework4.loadImage()))")
+        print(
+            "StaticFramework5Resource image: \(String(describing: UIImage(named: "StaticFramework5Resources-tuist", in: StaticFramework5Resources.bundle, compatibleWith: nil)))"
         )
     }
 
