@@ -1,6 +1,7 @@
 import Foundation
 import Mockable
 import TuistSupport
+import ServiceContextModule
 
 /// Type of device code used for authentication.
 public enum DeviceCodeType {
@@ -112,7 +113,7 @@ public final class ServerSessionController: ServerSessionControlling {
             refreshToken: tokens.refreshToken
         )
         try await credentialsStore.store(credentials: credentials, serverURL: serverURL)
-        logger.notice("Credentials stored successfully", metadata: .success)
+        ServiceContext.$current.get()?.logger?.notice("Credentials stored successfully", metadata: .success)
     }
 
     public func whoami(serverURL: URL) async throws -> String? {
@@ -127,7 +128,7 @@ public final class ServerSessionController: ServerSessionControlling {
 
     public func logout(serverURL: URL) async throws {
         try await credentialsStore.delete(serverURL: serverURL)
-        logger.notice("Successfully logged out.", metadata: .success)
+        ServiceContext.$current.get()?.logger?.notice("Successfully logged out.", metadata: .success)
     }
 
     private func getAuthTokens(

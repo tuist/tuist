@@ -2,6 +2,7 @@ import Foundation
 import HTTPTypes
 import OpenAPIRuntime
 import TuistSupport
+import ServiceContextModule
 
 /// A middleware that outputs in debug mode the request and responses sent and received from the server
 struct ServerClientVerboseLoggingMiddleware: ClientMiddleware {
@@ -13,7 +14,7 @@ struct ServerClientVerboseLoggingMiddleware: ClientMiddleware {
         next: (HTTPRequest, HTTPBody?, URL) async throws -> (HTTPResponse, HTTPBody?)
     ) async throws -> (HTTPResponse, HTTPBody?) {
         let (requestBodyToLog, requestBodyForNext) = try await process(body)
-        logger.debug("""
+        ServiceContext.$current.get()?.logger?.debug("""
         Sending HTTP request to Tuist:
           - Method: \(request.method.rawValue)
           - URL: \(baseURL.absoluteString)
@@ -25,7 +26,7 @@ struct ServerClientVerboseLoggingMiddleware: ClientMiddleware {
         let (response, responseBody) = try await next(request, requestBodyForNext, baseURL)
         let (responseBodyToLog, responseBodyForNext) = try await process(responseBody)
 
-        logger.debug("""
+        ServiceContext.$current.get()?.logger?.debug("""
         Received HTTP response from Tuist:
           - URL: \(baseURL.absoluteString)
           - Path: \(request.path ?? "")

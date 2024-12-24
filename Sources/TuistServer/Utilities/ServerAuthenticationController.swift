@@ -1,6 +1,7 @@
 import Foundation
 import Mockable
 import TuistSupport
+import ServiceContextModule
 
 @Mockable
 public protocol ServerAuthenticationControlling: Sendable {
@@ -79,7 +80,7 @@ public final class ServerAuthenticationController: ServerAuthenticationControlli
             if let configToken = environment.tuistVariables[Constants.EnvironmentVariables.token] {
                 return .project(configToken)
             } else if let deprecatedToken = environment.tuistVariables[Constants.EnvironmentVariables.deprecatedToken] {
-                logger
+                ServiceContext.$current.get()?.logger?
                     .warning(
                         "Use `TUIST_CONFIG_TOKEN` environment variable instead of `TUIST_CONFIG_CLOUD_TOKEN` to authenticate on the CI"
                     )
@@ -100,7 +101,7 @@ public final class ServerAuthenticationController: ServerAuthenticationControlli
                         refreshToken: try parseJWT(refreshToken)
                     )
                 } else {
-                    logger.warning("You are using a deprecated user token. Please, reauthenticate by running 'tuist auth login'.")
+                    ServiceContext.$current.get()?.logger?.warning("You are using a deprecated user token. Please, reauthenticate by running 'tuist auth login'.")
                     return .user(
                         legacyToken: $0.token,
                         accessToken: nil,
