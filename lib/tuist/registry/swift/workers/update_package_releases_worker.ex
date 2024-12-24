@@ -10,7 +10,7 @@ defmodule Tuist.Registry.Swift.Workers.UpdatePackageReleasesWorker do
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: args}) do
-    limit = Map.get(args, :limit, 500)
+    limit = Map.get(args, :limit, 350)
 
     {packages, _meta} =
       Packages.paginated_packages(%{
