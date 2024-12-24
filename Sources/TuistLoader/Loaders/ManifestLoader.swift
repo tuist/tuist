@@ -6,6 +6,7 @@ import ProjectDescription
 import TuistCore
 import TuistSupport
 import XcodeGraph
+import ServiceContextModule
 
 public enum ManifestLoaderError: FatalError, Equatable {
     case projectDescriptionNotFound(AbsolutePath)
@@ -336,8 +337,8 @@ public class ManifestLoader: ManifestLoading {
             let preManifestLogs = String(string[string.startIndex ..< startTokenRange.lowerBound]).chomp()
             let postManifestLogs = String(string[endTokenRange.upperBound ..< string.endIndex]).chomp()
 
-            if !preManifestLogs.isEmpty { logger.notice("\(path.pathString): \(preManifestLogs)") }
-            if !postManifestLogs.isEmpty { logger.notice("\(path.pathString):\(postManifestLogs)") }
+            if !preManifestLogs.isEmpty { ServiceContext.$current.get()?.logger?.notice("\(path.pathString): \(preManifestLogs)") }
+            if !postManifestLogs.isEmpty { ServiceContext.$current.get()?.logger?.notice("\(path.pathString):\(postManifestLogs)") }
 
             let manifest = string[startTokenRange.upperBound ..< endTokenRange.lowerBound]
             return manifest.data(using: .utf8)!
@@ -440,10 +441,10 @@ public class ManifestLoader: ManifestLoading {
         let defaultHelpersName = ProjectDescriptionHelpersBuilder.defaultHelpersName
 
         if errorMessage.contains(defaultHelpersName) {
-            logger.error("Cannot import \(defaultHelpersName) in \(manifest.fileName(path))")
-            logger.notice("Project description helpers that depend on plugins are not allowed in \(manifest.fileName(path))")
+            ServiceContext.$current.get()?.logger?.error("Cannot import \(defaultHelpersName) in \(manifest.fileName(path))")
+            ServiceContext.$current.get()?.logger?.notice("Project description helpers that depend on plugins are not allowed in \(manifest.fileName(path))")
         } else if errorMessage.contains("import") {
-            logger.error("Helper plugins are not allowed in \(manifest.fileName(path))")
+            ServiceContext.$current.get()?.logger?.error("Helper plugins are not allowed in \(manifest.fileName(path))")
         }
     }
 
@@ -455,6 +456,6 @@ public class ManifestLoader: ManifestLoading {
         let pluginHelpers = plugins.projectDescriptionHelpers
         guard let pluginHelper = pluginHelpers.first(where: { errorMessage.contains($0.name) }) else { return }
 
-        logger.error("Unable to build plugin \(pluginHelper.name) located at \(pluginHelper.path)")
+        ServiceContext.$current.get()?.logger?.error("Unable to build plugin \(pluginHelper.name) located at \(pluginHelper.path)")
     }
 }

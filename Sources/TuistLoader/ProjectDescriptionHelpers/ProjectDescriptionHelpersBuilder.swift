@@ -3,6 +3,7 @@ import Foundation
 import Path
 import TuistCore
 import TuistSupport
+import ServiceContextModule
 
 /// This protocol defines the interface to compile a temporary module with the
 /// helper files under /Tuist/ProjectDescriptionHelpers that can be imported
@@ -193,7 +194,7 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
                 try System.shared.runAndPrint(command, verbose: false, environment: Environment.shared.manifestLoadingVariables)
                 let duration = timer.stop()
                 let time = String(format: "%.3f", duration)
-                logger.debug("Built \(name) in (\(time)s)", metadata: .success)
+                ServiceContext.$current.get()?.logger?.debug("Built \(name) in (\(time)s)", metadata: .success)
 
                 return module
             }

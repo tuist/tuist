@@ -4,6 +4,7 @@ import Path
 import ProjectDescription
 import TuistCore
 import TuistSupport
+import ServiceContextModule
 
 /// Cached Manifest Loader
 ///
@@ -146,7 +147,7 @@ public class CachedManifestLoader: ManifestLoading {
         )
 
         guard let hashes = calculatedHashes else {
-            logger.warning("Unable to calculate manifest hash at path: \(path)")
+            ServiceContext.$current.get()?.logger?.warning("Unable to calculate manifest hash at path: \(path)")
             return try await loader()
         }
 

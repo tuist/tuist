@@ -5,6 +5,7 @@ import ProjectDescription
 import TuistCore
 import TuistSupport
 import XcodeGraph
+import ServiceContextModule
 
 extension XcodeGraph.CopyFileElement {
     /// Maps a ProjectDescription.FileElement instance into a [XcodeGraph.FileElement] instance.
@@ -31,10 +32,10 @@ extension XcodeGraph.CopyFileElement {
 
             if files.isEmpty {
                 if FileHandler.shared.isFolder(path) {
-                    logger.warning("'\(path.pathString)' is a directory, try using: '\(path.pathString)/**' to list its files")
+                    ServiceContext.$current.get()?.logger?.warning("'\(path.pathString)' is a directory, try using: '\(path.pathString)/**' to list its files")
                 } else {
                     // FIXME: This should be done in a linter.
-                    logger.warning("No files found at: \(path.pathString)")
+                    ServiceContext.$current.get()?.logger?.warning("No files found at: \(path.pathString)")
                 }
             }
 
@@ -44,13 +45,13 @@ extension XcodeGraph.CopyFileElement {
         func folderReferences(_ path: AbsolutePath) async throws -> [AbsolutePath] {
             guard try await fileSystem.exists(path) else {
                 // FIXME: This should be done in a linter.
-                logger.warning("\(path.pathString) does not exist")
+                ServiceContext.$current.get()?.logger?.warning("\(path.pathString) does not exist")
                 return []
             }
 
             guard FileHandler.shared.isFolder(path) else {
                 // FIXME: This should be done in a linter.
-                logger.warning("\(path.pathString) is not a directory - folder reference paths need to point to directories")
+                ServiceContext.$current.get()?.logger?.warning("\(path.pathString) is not a directory - folder reference paths need to point to directories")
                 return []
             }
 

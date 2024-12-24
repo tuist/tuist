@@ -7,6 +7,7 @@ import TSCUtility
 import TuistCore
 import TuistSupport
 import XcodeGraph
+import ServiceContextModule
 
 // MARK: - PackageInfo Mapper Errors
 
@@ -383,13 +384,13 @@ public final class PackageInfoMapper: PackageInfoMapping {
         case .test, .executable:
             switch packageType {
             case .external:
-                logger.debug("Target \(target.name) of type \(target.type) ignored")
+                ServiceContext.$current.get()?.logger?.debug("Target \(target.name) of type \(target.type) ignored")
                 return nil
             case .local:
                 break
             }
         default:
-            logger.debug("Target \(target.name) of type \(target.type) ignored")
+            ServiceContext.$current.get()?.logger?.debug("Target \(target.name) of type \(target.type) ignored")
             return nil
         }
 
@@ -402,7 +403,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
             productTypes: productTypes
         )
         else {
-            logger.debug("Target \(target.name) ignored by product type")
+            ServiceContext.$current.get()?.logger?.debug("Target \(target.name) ignored by product type")
             return nil
         }
 
