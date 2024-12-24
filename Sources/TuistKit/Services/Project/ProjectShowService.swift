@@ -4,6 +4,7 @@ import Path
 import TuistLoader
 import TuistServer
 import TuistSupport
+import ServiceContextModule
 
 enum ProjectShowServiceError: Equatable, FatalError {
     case missingFullHandle
@@ -74,7 +75,7 @@ struct ProjectShowService {
             projectInfo.append("Default branch: \(project.defaultBranch)")
             projectInfo.append("Visibility: \(project.visibility.rawValue)")
 
-            logger.info("\(projectInfo.joined(separator: "\n"))")
+            ServiceContext.$current.get()?.logger?.info("\(projectInfo.joined(separator: "\n"))")
         }
     }
 

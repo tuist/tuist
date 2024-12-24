@@ -6,6 +6,7 @@ import TuistPlugin
 import TuistScaffold
 import TuistSupport
 import XcodeGraph
+import ServiceContextModule
 
 class ListService {
     // MARK: - OutputFormat
@@ -65,11 +66,11 @@ class ListService {
                 TextTable.Column(title: "Name", value: $0.name),
                 TextTable.Column(title: "Description", value: $0.description),
             ] }
-            logger.notice("\(textTable.render(templates))")
+            ServiceContext.$current.get()?.logger?.notice("\(textTable.render(templates))")
 
         case .json:
             let json = try templates.toJSON()
-            logger.notice("\(json.toString(prettyPrint: true))", metadata: .json)
+            ServiceContext.$current.get()?.logger?.notice("\(json.toString(prettyPrint: true))", metadata: .json)
         }
     }
 

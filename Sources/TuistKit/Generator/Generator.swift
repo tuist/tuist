@@ -10,6 +10,7 @@ import TuistLoader
 import TuistPlugin
 import TuistSupport
 import XcodeGraph
+import ServiceContextModule
 
 @Mockable
 public protocol Generating {
@@ -87,8 +88,8 @@ public class Generator: Generating {
     }
 
     func load(path: AbsolutePath) async throws -> (Graph, [SideEffectDescriptor], MapperEnvironment) {
-        logger.notice("Loading and constructing the graph", metadata: .section)
-        logger.notice("It might take a while if the cache is empty")
+        ServiceContext.$current.get()?.logger?.notice("Loading and constructing the graph", metadata: .section)
+        ServiceContext.$current.get()?.logger?.notice("It might take a while if the cache is empty")
 
         let (graph, sideEffectDescriptors, environment, issues) = try await manifestGraphLoader.load(path: path)
 

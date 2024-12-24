@@ -3,6 +3,7 @@ import Path
 import TuistLoader
 import TuistServer
 import TuistSupport
+import ServiceContextModule
 
 protocol ProjectTokensCreateServicing {
     func run(
@@ -52,6 +53,6 @@ final class ProjectTokensCreateService: ProjectTokensCreateServicing {
             serverURL: serverURL
         )
 
-        logger.info(.init(stringLiteral: token))
+        ServiceContext.$current.get()?.logger?.info(.init(stringLiteral: token))
     }
 }

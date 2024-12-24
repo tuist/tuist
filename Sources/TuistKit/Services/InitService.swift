@@ -5,6 +5,7 @@ import TuistLoader
 import TuistScaffold
 import TuistSupport
 import XcodeGraph
+import ServiceContextModule
 
 enum InitServiceError: FatalError, Equatable {
     case ungettableProjectName(AbsolutePath)
@@ -155,11 +156,11 @@ class InitService {
             )
         }
 
-        logger.notice(
+        ServiceContext.$current.get()?.logger?.notice(
             "Project generated at path \(path.pathString). Run `tuist generate` to generate the project and open it in Xcode. Use `tuist edit` to easily update the Tuist project definition.",
             metadata: .success
         )
-        logger
+        ServiceContext.$current.get()?.logger?
             .info(
                 "To learn more about tuist features, such as how to add external dependencies or how to use our ProjectDescription helpers, head to our tutorials page: https://docs.tuist.io/tutorials/tuist-tutorials"
             )

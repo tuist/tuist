@@ -5,6 +5,7 @@ import TuistCore
 import TuistLoader
 import TuistServer
 import TuistSupport
+import ServiceContextModule
 
 @Mockable
 protocol LoginServicing: AnyObject {
@@ -88,7 +89,7 @@ final class LoginService: LoginServicing {
             ),
             serverURL: serverURL
         )
-        logger.notice("Successfully logged in.", metadata: .success)
+        ServiceContext.$current.get()?.logger?.notice("Successfully logged in.", metadata: .success)
     }
 
     private func authenticateWithBrowserLogin(
@@ -98,16 +99,16 @@ final class LoginService: LoginServicing {
             serverURL: serverURL,
             deviceCodeType: .cli,
             onOpeningBrowser: { authURL in
-                logger.notice("Opening \(authURL.absoluteString) to start the authentication flow")
+                ServiceContext.$current.get()?.logger?.notice("Opening \(authURL.absoluteString) to start the authentication flow")
             },
             onAuthWaitBegin: {
                 if Environment.shared.shouldOutputBeColoured {
-                    logger.notice("Press \("CTRL + C".cyan()) once to cancel the process.", metadata: .pretty)
+                    ServiceContext.$current.get()?.logger?.notice("Press \("CTRL + C".cyan()) once to cancel the process.", metadata: .pretty)
                 } else {
-                    logger.notice("Press CTRL + C once to cancel the process.")
+                    ServiceContext.$current.get()?.logger?.notice("Press CTRL + C once to cancel the process.")
                 }
             }
         )
-        logger.notice("Successfully logged in.", metadata: .success)
+        ServiceContext.$current.get()?.logger?.notice("Successfully logged in.", metadata: .success)
     }
 }

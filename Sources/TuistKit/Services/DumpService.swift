@@ -5,6 +5,7 @@ import TuistCore
 import TuistLoader
 import TuistPlugin
 import TuistSupport
+import ServiceContextModule
 
 final class DumpService {
     private let manifestLoader: ManifestLoading
@@ -45,7 +46,7 @@ final class DumpService {
         }
 
         let json: JSON = try encoded.toJSON()
-        logger.notice("\(json.toString(prettyPrint: true))", metadata: .json)
+        ServiceContext.$current.get()?.logger?.notice("\(json.toString(prettyPrint: true))", metadata: .json)
     }
 }
 

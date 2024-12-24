@@ -3,6 +3,7 @@ import Path
 import TuistLoader
 import TuistServer
 import TuistSupport
+import ServiceContextModule
 
 protocol OrganizationRemoveInviteServicing {
     func run(
@@ -47,6 +48,6 @@ final class OrganizationRemoveInviteService: OrganizationRemoveInviteServicing {
             serverURL: serverURL
         )
 
-        logger.info("The invitation for \(email) to the \(organizationName) organization was successfully cancelled.")
+        ServiceContext.$current.get()?.logger?.info("The invitation for \(email) to the \(organizationName) organization was successfully cancelled.")
     }
 }

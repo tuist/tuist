@@ -3,6 +3,7 @@ import Path
 import TuistLoader
 import TuistServer
 import TuistSupport
+import ServiceContextModule
 
 protocol OrganizationRemoveMemberServicing {
     func run(
@@ -47,6 +48,6 @@ final class OrganizationRemoveMemberService: OrganizationRemoveMemberServicing {
             serverURL: serverURL
         )
 
-        logger.info("The member \(username) was successfully removed from the \(organizationName) organization.")
+        ServiceContext.$current.get()?.logger?.info("The member \(username) was successfully removed from the \(organizationName) organization.")
     }
 }

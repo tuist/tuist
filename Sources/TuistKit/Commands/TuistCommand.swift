@@ -7,6 +7,7 @@ import TuistCore
 import TuistLoader
 import TuistServer
 import TuistSupport
+import ServiceContextModule
 
 public struct TuistCommand: AsyncParsableCommand {
     public init() {}
@@ -127,7 +128,7 @@ public struct TuistCommand: AsyncParsableCommand {
         } catch let error as ClientError where error.underlyingError is ServerClientAuthenticationError {
             WarningController.shared.flush()
             // swiftlint:disable:next force_cast
-            logger.error("\((error.underlyingError as! ServerClientAuthenticationError).description)")
+            ServiceContext.$current.get()?.logger?.error("\((error.underlyingError as! ServerClientAuthenticationError).description)")
             _exit(exitCode(for: error).rawValue)
         } catch {
             WarningController.shared.flush()
@@ -154,9 +155,9 @@ public struct TuistCommand: AsyncParsableCommand {
     private static func handleParseError(_ error: Error) -> Never {
         let exitCode = exitCode(for: error).rawValue
         if exitCode == 0 {
-            logger.notice("\(fullMessage(for: error))")
+            ServiceContext.$current.get()?.logger?.notice("\(fullMessage(for: error))")
         } else {
-            logger.error("\(fullMessage(for: error))")
+            ServiceContext.$current.get()?.logger?.error("\(fullMessage(for: error))")
         }
         _exit(exitCode)
     }

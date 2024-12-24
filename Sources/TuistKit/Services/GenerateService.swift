@@ -8,6 +8,7 @@ import TuistPlugin
 import TuistServer
 import TuistSupport
 import XcodeGraph
+import ServiceContextModule
 
 final class GenerateService {
     private let opener: Opening
@@ -62,8 +63,8 @@ final class GenerateService {
         if !noOpen {
             try await opener.open(path: workspacePath)
         }
-        logger.notice("Project generated.", metadata: .success)
-        logger.notice(timeTakenLoggerFormatter.timeTakenMessage(for: timer))
+        ServiceContext.$current.get()?.logger?.notice("Project generated.", metadata: .success)
+        ServiceContext.$current.get()?.logger?.notice(timeTakenLoggerFormatter.timeTakenMessage(for: timer))
     }
 
     // MARK: - Helpers

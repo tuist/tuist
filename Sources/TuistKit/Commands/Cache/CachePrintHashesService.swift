@@ -6,6 +6,7 @@ import TuistCore
 import TuistHasher
 import TuistLoader
 import TuistSupport
+import ServiceContextModule
 
 final class CachePrintHashesService {
     private let generatorFactory: GeneratorFactorying
@@ -63,13 +64,13 @@ final class CachePrintHashesService {
         let duration = timer.stop()
         let time = String(format: "%.3f", duration)
         guard hashes.count > 0 else {
-            logger.notice("No cacheable targets were found")
+            ServiceContext.$current.get()?.logger?.notice("No cacheable targets were found")
             return
         }
         let sortedHashes = hashes.sorted { $0.key.target.name < $1.key.target.name }
         for (target, hash) in sortedHashes {
-            logger.info("\(target.target.name) - \(hash)")
+            ServiceContext.$current.get()?.logger?.info("\(target.target.name) - \(hash)")
         }
-        logger.notice("Total time taken: \(time)s")
+        ServiceContext.$current.get()?.logger?.notice("Total time taken: \(time)s")
     }
 }

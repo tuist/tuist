@@ -3,6 +3,7 @@ import Path
 import TuistLoader
 import TuistServer
 import TuistSupport
+import ServiceContextModule
 
 protocol ProjectTokensRevokeServicing {
     func run(
@@ -47,6 +48,6 @@ final class ProjectTokensRevokeService: ProjectTokensRevokeServicing {
             serverURL: serverURL
         )
 
-        logger.info("The project token \(projectTokenId) was successfully revoked.")
+        ServiceContext.$current.get()?.logger?.info("The project token \(projectTokenId) was successfully revoked.")
     }
 }

@@ -3,6 +3,7 @@ import Path
 import TuistLoader
 import TuistServer
 import TuistSupport
+import ServiceContextModule
 
 protocol OrganizationListServicing {
     func run(
@@ -45,17 +46,17 @@ final class OrganizationListService: OrganizationListServicing {
 
         if json {
             let json = organizations.toJSON()
-            logger.info(.init(stringLiteral: json.toString(prettyPrint: true)), metadata: .json)
+            ServiceContext.$current.get()?.logger?.info(.init(stringLiteral: json.toString(prettyPrint: true)), metadata: .json)
             return
         }
 
         if organizations.isEmpty {
-            logger.info("You currently have no Cloud organizations. Create one by running `tuist organization create`.")
+            ServiceContext.$current.get()?.logger?.info("You currently have no Cloud organizations. Create one by running `tuist organization create`.")
             return
         }
 
         let organizationsString = "Listing all your organizations:\n" + organizations.map { "  • \($0)" }
             .joined(separator: "\n")
-        logger.info("\(organizationsString)")
+        ServiceContext.$current.get()?.logger?.info("\(organizationsString)")
     }
 }

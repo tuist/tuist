@@ -3,6 +3,7 @@ import Path
 import TuistLoader
 import TuistServer
 import TuistSupport
+import ServiceContextModule
 
 protocol OrganizationUpdateMemberServicing {
     func run(
@@ -50,6 +51,6 @@ final class OrganizationUpdateMemberService: OrganizationUpdateMemberServicing {
             serverURL: serverURL
         )
 
-        logger.info("The member \(username) role was successfully updated to \(member.role.rawValue).")
+        ServiceContext.$current.get()?.logger?.info("The member \(username) role was successfully updated to \(member.role.rawValue).")
     }
 }

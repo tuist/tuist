@@ -5,6 +5,7 @@ import TuistPlugin
 import TuistScaffold
 import TuistSupport
 import XcodeGraph
+import ServiceContextModule
 
 enum ScaffoldServiceError: FatalError, Equatable {
     var type: ErrorType {
@@ -106,7 +107,7 @@ final class ScaffoldService {
             attributes: parsedAttributes
         )
 
-        logger.notice("Template \(templateName) was successfully generated", metadata: .success)
+        ServiceContext.$current.get()?.logger?.notice("Template \(templateName) was successfully generated", metadata: .success)
     }
 
     // MARK: - Helpers

@@ -4,6 +4,7 @@ import Path
 import TuistLoader
 import TuistServer
 import TuistSupport
+import ServiceContextModule
 
 enum ProjectUpdateServiceError: Equatable, FatalError {
     case missingFullHandle
@@ -62,7 +63,7 @@ struct ProjectUpdateService {
             visibility: visibility
         )
 
-        logger.notice("The project \(fullHandle) was successfully updated 🎉", metadata: .success)
+        ServiceContext.$current.get()?.logger?.notice("The project \(fullHandle) was successfully updated 🎉", metadata: .success)
     }
 
     // MARK: - Helpers

@@ -3,6 +3,7 @@ import Path
 import TuistLoader
 import TuistServer
 import TuistSupport
+import ServiceContextModule
 
 protocol OrganizationShowServicing {
     func run(
@@ -56,7 +57,7 @@ final class OrganizationShowService: OrganizationShowServicing {
 
         if json {
             let json = try organization.toJSON()
-            logger.info(.init(stringLiteral: json.toString(prettyPrint: true)), metadata: .json)
+            ServiceContext.$current.get()?.logger?.info(.init(stringLiteral: json.toString(prettyPrint: true)), metadata: .json)
             return
         }
 
@@ -94,7 +95,7 @@ final class OrganizationShowService: OrganizationShowServicing {
             }
         }
 
-        logger.info("""
+        ServiceContext.$current.get()?.logger?.info("""
         \(baseInfo.joined(separator: "\n"))
 
         \("Usage".bold()) (current calendar month)

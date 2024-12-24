@@ -3,6 +3,7 @@ import Path
 import TuistLoader
 import TuistServer
 import TuistSupport
+import ServiceContextModule
 
 protocol ProjectDeleteServicing {
     func run(
@@ -52,6 +53,6 @@ final class ProjectDeleteService: ProjectDeleteServicing {
             serverURL: serverURL
         )
 
-        logger.info("Successfully deleted the \(project.fullName) project.")
+        ServiceContext.$current.get()?.logger?.info("Successfully deleted the \(project.fullName) project.")
     }
 }

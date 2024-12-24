@@ -5,6 +5,7 @@ import ProjectDescription
 import TuistDependencies
 import TuistLoader
 import TuistSupport
+import ServiceContextModule
 
 final class PluginArchiveService {
     private let swiftPackageManagerController: SwiftPackageManagerControlling
@@ -44,7 +45,7 @@ final class PluginArchiveService {
             .filter { $0.hasPrefix("tuist-") }
 
         if taskProducts.isEmpty {
-            logger
+            ServiceContext.$current.get()?.logger?
                 .warning("No tasks found - make sure you have executable products with `tuist-` prefix defined in your manifest.")
             return
         }
@@ -79,7 +80,7 @@ final class PluginArchiveService {
     ) async throws {
         let artifactsPath = temporaryDirectory.appending(component: "artifacts")
         for product in taskProducts {
-            logger.notice("Building \(product)...")
+            ServiceContext.$current.get()?.logger?.notice("Building \(product)...")
             try await swiftPackageManagerController.buildFatReleaseBinary(
                 packagePath: path,
                 product: product,
@@ -103,7 +104,7 @@ final class PluginArchiveService {
         )
         try await archiver.delete()
 
-        logger.notice(
+        ServiceContext.$current.get()?.logger?.notice(
             "Plugin was successfully archived. Create a new Github release and attach the file \(zipPath.pathString) as an artifact.",
             metadata: .success
         )

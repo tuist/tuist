@@ -3,6 +3,7 @@ import Path
 import TuistLoader
 import TuistServer
 import TuistSupport
+import ServiceContextModule
 
 protocol OrganizationDeleteServicing {
     func run(
@@ -44,6 +45,6 @@ final class OrganizationDeleteService: OrganizationDeleteServicing {
             serverURL: serverURL
         )
 
-        logger.info("Tuist organization \(organizationName) was successfully deleted.")
+        ServiceContext.$current.get()?.logger?.info("Tuist organization \(organizationName) was successfully deleted.")
     }
 }

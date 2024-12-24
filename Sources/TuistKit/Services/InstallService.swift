@@ -7,6 +7,7 @@ import TuistLoader
 import TuistPlugin
 import TuistSupport
 import XcodeGraph
+import ServiceContextModule
 
 final class InstallService {
     private let pluginService: PluginServicing
@@ -56,12 +57,12 @@ final class InstallService {
     }
 
     private func fetchPlugins(path: AbsolutePath) async throws {
-        logger.notice("Resolving and fetching plugins.", metadata: .section)
+        ServiceContext.$current.get()?.logger?.notice("Resolving and fetching plugins.", metadata: .section)
 
         let config = try await configLoader.loadConfig(path: path)
         _ = try await pluginService.loadPlugins(using: config)
 
-        logger.notice("Plugins resolved and fetched successfully.", metadata: .success)
+        ServiceContext.$current.get()?.logger?.notice("Plugins resolved and fetched successfully.", metadata: .success)
     }
 
     private func fetchDependencies(path: AbsolutePath, update: Bool) async throws {
@@ -73,7 +74,7 @@ final class InstallService {
         let config = try await configLoader.loadConfig(path: path)
 
         if update {
-            logger.notice("Updating dependencies.", metadata: .section)
+            ServiceContext.$current.get()?.logger?.notice("Updating dependencies.", metadata: .section)
 
             try swiftPackageManagerController.update(
                 at: packageManifestPath.parentDirectory,
@@ -81,7 +82,7 @@ final class InstallService {
                 printOutput: true
             )
         } else {
-            logger.notice("Resolving and fetching dependencies.", metadata: .section)
+            ServiceContext.$current.get()?.logger?.notice("Resolving and fetching dependencies.", metadata: .section)
 
             try swiftPackageManagerController.resolve(
                 at: packageManifestPath.parentDirectory,

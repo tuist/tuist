@@ -3,6 +3,7 @@ import Path
 import TuistLoader
 import TuistServer
 import TuistSupport
+import ServiceContextModule
 
 protocol OrganizationInviteServicing {
     func run(
@@ -52,7 +53,7 @@ final class OrganizationInviteService: OrganizationInviteServicing {
             .appendingPathComponent("invitations")
             .appendingPathComponent(invitation.token)
 
-        logger.info("""
+        ServiceContext.$current.get()?.logger?.info("""
         \(invitation.inviteeEmail) was successfully invited to the \(organizationName) organization 🎉
 
         You can also share with them the invite link directly: \(invitationURL.absoluteString)

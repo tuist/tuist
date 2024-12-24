@@ -3,6 +3,7 @@ import Path
 import TuistLoader
 import TuistServer
 import TuistSupport
+import ServiceContextModule
 
 protocol OrganizationRemoveSSOServicing {
     func run(
@@ -45,6 +46,6 @@ final class OrganizationRemoveSSOService: OrganizationRemoveSSOServicing {
             ssoOrganization: nil
         )
 
-        logger.info("SSO for \(organizationName) was removed.")
+        ServiceContext.$current.get()?.logger?.info("SSO for \(organizationName) was removed.")
     }
 }

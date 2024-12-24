@@ -7,6 +7,7 @@ import TuistCore
 import TuistServer
 import TuistSupport
 import XcodeGraph
+import ServiceContextModule
 
 public class TuistAnalyticsServerBackend: TuistAnalyticsBackend {
     private let fullHandle: String
@@ -86,7 +87,7 @@ public class TuistAnalyticsServerBackend: TuistAnalyticsBackend {
         }
 
         if #available(macOS 13.0, *), ciChecker.isCI() {
-            logger
+            ServiceContext.$current.get()?.logger?
                 .info(
                     "You can view a detailed report at: \(serverCommandEvent.url.absoluteString)"
                 )

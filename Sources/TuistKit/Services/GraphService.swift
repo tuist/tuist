@@ -11,6 +11,7 @@ import TuistLoader
 import TuistPlugin
 import TuistSupport
 import XcodeGraph
+import ServiceContextModule
 
 final class GraphService {
     private let graphVizMapper: GraphToGraphVizMapping
@@ -57,7 +58,7 @@ final class GraphService {
 
         let filePath = outputPath.appending(component: "graph.\(format.rawValue)")
         if try await fileSystem.exists(filePath) {
-            logger.notice("Deleting existing graph at \(filePath.pathString)")
+            ServiceContext.$current.get()?.logger?.notice("Deleting existing graph at \(filePath.pathString)")
             try await fileSystem.remove(filePath)
         }
 
@@ -77,7 +78,7 @@ final class GraphService {
             try outputGraph.export(to: filePath)
         }
 
-        logger.notice("Graph exported to \(filePath.pathString)", metadata: .success)
+        ServiceContext.$current.get()?.logger?.notice("Graph exported to \(filePath.pathString)", metadata: .success)
     }
 
     private func export(
@@ -127,7 +128,7 @@ final class GraphService {
     }
 
     private func installGraphViz() throws {
-        logger.notice("Installing GraphViz...")
+        ServiceContext.$current.get()?.logger?.notice("Installing GraphViz...")
         var env = System.shared.env
         env["HOMEBREW_NO_AUTO_UPDATE"] = "1"
         try System.shared.runAndPrint(["brew", "install", "graphviz"], verbose: false, environment: env)

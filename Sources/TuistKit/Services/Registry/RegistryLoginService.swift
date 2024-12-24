@@ -4,6 +4,7 @@ import Path
 import TuistLoader
 import TuistServer
 import TuistSupport
+import ServiceContextModule
 
 enum RegistryLoginServiceError: Equatable, FatalError {
     case missingFullHandle
@@ -64,7 +65,7 @@ struct RegistryLoginService {
         guard let fullHandle = config.fullHandle else { throw RegistryLoginServiceError.missingFullHandle }
         let accountHandle = try fullHandleService.parse(fullHandle).accountHandle
 
-        logger.info("Logging into the registry...")
+        ServiceContext.$current.get()?.logger?.info("Logging into the registry...")
         let serverURL = try serverURLService.url(configServerURL: config.url)
 
         let token: String
@@ -90,7 +91,7 @@ struct RegistryLoginService {
             registryURL: registryURL
         )
 
-        logger.info("Successfully logged in to the \(accountHandle) registry 🎉")
+        ServiceContext.$current.get()?.logger?.info("Successfully logged in to the \(accountHandle) registry 🎉")
     }
 
     private func path(_ path: String?) async throws -> AbsolutePath {

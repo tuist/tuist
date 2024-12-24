@@ -4,6 +4,7 @@ import TuistCore
 import TuistLoader
 import TuistServer
 import TuistSupport
+import ServiceContextModule
 
 protocol WhoamiServicing: AnyObject {
     func run(
@@ -40,9 +41,9 @@ final class WhoamiService: WhoamiServicing {
         let config = try await configLoader.loadConfig(path: directoryPath)
         let serverURL = try serverURLService.url(configServerURL: config.url)
         if let whoami = try await serverSessionController.whoami(serverURL: serverURL) {
-            logger.notice("\(whoami)")
+            ServiceContext.$current.get()?.logger?.notice("\(whoami)")
         } else {
-            logger.notice("You are not logged in. Run 'tuist auth login'.")
+            ServiceContext.$current.get()?.logger?.notice("You are not logged in. Run 'tuist auth login'.")
         }
     }
 }

@@ -6,6 +6,7 @@ import TuistLoader
 import TuistServer
 import TuistSupport
 import XcodeGraph
+import ServiceContextModule
 
 enum BuildServiceError: FatalError {
     case workspaceNotFound(path: String)
@@ -107,7 +108,7 @@ public final class BuildService {
             )
         }
 
-        logger.log(
+        ServiceContext.$current.get()?.logger?.log(
             level: .debug,
             "Found the following buildable schemes: \(buildableSchemes.map(\.name).joined(separator: ", "))"
         )
@@ -180,6 +181,6 @@ public final class BuildService {
             }
         }
 
-        logger.log(level: .notice, "The project built successfully", metadata: .success)
+        ServiceContext.$current.get()?.logger?.log(level: .notice, "The project built successfully", metadata: .success)
     }
 }

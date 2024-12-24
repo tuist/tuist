@@ -3,6 +3,7 @@ import Path
 import TuistLoader
 import TuistServer
 import TuistSupport
+import ServiceContextModule
 
 protocol OrganizationCreateServicing {
     func run(
@@ -44,6 +45,6 @@ final class OrganizationCreateService: OrganizationCreateServicing {
             serverURL: serverURL
         )
 
-        logger.info("Tuist organization \(organization.name) was successfully created 🎉")
+        ServiceContext.$current.get()?.logger?.info("Tuist organization \(organization.name) was successfully created 🎉")
     }
 }
