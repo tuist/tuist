@@ -1,5 +1,6 @@
 import Foundation
 import TuistSupport
+import ServiceContextModule
 
 public struct LintingError: FatalError, Equatable {
     public let description: String = "Fatal linting issues found"
@@ -42,7 +43,7 @@ extension [LintingIssue] {
         let errorIssues = filter { $0.severity == .error }
 
         for issue in errorIssues {
-            logger.error("\(issue.description)")
+            ServiceContext.$current.get()?.logger?.error("\(issue.description)")
         }
 
         if !errorIssues.isEmpty { throw LintingError() }
@@ -54,7 +55,7 @@ extension [LintingIssue] {
         let warningIssues = filter { $0.severity == .warning }
 
         for issue in warningIssues {
-            logger.warning("\(issue.description)")
+            ServiceContext.$current.get()?.logger?.warning("\(issue.description)")
         }
     }
 }

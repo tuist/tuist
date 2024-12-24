@@ -4,6 +4,7 @@ import Mockable
 import Path
 import TuistSupport
 import XcodeGraph
+import ServiceContextModule
 
 // MARK: - Provider Errors
 
@@ -193,7 +194,7 @@ public final class XCFrameworkMetadataProvider: PrecompiledMetadataProvider,
             let relativeArchitectureBinaryPath = binaryPath.components.suffix(3).joined(
                 separator: "/"
             )
-            logger
+            ServiceContext.$current.get()?.logger?
                 .warning(
                     "\(xcframeworkPath.basename) is missing architecture \(relativeArchitectureBinaryPath) defined in the Info.plist"
                 )
