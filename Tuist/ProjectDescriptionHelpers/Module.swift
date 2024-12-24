@@ -115,6 +115,7 @@ public enum Module: String, CaseIterable {
     fileprivate var sharedDependencies: [TargetDependency] {
         return [
             .external(name: "Path"),
+            .external(name: "ServiceContextModule"),
             .external(name: "SystemPackage"),
         ]
     }

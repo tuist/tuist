@@ -517,6 +517,7 @@ let package = Package(
         .package(url: "https://github.com/tuist/Command.git", exact: "0.8.0"),
         .package(url: "https://github.com/sparkle-project/Sparkle.git", from: "2.6.4"),
         .package(url: "https://github.com/apple/swift-collections", .upToNextMajor(from: "1.1.4")),
+        .package(url: "https://github.com/apple/swift-service-context", .upToNextMajor(from: "1.0.0")),
     ],
     targets: targets
 )
