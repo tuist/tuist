@@ -260,11 +260,8 @@ config :tuist, Oban,
          {"@daily", Tuist.Accounts.Workers.UpdateAccountsCurrentMonthRemoteCacheHitsCountWorker}
        ] ++
          if(not Tuist.Environment.on_premise?() and env == :prod,
-           do: [{"0 10 * * 1-5", Tuist.Ops.DailySlackReportWorker}],
-           else: []
-         ) ++
-         if(not Tuist.Environment.on_premise?() and env != :dev,
            do: [
+             {"0 10 * * 1-5", Tuist.Ops.DailySlackReportWorker},
              {"@hourly", Tuist.Registry.Swift.Workers.UpdatePackagesWorker},
              {"@hourly", Tuist.Registry.Swift.Workers.UpdatePackageReleasesWorker}
            ],
