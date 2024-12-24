@@ -654,6 +654,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "SwiftToolsSupport"),
                     .external(name: "FileSystem"),
                     .external(name: "Command"),
+                    .external(name: "Logging"),
                 ]
             case .kit:
                 []
