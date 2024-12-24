@@ -1,6 +1,7 @@
 import Foundation
 import TuistCore
 import XcodeGraph
+import ServiceContextModule
 
 /**
  External dependencies might contain targets that are only relevant in development, but that
@@ -14,7 +15,7 @@ public struct PruneOrphanExternalTargetsGraphMapper: GraphMapping {
         graph: XcodeGraph.Graph,
         environment: MapperEnvironment
     ) async throws -> (XcodeGraph.Graph, [TuistCore.SideEffectDescriptor], MapperEnvironment) {
-        logger.debug("Transforming graph \(graph.name): Tree-shaking orphan external targets (e.g. test targets)")
+        ServiceContext.$current.get()?.logger?.debug("Transforming graph \(graph.name): Tree-shaking orphan external targets (e.g. test targets)")
 
         let graphTraverser = GraphTraverser(graph: graph)
         let orphanExternalTargets = graphTraverser.allOrphanExternalTargets()
