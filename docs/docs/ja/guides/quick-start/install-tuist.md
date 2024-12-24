@@ -41,11 +41,19 @@ brew install --formula tuist
 brew install --formula tuist@x.y.z
 ```
 
+:::tip VERIFYING THE AUTHENTICITY OF THE BINARIES
+
+```bash
+curl -fsSL "https://docs.tuist.dev/verify.sh" | bash
+```
+
+:::
+
 ### シェルの補完 {#shell-completions}
 
 Tuistを**グローバルにインストールしている**場合 (例えば、Homebrew経由で)、BashやZsh用のシェル補完をインストールして、コマンドやオプションを自動補完できます。
 
-:::warning グローバルインストールとは
+:::warning WHAT IS A GLOBAL INSTALLATION
 グローバルインストールは、シェルの `$PATH` 環境変数で利用可能なインストールです。 つまり、ターミナルの任意のディレクトリから `tuist` を実行できます。 This is the default installation method for Homebrew.
 :::
 

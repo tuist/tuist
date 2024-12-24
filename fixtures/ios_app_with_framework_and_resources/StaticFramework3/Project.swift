@@ -2,7 +2,6 @@ import ProjectDescription
 
 let project = Project(
     name: "StaticFramework3",
-    options: .options(),
     targets: [
         .target(
             name: "StaticFramework3",

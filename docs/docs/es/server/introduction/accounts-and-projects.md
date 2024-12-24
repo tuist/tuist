@@ -18,7 +18,11 @@ If you are familiar with [GitHub](https://github.com), the concept is similar to
 > [!NOTE] CLI-FIRST
 > Most operations to manage accounts and projects are done through the CLI. We are working on a web interface that will make it easier to manage accounts and projects.
 
-You can manage the organization through the subcommands under <LocalizedLink href="/cli/organization">`tuist organization`</LocalizedLink>.
+You can manage the organization through the subcommands under <LocalizedLink href="/cli/organization">`tuist organization`</LocalizedLink>. To create a new organization account, run:
+
+```bash
+tuist organization create {account-handle}
+```
 
 ## Projects {#projects}
 
