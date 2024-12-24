@@ -16,7 +16,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         guard !project.options.disableBundleAccessors else {
             return (project, [])
         }
-        ServiceContext.$current.get()?.logger?.debug("Transforming project \(project.name): Generating bundles for libraries'")
+        ServiceContext.current?.logger?.debug("Transforming project \(project.name): Generating bundles for libraries'")
 
         var sideEffects: [SideEffectDescriptor] = []
         var targets: [String: Target] = [:]

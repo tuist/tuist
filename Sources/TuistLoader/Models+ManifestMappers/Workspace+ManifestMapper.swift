@@ -37,7 +37,7 @@ extension XcodeGraph.Workspace {
                 // FIXME: This should be done in a linter.
                 // Before we can do that we have to change the linters to run with the TuistCore models and not the
                 // ProjectDescription ones.
-                ServiceContext.$current.get()?.logger?.warning("No projects found at: \(path.pathString)")
+                ServiceContext.current?.logger?.warning("No projects found at: \(path.pathString)")
             }
 
             return Array(projects)

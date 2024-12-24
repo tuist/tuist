@@ -8,7 +8,7 @@ public final class SkipUITestsProjectMapper: ProjectMapping {
     public init() {}
 
     public func map(project: Project) throws -> (Project, [SideEffectDescriptor]) {
-        ServiceContext.$current.get()?.logger?.debug("Transforming project \(project.name): Pruning UI tests targets")
+        ServiceContext.current?.logger?.debug("Transforming project \(project.name): Pruning UI tests targets")
 
         var project = project
         project.targets = project.targets.mapValues { target in

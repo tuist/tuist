@@ -51,6 +51,6 @@ final class OrganizationUpdateMemberService: OrganizationUpdateMemberServicing {
             serverURL: serverURL
         )
 
-        ServiceContext.$current.get()?.logger?.info("The member \(username) role was successfully updated to \(member.role.rawValue).")
+        ServiceContext.current?.logger?.info("The member \(username) role was successfully updated to \(member.role.rawValue).")
     }
 }

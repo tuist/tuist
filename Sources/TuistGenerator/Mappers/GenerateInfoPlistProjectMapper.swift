@@ -36,7 +36,7 @@ public final class GenerateInfoPlistProjectMapper: ProjectMapping {
     // MARK: - ProjectMapping
 
     public func map(project: Project) throws -> (Project, [SideEffectDescriptor]) {
-        ServiceContext.$current.get()?.logger?.debug("Transforming project \(project.name): Synthesizing Info.plist")
+        ServiceContext.current?.logger?.debug("Transforming project \(project.name): Synthesizing Info.plist")
 
         let results = try project.targets.values
             .reduce(into: (targets: [String: Target](), sideEffects: [SideEffectDescriptor]())) { results, target in

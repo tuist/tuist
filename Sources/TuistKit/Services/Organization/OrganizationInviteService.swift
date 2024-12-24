@@ -53,7 +53,7 @@ final class OrganizationInviteService: OrganizationInviteServicing {
             .appendingPathComponent("invitations")
             .appendingPathComponent(invitation.token)
 
-        ServiceContext.$current.get()?.logger?.info("""
+        ServiceContext.current?.logger?.info("""
         \(invitation.inviteeEmail) was successfully invited to the \(organizationName) organization 🎉
 
         You can also share with them the invite link directly: \(invitationURL.absoluteString)

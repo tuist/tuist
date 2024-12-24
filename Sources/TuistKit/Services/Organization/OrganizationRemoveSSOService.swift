@@ -46,6 +46,6 @@ final class OrganizationRemoveSSOService: OrganizationRemoveSSOServicing {
             ssoOrganization: nil
         )
 
-        ServiceContext.$current.get()?.logger?.info("SSO for \(organizationName) was removed.")
+        ServiceContext.current?.logger?.info("SSO for \(organizationName) was removed.")
     }
 }

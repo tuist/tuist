@@ -147,7 +147,7 @@ public class CachedManifestLoader: ManifestLoading {
         )
 
         guard let hashes = calculatedHashes else {
-            ServiceContext.$current.get()?.logger?.warning("Unable to calculate manifest hash at path: \(path)")
+            ServiceContext.current?.logger?.warning("Unable to calculate manifest hash at path: \(path)")
             return try await loader()
         }
 

@@ -20,7 +20,7 @@ public struct ExplicitDependencyGraphMapper: GraphMapping {
                 environment
             )
         }
-        ServiceContext.$current.get()?.logger?.debug("Transforming graph \(graph.name): Enforcing explicit dependencies")
+        ServiceContext.current?.logger?.debug("Transforming graph \(graph.name): Enforcing explicit dependencies")
 
         let graphTraverser = GraphTraverser(graph: graph)
 

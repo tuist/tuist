@@ -75,7 +75,7 @@ struct ProjectShowService {
             projectInfo.append("Default branch: \(project.defaultBranch)")
             projectInfo.append("Visibility: \(project.visibility.rawValue)")
 
-            ServiceContext.$current.get()?.logger?.info("\(projectInfo.joined(separator: "\n"))")
+            ServiceContext.current?.logger?.info("\(projectInfo.joined(separator: "\n"))")
         }
     }
 

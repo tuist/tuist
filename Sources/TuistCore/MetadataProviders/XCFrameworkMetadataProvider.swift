@@ -194,7 +194,7 @@ public final class XCFrameworkMetadataProvider: PrecompiledMetadataProvider,
             let relativeArchitectureBinaryPath = binaryPath.components.suffix(3).joined(
                 separator: "/"
             )
-            ServiceContext.$current.get()?.logger?
+            ServiceContext.current?.logger?
                 .warning(
                     "\(xcframeworkPath.basename) is missing architecture \(relativeArchitectureBinaryPath) defined in the Info.plist"
                 )

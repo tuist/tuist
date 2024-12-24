@@ -91,7 +91,7 @@ final class WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
     func generate(graphTraverser: GraphTraversing) async throws -> WorkspaceDescriptor {
         let workspaceName = "\(graphTraverser.name).xcworkspace"
 
-        ServiceContext.$current.get()?.logger?.notice("Generating workspace \(workspaceName)", metadata: .section)
+        ServiceContext.current?.logger?.notice("Generating workspace \(workspaceName)", metadata: .section)
 
         /// Projects
         let projects = try await Array(graphTraverser.projects.values)

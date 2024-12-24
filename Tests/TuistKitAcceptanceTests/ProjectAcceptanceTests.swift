@@ -3,6 +3,7 @@ import TuistAcceptanceTesting
 import TuistSupport
 import TuistSupportTesting
 import XCTest
+import ServiceContextModule
 
 @testable import TuistKit
 @testable import TuistServer
@@ -20,17 +21,15 @@ final class ProjectAcceptanceTestProjectTokens: ServerAcceptanceTestCase {
     func test_create_list_and_revoke_project_token() async throws {
         try await setUpFixture(.iosAppWithFrameworks)
         try await run(ProjectTokensCreateCommand.self, fullHandle)
-        TestingLogHandler.reset()
         try await run(ProjectTokensListCommand.self, fullHandle)
         let id = try XCTUnwrap(
-            TestingLogHandler.collected[.info, <=]
+            ServiceContext.current?.testingLogHandler?.collected[.info, <=]
                 .components(separatedBy: .newlines)
                 .dropLast().last?
                 .components(separatedBy: .whitespaces)
                 .first
         )
         try await run(ProjectTokensRevokeCommand.self, id, fullHandle)
-        TestingLogHandler.reset()
         try await run(ProjectTokensListCommand.self, fullHandle)
         XCTAssertStandardOutput(
             pattern: "No project tokens found. Create one by running `tuist project tokens create \(fullHandle)."
@@ -49,7 +48,6 @@ final class ProjectAcceptanceTestProjectDefaultBranch: ServerAcceptanceTestCase 
             """
         )
         try await run(ProjectUpdateCommand.self, fullHandle, "--default-branch", "new-default-branch")
-        TestingLogHandler.reset()
         try await run(ProjectShowCommand.self, fullHandle)
         XCTAssertStandardOutput(
             pattern: """
@@ -70,7 +68,6 @@ final class ProjectAcceptanceTestProjectVisibility: ServerAcceptanceTestCase {
             """
         )
         try await run(ProjectUpdateCommand.self, fullHandle, "--visibility", "public")
-        TestingLogHandler.reset()
         try await run(ProjectShowCommand.self, fullHandle)
         XCTAssertStandardOutput(
             pattern: """
@@ -91,7 +88,6 @@ final class ProjectAcceptanceTestProjectRepository: ServerAcceptanceTestCase {
             """
         )
         try await run(ProjectUpdateCommand.self, fullHandle, "--repository-url", "https://github.com/tuist/tuist")
-        TestingLogHandler.reset()
         try await run(ProjectShowCommand.self, fullHandle)
         XCTAssertStandardOutput(
             pattern: """

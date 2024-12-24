@@ -138,8 +138,8 @@ public final class TargetRunner: TargetRunning {
     }
 
     private func runExecutable(_ executablePath: AbsolutePath, arguments: [String]) throws {
-        ServiceContext.$current.get()?.logger?.notice("Running executable \(executablePath.basename)", metadata: .section)
-        ServiceContext.$current.get()?.logger?.debug("Forwarding arguments: \(arguments.joined(separator: ", "))")
+        ServiceContext.current?.logger?.notice("Running executable \(executablePath.basename)", metadata: .section)
+        ServiceContext.current?.logger?.debug("Forwarding arguments: \(arguments.joined(separator: ", "))")
         try System.shared.runAndPrint([executablePath.pathString] + arguments)
     }
 
@@ -165,8 +165,8 @@ public final class TargetRunner: TargetRunning {
             deviceName: deviceName
         )
 
-        ServiceContext.$current.get()?.logger?.debug("Running app \(appPath.pathString) with arguments [\(arguments.joined(separator: ", "))]")
-        ServiceContext.$current.get()?.logger?.notice("Running app \(bundleId) on \(simulator.device.name)", metadata: .section)
+        ServiceContext.current?.logger?.debug("Running app \(appPath.pathString) with arguments [\(arguments.joined(separator: ", "))]")
+        ServiceContext.current?.logger?.notice("Running app \(bundleId) on \(simulator.device.name)", metadata: .section)
         try simulatorController.installApp(at: appPath, device: simulator.device)
         try await simulatorController.launchApp(bundleId: bundleId, device: simulator.device, arguments: arguments)
     }

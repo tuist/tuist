@@ -3,6 +3,7 @@ import FileSystem
 import Foundation
 import Path
 import XCTest
+import ServiceContextModule
 
 @testable import TuistSupport
 
@@ -106,13 +107,6 @@ public final class MockFileHandler: FileHandler {
 open class TuistTestCase: XCTestCase {
     fileprivate var temporaryDirectory: TemporaryDirectory!
 
-    override public static func setUp() {
-        super.setUp()
-        DispatchQueue.once(token: "io.tuist.test.logging") {
-            LoggingSystem.bootstrap(TestingLogHandler.init)
-        }
-    }
-
     public var environment: MockEnvironment!
     public var fileHandler: MockFileHandler!
 
@@ -134,7 +128,6 @@ open class TuistTestCase: XCTestCase {
 
     override open func tearDown() {
         temporaryDirectory = nil
-        TestingLogHandler.reset()
         super.tearDown()
     }
 
@@ -220,7 +213,7 @@ open class TuistTestCase: XCTestCase {
         _ comparison: (Logger.Level, Logger.Level) -> Bool,
         file: StaticString = #file, line: UInt = #line
     ) {
-        let output = TestingLogHandler.collected[level, comparison]
+        let output = ServiceContext.current?.testingLogHandler?.collected[level, comparison] ?? ""
 
         let message = """
         The output:
@@ -241,8 +234,8 @@ open class TuistTestCase: XCTestCase {
         _ comparison: (Logger.Level, Logger.Level) -> Bool,
         file: StaticString = #file, line: UInt = #line
     ) {
-        let output = TestingLogHandler.collected[level, comparison]
-
+        let output = ServiceContext.current?.testingLogHandler?.collected[level, comparison] ?? ""
+        
         let message = """
         The output:
         ===========

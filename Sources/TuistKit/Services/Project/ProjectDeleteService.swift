@@ -53,6 +53,6 @@ final class ProjectDeleteService: ProjectDeleteServicing {
             serverURL: serverURL
         )
 
-        ServiceContext.$current.get()?.logger?.info("Successfully deleted the \(project.fullName) project.")
+        ServiceContext.current?.logger?.info("Successfully deleted the \(project.fullName) project.")
     }
 }

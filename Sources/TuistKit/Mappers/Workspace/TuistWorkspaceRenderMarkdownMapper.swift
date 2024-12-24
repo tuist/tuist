@@ -9,7 +9,7 @@ import ServiceContextModule
 /// This is used to render markdown inside the workspace.
 final class TuistWorkspaceRenderMarkdownReadmeMapper: WorkspaceMapping {
     func map(workspace: WorkspaceWithProjects) throws -> (WorkspaceWithProjects, [SideEffectDescriptor]) {
-        ServiceContext.$current.get()?.logger?.debug("Transforming workspace \(workspace.workspace.name): Including .xcodesample.plist")
+        ServiceContext.current?.logger?.debug("Transforming workspace \(workspace.workspace.name): Including .xcodesample.plist")
 
         let tuistGeneratedFileDescriptor = FileDescriptor(
             path: workspace

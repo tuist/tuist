@@ -40,7 +40,7 @@ public struct TargetScriptsContentHasher: TargetScriptsContentHashing {
             for path in dynamicPaths {
                 if path.pathString.contains("$") {
                     stringsToHash.append(path.relative(to: sourceRootPath).pathString)
-                    ServiceContext.$current.get()?.logger?.notice(
+                    ServiceContext.current?.logger?.notice(
                         "The path of the file \'\(path.url.lastPathComponent)\' is hashed, not the content. Because it has a build variable."
                     )
                 } else {

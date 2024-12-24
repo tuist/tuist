@@ -45,6 +45,6 @@ final class OrganizationCreateService: OrganizationCreateServicing {
             serverURL: serverURL
         )
 
-        ServiceContext.$current.get()?.logger?.info("Tuist organization \(organization.name) was successfully created 🎉")
+        ServiceContext.current?.logger?.info("Tuist organization \(organization.name) was successfully created 🎉")
     }
 }

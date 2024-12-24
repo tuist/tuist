@@ -63,7 +63,7 @@ struct ProjectUpdateService {
             visibility: visibility
         )
 
-        ServiceContext.$current.get()?.logger?.notice("The project \(fullHandle) was successfully updated 🎉", metadata: .success)
+        ServiceContext.current?.logger?.notice("The project \(fullHandle) was successfully updated 🎉", metadata: .success)
     }
 
     // MARK: - Helpers

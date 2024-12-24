@@ -2,6 +2,7 @@ import Foundation
 import Path
 import TuistSupport
 import XCTest
+import ServiceContextModule
 
 extension XCTestCase {
     // MARK: - Fixtures
@@ -67,7 +68,7 @@ extension XCTestCase {
     }
 
     public func XCTAssertStandardOutput(pattern: String, file: StaticString = #file, line: UInt = #line) {
-        let standardOutput = TestingLogHandler.collected[.info, <=]
+        let standardOutput = ServiceContext.current?.testingLogHandler?.collected[.info, <=] ?? ""
 
         let message = """
         The standard output:
@@ -83,7 +84,7 @@ extension XCTestCase {
     }
 
     public func XCTAssertStandardOutputNotContains(_ pattern: String, file: StaticString = #file, line: UInt = #line) {
-        let standardOutput = TestingLogHandler.collected[.info, <=]
+        let standardOutput = ServiceContext.current?.testingLogHandler?.collected[.info, <=] ?? ""
 
         let message = """
         The standard output:
@@ -99,7 +100,7 @@ extension XCTestCase {
     }
 
     public func XCTAssertStandardError(pattern: String, file: StaticString = #file, line: UInt = #line) {
-        let standardError = TestingLogHandler.collected[.error, ==]
+        let standardError = ServiceContext.current?.testingLogHandler?.collected[.error, <=] ?? ""
 
         let message = """
         The standard error:

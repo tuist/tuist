@@ -45,6 +45,6 @@ final class OrganizationDeleteService: OrganizationDeleteServicing {
             serverURL: serverURL
         )
 
-        ServiceContext.$current.get()?.logger?.info("Tuist organization \(organizationName) was successfully deleted.")
+        ServiceContext.current?.logger?.info("Tuist organization \(organizationName) was successfully deleted.")
     }
 }

@@ -48,6 +48,6 @@ final class ProjectTokensRevokeService: ProjectTokensRevokeServicing {
             serverURL: serverURL
         )
 
-        ServiceContext.$current.get()?.logger?.info("The project token \(projectTokenId) was successfully revoked.")
+        ServiceContext.current?.logger?.info("The project token \(projectTokenId) was successfully revoked.")
     }
 }

@@ -58,7 +58,7 @@ final class GraphService {
 
         let filePath = outputPath.appending(component: "graph.\(format.rawValue)")
         if try await fileSystem.exists(filePath) {
-            ServiceContext.$current.get()?.logger?.notice("Deleting existing graph at \(filePath.pathString)")
+            ServiceContext.current?.logger?.notice("Deleting existing graph at \(filePath.pathString)")
             try await fileSystem.remove(filePath)
         }
 
@@ -78,7 +78,7 @@ final class GraphService {
             try outputGraph.export(to: filePath)
         }
 
-        ServiceContext.$current.get()?.logger?.notice("Graph exported to \(filePath.pathString)", metadata: .success)
+        ServiceContext.current?.logger?.notice("Graph exported to \(filePath.pathString)", metadata: .success)
     }
 
     private func export(
@@ -128,7 +128,7 @@ final class GraphService {
     }
 
     private func installGraphViz() throws {
-        ServiceContext.$current.get()?.logger?.notice("Installing GraphViz...")
+        ServiceContext.current?.logger?.notice("Installing GraphViz...")
         var env = System.shared.env
         env["HOMEBREW_NO_AUTO_UPDATE"] = "1"
         try System.shared.runAndPrint(["brew", "install", "graphviz"], verbose: false, environment: env)

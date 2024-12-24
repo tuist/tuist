@@ -57,7 +57,7 @@ final class OrganizationShowService: OrganizationShowServicing {
 
         if json {
             let json = try organization.toJSON()
-            ServiceContext.$current.get()?.logger?.info(.init(stringLiteral: json.toString(prettyPrint: true)), metadata: .json)
+            ServiceContext.current?.logger?.info(.init(stringLiteral: json.toString(prettyPrint: true)), metadata: .json)
             return
         }
 
@@ -95,7 +95,7 @@ final class OrganizationShowService: OrganizationShowServicing {
             }
         }
 
-        ServiceContext.$current.get()?.logger?.info("""
+        ServiceContext.current?.logger?.info("""
         \(baseInfo.joined(separator: "\n"))
 
         \("Usage".bold()) (current calendar month)

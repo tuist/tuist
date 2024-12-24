@@ -3,6 +3,8 @@ import HTTPTypes
 import OpenAPIRuntime
 import TuistSupport
 import XCTest
+import ServiceContextModule
+
 @testable import TuistServer
 @testable import TuistSupportTesting
 
@@ -73,6 +75,7 @@ final class ServerClientOutputWarningsMiddlewareTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(gotResponse, response)
-        XCTAssertEqual(TestingLogHandler.collected[.warning, <=], "")
+        let standardOutput = ServiceContext.current?.testingLogHandler?.collected[.warning, <=] ?? ""
+        XCTAssertEqual(standardOutput, "")
     }
 }

@@ -43,7 +43,7 @@ extension [LintingIssue] {
         let errorIssues = filter { $0.severity == .error }
 
         for issue in errorIssues {
-            ServiceContext.$current.get()?.logger?.error("\(issue.description)")
+            ServiceContext.current?.logger?.error("\(issue.description)")
         }
 
         if !errorIssues.isEmpty { throw LintingError() }
@@ -55,7 +55,7 @@ extension [LintingIssue] {
         let warningIssues = filter { $0.severity == .warning }
 
         for issue in warningIssues {
-            ServiceContext.$current.get()?.logger?.warning("\(issue.description)")
+            ServiceContext.current?.logger?.warning("\(issue.description)")
         }
     }
 }

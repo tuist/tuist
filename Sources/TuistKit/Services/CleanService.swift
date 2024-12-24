@@ -126,9 +126,9 @@ final class CleanService {
             {
                 try await fileSystem.remove(directory)
                 try await fileSystem.makeDirectory(at: directory)
-                ServiceContext.$current.get()?.logger?.notice("Successfully cleaned artifacts at path \(directory.pathString)", metadata: .success)
+                ServiceContext.current?.logger?.notice("Successfully cleaned artifacts at path \(directory.pathString)", metadata: .success)
             } else {
-                ServiceContext.$current.get()?.logger?.notice("There's nothing to clean for \(category.defaultValueDescription)")
+                ServiceContext.current?.logger?.notice("There's nothing to clean for \(category.defaultValueDescription)")
             }
         }
 
@@ -141,7 +141,7 @@ final class CleanService {
                 fullHandle: fullHandle
             )
 
-            ServiceContext.$current.get()?.logger?.notice("Successfully cleaned the remote storage.")
+            ServiceContext.current?.logger?.notice("Successfully cleaned the remote storage.")
         }
     }
 }

@@ -73,22 +73,22 @@ public struct UserInputReader: UserInputReading {
 
     public func readInt(asking prompt: String, maxValueAllowed: Int) -> Int {
         while true {
-            ServiceContext.$current.get()?.logger?.notice("\(prompt)")
+            ServiceContext.current?.logger?.notice("\(prompt)")
             if let input = reader(true), !input.isEmpty, let intValue = Int(input), intValue < maxValueAllowed {
                 return intValue
             } else {
-                ServiceContext.$current.get()?.logger?.notice("Invalid input. Please enter a valid integer.")
+                ServiceContext.current?.logger?.notice("Invalid input. Please enter a valid integer.")
             }
         }
     }
 
     public func readString(asking prompt: String) -> String {
         while true {
-            ServiceContext.$current.get()?.logger?.notice("\(prompt)")
+            ServiceContext.current?.logger?.notice("\(prompt)")
             if let input = reader(true), !input.isEmpty {
                 return input
             } else {
-                ServiceContext.$current.get()?.logger?.notice("The value is empty. Please, enter a non-empty value.")
+                ServiceContext.current?.logger?.notice("The value is empty. Please, enter a non-empty value.")
             }
         }
     }

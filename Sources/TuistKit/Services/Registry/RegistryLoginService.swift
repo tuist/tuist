@@ -65,7 +65,7 @@ struct RegistryLoginService {
         guard let fullHandle = config.fullHandle else { throw RegistryLoginServiceError.missingFullHandle }
         let accountHandle = try fullHandleService.parse(fullHandle).accountHandle
 
-        ServiceContext.$current.get()?.logger?.info("Logging into the registry...")
+        ServiceContext.current?.logger?.info("Logging into the registry...")
         let serverURL = try serverURLService.url(configServerURL: config.url)
 
         let token: String
@@ -91,7 +91,7 @@ struct RegistryLoginService {
             registryURL: registryURL
         )
 
-        ServiceContext.$current.get()?.logger?.info("Successfully logged in to the \(accountHandle) registry 🎉")
+        ServiceContext.current?.logger?.info("Successfully logged in to the \(accountHandle) registry 🎉")
     }
 
     private func path(_ path: String?) async throws -> AbsolutePath {

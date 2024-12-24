@@ -48,6 +48,6 @@ final class OrganizationRemoveMemberService: OrganizationRemoveMemberServicing {
             serverURL: serverURL
         )
 
-        ServiceContext.$current.get()?.logger?.info("The member \(username) was successfully removed from the \(organizationName) organization.")
+        ServiceContext.current?.logger?.info("The member \(username) was successfully removed from the \(organizationName) organization.")
     }
 }

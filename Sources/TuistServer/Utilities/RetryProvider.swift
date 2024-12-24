@@ -25,7 +25,7 @@ public struct RetryProvider: RetryProviding {
                 do {
                     return try await operation()
                 } catch {
-                    ServiceContext.$current.get()?.logger?.debug("""
+                    ServiceContext.current?.logger?.debug("""
                     The following error happened for retry \(retry): \(error.localizedDescription).
                     Retrying...
                     """)

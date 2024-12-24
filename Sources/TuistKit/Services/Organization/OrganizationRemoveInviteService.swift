@@ -48,6 +48,6 @@ final class OrganizationRemoveInviteService: OrganizationRemoveInviteServicing {
             serverURL: serverURL
         )
 
-        ServiceContext.$current.get()?.logger?.info("The invitation for \(email) to the \(organizationName) organization was successfully cancelled.")
+        ServiceContext.current?.logger?.info("The invitation for \(email) to the \(organizationName) organization was successfully cancelled.")
     }
 }

@@ -86,7 +86,7 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
         project: Project,
         graphTraverser: GraphTraversing
     ) async throws -> ProjectDescriptor {
-        ServiceContext.$current.get()?.logger?.notice("Generating project \(project.name)")
+        ServiceContext.current?.logger?.notice("Generating project \(project.name)")
 
         let selfRef = XCWorkspaceDataFileRef(location: .current(""))
         let selfRefFile = XCWorkspaceDataElement.file(selfRef)

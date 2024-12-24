@@ -46,16 +46,16 @@ final class ProjectListService: ProjectListServicing {
 
         if json {
             let json = try projects.toJSON()
-            ServiceContext.$current.get()?.logger?.info(.init(stringLiteral: json.toString(prettyPrint: true)), metadata: .json)
+            ServiceContext.current?.logger?.info(.init(stringLiteral: json.toString(prettyPrint: true)), metadata: .json)
             return
         }
 
         if projects.isEmpty {
-            ServiceContext.$current.get()?.logger?.info("You currently have no Tuist projects. Create one by running `tuist project create`.")
+            ServiceContext.current?.logger?.info("You currently have no Tuist projects. Create one by running `tuist project create`.")
             return
         }
 
         let projectsString = "Listing all your projects:\n" + projects.map { "  • \($0.fullName)" }.joined(separator: "\n")
-        ServiceContext.$current.get()?.logger?.info("\(projectsString)")
+        ServiceContext.current?.logger?.info("\(projectsString)")
     }
 }

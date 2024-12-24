@@ -24,7 +24,7 @@ public final class DeleteDerivedDirectoryProjectMapper: ProjectMapping {
     // MARK: - ProjectMapping
 
     public func map(project: Project) async throws -> (Project, [SideEffectDescriptor]) {
-        ServiceContext.$current.get()?.logger?.debug("Transforming project \(project.name): Deleting /Derived directory")
+        ServiceContext.current?.logger?.debug("Transforming project \(project.name): Deleting /Derived directory")
 
         let derivedDirectoryPath = project.path.appending(component: derivedDirectoryName)
 

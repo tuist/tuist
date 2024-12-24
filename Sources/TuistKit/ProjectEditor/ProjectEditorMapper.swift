@@ -58,7 +58,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         stencils: [AbsolutePath],
         projectDescriptionSearchPath: AbsolutePath
     ) async throws -> Graph {
-        ServiceContext.$current.get()?.logger?.notice("Building the editable project graph")
+        ServiceContext.current?.logger?.notice("Building the editable project graph")
         let swiftVersion = try SwiftVersionProvider.shared.swiftVersion()
 
         let pluginsProject = try await mapPluginsProject(

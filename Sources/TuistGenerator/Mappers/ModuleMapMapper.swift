@@ -28,7 +28,7 @@ public final class ModuleMapMapper: GraphMapping { // swiftlint:disable:this typ
 
     // swiftlint:disable function_body_length
     public func map(graph: Graph, environment: MapperEnvironment) throws -> (Graph, [SideEffectDescriptor], MapperEnvironment) {
-        ServiceContext.$current.get()?.logger?
+        ServiceContext.current?.logger?
             .debug(
                 "Transforming graph \(graph.name): Mapping MODULE_MAP build setting to -fmodule-map-file compiler flag"
             )

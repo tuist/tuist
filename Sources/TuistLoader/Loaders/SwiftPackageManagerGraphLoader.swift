@@ -234,7 +234,7 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
         }
 
         if currentData != savedData {
-            ServiceContext.$current.get()?.logger?.warning("We detected outdated dependencies. Please run \"tuist install\" to update them.")
+            ServiceContext.current?.logger?.warning("We detected outdated dependencies. Please run \"tuist install\" to update them.")
         }
     }
 }

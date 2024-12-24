@@ -53,6 +53,6 @@ final class ProjectTokensCreateService: ProjectTokensCreateServicing {
             serverURL: serverURL
         )
 
-        ServiceContext.$current.get()?.logger?.info(.init(stringLiteral: token))
+        ServiceContext.current?.logger?.info(.init(stringLiteral: token))
     }
 }

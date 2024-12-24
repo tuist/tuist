@@ -88,8 +88,8 @@ public class Generator: Generating {
     }
 
     func load(path: AbsolutePath) async throws -> (Graph, [SideEffectDescriptor], MapperEnvironment) {
-        ServiceContext.$current.get()?.logger?.notice("Loading and constructing the graph", metadata: .section)
-        ServiceContext.$current.get()?.logger?.notice("It might take a while if the cache is empty")
+        ServiceContext.current?.logger?.notice("Loading and constructing the graph", metadata: .section)
+        ServiceContext.current?.logger?.notice("It might take a while if the cache is empty")
 
         let (graph, sideEffectDescriptors, environment, issues) = try await manifestGraphLoader.load(path: path)
 

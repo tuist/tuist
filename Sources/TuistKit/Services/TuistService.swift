@@ -50,7 +50,7 @@ final class TuistService: NSObject {
 
         if let pluginPath: String = ProcessInfo.processInfo.environment["TUIST_CONFIG_PLUGIN_BINARY_PATH"] {
             let absolutePath = try AbsolutePath(validating: pluginPath)
-            ServiceContext.$current.get()?.logger?.debug("Using plugin absolutePath \(absolutePath.description)", metadata: .subsection)
+            ServiceContext.current?.logger?.debug("Using plugin absolutePath \(absolutePath.description)", metadata: .subsection)
             pluginPaths.append(absolutePath)
         }
 

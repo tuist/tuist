@@ -46,6 +46,6 @@ final class ProjectCreateService: ProjectCreateServicing {
             serverURL: serverURL
         )
 
-        ServiceContext.$current.get()?.logger?.info("Tuist project \(project.fullName) was successfully created 🎉")
+        ServiceContext.current?.logger?.info("Tuist project \(project.fullName) was successfully created 🎉")
     }
 }

@@ -206,7 +206,7 @@ final class TestService { // swiftlint:disable:this type_body_length
             cacheStorage: cacheStorage
         )
 
-        ServiceContext.$current.get()?.logger?.notice("Generating project for testing", metadata: .section)
+        ServiceContext.current?.logger?.notice("Generating project for testing", metadata: .section)
         let (_, graph, mapperEnvironment) = try await testGenerator.generateWithGraph(
             path: path
         )
@@ -224,7 +224,7 @@ final class TestService { // swiftlint:disable:this type_body_length
         let version = osVersion?.version()
         let testableSchemes = buildGraphInspector.testableSchemes(graphTraverser: graphTraverser) +
             buildGraphInspector.workspaceSchemes(graphTraverser: graphTraverser)
-        ServiceContext.$current.get()?.logger?.log(
+        ServiceContext.current?.logger?.log(
             level: .debug,
             "Found the following testable schemes: \(Set(testableSchemes.map(\.name)).joined(separator: ", "))"
         )
@@ -254,7 +254,7 @@ final class TestService { // swiftlint:disable:this type_body_length
             else {
                 let schemes = mapperEnvironment.initialGraph.map(GraphTraverser.init)?.schemes() ?? graphTraverser.schemes()
                 if let scheme = schemes.first(where: { $0.name == schemeName }) {
-                    ServiceContext.$current.get()?.logger?.log(level: .info, "The scheme \(schemeName)'s test action has no tests to run, finishing early.")
+                    ServiceContext.current?.logger?.log(level: .info, "The scheme \(schemeName)'s test action has no tests to run, finishing early.")
                     updateTestServiceAnalytics(
                         analyticsDelegate: analyticsDelegate,
                         mapperEnvironment: mapperEnvironment,
@@ -281,10 +281,10 @@ final class TestService { // swiftlint:disable:this type_body_length
             case (_, false, _):
                 break
             case (nil, true, _), (nil, nil, _):
-                ServiceContext.$current.get()?.logger?.log(level: .info, "The scheme \(schemeName)'s test action has no tests to run, finishing early.")
+                ServiceContext.current?.logger?.log(level: .info, "The scheme \(schemeName)'s test action has no tests to run, finishing early.")
                 return
             case (_?, _, true), (_?, _, nil):
-                ServiceContext.$current.get()?.logger?.log(level: .info, "The scheme \(schemeName)'s test action has no test plans to run, finishing early.")
+                ServiceContext.current?.logger?.log(level: .info, "The scheme \(schemeName)'s test action has no test plans to run, finishing early.")
                 return
             default:
                 break
@@ -405,7 +405,7 @@ final class TestService { // swiftlint:disable:this type_body_length
             cacheStorage: uploadCacheStorage
         )
 
-        ServiceContext.$current.get()?.logger?.log(level: .notice, "The project tests ran successfully", metadata: .success)
+        ServiceContext.current?.logger?.log(level: .notice, "The project tests ran successfully", metadata: .success)
     }
 
     private func updateTestServiceAnalytics(
@@ -491,12 +491,12 @@ final class TestService { // swiftlint:disable:this type_body_length
             }
 
         if testSchemes.isEmpty {
-            ServiceContext.$current.get()?.logger?.log(level: .info, "There are no tests to run, finishing early")
+            ServiceContext.current?.logger?.log(level: .info, "There are no tests to run, finishing early")
             return false
         }
 
         if !skippedTestTargets.isEmpty {
-            ServiceContext.$current.get()?.logger?
+            ServiceContext.current?.logger?
                 .notice(
                     "The following targets have not changed since the last successful run and will be skipped: \(skippedTestTargets.map(\.target.name).joined(separator: ", "))"
                 )
@@ -628,7 +628,7 @@ final class TestService { // swiftlint:disable:this type_body_length
         testPlanConfiguration: TestPlanConfiguration?,
         passthroughXcodeBuildArguments: [String]
     ) async throws {
-        ServiceContext.$current.get()?.logger?.log(level: .notice, "Testing scheme \(scheme.name)", metadata: .section)
+        ServiceContext.current?.logger?.log(level: .notice, "Testing scheme \(scheme.name)", metadata: .section)
         if let testPlan = testPlanConfiguration?.testPlan, let testPlans = scheme.testAction?.testPlans,
            !testPlans.contains(where: { $0.name == testPlan })
         {

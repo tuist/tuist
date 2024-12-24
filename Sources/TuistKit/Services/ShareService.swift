@@ -410,7 +410,7 @@ struct ShareService {
         serverURL: URL,
         json: Bool
     ) async throws {
-        ServiceContext.$current.get()?.logger?.notice("Uploading \(displayName)...")
+        ServiceContext.current?.logger?.notice("Uploading \(displayName)...")
         let preview = try await previewsUploadService.uploadPreviews(
             previewUploadType,
             displayName: displayName,
@@ -421,7 +421,7 @@ struct ShareService {
             fullHandle: fullHandle,
             serverURL: serverURL
         )
-        ServiceContext.$current.get()?.logger?.notice("\(displayName) uploaded – share it with others using the following link: \(preview.url.absoluteString)")
+        ServiceContext.current?.logger?.notice("\(displayName) uploaded – share it with others using the following link: \(preview.url.absoluteString)")
 
         ShareCommand.analyticsDelegate?.addParameters(
             [
@@ -431,7 +431,7 @@ struct ShareService {
 
         if json {
             let previewJSON = try preview.toJSON()
-            ServiceContext.$current.get()?.logger?.info(
+            ServiceContext.current?.logger?.info(
                 .init(
                     stringLiteral: previewJSON.toString(prettyPrint: true)
                 ),

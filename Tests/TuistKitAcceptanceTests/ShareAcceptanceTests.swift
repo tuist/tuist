@@ -4,6 +4,7 @@ import TuistCore
 import TuistSupport
 import TuistSupportTesting
 import XCTest
+import ServiceContextModule
 
 @testable import TuistKit
 @testable import TuistServer
@@ -95,7 +96,7 @@ final class ShareAcceptanceTests: ServerAcceptanceTestCase {
 extension ServerAcceptanceTestCase {
     fileprivate func previewLink(_ displayName: String = "App") throws -> String {
         try XCTUnwrap(
-            TestingLogHandler.collected[.notice, >=]
+            ServiceContext.current?.testingLogHandler?.collected[.notice, >=]
                 .components(separatedBy: .newlines)
                 .first(where: { $0.contains("\(displayName) uploaded – share") })?
                 .components(separatedBy: .whitespaces)

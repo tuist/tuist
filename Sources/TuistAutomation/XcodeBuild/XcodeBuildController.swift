@@ -312,14 +312,14 @@ public final class XcodeBuildController: XcodeBuildControlling {
             let lines = format(bytes).split(separator: "\n")
             for line in lines where !line.isEmpty {
                 if isError {
-                    ServiceContext.$current.get()?.logger?.error("\(line)")
+                    ServiceContext.current?.logger?.error("\(line)")
                 } else {
-                    ServiceContext.$current.get()?.logger?.info("\(line)")
+                    ServiceContext.current?.logger?.info("\(line)")
                 }
             }
         }
         
-        ServiceContext.$current.get()?.logger?.debug("Running xcodebuild command: \(command.joined(separator: " "))")
+        ServiceContext.current?.logger?.debug("Running xcodebuild command: \(command.joined(separator: " "))")
         
         try system.run(command,
                        verbose: false,

@@ -63,8 +63,8 @@ final class GenerateService {
         if !noOpen {
             try await opener.open(path: workspacePath)
         }
-        ServiceContext.$current.get()?.logger?.notice("Project generated.", metadata: .success)
-        ServiceContext.$current.get()?.logger?.notice(timeTakenLoggerFormatter.timeTakenMessage(for: timer))
+        ServiceContext.current?.logger?.notice("Project generated.", metadata: .success)
+        ServiceContext.current?.logger?.notice(timeTakenLoggerFormatter.timeTakenMessage(for: timer))
     }
 
     // MARK: - Helpers

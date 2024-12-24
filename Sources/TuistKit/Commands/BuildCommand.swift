@@ -157,7 +157,7 @@ public struct BuildCommand: AsyncParsableCommand {
 
         // Suggest the user to use passthrough arguments if already supported by xcodebuild
         if let derivedDataPath = buildOptions.derivedDataPath {
-            ServiceContext.$current.get()?.logger?
+            ServiceContext.current?.logger?
                 .warning(
                     "--derivedDataPath is deprecated please use -derivedDataPath \(derivedDataPath) after the terminator (--) instead to passthrough parameters to xcodebuild"
                 )

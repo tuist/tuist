@@ -64,13 +64,13 @@ final class CachePrintHashesService {
         let duration = timer.stop()
         let time = String(format: "%.3f", duration)
         guard hashes.count > 0 else {
-            ServiceContext.$current.get()?.logger?.notice("No cacheable targets were found")
+            ServiceContext.current?.logger?.notice("No cacheable targets were found")
             return
         }
         let sortedHashes = hashes.sorted { $0.key.target.name < $1.key.target.name }
         for (target, hash) in sortedHashes {
-            ServiceContext.$current.get()?.logger?.info("\(target.target.name) - \(hash)")
+            ServiceContext.current?.logger?.info("\(target.target.name) - \(hash)")
         }
-        ServiceContext.$current.get()?.logger?.notice("Total time taken: \(time)s")
+        ServiceContext.current?.logger?.notice("Total time taken: \(time)s")
     }
 }

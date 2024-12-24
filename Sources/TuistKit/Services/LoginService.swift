@@ -89,7 +89,7 @@ final class LoginService: LoginServicing {
             ),
             serverURL: serverURL
         )
-        ServiceContext.$current.get()?.logger?.notice("Successfully logged in.", metadata: .success)
+        ServiceContext.current?.logger?.notice("Successfully logged in.", metadata: .success)
     }
 
     private func authenticateWithBrowserLogin(
@@ -99,16 +99,16 @@ final class LoginService: LoginServicing {
             serverURL: serverURL,
             deviceCodeType: .cli,
             onOpeningBrowser: { authURL in
-                ServiceContext.$current.get()?.logger?.notice("Opening \(authURL.absoluteString) to start the authentication flow")
+                ServiceContext.current?.logger?.notice("Opening \(authURL.absoluteString) to start the authentication flow")
             },
             onAuthWaitBegin: {
                 if Environment.shared.shouldOutputBeColoured {
-                    ServiceContext.$current.get()?.logger?.notice("Press \("CTRL + C".cyan()) once to cancel the process.", metadata: .pretty)
+                    ServiceContext.current?.logger?.notice("Press \("CTRL + C".cyan()) once to cancel the process.", metadata: .pretty)
                 } else {
-                    ServiceContext.$current.get()?.logger?.notice("Press CTRL + C once to cancel the process.")
+                    ServiceContext.current?.logger?.notice("Press CTRL + C once to cancel the process.")
                 }
             }
         )
-        ServiceContext.$current.get()?.logger?.notice("Successfully logged in.", metadata: .success)
+        ServiceContext.current?.logger?.notice("Successfully logged in.", metadata: .success)
     }
 }

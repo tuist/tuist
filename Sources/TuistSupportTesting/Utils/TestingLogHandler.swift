@@ -1,32 +1,49 @@
 import Foundation
 import TuistSupport
 
-public struct TestingLogHandler: LogHandler {
-    public static var collected: [Logger.Level: [String]] {
+public class TestingLogHandler: LogHandler {
+    public var collected: [Logger.Level: [String]] {
         collectionQueue.sync {
             collectedLogs
         }
     }
 
-    private static var collectionQueue = DispatchQueue(label: "io.tuist.tuistTestingSupport.logging")
-    private static var collectedLogs: [Logger.Level: [String]] = [:]
-
+    private var collectionQueue = DispatchQueue(label: "io.tuist.tuistTestingSupport.logging")
+    private var collectedLogs: [Logger.Level: [String]] = [:]
+    private let standardLogHandler: StandardLogHandler
+    
     public var logLevel: Logger.Level
     public let label: String
-
-    public init(label: String) {
+    public let forwardLogs: Bool
+    
+    public init(label: String, forwardLogs: Bool) {
         self.label = label
-        logLevel = .trace
+        self.logLevel = .trace
+        self.standardLogHandler = StandardLogHandler(label: label, logLevel: logLevel)
+        self.forwardLogs = forwardLogs
     }
 
     public func log(
         level: Logger.Level,
         message: Logger.Message,
-        metadata _: Logger.Metadata?,
-        file _: String, function _: String, line _: UInt
-    ) {
-        TestingLogHandler.collectionQueue.async {
-            TestingLogHandler.collectedLogs[level, default: []].append(message.description)
+        metadata: Logger.Metadata?,
+        source _: String,
+        file: String,
+        function: String,
+        line: UInt
+    ){
+        if self.forwardLogs {
+            standardLogHandler.log(
+                level: level,
+                message: message,
+                metadata: metadata,
+                file: file,
+                function: function,
+                line: line
+            )
+        }
+        collectionQueue.async {
+            self.collectedLogs[level, default: []].append(message.description)
         }
     }
 
@@ -35,12 +52,6 @@ public struct TestingLogHandler: LogHandler {
     public subscript(metadataKey key: String) -> Logger.Metadata.Value? {
         get { metadata[key] }
         set { metadata[key] = newValue }
-    }
-
-    public static func reset() {
-        TestingLogHandler.collectionQueue.async {
-            TestingLogHandler.collectedLogs = [:]
-        }
     }
 }
 

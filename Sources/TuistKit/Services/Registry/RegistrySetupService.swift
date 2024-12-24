@@ -56,7 +56,7 @@ final class RegistrySetupService {
         guard let fullHandle = config.fullHandle else { throw RegistrySetupServiceError.missingFullHandle }
         let accountHandle = try fullHandleService.parse(fullHandle).accountHandle
 
-        ServiceContext.$current.get()?.logger?.info("Logging into the registry...")
+        ServiceContext.current?.logger?.info("Logging into the registry...")
         let serverURL = try serverURLService.url(configServerURL: config.url)
 
         let swiftPackageManagerPath: AbsolutePath
@@ -86,7 +86,7 @@ final class RegistrySetupService {
             at: configurationJSONPath
         )
 
-        ServiceContext.$current.get()?.logger?.info("""
+        ServiceContext.current?.logger?.info("""
         Generated the \(accountHandle) registry configuration file at \(configurationJSONPath).
         Make sure to commit this file to share the configuration with the rest of your team.
         To log in to the registry, run 'tuist registry login'.

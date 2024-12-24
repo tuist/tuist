@@ -107,7 +107,7 @@ final class ScaffoldService {
             attributes: parsedAttributes
         )
 
-        ServiceContext.$current.get()?.logger?.notice("Template \(templateName) was successfully generated", metadata: .success)
+        ServiceContext.current?.logger?.notice("Template \(templateName) was successfully generated", metadata: .success)
     }
 
     // MARK: - Helpers
