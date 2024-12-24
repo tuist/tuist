@@ -282,6 +282,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "ZIPFoundation"),
                     .external(name: "Difference"),
                     .external(name: "Command"),
+                    .external(name: "LoggingOSLog"),
                 ]
             case .kit:
                 [

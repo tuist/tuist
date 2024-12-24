@@ -1,5 +1,20 @@
 import class Foundation.ProcessInfo
 @_exported import Logging
+import ServiceContextModule
+
+private enum LoggerServiceContextKey: ServiceContextKey {
+    typealias Value = Logger
+}
+
+extension ServiceContext {
+    public var logger: Logger? {
+        get {
+            self[LoggerServiceContextKey.self]
+        } set {
+            self[LoggerServiceContextKey.self] = newValue
+        }
+    }
+}
 
 let logger = Logger(label: "io.tuist.support")
 
@@ -21,8 +36,8 @@ public struct LoggingConfig {
     public var verbose: Bool
 }
 
-public extension Logger {
-    static func defaultLoggerHandler(config: LoggingConfig = .default) -> (String) -> any LogHandler {
+extension Logger {
+    public static func defaultLoggerHandler(config: LoggingConfig = .default) -> (String) -> any LogHandler {
         let handler: VerboseLogHandler.Type
 
         switch config.loggerType {
@@ -63,34 +78,6 @@ extension LoggingConfig {
             return .init(loggerType: .detailed, verbose: verbose)
         } else {
             return .init(loggerType: .console, verbose: verbose)
-        }
-    }
-}
-
-public enum LogOutput {
-    static var environment = ProcessInfo.processInfo.environment
-
-    public static func bootstrap(config: LoggingConfig = .default) {
-        let handler: VerboseLogHandler.Type
-
-        switch config.loggerType {
-        case .osLog:
-            handler = OSLogHandler.self
-        case .detailed:
-            handler = DetailedLogHandler.self
-        case .console:
-            handler = StandardLogHandler.self
-        case .json:
-            handler = JSONLogHandler.self
-        case .quiet:
-            LoggingSystem.bootstrap(quietLogHandler)
-            return
-        }
-
-        if config.verbose {
-            LoggingSystem.bootstrap(handler.verbose)
-        } else {
-            LoggingSystem.bootstrap(handler.init)
         }
     }
 }
