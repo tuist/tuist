@@ -117,19 +117,14 @@ defmodule TuistWeb.API.Registry.SwiftController do
     swift_version = opts["swift-version"]
 
     object_key =
-      if is_nil(swift_version) do
-        Packages.package_object_key(%{scope: scope, name: name},
-          version: version,
-          path: "Package.swift"
-        )
-      else
-        Packages.package_object_key(%{scope: scope, name: name},
-          version: version,
-          path: "Package@swift-#{swift_version}.swift"
-        )
-      end
+      package_manifest_object_key(%{
+        swift_version: swift_version,
+        scope: scope,
+        name: name,
+        version: version
+      })
 
-    if not is_nil(package_release) and Storage.object_exists?(object_key) do
+    if not is_nil(package_release) and not is_nil(object_key) do
       conn =
         conn
         |> put_resp_header("content-version", "1")
@@ -167,6 +162,40 @@ defmodule TuistWeb.API.Registry.SwiftController do
     end
   end
 
+  defp package_manifest_object_key(%{
+         swift_version: swift_version,
+         scope: scope,
+         name: name,
+         version: version
+       }) do
+    if is_nil(swift_version) do
+      object_key =
+        Packages.package_object_key(%{scope: scope, name: name},
+          version: version,
+          path: "Package.swift"
+        )
+
+      if Storage.object_exists?(object_key) do
+        object_key
+      else
+        nil
+      end
+    else
+      MapSet.new([
+        swift_version |> String.replace_trailing(".0.0", ""),
+        swift_version |> String.replace_trailing(".0", ""),
+        swift_version
+      ])
+      |> Enum.map(
+        &Packages.package_object_key(%{scope: scope, name: name},
+          version: version,
+          path: "Package@swift-#{&1}.swift"
+        )
+      )
+      |> Enum.find(&Storage.object_exists?/1)
+    end
+  end
+
   defp alternate_manifests_link(%Package{scope: scope, name: name}, %PackageRelease{
          manifests: manifests,
          version: version
@@ -181,6 +210,14 @@ defmodule TuistWeb.API.Registry.SwiftController do
          } ->
         url =
           ~p"/api/accounts/tuist/registry/swift/#{scope}/#{name}/#{version}/Package.swift?swift-version=#{swift_version}"
+
+        # This is a workaround for: https://github.com/swiftlang/swift-package-manager/pull/8188
+        swift_version =
+          if String.split(swift_version, ".") |> Enum.count() == 1 do
+            swift_version = swift_version <> ".0"
+          else
+            swift_version
+          end
 
         ([
            "<#{url}>",

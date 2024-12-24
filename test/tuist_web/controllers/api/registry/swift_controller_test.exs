@@ -269,6 +269,50 @@ defmodule TuistWeb.API.Registry.SwiftControllerTest do
       assert get_resp_header(conn, "content-type") == ["text/x-swift; charset=utf-8"]
     end
 
+    test "returns Package.swift contents for 5.0.0 version when alternate manifest is Swift version 5",
+         %{
+           conn: conn,
+           account: account
+         } do
+      # Given
+      package = PackagesFixtures.package_fixture(scope: "Alamofire", name: "Alamofire")
+
+      PackagesFixtures.package_release_fixture(package_id: package.id, version: "5.0.0")
+
+      Storage
+      |> stub(
+        :object_exists?,
+        fn
+          "registry/swift/alamofire/alamofire/5.0.0/Package@swift-5.0.0.swift" ->
+            false
+
+          "registry/swift/alamofire/alamofire/5.0.0/Package@swift-5.0.swift" ->
+            false
+
+          "registry/swift/alamofire/alamofire/5.0.0/Package@swift-5.swift" ->
+            true
+        end
+      )
+
+      package_swift_content = "Package.swift@5 content"
+
+      Storage
+      |> stub(:stream_object, fn _ ->
+        Stream.map([package_swift_content], fn chunk -> chunk end)
+      end)
+
+      # When
+      conn =
+        conn
+        |> get(
+          ~p"/api/accounts/#{account.name}/registry/swift/Alamofire/Alamofire/5.0.0/Package.swift?swift-version=5.0.0"
+        )
+
+      # Then
+      assert response(conn, 200) =~ package_swift_content
+      assert get_resp_header(conn, "content-type") == ["text/x-swift; charset=utf-8"]
+    end
+
     test "redirects to Package.swift when the manifest for a specific Swift version doesn't exist",
          %{conn: conn, account: account} do
       # Given
@@ -343,7 +387,7 @@ defmodule TuistWeb.API.Registry.SwiftControllerTest do
       assert response(conn, 200) =~ package_swift_content
 
       assert get_resp_header(conn, "link") == [
-               ~s(</api/accounts/tuist/registry/swift/Alamofire/Alamofire/5.0.0/Package.swift?swift-version=5>; rel="alternate"; filename="Package@swift-5.swift"; swift-tools-version="5.0", </api/accounts/tuist/registry/swift/Alamofire/Alamofire/5.0.0/Package.swift?swift-version=5.2>; rel="alternate"; filename="Package@swift-5.2.swift"; swift-tools-version="5.2")
+               ~s(</api/accounts/tuist/registry/swift/Alamofire/Alamofire/5.0.0/Package.swift?swift-version=5>; rel="alternate"; filename="Package@swift-5.0.swift"; swift-tools-version="5.0", </api/accounts/tuist/registry/swift/Alamofire/Alamofire/5.0.0/Package.swift?swift-version=5.2>; rel="alternate"; filename="Package@swift-5.2.swift"; swift-tools-version="5.2")
              ]
     end
 
