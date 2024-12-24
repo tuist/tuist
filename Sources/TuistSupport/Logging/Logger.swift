@@ -16,8 +16,6 @@ extension ServiceContext {
     }
 }
 
-let logger = Logger(label: "io.tuist.support")
-
 public struct LoggingConfig {
     public init(loggerType: LoggerType, verbose: Bool) {
         self.loggerType = loggerType
