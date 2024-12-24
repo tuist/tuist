@@ -1,8 +1,8 @@
 import Foundation
 import Path
+import ServiceContextModule
 import TuistCore
 import XcodeGraph
-import ServiceContextModule
 
 /// A project mapper that auto-generates schemes for each of the targets of the `Project`
 /// if the user hasn't already defined schemes for those.

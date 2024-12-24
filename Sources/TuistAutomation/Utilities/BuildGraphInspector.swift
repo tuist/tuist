@@ -2,10 +2,10 @@ import FileSystem
 import Foundation
 import Mockable
 import Path
+import ServiceContextModule
 import TuistCore
 import TuistSupport
 import XcodeGraph
-import ServiceContextModule
 
 @Mockable
 public protocol BuildGraphInspecting {

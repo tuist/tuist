@@ -1,10 +1,10 @@
 import Foundation
 import Mockable
 import Path
+import ServiceContextModule
 import TuistLoader
 import TuistServer
 import TuistSupport
-import ServiceContextModule
 
 enum ProjectUpdateServiceError: Equatable, FatalError {
     case missingFullHandle

@@ -1,10 +1,10 @@
 import Foundation
 import Path
+import ServiceContextModule
 import SwiftGenKit
 import TuistCore
 import TuistSupport
 import XcodeGraph
-import ServiceContextModule
 
 // swiftlint:disable:next type_name
 enum SynthesizedResourceInterfaceProjectMapperError: FatalError, Equatable {

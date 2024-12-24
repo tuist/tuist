@@ -1,6 +1,7 @@
 import FileSystem
 import Foundation
 import Path
+import ServiceContextModule
 import struct TSCUtility.Version
 import TuistAutomation
 import TuistCore
@@ -8,7 +9,6 @@ import TuistLoader
 import TuistServer
 import TuistSupport
 import XcodeGraph
-import ServiceContextModule
 
 enum TestServiceError: FatalError, Equatable {
     case schemeNotFound(scheme: String, existing: [String])
@@ -254,7 +254,10 @@ final class TestService { // swiftlint:disable:this type_body_length
             else {
                 let schemes = mapperEnvironment.initialGraph.map(GraphTraverser.init)?.schemes() ?? graphTraverser.schemes()
                 if let scheme = schemes.first(where: { $0.name == schemeName }) {
-                    ServiceContext.current?.logger?.log(level: .info, "The scheme \(schemeName)'s test action has no tests to run, finishing early.")
+                    ServiceContext.current?.logger?.log(
+                        level: .info,
+                        "The scheme \(schemeName)'s test action has no tests to run, finishing early."
+                    )
                     updateTestServiceAnalytics(
                         analyticsDelegate: analyticsDelegate,
                         mapperEnvironment: mapperEnvironment,
@@ -281,10 +284,16 @@ final class TestService { // swiftlint:disable:this type_body_length
             case (_, false, _):
                 break
             case (nil, true, _), (nil, nil, _):
-                ServiceContext.current?.logger?.log(level: .info, "The scheme \(schemeName)'s test action has no tests to run, finishing early.")
+                ServiceContext.current?.logger?.log(
+                    level: .info,
+                    "The scheme \(schemeName)'s test action has no tests to run, finishing early."
+                )
                 return
             case (_?, _, true), (_?, _, nil):
-                ServiceContext.current?.logger?.log(level: .info, "The scheme \(schemeName)'s test action has no test plans to run, finishing early.")
+                ServiceContext.current?.logger?.log(
+                    level: .info,
+                    "The scheme \(schemeName)'s test action has no test plans to run, finishing early."
+                )
                 return
             default:
                 break

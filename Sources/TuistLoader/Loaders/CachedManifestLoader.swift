@@ -2,9 +2,9 @@ import FileSystem
 import Foundation
 import Path
 import ProjectDescription
+import ServiceContextModule
 import TuistCore
 import TuistSupport
-import ServiceContextModule
 
 /// Cached Manifest Loader
 ///

@@ -1,12 +1,12 @@
 import Foundation
 import Path
+import ServiceContextModule
 import TuistCore
 import TuistLoader
 import TuistPlugin
 import TuistScaffold
 import TuistSupport
 import XcodeGraph
-import ServiceContextModule
 
 class ListService {
     // MARK: - OutputFormat

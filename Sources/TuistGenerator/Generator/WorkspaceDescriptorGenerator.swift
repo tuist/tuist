@@ -1,9 +1,9 @@
 import Foundation
 import Path
+import ServiceContextModule
 import TuistCore
 import TuistSupport
 import XcodeProj
-import ServiceContextModule
 
 enum WorkspaceDescriptorGeneratorError: FatalError {
     case projectNotFound(path: AbsolutePath)

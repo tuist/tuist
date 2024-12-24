@@ -1,10 +1,10 @@
 import Foundation
 import Path
+import ServiceContextModule
 import TuistCore
 import TuistSupport
 import XcodeGraph
 import XcodeProj
-import ServiceContextModule
 
 /// A project mapper that generates derived privacyManifest files for targets that define it as a dictonary.
 public final class GeneratePrivacyManifestProjectMapper: ProjectMapping {

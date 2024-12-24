@@ -1,19 +1,21 @@
 import Foundation
 import Path
+import ServiceContextModule
 import TuistCore
 import XcodeGraph
-import ServiceContextModule
 
 public final class IDETemplateMacrosMapper: ProjectMapping, WorkspaceMapping {
     public init() {}
 
     public func map(project: Project) throws -> (Project, [SideEffectDescriptor]) {
-        ServiceContext.current?.logger?.debug("Transforming project \(project.name): Generating xcshareddata/IDETemplateMacros.plist")
+        ServiceContext.current?.logger?
+            .debug("Transforming project \(project.name): Generating xcshareddata/IDETemplateMacros.plist")
         return (project, try sideEffects(for: project.ideTemplateMacros, to: project.xcodeProjPath))
     }
 
     public func map(workspace: WorkspaceWithProjects) throws -> (WorkspaceWithProjects, [SideEffectDescriptor]) {
-        ServiceContext.current?.logger?.debug("Transforming workspace \(workspace.workspace.name): Generating xcshareddata/IDETemplateMacros.plist")
+        ServiceContext.current?.logger?
+            .debug("Transforming workspace \(workspace.workspace.name): Generating xcshareddata/IDETemplateMacros.plist")
         return (workspace, try sideEffects(for: workspace.workspace.ideTemplateMacros, to: workspace.workspace.xcWorkspacePath))
     }
 

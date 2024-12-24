@@ -2,11 +2,11 @@ import FileSystem
 import Foundation
 import Path
 import ProjectDescription
+import ServiceContextModule
 import TSCUtility
 import TuistCore
 import TuistSupport
 import XcodeGraph
-import ServiceContextModule
 
 // MARK: - Swift Package Manager Graph Generator Errors
 
@@ -234,7 +234,8 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
         }
 
         if currentData != savedData {
-            ServiceContext.current?.logger?.warning("We detected outdated dependencies. Please run \"tuist install\" to update them.")
+            ServiceContext.current?.logger?
+                .warning("We detected outdated dependencies. Please run \"tuist install\" to update them.")
         }
     }
 }

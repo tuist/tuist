@@ -1,12 +1,12 @@
 import Foundation
 import Path
+import ServiceContextModule
 import TuistAutomation
 import TuistCore
 import TuistLoader
 import TuistServer
 import TuistSupport
 import XcodeGraph
-import ServiceContextModule
 
 enum BuildServiceError: FatalError {
     case workspaceNotFound(path: String)

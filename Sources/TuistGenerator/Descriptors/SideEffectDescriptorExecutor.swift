@@ -1,8 +1,8 @@
 import FileSystem
 import Foundation
+import ServiceContextModule
 import TuistCore
 import TuistSupport
-import ServiceContextModule
 
 /// The protocol defines an interface for executing side effects.
 public protocol SideEffectDescriptorExecuting: AnyObject {

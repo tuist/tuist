@@ -2,13 +2,13 @@ import AnyCodable
 import FileSystem
 import Foundation
 import Path
+import ServiceContextModule
 import TuistAutomation
 import TuistCore
 import TuistLoader
 import TuistServer
 import TuistSupport
 import XcodeGraph
-import ServiceContextModule
 
 enum ShareServiceError: Equatable, FatalError {
     case projectOrWorkspaceNotFound(path: String)
@@ -421,7 +421,8 @@ struct ShareService {
             fullHandle: fullHandle,
             serverURL: serverURL
         )
-        ServiceContext.current?.logger?.notice("\(displayName) uploaded – share it with others using the following link: \(preview.url.absoluteString)")
+        ServiceContext.current?.logger?
+            .notice("\(displayName) uploaded – share it with others using the following link: \(preview.url.absoluteString)")
 
         ShareCommand.analyticsDelegate?.addParameters(
             [

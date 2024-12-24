@@ -1,10 +1,10 @@
 import FileSystem
 import Path
+import ServiceContextModule
 import TSCUtility
 import TuistCore
 import TuistSupport
 import XcodeGraph
-import ServiceContextModule
 
 public protocol TargetBuilding {
     /// Builds a provided target.
@@ -161,7 +161,11 @@ public final class TargetBuilder: TargetBuilding {
         if try await !fileSystem.exists(buildOutputPath) {
             try FileHandler.shared.createFolder(buildOutputPath)
         }
-        ServiceContext.current?.logger?.log(level: .notice, "Copying build products to \(buildOutputPath.pathString)", metadata: .subsection)
+        ServiceContext.current?.logger?.log(
+            level: .notice,
+            "Copying build products to \(buildOutputPath.pathString)",
+            metadata: .subsection
+        )
 
         for product in try FileHandler.shared.contentsOfDirectory(xcodeSchemeBuildPath) {
             let productOutputPath = buildOutputPath.appending(component: product.basename)

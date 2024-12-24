@@ -1,7 +1,7 @@
 import Foundation
+import ServiceContextModule
 import TuistCore
 import TuistSupport
-import ServiceContextModule
 
 /// Tuist Workspace Identifier Mapper
 ///

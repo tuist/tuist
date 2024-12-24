@@ -1,10 +1,10 @@
 import Foundation
 import Path
+import ServiceContextModule
 import TuistCore
 import TuistSupport
 import XcodeGraph
 import XcodeProj
-import ServiceContextModule
 
 protocol ProjectDescriptorGenerating: AnyObject {
     /// Generates the given project.

@@ -1,6 +1,6 @@
 import Foundation
-import TuistSupport
 import ServiceContextModule
+import TuistSupport
 
 public struct LintingError: FatalError, Equatable {
     public let description: String = "Fatal linting issues found"

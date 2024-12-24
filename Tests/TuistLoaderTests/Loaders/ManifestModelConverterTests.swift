@@ -1,8 +1,10 @@
 import Foundation
 import Mockable
 import Path
+import ServiceContextModule
 import TuistCore
 import TuistSupport
+import XcodeGraph
 import XCTest
 
 @testable import ProjectDescription
@@ -302,21 +304,32 @@ final class ManifestModelConverterTests: TuistUnitTestCase {
     }
 
     func test_loadWorkspace_withInvalidProjectsPaths() async throws {
-        // Given
-        let temporaryPath = try temporaryPath()
-        let manifest = WorkspaceManifest.test(name: "SomeWorkspace", projects: ["A", "B"])
-        let manifestLoader = makeManifestLoader(with: [
-            temporaryPath: manifest,
-        ])
-        let subject = makeSubject(with: manifestLoader)
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            let temporaryPath = try temporaryPath()
+            let rootDirectory = temporaryPath
+            let generatorPaths = GeneratorPaths(
+                manifestDirectory: temporaryPath,
+                rootDirectory: rootDirectory
+            )
 
-        // When
-        let model = try await subject.convert(manifest: manifest, path: temporaryPath)
+            try await fileSystem.makeDirectory(at: rootDirectory.appending(component: "Resources"))
 
-        // Then
-        XCTAssertPrinterOutputContains("No projects found at: A")
-        XCTAssertPrinterOutputContains("No projects found at: B")
-        XCTAssertEqual(model.projects, [])
+            let manifest = ProjectDescription.ResourceFileElement.glob(pattern: "Resources/**")
+
+            // When
+            let model = try await XcodeGraph.ResourceFileElement.from(
+                manifest: manifest,
+                generatorPaths: generatorPaths,
+                fileSystem: fileSystem
+            )
+
+            // Then
+            XCTAssertPrinterOutputContains(
+                "No files found at: \(rootDirectory.appending(components: "Resources", "**"))"
+            )
+            XCTAssertEqual(model, [])
+        }
     }
 
     // MARK: - Helpers

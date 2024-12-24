@@ -2,10 +2,10 @@ import FileSystem
 import Foundation
 import Path
 import ProjectDescription
+import ServiceContextModule
 import TuistDependencies
 import TuistLoader
 import TuistSupport
-import ServiceContextModule
 
 final class PluginArchiveService {
     private let swiftPackageManagerController: SwiftPackageManagerControlling

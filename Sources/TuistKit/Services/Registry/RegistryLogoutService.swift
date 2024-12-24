@@ -1,10 +1,10 @@
 import FileSystem
 import Foundation
 import Path
+import ServiceContextModule
 import TuistLoader
 import TuistServer
 import TuistSupport
-import ServiceContextModule
 
 final class RegistryLogoutService {
     private let serverURLService: ServerURLServicing

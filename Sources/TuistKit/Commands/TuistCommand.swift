@@ -2,12 +2,12 @@
 import Foundation
 import OpenAPIRuntime
 import Path
+import ServiceContextModule
 import TuistAnalytics
 import TuistCore
 import TuistLoader
 import TuistServer
 import TuistSupport
-import ServiceContextModule
 
 public struct TuistCommand: AsyncParsableCommand {
     public init() {}

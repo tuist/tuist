@@ -1,9 +1,9 @@
 import Foundation
 import Path
+import ServiceContextModule
 import TuistLoader
 import TuistServer
 import TuistSupport
-import ServiceContextModule
 
 protocol ProjectListServicing {
     func run(
@@ -51,7 +51,8 @@ final class ProjectListService: ProjectListServicing {
         }
 
         if projects.isEmpty {
-            ServiceContext.current?.logger?.info("You currently have no Tuist projects. Create one by running `tuist project create`.")
+            ServiceContext.current?.logger?
+                .info("You currently have no Tuist projects. Create one by running `tuist project create`.")
             return
         }
 

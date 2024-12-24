@@ -1,9 +1,9 @@
 import Foundation
 import Path
+import ServiceContextModule
 import TuistLoader
 import TuistServer
 import TuistSupport
-import ServiceContextModule
 
 protocol ProjectTokensListServicing {
     func run(
@@ -46,7 +46,8 @@ final class ProjectTokensListService: ProjectTokensListServicing {
         )
 
         if tokens.isEmpty {
-            ServiceContext.current?.logger?.notice("No project tokens found. Create one by running `tuist project tokens create \(fullHandle).")
+            ServiceContext.current?.logger?
+                .notice("No project tokens found. Create one by running `tuist project tokens create \(fullHandle).")
         } else {
             let textTable = TextTable<ServerProjectToken> { [
                 TextTable.Column(title: "ID", value: $0.id),

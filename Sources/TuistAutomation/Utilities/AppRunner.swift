@@ -2,11 +2,11 @@ import FileSystem
 import Foundation
 import Mockable
 import Path
+import ServiceContextModule
 import struct TSCUtility.Version
 import TuistCore
 import TuistSupport
 import XcodeGraph
-import ServiceContextModule
 
 enum AppRunnerError: FatalError, Equatable {
     case invalidSimulatorPlatform(String)

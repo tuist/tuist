@@ -1,8 +1,8 @@
 import Foundation
 import Path
+import ServiceContextModule
 import TuistMigration
 import TuistSupport
-import ServiceContextModule
 
 final class MigrationTargetsByDependenciesService {
     // MARK: - Attributes

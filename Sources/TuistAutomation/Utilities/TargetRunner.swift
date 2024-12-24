@@ -1,10 +1,10 @@
 import FileSystem
 import Path
+import ServiceContextModule
 import struct TSCUtility.Version
 import TuistCore
 import TuistSupport
 import XcodeGraph
-import ServiceContextModule
 
 public protocol TargetRunning {
     /// Runs a provided target.
@@ -165,7 +165,8 @@ public final class TargetRunner: TargetRunning {
             deviceName: deviceName
         )
 
-        ServiceContext.current?.logger?.debug("Running app \(appPath.pathString) with arguments [\(arguments.joined(separator: ", "))]")
+        ServiceContext.current?.logger?
+            .debug("Running app \(appPath.pathString) with arguments [\(arguments.joined(separator: ", "))]")
         ServiceContext.current?.logger?.notice("Running app \(bundleId) on \(simulator.device.name)", metadata: .section)
         try simulatorController.installApp(at: appPath, device: simulator.device)
         try await simulatorController.launchApp(bundleId: bundleId, device: simulator.device, arguments: arguments)

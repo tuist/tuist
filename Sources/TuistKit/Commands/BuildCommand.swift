@@ -1,10 +1,10 @@
 import ArgumentParser
 import Foundation
 import Path
+import ServiceContextModule
 import TuistServer
 import TuistSupport
 import XcodeGraph
-import ServiceContextModule
 
 enum XcodeBuildPassthroughArgumentError: FatalError, Equatable {
     case alreadyHandled(String)

@@ -3,11 +3,11 @@ import Foundation
 import Mockable
 import Path
 import ProjectDescription
+import ServiceContextModule
 import TSCUtility
 import TuistCore
 import TuistSupport
 import XcodeGraph
-import ServiceContextModule
 
 // MARK: - PackageInfo Mapper Errors
 

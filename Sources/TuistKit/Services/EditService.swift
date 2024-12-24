@@ -1,12 +1,12 @@
 import Foundation
 import Path
+import ServiceContextModule
 import TuistCore
 import TuistGenerator
 import TuistLoader
 import TuistPlugin
 import TuistSupport
 import XcodeGraph
-import ServiceContextModule
 
 enum EditServiceError: FatalError {
     case xcodeNotSelected
@@ -103,7 +103,8 @@ final class EditService {
         }
 
         guard let plugins = try? await pluginService.loadPlugins(using: config) else {
-            ServiceContext.current?.logger?.warning("Unable to load Plugin.swift manifest, fix and re-run in order to use plugin(s).")
+            ServiceContext.current?.logger?
+                .warning("Unable to load Plugin.swift manifest, fix and re-run in order to use plugin(s).")
             return .none
         }
 

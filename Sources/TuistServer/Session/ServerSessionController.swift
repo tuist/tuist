@@ -1,7 +1,7 @@
 import Foundation
 import Mockable
-import TuistSupport
 import ServiceContextModule
+import TuistSupport
 
 /// Type of device code used for authentication.
 public enum DeviceCodeType {

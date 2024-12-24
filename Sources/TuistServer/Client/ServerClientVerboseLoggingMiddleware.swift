@@ -1,8 +1,8 @@
 import Foundation
 import HTTPTypes
 import OpenAPIRuntime
-import TuistSupport
 import ServiceContextModule
+import TuistSupport
 
 /// A middleware that outputs in debug mode the request and responses sent and received from the server
 struct ServerClientVerboseLoggingMiddleware: ClientMiddleware {

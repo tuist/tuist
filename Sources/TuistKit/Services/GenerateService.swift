@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import ServiceContextModule
 import TuistCache
 import TuistCore
 import TuistGenerator
@@ -8,7 +9,6 @@ import TuistPlugin
 import TuistServer
 import TuistSupport
 import XcodeGraph
-import ServiceContextModule
 
 final class GenerateService {
     private let opener: Opening

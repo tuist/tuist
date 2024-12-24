@@ -1,7 +1,7 @@
 import Foundation
+import ServiceContextModule
 import TuistCore
 import XcodeGraph
-import ServiceContextModule
 
 /// A mapper that ensures that the list of projects of the workspace is in sync
 /// with the projects available in the graph.

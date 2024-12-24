@@ -2,11 +2,11 @@ import AnyCodable
 import ArgumentParser
 import Foundation
 import Path
+import ServiceContextModule
 import TuistCore
 import TuistServer
 import TuistSupport
 import XcodeGraph
-import ServiceContextModule
 
 /// Command that tests a target from the project in the current directory.
 public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {

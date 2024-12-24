@@ -1,9 +1,9 @@
 import Foundation
 import Path
+import ServiceContextModule
 import TuistLoader
 import TuistServer
 import TuistSupport
-import ServiceContextModule
 
 protocol OrganizationListServicing {
     func run(
@@ -51,7 +51,8 @@ final class OrganizationListService: OrganizationListServicing {
         }
 
         if organizations.isEmpty {
-            ServiceContext.current?.logger?.info("You currently have no Cloud organizations. Create one by running `tuist organization create`.")
+            ServiceContext.current?.logger?
+                .info("You currently have no Cloud organizations. Create one by running `tuist organization create`.")
             return
         }
 

@@ -1,11 +1,11 @@
 import FileSystem
 import Path
+import ServiceContextModule
 import TuistCore
 import TuistLoader
 import TuistScaffold
 import TuistSupport
 import XcodeGraph
-import ServiceContextModule
 
 enum InitServiceError: FatalError, Equatable {
     case ungettableProjectName(AbsolutePath)

@@ -1,12 +1,12 @@
 import Foundation
 import Path
+import ServiceContextModule
 import TuistAutomation
 import TuistCache
 import TuistCore
 import TuistHasher
 import TuistLoader
 import TuistSupport
-import ServiceContextModule
 
 final class CachePrintHashesService {
     private let generatorFactory: GeneratorFactorying

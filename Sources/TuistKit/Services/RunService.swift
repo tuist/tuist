@@ -1,6 +1,7 @@
 import FileSystem
 import Foundation
 import Path
+import ServiceContextModule
 import struct TSCUtility.Version
 import TuistAutomation
 import TuistCore
@@ -8,7 +9,6 @@ import TuistLoader
 import TuistServer
 import TuistSupport
 import XcodeGraph
-import ServiceContextModule
 
 enum RunServiceError: FatalError, Equatable {
     case schemeNotFound(scheme: String, existing: [String])
@@ -266,7 +266,8 @@ final class RunService {
         let graphTraverser = GraphTraverser(graph: graph)
         let runnableSchemes = buildGraphInspector.runnableSchemes(graphTraverser: graphTraverser)
 
-        ServiceContext.current?.logger?.debug("Found the following runnable schemes: \(runnableSchemes.map(\.name).joined(separator: ", "))")
+        ServiceContext.current?.logger?
+            .debug("Found the following runnable schemes: \(runnableSchemes.map(\.name).joined(separator: ", "))")
 
         guard let scheme = runnableSchemes.first(where: { $0.name == scheme }) else {
             throw RunServiceError.schemeNotFound(scheme: scheme, existing: runnableSchemes.map(\.name))

@@ -1,11 +1,11 @@
 import Foundation
 import Mockable
 import Path
+import ServiceContextModule
 import TuistCore
 import TuistLoader
 import TuistServer
 import TuistSupport
-import ServiceContextModule
 
 @Mockable
 protocol LoginServicing: AnyObject {
@@ -103,7 +103,10 @@ final class LoginService: LoginServicing {
             },
             onAuthWaitBegin: {
                 if Environment.shared.shouldOutputBeColoured {
-                    ServiceContext.current?.logger?.notice("Press \("CTRL + C".cyan()) once to cancel the process.", metadata: .pretty)
+                    ServiceContext.current?.logger?.notice(
+                        "Press \("CTRL + C".cyan()) once to cancel the process.",
+                        metadata: .pretty
+                    )
                 } else {
                     ServiceContext.current?.logger?.notice("Press CTRL + C once to cancel the process.")
                 }

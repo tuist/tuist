@@ -1,10 +1,10 @@
 import Foundation
 import Mockable
 import Path
+import ServiceContextModule
 import struct TSCUtility.Version
 import TuistSupport
 import XcodeGraph
-import ServiceContextModule
 
 @Mockable
 public protocol SimulatorControlling {
@@ -277,7 +277,8 @@ public final class SimulatorController: SimulatorControlling {
     }
 
     public func launchApp(bundleId: String, device: SimulatorDevice, arguments: [String]) async throws {
-        ServiceContext.current?.logger?.debug("Launching app with bundle id \(bundleId) on simulator device with id \(device.udid)")
+        ServiceContext.current?.logger?
+            .debug("Launching app with bundle id \(bundleId) on simulator device with id \(device.udid)")
         let device = try device.booted(using: system)
         let simulator = try await xcodeController.selected()?.path.appending(
             components: "Contents",

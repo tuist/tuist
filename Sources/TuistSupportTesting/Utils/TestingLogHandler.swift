@@ -11,16 +11,22 @@ public class TestingLogHandler: LogHandler {
     private var collectionQueue = DispatchQueue(label: "io.tuist.tuistTestingSupport.logging")
     private var collectedLogs: [Logger.Level: [String]] = [:]
     private let standardLogHandler: StandardLogHandler
-    
+
     public var logLevel: Logger.Level
     public let label: String
     public let forwardLogs: Bool
-    
+
     public init(label: String, forwardLogs: Bool) {
         self.label = label
-        self.logLevel = .trace
-        self.standardLogHandler = StandardLogHandler(label: label, logLevel: logLevel)
+        logLevel = .trace
+        standardLogHandler = StandardLogHandler(label: label, logLevel: logLevel)
         self.forwardLogs = forwardLogs
+    }
+
+    public func flush() {
+        collectionQueue.async {
+            self.collectedLogs = [:]
+        }
     }
 
     public func log(
@@ -31,8 +37,8 @@ public class TestingLogHandler: LogHandler {
         file: String,
         function: String,
         line: UInt
-    ){
-        if self.forwardLogs {
+    ) {
+        if forwardLogs {
             standardLogHandler.log(
                 level: level,
                 message: message,

@@ -3,6 +3,7 @@ import Foundation
 import Mockable
 import Path
 import ProjectDescription
+import ServiceContextModule
 import TuistCore
 import TuistDependencies
 import TuistGenerator
@@ -10,7 +11,6 @@ import TuistLoader
 import TuistPlugin
 import TuistSupport
 import XcodeGraph
-import ServiceContextModule
 
 @Mockable
 public protocol Generating {

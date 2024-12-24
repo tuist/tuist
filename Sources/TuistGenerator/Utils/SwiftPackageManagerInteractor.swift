@@ -1,10 +1,10 @@
 import FileSystem
 import Foundation
 import Path
+import ServiceContextModule
 import TuistCore
 import TuistSupport
 import XcodeGraph
-import ServiceContextModule
 
 /// Swift Package Manager Interactor
 ///

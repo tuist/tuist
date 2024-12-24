@@ -1,9 +1,9 @@
 import FileSystem
 import Foundation
+import ServiceContextModule
 import TuistCore
 import TuistSupport
 import XcodeGraph
-import ServiceContextModule
 
 /// A project mapper that returns side effects to delete the derived directory.
 public final class DeleteDerivedDirectoryProjectMapper: ProjectMapping {

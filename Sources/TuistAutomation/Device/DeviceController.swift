@@ -3,9 +3,9 @@ import FileSystem
 import Foundation
 import Mockable
 import Path
+import ServiceContextModule
 import TuistSupport
 import XcodeGraph
-import ServiceContextModule
 
 enum DeviceControllerError: FatalError {
     case applicationVerificationFailed
@@ -109,7 +109,8 @@ public final class DeviceController: DeviceControlling {
         bundleId: String,
         device: PhysicalDevice
     ) async throws {
-        ServiceContext.current?.logger?.debug("Launching app with bundle id \(bundleId) on a physical device with id \(device.id)")
+        ServiceContext.current?.logger?
+            .debug("Launching app with bundle id \(bundleId) on a physical device with id \(device.id)")
         _ = try await commandRunner.run(
             arguments: [
                 "/usr/bin/xcrun", "devicectl",

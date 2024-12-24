@@ -2,10 +2,10 @@ import FileSystem
 import Foundation
 import Path
 import ProjectDescription
+import ServiceContextModule
 import TuistCore
 import TuistSupport
 import XcodeGraph
-import ServiceContextModule
 
 extension XcodeGraph.Workspace {
     /// Maps a ProjectDescription.Workspace instance into a XcodeGraph.Workspace model.

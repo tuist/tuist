@@ -4,6 +4,7 @@ import Foundation
 import GraphViz
 import Path
 import ProjectAutomation
+import ServiceContextModule
 import Tools
 import TuistCore
 import TuistGenerator
@@ -11,7 +12,6 @@ import TuistLoader
 import TuistPlugin
 import TuistSupport
 import XcodeGraph
-import ServiceContextModule
 
 final class GraphService {
     private let graphVizMapper: GraphToGraphVizMapping

@@ -1,10 +1,10 @@
 import Foundation
 import Path
+import ServiceContextModule
 import TuistCore
 import TuistLoader
 import TuistPlugin
 import TuistSupport
-import ServiceContextModule
 
 enum TuistServiceError: Error {
     case taskUnavailable

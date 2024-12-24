@@ -1,13 +1,13 @@
 import FileSystem
 import Foundation
 import Path
+import ServiceContextModule
 import TuistAnalytics
 import TuistAsyncQueue
 import TuistCore
 import TuistServer
 import TuistSupport
 import XcodeGraph
-import ServiceContextModule
 
 public class TuistAnalyticsServerBackend: TuistAnalyticsBackend {
     private let fullHandle: String

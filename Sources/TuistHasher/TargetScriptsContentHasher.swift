@@ -1,9 +1,9 @@
 import Foundation
 import Mockable
 import Path
+import ServiceContextModule
 import TuistCore
 import XcodeGraph
-import ServiceContextModule
 
 @Mockable
 public protocol TargetScriptsContentHashing {

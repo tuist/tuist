@@ -1,5 +1,6 @@
 import Foundation
 import Mockable
+import ServiceContextModule
 import TuistLoader
 import TuistServer
 import TuistSupportTesting
@@ -45,23 +46,25 @@ final class ProjectTokensRevokeServiceTests: TuistUnitTestCase {
     }
 
     func test_revoke_project_token() async throws {
-        // Given
-        given(revokeProjectTokenService)
-            .revokeProjectToken(
-                projectTokenId: .value("project-token-id"),
-                fullHandle: .value("tuist-org/tuist"),
-                serverURL: .any
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            given(revokeProjectTokenService)
+                .revokeProjectToken(
+                    projectTokenId: .value("project-token-id"),
+                    fullHandle: .value("tuist-org/tuist"),
+                    serverURL: .any
+                )
+                .willReturn()
+
+            // When
+            try await subject.run(
+                projectTokenId: "project-token-id",
+                fullHandle: "tuist-org/tuist",
+                directory: nil
             )
-            .willReturn()
 
-        // When
-        try await subject.run(
-            projectTokenId: "project-token-id",
-            fullHandle: "tuist-org/tuist",
-            directory: nil
-        )
-
-        // Then
-        XCTAssertStandardOutput(pattern: "The project token project-token-id was successfully revoked.")
+            // Then
+            XCTAssertStandardOutput(pattern: "The project token project-token-id was successfully revoked.")
+        }
     }
 }

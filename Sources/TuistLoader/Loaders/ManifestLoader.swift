@@ -3,10 +3,10 @@ import Foundation
 import Mockable
 import Path
 import ProjectDescription
+import ServiceContextModule
 import TuistCore
 import TuistSupport
 import XcodeGraph
-import ServiceContextModule
 
 public enum ManifestLoaderError: FatalError, Equatable {
     case projectDescriptionNotFound(AbsolutePath)
@@ -442,7 +442,8 @@ public class ManifestLoader: ManifestLoading {
 
         if errorMessage.contains(defaultHelpersName) {
             ServiceContext.current?.logger?.error("Cannot import \(defaultHelpersName) in \(manifest.fileName(path))")
-            ServiceContext.current?.logger?.notice("Project description helpers that depend on plugins are not allowed in \(manifest.fileName(path))")
+            ServiceContext.current?.logger?
+                .notice("Project description helpers that depend on plugins are not allowed in \(manifest.fileName(path))")
         } else if errorMessage.contains("import") {
             ServiceContext.current?.logger?.error("Helper plugins are not allowed in \(manifest.fileName(path))")
         }

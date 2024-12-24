@@ -1,11 +1,11 @@
 import FileSystem
 import Foundation
 import Path
+import ServiceContextModule
 import TuistCore
 import TuistLoader
 import TuistScaffold
 import TuistSupport
-import ServiceContextModule
 
 /// Paths to remote plugin's code and artifacts.
 public struct RemotePluginPaths: Equatable, Hashable {

@@ -2,9 +2,9 @@ import FileSystem
 import Foundation
 import Path
 import PathKit
+import ServiceContextModule
 import TuistSupport
 import XcodeProj
-import ServiceContextModule
 
 /// Defines the interface to extract the build settings from a project or a target into an .xcconfig file.
 public protocol SettingsToXCConfigExtracting {
@@ -100,7 +100,10 @@ public final class SettingsToXCConfigExtractor: SettingsToXCConfigExtracting {
             buildSettingsLines.sorted().joined(separator: "\n"),
         ].joined(separator: "\n\n")
         try FileHandler.shared.write(buildSettingsContent, path: xcconfigPath, atomically: true)
-        ServiceContext.current?.logger?.notice("Build settings successfully extracted into \(xcconfigPath.pathString)", metadata: .success)
+        ServiceContext.current?.logger?.notice(
+            "Build settings successfully extracted into \(xcconfigPath.pathString)",
+            metadata: .success
+        )
     }
 
     private func buildConfigurations(pbxproj: PBXProj, targetName: String?) throws -> [XCBuildConfiguration] {

@@ -1,8 +1,8 @@
 import Foundation
 import Path
+import ServiceContextModule
 import TuistCore
 import XcodeGraph
-import ServiceContextModule
 
 public final class TreeShakePrunedTargetsGraphMapper: GraphMapping {
     public init() {}

@@ -1,7 +1,7 @@
 import Foundation
+import ServiceContextModule
 import TuistCore
 import XcodeGraph
-import ServiceContextModule
 
 /**
  When Swift Packages don't declare the platforms that they support, the Swift Package Manager defaults the value

@@ -1,11 +1,11 @@
 import Foundation
 import Path
+import ServiceContextModule
 import TSCBasic
 import TuistCore
 import TuistLoader
 import TuistPlugin
 import TuistSupport
-import ServiceContextModule
 
 final class DumpService {
     private let manifestLoader: ManifestLoading

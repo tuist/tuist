@@ -1,7 +1,7 @@
 import Foundation
 import Mockable
-import TuistSupport
 import ServiceContextModule
+import TuistSupport
 
 @Mockable
 public protocol ServerAuthenticationControlling: Sendable {
@@ -101,7 +101,8 @@ public final class ServerAuthenticationController: ServerAuthenticationControlli
                         refreshToken: try parseJWT(refreshToken)
                     )
                 } else {
-                    ServiceContext.current?.logger?.warning("You are using a deprecated user token. Please, reauthenticate by running 'tuist auth login'.")
+                    ServiceContext.current?.logger?
+                        .warning("You are using a deprecated user token. Please, reauthenticate by running 'tuist auth login'.")
                     return .user(
                         legacyToken: $0.token,
                         accessToken: nil,

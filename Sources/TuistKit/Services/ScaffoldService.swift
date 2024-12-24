@@ -1,11 +1,11 @@
 import Path
+import ServiceContextModule
 import TuistCore
 import TuistLoader
 import TuistPlugin
 import TuistScaffold
 import TuistSupport
 import XcodeGraph
-import ServiceContextModule
 
 enum ScaffoldServiceError: FatalError, Equatable {
     var type: ErrorType {

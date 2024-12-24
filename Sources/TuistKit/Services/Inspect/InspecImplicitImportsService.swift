@@ -1,10 +1,10 @@
 import Foundation
 import Path
+import ServiceContextModule
 import TuistCore
 import TuistLoader
 import TuistSupport
 import XcodeGraph
-import ServiceContextModule
 
 struct InspectImplicitImportsServiceErrorIssue: Equatable {
     let target: String

@@ -1,13 +1,13 @@
 import FileSystem
 import Foundation
 import Path
+import ServiceContextModule
 import TuistCore
 import TuistDependencies
 import TuistLoader
 import TuistPlugin
 import TuistSupport
 import XcodeGraph
-import ServiceContextModule
 
 final class InstallService {
     private let pluginService: PluginServicing
