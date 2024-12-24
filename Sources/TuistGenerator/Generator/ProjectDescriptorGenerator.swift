@@ -4,6 +4,7 @@ import TuistCore
 import TuistSupport
 import XcodeGraph
 import XcodeProj
+import ServiceContextModule
 
 protocol ProjectDescriptorGenerating: AnyObject {
     /// Generates the given project.
@@ -85,7 +86,7 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
         project: Project,
         graphTraverser: GraphTraversing
     ) async throws -> ProjectDescriptor {
-        logger.notice("Generating project \(project.name)")
+        ServiceContext.$current.get()?.logger?.notice("Generating project \(project.name)")
 
         let selfRef = XCWorkspaceDataFileRef(location: .current(""))
         let selfRefFile = XCWorkspaceDataElement.file(selfRef)

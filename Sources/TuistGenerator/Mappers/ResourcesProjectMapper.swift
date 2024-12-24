@@ -3,6 +3,7 @@ import Path
 import TuistCore
 import TuistSupport
 import XcodeGraph
+import ServiceContextModule
 
 /// A project mapper that adds support for defining resources in targets that don't support it
 public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this type_body_length
@@ -15,7 +16,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         guard !project.options.disableBundleAccessors else {
             return (project, [])
         }
-        logger.debug("Transforming project \(project.name): Generating bundles for libraries'")
+        ServiceContext.$current.get()?.logger?.debug("Transforming project \(project.name): Generating bundles for libraries'")
 
         var sideEffects: [SideEffectDescriptor] = []
         var targets: [String: Target] = [:]

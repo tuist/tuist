@@ -3,6 +3,7 @@ import Path
 import TuistCore
 import TuistSupport
 import XcodeGraph
+import ServiceContextModule
 
 /// A target mapper that enforces explicit dependencies by adding custom build directories
 public struct ExplicitDependencyGraphMapper: GraphMapping {
@@ -19,7 +20,7 @@ public struct ExplicitDependencyGraphMapper: GraphMapping {
                 environment
             )
         }
-        logger.debug("Transforming graph \(graph.name): Enforcing explicit dependencies")
+        ServiceContext.$current.get()?.logger?.debug("Transforming graph \(graph.name): Enforcing explicit dependencies")
 
         let graphTraverser = GraphTraverser(graph: graph)
 

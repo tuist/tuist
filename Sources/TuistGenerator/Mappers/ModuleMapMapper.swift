@@ -3,6 +3,7 @@ import Path
 import TuistCore
 import TuistSupport
 import XcodeGraph
+import ServiceContextModule
 
 /// Mapper that maps the `MODULE_MAP` build setting to the `-fmodule-map-file` compiler flags.
 /// It is required to avoid embedding the module map into the frameworks during cache operations, which would make the framework
@@ -27,7 +28,7 @@ public final class ModuleMapMapper: GraphMapping { // swiftlint:disable:this typ
 
     // swiftlint:disable function_body_length
     public func map(graph: Graph, environment: MapperEnvironment) throws -> (Graph, [SideEffectDescriptor], MapperEnvironment) {
-        logger
+        ServiceContext.$current.get()?.logger?
             .debug(
                 "Transforming graph \(graph.name): Mapping MODULE_MAP build setting to -fmodule-map-file compiler flag"
             )

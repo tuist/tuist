@@ -2,6 +2,7 @@ import FileSystem
 import Foundation
 import TuistCore
 import TuistSupport
+import ServiceContextModule
 
 /// The protocol defines an interface for executing side effects.
 public protocol SideEffectDescriptorExecuting: AnyObject {
@@ -21,7 +22,7 @@ public final class SideEffectDescriptorExecutor: SideEffectDescriptorExecuting {
 
     public func execute(sideEffects: [SideEffectDescriptor]) async throws {
         for sideEffect in sideEffects {
-            logger.debug("Side effect: \(sideEffect)")
+            ServiceContext.$current.get()?.logger?.debug("Side effect: \(sideEffect)")
             switch sideEffect {
             case let .command(commandDescriptor):
                 try perform(command: commandDescriptor)

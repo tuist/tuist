@@ -3,6 +3,7 @@ import Path
 import TuistCore
 import TuistSupport
 import XcodeProj
+import ServiceContextModule
 
 enum WorkspaceDescriptorGeneratorError: FatalError {
     case projectNotFound(path: AbsolutePath)
@@ -90,7 +91,7 @@ final class WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
     func generate(graphTraverser: GraphTraversing) async throws -> WorkspaceDescriptor {
         let workspaceName = "\(graphTraverser.name).xcworkspace"
 
-        logger.notice("Generating workspace \(workspaceName)", metadata: .section)
+        ServiceContext.$current.get()?.logger?.notice("Generating workspace \(workspaceName)", metadata: .section)
 
         /// Projects
         let projects = try await Array(graphTraverser.projects.values)

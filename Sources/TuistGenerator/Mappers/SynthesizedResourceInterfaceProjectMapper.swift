@@ -4,6 +4,7 @@ import SwiftGenKit
 import TuistCore
 import TuistSupport
 import XcodeGraph
+import ServiceContextModule
 
 // swiftlint:disable:next type_name
 enum SynthesizedResourceInterfaceProjectMapperError: FatalError, Equatable {
@@ -50,7 +51,7 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
         guard !project.options.disableSynthesizedResourceAccessors else {
             return (project, [])
         }
-        logger.debug("Transforming project \(project.name): Synthesizing resource accessors")
+        ServiceContext.$current.get()?.logger?.debug("Transforming project \(project.name): Synthesizing resource accessors")
 
         let mappings = try project.targets.values
             .map { try mapTarget($0, project: project) }
@@ -196,7 +197,7 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
         } else {
             if try !FileHandler.shared.readFile(path).isEmpty { return true }
         }
-        logger.log(
+        ServiceContext.$current.get()?.logger?.log(
             level: .warning,
             "Skipping synthesizing accessors for \(path.pathString) because its contents are empty."
         )

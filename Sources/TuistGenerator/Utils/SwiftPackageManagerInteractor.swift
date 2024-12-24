@@ -4,6 +4,7 @@ import Path
 import TuistCore
 import TuistSupport
 import XcodeGraph
+import ServiceContextModule
 
 /// Swift Package Manager Interactor
 ///
@@ -72,7 +73,7 @@ public class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting {
         }
 
         let workspacePath = path.appending(component: workspaceName)
-        logger.notice("Resolving package dependencies using xcodebuild")
+        ServiceContext.$current.get()?.logger?.notice("Resolving package dependencies using xcodebuild")
         // -list parameter is a workaround to resolve package dependencies for given workspace without specifying scheme
         var arguments = ["xcodebuild", "-resolvePackageDependencies"]
 
@@ -96,10 +97,10 @@ public class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting {
             environment: System.shared.env,
             redirection: .stream(stdout: { bytes in
                 let output = String(decoding: bytes, as: Unicode.UTF8.self)
-                logger.debug("\(output)")
+                ServiceContext.$current.get()?.logger?.debug("\(output)")
             }, stderr: { bytes in
                 let error = String(decoding: bytes, as: Unicode.UTF8.self)
-                logger.error("\(error)")
+                ServiceContext.$current.get()?.logger?.error("\(error)")
             })
         )
 

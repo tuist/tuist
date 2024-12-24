@@ -4,6 +4,7 @@ import TuistCore
 import TuistSupport
 import XcodeGraph
 import XcodeProj
+import ServiceContextModule
 
 /// A project mapper that generates derived entitlements files for targets that define it as a dictonary.
 public final class GenerateEntitlementsProjectMapper: ProjectMapping {
@@ -21,7 +22,7 @@ public final class GenerateEntitlementsProjectMapper: ProjectMapping {
     // MARK: - ProjectMapping
 
     public func map(project: Project) throws -> (Project, [SideEffectDescriptor]) {
-        logger.debug("Transforming project \(project.name): Synthesizing entitlement files'")
+        ServiceContext.$current.get()?.logger?.debug("Transforming project \(project.name): Synthesizing entitlement files'")
 
         let results = try project.targets.values
             .reduce(into: (targets: [String: Target](), sideEffects: [SideEffectDescriptor]())) { results, target in

@@ -1,6 +1,7 @@
 import Foundation
 import TSCUtility
 import TuistCore
+import ServiceContextModule
 
 public final class LastUpgradeVersionWorkspaceMapper: WorkspaceMapping {
     public init() {}
@@ -11,7 +12,7 @@ public final class LastUpgradeVersionWorkspaceMapper: WorkspaceMapping {
         guard let lastXcodeUpgradeCheck = workspace.workspace.generationOptions.lastXcodeUpgradeCheck else {
             return (workspace, [])
         }
-        logger.debug("Transforming workspace \(workspace.workspace.name): Updating projects' last upgrade check")
+        ServiceContext.$current.get()?.logger?.debug("Transforming workspace \(workspace.workspace.name): Updating projects' last upgrade check")
 
         var projects = workspace.projects
         projects.indices.forEach { projects[$0].lastUpgradeCheck = projects[$0].lastUpgradeCheck ?? lastXcodeUpgradeCheck }
