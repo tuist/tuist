@@ -4,6 +4,7 @@ import Path
 import PathKit
 import TuistSupport
 import XcodeProj
+import ServiceContextModule
 
 /// An interface to check whether a project or a target has empty build settings.
 public protocol EmptyBuildSettingsChecking {
@@ -65,7 +66,7 @@ public class EmptyBuildSettingsChecker: EmptyBuildSettingsChecking {
         let nonEmptyBuildSettings = buildConfigurations.compactMap { config -> String? in
             if config.buildSettings.isEmpty { return nil }
             for (key, _) in config.buildSettings {
-                logger.notice("The build setting '\(key)' of build configuration '\(config.name)' is not empty.")
+                ServiceContext.$current.get()?.logger?.notice("The build setting '\(key)' of build configuration '\(config.name)' is not empty.")
             }
             return config.name
         }

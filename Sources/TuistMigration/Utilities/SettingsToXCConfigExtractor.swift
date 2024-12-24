@@ -4,6 +4,7 @@ import Path
 import PathKit
 import TuistSupport
 import XcodeProj
+import ServiceContextModule
 
 /// Defines the interface to extract the build settings from a project or a target into an .xcconfig file.
 public protocol SettingsToXCConfigExtracting {
@@ -57,7 +58,7 @@ public final class SettingsToXCConfigExtractor: SettingsToXCConfigExtracting {
         let buildConfigurations = try buildConfigurations(pbxproj: pbxproj, targetName: targetName)
 
         if buildConfigurations.isEmpty {
-            logger.notice("The list of configurations is empty. Exiting...")
+            ServiceContext.$current.get()?.logger?.notice("The list of configurations is empty. Exiting...")
             return
         }
 
@@ -99,7 +100,7 @@ public final class SettingsToXCConfigExtractor: SettingsToXCConfigExtracting {
             buildSettingsLines.sorted().joined(separator: "\n"),
         ].joined(separator: "\n\n")
         try FileHandler.shared.write(buildSettingsContent, path: xcconfigPath, atomically: true)
-        logger.notice("Build settings successfully extracted into \(xcconfigPath.pathString)", metadata: .success)
+        ServiceContext.$current.get()?.logger?.notice("Build settings successfully extracted into \(xcconfigPath.pathString)", metadata: .success)
     }
 
     private func buildConfigurations(pbxproj: PBXProj, targetName: String?) throws -> [XCBuildConfiguration] {
