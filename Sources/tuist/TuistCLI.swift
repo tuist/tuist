@@ -7,14 +7,14 @@ import TuistSupport
 
 @main
 @_documentation(visibility: private)
-private enum TuistServer {
+private enum TuistCLI {
     static func main() async throws {
         if CommandLine.arguments.contains("--quiet") && CommandLine.arguments.contains("--verbose") {
-            throw TuistAppError.exclusiveOptionError("quiet", "verbose")
+            throw TuistCLIError.exclusiveOptionError("quiet", "verbose")
         }
 
         if CommandLine.arguments.contains("--quiet") && CommandLine.arguments.contains("--json") {
-            throw TuistAppError.exclusiveOptionError("quiet", "json")
+            throw TuistCLIError.exclusiveOptionError("quiet", "json")
         }
 
         if CommandLine.arguments.contains("--verbose") {
@@ -44,7 +44,7 @@ private enum TuistServer {
     }
 }
 
-private enum TuistAppError: FatalError {
+private enum TuistCLIError: FatalError {
     case exclusiveOptionError(String, String)
 
     var description: String {

@@ -21,6 +21,31 @@ public struct LoggingConfig {
     public var verbose: Bool
 }
 
+public extension Logger {
+    static func defaultLoggerHandler(config: LoggingConfig = .default) -> (String) -> any LogHandler {
+        let handler: VerboseLogHandler.Type
+
+        switch config.loggerType {
+        case .osLog:
+            handler = OSLogHandler.self
+        case .detailed:
+            handler = DetailedLogHandler.self
+        case .console:
+            handler = StandardLogHandler.self
+        case .json:
+            handler = JSONLogHandler.self
+        case .quiet:
+            return quietLogHandler
+        }
+
+        if config.verbose {
+            return handler.verbose
+        } else {
+            return handler.init
+        }
+    }
+}
+
 extension LoggingConfig {
     public static var `default`: LoggingConfig {
         let env = ProcessInfo.processInfo.environment
