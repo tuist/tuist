@@ -23,7 +23,8 @@ public enum Module: String, CaseIterable {
     case server = "TuistServer"
     case hasher = "TuistHasher"
     case cache = "TuistCache"
-
+    case workflows = "TuistWorkflows"
+    
     public var isRunnable: Bool {
         switch self {
         case .tuistFixtureGenerator, .tuist, .tuistBenchmark:
@@ -121,7 +122,7 @@ public enum Module: String, CaseIterable {
 
     public var acceptanceTestsTargetName: String? {
         switch self {
-        case .kit, .automation, .dependencies, .generator:
+        case .kit, .automation, .dependencies, .generator, .workflows:
             return "\(rawValue)AcceptanceTests"
         default:
             return nil
@@ -132,7 +133,7 @@ public enum Module: String, CaseIterable {
         switch self {
         case .tuist, .tuistBenchmark, .tuistFixtureGenerator, .kit, .projectAutomation,
              .projectDescription, .analytics,
-             .dependencies, .acceptanceTesting, .server, .hasher, .cache, .scaffold:
+             .dependencies, .acceptanceTesting, .server, .hasher, .cache, .scaffold, .workflows:
             return nil
         default:
             return "\(rawValue)Testing"
@@ -155,7 +156,7 @@ public enum Module: String, CaseIterable {
         case .tuist, .tuistBenchmark, .tuistFixtureGenerator, .projectAutomation,
              .projectDescription,
              .asyncQueue,
-             .plugin, .analytics, .dependencies, .acceptanceTesting, .server, .hasher:
+             .plugin, .analytics, .dependencies, .acceptanceTesting, .server, .hasher, .workflows:
             return nil
         default:
             return "\(rawValue)IntegrationTests"
@@ -233,6 +234,8 @@ public enum Module: String, CaseIterable {
     public var dependencies: [TargetDependency] {
         var dependencies: [TargetDependency] =
             switch self {
+            case .workflows:
+                []
             case .acceptanceTesting:
                 [
                     .target(name: Module.projectDescription.targetName),
@@ -300,6 +303,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.analytics.targetName),
                     .target(name: Module.plugin.targetName),
                     .target(name: Module.cache.targetName),
+                    .target(name: Module.workflows.targetName),
                     .external(name: "FileSystem"),
                     .external(name: "SwiftToolsSupport"),
                     .external(name: "XcodeGraph"),
@@ -442,6 +446,8 @@ public enum Module: String, CaseIterable {
     public var unitTestDependencies: [TargetDependency] {
         var dependencies: [TargetDependency] =
             switch self {
+            case .workflows:
+                []
             case .tuist, .tuistBenchmark, .acceptanceTesting:
                 []
             case .tuistFixtureGenerator:
@@ -627,6 +633,8 @@ public enum Module: String, CaseIterable {
     public var testingDependencies: [TargetDependency] {
         let dependencies: [TargetDependency] =
             switch self {
+            case .workflows:
+                []
             case .tuist, .projectAutomation, .projectDescription, .acceptanceTesting, .hasher,
                  .analytics,
                  .migration, .tuistFixtureGenerator, .cache, .scaffold:
@@ -704,6 +712,8 @@ public enum Module: String, CaseIterable {
     public var integrationTestsDependencies: [TargetDependency] {
         var dependencies: [TargetDependency] =
             switch self {
+            case .workflows:
+                []
             case .tuistBenchmark, .tuistFixtureGenerator, .support, .projectAutomation,
                  .projectDescription, .acceptanceTesting,
                  .asyncQueue, .plugin, .analytics, .dependencies, .server, .hasher:
