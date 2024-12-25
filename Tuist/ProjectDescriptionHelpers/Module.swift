@@ -7,6 +7,7 @@ public enum Module: String, CaseIterable {
     case tuistFixtureGenerator = "tuistfixturegenerator"
     case projectDescription = "ProjectDescription"
     case projectAutomation = "ProjectAutomation"
+    case workflowDescription = "WorkflowDescription"
     case acceptanceTesting = "TuistAcceptanceTesting"
     case support = "TuistSupport"
     case kit = "TuistKit"
@@ -133,7 +134,7 @@ public enum Module: String, CaseIterable {
         switch self {
         case .tuist, .tuistBenchmark, .tuistFixtureGenerator, .kit, .projectAutomation,
              .projectDescription, .analytics,
-             .dependencies, .acceptanceTesting, .server, .hasher, .cache, .scaffold, .workflows:
+             .dependencies, .acceptanceTesting, .server, .hasher, .cache, .scaffold, .workflows, .workflowDescription:
             return nil
         default:
             return "\(rawValue)Testing"
@@ -144,7 +145,7 @@ public enum Module: String, CaseIterable {
         switch self {
         case .analytics, .tuist, .tuistBenchmark, .tuistFixtureGenerator, .projectAutomation,
              .projectDescription,
-             .acceptanceTesting:
+             .acceptanceTesting, .workflowDescription:
             return nil
         default:
             return "\(rawValue)Tests"
@@ -156,7 +157,7 @@ public enum Module: String, CaseIterable {
         case .tuist, .tuistBenchmark, .tuistFixtureGenerator, .projectAutomation,
              .projectDescription,
              .asyncQueue,
-             .plugin, .analytics, .dependencies, .acceptanceTesting, .server, .hasher, .workflows:
+             .plugin, .analytics, .dependencies, .acceptanceTesting, .server, .hasher, .workflows, .workflowDescription:
             return nil
         default:
             return "\(rawValue)IntegrationTests"
@@ -222,7 +223,7 @@ public enum Module: String, CaseIterable {
 
     public var strictConcurrencySetting: String? {
         switch self {
-        case .projectAutomation, .projectDescription:
+        case .projectAutomation, .projectDescription, .workflowDescription:
             return "complete"
         case .support:
             return "targeted"
@@ -234,6 +235,8 @@ public enum Module: String, CaseIterable {
     public var dependencies: [TargetDependency] {
         var dependencies: [TargetDependency] =
             switch self {
+            case .workflowDescription:
+                []
             case .workflows:
                 []
             case .acceptanceTesting:
@@ -253,6 +256,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.loader.targetName),
                     .target(name: Module.kit.targetName),
                     .target(name: Module.projectDescription.targetName),
+                    .target(name: Module.workflowDescription.targetName),
                     .target(name: Module.automation.targetName),
                     .external(name: "GraphViz"),
                     .external(name: "ArgumentParser"),
@@ -446,6 +450,8 @@ public enum Module: String, CaseIterable {
     public var unitTestDependencies: [TargetDependency] {
         var dependencies: [TargetDependency] =
             switch self {
+            case .workflowDescription:
+                []
             case .workflows:
                 []
             case .tuist, .tuistBenchmark, .acceptanceTesting:
@@ -633,6 +639,8 @@ public enum Module: String, CaseIterable {
     public var testingDependencies: [TargetDependency] {
         let dependencies: [TargetDependency] =
             switch self {
+            case .workflowDescription:
+                []
             case .workflows:
                 []
             case .tuist, .projectAutomation, .projectDescription, .acceptanceTesting, .hasher,
@@ -712,6 +720,8 @@ public enum Module: String, CaseIterable {
     public var integrationTestsDependencies: [TargetDependency] {
         var dependencies: [TargetDependency] =
             switch self {
+            case .workflowDescription:
+                []
             case .workflows:
                 []
             case .tuistBenchmark, .tuistFixtureGenerator, .support, .projectAutomation,
