@@ -554,7 +554,7 @@ export function guidesSidebar(locale) {
               text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${localizedString(
                 locale,
                 "sidebars.guides.items.develop.items.automate.items.workflows.text",
-              )} ${comingSoonBadge(locale)}</span>`,
+              )}</span>`,
               link: `/${locale}/guides/develop/automate/workflows`,
             },
           ],

@@ -7,11 +7,9 @@ struct WorkflowsCommand: ParsableCommand {
             commandName: "workflows",
             abstract: "Interact with the project workflows",
             subcommands: [
-//                LoginCommand.self,
-//                LogoutCommand.self,
-//                WhoamiCommand.self,
-            ],
-            defaultSubcommand: LoginCommand.self
+                WorkflowsLSCommand.self,
+                WorkflowsRunCommand.self
+            ]
         )
     }
 }

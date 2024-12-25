@@ -1,5 +1,5 @@
 {
-  "originHash" : "f7f5bd7ab6264354ae2d212d6bc0e1044a8691ffb28ba77664759bc08a0dd5f9",
+  "originHash" : "9bd1fe9cbdd8d062f4ad12409f8af67581d2b8997adb8f1cbfac81ad9852428a",
   "pins" : [
     {
       "identity" : "aexml",
@@ -33,8 +33,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/Command.git",
       "state" : {
-        "revision" : "27270402bfb9cd65f6a8b83bdf59941a8c9ae368",
-        "version" : "0.8.0"
+        "revision" : "ee0d0d76d3256d3aae76b846a8588ae83b6ef166",
+        "version" : "0.10.5"
       }
     },
     {
@@ -96,8 +96,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/Kolos65/Mockable.git",
       "state" : {
-        "revision" : "a9e5e1d222035567069ed6fff8429c327229b5f6",
-        "version" : "0.0.11"
+        "revision" : "e1b311b01c11415099341eee49769185e965ac4c",
+        "version" : "0.2.0"
       }
     },
     {
@@ -218,21 +218,12 @@
       }
     },
     {
-      "identity" : "swift-issue-reporting",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/pointfreeco/swift-issue-reporting",
-      "state" : {
-        "revision" : "770f990d3e4eececb57ac04a6076e22f8c97daeb",
-        "version" : "1.4.2"
-      }
-    },
-    {
       "identity" : "swift-log",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-log.git",
       "state" : {
-        "revision" : "9cb486020ebf03bfa5b5df985387a14a98744537",
-        "version" : "1.6.1"
+        "revision" : "96a2f8a0fa41e9e09af4585e2724c4e825410b91",
+        "version" : "1.6.2"
       }
     },
     {
@@ -323,6 +314,15 @@
       "state" : {
         "revision" : "59b6e3fe9b07e3323b4c4e97b58523bc3c5754a0",
         "version" : "8.24.4"
+      }
+    },
+    {
+      "identity" : "xctest-dynamic-overlay",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/pointfreeco/xctest-dynamic-overlay",
+      "state" : {
+        "revision" : "a3f634d1a409c7979cabc0a71b3f26ffa9fc8af1",
+        "version" : "1.4.3"
       }
     },
     {
