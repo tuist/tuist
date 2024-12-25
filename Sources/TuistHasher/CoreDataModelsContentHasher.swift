@@ -26,7 +26,7 @@ public final class CoreDataModelsContentHasher: CoreDataModelsContentHashing {
              Since the directory being hashed through the attribute "path" contains the rest of the attributes, we are implicitly hashing them
              and therefore it's not necessary to hash them.
              */
-            var coreDataModelChildren = [
+            let coreDataModelChildren = [
                 MerkleNode(hash: try contentHasher.hash(path: coreDataModel.path), identifier: "content"),
             ]
             return MerkleNode(
