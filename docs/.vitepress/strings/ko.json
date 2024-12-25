@@ -2,22 +2,22 @@
   "aside": {
     "translate": {
       "title": {
-        "text": "번역"
+        "text": "Translation 🌍"
       },
       "description": {
         "text": "이 페이지를 번역하거나 기존 번역을 개선할 수 있습니다."
       },
       "cta": {
-        "text": "기여"
+        "text": "Contribute"
       }
     }
   },
   "search": {
-    "placeholder": "검색",
+    "placeholder": "Search",
     "translations": {
       "button": {
-        "button-text": "문서 검색",
-        "button-aria-label": "문서 검색"
+        "button-text": "Search documentation",
+        "button-aria-label": "Search documentation"
       },
       "modal": {
         "search-box": {
