@@ -24,7 +24,8 @@ defmodule Tuist.Registry.Swift.Packages do
   def create_package(
         %{
           scope: scope,
-          name: name
+          name: name,
+          repository_full_handle: repository_full_handle
         },
         opts \\ []
       ) do
@@ -32,6 +33,7 @@ defmodule Tuist.Registry.Swift.Packages do
     |> Package.create_changeset(%{
       scope: scope,
       name: name,
+      repository_full_handle: repository_full_handle,
       inserted_at: Keyword.get(opts, :inserted_at),
       updated_at: Keyword.get(opts, :updated_at),
       last_updated_releases_at: Keyword.get(opts, :last_updated_releases_at)
@@ -49,16 +51,27 @@ defmodule Tuist.Registry.Swift.Packages do
 
   def get_package_scope_and_name_from_repository_full_handle(repository_full_handle) do
     [scope, name] = String.split(repository_full_handle, "/")
-    %{scope: scope, name: name}
+
+    %{
+      scope: scope,
+      name: name |> String.replace(".", "_"),
+      repository_full_handle: repository_full_handle
+    }
   end
 
   def create_missing_package_releases(%{
-        package: %Package{scope: scope, name: name} = package,
+        package:
+          %Package{scope: scope, name: name, repository_full_handle: repository_full_handle} =
+            package,
         token: token
       }) do
     package = package |> Repo.preload(:package_releases)
 
-    VCS.get_tags(%{repository_full_handle: "#{scope}/#{name}", provider: :github, token: token})
+    VCS.get_tags(%{
+      repository_full_handle: repository_full_handle,
+      provider: :github,
+      token: token
+    })
     |> Enum.map(& &1.name)
     |> Enum.filter(fn version ->
       Regex.match?(~r/^v?\d+\.\d+\.\d+$/, version) and
@@ -79,14 +92,20 @@ defmodule Tuist.Registry.Swift.Packages do
   end
 
   def create_package_release(%{
-        package: %Package{id: package_id, scope: scope, name: name},
+        package:
+          %Package{
+            id: package_id,
+            scope: scope,
+            name: name,
+            repository_full_handle: repository_full_handle
+          } = package,
         version: version,
         token: token
       }) do
     {:ok, file_list} =
       VCS.get_source_archive_by_tag_and_repository_full_handle(%{
         provider: :github,
-        repository_full_handle: "#{scope}/#{name}",
+        repository_full_handle: repository_full_handle,
         tag: version,
         token: token
       })
@@ -135,8 +154,7 @@ defmodule Tuist.Registry.Swift.Packages do
       |> Repo.insert!()
 
     create_package_manifests(%{
-      scope: scope,
-      name: name,
+      package: package,
       token: token,
       reference: version,
       package_release: package_release
@@ -146,8 +164,12 @@ defmodule Tuist.Registry.Swift.Packages do
   end
 
   defp create_package_manifests(%{
-         scope: scope,
-         name: name,
+         package:
+           %Package{
+             scope: scope,
+             name: name,
+             repository_full_handle: repository_full_handle
+           } = package,
          token: token,
          reference: reference,
          package_release: %PackageRelease{} = package_release
@@ -155,7 +177,7 @@ defmodule Tuist.Registry.Swift.Packages do
     {:ok, root_contents} =
       VCS.get_repository_content(
         %{
-          repository_full_handle: "#{scope}/#{name}",
+          repository_full_handle: repository_full_handle,
           provider: :github,
           token: token
         },
@@ -175,8 +197,7 @@ defmodule Tuist.Registry.Swift.Packages do
       cond do
         path == "Package.swift" ->
           create_package_manifest(%{
-            scope: scope,
-            name: name,
+            package: package,
             token: token,
             package_release: package_release,
             swift_version: nil,
@@ -186,8 +207,7 @@ defmodule Tuist.Registry.Swift.Packages do
 
         not is_nil(swift_version) ->
           create_package_manifest(%{
-            scope: scope,
-            name: name,
+            package: package,
             token: token,
             package_release: package_release,
             swift_version: swift_version,
@@ -202,8 +222,11 @@ defmodule Tuist.Registry.Swift.Packages do
   end
 
   defp create_package_manifest(%{
-         scope: scope,
-         name: name,
+         package: %Package{
+           scope: scope,
+           name: name,
+           repository_full_handle: repository_full_handle
+         },
          token: token,
          package_release: %PackageRelease{id: package_release_id, version: version},
          swift_version: swift_version,
@@ -213,7 +236,7 @@ defmodule Tuist.Registry.Swift.Packages do
     {:ok, %Content{content: package_manifest_content}} =
       VCS.get_repository_content(
         %{
-          repository_full_handle: "#{scope}/#{name}",
+          repository_full_handle: repository_full_handle,
           provider: :github,
           token: token
         },

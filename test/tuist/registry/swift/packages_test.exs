@@ -14,11 +14,17 @@ defmodule Tuist.Registry.Swift.PackagesTest do
   describe "create_package/2" do
     test "creates a new package" do
       # When
-      package = Packages.create_package(%{scope: "Scope", name: "Name"})
+      package =
+        Packages.create_package(%{
+          scope: "Scope",
+          name: "Name",
+          repository_full_handle: "Scope/Name"
+        })
 
       # Then
       assert package.scope == "Scope"
       assert package.name == "Name"
+      assert package.repository_full_handle == "Scope/Name"
     end
   end
 
@@ -49,7 +55,7 @@ defmodule Tuist.Registry.Swift.PackagesTest do
       got = Packages.get_package_scope_and_name_from_repository_full_handle("Scope/Name")
 
       # Then
-      assert got == %{scope: "Scope", name: "Name"}
+      assert got == %{scope: "Scope", name: "Name", repository_full_handle: "Scope/Name"}
     end
   end
 

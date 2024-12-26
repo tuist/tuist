@@ -75,6 +75,27 @@ defmodule TuistWeb.API.Registry.SwiftControllerTest do
       response = json_response(conn, :ok)
       assert response["identifiers"] == ["Alamofire.Alamofire"]
     end
+
+    test "returns the identifier when the package exists and the repository full handle has a dot in its name",
+         %{conn: conn, account: account} do
+      # Given
+      PackagesFixtures.package_fixture(
+        scope: "Alamofire",
+        name: "Alamofire_swift",
+        repository_full_handle: "Alamofire/Alamofire.swift"
+      )
+
+      # When
+      conn =
+        conn
+        |> get(
+          ~p"/api/accounts/#{account.name}/registry/swift/identifiers?url=https://github.com/Alamofire/Alamofire.swift"
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+      assert response["identifiers"] == ["Alamofire.Alamofire_swift"]
+    end
   end
 
   describe "GET /api/accounts/:account_handle/registry/swift/:scope/:name" do

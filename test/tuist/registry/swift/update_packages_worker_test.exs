@@ -23,7 +23,15 @@ defmodule Tuist.Registry.Swift.Workers.UpdatePackagesWorkerTest do
 
     Packages
     |> expect(:create_missing_package_releases, fn
-      %{package: %Package{scope: "onevcat", name: "Kingfisher"}, token: "github_token"} -> :ok
+      %{
+        package: %Package{
+          scope: "onevcat",
+          name: "Kingfisher",
+          repository_full_handle: "onevcat/Kingfisher"
+        },
+        token: "github_token"
+      } ->
+        :ok
     end)
 
     VCS
@@ -43,6 +51,41 @@ defmodule Tuist.Registry.Swift.Workers.UpdatePackagesWorkerTest do
     assert Packages.get_package_by_scope_and_name(%{
              scope: "onevcat",
              name: "Kingfisher"
+           }) != nil
+  end
+
+  test "creates missing package with a dot in its name" do
+    # Given
+
+    Packages
+    |> expect(:create_missing_package_releases, fn
+      %{
+        package: %Package{
+          scope: "stephenceilis",
+          name: "SQLite_swift",
+          repository_full_handle: "stephenceilis/SQLite.swift"
+        },
+        token: "github_token"
+      } ->
+        :ok
+    end)
+
+    VCS
+    |> stub(:get_repository_content, fn _, _ ->
+      {:ok,
+       %Content{
+         path: "packages.json",
+         content: "[\n  \"https://github.com/stephenceilis/SQLite.swift.git\"]"
+       }}
+    end)
+
+    # When
+    UpdatePackagesWorker.perform(%Oban.Job{})
+
+    # Then
+    assert Packages.get_package_by_scope_and_name(%{
+             scope: "stephenceilis",
+             name: "SQLite_swift"
            }) != nil
   end
 end

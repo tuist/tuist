@@ -16,6 +16,7 @@ defmodule Tuist.Registry.Swift.Packages.Package do
   schema "packages" do
     field :scope, :string
     field :name, :string
+    field :repository_full_handle, :string
     field :last_updated_releases_at, :utc_datetime
 
     has_many(:package_releases, PackageRelease)
@@ -28,11 +29,12 @@ defmodule Tuist.Registry.Swift.Packages.Package do
     |> cast(attrs, [
       :scope,
       :name,
+      :repository_full_handle,
       :inserted_at,
       :updated_at,
       :last_updated_releases_at
     ])
-    |> validate_required([:scope, :name])
+    |> validate_required([:scope, :name, :repository_full_handle])
     |> unique_constraint([:scope, :name])
   end
 

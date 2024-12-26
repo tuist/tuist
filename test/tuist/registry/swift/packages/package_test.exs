@@ -25,12 +25,28 @@ defmodule Tuist.Registry.Swift.Packages.PackageTest do
       assert "can't be blank" in errors_on(got).name
     end
 
+    test "ensures a repository_full_handle is present" do
+      # Given
+      package = %Package{}
+
+      # When
+      got = Package.create_changeset(package, %{})
+
+      # Then
+      assert "can't be blank" in errors_on(got).repository_full_handle
+    end
+
     test "is valid when contains all necessary attributes" do
       # Given
       package = %Package{}
 
       # When
-      got = Package.create_changeset(package, %{scope: "Scope", name: "Name"})
+      got =
+        Package.create_changeset(package, %{
+          scope: "Scope",
+          name: "Name",
+          repository_full_handle: "Scope/Name"
+        })
 
       # Then
       assert got.valid?
@@ -41,7 +57,8 @@ defmodule Tuist.Registry.Swift.Packages.PackageTest do
       changeset =
         Package.create_changeset(%Package{}, %{
           scope: "Scope",
-          name: "Name"
+          name: "Name",
+          repository_full_handle: "Scope/Name"
         })
 
       # When
@@ -50,7 +67,8 @@ defmodule Tuist.Registry.Swift.Packages.PackageTest do
       {:error, got} =
         Package.create_changeset(%Package{}, %{
           scope: "Scope",
-          name: "Name"
+          name: "Name",
+          repository_full_handle: "Scope/Name"
         })
         |> Repo.insert()
 
