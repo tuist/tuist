@@ -1,6 +1,6 @@
 ---
 title: Добавление зависимостей
-titleTemplate: :title · Quick-start · Guides · Tuist
+titleTemplate: :title · Начало · Руководства · Tuist
 description: Научитесь добавлять зависимости к вашему первому Swift проекту
 ---
 

@@ -189,7 +189,7 @@
           "text": "Start",
           "items": {
             "new-project": {
-              "text": "Create a new project"
+              "text": "Создание нового проекта"
             },
             "swift-package": {
               "text": "Try with a Swift Package"
@@ -229,7 +229,7 @@
                   "text": "Editing"
                 },
                 "dependencies": {
-                  "text": "Dependencies"
+                  "text": "Зависимости"
                 },
                 "code-sharing": {
                   "text": "Code sharing"
@@ -265,14 +265,17 @@
               "items": {
                 "cache": {
                   "text": "Cache"
+                },
+                "registry": {
+                  "text": "Registry"
                 }
               }
             },
             "test": {
               "text": "Test",
               "items": {
-                "smart-runner": {
-                  "text": "Smart runner"
+                "selective-testing": {
+                  "text": "Selective testing"
                 },
                 "flakiness": {
                   "text": "Flakiness"
