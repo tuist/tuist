@@ -121,7 +121,7 @@ let targets: [Target] = [
             "Mockable",
             "FileSystem",
             "Command",
-            .product(name: "ServiceContextModule", package: "swift-service-context")
+            .product(name: "ServiceContextModule", package: "swift-service-context"),
         ],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
