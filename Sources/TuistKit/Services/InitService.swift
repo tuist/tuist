@@ -174,7 +174,7 @@ class InitService {
     private func verifyDirectoryIsEmpty(path: AbsolutePath) async throws {
         let allowedFiles = Set(["mise.toml", ".mise.toml"])
         let disallowedFiles = try await fileSystem.glob(directory: path, include: ["*"]).collect()
-            .filter { allowedFiles.contains($0.basename) }
+            .filter { !allowedFiles.contains($0.basename) }
         if !disallowedFiles.isEmpty {
             throw InitServiceError.nonEmptyDirectory(path)
         }
