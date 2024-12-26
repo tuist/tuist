@@ -1,13 +1,13 @@
 ---
 title: Registry
 titleTemplate: :title · Develop · Guides · Tuist
-description: Optimize your Swift package resolution times by leveraging the Tuist Registry.
+description: Tuist Registry를 사용하여 Swift 패키지 해석시간을 최적화 합니다.
 ---
 
 # Registry {#registry}
 
-> [!WARNING] BETA
-> This feature is currently in beta. If you encounter any issues, please report them at our <a href="https://community.tuist.dev/c/troubleshooting-how-to/6" target="_blank">community forum</a>.
+> [!WARNING] BETA\
+> 이 기능은 현재 베타 기능입니다. If you encounter any issues, please report them at our <a href="https://community.tuist.dev/c/troubleshooting-how-to/6" target="_blank">community forum</a>.
 
 > [!IMPORTANT] REMOTE PROJECT 필요
 > 이 기능은 <LocalizedLink href="/server/introduction/accounts-and-projects">remote project</LocalizedLink>가 필요합니다.
