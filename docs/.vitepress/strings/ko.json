@@ -8,16 +8,16 @@
         "text": "이 페이지를 번역하거나 기존 번역을 개선할 수 있습니다."
       },
       "cta": {
-        "text": "Contribute"
+        "text": "기여"
       }
     }
   },
   "search": {
-    "placeholder": "Search",
+    "placeholder": "검색",
     "translations": {
       "button": {
-        "button-text": "Search documentation",
-        "button-aria-label": "Search documentation"
+        "button-text": "문서 검색",
+        "button-aria-label": "문서 검색"
       },
       "modal": {
         "search-box": {
