@@ -320,6 +320,22 @@ final class GenerateAcceptanceTestsiOSAppWithCustomScheme: TuistAcceptanceTestCa
 
         let xcodeprojPath = fixturePath.appending(components: ["App", "MainApp.xcodeproj"])
 
+        let xcodeproj = try XcodeProj(pathString: xcodeprojPath.pathString)
+
+        let scheme = try XCTUnwrap(
+            xcodeproj.sharedData?.schemes
+                .filter { $0.name == "App-Debug" }
+                .first
+        )
+
+        let testableTarget = try XCTUnwrap(
+            scheme.testAction?.testables
+                .filter { $0.buildableReference.blueprintName == "AppTests" }
+                .first
+        )
+
+        XCTAssertEqual(testableTarget.parallelization, .all)
+
         try XCTAssertContainsSimulatedLocation(
             xcodeprojPath: xcodeprojPath,
             scheme: "App-Debug",
