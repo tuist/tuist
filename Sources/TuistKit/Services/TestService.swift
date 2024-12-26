@@ -490,7 +490,7 @@ final class TestService { // swiftlint:disable:this type_body_length
 
         let testSchemes = schemes
             .filter {
-                $0.testAction.map { !$0.targets.isEmpty } ?? false || !self.testActionTargets(
+                !self.testActionTargets(
                     for: $0,
                     testPlanConfiguration: testPlanConfiguration,
                     graph: graph
