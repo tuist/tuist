@@ -29,7 +29,7 @@ Now you can access the registry! To resolve dependencies from the registry inste
 
 To add packages using the registry, use the default Xcode UI. You can search for packages in the registry by clicking on the `+` button in the `Package Dependencies` tab in Xcode. If the package is available in the registry, you will see the `tuist.dev` registry in the top right:
 
-![Adding package dependencies](/images/guides/develop/build/registry-add-package.png)
+![Adding package dependencies](/images/guides/develop/build/registry/registry-add-package.png)
 
 Note that Xcode currently doesn't support automatically replacing source control packages with their registry equivalents. You will need to manually remove the source control package and add the registry package to speed up the resolution.
 
