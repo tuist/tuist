@@ -238,7 +238,8 @@ public class GraphTraverser: GraphTraversing {
             from: .target(name: name, path: path),
             test: { dependency in
                 isDependencyResourceBundle(dependency: dependency) &&
-                    !(isDependencyExternal(dependency) || dependency.isPrecompiled)
+                    !(isDependencyExternal(dependency) || dependency.isPrecompiled) &&
+                    !(target.canEmbedPlugins() && canDependencyEmbedAsPlugin(dependency: dependency))
             },
             skip: canHostResources
         )
@@ -938,13 +939,21 @@ public class GraphTraverser: GraphTraversing {
     public func directTargetExternalDependencies(path: Path.AbsolutePath, name: String) -> Set<
         GraphTargetReference
     > {
-        directTargetDependencies(path: path, name: name).filter(\.graphTarget.project.isExternal)
+        directTargetDependencies(path: path, name: name)
+            .filter {
+                switch $0.graphTarget.project.type {
+                case .local:
+                    return false
+                case .external:
+                    return true
+                }
+            }
     }
 
     public func allExternalTargets() -> Set<GraphTarget> {
         Set(
             graph.projects.flatMap { path, project -> [GraphTarget] in
-                guard project.isExternal else { return [] }
+                guard case .external = project.type else { return [] }
                 return project.targets.values.map {
                     GraphTarget(path: path, target: $0, project: project)
                 }
@@ -1271,7 +1280,12 @@ public class GraphTraverser: GraphTraversing {
         guard let targetDependency = dependency.targetDependency,
               let project = graph.projects[targetDependency.path]
         else { return false }
-        return project.isExternal
+        switch project.type {
+        case .external:
+            return true
+        case .local:
+            return false
+        }
     }
 
     private func isDependencyPrecompiledMacro(_ dependency: GraphDependency) -> Bool {
@@ -1410,6 +1424,13 @@ public class GraphTraverser: GraphTraversing {
         }
     }
 
+    private func canDependencyEmbedAsPlugin(dependency: GraphDependency) -> Bool {
+        guard case let GraphDependency.target(name, path, _) = dependency,
+              let graphTarget = target(path: path, name: name)
+        else { return false }
+        return graphTarget.target.isEmbeddablePlugin()
+    }
+
     func unitTestHost(path: Path.AbsolutePath, name: String) -> GraphTarget? {
         directTargetDependencies(path: path, name: name)
             .first(where: { $0.target.product.canHostTests() })?.graphTarget
@@ -1526,7 +1547,7 @@ public class GraphTraverser: GraphTraversing {
     private func allTargets(excludingExternalTargets: Bool) -> Set<GraphTarget> {
         Set(
             projects.flatMap { projectPath, project -> [GraphTarget] in
-                if excludingExternalTargets, project.isExternal { return [] }
+                if excludingExternalTargets, case .external = project.type { return [] }
                 return project.targets.values.map { target in
                     GraphTarget(path: projectPath, target: target, project: project)
                 }

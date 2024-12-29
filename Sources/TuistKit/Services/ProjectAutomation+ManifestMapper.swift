@@ -41,10 +41,17 @@ extension ProjectAutomation.Project {
             ProjectAutomation.Target.from(target)
         }
 
+        let isExternal = switch project.type {
+        case .external:
+            true
+        case .local:
+            false
+        }
+
         return ProjectAutomation.Project(
             name: project.name,
             path: project.path.pathString,
-            isExternal: project.isExternal,
+            isExternal: isExternal,
             packages: packages,
             targets: Array(targets.values),
             schemes: schemes

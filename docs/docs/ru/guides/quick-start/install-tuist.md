@@ -1,6 +1,6 @@
 ---
 title: Установка Tuist
-titleTemplate: :title · Quick-start · Guides · Tuist
+titleTemplate: :title · Начало · Руководства · Tuist
 description: Узнайте, как установить Tuist в вашей среде.
 ---
 
@@ -8,17 +8,13 @@ description: Узнайте, как установить Tuist в вашей с�
 
 Tuist CLI состоит из исполняемого файла, динамических фреймворков и набора ресурсов (например, шаблонов). Хотя вы можете самостоятельно собрать Tuist из  [исходников](https://github.com/tuist/tuist,  **мы рекомендуем использовать один из следующих методов установки.**
 
-### Рекомендация: <a href="https://github.com/jdx/mise">Mise</a> {#recommended-mise}
-
-По умолчанию Tuist использует [Mise](https://github.com/jdx/mise) как инструмент для детерминированного управления и активации версий Tuist.
-Если у вас он не установлен в системе, вы можете воспользоваться любым из этих [методов установки](https://mise.jdx.dev/getting-started.html).
-Не забудьте добавить предложенную строку в ваш файл конфигурации оболочки. Это гарантирует, что правильная версия будет активирована, когда вы выберете директорию проекта Tuist в вашей терминальной сессии.
+### <a href="https://github.com/jdx/mise">Mise</a> {#recommended-mise}
 
 :::info
-Mise is recommended over alternatives like [Homebrew](https://brew.sh) because it supports scoping and activating versions to directories, ensuring every environment uses the same version of Tuist deterministically.
+Mise is a recommended alternative to [Homebrew](https://brew.sh) if you are a team or organization that needs to ensure deterministic versions of tools across different environments.
 :::
 
-Once installed, you can install Tuist through any of the following commands:
+You can install Tuist through any of the following commands:
 
 ```bash
 mise install tuist            # Install the current version specified in .tool-versions/.mise.toml
@@ -35,10 +31,9 @@ mise use -g tuist@x.y.z       # Use tuist-x.y.z as the global default
 mise use -g tuist@system      # Use the system's tuist as the global default
 ```
 
-### Alternative: <a href="https://brew.sh">Homebrew</a> {#alternative-homebrew}
+### <a href="https://brew.sh">Homebrew</a> {#recommended-homebrew}
 
-If version pinning across environments is not a concern for you,
-you can install Tuist using [Homebrew](https://brew.sh) and [our formulas](https://github.com/tuist/homebrew-tuist):
+You can install Tuist using [Homebrew](https://brew.sh) and [our formulas](https://github.com/tuist/homebrew-tuist):
 
 ```bash
 brew tap tuist/tuist
@@ -46,12 +41,20 @@ brew install --formula tuist
 brew install --formula tuist@x.y.z
 ```
 
+:::tip VERIFYING THE AUTHENTICITY OF THE BINARIES
+
+```bash
+curl -fsSL "https://docs.tuist.dev/verify.sh" | bash
+```
+
+:::
+
 ### Shell completions {#shell-completions}
 
-If you have Tuist **globally installed**,
+If you have Tuist **globally installed** (e.g., via Homebrew),
 you can install shell completions for Bash and Zsh to autocomplete commands and options.
 
-:::warning What is a global installation
+:::warning WHAT IS A GLOBAL INSTALLATION
 A global installation is an installation that's available in your shell's `$PATH` environment variable. This means you can run `tuist` from any directory in your terminal. This is the default installation method for Homebrew.
 :::
 

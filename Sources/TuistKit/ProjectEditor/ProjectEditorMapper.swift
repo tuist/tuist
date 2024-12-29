@@ -32,10 +32,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
     private let fileSystem: FileSysteming
 
     init(
-        swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(
-            system: System.shared,
-            fileSystem: FileSystem()
-        ),
+        swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(),
         fileSystem: FileSysteming = FileSystem()
     ) {
         self.swiftPackageManagerController = swiftPackageManagerController
@@ -324,7 +321,8 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             executable: nil,
             filePath: tuistPath,
             arguments: arguments,
-            diagnosticsOptions: SchemeDiagnosticsOptions()
+            diagnosticsOptions: SchemeDiagnosticsOptions(),
+            metalOptions: MetalOptions()
         )
         let scheme = Scheme(name: projectName, shared: true, buildAction: buildAction, runAction: runAction)
         let projectSettings = Settings(
@@ -358,7 +356,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             additionalFiles: [],
             resourceSynthesizers: [],
             lastUpgradeCheck: nil,
-            isExternal: false
+            type: .local
         )
     }
 
@@ -455,7 +453,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             additionalFiles: [],
             resourceSynthesizers: [],
             lastUpgradeCheck: nil,
-            isExternal: false
+            type: .local
         )
     }
 

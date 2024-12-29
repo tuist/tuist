@@ -10,15 +10,19 @@ public enum TuistAcceptanceFixtures {
     case appWithFrameworkAndTests
     case appWithGlobs
     case appWithGoogleMaps
+    case appWithMetalOptions
     case appWithPlugins
     case appWithPreviews
     case appWithRealm
+    case appWithRegistryAndAlamofire
     case appWithRevenueCat
     case appWithSpmDependencies
     case appWithSpmModuleAliases
+    case appWithSwiftCMark
     case appWithLocalSPMModuleWithRemoteDependencies
     case appWithTestPlan
     case appWithTests
+    case appWithMacBundle
     case commandLineToolBasic
     case commandLineToolWithDynamicFramework
     case commandLineToolWithDynamicLibrary
@@ -70,6 +74,7 @@ public enum TuistAcceptanceFixtures {
     case iosAppWithXcframeworks
     case iosWorkspaceWithDependencyCycle
     case iosWorkspaceWithMicrofeatureArchitecture
+    case iosAppWithCatalyst
     case macosAppWithCopyFiles
     case macosAppWithExtensions
     case manifestWithLogs
@@ -77,6 +82,7 @@ public enum TuistAcceptanceFixtures {
     case multiplatformAppWithMacrosAndEmbeddedWatchOSApp
     case multiplatformAppWithSdk
     case multiplatformµFeatureUnitTestsWithExplicitDependencies
+    case packageWithRegistryAndAlamofire
     case plugin
     case projectWithClassPrefix
     case projectWithFileHeaderTemplate
@@ -87,6 +93,7 @@ public enum TuistAcceptanceFixtures {
     case workspaceWithFileHeaderTemplate
     case workspaceWithInlineFileHeaderTemplate
     case xcodeApp
+    case xcodeProjectWithRegistryAndAlamofire
     case appWithExecutableNonLocalDependencies
     case appWithGeneratedSources
     case custom(String)
@@ -111,24 +118,32 @@ public enum TuistAcceptanceFixtures {
             return "app_with_globs"
         case .appWithGoogleMaps:
             return "app_with_google_maps"
+        case .appWithMetalOptions:
+            return "app_with_metal_options"
         case .appWithPlugins:
             return "app_with_plugins"
         case .appWithPreviews:
             return "app_with_previews"
         case .appWithRealm:
             return "app_with_realm"
+        case .appWithRegistryAndAlamofire:
+            return "app_with_registry_and_alamofire"
         case .appWithRevenueCat:
             return "app_with_revenue_cat"
         case .appWithSpmDependencies:
             return "app_with_spm_dependencies"
         case .appWithSpmModuleAliases:
             return "app_with_spm_module_aliases"
+        case .appWithSwiftCMark:
+            return "app_with_swift_cmark"
         case .appWithLocalSPMModuleWithRemoteDependencies:
             return "app_with_local_spm_module_with_remote_dependencies"
         case .appWithTestPlan:
             return "app_with_test_plan"
         case .appWithTests:
             return "app_with_tests"
+        case .appWithMacBundle:
+            return "app_with_mac_bundle"
         case .commandLineToolBasic:
             return "command_line_tool_basic"
         case .commandLineToolWithDynamicFramework:
@@ -231,6 +246,8 @@ public enum TuistAcceptanceFixtures {
             return "ios_workspace_with_dependency_cycle"
         case .iosWorkspaceWithMicrofeatureArchitecture:
             return "ios_workspace_with_microfeature_architecture"
+        case .iosAppWithCatalyst:
+            return "ios_app_with_catalyst"
         case .macosAppWithCopyFiles:
             return "macos_app_with_copy_files"
         case .macosAppWithExtensions:
@@ -245,6 +262,8 @@ public enum TuistAcceptanceFixtures {
             return "multiplatform_app_with_sdk"
         case .multiplatformµFeatureUnitTestsWithExplicitDependencies:
             return "multiplatform_µFeature_unit_tests_with_explicit_dependencies"
+        case .packageWithRegistryAndAlamofire:
+            return "package_with_registry_and_alamofire"
         case .plugin:
             return "plugin"
         case .projectWithClassPrefix:
@@ -265,6 +284,8 @@ public enum TuistAcceptanceFixtures {
             return "workspace_with_inline_file_header_template"
         case .xcodeApp:
             return "xcode_app"
+        case .xcodeProjectWithRegistryAndAlamofire:
+            return "xcode_project_with_registry_and_alamofire"
         case .appWithExecutableNonLocalDependencies:
             return "app_with_executable_non_local_dependencies"
         case .appWithGeneratedSources:

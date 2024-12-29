@@ -207,13 +207,22 @@ public enum EnvKey: String, CaseIterable {
     case organizationUpdateMemberRole = "TUIST_ORGANIZATION_UPDATE_MEMBER_ROLE"
     case organizationUpdateMemberPath = "TUIST_ORGANIZATION_UPDATE_MEMBER_PATH"
 
+    // REGISTRY LOGIN
+    case registryLoginPath = "TUIST_REGISTRY_LOGIN_PATH"
+
+    // REGISTRY LOGOUT
+    case registryLogoutPath = "TUIST_REGISTRY_LOGOUT_PATH"
+
+    // REGISTRY SETUP
+    case registrySetUpPath = "TUIST_REGISTRY_SETUP_PATH"
+
     // AUTH
     case authPath = "TUIST_AUTH_PATH"
     case authEmail = "TUIST_AUTH_EMAIL"
     case authPassword = "TUIST_AUTH_PASSWORD"
 
     // SESSION
-    case sessionPath = "TUIST_SESSION_PATH"
+    case whoamiPath = "TUIST_WHOAMI_PATH"
 
     // LOGOUT
     case logoutPath = "TUIST_LOGOUT_PATH"
@@ -227,6 +236,14 @@ public enum EnvKey: String, CaseIterable {
     case sharePlatform = "TUIST_SHARE_PLATFORM"
     case shareJSON = "TUIST_SHARE_JSON"
     case shareDerivedDataPath = "TUIST_SHARE_DERIVED_DATA_PATH"
+
+    // CACHE
+    case cacheExternalOnly = "TUIST_CACHE_EXTERNAL_ONLY"
+    case cacheGenerateOnly = "TUIST_CACHE_GENERATE_ONLY"
+    case cachePrintHashes = "TUIST_CACHE_PRINT_HASHES"
+    case cacheConfiguration = "TUIST_CACHE_CONFIGURATION"
+    case cachePath = "TUIST_CACHE_PATH"
+    case cacheTargets = "TUIST_CACHE_TARGETS"
 }
 
 extension EnvKey {

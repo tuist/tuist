@@ -40,41 +40,41 @@
         },
         "footer": {
           "select-text": "Selecciona",
-          "navigate-text": "Navigate",
-          "close-text": "Close",
-          "search-by-text": "Search provider"
+          "navigate-text": "Navegar",
+          "close-text": "Cerrar",
+          "search-by-text": "Proveedor de búsqueda"
         },
         "no-results-screen": {
-          "no-results-text": "No relevant results found",
-          "suggested-query-text": "You might try querying",
-          "report-missing-results-text": "Do you think this query should have results?",
-          "report-missing-results-link-text": "Click to give feedback"
+          "no-results-text": "No se encontraron resultados relevantes",
+          "suggested-query-text": "Podrías intentar consultar",
+          "report-missing-results-text": "¿Cree que esta consulta debería tener resultados?",
+          "report-missing-results-link-text": "Haz clic para dar tu opinión"
         }
       }
     }
   },
   "badges": {
-    "coming-soon": "Coming soon",
-    "xcodeproj-compatible": "XcodeProj-compatible"
+    "coming-soon": "Disponible próximamente",
+    "xcodeproj-compatible": "Compatible con XcodeProj"
   },
   "navbar": {
     "guides": {
-      "text": "Guides"
+      "text": "Guías"
     },
     "cli": {
       "text": "CLI"
     },
     "server": {
-      "text": "Server"
+      "text": "Servidor"
     },
     "resources": {
-      "text": "Resources",
+      "text": "Recursos",
       "items": {
         "references": {
           "text": "Referencias"
         },
         "contributors": {
-          "text": "Contributors"
+          "text": "Colaboradores"
         },
         "changelog": {
           "text": "Changelog"
@@ -87,7 +87,7 @@
       "text": "CLI",
       "items": {
         "commands": {
-          "text": "Commands"
+          "text": "Comandos"
         }
       }
     },
@@ -95,54 +95,54 @@
       "text": "Referencias",
       "items": {
         "examples": {
-          "text": "Examples"
+          "text": "Ejemplos"
         },
         "migrations": {
-          "text": "Migrations",
+          "text": "Migraciones",
           "items": {
             "from-v3-to-v4": {
-              "text": "From v3 to v4"
+              "text": "De v3 a v4"
             }
           }
         }
       }
     },
     "contributors": {
-      "text": "Contributors",
+      "text": "Colaboradores",
       "items": {
         "get-started": {
-          "text": "Get started"
+          "text": "Comenzar"
         },
         "issue-reporting": {
-          "text": "Issue reporting"
+          "text": "Reporte de Issues"
         },
         "code-reviews": {
-          "text": "Code reviews"
+          "text": "Revisión de código"
         },
         "principles": {
-          "text": "Principles"
+          "text": "Principios"
         },
         "translate": {
-          "text": "Translate"
+          "text": "Traduce"
         }
       }
     },
     "server": {
       "items": {
         "introduction": {
-          "text": "Introduction",
+          "text": "Introducción",
           "items": {
             "why-server": {
-              "text": "Why a server?"
+              "text": "¿Por qué un servidor?"
             },
             "accounts-and-projects": {
               "text": "Cuentas y proyectos"
             },
             "authentication": {
-              "text": "Authentication"
+              "text": "Autentificación"
             },
             "integrations": {
-              "text": "Integrations"
+              "text": "Integraciones"
             }
           }
         },
@@ -150,129 +150,132 @@
           "text": "On-premise",
           "items": {
             "install": {
-              "text": "Install"
+              "text": "Instala"
             },
             "metrics": {
-              "text": "Metrics"
+              "text": "Métricas"
             }
           }
         },
         "api-documentation": {
-          "text": "API documentation"
+          "text": "Documentación de la API"
         },
         "status": {
-          "text": "Status"
+          "text": "Estado"
         },
         "metrics-dashboard": {
-          "text": "Metrics dashboard"
+          "text": "Panel de métricas"
         }
       }
     },
     "guides": {
-      "text": "Guides",
+      "text": "Guías",
       "items": {
         "quick-start": {
-          "text": "Quick start",
+          "text": "Quick Start",
           "items": {
             "install-tuist": {
-              "text": "Install Tuist"
+              "text": "Instala Tuist"
             },
             "create-a-project": {
-              "text": "Create a project"
+              "text": "Crea un proyecto"
             },
             "optimize-workflows": {
-              "text": "Optimize workflows"
+              "text": "Optimiza workflows"
             }
           }
         },
         "start": {
-          "text": "Start",
+          "text": "Empieza",
           "items": {
             "new-project": {
-              "text": "Create a new project"
+              "text": "Crea un nuevo proyecto"
             },
             "swift-package": {
-              "text": "Try with a Swift Package"
+              "text": "Prueba con un paquete de Swift"
             },
             "migrate": {
-              "text": "Migrate",
+              "text": "Migra",
               "items": {
                 "xcode-project": {
-                  "text": "An Xcode project"
+                  "text": "Un proyecto de Xcode"
                 },
                 "swift-package": {
-                  "text": "A Swift package"
+                  "text": "Un paquete de Swift"
                 },
                 "xcodegen-project": {
-                  "text": "An XcodeGen project"
+                  "text": "Un proyecto XcodeGen"
                 },
                 "bazel-project": {
-                  "text": "A Bazel project"
+                  "text": "Un proyecto Bazel"
                 }
               }
             }
           }
         },
         "develop": {
-          "text": "Develop",
+          "text": "Desarrolla",
           "items": {
             "projects": {
-              "text": "Projects",
+              "text": "Proyectos",
               "items": {
                 "manifests": {
-                  "text": "Manifests"
+                  "text": "Ficheros manifest"
                 },
                 "directory-structure": {
-                  "text": "Directory structure"
+                  "text": "Estructura de directorios"
                 },
                 "editing": {
-                  "text": "Editing"
+                  "text": "Edición"
                 },
                 "dependencies": {
-                  "text": "Dependencies"
+                  "text": "Dependencias"
                 },
                 "code-sharing": {
-                  "text": "Code sharing"
+                  "text": "Compartir código"
                 },
                 "synthesized-files": {
-                  "text": "Synthesized files"
+                  "text": "Sintetizado de ficheros"
                 },
                 "dynamic-configuration": {
-                  "text": "Dynamic configuration"
+                  "text": "Configuración dinámica"
                 },
                 "templates": {
-                  "text": "Templates"
+                  "text": "Plantillas"
                 },
                 "plugins": {
                   "text": "Plugins"
                 },
                 "hashing": {
-                  "text": "Hashing"
+                  "text": "Hasheado"
                 },
                 "the-cost-of-convenience": {
-                  "text": "The cost of convenience"
+                  "text": "El coste de la conveniencia"
                 },
                 "tma-architecture": {
-                  "text": "Modular architecture"
+                  "text": "Architectura modular"
                 },
                 "best-practices": {
-                  "text": "Best practices"
+                  "text": "Buenas prácticas"
                 }
               }
             },
             "build": {
-              "text": "Build",
+              "text": "Compila",
               "items": {
                 "cache": {
-                  "text": "Cache"
+                  "text": "Cachea"
+                },
+                "registry": {
+                  "text": "Registry"
                 }
               }
             },
             "test": {
-              "text": "Test",
+              "text": "Testea",
               "items": {
-                "smart-runner": {
-                  "text": "Smart runner"
+                "selective-testing": {
+                  "text": "Selective testing"
                 },
                 "flakiness": {
                   "text": "Flakiness"

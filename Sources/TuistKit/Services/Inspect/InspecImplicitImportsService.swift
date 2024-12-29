@@ -68,10 +68,10 @@ final class InspectImplicitImportsService {
         var implicitTargetImports: [Target: Set<String>] = [:]
         for target in allInternalTargets {
             let sourceDependencies = Set(try await targetScanner.imports(for: target.target))
-            let explicitTargetDependencies = Set(
-                graphTraverser
-                    .directTargetDependencies(path: target.project.path, name: target.target.name)
-                    .map(\.graphTarget.target.productName)
+
+            let explicitTargetDependencies = explicitTargetDependencies(
+                graphTraverser: graphTraverser,
+                target: target
             )
             let implicitImports = sourceDependencies.intersection(allTargetNames).subtracting(explicitTargetDependencies)
             if !implicitImports.isEmpty {
@@ -81,6 +81,26 @@ final class InspectImplicitImportsService {
         return implicitTargetImports.map { target, implicitDependencies in
             return InspectImplicitImportsServiceErrorIssue(target: target.name, implicitDependencies: implicitDependencies)
         }
+    }
+
+    private func explicitTargetDependencies(
+        graphTraverser: GraphTraverser,
+        target: GraphTarget
+    ) -> Set<String> {
+        let targetDependencies = graphTraverser
+            .directTargetDependencies(path: target.project.path, name: target.target.name)
+
+        let explicitTargetDependencies = targetDependencies.map { targetDependency in
+            if targetDependency.graphTarget.project.type == .external() {
+                return graphTraverser
+                    .allTargetDependencies(path: target.project.path, name: target.target.name)
+            } else {
+                return Set(arrayLiteral: targetDependency.graphTarget)
+            }
+        }
+        .flatMap { $0 }
+        .map(\.target.productName)
+        return Set(explicitTargetDependencies)
     }
 
     private func path(_ path: String?) throws -> AbsolutePath {

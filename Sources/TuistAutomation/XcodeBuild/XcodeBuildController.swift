@@ -74,6 +74,8 @@ public final class XcodeBuildController: XcodeBuildControlling {
             command.append(contentsOf: ["-destination", value.joined(separator: ",")])
         case .mac:
             command.append(contentsOf: ["-destination", simulatorController.macOSDestination()])
+        case .macCatalyst:
+            command.append(contentsOf: ["-destination", simulatorController.macOSDestination(catalyst: true)])
         case nil:
             break
         }
@@ -136,6 +138,8 @@ public final class XcodeBuildController: XcodeBuildControlling {
             command.append(contentsOf: ["-destination", value.joined(separator: ",")])
         case .mac:
             command.append(contentsOf: ["-destination", simulatorController.macOSDestination()])
+        case .macCatalyst:
+            command.append(contentsOf: ["-destination", simulatorController.macOSDestination(catalyst: true)])
         case nil:
             break
         }
@@ -309,7 +313,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
                 if isError {
                     logger.error("\(line)")
                 } else {
-                    logger.notice("\(line)")
+                    logger.info("\(line)")
                 }
             }
         }

@@ -1,18 +1,18 @@
 ---
-title: Add dependencies
-titleTemplate: :title · Quick-start · Guides · Tuist
-description: Learn how to add dependencies to your first Swift project
+title: Добавление зависимостей
+titleTemplate: :title · Начало · Руководства · Tuist
+description: Научитесь добавлять зависимости к вашему первому Swift проекту
 ---
 
-# Add dependencies {#add-dependencies}
+# Добавление зависимостей {#add-dependencies}
 
-It's common for projects to depend on third-party libraries to provide additional functionality. To do so, run the following command to have the best experience editing your project:
+Часто проекты зависят от сторонних библиотек для обеспечения дополнительной функциональности. Для того чтобы улучшить опыт редактирования вашего проекта, воспользуемтесь командой:
 
 ```bash
 tuist edit
 ```
 
-An Xcode project will open containing your project files. Edit the `Package.swift` and add the
+Откроется проект Xcode, содержащий файлы вашего проекта. Отредактируйте файл Package.swift и добавьте
 
 ```swift
 // swift-tools-version: 5.9
@@ -40,7 +40,7 @@ let package = Package(
 )
 ```
 
-Then edit the application target in your project to declare `Kingfisher` as a dependency:
+Затем отредактируйте таргет приложения в вашем проекте, чтобы объявить Kingfisher как зависимость:
 
 ```swift
 import ProjectDescription
@@ -78,26 +78,26 @@ let project = Project(
 )
 ```
 
-Then run `tuist install` to resolve and pull the dependencies using the [Swift Package Manager](https://www.swift.org/documentation/package-manager/).
+Затем выполните команду tuist install, чтобы разрешить и загрузить зависимости с использованием [Swift Package Manager](https://www.swift.org/documentation/package-manager/).
 
-> [!NOTE] SPM AS A DEPENDENCY RESOLVER
-> Tuist recommended approach to dependencies uses the Swift Package Manager (SPM) only to resolve dependencies. Tuist then converts them into Xcode projects and targets for maximum configurability and control.
+> [!NOTE] SPM в качестве средства разрешения зависимостей
+> Рекомендуемый подход Tuist к управлению зависимостями предполагает использование Swift Package Manager (SPM) только для разрешения зависимостей. Затем Tuist преобразует их в Xcode проекты и таргеты для максимальной настраиваемости и контроля.
 
-## Visualize the project {#visualize-the-project}
+## Визуализируйте проект {#visualize-the-project}
 
-You can visualize the project structure by running:
+Вы можете визуализировать структуру проекта, запустив команду:
 
 ```bash
 tuist graph
 ```
 
-The command will output and open a `graph.png` file in the project's directory:
+Команда создаст и откроет файл graph.png в директории проекта:
 
 ![Project graph](/images/guides/quick-start/graph.png)
 
-## Use the dependency {#use-the-dependency}
+## Использование зависимости {#use-the-dependency}
 
-Run `tuist generate` to open the project in Xcode, and make the following changes to the `ContentView.swift` file:
+Запустите tuist generate, чтобы открыть проект в Xcode, и внесите следующие изменения в файл ContentView.swift:
 
 ```swift
 import SwiftUI
@@ -121,4 +121,4 @@ struct ContentView_Previews: PreviewProvider {
 }
 ```
 
-Run the app from Xcode, and you should see the image loaded from the URL.
+Запустите приложение из Xcode, и вы должны увидеть изображение, загруженное по URL.

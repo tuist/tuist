@@ -1,6 +1,7 @@
 import ArgumentParser
 import Foundation
 import Path
+import TuistServer
 
 struct ProjectUpdateCommand: AsyncParsableCommand {
     static var configuration: CommandConfiguration {
@@ -27,6 +28,11 @@ struct ProjectUpdateCommand: AsyncParsableCommand {
     var repositoryURL: String?
 
     @Option(
+        help: "Set the project's visibility. When private, only project's members have access to the project. Public projects are accessible by anyone."
+    )
+    var visibility: ServerProject.Visibility?
+
+    @Option(
         name: .shortAndLong,
         help: "The path to the Tuist project.",
         completion: .directory
@@ -39,7 +45,10 @@ struct ProjectUpdateCommand: AsyncParsableCommand {
                 fullHandle: fullHandle,
                 defaultBranch: defaultBranch,
                 repositoryURL: repositoryURL,
+                visibility: visibility,
                 path: path
             )
     }
 }
+
+extension ServerProject.Visibility: ExpressibleByArgument {}

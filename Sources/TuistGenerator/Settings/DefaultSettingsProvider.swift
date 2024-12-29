@@ -65,7 +65,6 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
         "TARGETED_DEVICE_FAMILY",
         "EXECUTABLE_PREFIX",
         "COMBINE_HIDPI_IMAGES",
-        "ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES",
         "WRAPPER_EXTENSION",
         "SWIFT_VERSION",
         "TEST_TARGET_NAME",
@@ -157,6 +156,11 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
                 buildConfiguration: buildConfiguration,
                 graphTraverser: graphTraverser
             )
+        }
+
+        /// This allows running the project directly withou specifying CODE_SIGN_IDENTITY
+        if target.supportsCatalyst {
+            settings.overlay(with: ["CODE_SIGN_IDENTITY": "-"], for: .macOS)
         }
 
         return settings

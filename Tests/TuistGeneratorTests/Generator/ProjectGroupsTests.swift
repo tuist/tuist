@@ -42,7 +42,7 @@ final class ProjectGroupsTests: XCTestCase {
             additionalFiles: [],
             resourceSynthesizers: [],
             lastUpgradeCheck: nil,
-            isExternal: false
+            type: .local
         )
         pbxproj = PBXProj()
     }

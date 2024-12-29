@@ -47,6 +47,8 @@ extension XcodeGraph.RunAction {
 
         let diagnosticsOptions = XcodeGraph.SchemeDiagnosticsOptions.from(manifest: manifest.diagnosticsOptions)
 
+        let metalOptions = XcodeGraph.MetalOptions.from(manifest: manifest.metalOptions)
+
         let expandVariablesFromTarget: XcodeGraph.TargetReference?
         expandVariablesFromTarget = try manifest.expandVariableFromTarget.map {
             XcodeGraph.TargetReference(
@@ -68,6 +70,7 @@ extension XcodeGraph.RunAction {
             arguments: arguments,
             options: options,
             diagnosticsOptions: diagnosticsOptions,
+            metalOptions: metalOptions,
             expandVariableFromTarget: expandVariablesFromTarget,
             launchStyle: launchStyle
         )

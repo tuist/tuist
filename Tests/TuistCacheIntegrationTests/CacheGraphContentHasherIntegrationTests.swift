@@ -190,8 +190,8 @@ final class ContentHashingIntegrationTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(contentHash[framework1], "b4887fb8385832284a3b63443347aa08")
-        XCTAssertEqual(contentHash[framework2], "b5eeaecaf3561f20c10e4bbe047e111e")
+        XCTAssertEqual(contentHash[framework1], "73294b8f7af85fb40f2b33f6e8cab8f2")
+        XCTAssertEqual(contentHash[framework2], "801057d42dff92e23a86de21c9e71eff")
     }
 
     // MARK: - Resources

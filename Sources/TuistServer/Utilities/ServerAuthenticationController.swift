@@ -47,7 +47,7 @@ enum ServerAuthenticationControllerError: FatalError {
     var description: String {
         switch self {
         case let .invalidJWT(token):
-            return "The access token \(token) is invalid. Try to reauthenticate by running `tuist auth`."
+            return "The access token \(token) is invalid. Try to reauthenticate by running 'tuist auth login'."
         }
     }
 
@@ -100,7 +100,7 @@ public final class ServerAuthenticationController: ServerAuthenticationControlli
                         refreshToken: try parseJWT(refreshToken)
                     )
                 } else {
-                    logger.warning("You are using a deprecated user token. Please, reauthenticate by running `tuist auth`.")
+                    logger.warning("You are using a deprecated user token. Please, reauthenticate by running 'tuist auth login'.")
                     return .user(
                         legacyToken: $0.token,
                         accessToken: nil,
@@ -143,11 +143,16 @@ public final class ServerAuthenticationController: ServerAuthenticationControlli
 
         return JWT(
             token: jwt,
-            expiryDate: Date(timeIntervalSince1970: TimeInterval(payload.exp))
+            expiryDate: Date(timeIntervalSince1970: TimeInterval(payload.exp)),
+            email: payload.email,
+            preferredUsername: payload.preferred_username
         )
     }
 
     private struct JWTPayload: Codable {
         let exp: Int
+        let email: String?
+        // swiftlint:disable:next identifier_name
+        let preferred_username: String?
     }
 }

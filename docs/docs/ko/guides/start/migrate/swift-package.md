@@ -58,7 +58,7 @@ let tuist = Tuist()
 
 ## 프로젝트 수정 {#editing-the-project}
 
-이 명령어는 프로젝트를 열고 작업을 수행할 수 있게 Xcode 프로젝트를 생성합니다. <LocalizedLink href="/guides/develop/projects/editing">`tuist edit`</LocalizedLink>를 사용하여 Xcode에서 프로젝트를 수정할 수 있습니다.
+Xcode에서 프로젝트를 수정하기 위해 <LocalizedLink href="/guides/develop/projects/editing">`tuist edit`</LocalizedLink>를 사용할 수 있습니다. 이 명령어는 Xcode 프로젝트를 생성하고 생성된 프로젝트를 열어 작업을 시작할 수 있게 합니다.
 
 ```bash
 tuist edit

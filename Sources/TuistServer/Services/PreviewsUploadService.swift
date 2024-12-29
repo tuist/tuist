@@ -2,6 +2,7 @@ import FileSystem
 import Foundation
 import Mockable
 import Path
+import TuistCore
 import TuistSupport
 import XcodeGraph
 
@@ -18,6 +19,7 @@ public protocol PreviewsUploadServicing {
         version: String?,
         bundleIdentifier: String?,
         icon: AbsolutePath?,
+        supportedPlatforms: [DestinationType],
         fullHandle: String,
         serverURL: URL
     ) async throws -> Preview
@@ -74,6 +76,7 @@ public struct PreviewsUploadService: PreviewsUploadServicing {
         version: String?,
         bundleIdentifier: String?,
         icon: AbsolutePath?,
+        supportedPlatforms: [DestinationType],
         fullHandle: String,
         serverURL: URL
     ) async throws -> Preview {
@@ -94,6 +97,7 @@ public struct PreviewsUploadService: PreviewsUploadServicing {
                 displayName: displayName,
                 version: version,
                 bundleIdentifier: bundleIdentifier,
+                supportedPlatforms: supportedPlatforms,
                 fullHandle: fullHandle,
                 serverURL: serverURL
             )
