@@ -77,6 +77,7 @@ defmodule Tuist.Registry.Swift.Packages do
       Regex.match?(~r/^v?\d+\.\d+\.\d+$/, version) and
         not Enum.any?(package.package_releases, &(&1.version == semantic_version(version)))
     end)
+    |> Enum.uniq_by(&semantic_version(&1))
     |> Enum.map(fn version ->
       create_package_release(%{
         package: package,
