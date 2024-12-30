@@ -7,12 +7,12 @@ description: Tuist Registry를 사용하여 Swift 패키지 해석시간을 최�
 # Registry {#registry}
 
 > [!WARNING] BETA\
-> 이 기능은 현재 베타 기능입니다. If you encounter any issues, please report them at our <a href="https://community.tuist.dev/c/troubleshooting-how-to/6" target="_blank">community forum</a>.
+> 이 기능은 현재 베타 기능입니다. 문제가 발생하면 <a href="https://community.tuist.dev/c/troubleshooting-how-to/6" target="_blank">커뮤니티 포럼</a>에 남겨주시기 바랍니다.
 
 > [!IMPORTANT] REMOTE PROJECT 필요
 > 이 기능은 <LocalizedLink href="/server/introduction/accounts-and-projects">remote project</LocalizedLink>가 필요합니다.
 
-As the number of dependencies grows, so does the time to resolve them. While other package managers like [CocoaPods](https://cocoapods.org/) or [npm](https://www.npmjs.com/) are centralized, Swift Package Manager is not. Because of that, SwiftPM needs to resolve dependencies by doing a deep clone of each repository, which can be time-consuming. To address this, Tuist provides an implementation of the [Package Registry](https://github.com/swiftlang/swift-package-manager/blob/main/Documentation/PackageRegistry/PackageRegistryUsage.md), so you can download only the commit you _actually need_. The packages in the registry are based on the [Swift Package Index](https://swiftpackageindex.com/) – if you can find a package there, the package is also available in the Tuist Registry. Additionally, the packages are distributed across the globe using an edge storage for minimum latency when resolving them.
+의존성이 증가함에 따라 이것을 해결하는 시간도 늘어납니다. 다른 패키지 관리 툴인 [CocoaPods](https://cocoapods.org/) 또는 [npm](https://www.npmjs.com/)는 중앙 집중식이지만 Swift Package Manager는 그렇지 않습니다. 이로 인해 SwiftPM은 각 리포지토리의 전체를 복제하여 의존성을 해결하므로 시간이 많이 걸릴 수 있습니다. 이 문제를 해결하기 위해 Tuist는 [Package Registry](https://github.com/swiftlang/swift-package-manager/blob/main/Documentation/PackageRegistry/PackageRegistryUsage.md) 구현을 제공하여 _실제로 필요한_ 커밋만 다운로드할 수 있습니다. The packages in the registry are based on the [Swift Package Index](https://swiftpackageindex.com/) – if you can find a package there, the package is also available in the Tuist Registry. Additionally, the packages are distributed across the globe using an edge storage for minimum latency when resolving them.
 
 ## 사용법 {#usage}
 
