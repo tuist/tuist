@@ -1,5 +1,5 @@
 {
-  "originHash" : "9bd1fe9cbdd8d062f4ad12409f8af67581d2b8997adb8f1cbfac81ad9852428a",
+  "originHash" : "20c57c487059cdff8f5d95b7873569bdade94686c3acb7b0981780574bbd37af",
   "pins" : [
     {
       "identity" : "aexml",
@@ -33,8 +33,7 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/Command.git",
       "state" : {
-        "revision" : "ee0d0d76d3256d3aae76b846a8588ae83b6ef166",
-        "version" : "0.10.5"
+        "revision" : "8c767a8c57155c749745fa952f71cc36fefdbea7"
       }
     },
     {
@@ -287,6 +286,15 @@
       "state" : {
         "revision" : "1cf6d7eebd70c2157f69d5a991bc57c1ef182ed1",
         "version" : "6.6.2"
+      }
+    },
+    {
+      "identity" : "swiftyjson",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/SwiftyJSON/SwiftyJSON",
+      "state" : {
+        "revision" : "af76cf3ef710b6ca5f8c05f3a31307d44a3c5828",
+        "version" : "5.0.2"
       }
     },
     {

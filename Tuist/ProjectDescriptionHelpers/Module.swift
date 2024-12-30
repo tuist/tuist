@@ -214,6 +214,14 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.core.targetName),
                     .external(name: "XcodeProj"),
                 ]
+            case .workflows:
+                [
+                    .target(name: Module.acceptanceTesting.targetName),
+                    .target(name: Module.support.testingTargetName!),
+                    .target(name: Module.support.targetName),
+                    .target(name: Module.kit.targetName),
+                    .external(name: "Command"),
+                ]
             default:
                 []
             }
@@ -236,8 +244,9 @@ public enum Module: String, CaseIterable {
             switch self {
             case .workflows:
                 [
-                    .external(name: "Path"),
                     .external(name: "FileSystem"),
+                    .external(name: "SwiftyJSON"),
+                    .external(name: "Command"),
                     .target(name: Module.core.targetName)
                 ]
             case .acceptanceTesting:

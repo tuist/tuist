@@ -1,22 +1,40 @@
 import Path
 import FileSystem
+import Command
+import SwiftyJSON
 
 /// A utility to load an in-memory representation of workflows.
 public struct WorkflowsLoader {
-    let fileSystem: FileSystem
+    let fileSystem: FileSystem = FileSystem()
+    let workflowsPackageSwiftLocator = WorkflowsPackageSwiftLocator()
+    let commandRunner = CommandRunner()
     
-    public init(fileSystem: FileSystem) {
-        self.fileSystem = fileSystem
-    }
+    public init() {}
     
-    /// Given a workflows directory, the Workflows/ directory under Tuist/, it returns a in-memory
-    /// list of all the workflows in that directory.
-    /// - Parameter workflowsDirectory: The workflows directory where workflows as expected to be.
-    /// - Returns: A list with all the workflows.
-    public func load(workflowsDirectory: AbsolutePath) async throws -> [Workflow] {
-        let files = try await fileSystem.glob(directory: workflowsDirectory, include: ["*.swift"]).collect()
-        return files.map { filePath in
-            return Workflow(path: filePath, name: filePath.basename.replacing(".swift", with: ""))
+    public func load(from: AbsolutePath) async throws -> [Workflow] {
+        guard let packageSwiftPath = try await workflowsPackageSwiftLocator.locate(from: from) else {
+            return []
+        }
+    
+        let packageString = try await commandRunner.run(arguments: ["/usr/bin/env", "swift", "package", "dump-package"], workingDirectory: packageSwiftPath.parentDirectory).concatenatedString()
+        let packageJSON = JSON(parseJSON: packageString)
+
+        guard let products = packageJSON["products"].array else { return [] }
+        return await products.concurrentCompactMap { product -> Workflow? in
+            guard let name = product["name"].string else { return nil }
+            guard product["type"].dictionary?.keys.contains("executable") == true else { return nil }
+            
+            try? await commandRunner.run(arguments: ["/usr/bin/env", "swift", "build", "--package-path", packageSwiftPath.parentDirectory.pathString, "--product", name]).awaitCompletion()
+            
+            let dumpString = try? await commandRunner.run(arguments: [packageSwiftPath.parentDirectory.appending(components: [".build", "debug", name]).pathString, "--experimental-dump-help"], workingDirectory: packageSwiftPath.parentDirectory).concatenatedString()
+            
+            let description: String? = if let dumpString = dumpString, let abstract = JSON(parseJSON: dumpString)["command"]["abstract"].string {
+                abstract
+            } else {
+                nil
+            }
+            
+            return Workflow(packageSwiftPath: packageSwiftPath, name: name, description: description)
         }
     }
 }

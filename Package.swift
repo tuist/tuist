@@ -514,9 +514,10 @@ let package = Package(
             url: "https://github.com/tuist/XcodeGraph.git", exact: "1.1.0"
         ),
         .package(url: "https://github.com/tuist/FileSystem.git", .upToNextMajor(from: "0.6.17")),
-        .package(url: "https://github.com/tuist/Command.git", exact: "0.10.5"),
+        .package(url: "https://github.com/tuist/Command.git", .revision("8c767a8c57155c749745fa952f71cc36fefdbea7")),
         .package(url: "https://github.com/sparkle-project/Sparkle.git", from: "2.6.4"),
         .package(url: "https://github.com/apple/swift-collections", .upToNextMajor(from: "1.1.4")),
+        .package(url: "https://github.com/SwiftyJSON/SwiftyJSON", .upToNextMajor(from: "5.0.2")),
     ],
     targets: targets
 )
