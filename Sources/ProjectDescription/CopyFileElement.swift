@@ -1,5 +1,3 @@
-import Foundation
-
 /// A file element from a glob pattern or a folder reference which is conditionally applied to specific platforms with an optional
 /// "Code Sign On Copy" flag.
 public enum CopyFileElement: Codable, Equatable, Sendable {

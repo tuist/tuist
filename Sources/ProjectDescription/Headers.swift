@@ -1,5 +1,3 @@
-import Foundation
-
 /// A group of public, private and project headers.
 public struct Headers: Codable, Equatable, Sendable {
     /// Determine how to resolve cases, when the same files found in different header scopes
