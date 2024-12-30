@@ -1,5 +1,21 @@
 # Changelog
 
+## 4.38.2 - 2024-12-24
+
+### CLI
+
+#### Changed
+
+- Document how to verify the authenticity of binaries [#7184](https://github.com/tuist/tuist/pull/7184) by [@pepicrft](https://github.com/pepicrft)
+
+#### Fixed
+
+- docs: Fix configuration name in xcode-project.md [#7177](https://github.com/tuist/tuist/pull/7177) by [@fortmarek](https://github.com/fortmarek)
+
+### CLI (Server features)
+
+- no changes
+
 ## 4.38.1 - 2024-12-18
 
 ### CLI

@@ -76,7 +76,14 @@ public struct PackageSettings: Codable, Equatable, Sendable {
     ///     - baseSettings: Additional settings to be added to targets generated from SwiftPackageManager.
     ///     - targetSettings: Additional settings to be added to targets generated from SwiftPackageManager.
     ///     - projectOptions: Custom project configurations to be used for projects generated from SwiftPackageManager.
-    @available(*, deprecated, renamed: "init(productTypes:productDescrtiptions:baseSettings:targetSettings:projectOptions:)")
+    @available(
+        *,
+        deprecated,
+        renamed: "init(productTypes:productDestinations:baseSettings:targetSettings:projectOptions:)",
+        message: """
+        Consider using the 'Settings' type for parameter 'targetSettings' instead of 'SettingsDictionary'.
+        """
+    )
     public init(
         productTypes: [String: Product] = [:],
         productDestinations: [String: Destinations] = [:],
