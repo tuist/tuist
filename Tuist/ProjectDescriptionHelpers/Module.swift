@@ -867,6 +867,22 @@ public enum Module: String, CaseIterable {
                     .release(name: "Release", settings: [:], xcconfig: nil),
                 ]
             )
+        case .projectDescription, .projectAutomation:
+            return .settings(
+                base: ["BUILD_LIBRARY_FOR_DISTRIBUTION": "YES"],
+                configurations: [
+                    .debug(
+                        name: "Debug",
+                        settings: [:],
+                        xcconfig: nil
+                    ),
+                    .release(
+                        name: "Release",
+                        settings: [:],
+                        xcconfig: nil
+                    ),
+                ]
+            )
         default:
             return .settings(
                 configurations: [
