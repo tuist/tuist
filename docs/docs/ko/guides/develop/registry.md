@@ -12,24 +12,24 @@ description: Tuist Registry를 사용하여 Swift 패키지 해석시간을 최�
 > [!IMPORTANT] REMOTE PROJECT 필요
 > 이 기능은 <LocalizedLink href="/server/introduction/accounts-and-projects">remote project</LocalizedLink>가 필요합니다.
 
-의존성이 증가함에 따라 이것을 해결하는 시간도 늘어납니다. 다른 패키지 관리 툴인 [CocoaPods](https://cocoapods.org/) 또는 [npm](https://www.npmjs.com/)는 중앙 집중식이지만 Swift Package Manager는 그렇지 않습니다. 이로 인해 SwiftPM은 각 리포지토리의 전체를 복제하여 의존성을 해결하므로 시간이 많이 걸릴 수 있습니다. 이 문제를 해결하기 위해 Tuist는 [Package Registry](https://github.com/swiftlang/swift-package-manager/blob/main/Documentation/PackageRegistry/PackageRegistryUsage.md) 구현을 제공하여 _실제로 필요한_ 커밋만 다운로드할 수 있습니다. The packages in the registry are based on the [Swift Package Index](https://swiftpackageindex.com/) – if you can find a package there, the package is also available in the Tuist Registry. Additionally, the packages are distributed across the globe using an edge storage for minimum latency when resolving them.
+의존성이 증가함에 따라 이것을 해결하는 시간도 늘어납니다. 다른 패키지 관리 툴인 [CocoaPods](https://cocoapods.org/) 또는 [npm](https://www.npmjs.com/)는 중앙 집중식이지만 Swift Package Manager는 그렇지 않습니다. 이로 인해 SwiftPM은 각 리포지토리의 전체를 복제하여 의존성을 해결하므로 시간이 많이 걸릴 수 있습니다. 이 문제를 해결하기 위해 Tuist는 [Package Registry](https://github.com/swiftlang/swift-package-manager/blob/main/Documentation/PackageRegistry/PackageRegistryUsage.md) 구현을 제공하여 _실제로 필요한_ 커밋만 다운로드할 수 있습니다. 레지스트리에 있는 패키지는 [Swift Package Index](https://swiftpackageindex.com/)를 기반으로 합니다 – 해당 페이지에서 패키지를 찾을 수 있다면 Tuist Registry에서도 사용할 수 있습니다. 또한 패키지는 엣지 스토리지를 통해 전세계에 분산되어 제공되며, 패키지를 확인할 때 최소한의 지연 시간으로 이용할 수 있습니다.
 
 ## 사용법 {#usage}
 
-To set up and login to the registry, `cd` into your project's directory and run:
+레지스트리를 설정하고 로그인하려면, `cd` 명령어를 사용해 프로젝트의 디렉토리로 이동하여 다음을 수행합니다:
 
 ```bash
 tuist registry setup # Creates a `registries.json` file with the default registry configuration.
 tuist registry login # Logs you into the registry.
 ```
 
-Now you can access the registry! To resolve dependencies from the registry instead of from source control, follow the section below based on your setup.
+이제 레지스트리에 접근할 수 있습니다! 소스 컨트롤을 대신하여 레지스트리에서 의존성을 해결하려면, 사용 중인 설정에 따라 다음 섹션을 따라야 합니다.
 
-### Xcode projects {#xcode-projects}
+### Xcode 프로젝트 {#xcode-projects}
 
-To add packages using the registry, use the default Xcode UI. You can search for packages in the registry by clicking on the `+` button in the `Package Dependencies` tab in Xcode. If the package is available in the registry, you will see the `tuist.dev` registry in the top right:
+레지스트리를 사용하여 패키지를 추가하려면 기본 Xcode UI를 사용합니다. Xcode의 `Package Dependencies` 탭에서 `+` 버튼을 눌러서 레지스트리에 패키지를 검색할 수 있습니다. 패키지가 레지스트리에 사용가능하면 우측 상단에 `tuist.dev` 레지스트리가 표시됩니다:
 
-![Adding package dependencies](/images/guides/develop/build/registry/registry-add-package.png)
+![패키지 의존성 추가](/images/guides/develop/build/registry/registry-add-package.png)
 
 Note that Xcode currently doesn't support automatically replacing source control packages with their registry equivalents. You will need to manually remove the source control package and add the registry package to speed up the resolution.
 
