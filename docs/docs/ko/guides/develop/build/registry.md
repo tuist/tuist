@@ -31,16 +31,16 @@ tuist registry login # Logs you into the registry.
 
 ![패키지 의존성 추가](/images/guides/develop/build/registry/registry-add-package.png)
 
-Note that Xcode currently doesn't support automatically replacing source control packages with their registry equivalents. You will need to manually remove the source control package and add the registry package to speed up the resolution.
+Xcode는 현재 소스 제어 패키지를 레지스트리로 자동으로 대체하는 기능을 지원하지 않습니다. 처리 속도를 높이려면 소스 제어 패키지를 삭제하고 레지스트리 패키지를 추가해야 합니다.
 
-### Tuist project with the Xcode default integration {#tuist-project-with-xcode-default-integration}
+### Xcode 기본 통합을 사용하는 Tuist 프로젝트 {#tuist-project-with-xcode-default-integration}
 
-> [!IMPORTANT] Support for Tuist projects with the Xcode default integration of packages is coming soon.
-> Follow the latest development at [our community forum](https://community.tuist.dev/t/tuist-registry-initiative/262/2).
+> [!IMPORTANT] 패키지의 Xcode 기본 통합을 사용하는 Tuist 프로젝트를 곧 제공할 예정입니다.
+> 최근 개발상황은 [커뮤니티 포럼](https://community.tuist.dev/t/tuist-registry-initiative/262/2)에서 확인하세요.
 
-### Tuist project with the XcodeProj-based integration {#tuist-project-with-xcodeproj-based-integration}
+### XcodeProj 기반의 통합을 사용하는 Tuist 프로젝트 {#tuist-project-with-xcodeproj-based-integration}
 
-If you are using the <LocalizedLink href="/guides/develop/projects/dependencies#tuists-xcodeprojbased-integration">XcodeProj-based integration</LocalizedLink>, you can use the `--replace-scm-with-registry` flag to resolve dependencies from the registry if they are available. Add it to the `installOptions` in your `Tuist.swift` file:
+If you are using the <LocalizedLink href="/guides/develop/projects/dependencies#tuists-xcodeprojbased-integration">XcodeProj-based integration</LocalizedLink>, you can use the `--replace-scm-with-registry` flag to resolve dependencies from the registry if they are available. `Tuist.swift` 파일에 `installOptions`를 추가합니다:
 
 ```swift
 import ProjectDescription
@@ -53,7 +53,7 @@ let tuist = Tuist(
 )
 ```
 
-If you want to ensure that the registry is used every time you resolve dependencies, you will need to update `dependencies` in your `Tuist/Package.swift` file to use the registry identifier instead of a URL. The registry identifier is always in the form of `{organization}.{repository}`. For example, to use the registry for the `swift-composable-architecture` package, do the following:
+의존성을 처리할 때마다 레지스트리를 사용하려면 `Tuist/Package.swift` 파일의 `dependencies`를 URL이 아닌 레지스트리 식별자를 사용하도록 업데이트 해야 합니다. 레지스트리 식별자는 `{organization}.{repository}` 형식을 가집니다. 예를 들어, `swift-composable-architecture` 패키지의 레지스트리를 사용하려면 다음처럼 작성해야 합니다:
 
 ```diff
 dependencies: [
@@ -62,7 +62,7 @@ dependencies: [
 ]
 ```
 
-### Swift package {#swift-package}
+### Swift 패키지 {#swift-package}
 
 If you are working on a Swift package, you can use the `--replace-scm-with-registry` flag to resolve dependencies from the registry if they are available:
 
@@ -70,7 +70,7 @@ If you are working on a Swift package, you can use the `--replace-scm-with-regis
 swift package --replace-scm-with-registry resolve
 ```
 
-If you want to ensure that the registry is used every time you resolve dependencies, you will need to update `dependencies` in your `Package.swift` file to use the registry identifier instead of a URL. The registry identifier is always in the form of `{organization}.{repository}`. For example, to use the registry for the `swift-composable-architecture` package, do the following:
+If you want to ensure that the registry is used every time you resolve dependencies, you will need to update `dependencies` in your `Package.swift` file to use the registry identifier instead of a URL. 레지스트리 식별자는 `{organization}.{repository}` 형식을 가집니다. 예를 들어, `swift-composable-architecture` 패키지의 레지스트리를 사용하려면 다음처럼 작성해야 합니다:
 
 ```diff
 dependencies: [
