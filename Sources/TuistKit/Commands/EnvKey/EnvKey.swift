@@ -224,10 +224,6 @@ public enum EnvKey: String, CaseIterable {
     // SESSION
     case whoamiPath = "TUIST_WHOAMI_PATH"
 
-    // CHANGE USERNAME
-    case changeUsernameName = "TUIST_CHANGE_USERNAME_NAME"
-    case changeUsernamePath = "TUIST_CHANGE_USERNAME_PATH"
-
     // LOGOUT
     case logoutPath = "TUIST_LOGOUT_PATH"
 

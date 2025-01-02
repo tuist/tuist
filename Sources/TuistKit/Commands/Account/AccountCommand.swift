@@ -7,7 +7,7 @@ struct AccountCommand: ParsableCommand {
             commandName: "account",
             abstract: "A set of commands to manage your Tuist account",
             subcommands: [
-                AccountChangeUsernameCommand.self,
+                AccountUpdateCommand.self,
             ]
         )
     }
