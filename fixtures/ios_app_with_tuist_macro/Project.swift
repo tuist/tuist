@@ -27,10 +27,10 @@ let project = Project(
             destinations: .iOS,
             product: .unitTests,
             bundleId: "io.tuist.ios-app-with-tuist-macroTests",
-            infoPlist: .default,
             sources: ["ios_app_with_tuist_macro/Tests/**"],
-            resources: [],
-            dependencies: [.target(name: "ios_app_with_tuist_macro")]
+            dependencies: [
+				.target(name: "ios_app_with_tuist_macro")
+			]
         ),
     ]
 )
