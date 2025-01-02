@@ -36,7 +36,8 @@ final class AccountUpdateUsernameService: AccountUpdateUsernameServicing {
         let directoryPath: AbsolutePath
         if let directory {
             directoryPath = try AbsolutePath(
-                validating: directory, relativeTo: FileHandler.shared.currentPath)
+                validating: directory, relativeTo: FileHandler.shared.currentPath
+            )
         } else {
             directoryPath = FileHandler.shared.currentPath
         }
