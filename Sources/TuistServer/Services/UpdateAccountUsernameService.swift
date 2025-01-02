@@ -54,7 +54,7 @@ public final class UpdateAccountUsernameService: UpdateAccountUsernameServicing 
         )
         switch response {
         case let .ok(okResponse):
-            return name;
+            return name
         case let .unauthorized(unauthorized):
             switch unauthorized.body {
             case let .json(error):
