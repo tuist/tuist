@@ -6,7 +6,7 @@ struct AccountChangeUsernameCommand: AsyncParsableCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "change-username",
-            _superCommandName: "auth",
+            _superCommandName: "account",
             abstract: "Change the logged in user's username."
         )
     }
