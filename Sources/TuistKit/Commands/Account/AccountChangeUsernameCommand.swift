@@ -2,7 +2,7 @@ import ArgumentParser
 import Foundation
 import Path
 
-struct ChangeUsernameCommand: AsyncParsableCommand {
+struct AccountChangeUsernameCommand: AsyncParsableCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "change-username",
@@ -26,7 +26,7 @@ struct ChangeUsernameCommand: AsyncParsableCommand {
     var path: String?
 
     func run() async throws {
-        try await ChangeUsernameService().run(
+        try await AccountUpdateUsernameService().run(
             name: name,
             directory: path
         )

@@ -4,14 +4,14 @@ import OpenAPIURLSession
 import TuistSupport
 
 @Mockable
-public protocol UpdateUsernameServicing {
-    func updateUsername(
+public protocol UpdateAccountUsernameServicing {
+    func updateAccountUsername(
         serverURL: URL,
         name: String
     ) async throws -> String?
 }
 
-enum UpdateUsernameServiceError: FatalError {
+enum UpdateAccountUsernameServiceError: FatalError {
     case unknownError(Int)
     case badRequest(String)
     case unauthorized(String)
@@ -35,10 +35,10 @@ enum UpdateUsernameServiceError: FatalError {
     }
 }
 
-public final class UpdateUsernameService: UpdateUsernameServicing {
+public final class UpdateAccountUsernameService: UpdateAccountUsernameServicing {
     public init() {}
 
-    public func updateUsername(
+    public func updateAccountUsername(
         serverURL: URL,
         name: String
     ) async throws -> String? {
@@ -58,15 +58,15 @@ public final class UpdateUsernameService: UpdateUsernameServicing {
         case let .unauthorized(unauthorized):
             switch unauthorized.body {
             case let .json(error):
-                throw UpdateUsernameServiceError.unauthorized(error.message)
+                throw UpdateAccountUsernameServiceError.unauthorized(error.message)
             }
         case let .badRequest(badRequest):
             switch badRequest.body {
             case let .json(error):
-                throw UpdateUsernameServiceError.badRequest(error.message)
+                throw UpdateAccountUsernameServiceError.badRequest(error.message)
             }
         case let .undocumented(statusCode: statusCode, _):
-            throw UpdateUsernameServiceError.unknownError(statusCode)
+            throw UpdateAccountUsernameServiceError.unknownError(statusCode)
         }
     }
 }
