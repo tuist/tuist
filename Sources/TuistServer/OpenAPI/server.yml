@@ -24,16 +24,6 @@ components:
         - organizations
       title: OrganizationList
       type: object
-    AccountFullToken:
-      description: A new account token.
-      properties:
-        token:
-          description: The generated account token.
-          type: string
-      required:
-        - token
-      title: AccountFullToken
-      type: object
     ArtifactUploadID:
       description: The upload has been initiated and a ID is returned to upload the various parts using multi-part uploads
       properties:
@@ -447,22 +437,6 @@ components:
       title: ProjectToken
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.ProjectToken
-    AccountTokenRequest:
-      description: The request to create a new account token.
-      properties:
-        scopes:
-          description: The scopes for the new account token.
-          items:
-            description: The scope of the token.
-            enum:
-              - account_registry_read
-            title: AccountTokenScope
-            type: string
-          type: array
-      required:
-        - scopes
-      title: AccountTokenRequest
-      type: object
     AccountTokenScope:
       description: The scope of the token.
       enum:
@@ -545,6 +519,16 @@ components:
       title: Error
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Error
+    AccountToken:
+      description: A new account token.
+      properties:
+        token:
+          description: The generated account token.
+          type: string
+      required:
+        - token
+      title: AccountToken
+      type: object
     CacheArtifactExistence:
       description: The artifact exists in the cache and can be downloaded
       properties:
@@ -608,6 +592,22 @@ components:
       title: AuthenticationTokens
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.AuthenticationTokens
+    CreateAccountToken:
+      description: The request to create a new account token.
+      properties:
+        scopes:
+          description: The scopes for the new account token.
+          items:
+            description: The scope of the token.
+            enum:
+              - account_registry_read
+            title: AccountTokenScope
+            type: string
+          type: array
+      required:
+        - scopes
+      title: CreateAccountToken
+      type: object
     PreviewIndexPageSize:
       default: 10
       description: The maximum number of preview to return in a single page.
@@ -1955,7 +1955,7 @@ paths:
                   type: array
               required:
                 - scopes
-              title: AccountTokenRequest
+              title: CreateAccountToken
               type: object
         description: Create account token params
         required: false
@@ -1971,7 +1971,7 @@ paths:
                     type: string
                 required:
                   - token
-                title: AccountFullToken
+                title: AccountToken
                 type: object
           description: An account token was generated
         401:
@@ -2197,6 +2197,49 @@ paths:
       summary: Creates an invitation
       tags:
         - Invitations
+  /api/accounts/name:
+    patch:
+      callbacks: {}
+      description: Updates the authenticated user's name
+      operationId: changeName
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                name:
+                  description: The new name.
+                  type: string
+              required:
+                - name
+              type: object
+        description: Change account name
+        required: false
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                description: Empty response indicating success
+                properties: {}
+                type: object
+          description: Name successfully changed
+        400:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: An error occured while changing the name.
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to change the name.
+      summary: Change user's account name
+      tags:
+        - Authentication
   /api/projects/{account_handle}/{project_handle}/previews:
     get:
       callbacks: {}
@@ -3122,3 +3165,4 @@ servers:
   - url: http://localhost:8080
     variables: {}
 tags: []
+

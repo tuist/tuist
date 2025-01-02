@@ -185,6 +185,13 @@ internal protocol APIProtocol: Sendable {
     /// - Remark: HTTP `DELETE /api/organizations/{organization_name}/invitations`.
     /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/invitations/delete(cancelInvitation)`.
     func cancelInvitation(_ input: Operations.cancelInvitation.Input) async throws -> Operations.cancelInvitation.Output
+    /// Change user's account name
+    ///
+    /// Updates the authenticated user's name
+    ///
+    /// - Remark: HTTP `PATCH /api/accounts/name`.
+    /// - Remark: Generated from `#/paths//api/accounts/name/patch(changeName)`.
+    func changeName(_ input: Operations.changeName.Input) async throws -> Operations.changeName.Output
     /// List previews.
     ///
     /// This endpoint returns a list of previews for a given project.
@@ -696,6 +703,21 @@ extension APIProtocol {
             body: body
         ))
     }
+    /// Change user's account name
+    ///
+    /// Updates the authenticated user's name
+    ///
+    /// - Remark: HTTP `PATCH /api/accounts/name`.
+    /// - Remark: Generated from `#/paths//api/accounts/name/patch(changeName)`.
+    internal func changeName(
+        headers: Operations.changeName.Input.Headers = .init(),
+        body: Operations.changeName.Input.Body? = nil
+    ) async throws -> Operations.changeName.Output {
+        try await changeName(Operations.changeName.Input(
+            headers: headers,
+            body: body
+        ))
+    }
     /// List previews.
     ///
     /// This endpoint returns a list of previews for a given project.
@@ -987,25 +1009,6 @@ internal enum Components {
             }
             internal enum CodingKeys: String, CodingKey {
                 case organizations
-            }
-        }
-        /// A new account token.
-        ///
-        /// - Remark: Generated from `#/components/schemas/AccountFullToken`.
-        internal struct AccountFullToken: Codable, Hashable, Sendable {
-            /// The generated account token.
-            ///
-            /// - Remark: Generated from `#/components/schemas/AccountFullToken/token`.
-            internal var token: Swift.String
-            /// Creates a new `AccountFullToken`.
-            ///
-            /// - Parameters:
-            ///   - token: The generated account token.
-            internal init(token: Swift.String) {
-                self.token = token
-            }
-            internal enum CodingKeys: String, CodingKey {
-                case token
             }
         }
         /// The upload has been initiated and a ID is returned to upload the various parts using multi-part uploads
@@ -1817,35 +1820,6 @@ internal enum Components {
                 case inserted_at
             }
         }
-        /// The request to create a new account token.
-        ///
-        /// - Remark: Generated from `#/components/schemas/AccountTokenRequest`.
-        internal struct AccountTokenRequest: Codable, Hashable, Sendable {
-            /// The scope of the token.
-            ///
-            /// - Remark: Generated from `#/components/schemas/AccountTokenRequest/scopesPayload`.
-            internal enum scopesPayloadPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                case account_registry_read = "account_registry_read"
-            }
-            /// The scopes for the new account token.
-            ///
-            /// - Remark: Generated from `#/components/schemas/AccountTokenRequest/scopes`.
-            internal typealias scopesPayload = [Components.Schemas.AccountTokenRequest.scopesPayloadPayload]
-            /// The scopes for the new account token.
-            ///
-            /// - Remark: Generated from `#/components/schemas/AccountTokenRequest/scopes`.
-            internal var scopes: Components.Schemas.AccountTokenRequest.scopesPayload
-            /// Creates a new `AccountTokenRequest`.
-            ///
-            /// - Parameters:
-            ///   - scopes: The scopes for the new account token.
-            internal init(scopes: Components.Schemas.AccountTokenRequest.scopesPayload) {
-                self.scopes = scopes
-            }
-            internal enum CodingKeys: String, CodingKey {
-                case scopes
-            }
-        }
         /// The scope of the token.
         ///
         /// - Remark: Generated from `#/components/schemas/AccountTokenScope`.
@@ -2012,6 +1986,25 @@ internal enum Components {
                 case message
             }
         }
+        /// A new account token.
+        ///
+        /// - Remark: Generated from `#/components/schemas/AccountToken`.
+        internal struct AccountToken: Codable, Hashable, Sendable {
+            /// The generated account token.
+            ///
+            /// - Remark: Generated from `#/components/schemas/AccountToken/token`.
+            internal var token: Swift.String
+            /// Creates a new `AccountToken`.
+            ///
+            /// - Parameters:
+            ///   - token: The generated account token.
+            internal init(token: Swift.String) {
+                self.token = token
+            }
+            internal enum CodingKeys: String, CodingKey {
+                case token
+            }
+        }
         /// The artifact exists in the cache and can be downloaded
         ///
         /// - Remark: Generated from `#/components/schemas/CacheArtifactExistence`.
@@ -2143,6 +2136,35 @@ internal enum Components {
             internal enum CodingKeys: String, CodingKey {
                 case access_token
                 case refresh_token
+            }
+        }
+        /// The request to create a new account token.
+        ///
+        /// - Remark: Generated from `#/components/schemas/CreateAccountToken`.
+        internal struct CreateAccountToken: Codable, Hashable, Sendable {
+            /// The scope of the token.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateAccountToken/scopesPayload`.
+            internal enum scopesPayloadPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case account_registry_read = "account_registry_read"
+            }
+            /// The scopes for the new account token.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateAccountToken/scopes`.
+            internal typealias scopesPayload = [Components.Schemas.CreateAccountToken.scopesPayloadPayload]
+            /// The scopes for the new account token.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateAccountToken/scopes`.
+            internal var scopes: Components.Schemas.CreateAccountToken.scopesPayload
+            /// Creates a new `CreateAccountToken`.
+            ///
+            /// - Parameters:
+            ///   - scopes: The scopes for the new account token.
+            internal init(scopes: Components.Schemas.CreateAccountToken.scopesPayload) {
+                self.scopes = scopes
+            }
+            internal enum CodingKeys: String, CodingKey {
+                case scopes
             }
         }
         /// The maximum number of preview to return in a single page.
@@ -10616,6 +10638,248 @@ internal enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        internal enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            internal init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            internal var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            internal static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Change user's account name
+    ///
+    /// Updates the authenticated user's name
+    ///
+    /// - Remark: HTTP `PATCH /api/accounts/name`.
+    /// - Remark: Generated from `#/paths//api/accounts/name/patch(changeName)`.
+    internal enum changeName {
+        internal static let id: Swift.String = "changeName"
+        internal struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/accounts/name/PATCH/header`.
+            internal struct Headers: Sendable, Hashable {
+                internal var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.changeName.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                internal init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.changeName.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            internal var headers: Operations.changeName.Input.Headers
+            /// - Remark: Generated from `#/paths/api/accounts/name/PATCH/requestBody`.
+            internal enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/name/PATCH/requestBody/json`.
+                internal struct jsonPayload: Codable, Hashable, Sendable {
+                    /// The new name.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/name/PATCH/requestBody/json/name`.
+                    internal var name: Swift.String
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - name: The new name.
+                    internal init(name: Swift.String) {
+                        self.name = name
+                    }
+                    internal enum CodingKeys: String, CodingKey {
+                        case name
+                    }
+                }
+                /// - Remark: Generated from `#/paths/api/accounts/name/PATCH/requestBody/content/application\/json`.
+                case json(Operations.changeName.Input.Body.jsonPayload)
+            }
+            internal var body: Operations.changeName.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            ///   - body:
+            internal init(
+                headers: Operations.changeName.Input.Headers = .init(),
+                body: Operations.changeName.Input.Body? = nil
+            ) {
+                self.headers = headers
+                self.body = body
+            }
+        }
+        internal enum Output: Sendable, Hashable {
+            internal struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/name/PATCH/responses/200/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/name/PATCH/responses/200/content/application\/json`.
+                    case json(OpenAPIRuntime.OpenAPIObjectContainer)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: OpenAPIRuntime.OpenAPIObjectContainer {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.changeName.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.changeName.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Name successfully changed
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/name/patch(changeName)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.changeName.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            internal var ok: Operations.changeName.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/name/PATCH/responses/400/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/name/PATCH/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.changeName.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.changeName.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// An error occured while changing the name.
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/name/patch(changeName)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.changeName.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            internal var badRequest: Operations.changeName.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/name/PATCH/responses/401/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/name/PATCH/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.changeName.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.changeName.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to change the name.
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/name/patch(changeName)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.changeName.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            internal var unauthorized: Operations.changeName.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
                             response: self
                         )
                     }
