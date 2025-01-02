@@ -1,0 +1,14 @@
+import ArgumentParser
+import Foundation
+
+struct AccountCommand: ParsableCommand {
+    static var configuration: CommandConfiguration {
+        CommandConfiguration(
+            commandName: "account",
+            abstract: "A set of commands to manage your Tuist account",
+            subcommands: [
+                ChangeUsernameCommand.self,
+            ]
+        )
+    }
+}

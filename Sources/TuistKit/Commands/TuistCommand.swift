@@ -52,6 +52,7 @@ public struct TuistCommand: AsyncParsableCommand {
                 CommandGroup(
                     name: "Account",
                     subcommands: [
+                        AccountCommand.self,
                         ProjectCommand.self,
                         OrganizationCommand.self,
                         AuthCommand.self,
