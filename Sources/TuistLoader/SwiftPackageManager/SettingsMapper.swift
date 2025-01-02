@@ -90,6 +90,8 @@ struct SettingsMapper {
                 // TODO: Use -language-mode instead of -swift-version when Xcode 15 support is removed.
                 // https://github.com/swiftlang/swift-evolution/blob/main/proposals/0441-formalize-language-mode-terminology.md#swift-compiler-option
                 swiftFlags.append("-swift-version \(setting.value[0])")
+                // Control the language mode for an Xcode project or target by setting the “Swift Language Version”
+                settingsDictionary["SWIFT_VERSION"] = SettingValue(stringLiteral: setting.value[0])
             case (.linker, .unsafeFlags):
                 linkerFlags.append(contentsOf: setting.value)
             case (.linker, .linkedFramework), (.linker, .linkedLibrary):
