@@ -7,7 +7,14 @@ enum InspectType {
     case implicit
 }
 
-final class GraphImportsLinter {
+protocol GraphImportsLinting {
+    func lint(
+        graphTraverser: GraphTraverser,
+        inspectType: InspectType
+    ) async throws -> [LintingIssue]
+}
+
+final class GraphImportsLinter: GraphImportsLinting {
     private let targetScanner: TargetImportsScanning
 
     init(targetScanner: TargetImportsScanning = TargetImportsScanner()) {
@@ -18,6 +25,21 @@ final class GraphImportsLinter {
         graphTraverser: GraphTraverser,
         inspectType: InspectType
     ) async throws -> [LintingIssue] {
+        return try await targetImportsMap(
+            graphTraverser: graphTraverser,
+            inspectType: inspectType
+        ).compactMap { target, implicitDependencies in
+            return LintingIssue(
+                reason: " - \(target.productName) \(inspectType == .implicit ? "implicitly" : "redundantly") depends on: \(implicitDependencies.joined(separator: ", "))",
+                severity: .error
+            )
+        }
+    }
+
+    private func targetImportsMap(
+        graphTraverser: GraphTraverser,
+        inspectType: InspectType
+    ) async throws -> [Target: Set<String>] {
         let allInternalTargets = graphTraverser
             .allInternalTargets()
         let allTargets = allInternalTargets
@@ -26,17 +48,17 @@ final class GraphImportsLinter {
                 switch inspectType {
                 case .redundant:
                     return switch $0.target.product {
-                    case .staticLibrary, .staticFramework, .dynamicLibrary, .framework: true
+                    case .staticLibrary, .staticFramework, .dynamicLibrary, .framework, .app: true
                     default: false
                     }
                 case .implicit:
                     return true
                 }
             }
+        var observedTargetImports: [Target: Set<String>] = [:]
 
         let allTargetNames = Set(allTargets.map(\.target.productName))
 
-        var observedTargetImports: [Target: Set<String>] = [:]
         for target in allInternalTargets {
             let sourceDependencies = Set(try await targetScanner.imports(for: target.target))
 
@@ -56,12 +78,7 @@ final class GraphImportsLinter {
                 observedTargetImports[target.target] = observedImports
             }
         }
-        return observedTargetImports.map { target, implicitDependencies in
-            return LintingIssue(
-                reason: " - \(target.productName) \(inspectType == .implicit ? "implicitly" : "redundantly") depends on: \(implicitDependencies.joined(separator: ", "))",
-                severity: .error
-            )
-        }
+        return observedTargetImports
     }
 
     private func explicitTargetDependencies(

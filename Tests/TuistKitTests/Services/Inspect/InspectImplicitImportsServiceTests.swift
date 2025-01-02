@@ -55,10 +55,6 @@ final class LintImplicitImportsServiceTests: TuistUnitTestCase {
         given(targetScanner).imports(for: .value(app)).willReturn(Set(["Framework"]))
         given(targetScanner).imports(for: .value(framework)).willReturn(Set([]))
 
-//        let expectedError = InspectImplicitImportsServiceError.implicitImportsFound([
-//            InspectImportsServiceErrorIssue(target: "App", implicitDependencies: Set(["Framework"])),
-//        ])
-
         let expectedError = LintingError()
 
         // When
@@ -113,6 +109,7 @@ final class LintImplicitImportsServiceTests: TuistUnitTestCase {
         given(generatorFactory).defaultGenerator(config: .value(config), sources: .any).willReturn(generator)
         given(generator).load(path: .value(path)).willReturn(graph)
         given(targetScanner).imports(for: .value(app)).willReturn(Set(["PackageTarget"]))
+        given(targetScanner).imports(for: .value(testTarget)).willReturn(Set())
 
         // When / Then
         try await subject.run(path: path.pathString)

@@ -7,12 +7,12 @@ import XcodeGraph
 final class InspectRedundantImportsService {
     private let configLoader: ConfigLoading
     private let generatorFactory: GeneratorFactorying
-    private let graphImportsLinter: GraphImportsLinter
+    private let graphImportsLinter: GraphImportsLinting
 
     init(
         generatorFactory: GeneratorFactorying = GeneratorFactory(),
         configLoader: ConfigLoading = ConfigLoader(warningController: WarningController.shared),
-        graphImportsLinter: GraphImportsLinter = GraphImportsLinter()
+        graphImportsLinter: GraphImportsLinting = GraphImportsLinter()
     ) {
         self.configLoader = configLoader
         self.generatorFactory = generatorFactory
