@@ -185,13 +185,6 @@ internal protocol APIProtocol: Sendable {
     /// - Remark: HTTP `DELETE /api/organizations/{organization_name}/invitations`.
     /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/invitations/delete(cancelInvitation)`.
     func cancelInvitation(_ input: Operations.cancelInvitation.Input) async throws -> Operations.cancelInvitation.Output
-    /// Change user's account name
-    ///
-    /// Updates the authenticated user's name
-    ///
-    /// - Remark: HTTP `PATCH /api/accounts/name`.
-    /// - Remark: Generated from `#/paths//api/accounts/name/patch(changeName)`.
-    func changeName(_ input: Operations.changeName.Input) async throws -> Operations.changeName.Output
     /// List previews.
     ///
     /// This endpoint returns a list of previews for a given project.
@@ -292,6 +285,13 @@ internal protocol APIProtocol: Sendable {
     /// - Remark: HTTP `DELETE /api/projects/{id}`.
     /// - Remark: Generated from `#/paths//api/projects/{id}/delete(deleteProject)`.
     func deleteProject(_ input: Operations.deleteProject.Input) async throws -> Operations.deleteProject.Output
+    /// Change user's account
+    ///
+    /// Updates the authenticated account
+    ///
+    /// - Remark: HTTP `PATCH /api/accounts/{account_handle}`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/patch(updateAccount)`.
+    func updateAccount(_ input: Operations.updateAccount.Input) async throws -> Operations.updateAccount.Output
     /// Completes artifacts uploads for a given command event
     ///
     /// Given a command event, it marks all artifact uploads as finished and does extra processing of a given command run, such as test flakiness detection.
@@ -703,21 +703,6 @@ extension APIProtocol {
             body: body
         ))
     }
-    /// Change user's account name
-    ///
-    /// Updates the authenticated user's name
-    ///
-    /// - Remark: HTTP `PATCH /api/accounts/name`.
-    /// - Remark: Generated from `#/paths//api/accounts/name/patch(changeName)`.
-    internal func changeName(
-        headers: Operations.changeName.Input.Headers = .init(),
-        body: Operations.changeName.Input.Body? = nil
-    ) async throws -> Operations.changeName.Output {
-        try await changeName(Operations.changeName.Input(
-            headers: headers,
-            body: body
-        ))
-    }
     /// List previews.
     ///
     /// This endpoint returns a list of previews for a given project.
@@ -940,6 +925,23 @@ extension APIProtocol {
         try await deleteProject(Operations.deleteProject.Input(
             path: path,
             headers: headers
+        ))
+    }
+    /// Change user's account
+    ///
+    /// Updates the authenticated account
+    ///
+    /// - Remark: HTTP `PATCH /api/accounts/{account_handle}`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/patch(updateAccount)`.
+    internal func updateAccount(
+        path: Operations.updateAccount.Input.Path,
+        headers: Operations.updateAccount.Input.Headers = .init(),
+        body: Operations.updateAccount.Input.Body? = nil
+    ) async throws -> Operations.updateAccount.Output {
+        try await updateAccount(Operations.updateAccount.Input(
+            path: path,
+            headers: headers,
+            body: body
         ))
     }
     /// Completes artifacts uploads for a given command event
@@ -10674,248 +10676,6 @@ internal enum Operations {
             }
         }
     }
-    /// Change user's account name
-    ///
-    /// Updates the authenticated user's name
-    ///
-    /// - Remark: HTTP `PATCH /api/accounts/name`.
-    /// - Remark: Generated from `#/paths//api/accounts/name/patch(changeName)`.
-    internal enum changeName {
-        internal static let id: Swift.String = "changeName"
-        internal struct Input: Sendable, Hashable {
-            /// - Remark: Generated from `#/paths/api/accounts/name/PATCH/header`.
-            internal struct Headers: Sendable, Hashable {
-                internal var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.changeName.AcceptableContentType>]
-                /// Creates a new `Headers`.
-                ///
-                /// - Parameters:
-                ///   - accept:
-                internal init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.changeName.AcceptableContentType>] = .defaultValues()) {
-                    self.accept = accept
-                }
-            }
-            internal var headers: Operations.changeName.Input.Headers
-            /// - Remark: Generated from `#/paths/api/accounts/name/PATCH/requestBody`.
-            internal enum Body: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/accounts/name/PATCH/requestBody/json`.
-                internal struct jsonPayload: Codable, Hashable, Sendable {
-                    /// The new name.
-                    ///
-                    /// - Remark: Generated from `#/paths/api/accounts/name/PATCH/requestBody/json/name`.
-                    internal var name: Swift.String
-                    /// Creates a new `jsonPayload`.
-                    ///
-                    /// - Parameters:
-                    ///   - name: The new name.
-                    internal init(name: Swift.String) {
-                        self.name = name
-                    }
-                    internal enum CodingKeys: String, CodingKey {
-                        case name
-                    }
-                }
-                /// - Remark: Generated from `#/paths/api/accounts/name/PATCH/requestBody/content/application\/json`.
-                case json(Operations.changeName.Input.Body.jsonPayload)
-            }
-            internal var body: Operations.changeName.Input.Body?
-            /// Creates a new `Input`.
-            ///
-            /// - Parameters:
-            ///   - headers:
-            ///   - body:
-            internal init(
-                headers: Operations.changeName.Input.Headers = .init(),
-                body: Operations.changeName.Input.Body? = nil
-            ) {
-                self.headers = headers
-                self.body = body
-            }
-        }
-        internal enum Output: Sendable, Hashable {
-            internal struct Ok: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/accounts/name/PATCH/responses/200/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/accounts/name/PATCH/responses/200/content/application\/json`.
-                    case json(OpenAPIRuntime.OpenAPIObjectContainer)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: OpenAPIRuntime.OpenAPIObjectContainer {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.changeName.Output.Ok.Body
-                /// Creates a new `Ok`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.changeName.Output.Ok.Body) {
-                    self.body = body
-                }
-            }
-            /// Name successfully changed
-            ///
-            /// - Remark: Generated from `#/paths//api/accounts/name/patch(changeName)/responses/200`.
-            ///
-            /// HTTP response code: `200 ok`.
-            case ok(Operations.changeName.Output.Ok)
-            /// The associated value of the enum case if `self` is `.ok`.
-            ///
-            /// - Throws: An error if `self` is not `.ok`.
-            /// - SeeAlso: `.ok`.
-            internal var ok: Operations.changeName.Output.Ok {
-                get throws {
-                    switch self {
-                    case let .ok(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "ok",
-                            response: self
-                        )
-                    }
-                }
-            }
-            internal struct BadRequest: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/accounts/name/PATCH/responses/400/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/accounts/name/PATCH/responses/400/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.changeName.Output.BadRequest.Body
-                /// Creates a new `BadRequest`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.changeName.Output.BadRequest.Body) {
-                    self.body = body
-                }
-            }
-            /// An error occured while changing the name.
-            ///
-            /// - Remark: Generated from `#/paths//api/accounts/name/patch(changeName)/responses/400`.
-            ///
-            /// HTTP response code: `400 badRequest`.
-            case badRequest(Operations.changeName.Output.BadRequest)
-            /// The associated value of the enum case if `self` is `.badRequest`.
-            ///
-            /// - Throws: An error if `self` is not `.badRequest`.
-            /// - SeeAlso: `.badRequest`.
-            internal var badRequest: Operations.changeName.Output.BadRequest {
-                get throws {
-                    switch self {
-                    case let .badRequest(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "badRequest",
-                            response: self
-                        )
-                    }
-                }
-            }
-            internal struct Unauthorized: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/accounts/name/PATCH/responses/401/content`.
-                internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/accounts/name/PATCH/responses/401/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    internal var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                internal var body: Operations.changeName.Output.Unauthorized.Body
-                /// Creates a new `Unauthorized`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                internal init(body: Operations.changeName.Output.Unauthorized.Body) {
-                    self.body = body
-                }
-            }
-            /// You need to be authenticated to change the name.
-            ///
-            /// - Remark: Generated from `#/paths//api/accounts/name/patch(changeName)/responses/401`.
-            ///
-            /// HTTP response code: `401 unauthorized`.
-            case unauthorized(Operations.changeName.Output.Unauthorized)
-            /// The associated value of the enum case if `self` is `.unauthorized`.
-            ///
-            /// - Throws: An error if `self` is not `.unauthorized`.
-            /// - SeeAlso: `.unauthorized`.
-            internal var unauthorized: Operations.changeName.Output.Unauthorized {
-                get throws {
-                    switch self {
-                    case let .unauthorized(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "unauthorized",
-                            response: self
-                        )
-                    }
-                }
-            }
-            /// Undocumented response.
-            ///
-            /// A response with a code that is not documented in the OpenAPI document.
-            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
-        }
-        internal enum AcceptableContentType: AcceptableProtocol {
-            case json
-            case other(Swift.String)
-            internal init?(rawValue: Swift.String) {
-                switch rawValue.lowercased() {
-                case "application/json":
-                    self = .json
-                default:
-                    self = .other(rawValue)
-                }
-            }
-            internal var rawValue: Swift.String {
-                switch self {
-                case let .other(string):
-                    return string
-                case .json:
-                    return "application/json"
-                }
-            }
-            internal static var allCases: [Self] {
-                [
-                    .json
-                ]
-            }
-        }
-    }
     /// List previews.
     ///
     /// This endpoint returns a list of previews for a given project.
@@ -15680,6 +15440,317 @@ internal enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        internal enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            internal init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            internal var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            internal static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Change user's account
+    ///
+    /// Updates the authenticated account
+    ///
+    /// - Remark: HTTP `PATCH /api/accounts/{account_handle}`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/patch(updateAccount)`.
+    internal enum updateAccount {
+        internal static let id: Swift.String = "updateAccount"
+        internal struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/PATCH/path`.
+            internal struct Path: Sendable, Hashable {
+                /// The handle of the account.
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/PATCH/path/account_handle`.
+                internal var account_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the account.
+                internal init(account_handle: Swift.String) {
+                    self.account_handle = account_handle
+                }
+            }
+            internal var path: Operations.updateAccount.Input.Path
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/PATCH/header`.
+            internal struct Headers: Sendable, Hashable {
+                internal var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.updateAccount.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                internal init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.updateAccount.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            internal var headers: Operations.updateAccount.Input.Headers
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/PATCH/requestBody`.
+            internal enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/PATCH/requestBody/json`.
+                internal struct jsonPayload: Codable, Hashable, Sendable {
+                    /// The new account handle.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/PATCH/requestBody/json/handle`.
+                    internal var handle: Swift.String?
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - handle: The new account handle.
+                    internal init(handle: Swift.String? = nil) {
+                        self.handle = handle
+                    }
+                    internal enum CodingKeys: String, CodingKey {
+                        case handle
+                    }
+                }
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/PATCH/requestBody/content/application\/json`.
+                case json(Operations.updateAccount.Input.Body.jsonPayload)
+            }
+            internal var body: Operations.updateAccount.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            ///   - body:
+            internal init(
+                path: Operations.updateAccount.Input.Path,
+                headers: Operations.updateAccount.Input.Headers = .init(),
+                body: Operations.updateAccount.Input.Body? = nil
+            ) {
+                self.path = path
+                self.headers = headers
+                self.body = body
+            }
+        }
+        internal enum Output: Sendable, Hashable {
+            internal struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/PATCH/responses/200/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/PATCH/responses/200/content/application\/json`.
+                    case json(OpenAPIRuntime.OpenAPIObjectContainer)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: OpenAPIRuntime.OpenAPIObjectContainer {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.updateAccount.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.updateAccount.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Account successfully updated
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/patch(updateAccount)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.updateAccount.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            internal var ok: Operations.updateAccount.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/PATCH/responses/400/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/PATCH/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.updateAccount.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.updateAccount.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// An error occurred while updating the account.
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/patch(updateAccount)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.updateAccount.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            internal var badRequest: Operations.updateAccount.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/PATCH/responses/401/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/PATCH/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.updateAccount.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.updateAccount.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to update your account.
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/patch(updateAccount)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.updateAccount.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            internal var unauthorized: Operations.updateAccount.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/PATCH/responses/403/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/PATCH/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.updateAccount.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.updateAccount.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// You don't have permission to update this account.
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/patch(updateAccount)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.updateAccount.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            internal var forbidden: Operations.updateAccount.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
                             response: self
                         )
                     }

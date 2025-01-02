@@ -4,23 +4,25 @@ import OpenAPIURLSession
 import TuistSupport
 
 @Mockable
-public protocol UpdateAccountUsernameServicing {
-    func updateAccountUsername(
+public protocol UpdateAccountServicing {
+    func updateAccount(
         serverURL: URL,
-        name: String
+        accountHandle: String,
+        handle: String?
     ) async throws -> String?
 }
 
-enum UpdateAccountUsernameServiceError: FatalError {
+enum UpdateAccountServiceError: FatalError {
     case unknownError(Int)
     case badRequest(String)
     case unauthorized(String)
+    case forbidden(String)
 
     var type: ErrorType {
         switch self {
         case .unknownError:
             return .bug
-        case .badRequest, .unauthorized:
+        case .badRequest, .unauthorized, .forbidden:
             return .abort
         }
     }
@@ -29,44 +31,53 @@ enum UpdateAccountUsernameServiceError: FatalError {
         switch self {
         case let .unknownError(statusCode):
             return "We could not update the account due to an unknown Tuist response of \(statusCode)."
-        case let .badRequest(message), let .unauthorized(message):
+        case let .badRequest(message), let .unauthorized(message), let .forbidden(message):
             return message
         }
     }
 }
 
-public final class UpdateAccountUsernameService: UpdateAccountUsernameServicing {
+public final class UpdateAccountService: UpdateAccountServicing {
     public init() {}
 
-    public func updateAccountUsername(
+    public func updateAccount(
         serverURL: URL,
-        name: String
+        accountHandle: String,
+        handle: String?
     ) async throws -> String? {
         let client = Client.authenticated(serverURL: serverURL)
-        let response = try await client.changeName(
+        let response = try await client.updateAccount(
             .init(
+                path: .init(
+                    account_handle: accountHandle
+                ),
                 body: .json(
                     .init(
-                        name: name
+                        handle: handle
                     )
                 )
             )
         )
         switch response {
         case let .ok(okResponse):
-            return name
+            return handle
         case let .unauthorized(unauthorized):
             switch unauthorized.body {
             case let .json(error):
-                throw UpdateAccountUsernameServiceError.unauthorized(error.message)
+                throw UpdateAccountServiceError.unauthorized(error.message)
+            }
+        case let .forbidden(forbidden):
+            switch forbidden.body {
+            case let .json(error):
+                throw UpdateAccountServiceError.forbidden(error.message)
             }
         case let .badRequest(badRequest):
             switch badRequest.body {
             case let .json(error):
-                throw UpdateAccountUsernameServiceError.badRequest(error.message)
+                throw UpdateAccountServiceError.badRequest(error.message)
             }
         case let .undocumented(statusCode: statusCode, _):
-            throw UpdateAccountUsernameServiceError.unknownError(statusCode)
+            throw UpdateAccountServiceError.unknownError(statusCode)
         }
     }
 }

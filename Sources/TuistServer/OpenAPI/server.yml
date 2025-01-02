@@ -2197,49 +2197,6 @@ paths:
       summary: Creates an invitation
       tags:
         - Invitations
-  /api/accounts/name:
-    patch:
-      callbacks: {}
-      description: Updates the authenticated user's name
-      operationId: changeName
-      parameters: []
-      requestBody:
-        content:
-          application/json:
-            schema:
-              properties:
-                name:
-                  description: The new name.
-                  type: string
-              required:
-                - name
-              type: object
-        description: Change account name
-        required: false
-      responses:
-        200:
-          content:
-            application/json:
-              schema:
-                description: Empty response indicating success
-                properties: {}
-                type: object
-          description: Name successfully changed
-        400:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: An error occured while changing the name.
-        401:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: You need to be authenticated to change the name.
-      summary: Change user's account name
-      tags:
-        - Authentication
   /api/projects/{account_handle}/{project_handle}/previews:
     get:
       callbacks: {}
@@ -3107,6 +3064,59 @@ paths:
       summary: Deletes a project with a given id.
       tags:
         - Projects
+  /api/accounts/{account_handle}:
+    patch:
+      callbacks: {}
+      description: Updates the authenticated account
+      operationId: updateAccount
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                handle:
+                  description: The new account handle.
+                  type: string
+              type: object
+        description: Change account
+        required: false
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                description: Empty response indicating success
+                properties: {}
+                type: object
+          description: Account successfully updated
+        400:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: An error occurred while updating the account.
+        401:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to update your account.
+        403:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to update this account.
+      summary: Change user's account
+      tags:
+        - Account
   /api/runs/{run_id}/complete_artifacts_uploads:
     put:
       callbacks: {}
