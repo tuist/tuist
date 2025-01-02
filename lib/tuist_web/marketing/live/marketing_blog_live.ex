@@ -5,7 +5,7 @@ defmodule TuistWeb.Marketing.MarketingBlogLive do
   def mount(params, _session, socket) do
     posts = Tuist.Marketing.Blog.get_posts()
     categories = Tuist.Marketing.Blog.get_categories()
-    highlighted_posts = posts |> Enum.filter(& &1.highlighted)
+    highlighted_posts = posts |> Enum.filter(& &1.highlighted) |> Enum.take(5)
     category = params |> Map.get("category")
     posts = if is_nil(category), do: posts, else: posts |> Enum.filter(&(&1.category == category))
 

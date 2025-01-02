@@ -5,7 +5,7 @@ tags: ["Product"]
 excerpt: "Tuist is shifting its focus to empower teams to build better apps faster. Learn more about our new vision and what's coming next."
 author: pepicrft
 og_image: /images/og/empower-teams-to-build-better-apps-faster.jpg
-highlighted: true
+highlighted: false
 ---
 
 Tuist started in 2017 with a very narrow focus.
