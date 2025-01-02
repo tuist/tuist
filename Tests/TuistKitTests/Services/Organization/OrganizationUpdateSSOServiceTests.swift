@@ -18,7 +18,7 @@ final class OrganizationUpdateSSOServiceTests: TuistUnitTestCase {
 
         updateOrganizationService = .init()
         configLoader = MockConfigLoading()
-        serverURL = URL(string: "https://test.cloud.tuist.io")!
+        serverURL = URL(string: "https://test.tuist.dev")!
         given(configLoader).loadConfig(path: .any).willReturn(.test(url: serverURL))
 
         subject = OrganizationUpdateSSOService(
@@ -56,6 +56,30 @@ final class OrganizationUpdateSSOServiceTests: TuistUnitTestCase {
         // Then
         XCTAssertPrinterOutputContains("""
         tuist now uses Google SSO with tuist.io. Users authenticated with the tuist.io SSO organization will automatically have access to the tuist projects.
+        """)
+    }
+
+    func test_organization_update_sso_with_okta() async throws {
+        // Given
+        given(updateOrganizationService)
+            .updateOrganization(
+                organizationName: .value("tuist"),
+                serverURL: .value(serverURL),
+                ssoOrganization: .value(.okta("tuist.okta.com"))
+            )
+            .willReturn(.test())
+
+        // When
+        try await subject.run(
+            organizationName: "tuist",
+            provider: .okta,
+            organizationId: "tuist.okta.com",
+            directory: nil
+        )
+
+        // Then
+        XCTAssertPrinterOutputContains("""
+        tuist now uses Okta SSO with tuist.okta.com. Users authenticated with the tuist.okta.com SSO organization will automatically have access to the tuist projects.
         """)
     }
 }

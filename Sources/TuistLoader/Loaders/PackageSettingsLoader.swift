@@ -24,10 +24,7 @@ public final class PackageSettingsLoader: PackageSettingsLoading {
 
     public init(
         manifestLoader: ManifestLoading = ManifestLoader(),
-        swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(
-            system: System.shared,
-            fileSystem: FileSystem()
-        ),
+        swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(),
         manifestFilesLocator: ManifestFilesLocating = ManifestFilesLocator(),
         rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator()
     ) {
@@ -46,14 +43,10 @@ public final class PackageSettingsLoader: PackageSettingsLoading {
             manifestDirectory: path,
             rootDirectory: rootDirectory
         )
-        let swiftToolsVersion = try swiftPackageManagerController.getToolsVersion(
-            at: path
-        )
 
         return try TuistCore.PackageSettings.from(
             manifest: manifest,
-            generatorPaths: generatorPaths,
-            swiftToolsVersion: swiftToolsVersion
+            generatorPaths: generatorPaths
         )
     }
 }

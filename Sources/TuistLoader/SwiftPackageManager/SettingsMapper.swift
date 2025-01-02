@@ -46,9 +46,7 @@ struct SettingsMapper {
 
         return try map(
             settings: platformSettings,
-            headerSearchPaths: headerSearchPaths,
-            defines: ["SWIFT_PACKAGE": "1"],
-            swiftDefines: "SWIFT_PACKAGE"
+            headerSearchPaths: headerSearchPaths
         )
     }
 
@@ -56,7 +54,7 @@ struct SettingsMapper {
         settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting],
         headerSearchPaths: [String] = [],
         defines: [String: String] = [:],
-        swiftDefines: String = ""
+        swiftDefines: [String] = []
     ) throws -> XcodeGraph.SettingsDictionary {
         var headerSearchPaths = headerSearchPaths
         var defines = defines
@@ -79,7 +77,7 @@ struct SettingsMapper {
             case (.cxx, .unsafeFlags):
                 cxxFlags.append(contentsOf: setting.value)
             case (.swift, .define):
-                swiftDefines.append(" \(setting.value[0])")
+                swiftDefines.append(contentsOf: setting.value)
             case (.swift, .unsafeFlags):
                 swiftFlags.append(contentsOf: setting.value)
             case (.swift, .enableUpcomingFeature):
@@ -120,7 +118,7 @@ struct SettingsMapper {
         }
 
         if !swiftDefines.isEmpty {
-            settingsDictionary["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] = "$(inherited) \(swiftDefines)"
+            settingsDictionary["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] = .array(["$(inherited)"] + swiftDefines)
         }
 
         if !cFlags.isEmpty {

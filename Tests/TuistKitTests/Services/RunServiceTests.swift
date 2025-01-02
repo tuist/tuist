@@ -46,7 +46,8 @@ final class RunServiceTests: TuistUnitTestCase {
     private var targetBuilder: MockTargetBuilder!
     private var targetRunner: MockTargetRunner!
     private var configLoader: MockConfigLoading!
-    private var downloadPreviewService: MockDownloadPreviewServicing!
+    private var getPreviewService: MockGetPreviewServicing!
+    private var listPreviewsService: MockListPreviewsServicing!
     private var serverURLService: MockServerURLServicing!
     private var appRunner: MockAppRunning!
     private var subject: RunService!
@@ -67,7 +68,8 @@ final class RunServiceTests: TuistUnitTestCase {
         targetBuilder = MockTargetBuilder()
         targetRunner = MockTargetRunner()
         configLoader = .init()
-        downloadPreviewService = .init()
+        getPreviewService = .init()
+        listPreviewsService = .init()
         appRunner = .init()
         remoteArtifactDownloader = .init()
         appBundleLoader = .init()
@@ -78,7 +80,8 @@ final class RunServiceTests: TuistUnitTestCase {
             targetBuilder: targetBuilder,
             targetRunner: targetRunner,
             configLoader: configLoader,
-            downloadPreviewService: downloadPreviewService,
+            getPreviewService: getPreviewService,
+            listPreviewsService: listPreviewsService,
             fileHandler: fileHandler,
             fileSystem: FileSystem(),
             appRunner: appRunner,
@@ -93,6 +96,8 @@ final class RunServiceTests: TuistUnitTestCase {
         buildGraphInspector = nil
         targetBuilder = nil
         targetRunner = nil
+        getPreviewService = nil
+        listPreviewsService = nil
         subject = nil
         generatorFactory = nil
         super.tearDown()
@@ -263,32 +268,15 @@ final class RunServiceTests: TuistUnitTestCase {
         await fulfillment(of: [expectation], timeout: 1)
     }
 
-    func test_run_share_link_when_download_url_is_invalid() async throws {
-        // Given
-        given(downloadPreviewService)
-            .downloadPreview(
-                .any,
-                fullHandle: .any,
-                serverURL: .any
-            )
-            .willReturn("https://example com/page")
-
-        // When / Then
-        await XCTAssertThrowsSpecific(
-            try await subject.run(runnable: .url(URL(string: "https://tuist.io/tuist/tuist/preview/some-id")!)),
-            RunServiceError.invalidDownloadBuildURL("https://example com/page")
-        )
-    }
-
     func test_run_share_link_when_app_build_artifact_not_found() async throws {
         // Given
-        given(downloadPreviewService)
-            .downloadPreview(
+        given(getPreviewService)
+            .getPreview(
                 .any,
                 fullHandle: .any,
                 serverURL: .any
             )
-            .willReturn("https://example.com")
+            .willReturn(.test(url: .test()))
 
         given(remoteArtifactDownloader)
             .download(url: .any)
@@ -314,13 +302,13 @@ final class RunServiceTests: TuistUnitTestCase {
 
     func test_run_share_link_runs_app() async throws {
         // Given
-        given(downloadPreviewService)
-            .downloadPreview(
+        given(getPreviewService)
+            .getPreview(
                 .any,
                 fullHandle: .any,
                 serverURL: .any
             )
-            .willReturn("https://example.com")
+            .willReturn(.test())
 
         let downloadedArchive = try temporaryPath().appending(component: "archive")
 
@@ -367,15 +355,130 @@ final class RunServiceTests: TuistUnitTestCase {
             .called(1)
     }
 
-    func test_run_share_link_runs_ipa() async throws {
+    func test_run_preview_with_specifier_runs_app() async throws {
         // Given
-        given(downloadPreviewService)
-            .downloadPreview(
+        given(getPreviewService)
+            .getPreview(
                 .any,
                 fullHandle: .any,
                 serverURL: .any
             )
-            .willReturn("https://example.com")
+            .willReturn(.test())
+
+        let downloadedArchive = try temporaryPath().appending(component: "archive")
+
+        given(remoteArtifactDownloader)
+            .download(url: .any)
+            .willReturn(downloadedArchive)
+
+        let fileUnarchiver = MockFileUnarchiving()
+        given(fileArchiverFactory)
+            .makeFileUnarchiver(for: .any)
+            .willReturn(fileUnarchiver)
+
+        let unarchivedPath = try temporaryPath().appending(component: "unarchived")
+
+        given(fileUnarchiver)
+            .unzip()
+            .willReturn(unarchivedPath)
+
+        try fileHandler.touch(unarchivedPath.appending(component: "App.app"))
+
+        given(appRunner)
+            .runApp(
+                .any,
+                version: .any,
+                device: .any
+            )
+            .willReturn()
+
+        let appBundle: AppBundle = .test()
+        given(appBundleLoader)
+            .load(.any)
+            .willReturn(appBundle)
+
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(fullHandle: "tuist/tuist"))
+
+        given(listPreviewsService)
+            .listPreviews(
+                displayName: .value("App"),
+                specifier: .value("latest"),
+                supportedPlatforms: .any,
+                page: .value(1),
+                pageSize: .value(1),
+                distinctField: .any,
+                fullHandle: .any,
+                serverURL: .any
+            )
+            .willReturn(
+                [
+                    .test(),
+                ]
+            )
+
+        // When
+        try await subject.run(runnable: .specifier(displayName: "App", specifier: "latest"))
+
+        // Then
+        verify(appRunner)
+            .runApp(
+                .value([appBundle]),
+                version: .value(nil),
+                device: .value(nil)
+            )
+            .called(1)
+    }
+
+    func test_run_preview_with_specifier_when_full_handle_is_missing() async throws {
+        // Given
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(fullHandle: nil))
+
+        // When / Then
+        await XCTAssertThrowsSpecific(
+            try await subject.run(runnable: .specifier(displayName: "App", specifier: "latest")),
+            RunServiceError.missingFullHandle(displayName: "App", specifier: "latest")
+        )
+    }
+
+    func test_run_preview_with_specifier_when_preview_is_not_found() async throws {
+        // Given
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(fullHandle: "tuist/tuist"))
+
+        given(listPreviewsService)
+            .listPreviews(
+                displayName: .value("App"),
+                specifier: .value("latest"),
+                supportedPlatforms: .any,
+                page: .value(1),
+                pageSize: .value(1),
+                distinctField: .any,
+                fullHandle: .any,
+                serverURL: .any
+            )
+            .willReturn([])
+
+        // When / Then
+        await XCTAssertThrowsSpecific(
+            try await subject.run(runnable: .specifier(displayName: "App", specifier: "latest")),
+            RunServiceError.previewNotFound(displayName: "App", specifier: "latest")
+        )
+    }
+
+    func test_run_share_link_runs_ipa() async throws {
+        // Given
+        given(getPreviewService)
+            .getPreview(
+                .any,
+                fullHandle: .any,
+                serverURL: .any
+            )
+            .willReturn(.test())
 
         let downloadedArchive = try temporaryPath().appending(component: "archive")
 
@@ -425,13 +528,13 @@ final class RunServiceTests: TuistUnitTestCase {
 
     func test_run_share_link_runs_with_destination_and_version() async throws {
         // Given
-        given(downloadPreviewService)
-            .downloadPreview(
+        given(getPreviewService)
+            .getPreview(
                 .any,
                 fullHandle: .any,
                 serverURL: .any
             )
-            .willReturn("https://example.com")
+            .willReturn(.test())
 
         let downloadedArchive = try temporaryPath().appending(component: "archive")
 

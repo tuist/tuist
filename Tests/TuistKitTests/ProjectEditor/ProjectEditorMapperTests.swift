@@ -13,7 +13,7 @@ import XCTest
 
 final class ProjectEditorMapperTests: TuistUnitTestCase {
     private var subject: ProjectEditorMapper!
-    private var swiftPackageManagerController: MockSwiftPackageManagerController!
+    private var swiftPackageManagerController: MockSwiftPackageManagerControlling!
 
     override func setUp() {
         super.setUp()
@@ -23,7 +23,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             .willReturn("5.2")
 
         developerEnvironment.stubbedArchitecture = .arm64
-        swiftPackageManagerController = MockSwiftPackageManagerController()
+        swiftPackageManagerController = MockSwiftPackageManagerControlling()
         subject = ProjectEditorMapper(
             swiftPackageManagerController: swiftPackageManagerController
         )
@@ -39,7 +39,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         // Given
         let sourceRootPath = try temporaryPath()
         let projectManifestPaths = [sourceRootPath].map { $0.appending(component: "Project.swift") }
-        let configPath = sourceRootPath.appending(components: Constants.tuistDirectoryName, "Config.swift")
+        let configPath = sourceRootPath.appending(components: Constants.tuistManifestFileName)
         let packageManifestPath = sourceRootPath.appending(components: Constants.tuistDirectoryName, "Package.swift")
         let helperPaths = [sourceRootPath].map { $0.appending(component: "Project+Template.swift") }
         let templates = [sourceRootPath].map { $0.appending(component: "template") }
@@ -54,9 +54,9 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             sourceRootPath.appending(component: "PluginTwo"),
             sourceRootPath.appending(component: "PluginThree"),
         ].map { EditablePluginManifest(name: $0.basename, path: $0) }
-        swiftPackageManagerController.getToolsVersionStub = { _ in
-            .init(stringLiteral: "5.5.0")
-        }
+        given(swiftPackageManagerController)
+            .getToolsVersion(at: .any)
+            .willReturn("5.5.0")
         given(xcodeController)
             .selected()
             .willReturn(.test(path: AbsolutePath("/Applications/Xcode.app")))
@@ -345,7 +345,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
     func test_tuist_edit_with_more_than_one_manifest() async throws {
         // Given
         let sourceRootPath = try temporaryPath()
-        let configPath = sourceRootPath.appending(components: Constants.tuistDirectoryName, "Config.swift")
+        let configPath = sourceRootPath.appending(components: Constants.tuistManifestFileName)
         let otherProjectPath = "Module"
         let projectManifestPaths = [
             sourceRootPath.appending(component: "Project.swift"),

@@ -1,20 +1,20 @@
 ---
 title: Continuous Integration (CI)
-titleTemplate: :title | Develop | Tuist
-description: Learn how to use Tuist in your CI workflows.
+titleTemplate: :title · Automate · Develop · Guides · Tuist
+description: CI 워크플로우에서 Tuist를 사용하는 방법에 대해 알아보세요.
 ---
 
 # Continuous Integration (CI) {#continuous-integration-ci}
 
-You can use Tuist in [continuous integration](https://en.wikipedia.org/wiki/Continuous_integration) environments. The following sections provide examples of how to do this on different CI platforms.
+Tuist를 [CI(Continuous Integration)](https://en.wikipedia.org/wiki/Continuous_integration) 환경에서 사용할 수 있습니다. 다음 섹션에서는 다양한 CI 플랫폼에서 이를 수행하는 방법에 대한 예시를 제공합니다.
 
 ## Examples {#examples}
 
-To run Tuist commands in your CI workflows, you’ll need to install it in your CI environment.
+CI 워크플로우에서 Tuist 명령어를 실행하려면, CI 환경에 Tuist를 설치해야 합니다.
 
 ### Xcode Cloud {#xcode-cloud}
 
-In [Xcode Cloud](https://developer.apple.com/xcode-cloud/), which uses Xcode projects as the source of truth, you'll need to add a [post-clone](https://developer.apple.com/documentation/xcode/writing-custom-build-scripts#Create-a-custom-build-script) script to install Tuist and run the commands you need, for example `tuist generate`:
+[Xcode Cloud](https://developer.apple.com/xcode-cloud/)에서는 Xcode 프로젝트를 진실 공급원(source of truth)으로 사용하기 때문에, [post-clone](https://developer.apple.com/documentation/xcode/writing-custom-build-scripts#Create-a-custom-build-script) 스크립트를 추가하여 Tuist를 설치하고 필요한 명령어를 실행해야 합니다. 예를 들어 `tuist generate` 명령어를 실행합니다:
 
 :::code-group
 
@@ -24,7 +24,7 @@ curl https://mise.jdx.dev/install.sh | sh
 mise install # Installs the version from .mise.toml
 
 # Runs the version of Tuist indicated in the .mise.toml file {#runs-the-version-of-tuist-indicated-in-the-misetoml-file}
-mise x tuist generate
+mise exec -- tuist generate
 ```
 
 ```bash [Homebrew]
@@ -38,7 +38,7 @@ tuist generate
 
 ### Codemagic {#codemagic}
 
-In [Codemagic](https://codemagic.io), you can add an additional step to your workflow to install Tuist:
+[Codemagic](https://codemagic.io)에서 워크플로우에 Tuist를 설치하는 추가 단계를 다음과 같이 추가할 수 있습니다:
 
 ::: code-group
 
@@ -55,7 +55,7 @@ workflows:
           curl https://mise.jdx.dev/install.sh | sh
           mise install # Installs the version from .mise.toml
       - name: Build
-        script: mise x tuist build
+        script: mise exec -- tuist build
 ```
 
 ```yaml [Homebrew]
@@ -77,7 +77,7 @@ workflows:
 
 ### GitHub Actions {#github-actions}
 
-On [GitHub Actions](https://docs.github.com/actions) you can an additional step to install Tuist, and in the case of managing the installation of Mise, you can use the [mise-action](https://github.com/jdx/mise-action), which abstracts the installation of Mise and Tuist:
+[GitHub Actions](https://docs.github.com/en/actions)에서 Tuist를 설치하기 위한 단계를 추가할 수 있으며, Mise를 설치하고 관리하려면 Mise와 Tuist의 설치 과정을 추상화한 [mise-action](https://github.com/jdx/mise-action)을 사용할 수 있습니다.
 
 ::: code-group
 
@@ -120,19 +120,18 @@ jobs:
 :::
 
 :::tip
-We recommend using `mise use --pin` in your Tuist projects to pin the version of Tuist across environments. The command will create a `.tool-versions` file containing the version of Tuist.
+Tuist 프로젝트에서 환경 간 Tuist 버전을 고정하려면 `mise use -pin` 명령어를 사용하는 것을 권장합니다. 이 명령어는 Tuist의 버전을 포함하는 `.tool-version` 파일을 생성합니다.
 :::
 
-## Authentication {#authentication}
+## 인증 {#authentication}
 
-When using server-side features such as <LocalizedLink href="/guides/develop/build/cache">cache</LocalizedLink>, you'll need a way to authenticate requests going from your CI workflows to the server. For that, you can generate a project-scoped token by running the following command:
+<LocalizedLink href="/guides/develop/build/cache">cache</LocalizedLink>와 같은 server-side 기능을 사용할 때, CI 워크플로우에서 서버로 가는 요청을 인증할 방법이 필요합니다. 이를 위해, 다음 명령어를 실행하여 프로젝트 범위의 토큰을 생성할 수 있습니다.
 
 ```bash
 tuist project tokens create my-handle/MyApp
 ```
 
-The command will generate a token for the project with full handle `my-account/my-project`. Set the value to the environment variable
-`TUIST_CONFIG_TOKEN` in your CI environment ensuring it's configured as a secret so it's not exposed.
+이 명령어는 `my-account/my-project`라는 전체 핸들을 가진 프로젝트에 대한 토큰을 생성합니다. 해당 값을 CI 환경의 `TUIST_CONFIG_TOKEN` 환경 변수로 설정하고, secret으로 설정하여 노출되지 않도록 합니다.
 
-> [!IMPORTANT] CI ENVIRONMENT DETECTION
-> Tuist only uses the token when it detects it's running on a CI environment. If your CI environment is not detected, you can force the token usage by setting the environment variable `CI` to `1`.
+> [!IMPORTANT] CI 환경 감지
+> Tuist는 CI 환경에서 실행 중임을 감지할 때만 토큰을 사용합니다. CI 환경이 감지되지 않는 경우, 환경 변수 `CI`를 `1`로 설정하여 토큰 사용을 강제할 수 있습니다.

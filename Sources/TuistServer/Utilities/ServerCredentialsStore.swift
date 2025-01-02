@@ -29,8 +29,20 @@ public struct ServerCredentials: Codable, Equatable {
     }
 }
 
+#if DEBUG
+    extension ServerCredentials {
+        public static func test(
+            token: String? = nil,
+            accessToken: String? = nil,
+            refreshToken: String? = nil
+        ) -> ServerCredentials {
+            return ServerCredentials(token: token, accessToken: accessToken, refreshToken: refreshToken)
+        }
+    }
+#endif
+
 @Mockable
-public protocol ServerCredentialsStoring {
+public protocol ServerCredentialsStoring: Sendable {
     /// It stores the credentials for the server with the given URL.
     /// - Parameters:
     ///   - credentials: Credentials to be stored.
@@ -59,7 +71,7 @@ enum ServerCredentialsStoreError: FatalError {
     var description: String {
         switch self {
         case .credentialsNotFound:
-            return "You are not authenticated. Authenticate by running `tuist auth`."
+            return "You are not authenticated. Authenticate by running 'tuist auth login'."
         case let .xcdgHomePathNotAbsolute(path):
             return "We expected the value of the XDG_CONFIG_HOME environment variable, \(path), to be an absolute path but it's not."
         case let .invalidServerURL(url):

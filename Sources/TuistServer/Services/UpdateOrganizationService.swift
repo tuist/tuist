@@ -56,6 +56,9 @@ public final class UpdateOrganizationService: UpdateOrganizationServicing {
             case let .google(organizationId):
                 ssoProvider = .google
                 ssoOrganizationId = organizationId
+            case let .okta(organizationId):
+                ssoProvider = .okta
+                ssoOrganizationId = organizationId
             }
         } else {
             ssoOrganizationId = nil

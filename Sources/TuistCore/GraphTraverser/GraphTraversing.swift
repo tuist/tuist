@@ -79,7 +79,7 @@ public protocol GraphTraversing {
     /// - Returns: All direct and transitive target dependencies, traversing from the passed targets
     func allTargetDependencies(traversingFromTargets: [GraphTarget]) -> Set<GraphTarget>
 
-    /// Given a project directory and target name, it returns **all**l its direct target dependencies present in the same project.
+    /// Given a project directory and target name, it returns **all** its direct target dependencies present in the same project.
     /// If you want only direct target dependencies present in the same project as the target, use `directLocalTargetDependencies`
     /// instead
     /// - Parameters:
@@ -154,6 +154,14 @@ public protocol GraphTraversing {
     ///   - path: Path to the directory that contains the project.
     ///   - name: Target name
     func copyProductDependencies(path: AbsolutePath, name: String) -> Set<GraphDependencyReference>
+
+    /// Given a project directory and a target name, it returns a list of dependencies that need to be included in a copy
+    /// executables build phase
+    ///
+    /// - Parameters:
+    ///   - path: Path to the directory that contains the project.
+    ///   - name: Target name
+    func executableDependencies(path: AbsolutePath, name: String) -> Set<GraphDependencyReference>
 
     /// Given a project directory and a target name, it returns the list of header folders that should be exposed to the target.
     /// - Parameters:

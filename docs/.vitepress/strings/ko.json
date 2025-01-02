@@ -1,41 +1,54 @@
 {
+  "aside": {
+    "translate": {
+      "title": {
+        "text": "번역"
+      },
+      "description": {
+        "text": "이 페이지를 번역하거나 기존 번역을 개선할 수 있습니다."
+      },
+      "cta": {
+        "text": "기여"
+      }
+    }
+  },
   "search": {
-    "placeholder": "Search",
+    "placeholder": "검색",
     "translations": {
       "button": {
-        "button-text": "Search documentation",
-        "button-aria-label": "Search documentation"
+        "button-text": "문서 검색",
+        "button-aria-label": "문서 검색"
       },
       "modal": {
         "search-box": {
-          "reset-button-title": "Clear query",
-          "reset-button-aria-label": "Clear query",
-          "cancel-button-text": "Cancel",
-          "cancel-button-aria-label": "Cancel"
+          "reset-button-title": "검색어 초기화",
+          "reset-button-aria-label": "검색어 초기화",
+          "cancel-button-text": "취소",
+          "cancel-button-aria-label": "취소"
         },
         "start-screen": {
-          "recent-searches-title": "Search history",
-          "no-recent-searches-text": "No search history",
-          "save-recent-search-button-title": "Save to search history",
-          "remove-recent-search-button-title": "Remove from search history",
-          "favorite-searches-title": "Favorites",
-          "remove-favorite-search-button-title": "Remove from favorites"
+          "recent-searches-title": "검색 이력",
+          "no-recent-searches-text": "검색 이력이 없음",
+          "save-recent-search-button-title": "검색 이력 저장",
+          "remove-recent-search-button-title": "검색 이력 삭제",
+          "favorite-searches-title": "즐겨찾기",
+          "remove-favorite-search-button-title": "즐겨찾기 삭제"
         },
         "error-screen": {
-          "title-text": "Unable to retrieve results",
-          "help-text": "You may need to check your network connection"
+          "title-text": "결과를 받을 수 없음",
+          "help-text": "네트워크 연결을 확인해주세요"
         },
         "footer": {
-          "select-text": "Select",
-          "navigate-text": "Navigate",
-          "close-text": "Close",
-          "search-by-text": "Search provider"
+          "select-text": "선택",
+          "navigate-text": "탐색",
+          "close-text": "닫기",
+          "search-by-text": "검색 제공자"
         },
         "no-results-screen": {
-          "no-results-text": "No relevant results found",
-          "suggested-query-text": "You might try querying",
-          "report-missing-results-text": "Do you think this query should have results?",
-          "report-missing-results-link-text": "Click to give feedback"
+          "no-results-text": "관련된 결과를 찾을 수 없음",
+          "suggested-query-text": "다른 검색어를 입력해보세요",
+          "report-missing-results-text": "검색 결과가 있어야 한다고 생각하나요?",
+          "report-missing-results-link-text": "피드백하기"
         }
       }
     }
@@ -46,25 +59,25 @@
   },
   "navbar": {
     "guides": {
-      "text": "Guides"
+      "text": "안내서"
     },
     "cli": {
       "text": "CLI"
     },
     "server": {
-      "text": "Server"
+      "text": "서버"
     },
     "resources": {
-      "text": "Resources",
+      "text": "리소스",
       "items": {
         "references": {
-          "text": "References"
+          "text": "참고자료"
         },
         "contributors": {
-          "text": "Contributors"
+          "text": "기여자들"
         },
         "changelog": {
-          "text": "Changelog"
+          "text": "수정사항"
         }
       }
     }
@@ -104,10 +117,13 @@
           "text": "Issue reporting"
         },
         "code-reviews": {
-          "text": "Code reviwes"
+          "text": "Code reviews"
         },
         "principles": {
           "text": "Principles"
+        },
+        "translate": {
+          "text": "Translate"
         }
       }
     },
@@ -148,12 +164,12 @@
           "text": "Status"
         },
         "metrics-dashboard": {
-          "text": "Metrics dashboard"
+          "text": "통계 현황판"
         }
       }
     },
     "guides": {
-      "text": "Guides",
+      "text": "안내서",
       "items": {
         "quick-start": {
           "text": "Quick start",
@@ -249,14 +265,17 @@
               "items": {
                 "cache": {
                   "text": "Cache"
+                },
+                "registry": {
+                  "text": "Registry"
                 }
               }
             },
             "test": {
               "text": "Test",
               "items": {
-                "smart-runner": {
-                  "text": "Smart runner"
+                "selective-testing": {
+                  "text": "Selective testing"
                 },
                 "flakiness": {
                   "text": "Flakiness"

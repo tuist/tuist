@@ -1,5 +1,6 @@
 ---
 title: Create a project
+titleTemplate: :title · Quick-start · Guides · Tuist
 description: Tuist에서 첫 프로젝트를 만들어 보세요.
 ---
 
@@ -13,7 +14,7 @@ cd MyApp
 tuist init --name MyApp
 ```
 
-기본적으로 **iOS application** 프로젝트가 생성됩니다. 프로젝트 디렉터리에는 프로젝트를 설명하는 `Project.swift`, 프로젝트의 Tuist 구성이 포함된 `Tuist/Config.swift`, application의 소스 코드가 포함된 `MyApp/` 디렉터리가 포함됩니다.
+이것은 기본적으로 **iOS 애플리케이션** 프로젝트를 생성합니다. 프로젝트 디렉토리는 프로젝트를 나타내는 `Project.swift`, 프로젝트 범위의 Tuist 구성을 나타내는 `Tuist.swift`, 그리고 애플리케이션의 소스 코드를 포함하는 `MyApp/` 디렉토리를 포함합니다.
 
 Xcode에서 작업하려면, Xcode 프로젝트를 실행하여 생성할 수 있습니다.
 
@@ -23,7 +24,7 @@ tuist generate
 
 직접 열고 편집할 수 있는 Xcode 프로젝트와 달리, Tuist 프로젝트는 manifest 파일에서 생성됩니다. 즉, 생성된 Xcode 프로젝트를 직접 편집해서는 안 됩니다.
 
-> [!팁] Conflicts가 없고 사용자 친화적인 환경  Xcode 프로젝트는 Conflicts가 발생하기 쉽고 개발자가 다루기에 매우 복잡합니다. Tuist는 특히 프로젝트의 종속성 그래프 관리 영역에서 이를 추상화 합니다.
+> [!TIP] Conflicts가 없고 사용자 친화적인 환경  Xcode 프로젝트는 Conflicts가 발생하기 쉽고 개발자가 다루기에 매우 복잡합니다. Tuist는 특히 프로젝트의 종속성 그래프 관리 영역에서 이를 추상화 합니다.
 
 ## Build the app {#build-the-app}
 
@@ -45,4 +46,4 @@ tuist test
 
 `build` 명령과 마찬가지로 `test` 명령도 플랫폼의 테스트 러너(예: `xcodebuild test`)를 사용하지만, Tuist의 테스트 기능과 최적화의 이점을 추가로 제공합니다.
 
-> [!팁] 기본 빌드 시스템에 인수 전달하기 `build`와 `test` 모두 `--` 뒤에 추가 인수를 받아 기본 빌드 시스템으로 전달할 수 있습니다.
+> [!TIP] 기본 빌드 시스템에 인수 전달하기 `build`와 `test` 모두 `--` 뒤에 추가 인수를 받아 기본 빌드 시스템으로 전달할 수 있습니다.

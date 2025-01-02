@@ -30,7 +30,7 @@ struct ProjectShowService {
 
     init(
         opener: Opening = Opener(),
-        configLoader: ConfigLoading = ConfigLoader(),
+        configLoader: ConfigLoading = ConfigLoader(warningController: WarningController.shared),
         serverURLService: ServerURLServicing = ServerURLService(),
         getProjectService: GetProjectServicing = GetProjectService()
     ) {
@@ -72,6 +72,7 @@ struct ProjectShowService {
             }
 
             projectInfo.append("Default branch: \(project.defaultBranch)")
+            projectInfo.append("Visibility: \(project.visibility.rawValue)")
 
             logger.info("\(projectInfo.joined(separator: "\n"))")
         }

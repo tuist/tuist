@@ -32,102 +32,102 @@ function getSearchOptionsForLocale(locale) {
       button: {
         buttonText: localizedString(
           locale,
-          "search.translations.button.buttonText"
+          "search.translations.button.buttonText",
         ),
         buttonAriaLabel: localizedString(
           locale,
-          "search.translations.button.buttonAriaLabel"
+          "search.translations.button.buttonAriaLabel",
         ),
       },
       modal: {
         searchBox: {
           resetButtonTitle: localizedString(
             locale,
-            "search.translations.modal.search-box.reset-button-title"
+            "search.translations.modal.search-box.reset-button-title",
           ),
           resetButtonAriaLabel: localizedString(
             locale,
-            "search.translations.modal.search-box.reset-button-aria-label"
+            "search.translations.modal.search-box.reset-button-aria-label",
           ),
           cancelButtonText: localizedString(
             locale,
-            "search.translations.modal.search-box.cancel-button-text"
+            "search.translations.modal.search-box.cancel-button-text",
           ),
           cancelButtonAriaLabel: localizedString(
             locale,
-            "search.translations.modal.search-box.cancel-button-aria-label"
+            "search.translations.modal.search-box.cancel-button-aria-label",
           ),
         },
         startScreen: {
           recentSearchesTitle: localizedString(
             locale,
-            "search.translations.modal.start-screen.recent-searches-title"
+            "search.translations.modal.start-screen.recent-searches-title",
           ),
           noRecentSearchesText: localizedString(
             locale,
-            "search.translations.modal.start-screen.no-recent-searches-text"
+            "search.translations.modal.start-screen.no-recent-searches-text",
           ),
           saveRecentSearchButtonTitle: localizedString(
             locale,
-            "search.translations.modal.start-screen.save-recent-search-button-title"
+            "search.translations.modal.start-screen.save-recent-search-button-title",
           ),
           removeRecentSearchButtonTitle: localizedString(
             locale,
-            "search.translations.modal.start-screen.remove-recent-search-button-title"
+            "search.translations.modal.start-screen.remove-recent-search-button-title",
           ),
           favoriteSearchesTitle: localizedString(
             locale,
-            "search.translations.modal.start-screen.favorite-searches-title"
+            "search.translations.modal.start-screen.favorite-searches-title",
           ),
           removeFavoriteSearchButtonTitle: localizedString(
             locale,
-            "search.translations.modal.start-screen.remove-favorite-search-button-title"
+            "search.translations.modal.start-screen.remove-favorite-search-button-title",
           ),
         },
         errorScreen: {
           titleText: localizedString(
             locale,
-            "search.translations.modal.error-screen.title-text"
+            "search.translations.modal.error-screen.title-text",
           ),
           helpText: localizedString(
             locale,
-            "search.translations.modal.error-screen.help-text"
+            "search.translations.modal.error-screen.help-text",
           ),
         },
         footer: {
           selectText: localizedString(
             locale,
-            "search.translations.modal.footer.select-text"
+            "search.translations.modal.footer.select-text",
           ),
           navigateText: localizedString(
             locale,
-            "search.translations.modal.footer.navigate-text"
+            "search.translations.modal.footer.navigate-text",
           ),
           closeText: localizedString(
             locale,
-            "search.translations.modal.footer.close-text"
+            "search.translations.modal.footer.close-text",
           ),
           searchByText: localizedString(
             locale,
-            "search.translations.modal.footer.search-by-text"
+            "search.translations.modal.footer.search-by-text",
           ),
         },
         noResultsScreen: {
           noResultsText: localizedString(
             locale,
-            "search.translations.modal.no-results-screen.no-results-text"
+            "search.translations.modal.no-results-screen.no-results-text",
           ),
           suggestedQueryText: localizedString(
             locale,
-            "search.translations.modal.no-results-screen.suggested-query-text"
+            "search.translations.modal.no-results-screen.suggested-query-text",
           ),
           reportMissingResultsText: localizedString(
             locale,
-            "search.translations.modal.no-results-screen.report-missing-results-text"
+            "search.translations.modal.no-results-screen.report-missing-results-text",
           ),
           reportMissingResultsLinkText: localizedString(
             locale,
-            "search.translations.modal.no-results-screen.report-missing-results-link-text"
+            "search.translations.modal.no-results-screen.report-missing-results-link-text",
           ),
         },
       },
@@ -140,6 +140,7 @@ const searchOptionsLocales = {
   ko: getSearchOptionsForLocale("ko"),
   ja: getSearchOptionsForLocale("ja"),
   ru: getSearchOptionsForLocale("ru"),
+  es: getSearchOptionsForLocale("es"),
 };
 
 export default defineConfig({
@@ -147,7 +148,7 @@ export default defineConfig({
   titleTemplate: ":title | Tuist",
   description: "Scale your Xcode app development",
   srcDir: "docs",
-  lastUpdated: true,
+  lastUpdated: false,
   locales: {
     en: {
       label: "English",
@@ -169,6 +170,16 @@ export default defineConfig({
       lang: "ru",
       themeConfig: await themeConfig("ru"),
     },
+    es: {
+      label: "Castellano (Spanish)",
+      lang: "es",
+      themeConfig: await themeConfig("es"),
+    },
+    pt: {
+      label: "Português (Portuguese)",
+      lang: "pt",
+      themeConfig: await themeConfig("pt"),
+    },
   },
   cleanUrls: true,
   head: [
@@ -186,6 +197,24 @@ export default defineConfig({
       `
       !function(t){if(window.ko)return;window.ko=[],["identify","track","removeListeners","open","on","off","qualify","ready"].forEach(function(t){ko[t]=function(){var n=[].slice.call(arguments);return n.unshift(t),ko.push(n),ko}});var n=document.createElement("script");n.async=!0,n.setAttribute("src","https://cdn.getkoala.com/v1/pk_3f80a3529ec2914b714a3f740d10b12642b9/sdk.js"),(document.body || document.head).appendChild(n)}();
     `,
+    ],
+    ["meta", { property: "og:url", content: "https://docs.tuist.io" }, ""],
+    ["meta", { property: "og:type", content: "website" }, ""],
+    [
+      "meta",
+      { property: "og:image", content: "https://docs.tuist.io/images/og.jpeg" },
+      "",
+    ],
+    ["meta", { name: "twitter:card", content: "summary" }, ""],
+    ["meta", { property: "twitter:domain", content: "docs.tuist.io" }, ""],
+    ["meta", { property: "twitter:url", content: "https://docs.tuist.io" }, ""],
+    [
+      "meta",
+      {
+        name: "twitter:image",
+        content: "https://docs.tuist.io/images/og.jpeg",
+      },
+      "",
     ],
   ],
   sitemap: {
@@ -261,6 +290,8 @@ export default defineConfig({
 /guides/develop/workflows /guides/develop/continuous-integration/workflows 301
 /guides/dashboard/on-premise/install /server/on-premise/install 301
 /guides/dashboard/on-premise/metrics /server/on-premise/metrics 301
+/:locale/references/project-description/structs/config /:locale/references/project-description/structs/tuist  301
+/:locale/guides/develop/test/smart-runner /:locale/guides/develop/test/selective-testing 301
 /documentation/tuist/* / 301
 ${await fs.readFile(path.join(import.meta.dirname, "locale-redirects.txt"), {
   encoding: "utf-8",
@@ -271,9 +302,109 @@ ${await fs.readFile(path.join(import.meta.dirname, "locale-redirects.txt"), {
   themeConfig: {
     logo: "/logo.png",
     search: {
-      provider: "local",
+      provider: "algolia",
       options: {
+        appId: "5A3L9HI9VQ",
+        apiKey: "cd45f515fb1fbb720d633cb0f1257e7a",
+        indexName: "tuist",
         locales: searchOptionsLocales,
+        startUrls: ["https://tuist.dev/"],
+        renderJavaScript: false,
+        sitemaps: [],
+        exclusionPatterns: [],
+        ignoreCanonicalTo: false,
+        discoveryPatterns: ["https://tuist.dev/**"],
+        schedule: "at 05:10 on Saturday",
+        actions: [
+          {
+            indexName: "tuist",
+            pathsToMatch: ["https://tuist.dev/**"],
+            recordExtractor: ({ $, helpers }) => {
+              return helpers.docsearch({
+                recordProps: {
+                  lvl1: ".content h1",
+                  content: ".content p, .content li",
+                  lvl0: {
+                    selectors: "section.has-active div h2",
+                    defaultValue: "Documentation",
+                  },
+                  lvl2: ".content h2",
+                  lvl3: ".content h3",
+                  lvl4: ".content h4",
+                  lvl5: ".content h5",
+                },
+                indexHeadings: true,
+              });
+            },
+          },
+        ],
+        initialIndexSettings: {
+          vitepress: {
+            attributesForFaceting: ["type", "lang"],
+            attributesToRetrieve: ["hierarchy", "content", "anchor", "url"],
+            attributesToHighlight: ["hierarchy", "hierarchy_camel", "content"],
+            attributesToSnippet: ["content:10"],
+            camelCaseAttributes: ["hierarchy", "hierarchy_radio", "content"],
+            searchableAttributes: [
+              "unordered(hierarchy_radio_camel.lvl0)",
+              "unordered(hierarchy_radio.lvl0)",
+              "unordered(hierarchy_radio_camel.lvl1)",
+              "unordered(hierarchy_radio.lvl1)",
+              "unordered(hierarchy_radio_camel.lvl2)",
+              "unordered(hierarchy_radio.lvl2)",
+              "unordered(hierarchy_radio_camel.lvl3)",
+              "unordered(hierarchy_radio.lvl3)",
+              "unordered(hierarchy_radio_camel.lvl4)",
+              "unordered(hierarchy_radio.lvl4)",
+              "unordered(hierarchy_radio_camel.lvl5)",
+              "unordered(hierarchy_radio.lvl5)",
+              "unordered(hierarchy_radio_camel.lvl6)",
+              "unordered(hierarchy_radio.lvl6)",
+              "unordered(hierarchy_camel.lvl0)",
+              "unordered(hierarchy.lvl0)",
+              "unordered(hierarchy_camel.lvl1)",
+              "unordered(hierarchy.lvl1)",
+              "unordered(hierarchy_camel.lvl2)",
+              "unordered(hierarchy.lvl2)",
+              "unordered(hierarchy_camel.lvl3)",
+              "unordered(hierarchy.lvl3)",
+              "unordered(hierarchy_camel.lvl4)",
+              "unordered(hierarchy.lvl4)",
+              "unordered(hierarchy_camel.lvl5)",
+              "unordered(hierarchy.lvl5)",
+              "unordered(hierarchy_camel.lvl6)",
+              "unordered(hierarchy.lvl6)",
+              "content",
+            ],
+            distinct: true,
+            attributeForDistinct: "url",
+            customRanking: [
+              "desc(weight.pageRank)",
+              "desc(weight.level)",
+              "asc(weight.position)",
+            ],
+            ranking: [
+              "words",
+              "filters",
+              "typo",
+              "attribute",
+              "proximity",
+              "exact",
+              "custom",
+            ],
+            highlightPreTag:
+              '<span class="algolia-docsearch-suggestion--highlight">',
+            highlightPostTag: "</span>",
+            minWordSizefor1Typo: 3,
+            minWordSizefor2Typos: 7,
+            allowTyposOnNumericTokens: false,
+            minProximity: 1,
+            ignorePlurals: true,
+            advancedSyntax: true,
+            attributeCriteriaComputedByMinProximity: true,
+            removeWordsIfNoResults: "allOptional",
+          },
+        },
       },
     },
     editLink: {
@@ -281,8 +412,8 @@ ${await fs.readFile(path.join(import.meta.dirname, "locale-redirects.txt"), {
     },
     socialLinks: [
       { icon: "github", link: "https://github.com/tuist/tuist" },
-      { icon: "x", link: "https://x.com/tuistio" },
       { icon: "mastodon", link: "https://fosstodon.org/@tuist" },
+      { icon: "bluesky", link: "https://bsky.app/profile/tuist.dev" },
       {
         icon: "slack",
         link: "https://join.slack.com/t/tuistapp/shared_invite/zt-1y667mjbk-s2LTRX1YByb9EIITjdLcLw",

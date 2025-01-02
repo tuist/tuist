@@ -1,15 +1,6 @@
 {
-  "originHash" : "de5a39263681a457f5ae8b66c966e957674db1a5f0df7a4d6b21efe02017a4f2",
+  "originHash" : "2fe7bf57c30f6c9b922cb028dcc0c2626a880cb72f465fbd21a96226807e3786",
   "pins" : [
-    {
-      "identity" : "alamofire",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/Alamofire/Alamofire",
-      "state" : {
-        "revision" : "b2fa556e4e48cbf06cf8c63def138c98f4b811fa",
-        "version" : "5.8.0"
-      }
-    },
     {
       "identity" : "appauth-ios",
       "kind" : "remoteSourceControl",
@@ -114,8 +105,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/gonzalezreal/NetworkImage",
       "state" : {
-        "revision" : "7aff8d1b31148d32c5933d75557d42f6323ee3d1",
-        "version" : "6.0.0"
+        "revision" : "2849f5323265386e200484b0d0f896e73c3411b9",
+        "version" : "6.0.1"
       }
     },
     {

@@ -21,7 +21,7 @@ final class OrganizationUpdateSSOService: OrganizationUpdateSSOServicing {
     init(
         updateOrganizationService: UpdateOrganizationServicing = UpdateOrganizationService(),
         serverURLService: ServerURLServicing = ServerURLService(),
-        configLoader: ConfigLoading = ConfigLoader()
+        configLoader: ConfigLoading = ConfigLoader(warningController: WarningController.shared)
     ) {
         self.updateOrganizationService = updateOrganizationService
         self.serverURLService = serverURLService
@@ -46,6 +46,8 @@ final class OrganizationUpdateSSOService: OrganizationUpdateSSOServicing {
         switch provider {
         case .google:
             ssoOrganization = .google(organizationId)
+        case .okta:
+            ssoOrganization = .okta(organizationId)
         }
 
         let serverURL = try serverURLService.url(configServerURL: config.url)

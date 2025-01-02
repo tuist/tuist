@@ -1,12 +1,13 @@
 ---
 title: Issue報告
-titleTemplate: :title - Tuist に貢献する
+titleTemplate: :title · Contributors · Tuist
 description: バグを報告してTuist に貢献する方法を学ぶ
 ---
 
 # Issue の報告 {#issue-reporting}
 
 Tuist のユーザーとして、バグや予期しない動作に遭遇することがあるかもしれません。
+その場合は、ぜひ報告してください。私たちが修正に取り組みます。
 その場合は、ぜひ報告してください。私たちが修正に取り組みます。
 
 ## GitHub Issues は当プロジェクトのチケット管理プラットフォームです {#github-issues-is-our-ticketing-platform}
@@ -26,7 +27,7 @@ Tuist のユーザーとして、バグや予期しない動作に遭遇する�
 
 ## 再現可能なプロジェクト {#reproducible-project}
 
-### 再現可能なプロジェクトとは？ {#what-is-a-reproducible-project}
+### 再現可能なプロジェクトとは？ 再現可能なプロジェクトとは?
 
 A reproducible project is a small Tuist project to demonstrate a problem - often this problem is caused by a bug in Tuist. Your reproducible project should contain the bare minimum features needed to clearly demonstrate the bug.
 

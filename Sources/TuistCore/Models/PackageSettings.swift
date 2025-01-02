@@ -13,13 +13,10 @@ public struct PackageSettings: Equatable, Codable {
     public let baseSettings: Settings
 
     /// The custom `Settings` to be applied to SPM targets
-    public let targetSettings: [String: SettingsDictionary]
+    public let targetSettings: [String: Settings]
 
     /// The custom project options for each project generated from a swift package
     public let projectOptions: [String: XcodeGraph.Project.Options]
-
-    /// Swift tools version of the parsed `Package.swift`
-    public let swiftToolsVersion: Version
 
     /// Initializes a new `PackageSettings` instance.
     /// - Parameters:
@@ -31,16 +28,14 @@ public struct PackageSettings: Equatable, Codable {
         productTypes: [String: Product],
         productDestinations: [String: Destinations],
         baseSettings: Settings,
-        targetSettings: [String: SettingsDictionary],
-        projectOptions: [String: XcodeGraph.Project.Options] = [:],
-        swiftToolsVersion: Version
+        targetSettings: [String: Settings],
+        projectOptions: [String: XcodeGraph.Project.Options] = [:]
     ) {
         self.productTypes = productTypes
         self.productDestinations = productDestinations
         self.baseSettings = baseSettings
         self.targetSettings = targetSettings
         self.projectOptions = projectOptions
-        self.swiftToolsVersion = swiftToolsVersion
     }
 }
 
@@ -50,17 +45,15 @@ public struct PackageSettings: Equatable, Codable {
             productTypes: [String: Product] = [:],
             productDestinations: [String: Destinations] = [:],
             baseSettings: Settings = Settings.default,
-            targetSettings: [String: SettingsDictionary] = [:],
-            projectOptions: [String: XcodeGraph.Project.Options] = [:],
-            swiftToolsVersion: Version = Version("5.4.9")
+            targetSettings: [String: Settings] = [:],
+            projectOptions: [String: XcodeGraph.Project.Options] = [:]
         ) -> PackageSettings {
             PackageSettings(
                 productTypes: productTypes,
                 productDestinations: productDestinations,
                 baseSettings: baseSettings,
                 targetSettings: targetSettings,
-                projectOptions: projectOptions,
-                swiftToolsVersion: swiftToolsVersion
+                projectOptions: projectOptions
             )
         }
     }

@@ -2,22 +2,29 @@ import Foundation
 
 /// Server project
 public struct ServerProject: Codable {
+    public enum Visibility: String, Codable {
+        case `public`, `private`
+    }
+
     public init(
         id: Int,
         fullName: String,
         defaultBranch: String,
-        repositoryURL: String?
+        repositoryURL: String?,
+        visibility: Visibility
     ) {
         self.id = id
         self.fullName = fullName
         self.defaultBranch = defaultBranch
         self.repositoryURL = repositoryURL
+        self.visibility = visibility
     }
 
     public let id: Int
     public let fullName: String
     public let defaultBranch: String
     public let repositoryURL: String?
+    public let visibility: Visibility
 }
 
 extension ServerProject {
@@ -26,6 +33,12 @@ extension ServerProject {
         fullName = project.full_name
         defaultBranch = project.default_branch
         repositoryURL = project.repository_url
+        visibility = switch project.visibility {
+        case ._private:
+            .private
+        case ._public:
+            .public
+        }
     }
 }
 
@@ -35,13 +48,15 @@ extension ServerProject {
             id: Int = 0,
             fullName: String = "test/test",
             defaultBranch: String = "main",
-            repositoryURL: String? = nil
+            repositoryURL: String? = nil,
+            visibility: Visibility = .private
         ) -> Self {
             .init(
                 id: id,
                 fullName: fullName,
                 defaultBranch: defaultBranch,
-                repositoryURL: repositoryURL
+                repositoryURL: repositoryURL,
+                visibility: visibility
             )
         }
     }

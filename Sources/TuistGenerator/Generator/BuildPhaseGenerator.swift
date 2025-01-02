@@ -151,6 +151,17 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
             pbxproj: pbxproj
         )
 
+        if target.canEmbedPlugins() {
+            try generateEmbedPluginsBuildPhase(
+                path: path,
+                target: target,
+                graphTraverser: graphTraverser,
+                pbxTarget: pbxTarget,
+                fileElements: fileElements,
+                pbxproj: pbxproj
+            )
+        }
+
         if target.canEmbedSystemExtensions() {
             try generateEmbedSystemExtensionBuildPhase(
                 path: path,
@@ -469,8 +480,11 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
 
         copySwiftMacrosBuildPhase.inputPaths = executableNames.map { "$BUILD_DIR/$CONFIGURATION/\($0)" }
 
-        copySwiftMacrosBuildPhase.outputPaths = executableNames.map { executable in
-            "$BUILD_DIR/Debug-$EFFECTIVE_PLATFORM_NAME/\(executable)"
+        copySwiftMacrosBuildPhase.outputPaths = executableNames.flatMap { executable in
+            [
+                "$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/\(executable)",
+                "$BUILD_DIR/Debug-$EFFECTIVE_PLATFORM_NAME/\(executable)",
+            ]
         }
 
         pbxproj.add(object: copySwiftMacrosBuildPhase)
@@ -710,6 +724,42 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
 
         pbxBuildFiles.forEach { pbxproj.add(object: $0) }
         embedXPCServicesBuildPhase.files = pbxBuildFiles
+    }
+
+    func generateEmbedPluginsBuildPhase(
+        path: AbsolutePath,
+        target: Target,
+        graphTraverser: GraphTraversing,
+        pbxTarget: PBXTarget,
+        fileElements: ProjectFileElements,
+        pbxproj: PBXProj
+    ) throws {
+        let targetDependencies = graphTraverser.directLocalTargetDependencies(path: path, name: target.name).sorted()
+        let plugins = targetDependencies.filter { $0.target.isEmbeddablePlugin() }
+        guard !plugins.isEmpty else { return }
+
+        let embedPluginsBuildPhase = PBXCopyFilesBuildPhase(
+            dstSubfolderSpec: .plugins,
+            name: "Embed PlugIns"
+        )
+        pbxproj.add(object: embedPluginsBuildPhase)
+        pbxTarget.buildPhases.append(embedPluginsBuildPhase)
+
+        let pbxBuildFiles: [PBXBuildFile] = plugins.compactMap { graphTarget in
+            guard let fileReference = fileElements.product(target: graphTarget.target.name) else { return nil }
+
+            let pbxBuildFile = PBXBuildFile(
+                file: fileReference,
+                settings: ["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]]
+            )
+            if target.supportsCatalyst {
+                pbxBuildFile.applyPlatformFilters([.catalyst])
+            }
+            return pbxBuildFile
+        }
+
+        pbxBuildFiles.forEach { pbxproj.add(object: $0) }
+        embedPluginsBuildPhase.files = pbxBuildFiles
     }
 
     func generateEmbedSystemExtensionBuildPhase(

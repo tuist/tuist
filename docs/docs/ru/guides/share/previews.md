@@ -1,5 +1,6 @@
 ---
 title: Previews
+titleTemplate: :title · Share · Guides · Tuist
 description: Learn how to generate and share previews of your apps with anyone.
 ---
 
@@ -47,6 +48,14 @@ tuist run --device "My iPhone" {url} # Run the app on a specific device
 When sharing an `.ipa` file, you can download the app directly from the mobile device using the Preview link.
 The links to `.ipa` previews are by default _public_. In the future, you will have an option to make them private, so that the recipient of the link would need to authenticate with their Tuist account to download the app.
 
+`tuist run` also enables you to run a latest preview based on a specifier such as `latest`, branch name, or a specific commit hash:
+
+```bash
+tuist run App@latest # Runs latest App preview associated with the project's default branch
+tuist run App@my-feature-branch # Runs latest App preview associated with a given branch
+tuist run App@00dde7f56b1b8795a26b8085a781fb3715e834be # Runs latest App preview associated with a given git commit sha
+```
+
 > [!IMPORTANT] PREVIEWS' VISIBILITY
 > Only people with access to the organization the project belongs to can access the previews. We plan to add support for expiring links.
 
@@ -54,12 +63,12 @@ The links to `.ipa` previews are by default _public_. In the future, you will ha
 
 <div style="display: flex; flex-direction: column; align-items: center;">
     <img src="/public/logo.png" style="height: 100px;" />
-    <h1>Tuist</h1>
-    
-    <a href="https://cloud.tuist.io/download" style="text-decoration: none;">Download</a><img src="/images/guides/share/menu-bar-app.png" style="width: 300px;" />
+    <h1>Tuist</h1><a href="https://cloud.tuist.io/download" style="text-decoration: none;">Download</a><img src="/images/guides/share/menu-bar-app.png" style="width: 300px;" /><img src="/images/guides/share/menu-bar-app.png" style="width: 300px;" />
 </div>
 
-To make running Tuist Previews even easier, we developed a Tuist macOS menu bar app. Instead of running Previews via the Tuist CLI, you can [download](https://cloud.tuist.io/download) the macOS app. When you open a Preview link in the browser, the app will automatically launch on your currently selected device.
+To make running Tuist Previews even easier, we developed a Tuist macOS menu bar app. Instead of running Previews via the Tuist CLI, you can [download](https://tuist.dev/download) the macOS app. You can also install the app by running `brew install --cask tuist/tuist/tuist`.
+
+When you now click on "Run" in the Preview page, the macOS app will automatically launch it on your currently selected device.
 
 > [!IMPORTANT] REQUIREMENTS
 > To download Previews, you need to first authenticate with the `tuist auth` command.
@@ -76,6 +85,18 @@ Testing new functionality should be a part of any code review. But having to bui
 
 Once your Tuist project is connected with your Git platform such as [GitHub](https://github.com), add a <LocalizedLink href="/cli/share">`tuist share MyApp`</LocalizedLink> to your CI workflow. Tuist will then post a Preview link directly in your pull requests:
 ![GitHub app comment with a Tuist Preview link](/images/guides/share/github-app-with-preview.png)
+
+## README badge {#readme-badge}
+
+To make Tuist Previews more visible in your repository, you can add a badge to your `README` file that points to the latest Tuist Preview:
+
+[![Tuist Preview](https://tuist.dev/Dimillian/IcySky/previews/latest/badge.svg)](https://tuist.dev/Dimillian/IcySky/previews/latest)
+
+To add the badge to your `README`, use the following markdown and replace the account and project handles with your own:
+
+```
+[![Tuist Preview](https://tuist.dev/{account-handle}/{project-handle}/previews/latest/badge.svg)](https://tuist.dev/{account-handle}/{project-handle}/previews/latest)
+```
 
 ## Automations {#automations}
 

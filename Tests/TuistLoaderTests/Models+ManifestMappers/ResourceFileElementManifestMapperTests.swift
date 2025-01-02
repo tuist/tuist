@@ -41,6 +41,95 @@ final class ResourceFileElementManifestMapperTests: TuistUnitTestCase {
         XCTAssertEqual(model, [])
     }
 
+    func test_from_outputs_a_warning_when_no_files_found() async throws {
+        // Given
+        let temporaryPath = try temporaryPath()
+        let rootDirectory = temporaryPath
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: rootDirectory
+        )
+
+        try await fileSystem.makeDirectory(at: rootDirectory.appending(component: "Resources"))
+
+        let manifest = ProjectDescription.ResourceFileElement.glob(pattern: "Resources/**")
+
+        // When
+        let model = try await XcodeGraph.ResourceFileElement.from(
+            manifest: manifest,
+            generatorPaths: generatorPaths,
+            fileSystem: fileSystem
+        )
+
+        // Then
+        XCTAssertPrinterOutputContains(
+            "No files found at: \(rootDirectory.appending(components: "Resources", "**"))"
+        )
+        XCTAssertEqual(model, [])
+    }
+
+    func test_from_outputs_a_warning_when_no_files_found_in_opaque_directory() async throws {
+        // Given
+        let temporaryPath = try temporaryPath()
+        let rootDirectory = temporaryPath
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: rootDirectory
+        )
+
+        let assetsDirectory = rootDirectory.appending(components: "Resources", "Assets.xcassets")
+        try await fileSystem.makeDirectory(at: assetsDirectory)
+
+        let manifest = ProjectDescription.ResourceFileElement.glob(pattern: "Resources/Assets.xcassets/**")
+
+        // When
+        let model = try await XcodeGraph.ResourceFileElement.from(
+            manifest: manifest,
+            generatorPaths: generatorPaths,
+            fileSystem: fileSystem
+        )
+
+        // Then
+        XCTAssertPrinterOutputContains(
+            "No files found at: \(assetsDirectory.appending(components: "**"))"
+        )
+        XCTAssertEqual(model, [])
+    }
+
+    func test_from_when_files_found_in_opaque_directory() async throws {
+        // Given
+        let temporaryPath = try temporaryPath()
+        let rootDirectory = temporaryPath
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: rootDirectory
+        )
+
+        let assetsDirectory = rootDirectory.appending(components: "Resources", "Assets.xcassets")
+        try await fileSystem.makeDirectory(at: assetsDirectory)
+        try await fileSystem.touch(assetsDirectory.appending(component: "image.png"))
+
+        let manifest = ProjectDescription.ResourceFileElement.glob(pattern: "Resources/Assets.xcassets/**")
+
+        // When
+        let model = try await XcodeGraph.ResourceFileElement.from(
+            manifest: manifest,
+            generatorPaths: generatorPaths,
+            fileSystem: fileSystem
+        )
+
+        // Then
+        XCTAssertPrinterOutputNotContains(
+            "No files found at: \(assetsDirectory.appending(components: "**"))"
+        )
+        XCTAssertEqual(
+            model,
+            [
+                .file(path: assetsDirectory, tags: [], inclusionCondition: nil),
+            ]
+        )
+    }
+
     func test_from_outputs_a_warning_when_the_folder_reference_is_invalid() async throws {
         // Given
         let temporaryPath = try temporaryPath()
@@ -141,7 +230,6 @@ final class ResourceFileElementManifestMapperTests: TuistUnitTestCase {
         XCTAssertEqual(
             got,
             [
-                .file(path: resourcesFolder, tags: []),
                 .file(path: includedResource, tags: []),
             ]
         )
@@ -174,7 +262,6 @@ final class ResourceFileElementManifestMapperTests: TuistUnitTestCase {
         XCTAssertEqual(
             got,
             [
-                .file(path: resourcesFolder, tags: []),
                 .file(path: includedResource, tags: []),
             ]
         )
@@ -204,10 +291,9 @@ final class ResourceFileElementManifestMapperTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(
+        XCTAssertBetterEqual(
             got,
             [
-                .file(path: resourcesFolder, tags: []),
                 .file(path: includedResource, tags: []),
             ]
         )

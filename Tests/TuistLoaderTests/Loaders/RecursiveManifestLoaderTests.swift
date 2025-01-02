@@ -57,7 +57,7 @@ final class RecursiveManifestLoaderTests: TuistUnitTestCase {
     func test_loadProject_loadingSingleProject() async throws {
         // Given
         let projectA = createProject(name: "ProjectA")
-        try stub(manifest: projectA, at: try RelativePath(validating: "Some/Path/A"))
+        try await stub(manifest: projectA, at: try RelativePath(validating: "Some/Path/A"))
 
         // When
         let manifests = try await subject.loadWorkspace(at: path.appending(try RelativePath(validating: "Some/Path/A")))
@@ -91,9 +91,9 @@ final class RecursiveManifestLoaderTests: TuistUnitTestCase {
                 "TargetC": [],
             ]
         )
-        try stub(manifest: projectA, at: try RelativePath(validating: "Some/Path/A"))
-        try stub(manifest: projectB, at: try RelativePath(validating: "Some/Path/B"))
-        try stub(manifest: projectC, at: try RelativePath(validating: "Some/Path/C"))
+        try await stub(manifest: projectA, at: try RelativePath(validating: "Some/Path/A"))
+        try await stub(manifest: projectB, at: try RelativePath(validating: "Some/Path/B"))
+        try await stub(manifest: projectC, at: try RelativePath(validating: "Some/Path/C"))
 
         // When
         let manifests = try await subject.loadWorkspace(at: path.appending(try RelativePath(validating: "Some/Path/A")))
@@ -141,11 +141,11 @@ final class RecursiveManifestLoaderTests: TuistUnitTestCase {
                 "TargetE": [],
             ]
         )
-        try stub(manifest: projectA, at: try RelativePath(validating: "Some/Path/A"))
-        try stub(manifest: projectB, at: try RelativePath(validating: "Some/Path/B"))
-        try stub(manifest: projectC, at: try RelativePath(validating: "Some/Path/C"))
-        try stub(manifest: projectD, at: try RelativePath(validating: "Some/Path/D"))
-        try stub(manifest: projectE, at: try RelativePath(validating: "Some/Path/E"))
+        try await stub(manifest: projectA, at: try RelativePath(validating: "Some/Path/A"))
+        try await stub(manifest: projectB, at: try RelativePath(validating: "Some/Path/B"))
+        try await stub(manifest: projectC, at: try RelativePath(validating: "Some/Path/C"))
+        try await stub(manifest: projectD, at: try RelativePath(validating: "Some/Path/D"))
+        try await stub(manifest: projectE, at: try RelativePath(validating: "Some/Path/E"))
 
         // When
         let manifests = try await subject.loadWorkspace(at: path.appending(try RelativePath(validating: "Some/Path/A")))
@@ -170,7 +170,7 @@ final class RecursiveManifestLoaderTests: TuistUnitTestCase {
                 ],
             ]
         )
-        try stub(manifest: projectA, at: try RelativePath(validating: "Some/Path/A"))
+        try await stub(manifest: projectA, at: try RelativePath(validating: "Some/Path/A"))
 
         // When / Then
         await XCTAssertThrowsSpecific(
@@ -208,9 +208,9 @@ final class RecursiveManifestLoaderTests: TuistUnitTestCase {
             ]
         )
 
-        try stub(manifest: projectA, at: try RelativePath(validating: "Some/Path/A"))
-        try stub(manifest: projectB, at: try RelativePath(validating: "Some/Path/B"))
-        try stub(manifest: projectC, at: try RelativePath(validating: "Some/Path/C"))
+        try await stub(manifest: projectA, at: try RelativePath(validating: "Some/Path/A"))
+        try await stub(manifest: projectB, at: try RelativePath(validating: "Some/Path/B"))
+        try await stub(manifest: projectC, at: try RelativePath(validating: "Some/Path/C"))
         try stub(manifest: workspace, at: try RelativePath(validating: "Some/Path"))
 
         // When
@@ -254,9 +254,9 @@ final class RecursiveManifestLoaderTests: TuistUnitTestCase {
             ]
         )
 
-        try stub(manifest: projectA, at: try RelativePath(validating: "Some/Path/A"))
-        try stub(manifest: projectB, at: try RelativePath(validating: "Some/Path/B"))
-        try stub(manifest: projectC, at: try RelativePath(validating: "Some/Path/C"))
+        try await stub(manifest: projectA, at: try RelativePath(validating: "Some/Path/A"))
+        try await stub(manifest: projectB, at: try RelativePath(validating: "Some/Path/B"))
+        try await stub(manifest: projectC, at: try RelativePath(validating: "Some/Path/C"))
         try stub(manifest: workspace, at: try RelativePath(validating: "Some/Path"))
 
         // When
@@ -291,7 +291,7 @@ final class RecursiveManifestLoaderTests: TuistUnitTestCase {
             ]
         )
 
-        try stub(manifest: projectA, at: try RelativePath(validating: "Some/Path"))
+        try await stub(manifest: projectA, at: try RelativePath(validating: "Some/Path"))
         try stub(manifest: workspace, at: try RelativePath(validating: "Some/Path"))
 
         // When
@@ -371,11 +371,12 @@ final class RecursiveManifestLoaderTests: TuistUnitTestCase {
     private func stub(
         manifest: Project,
         at relativePath: RelativePath
-    ) throws {
+    ) async throws {
         let manifestPath = path
             .appending(relativePath)
             .appending(component: Manifest.project.fileName(path.appending(relativePath)))
-        try fileHandler.touch(manifestPath)
+        try await fileSystem.makeDirectory(at: manifestPath.parentDirectory)
+        try await fileSystem.touch(manifestPath)
         projectManifests[manifestPath.parentDirectory] = manifest
     }
 

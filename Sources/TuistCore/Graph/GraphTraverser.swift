@@ -25,6 +25,7 @@ public class GraphTraverser: GraphTraversing {
 
     private let graph: Graph
     private let conditionCache = ConditionCache()
+    private let swiftPluginExecutablesCache = GraphCache<GraphDependency, Set<String>>()
     private let systemFrameworkMetadataProvider: SystemFrameworkMetadataProviding =
         SystemFrameworkMetadataProvider()
     private let targetDirectTargetDependenciesCache: ThreadSafe<[GraphTarget: [GraphTarget]]> =
@@ -186,6 +187,12 @@ public class GraphTraverser: GraphTraversing {
         return Set(convertToGraphTargetReferences(localTargetDependencies, for: target))
     }
 
+    /// Returns all direct target dependencies where the target is in another project.
+    private func directNonLocalTargetDependencies(path: Path.AbsolutePath, name: String) -> Set<GraphTargetReference> {
+        let dependencies = directTargetDependencies(path: path, name: name)
+        return dependencies.subtracting(directLocalTargetDependencies(path: path, name: name))
+    }
+
     func convertToGraphTargetReferences(
         _ dependencies: [(name: String, path: Path.AbsolutePath)],
         for target: GraphDependency
@@ -207,6 +214,16 @@ public class GraphTraverser: GraphTraversing {
         }
     }
 
+    private func executableNonLocalDependencies(path: Path.AbsolutePath, targetName: String) -> Set<GraphDependencyReference> {
+        let dependencies = directNonLocalTargetDependencies(path: path, name: targetName)
+            .filter {
+                [.app, .appExtension].contains($0.target.product)
+            }
+            .map { GraphDependencyReference.product(target: $0.target.name, productName: $0.target.productNameWithExtension) }
+
+        return Set(dependencies)
+    }
+
     public func resourceBundleDependencies(path: Path.AbsolutePath, name: String) -> Set<
         GraphDependencyReference
     > {
@@ -221,7 +238,8 @@ public class GraphTraverser: GraphTraversing {
             from: .target(name: name, path: path),
             test: { dependency in
                 isDependencyResourceBundle(dependency: dependency) &&
-                    !(isDependencyExternal(dependency) || dependency.isPrecompiled)
+                    !(isDependencyExternal(dependency) || dependency.isPrecompiled) &&
+                    !(target.canEmbedPlugins() && canDependencyEmbedAsPlugin(dependency: dependency))
             },
             skip: canHostResources
         )
@@ -264,7 +282,7 @@ public class GraphTraverser: GraphTraversing {
             .messagesExtension,
         ]
         return Set(
-            directLocalTargetDependencies(path: path, name: name)
+            directTargetDependencies(path: path, name: name)
                 .filter { validProducts.contains($0.target.product) }
         )
     }
@@ -614,9 +632,24 @@ public class GraphTraverser: GraphTraversing {
             )
         }
 
+        dependencies.formUnion(
+            executableNonLocalDependencies(path: path, targetName: target.target.name)
+        )
         dependencies.formUnion(resourceBundleDependencies(path: path, name: name))
 
         return Set(dependencies)
+    }
+
+    public func executableDependencies(
+        path: Path.AbsolutePath,
+        name: String
+    ) -> Set<GraphDependencyReference> {
+        let validProducts: [Product] = [.app]
+        return Set(
+            directNonLocalTargetDependencies(path: path, name: name)
+                .filter { validProducts.contains($0.target.product) }
+                .map { GraphDependencyReference.product(target: $0.target.name, productName: $0.target.productNameWithExtension) }
+        )
     }
 
     public func directSwiftMacroExecutables(path: Path.AbsolutePath, name: String) -> Set<
@@ -902,13 +935,21 @@ public class GraphTraverser: GraphTraversing {
     public func directTargetExternalDependencies(path: Path.AbsolutePath, name: String) -> Set<
         GraphTargetReference
     > {
-        directTargetDependencies(path: path, name: name).filter(\.graphTarget.project.isExternal)
+        directTargetDependencies(path: path, name: name)
+            .filter {
+                switch $0.graphTarget.project.type {
+                case .local:
+                    return false
+                case .external:
+                    return true
+                }
+            }
     }
 
     public func allExternalTargets() -> Set<GraphTarget> {
         Set(
             graph.projects.flatMap { path, project -> [GraphTarget] in
-                guard project.isExternal else { return [] }
+                guard case .external = project.type else { return [] }
                 return project.targets.values.map {
                     GraphTarget(path: path, target: $0, project: project)
                 }
@@ -952,70 +993,75 @@ public class GraphTraverser: GraphTraversing {
 
     // swiftlint:disable:next function_body_length
     public func allSwiftPluginExecutables(path: Path.AbsolutePath, name: String) -> Set<String> {
-        func precompiledMacroDependencies(_ graphDependency: GraphDependency) -> Set<
-            Path.AbsolutePath
-        > {
-            Set(
-                dependencies[graphDependency, default: Set()]
-                    .lazy
-                    .compactMap {
-                        if case let GraphDependency.macro(path) = $0 {
-                            return path
-                        } else {
-                            return nil
+        if let cached = swiftPluginExecutablesCache[.target(name: name, path: path)] {
+            return cached
+        } else {
+            func precompiledMacroDependencies(_ graphDependency: GraphDependency) -> Set<
+                Path.AbsolutePath
+            > {
+                Set(
+                    dependencies[graphDependency, default: Set()]
+                        .lazy
+                        .compactMap {
+                            if case let GraphDependency.macro(path) = $0 {
+                                return path
+                            } else {
+                                return nil
+                            }
                         }
-                    }
-            )
-        }
+                )
+            }
 
-        let precompiledMacroPluginExecutables = filterDependencies(
-            from: .target(name: name, path: path),
-            test: { dependency in
+            let precompiledMacroPluginExecutables = filterDependencies(
+                from: .target(name: name, path: path),
+                test: { dependency in
+                    switch dependency {
+                    case .xcframework:
+                        return !precompiledMacroDependencies(dependency).isEmpty
+                    case .macro:
+                        return true
+                    case .bundle, .library, .framework, .sdk, .target, .packageProduct:
+                        return false
+                    }
+                },
+                skip: { dependency in
+                    switch dependency {
+                    case .macro:
+                        return true
+                    case .bundle, .library, .framework, .sdk, .target, .packageProduct, .xcframework:
+                        return false
+                    }
+                }
+            )
+            .flatMap { dependency in
                 switch dependency {
                 case .xcframework:
-                    return !precompiledMacroDependencies(dependency).isEmpty
-                case .macro:
-                    return true
+                    return Array(precompiledMacroDependencies(dependency))
+                case let .macro(path):
+                    return [path]
                 case .bundle, .library, .framework, .sdk, .target, .packageProduct:
-                    return false
-                }
-            },
-            skip: { dependency in
-                switch dependency {
-                case .macro:
-                    return true
-                case .bundle, .library, .framework, .sdk, .target, .packageProduct, .xcframework:
-                    return false
+                    return []
                 }
             }
-        )
-        .flatMap { dependency in
-            switch dependency {
-            case .xcframework:
-                return Array(precompiledMacroDependencies(dependency))
-            case let .macro(path):
-                return [path]
-            case .bundle, .library, .framework, .sdk, .target, .packageProduct:
-                return []
-            }
+            .map { "\($0.pathString)#\($0.basename.replacingOccurrences(of: ".macro", with: ""))" }
+
+            let sourceMacroPluginExecutables = allSwiftMacroTargets(path: path, name: name)
+                .flatMap { target in
+                    directSwiftMacroExecutables(path: target.project.path, name: target.target.name).map
+                        { (target, $0) }
+                }
+                .compactMap { _, dependencyReference in
+                    switch dependencyReference {
+                    case let .product(_, productName, _, _):
+                        return "$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/\(productName)#\(productName)"
+                    default:
+                        return nil
+                    }
+                }
+            let result = Set(precompiledMacroPluginExecutables + sourceMacroPluginExecutables)
+            swiftPluginExecutablesCache[.target(name: name, path: path)] = result
+            return result
         }
-        .map { "\($0.pathString)#\($0.basename.replacingOccurrences(of: ".macro", with: ""))" }
-
-        let sourceMacroPluginExecutables = allSwiftMacroTargets(path: path, name: name)
-            .flatMap { target in
-                directSwiftMacroExecutables(path: target.project.path, name: target.target.name).map
-                    { (target, $0) }
-            }
-            .compactMap { _, dependencyReference in
-                switch dependencyReference {
-                case let .product(_, productName, _, _):
-                    return "$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/\(productName)#\(productName)"
-                default:
-                    return nil
-                }
-            }
-
-        return Set(precompiledMacroPluginExecutables + sourceMacroPluginExecutables)
     }
 
     // MARK: - Internal
@@ -1230,7 +1276,12 @@ public class GraphTraverser: GraphTraversing {
         guard let targetDependency = dependency.targetDependency,
               let project = graph.projects[targetDependency.path]
         else { return false }
-        return project.isExternal
+        switch project.type {
+        case .external:
+            return true
+        case .local:
+            return false
+        }
     }
 
     func isDependencyPrecompiledMacro(_ dependency: GraphDependency) -> Bool {
@@ -1390,8 +1441,15 @@ public class GraphTraverser: GraphTraversing {
         }
     }
 
+    private func canDependencyEmbedAsPlugin(dependency: GraphDependency) -> Bool {
+        guard case let GraphDependency.target(name, path, _) = dependency,
+              let graphTarget = target(path: path, name: name)
+        else { return false }
+        return graphTarget.target.isEmbeddablePlugin()
+    }
+
     func unitTestHost(path: Path.AbsolutePath, name: String) -> GraphTarget? {
-        directLocalTargetDependencies(path: path, name: name)
+        directTargetDependencies(path: path, name: name)
             .first(where: { $0.target.product.canHostTests() })?.graphTarget
     }
 
@@ -1463,6 +1521,8 @@ public class GraphTraverser: GraphTraversing {
             )
         case let .bundle(path):
             return .bundle(path: path, condition: condition)
+        case let .packageProduct(_, product, .runtimeEmbedded):
+            return .packageProduct(product: product, condition: condition)
         case .packageProduct:
             return nil
         case let .sdk(_, path, status, source):
@@ -1504,7 +1564,7 @@ public class GraphTraverser: GraphTraversing {
     private func allTargets(excludingExternalTargets: Bool) -> Set<GraphTarget> {
         Set(
             projects.flatMap { projectPath, project -> [GraphTarget] in
-                if excludingExternalTargets, project.isExternal { return [] }
+                if excludingExternalTargets, case .external = project.type { return [] }
                 return project.targets.values.map { target in
                     GraphTarget(path: projectPath, target: target, project: project)
                 }

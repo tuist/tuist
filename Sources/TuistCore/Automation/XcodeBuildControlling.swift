@@ -6,6 +6,7 @@ import TuistSupport
 public enum XcodeBuildDestination: Equatable {
     case device(String)
     case mac
+    case macCatalyst
 }
 
 @Mockable
@@ -47,7 +48,7 @@ public protocol XcodeBuildControlling {
         _ target: XcodeBuildTarget,
         scheme: String,
         clean: Bool,
-        destination: XcodeBuildDestination,
+        destination: XcodeBuildDestination?,
         rosetta: Bool,
         derivedDataPath: AbsolutePath?,
         resultBundlePath: AbsolutePath?,

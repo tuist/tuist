@@ -57,7 +57,7 @@ final class ManifestModelConverterTests: TuistUnitTestCase {
             path: temporaryPath,
             plugins: .none,
             externalDependencies: [:],
-            isExternal: false
+            type: .local
         )
 
         // Then
@@ -92,7 +92,7 @@ final class ManifestModelConverterTests: TuistUnitTestCase {
             path: temporaryPath,
             plugins: .none,
             externalDependencies: [:],
-            isExternal: false
+            type: .local
         )
 
         // Then
@@ -135,7 +135,7 @@ final class ManifestModelConverterTests: TuistUnitTestCase {
             path: temporaryPath,
             plugins: .none,
             externalDependencies: [:],
-            isExternal: false
+            type: .local
         )
 
         // Then
@@ -165,7 +165,7 @@ final class ManifestModelConverterTests: TuistUnitTestCase {
             path: temporaryPath,
             plugins: .none,
             externalDependencies: [:],
-            isExternal: false
+            type: .local
         )
 
         // Then
@@ -193,7 +193,7 @@ final class ManifestModelConverterTests: TuistUnitTestCase {
             path: temporaryPath,
             plugins: .none,
             externalDependencies: [:],
-            isExternal: false
+            type: .local
         )
 
         // Then
@@ -224,6 +224,7 @@ final class ManifestModelConverterTests: TuistUnitTestCase {
             "A",
             "B",
         ])
+        try await createFiles(["A/Project.swift", "B/Project.swift"])
 
         let manifest = WorkspaceManifest.test(name: "SomeWorkspace", projects: ["A", "B"])
         let manifests = [

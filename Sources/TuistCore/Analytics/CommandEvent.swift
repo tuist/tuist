@@ -20,6 +20,7 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
     public let gitCommitSHA: String?
     public let gitRef: String?
     public let gitRemoteURLOrigin: String?
+    public let gitBranch: String?
     public let targetHashes: [CommandEventGraphTarget: String]?
     public let graphPath: AbsolutePath?
     public let cacheableTargets: [String]
@@ -54,6 +55,7 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
         case gitCommitSHA
         case gitRef
         case gitRemoteURLOrigin
+        case gitBranch
         case targetHashes
         case graphPath
         case cacheableTargets
@@ -81,6 +83,7 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
         gitCommitSHA: String?,
         gitRef: String?,
         gitRemoteURLOrigin: String?,
+        gitBranch: String?,
         targetHashes: [CommandEventGraphTarget: String]?,
         graphPath: AbsolutePath?,
         cacheableTargets: [String],
@@ -106,6 +109,7 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
         self.gitCommitSHA = gitCommitSHA
         self.gitRef = gitRef
         self.gitRemoteURLOrigin = gitRemoteURLOrigin
+        self.gitBranch = gitBranch
         self.targetHashes = targetHashes
         self.graphPath = graphPath
         self.cacheableTargets = cacheableTargets
@@ -135,6 +139,7 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
             gitCommitSHA: String? = "0f783ea776192241154f5c192cd143efde7443aa",
             gitRef: String? = "refs/heads/main",
             gitRemoteURLOrigin: String? = "https://github.com/tuist/tuist",
+            gitBranch: String? = "main",
             targetHashes: [CommandEventGraphTarget: String]? = nil,
             graphPath: AbsolutePath? = nil,
             cacheableTargets: [String] = [],
@@ -161,6 +166,7 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
                 gitCommitSHA: gitCommitSHA,
                 gitRef: gitRef,
                 gitRemoteURLOrigin: gitRemoteURLOrigin,
+                gitBranch: gitBranch,
                 targetHashes: targetHashes,
                 graphPath: graphPath,
                 cacheableTargets: cacheableTargets,

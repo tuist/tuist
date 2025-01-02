@@ -56,6 +56,9 @@ public protocol GitControlling {
 
     /// - Returns: `true` if there are commits in the current branch.
     func hasCurrentBranchCommits(workingDirectory: AbsolutePath) -> Bool
+
+    /// - Returns: The current branch string. `nil` if HEAD is not pointing to any branch.
+    func currentBranch(workingDirectory: AbsolutePath) throws -> String?
 }
 
 /// An implementation of `GitControlling`.
@@ -109,6 +112,16 @@ public final class GitController: GitControlling {
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    public func currentBranch(workingDirectory: AbsolutePath) throws -> String? {
+        let currentBranch = try capture(command: "git", "-C", workingDirectory.pathString, "branch", "--show-current")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if currentBranch.isEmpty {
+            return nil
+        } else {
+            return currentBranch
+        }
+    }
+
     public func remoteTaggedVersions(url: String) throws -> [Version] {
         try parseVersions(lsRemote(url: url))
     }
@@ -142,8 +155,6 @@ public final class GitController: GitControlling {
         "AC_PULL_NUMBER",
         // Xcode Cloud
         "CI_PULL_REQUEST_NUMBER",
-        // CircleCI
-        "CIRCLE_PR_NUMBER",
         // Buildkite
         "BUILDKITE_PULL_REQUEST",
     ]
@@ -151,6 +162,11 @@ public final class GitController: GitControlling {
     public func ref(environment: [String: String]) -> String? {
         if let githubRef = environment["GITHUB_REF"] {
             return githubRef
+        } else if let circleCIRef = environment["CIRCLE_PULL_REQUEST"] {
+            guard let url = URL(string: circleCIRef),
+                  let pullRequestID = url.pathComponents.last
+            else { return nil }
+            return "refs/pull/\(pullRequestID)/merge"
         } else if let pullRequestID = Self.pullRequestIDEnvironmentVariables
             .compactMap({ environment[$0] })
             .first(where: { !$0.isEmpty })

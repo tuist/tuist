@@ -164,43 +164,45 @@ final class DumpServiceTests: TuistTestCase {
             )
         )
         """
-        try fileHandler.createFolder(tmpDir.appending(component: "Tuist"))
         try config.write(
-            toFile: tmpDir.appending(components: "Tuist", "Config.swift").pathString,
+            toFile: tmpDir.appending(components: "Tuist.swift").pathString,
             atomically: true,
             encoding: .utf8
         )
         try await subject.run(path: tmpDir.pathString, manifest: .config)
         let expected = """
         {
-          "compatibleXcodeVersions": {
-            "all": {
-
-            }
-          },
           "fullHandle": "tuist/tuist",
-          "generationOptions": {
-            "disablePackageVersionLocking": false,
-            "enforceExplicitDependencies": false,
-            "optionalAuthentication": false,
-            "resolveDependenciesWithSystemScm": false,
-            "staticSideEffectsWarningTargets": {
-              "all": {
+          "project": {
+            "tuist": {
+              "compatibleXcodeVersions": {
+                "all": {
 
-              }
+                }
+              },
+              "generationOptions": {
+                "disablePackageVersionLocking": false,
+                "enforceExplicitDependencies": false,
+                "optionalAuthentication": false,
+                "resolveDependenciesWithSystemScm": false,
+                "staticSideEffectsWarningTargets": {
+                  "all": {
+
+                  }
+                }
+              },
+              "installOptions": {
+                "passthroughSwiftPackageManagerArguments": [
+                  "--replace-scm-with-registry"
+                ]
+              },
+              "plugins": [
+
+              ]
             }
           },
-          "installOptions": {
-            "passthroughSwiftPackageManagerArguments": [
-              "--replace-scm-with-registry"
-            ]
-          },
-          "plugins": [
-
-          ],
-          "url": "https://cloud.tuist.io"
+          "url": "https://tuist.dev"
         }
-
         """
 
         XCTAssertPrinterOutputContains(expected)
@@ -435,7 +437,6 @@ final class DumpServiceTests: TuistTestCase {
         try await fileHandler.inTemporaryDirectory { tmpDir in
             var expectedDirectory = tmpDir
             if manifest == .config {
-                expectedDirectory = expectedDirectory.appending(component: Constants.tuistDirectoryName)
                 if try await !self.fileSystem.exists(expectedDirectory) {
                     try await self.fileSystem.makeDirectory(at: expectedDirectory)
                 }

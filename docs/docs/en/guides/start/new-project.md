@@ -1,5 +1,6 @@
 ---
 title: Create a new project
+titleTemplate: :title · Start · Guides · Tuist
 description: Learn how to create a new project with Tuist.
 ---
 
@@ -81,7 +82,7 @@ mkdir MyFramework
 cd MyFramework
 ```
 
-Then create a `Tuist/Config.swift` file, which will configure Tuist and is used by Tuist to determine the root directory of the project, and a `Project.swift`, where your project will be declared:
+Then create a `Tuist.swift` file, which will configure Tuist and is used by Tuist to determine the root directory of the project, and a `Project.swift`, where your project will be declared:
 
 ::: code-group
 ```swift [Project.swift]
@@ -101,10 +102,10 @@ let project = Project(
     ]
 )
 ```
-```swift [Tuist/Config.swift]
+```swift [Tuist.swift]
 import ProjectDescription
 
-let config = Config()
+let tuist = Tuist()
 ```
 :::
 

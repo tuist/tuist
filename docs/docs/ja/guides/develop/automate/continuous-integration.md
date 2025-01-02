@@ -1,6 +1,6 @@
 ---
 title: Continuous Integration (CI)
-titleTemplate: :title | Develop | Tuist
+titleTemplate: :title · Automate · Develop · Guides · Tuist
 description: Learn how to use Tuist in your CI workflows.
 ---
 
@@ -24,7 +24,7 @@ curl https://mise.jdx.dev/install.sh | sh
 mise install # Installs the version from .mise.toml
 
 # Runs the version of Tuist indicated in the .mise.toml file {#runs-the-version-of-tuist-indicated-in-the-misetoml-file}
-mise x tuist generate
+mise exec -- tuist generate
 ```
 
 ```bash [Homebrew]
@@ -55,7 +55,7 @@ workflows:
           curl https://mise.jdx.dev/install.sh | sh
           mise install # Installs the version from .mise.toml
       - name: Build
-        script: mise x tuist build
+        script: mise exec -- tuist build
 ```
 
 ```yaml [Homebrew]

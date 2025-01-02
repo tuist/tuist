@@ -23,8 +23,8 @@ extension XcodeGraph.ResourceFileElement {
             for path in excluding {
                 let absolute = try AbsolutePath(validating: path)
                 let globs = try await fileSystem.glob(
-                    directory: AbsolutePath(validating: absolute.dirname),
-                    include: [absolute.basename]
+                    directory: .root,
+                    include: [String(absolute.pathString.dropFirst())]
                 )
                 .collect()
                 excluded.formUnion(globs)
@@ -33,7 +33,6 @@ extension XcodeGraph.ResourceFileElement {
             let files = try await fileSystem
                 .throwingGlob(directory: .root, include: [String(path.pathString.dropFirst())])
                 .collect()
-                .filter { !$0.isInOpaqueDirectory }
                 .filter(includeFiles)
                 .filter { !excluded.contains($0) }
 
@@ -47,6 +46,8 @@ extension XcodeGraph.ResourceFileElement {
             }
 
             return files
+                .compactMap { $0.opaqueParentDirectory() ?? $0 }
+                .uniqued()
         }
 
         func folderReferences(_ path: AbsolutePath) async throws -> [AbsolutePath] {

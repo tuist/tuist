@@ -14,20 +14,17 @@ protocol ProjectDeleteServicing {
 final class ProjectDeleteService: ProjectDeleteServicing {
     private let deleteProjectService: DeleteProjectServicing
     private let getProjectService: GetProjectServicing
-    private let credentialsStore: ServerCredentialsStoring
     private let serverURLService: ServerURLServicing
     private let configLoader: ConfigLoading
 
     init(
         deleteProjectService: DeleteProjectServicing = DeleteProjectService(),
         getProjectService: GetProjectServicing = GetProjectService(),
-        credentialsStore: ServerCredentialsStoring = ServerCredentialsStore(),
         serverURLService: ServerURLServicing = ServerURLService(),
-        configLoader: ConfigLoading = ConfigLoader()
+        configLoader: ConfigLoading = ConfigLoader(warningController: WarningController.shared)
     ) {
         self.deleteProjectService = deleteProjectService
         self.getProjectService = getProjectService
-        self.credentialsStore = credentialsStore
         self.serverURLService = serverURLService
         self.configLoader = configLoader
     }

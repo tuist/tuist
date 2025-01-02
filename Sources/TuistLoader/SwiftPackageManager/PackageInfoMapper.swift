@@ -126,19 +126,13 @@ public final class PackageInfoMapper: PackageInfoMapping {
     fileprivate static let predefinedTestDirectories = ["Tests", "Sources", "Source", "src", "srcs"]
     private let moduleMapGenerator: SwiftPackageManagerModuleMapGenerating
     private let fileSystem: FileSysteming
-    private let swiftPackageManagerController: SwiftPackageManagerControlling
 
     public init(
         moduleMapGenerator: SwiftPackageManagerModuleMapGenerating = SwiftPackageManagerModuleMapGenerator(),
-        fileSystem: FileSysteming = FileSystem(),
-        swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(
-            system: System.shared,
-            fileSystem: FileSystem()
-        )
+        fileSystem: FileSysteming = FileSystem()
     ) {
         self.moduleMapGenerator = moduleMapGenerator
         self.fileSystem = fileSystem
-        self.swiftPackageManagerController = swiftPackageManagerController
     }
 
     /// Resolves all SwiftPackageManager dependencies.
@@ -288,52 +282,6 @@ public final class PackageInfoMapper: PackageInfoMapping {
             uniquingKeysWith: { userDefined, _ in userDefined }
         )
 
-        let targetSettings = packageSettings.targetSettings.merging(
-            // Force enable testing search paths
-            Dictionary(
-                uniqueKeysWithValues: [
-                    "Mocker", // https://github.com/WeTransfer/Mocker
-                    "Nimble", // https://github.com/Quick/Nimble
-                    "NimbleObjectiveC", // https://github.com/Quick/Nimble
-                    "Quick", // https://github.com/Quick/Quick
-                    "QuickObjCRuntime", // https://github.com/Quick/Quick
-                    "RxTest", // https://github.com/ReactiveX/RxSwift
-                    "RxTest-Dynamic", // https://github.com/ReactiveX/RxSwift
-                    "SnapshotTesting", // https://github.com/pointfreeco/swift-snapshot-testing
-                    "SwiftyMocky", // https://github.com/MakeAWishFoundation/SwiftyMocky
-                    "TempuraTesting", // https://github.com/BendingSpoons/tempura-swift
-                    "TSCTestSupport", // https://github.com/apple/swift-tools-support-core
-                    "ViewInspector", // https://github.com/nalexn/ViewInspector
-                    "XCTVapor", // https://github.com/vapor/vapor
-                    "MockableTest", // https://github.com/Kolos65/Mockable.git
-                    "Testing", // https://github.com/apple/swift-testing
-                    "Cuckoo", // https://github.com/Brightify/Cuckoo
-                ].map {
-                    ($0, ["ENABLE_TESTING_SEARCH_PATHS": "YES"])
-                }
-            ),
-            uniquingKeysWith: { userDefined, defaultDictionary in
-                userDefined.merging(defaultDictionary, uniquingKeysWith: { userDefined, _ in userDefined })
-            }
-        )
-
-        let baseSettings: XcodeGraph.Settings
-
-        let swiftToolsVersion = try swiftPackageManagerController
-            .getToolsVersion(at: path)
-
-        if swiftToolsVersion >= Version(5, 9, 0) {
-            baseSettings = packageSettings.baseSettings.with(
-                base: packageSettings.baseSettings.base.combine(
-                    with: [
-                        "OTHER_SWIFT_FLAGS": ["$(inherited)", "-package-name", packageInfo.name.quotedIfContainsSpaces],
-                    ]
-                )
-            )
-        } else {
-            baseSettings = packageSettings.baseSettings
-        }
-
         var mutableTargetToProducts: [String: Set<PackageInfo.Product>] = [:]
         for product in packageInfo.products {
             var targetsToProcess = Set(product.targets)
@@ -370,8 +318,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                     packageFolder: path,
                     productTypes: productTypes,
                     productDestinations: packageSettings.productDestinations,
-                    baseSettings: baseSettings,
-                    targetSettings: targetSettings,
+                    targetSettings: packageSettings.targetSettings,
                     packageModuleAliases: packageModuleAliases
                 )
             }
@@ -401,8 +348,9 @@ public final class PackageInfoMapper: PackageInfoMapping {
             name: packageInfo.name,
             options: options,
             settings: packageInfo.projectSettings(
-                swiftToolsVersion: .init(packageSettings.swiftToolsVersion.description),
-                buildConfigs: baseSettings.configurations.map { key, _ in key }
+                packageFolder: path,
+                baseSettings: packageSettings.baseSettings,
+                swiftToolsVersion: .init(packageInfo.toolsVersion.description)
             ),
             targets: targets,
             resourceSynthesizers: .default
@@ -424,8 +372,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
         packageFolder: AbsolutePath,
         productTypes: [String: XcodeGraph.Product],
         productDestinations: [String: XcodeGraph.Destinations],
-        baseSettings: XcodeGraph.Settings,
-        targetSettings: [String: XcodeGraph.SettingsDictionary],
+        targetSettings: [String: XcodeGraph.Settings],
         packageModuleAliases: [String: [String: String]]
     ) async throws -> ProjectDescription.Target? {
         // Ignores or passes a target based on the `type` and the `packageType`.
@@ -599,25 +546,26 @@ public final class PackageInfoMapper: PackageInfoMapping {
             }
         }
 
+        let targetName = packageModuleAliases[packageInfo.name]?[target.name] ?? target.name
+        let productName = PackageInfoMapper
+            .sanitize(targetName: targetName)
+            .replacingOccurrences(of: "-", with: "_")
+
         let settings = try await Settings.from(
             target: target,
+            productName: productName,
             packageFolder: packageFolder,
             settings: target.settings,
             moduleMap: moduleMap,
-            baseSettings: baseSettings,
-            targetSettings: targetSettings,
+            targetSettings: targetSettings[target.name],
             dependencyModuleAliases: dependencyModuleAliases
         )
-
-        let targetName = packageModuleAliases[packageInfo.name]?[target.name] ?? target.name
 
         return .target(
             name: PackageInfoMapper.sanitize(targetName: targetName),
             destinations: destinations,
             product: product,
-            productName: PackageInfoMapper
-                .sanitize(targetName: targetName)
-                .replacingOccurrences(of: "-", with: "_"),
+            productName: productName,
             bundleId: targetName
                 .replacingOccurrences(of: "_", with: ".").replacingOccurrences(of: "/", with: "."),
             deploymentTargets: deploymentTargets,
@@ -1036,11 +984,11 @@ extension ProjectDescription.Settings {
     // swiftlint:disable:next function_body_length
     fileprivate static func from(
         target: PackageInfo.Target,
+        productName: String,
         packageFolder: AbsolutePath,
         settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting],
         moduleMap: ModuleMap?,
-        baseSettings: XcodeGraph.Settings,
-        targetSettings: [String: XcodeGraph.SettingsDictionary],
+        targetSettings: XcodeGraph.Settings?,
         dependencyModuleAliases: [String: String]
     ) async throws -> Self? {
         let mainPath = try await target.basePath(packageFolder: packageFolder)
@@ -1055,29 +1003,46 @@ extension ProjectDescription.Settings {
             }
         }
 
-        var settingsDictionary: XcodeGraph.SettingsDictionary = [
-            // Xcode settings configured by SPM by default
-            "ALWAYS_SEARCH_USER_PATHS": "YES",
-            "CLANG_ENABLE_OBJC_WEAK": "NO",
-            "CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER": "NO",
-            "ENABLE_STRICT_OBJC_MSGSEND": "NO",
-            "FRAMEWORK_SEARCH_PATHS": ["$(inherited)", "$(PLATFORM_DIR)/Developer/Library/Frameworks"],
-            "GCC_NO_COMMON_BLOCKS": "NO",
-            "USE_HEADERMAP": "NO",
-            // Disable warnings in generated projects
-            "GCC_WARN_INHIBIT_ALL_WARNINGS": "YES",
-            "SWIFT_SUPPRESS_WARNINGS": "YES",
-        ]
-
         let mapper = SettingsMapper(
             headerSearchPaths: dependencyHeaderSearchPaths,
             mainRelativePath: mainRelativePath,
             settings: settings
         )
 
-        let resolvedSettings = try mapper.mapSettings()
+        var settingsDictionary: XcodeGraph.SettingsDictionary = [
+            "OTHER_SWIFT_FLAGS": ["$(inherited)"],
+        ]
 
+        // Force enable testing search paths
+        let forceEnabledTestingSearchPath: Set<String> = [
+            "Mocker", // https://github.com/WeTransfer/Mocker
+            "Nimble", // https://github.com/Quick/Nimble
+            "NimbleObjectiveC", // https://github.com/Quick/Nimble
+            "Quick", // https://github.com/Quick/Quick
+            "QuickObjCRuntime", // https://github.com/Quick/Quick
+            "RxTest", // https://github.com/ReactiveX/RxSwift
+            "RxTest-Dynamic", // https://github.com/ReactiveX/RxSwift
+            "SnapshotTesting", // https://github.com/pointfreeco/swift-snapshot-testing
+            "SwiftyMocky", // https://github.com/MakeAWishFoundation/SwiftyMocky
+            "TempuraTesting", // https://github.com/BendingSpoons/tempura-swift
+            "TSCTestSupport", // https://github.com/apple/swift-tools-support-core
+            "ViewInspector", // https://github.com/nalexn/ViewInspector
+            "XCTVapor", // https://github.com/vapor/vapor
+            "MockableTest", // https://github.com/Kolos65/Mockable.git
+            "Testing", // https://github.com/apple/swift-testing
+            "Cuckoo", // https://github.com/Brightify/Cuckoo
+            "_SwiftSyntaxTestSupport", // https://github.com/swiftlang/swift-syntax
+            "SwiftSyntaxMacrosTestSupport", // https://github.com/swiftlang/swift-syntax
+        ]
+
+        let resolvedSettings = try mapper.mapSettings()
         settingsDictionary.merge(resolvedSettings) { $1 }
+
+        if forceEnabledTestingSearchPath.contains(target.name) {
+            if settingsDictionary["ENABLE_TESTING_SEARCH_PATHS"] == nil {
+                settingsDictionary["ENABLE_TESTING_SEARCH_PATHS"] = "YES"
+            }
+        }
 
         if let moduleMapPath = moduleMap?.moduleMapPath {
             settingsDictionary["MODULEMAP_FILE"] = .string("$(SRCROOT)/\(moduleMapPath.relative(to: packageFolder))")
@@ -1089,10 +1054,10 @@ extension ProjectDescription.Settings {
                 settingsDictionary["DEFINES_MODULE"] = "NO"
                 switch settingsDictionary["OTHER_CFLAGS"] ?? .array(["$(inherited)"]) {
                 case let .array(values):
-                    settingsDictionary["OTHER_CFLAGS"] = .array(values + ["-fmodule-name=\(target.name)"])
+                    settingsDictionary["OTHER_CFLAGS"] = .array(values + ["-fmodule-name=\(productName)"])
                 case let .string(value):
                     settingsDictionary["OTHER_CFLAGS"] = .array(
-                        value.split(separator: " ").map(String.init) + ["-fmodule-name=\(target.name)"]
+                        value.split(separator: " ").map(String.init) + ["-fmodule-name=\(productName)"]
                     )
                 }
             case .none:
@@ -1112,45 +1077,56 @@ extension ProjectDescription.Settings {
             }
         }
 
-        var mappedSettingsDictionary = ProjectDescription.SettingsDictionary.from(settingsDictionary: settingsDictionary)
+        var baseSettingsDictionary = ProjectDescription.SettingsDictionary.from(settingsDictionary: settingsDictionary)
 
-        if let settingsToOverride = targetSettings[target.name] {
-            let projectDescriptionSettingsToOverride = ProjectDescription.SettingsDictionary
-                .from(settingsDictionary: settingsToOverride)
-            mappedSettingsDictionary.merge(projectDescriptionSettingsToOverride)
+        if let userDefinedBaseSettings = targetSettings?.base {
+            baseSettingsDictionary.merge(
+                .from(settingsDictionary: userDefinedBaseSettings),
+                uniquingKeysWith: {
+                    switch ($0, $1) {
+                    case let (.array(leftArray), .array(rightArray)):
+                        return SettingValue.array(leftArray + rightArray)
+                    default:
+                        return $1
+                    }
+                }
+            )
         }
 
-        let configurations: [ProjectDescription.Configuration] = try baseSettings.configurations
+        let configurations: [ProjectDescription.Configuration] = targetSettings?.configurations
             .map { buildConfiguration, configuration in
-                var configuration = configuration ?? Configuration(settings: [:])
-                configuration.settings = configuration.settings.merging(
-                    try mapper.settingsForBuildConfiguration(buildConfiguration.name),
-                    uniquingKeysWith: { $1 }
-                )
-                return .from(
+                .from(
                     buildConfiguration: buildConfiguration,
                     configuration: configuration,
                     packageFolder: packageFolder
                 )
             }
+            .sorted { $0.name.rawValue < $1.name.rawValue }
+            ?? []
 
-        return .settings(
-            base: .from(settingsDictionary: baseSettings.base)
-                .merging(
-                    mappedSettingsDictionary,
-                    uniquingKeysWith: {
-                        switch ($0, $1) {
-                        case let (.array(leftArray), .array(rightArray)):
-                            return SettingValue.array(leftArray + rightArray)
-                        default:
-                            return $1
-                        }
-                    }
+        var result: ProjectDescription.Settings = if configurations.isEmpty {
+            .settings(base: baseSettingsDictionary)
+        } else {
+            .settings(
+                base: baseSettingsDictionary,
+                configurations: configurations
+            )
+        }
+
+        if let defaultSettings = targetSettings?.defaultSettings {
+            result.defaultSettings = .from(defaultSettings: defaultSettings)
+        }
+
+        for (index, configuration) in result.configurations.enumerated() {
+            result.configurations[index].settings.merge(
+                .from(
+                    settingsDictionary: try mapper.settingsForBuildConfiguration(configuration.name.rawValue)
                 ),
-            configurations: configurations
-                .sorted { $0.name.rawValue < $1.name.rawValue },
-            defaultSettings: .from(defaultSettings: baseSettings.defaultSettings)
-        )
+                uniquingKeysWith: { $1 }
+            )
+        }
+
+        return result
     }
 
     fileprivate struct PackageTarget: Hashable {
@@ -1300,10 +1276,39 @@ extension ProjectDescription.Destinations {
 
 extension PackageInfo {
     fileprivate func projectSettings(
-        swiftToolsVersion: TSCUtility.Version?,
-        buildConfigs: [BuildConfiguration]? = nil
+        packageFolder: AbsolutePath,
+        baseSettings: XcodeGraph.Settings,
+        swiftToolsVersion: TSCUtility.Version?
     ) -> ProjectDescription.Settings? {
-        var settingsDictionary: ProjectDescription.SettingsDictionary = [:]
+        var settingsDictionary: ProjectDescription.SettingsDictionary = [
+            // Xcode settings configured by SPM by default
+            "ALWAYS_SEARCH_USER_PATHS": "YES",
+            "CLANG_ENABLE_OBJC_WEAK": "NO",
+            "CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER": "NO",
+            "ENABLE_STRICT_OBJC_MSGSEND": "NO",
+            "FRAMEWORK_SEARCH_PATHS": ["$(inherited)", "$(PLATFORM_DIR)/Developer/Library/Frameworks"],
+            "GCC_NO_COMMON_BLOCKS": "NO",
+            "USE_HEADERMAP": "NO",
+            "GCC_PREPROCESSOR_DEFINITIONS": .array(["$(inherited)", "SWIFT_PACKAGE=1"]),
+            "SWIFT_ACTIVE_COMPILATION_CONDITIONS": .array(["$(inherited)", "SWIFT_PACKAGE"]),
+            // Disable warnings in generated projects
+            "GCC_WARN_INHIBIT_ALL_WARNINGS": "YES",
+            "SWIFT_SUPPRESS_WARNINGS": "YES",
+        ]
+
+        settingsDictionary.merge(.from(settingsDictionary: baseSettings.base), uniquingKeysWith: { $1 })
+
+        if toolsVersion >= Version(5, 9, 0) {
+            let packageNameValues = ["$(inherited)", "-package-name", name.quotedIfContainsSpaces]
+            settingsDictionary["OTHER_SWIFT_FLAGS"] = switch settingsDictionary["OTHER_SWIFT_FLAGS"] {
+            case let .array(swiftFlags):
+                .array(swiftFlags + packageNameValues)
+            case let .string(swiftFlags):
+                .array(swiftFlags.split(separator: " ").map(String.init) + packageNameValues)
+            case .none:
+                .array(packageNameValues)
+            }
+        }
 
         if let cLanguageStandard {
             settingsDictionary["GCC_C_LANGUAGE_STANDARD"] = .string(cLanguageStandard)
@@ -1317,20 +1322,23 @@ extension PackageInfo {
             settingsDictionary["SWIFT_VERSION"] = .string(swiftLanguageVersion)
         }
 
-        if let buildConfigs {
-            let configs = buildConfigs
-                .sorted()
-                .map { config -> ProjectDescription.Configuration in
-                    switch config.variant {
-                    case .debug:
-                        return ProjectDescription.Configuration.debug(name: .configuration(config.name))
-                    case .release:
-                        return ProjectDescription.Configuration.release(name: .configuration(config.name))
-                    }
-                }
-            return .settings(base: settingsDictionary, configurations: configs)
+        let configurations = baseSettings.configurations.lazy
+            .sorted(by: { $0.key < $1.key })
+            .map { buildConfiguration, configuration -> ProjectDescription.Configuration in
+                var configuration = configuration ?? Configuration(settings: [:])
+                configuration.settings = configuration.settings
+
+                return .from(
+                    buildConfiguration: buildConfiguration,
+                    configuration: configuration,
+                    packageFolder: packageFolder
+                )
+            }
+
+        if configurations.isEmpty {
+            return .settings(base: settingsDictionary)
         } else {
-            return settingsDictionary.isEmpty ? nil : .settings(base: settingsDictionary)
+            return .settings(base: settingsDictionary, configurations: configurations)
         }
     }
 

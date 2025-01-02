@@ -1,6 +1,6 @@
 ---
 title: Plugins
-titleTemplate: ":title | Projects | Tuist"
+titleTemplate: :title · Projects · Develop · Guides · Tuist
 description: Learn how to create and use plugins in Tuist to extend its functionality.
 ---
 
@@ -102,30 +102,30 @@ If you were using Tuist for distributing tasks, we recommend building your
 
 ## Using plugins {#using-plugins}
 
-To use a plugin, you'll have to add it to your project's <LocalizedLink href="/references/project-description/structs/config">`Config.swift`</LocalizedLink> manifest file:
+To use a plugin, you'll have to add it to your project's <LocalizedLink href="/references/project-description/structs/tuist">`Tuist.swift`</LocalizedLink> manifest file:
 
 ```swift
 import ProjectDescription
 
 
-let config = Config(
-    plugins: [
+let tuist = Tuist(
+    project: .tuist(plugins: [
         .local(path: "/Plugins/MyPlugin")
-    ]
+    ])
 )
 ```
 
-If you want to reuse a plugin across projects that live in different repositories, you can push your plugin to a Git repository and reference it in the `Config.swift` file:
+If you want to reuse a plugin across projects that live in different repositories, you can push your plugin to a Git repository and reference it in the `Tuist.swift` file:
 
 ```swift
 import ProjectDescription
 
 
-let config = Config(
-    plugins: [
+let tuist = Tuist(
+    project: .tuist(plugins: [
         .git(url: "https://url/to/plugin.git", tag: "1.0.0"),
         .git(url: "https://url/to/plugin.git", sha: "e34c5ba")
-    ]
+    ])
 )
 ```
 

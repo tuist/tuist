@@ -38,6 +38,12 @@ extension XcodeGraph.TargetDependency {
                 status: .from(manifest: status),
                 condition: condition?.asGraphCondition
             )]
+        case let .macro(name: name):
+            return [.target(
+                name: name,
+                status: .required,
+                condition: nil
+            )]
         case let .project(target, projectPath, status, condition):
             return [.project(
                 target: target,
@@ -68,6 +74,8 @@ extension XcodeGraph.TargetDependency {
                 return [.package(product: product, type: .macro, condition: condition?.asGraphCondition)]
             case .runtime:
                 return [.package(product: product, type: .runtime, condition: condition?.asGraphCondition)]
+            case .runtimeEmbedded:
+                return [.package(product: product, type: .runtimeEmbedded, condition: condition?.asGraphCondition)]
             case .plugin:
                 return [.package(product: product, type: .plugin, condition: condition?.asGraphCondition)]
             }

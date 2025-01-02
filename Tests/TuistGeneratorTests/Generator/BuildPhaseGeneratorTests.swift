@@ -1162,6 +1162,90 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         )
     }
 
+    func test_generateEmbedPluginsBuildPhase() throws {
+        // Given
+        let app = Target.test(name: "App", platform: .macOS, product: .app)
+        let embedPlugin = Target.test(name: "EmbedPlugin", platform: .macOS, product: .bundle)
+        let pbxproj = PBXProj()
+        let nativeTarget = PBXNativeTarget(name: "Test")
+        let fileElements = createProductFileElements(for: [app, embedPlugin])
+        let project = Project.test(targets: [app, embedPlugin])
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: embedPlugin.name, path: project.path): Set(),
+            .target(name: app.name, path: project.path): Set([.target(name: embedPlugin.name, path: project.path)]),
+        ]
+        let graph = Graph.test(
+            path: project.path,
+            projects: [project.path: project],
+            dependencies: dependencies
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        try subject.generateEmbedPluginsBuildPhase(
+            path: project.path,
+            target: app,
+            graphTraverser: graphTraverser,
+            pbxTarget: nativeTarget,
+            fileElements: fileElements,
+            pbxproj: pbxproj
+        )
+
+        // Then
+        let pbxBuildPhase = try XCTUnwrap(nativeTarget.buildPhases.first as? PBXCopyFilesBuildPhase)
+        XCTAssertEqual(pbxBuildPhase.files?.compactMap { $0.file?.nameOrPath }, [
+            "EmbedPlugin",
+        ])
+        XCTAssertEqual(
+            pbxBuildPhase.files?.compactMap { $0.settings as? [String: [String]] },
+            [["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]]]
+        )
+    }
+
+    func test_generateEmbedPluginsBuildPhase_macCatalystApplication() throws {
+        // Given
+        let app = Target.test(name: "App", destinations: [.iPhone, .iPad, .macCatalyst])
+        let embedPlugin = Target.test(name: "EmbedPlugin", platform: .macOS, product: .bundle)
+        let pbxproj = PBXProj()
+        let nativeTarget = PBXNativeTarget(name: "Test")
+        let fileElements = createProductFileElements(for: [app, embedPlugin])
+        let project = Project.test(targets: [app, embedPlugin])
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: embedPlugin.name, path: project.path): Set(),
+            .target(name: app.name, path: project.path): Set([.target(name: embedPlugin.name, path: project.path)]),
+        ]
+        let graph = Graph.test(
+            path: project.path,
+            projects: [project.path: project],
+            dependencies: dependencies
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        try subject.generateEmbedPluginsBuildPhase(
+            path: project.path,
+            target: app,
+            graphTraverser: graphTraverser,
+            pbxTarget: nativeTarget,
+            fileElements: fileElements,
+            pbxproj: pbxproj
+        )
+
+        // Then
+        let pbxBuildPhase = try XCTUnwrap(nativeTarget.buildPhases.first as? PBXCopyFilesBuildPhase)
+        XCTAssertEqual(pbxBuildPhase.files?.compactMap { $0.file?.nameOrPath }, [
+            "EmbedPlugin",
+        ])
+        XCTAssertEqual(
+            pbxBuildPhase.files?.compactMap { $0.settings as? [String: [String]] },
+            [["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]]]
+        )
+        XCTAssertEqual(
+            pbxBuildPhase.files?.compactMap(\.platformFilter),
+            [PlatformFilter.catalyst.xcodeprojValue]
+        )
+    }
+
     func test_generateEmbedSystemExtensionsBuildPhase() throws {
         // Given
         let app = Target.test(name: "App", platform: .macOS, product: .app)
@@ -1594,7 +1678,10 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         XCTAssertTrue(buildPhase?.inputPaths.contains("$BUILD_DIR/$CONFIGURATION/\(macroExecutable.productName)") == true)
         XCTAssertEqual(
             buildPhase?.outputPaths,
-            ["$BUILD_DIR/Debug-$EFFECTIVE_PLATFORM_NAME/\(macroExecutable.productName)"]
+            [
+                "$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/\(macroExecutable.productName)",
+                "$BUILD_DIR/Debug-$EFFECTIVE_PLATFORM_NAME/\(macroExecutable.productName)",
+            ]
         )
     }
 

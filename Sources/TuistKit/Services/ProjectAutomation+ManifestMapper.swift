@@ -41,10 +41,17 @@ extension ProjectAutomation.Project {
             ProjectAutomation.Target.from(target)
         }
 
+        let isExternal = switch project.type {
+        case .external:
+            true
+        case .local:
+            false
+        }
+
         return ProjectAutomation.Project(
             name: project.name,
             path: project.path.pathString,
-            isExternal: project.isExternal,
+            isExternal: isExternal,
             packages: packages,
             targets: Array(targets.values),
             schemes: schemes
@@ -121,6 +128,8 @@ extension ProjectAutomation.Target {
                 return .packagePlugin(product: product)
             case .runtime:
                 return .package(product: product)
+            case .runtimeEmbedded:
+                return .package(product: product, embedded: true)
             }
         case let .sdk(name, status, _):
             let projectAutomationStatus: ProjectAutomation.LinkingStatus

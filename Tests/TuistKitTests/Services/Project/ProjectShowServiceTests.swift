@@ -119,6 +119,60 @@ final class ProjectShowServiceTests: TuistUnitTestCase {
         )
     }
 
+    func test_run_when_project_is_public() async throws {
+        // Given
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test())
+        given(getProjectService)
+            .getProject(
+                fullHandle: .value("tuist/tuist"),
+                serverURL: .any
+            )
+            .willReturn(
+                .test(
+                    visibility: .public
+                )
+            )
+
+        // When
+        try await subject.run(fullHandle: "tuist/tuist", web: false, path: nil)
+
+        // Then
+        XCTAssertStandardOutput(
+            pattern: """
+            Visibility: public
+            """
+        )
+    }
+
+    func test_run_when_project_is_private() async throws {
+        // Given
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test())
+        given(getProjectService)
+            .getProject(
+                fullHandle: .value("tuist/tuist"),
+                serverURL: .any
+            )
+            .willReturn(
+                .test(
+                    visibility: .private
+                )
+            )
+
+        // When
+        try await subject.run(fullHandle: "tuist/tuist", web: false, path: nil)
+
+        // Then
+        XCTAssertStandardOutput(
+            pattern: """
+            Visibility: private
+            """
+        )
+    }
+
     func test_run_when_repositoryURL_is_defined() async throws {
         // Given
         given(configLoader)

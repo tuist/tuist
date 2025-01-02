@@ -54,10 +54,10 @@ public enum ManifestLoaderError: FatalError, Equatable {
 
 @Mockable
 public protocol ManifestLoading {
-    /// Loads the Config.swift in the given directory.
+    /// Loads the Tuist.swift in the given directory.
     ///
-    /// - Parameter path: Path to the directory that contains the Config.swift file.
-    /// - Returns: Loaded Config.swift file.
+    /// - Parameter path: Path to the directory that contains the Tuist.swift file.
+    /// - Returns: Loaded Tuist.swift file.
     /// - Throws: An error if the file has a syntax error.
     func loadConfig(at path: AbsolutePath) async throws -> ProjectDescription.Config
 
@@ -131,10 +131,7 @@ public class ManifestLoader: ManifestLoading {
             projectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactory(),
             manifestFilesLocator: ManifestFilesLocator(),
             xcodeController: XcodeController.shared,
-            swiftPackageManagerController: SwiftPackageManagerController(
-                system: System.shared,
-                fileSystem: FileSystem()
-            ),
+            swiftPackageManagerController: SwiftPackageManagerController(),
             packageInfoLoader: PackageInfoLoader()
         )
     }
@@ -306,13 +303,16 @@ public class ManifestLoader: ManifestLoading {
         _ manifest: Manifest,
         at path: AbsolutePath
     ) async throws -> AbsolutePath {
-        let manifestPath = path.appending(component: manifest.fileName(path))
-
-        guard try await fileSystem.exists(manifestPath) else {
-            throw ManifestLoaderError.manifestNotFound(manifest, path)
+        let manifestPathCandidates = [
+            path.appending(component: manifest.fileName(path)),
+            manifest.alternativeFileName(path).map { path.appending(component: $0) },
+        ].compactMap { $0 }
+        for candidate in manifestPathCandidates {
+            if try await fileSystem.exists(candidate) {
+                return candidate
+            }
         }
-
-        return manifestPath
+        throw ManifestLoaderError.manifestNotFound(manifest, path)
     }
 
     private func loadDataForManifest(

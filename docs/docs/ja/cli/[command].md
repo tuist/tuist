@@ -1,7 +1,6 @@
 ---
-title:
-  params.command.fullCommand: null
-titleTemplate: :title | CLI | Tuist
+editLink: false
+titleTemplate: :title · CLI · Tuist
 ---
 
 <!-- @content -->

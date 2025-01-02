@@ -1,43 +1,44 @@
 ---
-title: Optimize workflows
-description: Learn how to optimize workflows with Tuist.
+title: ワークフローの最適化
+titleTemplate: :title · クイックスタート · ガイド · Tuist
+description: Tuistを使用してワークフローを最適化する方法を学びます。
 ---
 
-# Optimize workflows {#optimize-workflows}
+# ワークフローの最適化 {#optimize-workflows}
 
-Because Tuist knows your project through your description and the insights it collects, it can optimize your workflows to make them more efficient. Let's see some examples.
+Tuistはプロジェクトの説明と収集したインサイトを通じてあなたのプロジェクトを理解しているため、ワークフローを最適化してより効率的にすることができます。 いくつかの例を見てみましょう。
 
-## Smart test runs {#smart-test-runs}
+## スマートテスト実行 {#smart-test-runs}
 
-Let's run `tuist test` again. You'll notice the following message:
+再度 `tuist test` を実行してみましょう。 次のメッセージに気づくでしょう： 次のメッセージに気づくでしょう：
 
 ```bash
 There are no tests to run, finishing early
 ```
 
-Tuist detected that you didn't change anything in your project since last time you ran the tests, and therefore re-running the tests is not needed. And the best of all is that this works across different machines and CI environments.
+Tuistは前回テストを実行してからプロジェクトに変更がないことを検出し、したがってテストを再実行する必要がないと判断しました。 そして、最も良い点は、これが異なるマシンやCI環境でも機能することです。
 
-## Cache {#cache}
+## キャッシュ {#cache}
 
-If you clean build the project, which you usually do on CI or after cleaning the global cache in the hope of fixing cryptic compilation issues, you have to compile the whole project from scratch. When the project becomes large, this can take a long time.
+プロジェクトをクリーンビルドする場合、通常はCI環境や不可解なコンパイルエラーを解決するためにグローバルキャッシュをクリアした後に、プロジェクト全体を最初からコンパイルし直さなければなりません。 プロジェクトが大きくなると、これには長い時間がかかることがあります。
 
-Tuist solves that by re-using binaries from previous builds. Run the following command:
+Tuistは、以前のビルドからバイナリを再利用することでこれを解決します。 次のコマンドを実行してください：
 
 ```bash
 tuist cache
 ```
 
-The command will build and share all the cacheable targets in your project in a local and remote cache. After it completes, try generating the project:
+このコマンドは、プロジェクト内のすべてのキャッシュ可能なターゲットをローカルおよびリモートキャッシュにビルドして共有します。 完了したら、プロジェクトを生成してみてください：
 
 ```bash
 tuist generate
 ```
 
-You'll notice your project groups includes a new group `Cache` containing the binaries from the cache.
+プロジェクトのグループにキャッシュからのバイナリを含む新しいグループ `Cache` が追加されていることに気づくでしょう。
 
 <img src="/images/guides/quick-start/cache.png" alt="An screenshot of a project group structure where you can see XCFrameworks in a cache group" style="max-width: 300px;"/>
 
-If you push your changes upstream to a remote repository, other developers can clone the project, and run the following commands:
+変更をリモートリポジトリにプッシュすると、他の開発者はプロジェクトをクローンし、次のコマンドを実行できます：
 
 ```bash
 tuist install
@@ -45,18 +46,17 @@ tuist auth
 tuist generate
 ```
 
-And they'll suddenly get a project with the dependencies as binaries.
+すると、依存関係がバイナリとして含まれるプロジェクトが手に入ります。
 
-## Optimizations on CI {#optimizations-on-ci}
+## CI 上での最適化 {#optimizations-on-ci}
 
-If want to access those optimizations on CI,
-you'll have to generate a project-scoped token to authenticate requests in the CI environment.
+CIでこれらの最適化にアクセスしたい場合は、CI環境でのリクエストを認証するためにプロジェクトスコープのトークンを生成する必要があります。
 
 ```bash
 tuist project tokens create my-handle/MyApp
 ```
 
-Then expose the token as an environment variable `TUIST_CONFIG_TOKEN` in your CI environment. The presence of the token will automatically enable the optimizations and insights.
+次に、このトークンをCI環境の環境変数 `TUIST_CONFIG_TOKEN` として公開します。 トークンが存在することで、自動的に最適化とインサイトが有効になります。
 
-> [!IMPORTANT] CI ENVIRONMENT DETECTION
-> Tuist only uses the token when it detects it's running on a CI environment. If your CI environment is not detected, you can force the token usage by setting the environment variable `CI` to `1`.
+> [!IMPORTANT] CI 環境の検出
+> Tuistは、CI環境で実行されていることを検出した場合にのみトークンを使用します。 CI環境が検出されない場合は、環境変数 `CI` を `1` に設定することでトークンの使用を強制できます。

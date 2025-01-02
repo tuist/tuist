@@ -36,6 +36,13 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
     )
     var clean: Bool = false
 
+    @Flag(
+        name: .shortAndLong,
+        help: "When passed, the result necessary for test selection is not persisted to the server.",
+        envKey: .testNoUpload
+    )
+    var noUpload: Bool = false
+
     @Option(
         name: .shortAndLong,
         help: "The path to the directory that contains the project to be tested.",
@@ -154,7 +161,7 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
     var binaryCache: Bool = true
 
     @Flag(
-        help: "Run all tests instead of selectively test only those that have changed since the last successful test run.",
+        help: "When --no-selective-testing is passed, tuist runs all tests without using selective testing.",
         envKey: .testSelectiveTesting
     )
     var selectiveTesting: Bool = true
@@ -219,13 +226,11 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
         }
 
         defer {
-            var parameters: [String: AnyCodable] = [
-                "no_binary_cache": AnyCodable(!binaryCache),
-                "no_selective_testing": AnyCodable(!selectiveTesting),
-            ]
-
             TestCommand.analyticsDelegate?.addParameters(
-                parameters
+                [
+                    "no_binary_cache": AnyCodable(!binaryCache),
+                    "no_selective_testing": AnyCodable(!selectiveTesting),
+                ]
             )
         }
 
@@ -236,6 +241,7 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
             runId: runId,
             schemeName: scheme,
             clean: clean,
+            noUpload: noUpload,
             configuration: configuration,
             path: absolutePath,
             deviceName: device,

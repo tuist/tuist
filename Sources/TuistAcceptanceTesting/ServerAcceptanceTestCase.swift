@@ -17,7 +17,7 @@ open class ServerAcceptanceTestCase: TuistAcceptanceTestCase {
         fullHandle = "\(organizationHandle)/\(projectHandle)"
         let email = try XCTUnwrap(ProcessInfo.processInfo.environment[EnvKey.authEmail.rawValue])
         let password = try XCTUnwrap(ProcessInfo.processInfo.environment[EnvKey.authPassword.rawValue])
-        try await run(AuthCommand.self, "--email", email, "--password", password)
+        try await run(LoginCommand.self, "--email", email, "--password", password)
         try await run(OrganizationCreateCommand.self, organizationHandle)
         try await run(ProjectCreateCommand.self, fullHandle)
         try FileHandler.shared.write(
@@ -26,10 +26,10 @@ open class ServerAcceptanceTestCase: TuistAcceptanceTestCase {
 
             let config = Config(
                 fullHandle: "\(fullHandle)",
-                url: "\(ProcessInfo.processInfo.environment["TUIST_URL"] ?? "https://canary.tuist.io")"
+                url: "\(ProcessInfo.processInfo.environment["TUIST_URL"] ?? "https://canary.tuist.dev")"
             )
             """,
-            path: fixturePath.appending(components: "Tuist", "Config.swift"),
+            path: fixturePath.appending(components: Constants.tuistManifestFileName),
             atomically: true
         )
     }

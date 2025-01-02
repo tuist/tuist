@@ -42,7 +42,7 @@ final class PruneOrphanExternalTargetsGraphMapperTests: TuistUnitTestCase {
                 transitivePackageProductWithNoDestinations,
                 packageDevProduct,
             ],
-            isExternal: true
+            type: .external(hash: nil)
         )
         let directPackageProductDependency = GraphDependency.target(name: directPackageProduct.name, path: packageProject.path)
         let transitivePackageProductDependency = GraphDependency.target(

@@ -14,7 +14,6 @@ import XCTest
 
 final class PackageInfoMapperTests: TuistUnitTestCase {
     private var subject: PackageInfoMapper!
-    private var swiftPackageManagerController: MockSwiftPackageManagerControlling!
 
     override func setUp() {
         super.setUp()
@@ -22,13 +21,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         given(swiftVersionProvider)
             .swiftVersion()
             .willReturn("5.9")
-        swiftPackageManagerController = MockSwiftPackageManagerControlling()
-        given(swiftPackageManagerController)
-            .getToolsVersion(at: .any)
-            .willReturn(Version(6, 0, 0))
-        subject = PackageInfoMapper(
-            swiftPackageManagerController: swiftPackageManagerController
-        )
+        subject = PackageInfoMapper()
     }
 
     override func tearDown() {
@@ -42,7 +35,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Sources/Target_2")))
         let resolvedDependencies = try subject.resolveExternalDependencies(
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target_1", "Target_2"]),
@@ -51,10 +44,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         .test(name: "Target_1", type: .binary, url: "https://binary.target.com/target1.xcframework.zip"),
                         .test(name: "Target_2"),
                     ],
-                    platforms: [.ios],
-                    cLanguageStandard: nil,
-                    cxxLanguageStandard: nil,
-                    swiftLanguageVersions: nil
+                    platforms: [.ios]
                 ),
             ],
             packageToFolder: ["Package": basePath],
@@ -65,7 +55,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             packageModuleAliases: [:]
         )
 
-        XCTAssertEqual(
+        XCTAssertBetterEqual(
             resolvedDependencies,
             [
                 "Product1": [
@@ -82,7 +72,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Sources/Target_2")))
         let resolvedDependencies = try subject.resolveExternalDependencies(
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target_1", "Target_2"]),
@@ -102,7 +92,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             packageModuleAliases: [:]
         )
 
-        XCTAssertEqual(
+        XCTAssertBetterEqual(
             resolvedDependencies,
             [
                 "Product1": [
@@ -119,7 +109,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Sources/Target_2")))
         let resolvedDependencies = try subject.resolveExternalDependencies(
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target_1", "Target_2"]),
@@ -142,7 +132,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             packageModuleAliases: [:]
         )
 
-        XCTAssertEqual(
+        XCTAssertBetterEqual(
             resolvedDependencies,
             [
                 "Product1": [
@@ -159,7 +149,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Sources/Target_2")))
         let resolvedDependencies = try subject.resolveExternalDependencies(
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target_1", "Target_2"]),
@@ -179,7 +169,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             packageModuleAliases: [:]
         )
 
-        XCTAssertEqual(
+        XCTAssertBetterEqual(
             resolvedDependencies,
             [
                 "Product1": [
@@ -197,7 +187,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package2/Sources/Target_2")))
         let resolvedDependencies = try subject.resolveExternalDependencies(
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target_1"]),
@@ -220,7 +210,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     cxxLanguageStandard: nil,
                     swiftLanguageVersions: nil
                 ),
-                "Package2": .init(
+                "Package2": .test(
                     name: "Package2",
                     products: [
                         .init(name: "Product2", type: .library(.automatic), targets: ["Target_2"]),
@@ -269,7 +259,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package2/Sources/Target_2")))
         let resolvedDependencies = try subject.resolveExternalDependencies(
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product", type: .library(.automatic), targets: ["Product"]),
@@ -292,7 +282,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     cxxLanguageStandard: nil,
                     swiftLanguageVersions: nil
                 ),
-                "Package2": .init(
+                "Package2": .test(
                     name: "Package2",
                     products: [
                         .init(name: "Product", type: .library(.automatic), targets: ["Product"]),
@@ -347,7 +337,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             .createFolder(basePath.appending(try RelativePath(validating: "com.example.dep-1/Sources/com.example.dep-1")))
         let resolvedDependencies = try subject.resolveExternalDependencies(
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target_1"]),
@@ -370,7 +360,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     cxxLanguageStandard: nil,
                     swiftLanguageVersions: nil
                 ),
-                "com.example.dep-1": .init(
+                "com.example.dep-1": .test(
                     name: "com.example.dep-1",
                     products: [
                         .init(name: "com.example.dep-1", type: .library(.automatic), targets: ["com.example.dep-1"]),
@@ -392,7 +382,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             packageModuleAliases: [:]
         )
 
-        XCTAssertEqual(
+        XCTAssertBetterEqual(
             resolvedDependencies,
             [
                 "com.example.dep-1": [
@@ -420,7 +410,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/Dependency_2")))
         let resolvedDependencies = try subject.resolveExternalDependencies(
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product", type: .library(.automatic), targets: ["Target_1"]),
@@ -449,7 +439,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             packageModuleAliases: [:]
         )
 
-        XCTAssertEqual(
+        XCTAssertBetterEqual(
             resolvedDependencies,
             [
                 "Product": [
@@ -470,7 +460,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package_2/Sources/Target_3")))
         let resolvedDependencies = try subject.resolveExternalDependencies(
             packageInfos: [
-                "Package_1": .init(
+                "Package_1": .test(
                     name: "Package_1",
                     products: [
                         .init(name: "Product_1", type: .library(.automatic), targets: ["Target_1"]),
@@ -499,7 +489,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     cxxLanguageStandard: nil,
                     swiftLanguageVersions: nil
                 ),
-                "Package_2": .init(
+                "Package_2": .test(
                     name: "Package_2",
                     products: [
                         .init(name: "Product_2", type: .library(.automatic), targets: ["Target_2"]),
@@ -560,7 +550,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -596,7 +586,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -640,7 +630,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -686,7 +676,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -734,7 +724,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 package: "Package",
                 basePath: basePath,
                 packageInfos: [
-                    "Package": .init(
+                    "Package": .test(
                         name: "Package",
                         products: [
                             .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -778,7 +768,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         let project = try await subject.map(
             package: "Package",
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target_1"]),
@@ -806,7 +796,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target_1"]),
@@ -821,7 +811,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 ),
             ]
         )
-        XCTAssertEqual(
+        XCTAssertBetterEqual(
             project,
             .testWithDefaultConfigs(
                 name: "Package",
@@ -847,7 +837,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -905,12 +895,16 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         ),
                         customSettings: [
                             "GCC_PREPROCESSOR_DEFINITIONS": [
+                                "$(inherited)",
                                 // Escaped
                                 "FOO1='\"BAR1\"'",
                                 // Escaped
                                 "FOO2='\"BAR2\"'",
                                 // Not escaped
                                 "FOO3=3",
+                            ],
+                            "OTHER_SWIFT_FLAGS": [
+                                "$(inherited)",
                             ],
                         ]
                     ),
@@ -928,7 +922,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "com.example.product-1", type: .library(.automatic), targets: ["com.example.target-1"]),
@@ -944,7 +938,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             ]
         )
 
-        XCTAssertEqual(
+        XCTAssertBetterEqual(
             project,
             .testWithDefaultConfigs(
                 name: "Package",
@@ -975,7 +969,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -991,7 +985,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 ),
             ]
         )
-        XCTAssertEqual(
+        XCTAssertBetterEqual(
             project,
             .testWithDefaultConfigs(
                 name: "Package",
@@ -1015,7 +1009,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1", "Target2", "Target3"]),
@@ -1032,7 +1026,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 ),
             ]
         )
-        XCTAssertEqual(
+        XCTAssertBetterEqual(
             project,
             .testWithDefaultConfigs(
                 name: "Package",
@@ -1053,7 +1047,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -1072,7 +1066,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 ),
             ]
         )
-        XCTAssertEqual(
+        XCTAssertBetterEqual(
             project,
             .testWithDefaultConfigs(
                 name: "Package",
@@ -1092,7 +1086,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -1107,7 +1101,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 ),
             ]
         )
-        XCTAssertEqual(
+        XCTAssertBetterEqual(
             project,
             .testWithDefaultConfigs(
                 name: "Package",
@@ -1155,7 +1149,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -1258,7 +1252,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -1320,7 +1314,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -1335,7 +1329,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 ),
             ]
         )
-        XCTAssertEqual(
+        XCTAssertBetterEqual(
             project,
             .testWithDefaultConfigs(
                 name: "Package",
@@ -1367,7 +1361,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -1393,11 +1387,68 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         "Target1",
                         basePath: basePath,
                         customSettings: [
-                            "HEADER_SEARCH_PATHS": ["$(SRCROOT)/Sources/Target1/include"],
+                            "HEADER_SEARCH_PATHS": ["$(inherited)", "$(SRCROOT)/Sources/Target1/include"],
                             "DEFINES_MODULE": "NO",
-                            "OTHER_CFLAGS": .array(["-fmodule-name=Target1"]),
+                            "OTHER_CFLAGS": .array(["$(inherited)", "-fmodule-name=Target1"]),
+                            "OTHER_SWIFT_FLAGS": [
+                                "$(inherited)",
+                            ],
                         ],
                         moduleMap: "$(SRCROOT)/Sources/Target1/include/module.modulemap"
+                    ),
+                ]
+            )
+        )
+    }
+
+    func testMap_whenHasHeadersWithCustomModuleMapAndTargetWithDashes() async throws {
+        let basePath = try temporaryPath()
+        let headersPath = basePath.appending(try RelativePath(validating: "Package/Sources/target-with-dashes/include"))
+        let moduleMapPath = headersPath.appending(component: "module.modulemap")
+        let headerPath = headersPath.appending(component: "AnHeader.h")
+        try await fileSystem.makeDirectory(at: headersPath)
+        try fileHandler.write("", path: moduleMapPath, atomically: true)
+        try fileHandler.write("", path: headerPath, atomically: true)
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "target-with-dashes", type: .library(.automatic), targets: ["target-with-dashes"]),
+                    ],
+                    targets: [
+                        .test(
+                            name: "target-with-dashes"
+                        ),
+                    ],
+                    platforms: [.ios],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ]
+        )
+        XCTAssertBetterEqual(
+            project,
+            .testWithDefaultConfigs(
+                name: "Package",
+                targets: [
+                    .test(
+                        "target-with-dashes",
+                        basePath: basePath,
+                        customProductName: "target_with_dashes",
+                        customSettings: [
+                            "HEADER_SEARCH_PATHS": ["$(inherited)", "$(SRCROOT)/Sources/target-with-dashes/include"],
+                            "DEFINES_MODULE": "NO",
+                            "OTHER_CFLAGS": .array(["$(inherited)", "-fmodule-name=target_with_dashes"]),
+                            "OTHER_SWIFT_FLAGS": [
+                                "$(inherited)",
+                            ],
+                        ],
+                        moduleMap: "$(SRCROOT)/Sources/target-with-dashes/include/module.modulemap"
                     ),
                 ]
             )
@@ -1415,7 +1466,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -1445,7 +1496,10 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         customSources: .custom(nil),
                         customSettings: [
                             "DEFINES_MODULE": "NO",
-                            "OTHER_CFLAGS": .array(["-fmodule-name=Target1"]),
+                            "OTHER_CFLAGS": .array(["$(inherited)", "-fmodule-name=Target1"]),
+                            "OTHER_SWIFT_FLAGS": [
+                                "$(inherited)",
+                            ],
                         ],
                         moduleMap: "$(SRCROOT)/Sources/Target1/module.modulemap"
                     ),
@@ -1470,7 +1524,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -1503,7 +1557,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -1529,10 +1583,13 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         "Target1",
                         basePath: basePath,
                         customSettings: [
-                            "HEADER_SEARCH_PATHS": ["$(SRCROOT)/Sources/Target1/include"],
+                            "HEADER_SEARCH_PATHS": ["$(inherited)", "$(SRCROOT)/Sources/Target1/include"],
                             "MODULEMAP_FILE": .string("$(SRCROOT)/Derived/Target1.modulemap"),
                             "DEFINES_MODULE": "NO",
-                            "OTHER_CFLAGS": .array(["-fmodule-name=Target1"]),
+                            "OTHER_CFLAGS": .array(["$(inherited)", "-fmodule-name=Target1"]),
+                            "OTHER_SWIFT_FLAGS": [
+                                "$(inherited)",
+                            ],
                         ]
                     ),
                 ]
@@ -1559,7 +1616,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -1593,10 +1650,14 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         dependencies: [.target(name: "Dependency1")],
                         customSettings: [
                             "HEADER_SEARCH_PATHS": [
+                                "$(inherited)",
                                 "$(SRCROOT)/Sources/Target1/include",
                             ],
                             "DEFINES_MODULE": "NO",
-                            "OTHER_CFLAGS": .array(["-fmodule-name=Target1"]),
+                            "OTHER_CFLAGS": .array(["$(inherited)", "-fmodule-name=Target1"]),
+                            "OTHER_SWIFT_FLAGS": [
+                                "$(inherited)",
+                            ],
                         ],
                         moduleMap: "$(SRCROOT)/Sources/Target1/include/module.modulemap"
                     ),
@@ -1606,10 +1667,14 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         dependencies: [.target(name: "Dependency2")],
                         customSettings: [
                             "HEADER_SEARCH_PATHS": [
+                                "$(inherited)",
                                 "$(SRCROOT)/Sources/Dependency1/include",
                             ],
                             "DEFINES_MODULE": "NO",
-                            "OTHER_CFLAGS": .array(["-fmodule-name=Dependency1"]),
+                            "OTHER_CFLAGS": .array(["$(inherited)", "-fmodule-name=Dependency1"]),
+                            "OTHER_SWIFT_FLAGS": [
+                                "$(inherited)",
+                            ],
                         ],
                         moduleMap: "$(SRCROOT)/Sources/Dependency1/include/module.modulemap"
                     ),
@@ -1618,10 +1683,14 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         basePath: basePath,
                         customSettings: [
                             "HEADER_SEARCH_PATHS": [
+                                "$(inherited)",
                                 "$(SRCROOT)/Sources/Dependency2/include",
                             ],
                             "DEFINES_MODULE": "NO",
-                            "OTHER_CFLAGS": .array(["-fmodule-name=Dependency2"]),
+                            "OTHER_CFLAGS": .array(["$(inherited)", "-fmodule-name=Dependency2"]),
+                            "OTHER_SWIFT_FLAGS": [
+                                "$(inherited)",
+                            ],
                         ],
                         moduleMap: "$(SRCROOT)/Sources/Dependency2/include/module.modulemap"
                     ),
@@ -1649,7 +1718,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -1665,7 +1734,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     cxxLanguageStandard: nil,
                     swiftLanguageVersions: nil
                 ),
-                "Package2": .init(
+                "Package2": .test(
                     name: "Package2",
                     products: [
                         .init(name: "Dependency1", type: .library(.automatic), targets: ["Dependency1"]),
@@ -1681,7 +1750,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     cxxLanguageStandard: nil,
                     swiftLanguageVersions: nil
                 ),
-                "Package3": .init(
+                "Package3": .test(
                     name: "Package3",
                     products: [
                         .init(name: "Dependency2", type: .library(.automatic), targets: ["Dependency2"]),
@@ -1709,10 +1778,14 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         dependencies: [.external(name: "Dependency1", condition: nil)],
                         customSettings: [
                             "HEADER_SEARCH_PATHS": [
+                                "$(inherited)",
                                 "$(SRCROOT)/Sources/Target1/include",
                             ],
                             "DEFINES_MODULE": "NO",
-                            "OTHER_CFLAGS": .array(["-fmodule-name=Target1"]),
+                            "OTHER_CFLAGS": .array(["$(inherited)", "-fmodule-name=Target1"]),
+                            "OTHER_SWIFT_FLAGS": [
+                                "$(inherited)",
+                            ],
                         ],
                         moduleMap: "$(SRCROOT)/Sources/Target1/include/module.modulemap"
                     ),
@@ -1740,7 +1813,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -1762,7 +1835,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             ]
         )
 
-        XCTAssertEqual(
+        XCTAssertBetterEqual(
             project,
             .testWithDefaultConfigs(
                 name: "Package",
@@ -1784,9 +1857,12 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                             ),
                         ],
                         customSettings: [
-                            "HEADER_SEARCH_PATHS": ["$(SRCROOT)/Custom/Headers"],
+                            "HEADER_SEARCH_PATHS": ["$(inherited)", "$(SRCROOT)/Custom/Headers"],
                             "DEFINES_MODULE": "NO",
-                            "OTHER_CFLAGS": .array(["-fmodule-name=Target1"]),
+                            "OTHER_CFLAGS": .array(["$(inherited)", "-fmodule-name=Target1"]),
+                            "OTHER_SWIFT_FLAGS": [
+                                "$(inherited)",
+                            ],
                         ],
                         moduleMap: "$(SRCROOT)/Custom/Headers/module.modulemap"
                     ),
@@ -1806,7 +1882,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -1844,9 +1920,12 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                             )
                         ),
                         customSettings: [
-                            "HEADER_SEARCH_PATHS": ["$(SRCROOT)/Sources/Dependency1/include"],
+                            "HEADER_SEARCH_PATHS": ["$(inherited)", "$(SRCROOT)/Sources/Dependency1/include"],
                             "DEFINES_MODULE": "NO",
-                            "OTHER_CFLAGS": .array(["-fmodule-name=Dependency1"]),
+                            "OTHER_CFLAGS": .array(["$(inherited)", "-fmodule-name=Dependency1"]),
+                            "OTHER_SWIFT_FLAGS": [
+                                "$(inherited)",
+                            ],
                         ],
                         moduleMap: "$(SRCROOT)/Derived/Dependency1.modulemap"
                     ),
@@ -1866,7 +1945,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -1916,7 +1995,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -1966,7 +2045,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -2000,8 +2079,16 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     .test(
                         "Target1",
                         basePath: basePath,
-                        customSettings: ["HEADER_SEARCH_PATHS": ["$(SRCROOT)/Sources/Target1/value",
-                                                                 "\"$(SRCROOT)/Sources/Target1/White Space Folder/value\""]]
+                        customSettings: [
+                            "HEADER_SEARCH_PATHS": [
+                                "$(inherited)",
+                                "$(SRCROOT)/Sources/Target1/value",
+                                "\"$(SRCROOT)/Sources/Target1/White Space Folder/value\"",
+                            ],
+                            "OTHER_SWIFT_FLAGS": [
+                                "$(inherited)",
+                            ],
+                        ]
                     ),
                 ]
             )
@@ -2016,7 +2103,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -2042,7 +2129,15 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     .test(
                         "Target1",
                         basePath: basePath,
-                        customSettings: ["HEADER_SEARCH_PATHS": ["$(SRCROOT)/Sources/Target1/value"]]
+                        customSettings: [
+                            "HEADER_SEARCH_PATHS": [
+                                "$(inherited)",
+                                "$(SRCROOT)/Sources/Target1/value",
+                            ],
+                            "OTHER_SWIFT_FLAGS": [
+                                "$(inherited)",
+                            ],
+                        ]
                     ),
                 ]
             )
@@ -2057,7 +2152,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -2087,7 +2182,12 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     .test(
                         "Target1",
                         basePath: basePath,
-                        customSettings: ["GCC_PREPROCESSOR_DEFINITIONS": ["key1=1", "key2=value", "key3="]]
+                        customSettings: [
+                            "GCC_PREPROCESSOR_DEFINITIONS": ["$(inherited)", "key1=1", "key2=value", "key3="],
+                            "OTHER_SWIFT_FLAGS": [
+                                "$(inherited)",
+                            ],
+                        ]
                     ),
                 ]
             )
@@ -2102,7 +2202,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -2131,7 +2231,12 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     .test(
                         "Target1",
                         basePath: basePath,
-                        customSettings: ["GCC_PREPROCESSOR_DEFINITIONS": ["key1=1", "key2=value"]]
+                        customSettings: [
+                            "GCC_PREPROCESSOR_DEFINITIONS": ["$(inherited)", "key1=1", "key2=value"],
+                            "OTHER_SWIFT_FLAGS": [
+                                "$(inherited)",
+                            ],
+                        ]
                     ),
                 ]
             )
@@ -2146,7 +2251,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -2166,12 +2271,21 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 ),
             ]
         )
-        XCTAssertEqual(
+        XCTAssertBetterEqual(
             project,
             .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
-                    .test("Target1", basePath: basePath, customSettings: ["SWIFT_ACTIVE_COMPILATION_CONDITIONS": "key"]),
+                    .test(
+                        "Target1",
+                        basePath: basePath,
+                        customSettings: [
+                            "SWIFT_ACTIVE_COMPILATION_CONDITIONS": ["$(inherited)", "key"],
+                            "OTHER_SWIFT_FLAGS": [
+                                "$(inherited)",
+                            ],
+                        ]
+                    ),
                 ]
             )
         )
@@ -2185,7 +2299,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -2211,7 +2325,16 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
-                    .test("Target1", basePath: basePath, customSettings: ["OTHER_CFLAGS": ["key1", "key2", "key3"]]),
+                    .test(
+                        "Target1",
+                        basePath: basePath,
+                        customSettings: [
+                            "OTHER_CFLAGS": ["$(inherited)", "key1", "key2", "key3"],
+                            "OTHER_SWIFT_FLAGS": [
+                                "$(inherited)",
+                            ],
+                        ]
+                    ),
                 ]
             )
         )
@@ -2225,7 +2348,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -2246,12 +2369,21 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 ),
             ]
         )
-        XCTAssertEqual(
+        XCTAssertBetterEqual(
             project,
             .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
-                    .test("Target1", basePath: basePath, customSettings: ["OTHER_CPLUSPLUSFLAGS": ["key1", "key2", "key3"]]),
+                    .test(
+                        "Target1",
+                        basePath: basePath,
+                        customSettings: [
+                            "OTHER_CPLUSPLUSFLAGS": ["$(inherited)", "key1", "key2", "key3"],
+                            "OTHER_SWIFT_FLAGS": [
+                                "$(inherited)",
+                            ],
+                        ]
+                    ),
                 ]
             )
         )
@@ -2265,7 +2397,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -2309,7 +2441,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -2352,7 +2484,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -2395,7 +2527,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -2442,7 +2574,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -2463,12 +2595,21 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 ),
             ]
         )
-        XCTAssertEqual(
+        XCTAssertBetterEqual(
             project,
             .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
-                    .test("Target1", basePath: basePath, customSettings: ["OTHER_LDFLAGS": ["key1", "key2", "key3"]]),
+                    .test(
+                        "Target1",
+                        basePath: basePath,
+                        customSettings: [
+                            "OTHER_LDFLAGS": ["$(inherited)", "key1", "key2", "key3"],
+                            "OTHER_SWIFT_FLAGS": [
+                                "$(inherited)",
+                            ],
+                        ]
+                    ),
                 ]
             )
         )
@@ -2484,7 +2625,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             basePath: basePath,
             packageType: .local,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -2535,32 +2676,35 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     disableSynthesizedResourceAccessors: true,
                     textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
                 ),
+                settings: .settings(
+                    base: [
+                        "EXCLUDED_ARCHS[sdk=iphonesimulator*]": .string("x86_64"),
+                    ],
+                    configurations: [
+                        .debug(
+                            name: "Debug",
+                            settings: ["CUSTOM_SETTING_1": .string("CUSTOM_VALUE_1")],
+                            xcconfig: "Sources/Target1/Config.xcconfig"
+                        ),
+                        .release(
+                            name: "Release",
+                            settings: ["CUSTOM_SETTING_2": .string("CUSTOM_VALUE_2")],
+                            xcconfig: "Sources/Target1/Config.xcconfig"
+                        ),
+                    ],
+                    defaultSettings: .recommended
+                ),
                 targets: [
                     .test(
                         "Target1",
                         basePath: basePath,
                         destinations: .iOS,
                         deploymentTargets: .iOS("12.0"),
-                        baseSettings: .settings(
-                            base: [
-                                "EXCLUDED_ARCHS[sdk=iphonesimulator*]": .string("x86_64"),
-                            ],
-                            configurations: [
-                                .debug(
-                                    name: "Debug",
-                                    settings: ["CUSTOM_SETTING_1": .string("CUSTOM_VALUE_1")],
-                                    xcconfig: "Sources/Target1/Config.xcconfig"
-                                ),
-                                .release(
-                                    name: "Release",
-                                    settings: ["CUSTOM_SETTING_2": .string("CUSTOM_VALUE_2")],
-                                    xcconfig: "Sources/Target1/Config.xcconfig"
-                                ),
-                            ],
-                            defaultSettings: .recommended
-                        ),
                         customSettings: [
-                            "OTHER_LDFLAGS": ["key1", "key2", "key3"],
+                            "OTHER_LDFLAGS": ["$(inherited)", "key1", "key2", "key3"],
+                            "OTHER_SWIFT_FLAGS": [
+                                "$(inherited)",
+                            ],
                         ]
                     ),
                 ]
@@ -2573,7 +2717,19 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         try fileHandler.createFolder(sourcesPath)
 
-        let customSettings: XcodeGraph.SettingsDictionary = ["CUSTOM_SETTING": .string("CUSTOM_VALUE")]
+        let customSettings: XcodeGraph.Settings = .test(
+            base: ["CUSTOM_SETTING": .string("CUSTOM_VALUE")],
+            configurations: [
+                .init(name: "Custom Debug", variant: .debug): .init(
+                    settings: ["CUSTOM_SETTING_1": .string("CUSTOM_VALUE_1")],
+                    xcconfig: sourcesPath.appending(component: "Config.xcconfig")
+                ),
+                .init(name: "Custom Release", variant: .release): .init(
+                    settings: ["CUSTOM_SETTING_3": .string("CUSTOM_VALUE_4")],
+                    xcconfig: sourcesPath.appending(component: "Config.xcconfig")
+                ),
+            ]
+        )
 
         let targetSettings = ["Target1": customSettings]
 
@@ -2581,7 +2737,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -2606,7 +2762,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 targetSettings: targetSettings
             )
         )
-        XCTAssertEqual(
+        XCTAssertBetterEqual(
             project,
             .testWithDefaultConfigs(
                 name: "Package",
@@ -2614,10 +2770,25 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     .test(
                         "Target1",
                         basePath: basePath,
-                        customSettings: [
-                            "OTHER_LDFLAGS": ["key1", "key2", "key3"],
-                            "CUSTOM_SETTING": "CUSTOM_VALUE",
-                        ]
+                        baseSettings: .settings(
+                            base: [
+                                "OTHER_LDFLAGS": ["$(inherited)", "key1", "key2", "key3"],
+                                "CUSTOM_SETTING": "CUSTOM_VALUE",
+                            ],
+                            configurations: [
+                                .debug(
+                                    name: "Custom Debug",
+                                    settings: ["CUSTOM_SETTING_1": .string("CUSTOM_VALUE_1")],
+                                    xcconfig: "Sources/Target1/Config.xcconfig"
+                                ),
+                                .release(
+                                    name: "Custom Release",
+                                    settings: ["CUSTOM_SETTING_3": .string("CUSTOM_VALUE_4")],
+                                    xcconfig: "Sources/Target1/Config.xcconfig"
+                                ),
+                            ],
+                            defaultSettings: .recommended
+                        )
                     ),
                 ]
             )
@@ -2633,7 +2804,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -2664,7 +2835,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 ),
             ]
         )
-        XCTAssertEqual(
+        XCTAssertBetterEqual(
             project,
             .testWithDefaultConfigs(
                 name: "Package",
@@ -2673,7 +2844,10 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         "Target1",
                         basePath: basePath,
                         customSettings: [
-                            "HEADER_SEARCH_PATHS": ["$(SRCROOT)/Sources/Target1/otherValue"],
+                            "HEADER_SEARCH_PATHS": [
+                                "$(inherited)",
+                                "$(SRCROOT)/Sources/Target1/otherValue",
+                            ],
                             "HEADER_SEARCH_PATHS[sdk=appletvos*]": [
                                 "$(inherited)",
                                 "$(SRCROOT)/Sources/Target1/value",
@@ -2683,6 +2857,9 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                                 "$(inherited)",
                                 "$(SRCROOT)/Sources/Target1/value",
                                 "$(SRCROOT)/Sources/Target1/otherValue",
+                            ],
+                            "OTHER_SWIFT_FLAGS": [
+                                "$(inherited)",
                             ],
                         ]
                     ),
@@ -2700,7 +2877,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -2720,7 +2897,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 ),
             ]
         )
-        XCTAssertEqual(
+        XCTAssertBetterEqual(
             project,
             .testWithDefaultConfigs(
                 name: "Package",
@@ -2744,7 +2921,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -2764,7 +2941,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 ),
             ]
         )
-        XCTAssertEqual(
+        XCTAssertBetterEqual(
             project,
             .testWithDefaultConfigs(
                 name: "Package",
@@ -2790,7 +2967,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -2809,7 +2986,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 ),
             ]
         )
-        XCTAssertEqual(
+        XCTAssertBetterEqual(
             project,
             .testWithDefaultConfigs(
                 name: "Package",
@@ -2832,7 +3009,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -2851,7 +3028,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 ),
             ]
         )
-        XCTAssertEqual(
+        XCTAssertBetterEqual(
             project,
             .testWithDefaultConfigs(
                 name: "Package",
@@ -2882,7 +3059,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -2901,7 +3078,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 ),
             ]
         )
-        XCTAssertEqual(
+        XCTAssertBetterEqual(
             project,
             .testWithDefaultConfigs(
                 name: "Package",
@@ -2922,7 +3099,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -2943,7 +3120,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 ),
             ]
         )
-        XCTAssertEqual(
+        XCTAssertBetterEqual(
             project,
             .testWithDefaultConfigs(
                 name: "Package",
@@ -2972,7 +3149,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -3021,7 +3198,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -3069,7 +3246,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package2/Sources/Target4")))
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/Dependency1")))
 
-        let package1 = PackageInfo(
+        let package1 = PackageInfo.test(
             name: "Package",
             products: [
                 .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -3086,7 +3263,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             cxxLanguageStandard: nil,
             swiftLanguageVersions: nil
         )
-        let package2 = PackageInfo(
+        let package2 = PackageInfo.test(
             name: "Package2",
             products: [
                 .init(name: "Product2", type: .library(.automatic), targets: ["Target2", "Target3"]),
@@ -3132,7 +3309,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package2/Sources/Target4")))
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/Dependency1")))
 
-        let package1 = PackageInfo(
+        let package1 = PackageInfo.test(
             name: "Package",
             products: [
                 .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -3149,7 +3326,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             cxxLanguageStandard: nil,
             swiftLanguageVersions: nil
         )
-        let package2 = PackageInfo(
+        let package2 = PackageInfo.test(
             name: "Package2",
             products: [
                 .init(name: "Product2", type: .library(.automatic), targets: ["Target2", "Target3"]),
@@ -3196,7 +3373,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -3211,9 +3388,9 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 ),
             ]
         )
-        XCTAssertEqual(
+        XCTAssertBetterEqual(
             project,
-            .test(
+            .testWithDefaultConfigs(
                 name: "Package",
                 settings: .settings(base: ["GCC_C_LANGUAGE_STANDARD": "c99"]),
                 targets: [
@@ -3232,7 +3409,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -3247,9 +3424,9 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 ),
             ]
         )
-        XCTAssertEqual(
+        XCTAssertBetterEqual(
             project,
-            .test(
+            .testWithDefaultConfigs(
                 name: "Package",
                 settings: .settings(base: ["CLANG_CXX_LANGUAGE_STANDARD": "gnu++14"]),
                 targets: [
@@ -3268,7 +3445,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -3283,9 +3460,9 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 ),
             ]
         )
-        XCTAssertEqual(
+        XCTAssertBetterEqual(
             project,
-            .test(
+            .testWithDefaultConfigs(
                 name: "Package",
                 settings: .settings(base: ["SWIFT_VERSION": "4.0.0"]),
                 targets: [
@@ -3304,7 +3481,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -3319,9 +3496,9 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 ),
             ]
         )
-        XCTAssertEqual(
+        XCTAssertBetterEqual(
             project,
-            .test(
+            .testWithDefaultConfigs(
                 name: "Package",
                 settings: .settings(base: ["SWIFT_VERSION": "5.0.0"]),
                 targets: [
@@ -3340,7 +3517,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -3351,19 +3528,19 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     platforms: [.ios],
                     cLanguageStandard: nil,
                     cxxLanguageStandard: nil,
-                    swiftLanguageVersions: ["4.0.0", "5.0.0", "4.2.0"]
+                    swiftLanguageVersions: ["5.0.0", "6.0.0", "5.9.0"],
+                    toolsVersion: Version(5, 9, 0)
                 ),
             ],
             packageSettings: .test(
-                baseSettings: .default,
-                swiftToolsVersion: "4.4.0"
+                baseSettings: .default
             )
         )
-        XCTAssertEqual(
+        XCTAssertBetterEqual(
             project,
-            .test(
+            .testWithDefaultConfigs(
                 name: "Package",
-                settings: .settings(base: ["SWIFT_VERSION": "4.2.0"]),
+                settings: .settings(base: ["SWIFT_VERSION": "5.9.0"]),
                 targets: [
                     .test("Target1", basePath: basePath),
                 ]
@@ -3380,7 +3557,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -3398,8 +3575,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 baseSettings: Settings(
                     configurations: [.release: nil, .debug: nil, .init(name: "Custom", variant: .release): nil],
                     defaultSettings: .recommended
-                ),
-                swiftToolsVersion: "4.4.0"
+                )
             )
         )
 
@@ -3428,7 +3604,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: allTargets),
@@ -3443,20 +3619,20 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             packageSettings: .test(
                 baseSettings: .default,
                 targetSettings: [
-                    "Nimble": ["ENABLE_TESTING_SEARCH_PATHS": "NO", "ANOTHER_SETTING": "YES"],
-                    "Quick": ["ANOTHER_SETTING": "YES"],
+                    "Nimble": .test(base: ["ENABLE_TESTING_SEARCH_PATHS": "NO", "ANOTHER_SETTING": "YES"]),
+                    "Quick": .test(base: ["ANOTHER_SETTING": "YES"]),
                 ]
             )
         )
 
-        XCTAssertEqual(
+        XCTAssertBetterEqual(
             project,
             .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
                     .test("RxSwift", basePath: basePath, product: .framework),
                 ] + testTargets.map {
-                    let customSettings: ProjectDescription.SettingsDictionary
+                    var customSettings: ProjectDescription.SettingsDictionary
                     var customProductName: String?
                     switch $0 {
                     case "Nimble":
@@ -3470,6 +3646,9 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     default:
                         customSettings = ["ENABLE_TESTING_SEARCH_PATHS": "YES"]
                     }
+                    customSettings["OTHER_SWIFT_FLAGS"] = [
+                        "$(inherited)",
+                    ]
 
                     return .test(
                         $0,
@@ -3492,7 +3671,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: "Package",
             basePath: basePath,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product", type: .library(.automatic), targets: ["Target1"]),
@@ -3566,7 +3745,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package2/Sources/Target2")))
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package2/Sources/Target3")))
 
-        let package1 = PackageInfo(
+        let package1 = PackageInfo.test(
             name: "Package",
             products: [
                 .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -3589,7 +3768,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             cxxLanguageStandard: nil,
             swiftLanguageVersions: nil
         )
-        let package2 = PackageInfo(
+        let package2 = PackageInfo.test(
             name: "Package2",
             products: [
                 .init(name: "Product2", type: .library(.automatic), targets: ["Target2", "Target3"]),
@@ -3648,7 +3827,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             package: packageName,
             basePath: basePath,
             packageInfos: [
-                packageName: .init(
+                packageName: .test(
                     name: packageName,
                     products: [
                         .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
@@ -3692,7 +3871,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             basePath: basePath,
             packageType: .local,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product", type: .library(.automatic), targets: ["Target"]),
@@ -3716,7 +3895,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         // Then
         XCTAssertBetterEqual(
             project,
-            .test(
+            .testWithDefaultConfigs(
                 name: "Package",
                 options: .options(
                     automaticSchemesOptions: .enabled(),
@@ -3753,7 +3932,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             basePath: basePath,
             packageType: .local,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(name: "Product", type: .library(.automatic), targets: ["Target"]),
@@ -3780,7 +3959,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         // Then
         XCTAssertBetterEqual(
             project,
-            .test(
+            .testWithDefaultConfigs(
                 name: "Package",
                 options: .options(
                     automaticSchemesOptions: .enabled(),
@@ -3827,7 +4006,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             basePath: basePath,
             packageType: .local,
             packageInfos: [
-                "Package": .init(
+                "Package": .test(
                     name: "Package",
                     products: [
                         .init(
@@ -3876,7 +4055,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         // Then
         XCTAssertBetterEqual(
             project,
-            .test(
+            .testWithDefaultConfigs(
                 name: "Package",
                 options: .options(
                     automaticSchemesOptions: .enabled(),
@@ -3960,7 +4139,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         // Then
         XCTAssertBetterEqual(
             project,
-            .test(
+            .testWithDefaultConfigs(
                 name: "Package",
                 options: .options(
                     automaticSchemesOptions: .enabled(),
@@ -3991,7 +4170,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/Product")))
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package2/Sources/Product")))
         let packageInfos: [String: PackageInfo] = [
-            "Package": .init(
+            "Package": .test(
                 name: "Package",
                 products: [
                     .init(name: "Product", type: .library(.automatic), targets: ["Product"]),
@@ -4014,7 +4193,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 cxxLanguageStandard: nil,
                 swiftLanguageVersions: nil
             ),
-            "Package2": .init(
+            "Package2": .test(
                 name: "Package2",
                 products: [
                     .init(name: "Product", type: .library(.automatic), targets: ["Product"]),
@@ -4058,7 +4237,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         dependencies: [
                             .target(name: "Package2Product", condition: nil),
                         ],
-                        customSettings: ["OTHER_SWIFT_FLAGS": ["-module-alias", "Product=Package2Product"]]
+                        customSettings: ["OTHER_SWIFT_FLAGS": ["$(inherited)", "-module-alias", "Product=Package2Product"]]
                     ),
                 ]
             )
@@ -4088,7 +4267,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         let basePath = try temporaryPath()
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/Product")))
         let packageInfos: [String: PackageInfo] = [
-            "Package": .init(
+            "Package": .test(
                 name: "Package",
                 products: [
                     .init(name: "Product", type: .library(.automatic), targets: ["Product"]),
@@ -4101,13 +4280,10 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 platforms: [.ios],
                 cLanguageStandard: nil,
                 cxxLanguageStandard: nil,
-                swiftLanguageVersions: nil
+                swiftLanguageVersions: nil,
+                toolsVersion: Version(5, 8, 0)
             ),
         ]
-        swiftPackageManagerController.reset()
-        given(swiftPackageManagerController)
-            .getToolsVersion(at: .any)
-            .willReturn(Version(5, 8, 0))
 
         // When
         let project = try await subject.map(
@@ -4119,7 +4295,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         // Then
         XCTAssertBetterEqual(
             project?.targets.first?.settings?.base["OTHER_SWIFT_FLAGS"],
-            nil
+            ["$(inherited)"]
         )
     }
 
@@ -4128,7 +4304,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         let basePath = try temporaryPath()
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/Product")))
         let packageInfos: [String: PackageInfo] = [
-            "Package": .init(
+            "Package": .test(
                 name: "Package",
                 products: [
                     .init(name: "Product", type: .library(.automatic), targets: ["Product"]),
@@ -4141,13 +4317,10 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 platforms: [.ios],
                 cLanguageStandard: nil,
                 cxxLanguageStandard: nil,
-                swiftLanguageVersions: nil
+                swiftLanguageVersions: nil,
+                toolsVersion: Version(5, 9, 0)
             ),
         ]
-        swiftPackageManagerController.reset()
-        given(swiftPackageManagerController)
-            .getToolsVersion(at: .any)
-            .willReturn(Version(5, 9, 0))
 
         // When
         let project = try await subject.map(
@@ -4158,7 +4331,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
 
         // Then
         XCTAssertBetterEqual(
-            project?.targets.first?.settings?.base["OTHER_SWIFT_FLAGS"],
+            project?.settings?.base["OTHER_SWIFT_FLAGS"],
             .array(["$(inherited)", "-package-name", "Package"])
         )
     }
@@ -4280,15 +4453,21 @@ extension ProjectDescription.Project {
             disableSynthesizedResourceAccessors: true,
             textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
         ),
+        settings: ProjectDescription.Settings = .settings(configurations: [
+            .debug(name: .debug),
+            .release(name: .release),
+        ]),
+        customSettings: ProjectDescription.SettingsDictionary = [:],
         targets: [ProjectDescription.Target]
     ) -> Self {
         Project.test(
             name: name,
             options: options,
-            settings: .settings(configurations: [
-                .debug(name: .debug),
-                .release(name: .release),
-            ]),
+            settings: DependenciesGraph.swiftpmProjectSettings(
+                packageName: name,
+                baseSettings: settings,
+                with: customSettings
+            ),
             targets: targets
         )
     }
@@ -4320,7 +4499,9 @@ extension ProjectDescription.Target {
         headers: ProjectDescription.Headers? = nil,
         dependencies: [ProjectDescription.TargetDependency] = [],
         baseSettings: ProjectDescription.Settings = .settings(),
-        customSettings: ProjectDescription.SettingsDictionary = [:],
+        customSettings: ProjectDescription.SettingsDictionary = [
+            "OTHER_SWIFT_FLAGS": ["$(inherited)"],
+        ],
         moduleMap: String? = nil
     ) -> Self {
         let sources: SourceFilesList?
@@ -4349,8 +4530,7 @@ extension ProjectDescription.Target {
             resources: resources.isEmpty ? nil : .resources(resources),
             headers: headers,
             dependencies: dependencies,
-            settings: DependenciesGraph.spmSettings(
-                packageName: packageName,
+            settings: DependenciesGraph.spmProductSettings(
                 baseSettings: baseSettings,
                 with: customSettings,
                 moduleMap: moduleMap

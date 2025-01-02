@@ -36,6 +36,7 @@ public struct TuistCommand: AsyncParsableCommand {
                         InstallCommand.self,
                         MigrationCommand.self,
                         PluginCommand.self,
+                        RegistryCommand.self,
                         RunCommand.self,
                         ScaffoldCommand.self,
                         TestCommand.self,
@@ -54,8 +55,6 @@ public struct TuistCommand: AsyncParsableCommand {
                         ProjectCommand.self,
                         OrganizationCommand.self,
                         AuthCommand.self,
-                        SessionCommand.self,
-                        LogoutCommand.self,
                     ]
                 ),
             ]
@@ -73,7 +72,7 @@ public struct TuistCommand: AsyncParsableCommand {
             path = .current
         }
 
-        let config = try await ConfigLoader().loadConfig(path: path)
+        let config = try await ConfigLoader(warningController: WarningController.shared).loadConfig(path: path)
         let url = try ServerURLService().url(configServerURL: config.url)
         let analyticsEnabled: Bool
         if let fullHandle = config.fullHandle {
@@ -166,6 +165,6 @@ public struct TuistCommand: AsyncParsableCommand {
 
     static func processArguments(_ arguments: [String]? = nil) -> [String]? {
         let arguments = arguments ?? Array(ProcessInfo.processInfo.arguments)
-        return arguments.filter { $0 != "--verbose" }
+        return arguments.filter { $0 != "--verbose" && $0 != "--quiet" }
     }
 }

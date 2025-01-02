@@ -31,6 +31,7 @@ public final class CommandEventFactory {
     ) throws -> CommandEvent {
         var gitCommitSHA: String?
         var gitRemoteURLOrigin: String?
+        var gitBranch: String?
         if gitController.isInGitRepository(workingDirectory: path) {
             if gitController.hasCurrentBranchCommits(workingDirectory: path) {
                 gitCommitSHA = try gitController.currentCommitSHA(workingDirectory: path)
@@ -39,6 +40,8 @@ public final class CommandEventFactory {
             if try gitController.hasUrlOrigin(workingDirectory: path) {
                 gitRemoteURLOrigin = try gitController.urlOrigin(workingDirectory: path)
             }
+
+            gitBranch = try gitController.currentBranch(workingDirectory: path)
         }
         let commandEvent = CommandEvent(
             runId: info.runId,
@@ -57,6 +60,7 @@ public final class CommandEventFactory {
             gitCommitSHA: gitCommitSHA,
             gitRef: gitController.ref(environment: environment),
             gitRemoteURLOrigin: gitRemoteURLOrigin,
+            gitBranch: gitBranch,
             targetHashes: info.targetHashes,
             graphPath: info.graphPath,
             cacheableTargets: info.cacheableTargets,

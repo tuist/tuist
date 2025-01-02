@@ -199,7 +199,9 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.acceptanceTesting.targetName),
                     .target(name: Module.support.testingTargetName!),
                     .target(name: Module.support.targetName),
+                    .target(name: Module.kit.targetName),
                     .external(name: "XcodeProj"),
+                    .external(name: "Command"),
                 ]
             case .kit:
                 [
@@ -278,6 +280,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "Logging"),
                     .external(name: "ZIPFoundation"),
                     .external(name: "Difference"),
+                    .external(name: "Command"),
                 ]
             case .kit:
                 [
@@ -451,6 +454,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "XcodeGraph"),
                     .external(name: "SwiftToolsSupport"),
                     .external(name: "FileSystem"),
+                    .external(name: "Command"),
                 ]
             case .projectDescription:
                 [
@@ -478,6 +482,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.generator.testingTargetName!),
                     .target(name: Module.automation.testingTargetName!),
                     .target(name: Module.migration.testingTargetName!),
+                    .target(name: Module.asyncQueue.targetName),
                     .target(name: Module.asyncQueue.testingTargetName!),
                     .target(name: Module.plugin.targetName),
                     .target(name: Module.plugin.testingTargetName!),
@@ -646,6 +651,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "Difference"),
                     .external(name: "SwiftToolsSupport"),
                     .external(name: "FileSystem"),
+                    .external(name: "Command"),
                 ]
             case .kit:
                 []
@@ -795,13 +801,6 @@ public enum Module: String, CaseIterable {
         dependencies: [TargetDependency],
         isTestingTarget: Bool
     ) -> Target {
-        let rootFolder: String
-        switch product {
-        case .unitTests:
-            rootFolder = "Tests"
-        default:
-            rootFolder = "Sources"
-        }
         var debugSettings: ProjectDescription.SettingsDictionary = [
             "SWIFT_ACTIVE_COMPILATION_CONDITIONS": "$(inherited) MOCKING",
         ]
@@ -814,6 +813,15 @@ public enum Module: String, CaseIterable {
         if let strictConcurrencySetting, product == .framework {
             debugSettings["SWIFT_STRICT_CONCURRENCY"] = .string(strictConcurrencySetting)
             releaseSettings["SWIFT_STRICT_CONCURRENCY"] = .string(strictConcurrencySetting)
+        }
+
+        let rootFolder: String
+        switch product {
+        case .unitTests:
+            rootFolder = "Tests"
+            debugSettings["CODE_SIGN_IDENTITY"] = ""
+        default:
+            rootFolder = "Sources"
         }
 
         let settings = Settings.settings(

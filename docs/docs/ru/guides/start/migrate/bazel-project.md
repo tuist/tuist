@@ -1,5 +1,6 @@
 ---
 title: Migrate a Bazel project
+titleTemplate: :title · Migrate· Start · Guides · Tuist
 description: Learn how to migrate your projects from Bazel to Tuist.
 ---
 
@@ -16,7 +17,7 @@ Bazel uses rules to define how to build and test software. The rules are written
 
 ::: code-group
 
-```starlark [BUILD (Bazel)]
+```txt [BUILD (Bazel)]
 swift_library(
     name = "MyLibrary.library",
     srcs = glob(["**/*.swift"]),
@@ -39,7 +40,7 @@ Here's another example but compating how to define unit tests in Bazel and Tuist
 
 :::code-group
 
-```starlark [BUILD (Bazel)]
+```txt [BUILD (Bazel)]
 ios_unit_test(
     name = "MyLibraryTests",
     bundle_id = "io.tuist.MyLibraryTests",

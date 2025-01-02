@@ -60,10 +60,7 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
     private let fileSystem: FileSysteming
 
     public init(
-        swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(
-            system: System.shared,
-            fileSystem: FileSystem()
-        ),
+        swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(),
         packageInfoMapper: PackageInfoMapping = PackageInfoMapper(),
         manifestLoader: ManifestLoading = ManifestLoader(),
         fileSystem: FileSysteming = FileSystem()
@@ -101,7 +98,8 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
                 name: String,
                 folder: AbsolutePath,
                 targetToArtifactPaths: [String: AbsolutePath],
-                info: PackageInfo
+                info: PackageInfo,
+                hash: String?
             )
         ]
         packageInfos = try await workspaceState.object.dependencies.concurrentMap { dependency in
@@ -140,7 +138,8 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
                 name: name,
                 folder: packageFolder,
                 targetToArtifactPaths: targetToArtifactPaths,
-                info: packageInfo
+                info: packageInfo,
+                hash: dependency.state?.checkoutState?.revision
             )
         }
 
@@ -184,8 +183,9 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
         let packageModuleAliases = mutablePackageModuleAliases
         let mappedPackageInfos = try await packageInfos.concurrentMap { packageInfo in
             (
-                packageInfo,
-                try await self.packageInfoMapper.map(
+                packageInfo: packageInfo,
+                hash: packageInfo.hash,
+                projectManifest: try await self.packageInfoMapper.map(
                     packageInfo: packageInfo.info,
                     path: packageInfo.folder,
                     packageType: .external(artifactPaths: packageToTargetsToArtifactPaths[packageInfo.name] ?? [:]),
@@ -194,9 +194,15 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
                 )
             )
         }
-        let externalProjects: [Path: ProjectDescription.Project] = mappedPackageInfos
-            .reduce(into: [:]) { result, mappedPackageInfo in
-                result[.path(mappedPackageInfo.0.folder.pathString)] = mappedPackageInfo.1
+        let externalProjects: [Path: DependenciesGraph.ExternalProject] = mappedPackageInfos
+            .reduce(into: [:]) { result, item in
+                let (packageInfo, hash, projectManifest) = item
+                if let projectManifest {
+                    result[.path(packageInfo.folder.pathString)] = DependenciesGraph.ExternalProject(
+                        manifest: projectManifest,
+                        hash: hash
+                    )
+                }
             }
 
         return DependenciesGraph(

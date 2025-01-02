@@ -1,4 +1,17 @@
 {
+  "aside": {
+    "translate": {
+      "title": {
+        "text": "Translation 🌍"
+      },
+      "description": {
+        "text": "You can translate or improve the translation of this page."
+      },
+      "cta": {
+        "text": "Contribute"
+      }
+    }
+  },
   "search": {
     "placeholder": "Search",
     "translations": {
@@ -104,10 +117,13 @@
           "text": "Issue reporting"
         },
         "code-reviews": {
-          "text": "Code reviews"
+          "text": "Код ревью"
         },
         "principles": {
           "text": "Principles"
+        },
+        "translate": {
+          "text": "Translate"
         }
       }
     },
@@ -159,7 +175,7 @@
           "text": "Quick start",
           "items": {
             "install-tuist": {
-              "text": "Install Tuist"
+              "text": "Установка Tuist"
             },
             "create-a-project": {
               "text": "Create a project"
@@ -173,7 +189,7 @@
           "text": "Start",
           "items": {
             "new-project": {
-              "text": "Create a new project"
+              "text": "Создание нового проекта"
             },
             "swift-package": {
               "text": "Try with a Swift Package"
@@ -213,7 +229,7 @@
                   "text": "Editing"
                 },
                 "dependencies": {
-                  "text": "Dependencies"
+                  "text": "Зависимости"
                 },
                 "code-sharing": {
                   "text": "Code sharing"
@@ -240,7 +256,7 @@
                   "text": "Modular architecture"
                 },
                 "best-practices": {
-                  "text": "Best practices"
+                  "text": "Лучшие практики"
                 }
               }
             },
@@ -249,14 +265,17 @@
               "items": {
                 "cache": {
                   "text": "Cache"
+                },
+                "registry": {
+                  "text": "Registry"
                 }
               }
             },
             "test": {
               "text": "Test",
               "items": {
-                "smart-runner": {
-                  "text": "Smart runner"
+                "selective-testing": {
+                  "text": "Selective testing"
                 },
                 "flakiness": {
                   "text": "Flakiness"
@@ -267,7 +286,7 @@
               "text": "Inspect",
               "items": {
                 "implicit-imports": {
-                  "text": "Implicit imports"
+                  "text": "Неявные импорты"
                 }
               }
             },

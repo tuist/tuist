@@ -73,6 +73,49 @@ final class ServerAuthenticationControllerTests: TuistUnitTestCase {
         XCTAssertNil(got)
     }
 
+    func test_when_config_token_is_present_and_is_not_ci_and_tuist_dev_credentials_are_missing() async throws {
+        // Given
+        environment.tuistVariables[
+            Constants.EnvironmentVariables.token
+        ] = "project-token"
+        let credentials = ServerCredentials.test(token: "access-token")
+        given(ciChecker)
+            .isCI()
+            .willReturn(false)
+        given(credentialsStore)
+            .read(serverURL: .value(URL(string: "https://tuist.dev")!))
+            .willReturn(nil)
+        given(credentialsStore)
+            .read(serverURL: .value(URL(string: "https://cloud.tuist.io")!))
+            .willReturn(credentials)
+
+        // When
+        let got = try await subject.authenticationToken(serverURL: URL(string: "https://tuist.dev")!)
+
+        // Then
+        XCTAssertEqual(got?.value, credentials.token)
+    }
+
+    func test_when_config_token_is_present_and_is_not_ci_and_tuist_dev_credentials_are_present() async throws {
+        // Given
+        environment.tuistVariables[
+            Constants.EnvironmentVariables.token
+        ] = "project-token"
+        let credentials = ServerCredentials.test(token: "access-token")
+        given(ciChecker)
+            .isCI()
+            .willReturn(false)
+        given(credentialsStore)
+            .read(serverURL: .value(URL(string: "https://tuist.dev")!))
+            .willReturn(credentials)
+
+        // When
+        let got = try await subject.authenticationToken(serverURL: URL(string: "https://tuist.dev")!)
+
+        // Then
+        XCTAssertEqual(got?.value, credentials.token)
+    }
+
     func test_when_deprecated_config_token_is_present_and_is_ci() async throws {
         // Given
         environment.tuistVariables[
@@ -138,7 +181,9 @@ final class ServerAuthenticationControllerTests: TuistUnitTestCase {
             got,
             .user(legacyToken: "legacy-token", accessToken: nil, refreshToken: nil)
         )
-        XCTAssertStandardOutput(pattern: "You are using a deprecated user token. Please, reauthenticate by running `tuist auth`.")
+        XCTAssertStandardOutput(
+            pattern: "You are using a deprecated user token. Please, reauthenticate by running 'tuist auth login'."
+        )
     }
 
     func test_when_credentials_store_returns_legacy_token_and_jwt_tokens() async throws {
@@ -149,7 +194,13 @@ final class ServerAuthenticationControllerTests: TuistUnitTestCase {
 
         given(credentialsStore)
             .read(serverURL: .any)
-            .willReturn(ServerCredentials(token: "legacy-token", accessToken: accessToken, refreshToken: refreshToken))
+            .willReturn(
+                .test(
+                    token: "legacy-token",
+                    accessToken: accessToken,
+                    refreshToken: refreshToken
+                )
+            )
 
         // When
         let got = try await subject.authenticationToken(serverURL: .test())
@@ -160,18 +211,18 @@ final class ServerAuthenticationControllerTests: TuistUnitTestCase {
             got,
             .user(
                 legacyToken: nil,
-                accessToken: JWT(
+                accessToken: .test(
                     token: accessToken,
                     expiryDate: Date(timeIntervalSince1970: 1_720_429_812)
                 ),
-                refreshToken: JWT(
+                refreshToken: .test(
                     token: refreshToken,
                     expiryDate: Date(timeIntervalSince1970: 1_720_429_810)
                 )
             )
         )
         XCTAssertPrinterOutputNotContains(
-            "You are using a deprecated user token. Please, reauthenticate by running `tuist auth`."
+            "You are using a deprecated user token. Please, reauthenticate by running 'tuist auth login'."
         )
     }
 
@@ -199,11 +250,11 @@ final class ServerAuthenticationControllerTests: TuistUnitTestCase {
             got,
             .user(
                 legacyToken: nil,
-                accessToken: JWT(
+                accessToken: .test(
                     token: accessToken,
                     expiryDate: Date(timeIntervalSince1970: 1_720_429_812)
                 ),
-                refreshToken: JWT(
+                refreshToken: .test(
                     token: refreshToken,
                     expiryDate: Date(timeIntervalSince1970: 1_720_429_810)
                 )

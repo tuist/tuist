@@ -46,7 +46,7 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
         graphMapper: GraphMapping
     ) {
         self.init(
-            configLoader: ConfigLoader(manifestLoader: manifestLoader),
+            configLoader: ConfigLoader(manifestLoader: manifestLoader, warningController: WarningController.shared),
             manifestLoader: manifestLoader,
             recursiveManifestLoader: RecursiveManifestLoader(manifestLoader: manifestLoader),
             converter: ManifestModelConverter(
@@ -120,11 +120,11 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
                 with: plugins
             )
 
-            let manifest = try await swiftPackageManagerGraphLoader.load(
+            let manifestsDependencyGraph = try await swiftPackageManagerGraphLoader.load(
                 packagePath: packagePath,
                 packageSettings: loadedPackageSettings
             )
-            dependenciesGraph = try await converter.convert(manifest: manifest, path: path)
+            dependenciesGraph = try await converter.convert(dependenciesGraph: manifestsDependencyGraph, path: path)
             packageSettings = loadedPackageSettings
         } else {
             packageSettings = nil
@@ -199,7 +199,7 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
                 path: $0.path,
                 plugins: plugins,
                 externalDependencies: externalDependencies,
-                isExternal: false
+                type: .local
             )
         }
     }

@@ -21,7 +21,7 @@ final class CachePrintHashesService {
             generatorFactory: generatorFactory,
             cacheGraphContentHasher: CacheGraphContentHasher(contentHasher: contentHasher),
             clock: WallClock(),
-            configLoader: ConfigLoader(manifestLoader: ManifestLoader())
+            configLoader: ConfigLoader(manifestLoader: ManifestLoader(), warningController: WarningController.shared)
         )
     }
 

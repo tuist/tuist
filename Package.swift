@@ -20,7 +20,6 @@ let targets: [Target] = [
             pathDependency,
             swiftToolsSupportDependency,
             "FileSystem",
-            "Path",
         ]
     ),
     .executableTarget(
@@ -84,6 +83,7 @@ let targets: [Target] = [
             "TuistServer",
             "FileSystem",
             "TuistCache",
+            .product(name: "Command", package: "Command"),
             .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
             .byName(name: "AnyCodable"),
         ],
@@ -96,10 +96,10 @@ let targets: [Target] = [
         dependencies: [
             "TuistKit",
             "TuistSupport",
-            "Path",
             "TuistLoader",
             "ProjectDescription",
             "ProjectAutomation",
+            pathDependency,
             swiftToolsSupportDependency,
         ]
     ),
@@ -120,6 +120,7 @@ let targets: [Target] = [
             "ZIPFoundation",
             "Mockable",
             "FileSystem",
+            "Command",
         ],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
@@ -510,10 +511,12 @@ let package = Package(
         ),
         .package(url: "https://github.com/tuist/Path", .upToNextMajor(from: "0.3.0")),
         .package(
-            url: "https://github.com/tuist/XcodeGraph.git", .upToNextMajor(from: "0.16.0")
+            url: "https://github.com/tuist/XcodeGraph.git", exact: "1.1.0"
         ),
-        .package(url: "https://github.com/tuist/FileSystem.git", .upToNextMajor(from: "0.5.0")),
+        .package(url: "https://github.com/tuist/FileSystem.git", .upToNextMajor(from: "0.6.17")),
         .package(url: "https://github.com/tuist/Command.git", exact: "0.8.0"),
+        .package(url: "https://github.com/sparkle-project/Sparkle.git", from: "2.6.4"),
+        .package(url: "https://github.com/apple/swift-collections", .upToNextMajor(from: "1.1.4")),
     ],
     targets: targets
 )

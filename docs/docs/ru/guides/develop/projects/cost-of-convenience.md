@@ -1,6 +1,6 @@
 ---
 title: The cost of convenience
-titleTemplate: :title | Projects | Tuist
+titleTemplate: :title · Projects · Develop · Guides · Tuist
 description: Learn about the cost of convenience in Xcode and how Tuist helps you prevent the issues that come with it.
 ---
 
@@ -55,8 +55,8 @@ it might manifest as failing builds that are hard to debug when the project grow
 
 The consequence of this design decision is that many projects acidentally compile with a graph that is not well-defined.
 
-> [!TIP] TUIST ENFORCEMENT OF EXPLICIT DEPENDENCIES
-> Tuist provides a generation configuration option to disallow implicit dependencies. When enabled, if a target tries to import a dependencies that's not explicitly declared, the build will fail.
+> [!TIP] TUIST DETECTION OF IMPLICIT DEPENDENCIES
+> Tuist provides a [command](../inspect/implicit-dependencies) to detect implicit dependencies. You can use the command to validate in CI that all your dependencies are explicit.
 
 ### Find implicit dependencies in schemes {#find-implicit-dependencies-in-schemes}
 

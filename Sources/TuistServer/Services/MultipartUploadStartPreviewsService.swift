@@ -1,5 +1,6 @@
 import Foundation
 import Mockable
+import TuistCore
 import TuistSupport
 
 @Mockable
@@ -9,6 +10,7 @@ public protocol MultipartUploadStartPreviewsServicing {
         displayName: String,
         version: String?,
         bundleIdentifier: String?,
+        supportedPlatforms: [DestinationType],
         fullHandle: String,
         serverURL: URL
     ) async throws -> PreviewUpload
@@ -59,6 +61,7 @@ public final class MultipartUploadStartPreviewsService: MultipartUploadStartPrev
         displayName: String,
         version: String?,
         bundleIdentifier: String?,
+        supportedPlatforms: [DestinationType],
         fullHandle: String,
         serverURL: URL
     ) async throws -> PreviewUpload {
@@ -82,6 +85,7 @@ public final class MultipartUploadStartPreviewsService: MultipartUploadStartPrev
                     .init(
                         bundle_identifier: bundleIdentifier,
                         display_name: displayName,
+                        supported_platforms: supportedPlatforms.map(Components.Schemas.PreviewSupportedPlatform.init),
                         _type: type,
                         version: version
                     )
