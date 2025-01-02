@@ -187,7 +187,7 @@ final class SettingsMapperTests: XCTestCase {
         let settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting] = [
             .init(tool: .swift, name: .swiftLanguageMode, condition: nil, value: ["6"]),
         ]
-        
+
         let mapper = SettingsMapper(
             headerSearchPaths: [],
             mainRelativePath: try RelativePath(validating: "path"),
