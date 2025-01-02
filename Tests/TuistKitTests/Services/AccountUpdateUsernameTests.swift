@@ -26,7 +26,6 @@ final class AccountUpdateUsernameServiceTests: TuistUnitTestCase {
             updateAccountUsernameService: updateAccountUsernameService,
             configLoader: configLoader
         )
-
     }
 
     override func tearDown() {
