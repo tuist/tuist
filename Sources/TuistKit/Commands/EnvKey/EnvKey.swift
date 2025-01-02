@@ -244,6 +244,14 @@ public enum EnvKey: String, CaseIterable {
     case cacheConfiguration = "TUIST_CACHE_CONFIGURATION"
     case cachePath = "TUIST_CACHE_PATH"
     case cacheTargets = "TUIST_CACHE_TARGETS"
+    
+    // WORKFLOWS LS
+    case workflowsLSPath = "TUIST_WORKFLOWS_LS_PATH"
+    case workflowsLSJSON = "TUIST_WORKFLOWS_LS_JSON"
+    
+    // WORKFLOWS LS
+    case workflowsRunPath = "TUIST_WORKFLOWS_RUN_PATH"
+    case workflowsRunWorkflow = "TUIST_WORKFLOWS_RUN_WORKFLOW"
 }
 
 extension EnvKey {
