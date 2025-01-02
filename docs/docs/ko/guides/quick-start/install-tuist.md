@@ -93,3 +93,12 @@ bash-completion이 없으면 완성 스크립트를 직접 불러와야 합니�
 ```bash
 source ~/.bash_completions/example.bash
 ```
+
+#### Fish {#fish}
+
+If you use [fish shell](https://fishshell.com), you can copy your new completion script to `~/.config/fish/completions/tuist.fish`:
+
+```bash
+mkdir -p ~/.config/fish/completions
+tuist --generate-completion-script > ~/.config/fish/completions/tuist.fish
+```
