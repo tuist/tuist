@@ -276,12 +276,13 @@ defmodule Tuist.Registry.Swift.PackagesTest do
       |> stub(:get_source_archive_by_tag_and_repository_full_handle, fn _ ->
         {:ok,
          [
-           {~c"Package.swift", package_manifest_content}
+           {~c"root-directory", ""},
+           {~c"root-directory/Package.swift", package_manifest_content}
          ]}
       end)
 
       expected_files = [
-        {~c"Package.swift", package_manifest_content}
+        {~c"root-directory/Package.swift", package_manifest_content}
       ]
 
       Zip

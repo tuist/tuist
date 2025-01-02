@@ -113,6 +113,14 @@ defmodule Tuist.Registry.Swift.Packages do
 
     file_list =
       file_list
+      |> Enum.filter(fn file_tuple ->
+        # Filter out directories to fix swift package resolve permission issues.
+        # See for more context: https://github.com/tuist/server/pull/1237
+        case file_tuple do
+          {_, ""} -> false
+          _ -> true
+        end
+      end)
       |> Enum.map(fn {file_name, file_content} ->
         cond do
           List.to_string(file_name) |> String.ends_with?("Package.swift") ->
