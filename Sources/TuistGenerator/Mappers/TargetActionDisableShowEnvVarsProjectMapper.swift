@@ -1,3 +1,4 @@
+import ServiceContextModule
 import TuistCore
 import XcodeGraph
 
@@ -7,7 +8,7 @@ public final class TargetActionDisableShowEnvVarsProjectMapper: ProjectMapping {
     public init() {}
 
     public func map(project: Project) throws -> (Project, [SideEffectDescriptor]) {
-        logger
+        ServiceContext.current?.logger?
             .debug(
                 "Transforming project \(project.name): Configuring 'disable show environment vars in script' in project targets' script phases"
             )

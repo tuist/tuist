@@ -1,7 +1,20 @@
 import class Foundation.ProcessInfo
 @_exported import Logging
+import ServiceContextModule
 
-let logger = Logger(label: "io.tuist.support")
+private enum LoggerServiceContextKey: ServiceContextKey {
+    typealias Value = Logger
+}
+
+extension ServiceContext {
+    public var logger: Logger? {
+        get {
+            self[LoggerServiceContextKey.self]
+        } set {
+            self[LoggerServiceContextKey.self] = newValue
+        }
+    }
+}
 
 public struct LoggingConfig {
     public init(loggerType: LoggerType, verbose: Bool) {
@@ -21,6 +34,31 @@ public struct LoggingConfig {
     public var verbose: Bool
 }
 
+extension Logger {
+    public static func defaultLoggerHandler(config: LoggingConfig = .default) -> (String) -> any LogHandler {
+        let handler: VerboseLogHandler.Type
+
+        switch config.loggerType {
+        case .osLog:
+            handler = OSLogHandler.self
+        case .detailed:
+            handler = DetailedLogHandler.self
+        case .console:
+            handler = StandardLogHandler.self
+        case .json:
+            handler = JSONLogHandler.self
+        case .quiet:
+            return quietLogHandler
+        }
+
+        if config.verbose {
+            return handler.verbose
+        } else {
+            return handler.init
+        }
+    }
+}
+
 extension LoggingConfig {
     public static var `default`: LoggingConfig {
         let env = ProcessInfo.processInfo.environment
@@ -38,34 +76,6 @@ extension LoggingConfig {
             return .init(loggerType: .detailed, verbose: verbose)
         } else {
             return .init(loggerType: .console, verbose: verbose)
-        }
-    }
-}
-
-public enum LogOutput {
-    static var environment = ProcessInfo.processInfo.environment
-
-    public static func bootstrap(config: LoggingConfig = .default) {
-        let handler: VerboseLogHandler.Type
-
-        switch config.loggerType {
-        case .osLog:
-            handler = OSLogHandler.self
-        case .detailed:
-            handler = DetailedLogHandler.self
-        case .console:
-            handler = StandardLogHandler.self
-        case .json:
-            handler = JSONLogHandler.self
-        case .quiet:
-            LoggingSystem.bootstrap(quietLogHandler)
-            return
-        }
-
-        if config.verbose {
-            LoggingSystem.bootstrap(handler.verbose)
-        } else {
-            LoggingSystem.bootstrap(handler.init)
         }
     }
 }

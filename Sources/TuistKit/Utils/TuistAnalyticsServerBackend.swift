@@ -1,6 +1,7 @@
 import FileSystem
 import Foundation
 import Path
+import ServiceContextModule
 import TuistAnalytics
 import TuistAsyncQueue
 import TuistCore
@@ -86,7 +87,7 @@ public class TuistAnalyticsServerBackend: TuistAnalyticsBackend {
         }
 
         if #available(macOS 13.0, *), ciChecker.isCI() {
-            logger
+            ServiceContext.current?.logger?
                 .info(
                     "You can view a detailed report at: \(serverCommandEvent.url.absoluteString)"
                 )

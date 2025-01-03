@@ -1,5 +1,6 @@
 import Mockable
 import Path
+import ServiceContextModule
 import TuistLoader
 import TuistSupport
 import TuistSupportTesting
@@ -37,30 +38,32 @@ final class PluginArchiveServiceTests: TuistUnitTestCase {
     }
 
     func test_run_when_no_task_products_defined() async throws {
-        // Given
-        given(packageInfoLoader)
-            .loadPackageInfo(at: .any)
-            .willReturn(
-                PackageInfo.test(
-                    products: [
-                        PackageInfo.Product(
-                            name: "my-non-task-executable",
-                            type: .executable,
-                            targets: []
-                        ),
-                    ]
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            given(packageInfoLoader)
+                .loadPackageInfo(at: .any)
+                .willReturn(
+                    PackageInfo.test(
+                        products: [
+                            PackageInfo.Product(
+                                name: "my-non-task-executable",
+                                type: .executable,
+                                targets: []
+                            ),
+                        ]
+                    )
                 )
+
+            // When
+            try await subject.run(path: nil)
+
+            // Then
+            XCTAssertPrinterContains(
+                "No tasks found - make sure you have executable products with `tuist-` prefix defined in your manifest.",
+                at: .warning,
+                ==
             )
-
-        // When
-        try await subject.run(path: nil)
-
-        // Then
-        XCTAssertPrinterContains(
-            "No tasks found - make sure you have executable products with `tuist-` prefix defined in your manifest.",
-            at: .warning,
-            ==
-        )
+        }
     }
 
     func test_run() async throws {
