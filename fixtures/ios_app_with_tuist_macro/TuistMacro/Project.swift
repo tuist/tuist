@@ -4,39 +4,47 @@ let project = Project(
 	name: "TuistMacro",
 	targets: [
 		.target(
-			name: "TuistMacro",
+			name: "TuistMacroMacros",
 			destinations: .macOS,
 			product: .macro,
-			bundleId: "io.tuist.TuistMacro",
+			bundleId: "io.tuist.TuistMacroMacros",
 			deploymentTargets: .macOS("14.0"),
-			sources: ["TuistMacro/Sources/**"],
+			sources: ["TuistMacro/Sources/TuistMacroMacros/**"],
 			dependencies: [
 				.external(name: "SwiftSyntaxMacros"),
 				.external(name: "SwiftCompilerPlugin"),
 			]
 		),
 		.target(
-			name: "TuistMacro_Testable",
+			name: "TuistMacro",
 			destinations: [.iPhone, .iPad, .mac],
 			product: .framework,
-			bundleId: "io.tuist.TuistMacro.Testable",
-			sources: ["TuistMacro/Sources/**"],
+			bundleId: "io.tuist.TuistMacro",
+			sources: ["TuistMacro/Sources/TuistMacro/**"],
 			dependencies: [
-				.external(name: "SwiftSyntaxMacros"),
-				.external(name: "SwiftCompilerPlugin"),
+				.target(name: "TuistMacroMacros"),
+			]
+		),
+		.target(
+			name: "TuistMacroClient",
+			destinations: .macOS,
+			product: .commandLineTool,
+			bundleId: "io.tuist.TuistMacroClient",
+			sources: ["TuistMacro/Sources/TuistMacroClient/**"],
+			dependencies: [
+				.target(name: "TuistMacro"),
 			]
 		),
 		.target(
 			name: "TuistMacroTests",
-			destinations: [.iPhone, .iPad, .mac],
+			destinations: .macOS,
 			product: .unitTests,
 			bundleId: "io.tuist.TuistMacroTests",
+			deploymentTargets: .macOS("14.0"),
 			infoPlist: .default,
 			sources: ["TuistMacro/Tests/**"],
-			resources: [],
 			dependencies: [
-				.target(name: "TuistMacro"),
-				.target(name: "TuistMacro_Testable"),
+				.target(name: "TuistMacroMacros"),
 				.external(name: "SwiftSyntaxMacrosTestSupport"),
 			]
 		),
