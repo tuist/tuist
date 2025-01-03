@@ -173,7 +173,10 @@ class InitService {
     /// - Parameter path: Directory to be checked.
     /// - Throws: An InitServiceError.nonEmptyDirectory error when the directory is not empty.
     private func verifyDirectoryIsEmpty(path: AbsolutePath) async throws {
-        if try await !fileSystem.glob(directory: path, include: ["*"]).collect().isEmpty {
+        let allowedFiles = Set(["mise.toml", ".mise.toml"])
+        let disallowedFiles = try await fileSystem.glob(directory: path, include: ["*"]).collect()
+            .filter { !allowedFiles.contains($0.basename) }
+        if !disallowedFiles.isEmpty {
             throw InitServiceError.nonEmptyDirectory(path)
         }
     }
