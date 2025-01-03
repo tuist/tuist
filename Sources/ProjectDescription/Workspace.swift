@@ -1,5 +1,3 @@
-import Foundation
-
 /// A workspace representation.
 ///
 /// By default, `tuist generate` generates an Xcode workspace that has the same name as the current project.

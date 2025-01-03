@@ -1,5 +1,3 @@
-import Foundation
-
 /// A plugin representation.
 ///
 /// Supported plugins include:

@@ -1,5 +1,3 @@
-import Foundation
-
 extension Project {
     /// Options to configure a project.
     public struct Options: Codable, Equatable, Sendable {

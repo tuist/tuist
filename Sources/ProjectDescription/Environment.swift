@@ -1,4 +1,4 @@
-import Foundation
+@_implementationOnly import Foundation
 
 /// A convenience structure to read environment variables.
 @dynamicMemberLookup

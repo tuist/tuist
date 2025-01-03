@@ -1,5 +1,3 @@
-import Foundation
-
 /// Options to configure scheme metal options for run and test actions.
 public struct MetalOptions: Equatable, Codable, Sendable {
     /// API Validation

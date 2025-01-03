@@ -1,5 +1,3 @@
-import Foundation
-
 /// A project representation.
 ///
 /// A project manifest needs to be defined in a `Project.swift` manifest file.

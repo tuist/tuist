@@ -1,5 +1,3 @@
-import Foundation
-
 /// Possible products types.
 public enum Product: String, Codable, Equatable, Sendable {
     /// An application.

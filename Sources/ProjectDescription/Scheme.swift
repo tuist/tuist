@@ -1,5 +1,3 @@
-import Foundation
-
 /// A custom scheme for a project.
 ///
 /// A scheme defines a collection of targets to Build, Run, Test, Profile, Analyze and Archive.

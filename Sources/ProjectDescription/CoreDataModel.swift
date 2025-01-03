@@ -1,5 +1,3 @@
-import Foundation
-
 /// A Core Data model.
 public struct CoreDataModel: Codable, Equatable, Sendable {
     /// Relative path to the model.

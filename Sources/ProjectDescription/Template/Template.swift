@@ -1,5 +1,3 @@
-import Foundation
-
 /// A scaffold template model.
 public struct Template: Codable, Equatable, Sendable {
     /// Description of template

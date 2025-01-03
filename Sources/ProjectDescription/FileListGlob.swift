@@ -1,5 +1,3 @@
-import Foundation
-
 /// A glob pattern that refers to files.
 public struct FileListGlob: Codable, Equatable, Sendable {
     /// The path with a glob pattern.

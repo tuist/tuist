@@ -1,5 +1,3 @@
-import Foundation
-
 /// A launch argument, passed when running a scheme.
 public struct LaunchArgument: Equatable, Codable, Sendable {
     // MARK: - Attributes

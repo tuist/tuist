@@ -1,5 +1,3 @@
-import Foundation
-
 /// An action that profiles the built products.
 ///
 /// It's initialized with the `.profileAction` static method

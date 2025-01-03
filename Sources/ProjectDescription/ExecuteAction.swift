@@ -1,5 +1,3 @@
-import Foundation
-
 /// An action that can be executed as part of another action for pre or post execution.
 public struct ExecutionAction: Equatable, Codable, Sendable {
     public var title: String

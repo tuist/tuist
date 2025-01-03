@@ -1,5 +1,3 @@
-import Foundation
-
 /// A build phase action used to run a script.
 ///
 /// Target scripts, represented as target script build phases in the generated Xcode projects, are useful to define actions to be

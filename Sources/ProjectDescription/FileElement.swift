@@ -1,5 +1,3 @@
-import Foundation
-
 /// A file element from a glob pattern or a folder reference.
 ///
 /// - glob: a glob pattern for files to include

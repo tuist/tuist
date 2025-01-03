@@ -1,5 +1,3 @@
-import Foundation
-
 public typealias SettingsDictionary = [String: SettingValue]
 
 /// A value or a collection of values used for settings configuration.

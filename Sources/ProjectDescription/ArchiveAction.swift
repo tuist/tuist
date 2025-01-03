@@ -1,5 +1,3 @@
-import Foundation
-
 /// An action that archives the built products.
 ///
 /// It's initialized with the `.archiveAction` static method.

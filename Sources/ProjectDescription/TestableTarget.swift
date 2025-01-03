@@ -1,5 +1,3 @@
-import Foundation
-
 public struct TestableTarget: Equatable, Codable, ExpressibleByStringInterpolation, Sendable {
     public var target: TargetReference
     public var isSkipped: Bool
