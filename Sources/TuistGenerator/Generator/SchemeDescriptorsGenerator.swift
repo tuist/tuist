@@ -315,9 +315,14 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
                 )
             }
 
+            let parallelization: XCScheme.TestParallelization = switch testableTarget.parallelization {
+            case .none: .none
+            case .swiftTestingOnly: .swiftTestingOnly
+            case .all: .all
+            }
             let testable = XCScheme.TestableReference(
                 skipped: testableTarget.isSkipped,
-                parallelizable: testableTarget.isParallelizable,
+                parallelization: parallelization,
                 randomExecutionOrdering: testableTarget.isRandomExecutionOrdering,
                 buildableReference: reference,
                 locationScenarioReference: locationScenarioReference,
@@ -610,7 +615,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         } ?? []
 
         return XCScheme.LaunchAction(
-            runnable: buildableProductRunnable,
+            runnable: pathRunnable ?? buildableProductRunnable,
             buildConfiguration: buildConfiguration,
             preActions: preActions,
             postActions: postActions,
@@ -619,7 +624,6 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             selectedLauncherIdentifier: launcherIdentifier,
             launchStyle: launchStyle,
             askForAppToLaunch: launchActionConstants.askForAppToLaunch,
-            pathRunnable: pathRunnable,
             locationScenarioReference: locationScenarioReference,
             enableGPUFrameCaptureMode: enableGPUFrameCaptureMode,
             disableGPUValidationMode: disableGPUValidationMode,
