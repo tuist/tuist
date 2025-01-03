@@ -1,6 +1,4 @@
-import Foundation
 import Mockable
-import Path
 import TuistCore
 import TuistHasher
 import TuistSupport
