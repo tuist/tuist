@@ -298,14 +298,28 @@ defmodule Tuist.Registry.Swift.Packages do
 
   defp replace_package_by_name_references_with_product_in_package_manifest(package_manifest) do
     packages =
-      Regex.scan(~r/url:\s*"([^"]+)"/, package_manifest)
-      |> Enum.map(&List.last/1)
-      |> Enum.map(&VCS.get_repository_full_handle_from_url/1)
-      |> Enum.filter(&(String.split(&1, "/") |> Enum.count() == 2))
-      |> Enum.map(&get_package_scope_and_name_from_repository_full_handle/1)
+      (Regex.scan(~r/\.package\(\s*url:\s*"([^"]+)"/, package_manifest)
+       |> Enum.map(&List.last/1)
+       |> Enum.map(&VCS.get_repository_full_handle_from_url/1)
+       |> Enum.filter(&(String.split(&1, "/") |> Enum.count() == 2))
+       |> Enum.map(&get_package_scope_and_name_from_repository_full_handle/1)
+       |> Enum.map(&%{scope: &1.scope, name: &1.name, by_name_reference: &1.name})) ++
+        (Regex.scan(~r/\.package\(\s*name:\s*"([^"]+)"\s*,\s*url:\s*"([^"]+)/, package_manifest)
+         |> Enum.map(&Enum.slice(&1, -2, 2))
+         |> Enum.map(fn [by_name_reference, package_url] ->
+           [scope, package_name] =
+             VCS.get_repository_full_handle_from_url(package_url)
+             |> String.split("/")
+
+           %{scope: scope, name: package_name, by_name_reference: by_name_reference}
+         end))
 
     Enum.reduce(packages, package_manifest, fn package, package_manifest ->
       package_manifest
+      |> String.replace(
+        ~r/"#{package.by_name_reference}"/is,
+        "\"#{package.name}\""
+      )
       |> String.replace(
         ~r/(?<![package|name]: )(?<!\()"(#{package.name})"/is,
         ".product(name: \"#{package.name}\", package: \"#{package.name}\")"

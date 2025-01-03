@@ -351,6 +351,14 @@ defmodule Tuist.Registry.Swift.PackagesTest do
                 url: "https://github.com/google/promises.git",
                 "2.4.0" ..< "3.0.0"
               ),
+              .package(
+                name: "OCMock",
+                url: "https://github.com/erikdoe/ocmock.git",
+                .revision("c5eeaa6dde7c308a5ce48ae4d4530462dd3a1110")
+              ),
+              .package(name: "libwebp",
+                       url: "https://github.com/SDWebImage/libwebp-Xcode",
+                       from: "1.1.0"),
           ],
           targets: [
               .executableTarget(
@@ -360,6 +368,8 @@ defmodule Tuist.Registry.Swift.PackagesTest do
                       "SwiftGen",
                       .product(name: "ArgumentParser", package: "swift-argument-parser"),
                       .product(name: "FBLPromises", package: "Promises"),
+                      "OCMock",
+                      "libwebp",
                   ]
               ),
               .target(
@@ -401,6 +411,14 @@ defmodule Tuist.Registry.Swift.PackagesTest do
                 url: "https://github.com/google/promises.git",
                 "2.4.0" ..< "3.0.0"
               ),
+              .package(
+                name: "ocmock",
+                url: "https://github.com/erikdoe/ocmock.git",
+                .revision("c5eeaa6dde7c308a5ce48ae4d4530462dd3a1110")
+              ),
+              .package(name: "libwebp-Xcode",
+                       url: "https://github.com/SDWebImage/libwebp-Xcode",
+                       from: "1.1.0"),
           ],
           targets: [
               .executableTarget(
@@ -410,6 +428,8 @@ defmodule Tuist.Registry.Swift.PackagesTest do
                       .product(name: "SwiftGen", package: "SwiftGen"),
                       .product(name: "ArgumentParser", package: "swift-argument-parser"),
                       .product(name: "FBLPromises", package: "promises"),
+                      .product(name: "ocmock", package: "ocmock"),
+                      .product(name: "libwebp-Xcode", package: "libwebp-Xcode"),
                   ]
               ),
               .target(
