@@ -347,6 +347,10 @@ defmodule Tuist.Registry.Swift.PackagesTest do
                   url: "https://github.com/MaxDesiatov/XMLCoder.git",
                   .upToNextMinor(from: "0.17.1")
               ),
+              .package(
+                url: "https://github.com/google/promises.git",
+                "2.4.0" ..< "3.0.0"
+              ),
           ],
           targets: [
               .executableTarget(
@@ -355,6 +359,7 @@ defmodule Tuist.Registry.Swift.PackagesTest do
                       "XcbeautifyLib",
                       "SwiftGen",
                       .product(name: "ArgumentParser", package: "swift-argument-parser"),
+                      .product(name: "FBLPromises", package: "Promises"),
                   ]
               ),
               .target(
@@ -392,6 +397,10 @@ defmodule Tuist.Registry.Swift.PackagesTest do
                   url: "https://github.com/MaxDesiatov/XMLCoder.git",
                   .upToNextMinor(from: "0.17.1")
               ),
+              .package(
+                url: "https://github.com/google/promises.git",
+                "2.4.0" ..< "3.0.0"
+              ),
           ],
           targets: [
               .executableTarget(
@@ -400,6 +409,7 @@ defmodule Tuist.Registry.Swift.PackagesTest do
                       "XcbeautifyLib",
                       .product(name: "SwiftGen", package: "SwiftGen"),
                       .product(name: "ArgumentParser", package: "swift-argument-parser"),
+                      .product(name: "FBLPromises", package: "promises"),
                   ]
               ),
               .target(

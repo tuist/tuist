@@ -314,6 +314,11 @@ defmodule Tuist.Registry.Swift.Packages do
         ~r/.byName\(name:\s*"(#{package.name})"\s*\)/is,
         ".product(name: \"#{package.name}\", package: \"#{package.name}\")"
       )
+      # Workaround for a bug in SwiftPM fixed in: https://github.com/swiftlang/swift-package-manager/pull/8194
+      |> String.replace(
+        ~r/package:\s*"#{package.name}"/is,
+        "package: \"#{package.name}\""
+      )
     end)
   end
 
