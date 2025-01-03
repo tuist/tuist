@@ -1,6 +1,7 @@
 import Foundation
 import Mockable
 import Path
+import ServiceContextModule
 import struct TSCUtility.Version
 import TuistSupport
 import XcodeGraph
@@ -270,13 +271,14 @@ public final class SimulatorController: SimulatorControlling {
     }
 
     public func installApp(at path: AbsolutePath, device: SimulatorDevice) throws {
-        logger.debug("Installing app at \(path) on simulator device with id \(device.udid)")
+        ServiceContext.current?.logger?.debug("Installing app at \(path) on simulator device with id \(device.udid)")
         let device = try device.booted(using: system)
         try system.run(["/usr/bin/xcrun", "simctl", "install", device.udid, path.pathString])
     }
 
     public func launchApp(bundleId: String, device: SimulatorDevice, arguments: [String]) async throws {
-        logger.debug("Launching app with bundle id \(bundleId) on simulator device with id \(device.udid)")
+        ServiceContext.current?.logger?
+            .debug("Launching app with bundle id \(bundleId) on simulator device with id \(device.udid)")
         let device = try device.booted(using: system)
         let simulator = try await xcodeController.selected()?.path.appending(
             components: "Contents",

@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import ServiceContextModule
 import TuistLoader
 import TuistServer
 import TuistSupport
@@ -47,6 +48,7 @@ final class OrganizationRemoveMemberService: OrganizationRemoveMemberServicing {
             serverURL: serverURL
         )
 
-        logger.info("The member \(username) was successfully removed from the \(organizationName) organization.")
+        ServiceContext.current?.logger?
+            .info("The member \(username) was successfully removed from the \(organizationName) organization.")
     }
 }

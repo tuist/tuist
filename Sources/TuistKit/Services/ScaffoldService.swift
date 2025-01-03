@@ -1,4 +1,5 @@
 import Path
+import ServiceContextModule
 import TuistCore
 import TuistLoader
 import TuistPlugin
@@ -106,7 +107,7 @@ final class ScaffoldService {
             attributes: parsedAttributes
         )
 
-        logger.notice("Template \(templateName) was successfully generated", metadata: .success)
+        ServiceContext.current?.logger?.notice("Template \(templateName) was successfully generated", metadata: .success)
     }
 
     // MARK: - Helpers

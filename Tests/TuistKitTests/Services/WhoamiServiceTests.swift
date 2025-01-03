@@ -1,6 +1,7 @@
 import Foundation
 import Mockable
 import Path
+import ServiceContextModule
 import TuistCore
 import TuistCoreTesting
 import TuistLoader
@@ -40,28 +41,32 @@ final class WhoamiServiceTests: TuistUnitTestCase {
     }
 
     func test_whoami_when_logged_in() async throws {
-        // Given
-        given(serverSessionController)
-            .whoami(serverURL: .value(serverURL))
-            .willReturn("tuist@tuist.io")
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            given(serverSessionController)
+                .whoami(serverURL: .value(serverURL))
+                .willReturn("tuist@tuist.io")
 
-        // When
-        try await subject.run(directory: nil)
+            // When
+            try await subject.run(directory: nil)
 
-        // Then
-        XCTAssertPrinterOutputContains("tuist@tuist.io")
+            // Then
+            XCTAssertPrinterOutputContains("tuist@tuist.io")
+        }
     }
 
     func test_whoami_when_logged_out() async throws {
-        // Given
-        given(serverSessionController)
-            .whoami(serverURL: .value(serverURL))
-            .willReturn(nil)
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            given(serverSessionController)
+                .whoami(serverURL: .value(serverURL))
+                .willReturn(nil)
 
-        // When
-        try await subject.run(directory: nil)
+            // When
+            try await subject.run(directory: nil)
 
-        // Then
-        XCTAssertPrinterOutputContains("You are not logged in.")
+            // Then
+            XCTAssertPrinterOutputContains("You are not logged in.")
+        }
     }
 }

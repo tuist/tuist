@@ -1,5 +1,6 @@
 import FileSystem
 import Path
+import ServiceContextModule
 import TuistCore
 import TuistLoader
 import TuistScaffold
@@ -155,11 +156,11 @@ class InitService {
             )
         }
 
-        logger.notice(
+        ServiceContext.current?.logger?.notice(
             "Project generated at path \(path.pathString). Run `tuist generate` to generate the project and open it in Xcode. Use `tuist edit` to easily update the Tuist project definition.",
             metadata: .success
         )
-        logger
+        ServiceContext.current?.logger?
             .info(
                 "To learn more about tuist features, such as how to add external dependencies or how to use our ProjectDescription helpers, head to our tutorials page: https://docs.tuist.io/tutorials/tuist-tutorials"
             )
@@ -172,7 +173,10 @@ class InitService {
     /// - Parameter path: Directory to be checked.
     /// - Throws: An InitServiceError.nonEmptyDirectory error when the directory is not empty.
     private func verifyDirectoryIsEmpty(path: AbsolutePath) async throws {
-        if try await !fileSystem.glob(directory: path, include: ["*"]).collect().isEmpty {
+        let allowedFiles = Set(["mise.toml", ".mise.toml"])
+        let disallowedFiles = try await fileSystem.glob(directory: path, include: ["*"]).collect()
+            .filter { !allowedFiles.contains($0.basename) }
+        if !disallowedFiles.isEmpty {
             throw InitServiceError.nonEmptyDirectory(path)
         }
     }

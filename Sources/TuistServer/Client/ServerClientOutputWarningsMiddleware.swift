@@ -1,6 +1,7 @@
 import Foundation
 import HTTPTypes
 import OpenAPIRuntime
+import ServiceContextModule
 import TuistSupport
 
 enum CloudClientOutputWarningsMiddlewareError: FatalError {
@@ -57,7 +58,8 @@ struct ServerClientOutputWarningsMiddleware: ClientMiddleware {
             throw CloudClientOutputWarningsMiddlewareError.invalidSchema
         }
 
-        json.forEach { logger.warning("\($0)") }
+        let logger = ServiceContext.$current.get()?.logger
+        json.forEach { logger?.warning("\($0)") }
 
         return (response, body)
     }

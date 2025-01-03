@@ -1,4 +1,5 @@
 import Path
+import ServiceContextModule
 import TuistAcceptanceTesting
 import TuistSupport
 import TuistSupportTesting
@@ -412,18 +413,20 @@ final class GenerateAcceptanceTestiOSAppWithMultiConfigs: TuistAcceptanceTestCas
 
 final class GenerateAcceptanceTestiOSAppWithIncompatibleXcode: TuistAcceptanceTestCase {
     func test_ios_app_with_incompatible_xcode() async throws {
-        try await setUpFixture(.iosAppWithIncompatibleXcode)
-        do {
-            try await run(GenerateCommand.self)
-            XCTFail("Generate should have failed")
-        } catch {
-            XCTAssertStandardError(
-                pattern: "which is not compatible with this project's Xcode version requirement of 3.2.1."
-            )
-            XCTAssertEqual(
-                (error as? FatalError)?.description,
-                "Fatal linting issues found"
-            )
+        try await ServiceContext.withTestingDependencies {
+            try await setUpFixture(.iosAppWithIncompatibleXcode)
+            do {
+                try await run(GenerateCommand.self)
+                XCTFail("Generate should have failed")
+            } catch {
+                XCTAssertStandardError(
+                    pattern: "which is not compatible with this project's Xcode version requirement of 3.2.1."
+                )
+                XCTAssertEqual(
+                    (error as? FatalError)?.description,
+                    "Fatal linting issues found"
+                )
+            }
         }
     }
 }
@@ -754,9 +757,11 @@ final class GenerateAcceptanceTestmacOSAppWithCopyFiles: TuistAcceptanceTestCase
 
 final class GenerateAcceptanceTestManifestWithLogs: TuistAcceptanceTestCase {
     func test_manifest_with_logs() async throws {
-        try await setUpFixture(.manifestWithLogs)
-        try await run(GenerateCommand.self)
-        XCTAssertStandardOutput(pattern: "Target name - App")
+        try await ServiceContext.withTestingDependencies {
+            try await setUpFixture(.manifestWithLogs)
+            try await run(GenerateCommand.self)
+            XCTAssertStandardOutput(pattern: "Target name - App")
+        }
     }
 }
 

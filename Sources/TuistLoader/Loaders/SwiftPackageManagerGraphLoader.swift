@@ -2,6 +2,7 @@ import FileSystem
 import Foundation
 import Path
 import ProjectDescription
+import ServiceContextModule
 import TSCUtility
 import TuistCore
 import TuistSupport
@@ -233,7 +234,8 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
         }
 
         if currentData != savedData {
-            logger.warning("We detected outdated dependencies. Please run \"tuist install\" to update them.")
+            ServiceContext.current?.logger?
+                .warning("We detected outdated dependencies. Please run \"tuist install\" to update them.")
         }
     }
 }
