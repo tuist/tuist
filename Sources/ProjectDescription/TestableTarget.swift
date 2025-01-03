@@ -14,7 +14,7 @@ public struct TestableTarget: Equatable, Codable, ExpressibleByStringInterpolati
         *,
         deprecated,
         renamed: "parallelization",
-        message: "isParallelizable is deprecated. Use the paralellization property instead."
+        message: "isParallelizable is deprecated. Use the parallelization property instead."
     )
     public var isParallelizable: Bool {
         switch parallelization {
