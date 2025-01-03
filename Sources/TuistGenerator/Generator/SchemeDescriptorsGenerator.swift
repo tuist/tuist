@@ -615,7 +615,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         } ?? []
 
         return XCScheme.LaunchAction(
-            runnable: buildableProductRunnable,
+            runnable: pathRunnable ?? buildableProductRunnable,
             buildConfiguration: buildConfiguration,
             preActions: preActions,
             postActions: postActions,
@@ -624,7 +624,6 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             selectedLauncherIdentifier: launcherIdentifier,
             launchStyle: launchStyle,
             askForAppToLaunch: launchActionConstants.askForAppToLaunch,
-            pathRunnable: pathRunnable,
             locationScenarioReference: locationScenarioReference,
             enableGPUFrameCaptureMode: enableGPUFrameCaptureMode,
             disableGPUValidationMode: disableGPUValidationMode,
