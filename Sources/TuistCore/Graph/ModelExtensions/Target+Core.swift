@@ -142,4 +142,8 @@ extension Target {
 
         return Array(sourceFiles.values)
     }
+
+    public var containsResources: Bool {
+        !resources.resources.isEmpty || !coreDataModels.isEmpty
+    }
 }
