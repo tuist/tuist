@@ -9,19 +9,20 @@
     </.live_title>
     <TuistWeb.LayoutComponents.head_meta_meta_tags {assigns} />
     <TuistWeb.LayoutComponents.head_x_meta_tags {assigns} />
-    <% structured_data =
-      TuistWeb.Marketing.StructuredMarkup.get_json_serialized_structured_data(assigns) %>
-    <%= if not is_nil(structured_data) do %>
-      <script type="application/ld+json">
-        <%= raw structured_data %>
-      </script>
-    <% end %>
+    <script
+      :for={
+        structured_data <-
+          TuistWeb.Marketing.StructuredMarkup.get_json_serialized_structured_data(assigns)
+      }
+      type="application/ld+json"
+    >
+      <%= raw structured_data %>
+    </script>
     <!-- Import Maps -->
     <script type="importmap">
       {
         "imports": {
           "phoenix_html": "https://cdn.jsdelivr.net/npm/phoenix_html@4.1.1/+esm",
-          "shiki":  "https://esm.run/shiki@1.0",
           "phoenix": "https://cdn.jsdelivr.net/npm/phoenix@1.7.14/+esm",
           "phoenix_live_view": "https://cdn.jsdelivr.net/npm/phoenix_live_view@1.0.0/+esm"
         }

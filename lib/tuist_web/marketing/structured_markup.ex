@@ -65,8 +65,8 @@ defmodule TuistWeb.Marketing.StructuredMarkup do
     structured_data = assigns[:head_structured_data]
 
     case structured_data do
-      nil -> nil
-      data -> Jason.encode!(data)
+      nil -> []
+      data -> Enum.map(data, &Jason.encode!/1)
     end
   end
 

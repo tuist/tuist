@@ -75,8 +75,8 @@
   white-space: nowrap;
   scrollbar-width: none; /* Firefox */
 
-  & span {
-    word-wrap: break-word;
+  & * {
+    word-break: break-word; /* Use word-break instead of word-wrap */
     margin: 0;
     white-space: normal; /* Ensure the text wraps correctly */
   }

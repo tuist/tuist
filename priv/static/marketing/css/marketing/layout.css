@@ -245,8 +245,10 @@ body {
   background: var(--dark-violet);
   display: none;
   flex-direction: column;
-  height: 100vh;
+  max-height: calc(100vh - env(safe-area-inset-bottom));
+  height: 100%;
   overflow-y: auto;
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
 .marketing__header__bar__mobile__menu__main {
@@ -274,9 +276,7 @@ body {
       display: flex;
       max-height: 1000px;
       opacity: 1;
-      transition:
-        max-height 0.5s ease-in-out,
-        opacity 0.5s ease;
+      transition: max-height 0.5s ease-in-out, opacity 0.5s ease;
     }
   }
   &[data-collapsed="true"] {
@@ -300,9 +300,7 @@ body {
       display: flex;
       max-height: 0;
       overflow: hidden;
-      transition:
-        opacity 0.5s ease,
-        max-height 0.5s ease;
+      transition: opacity 0.5s ease, max-height 0.5s ease;
     }
   }
 }

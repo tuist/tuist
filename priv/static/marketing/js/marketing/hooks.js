@@ -1,4 +1,4 @@
-import { CookiesBanner } from "./hooks/cookies-banner.js";
+import { CookiesBanner } from "./hooks/banner.js";
 
 const Hooks = {
   CookiesBanner,

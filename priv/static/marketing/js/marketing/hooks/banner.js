@@ -1,11 +1,13 @@
+import Cookies from "https://cdn.jsdelivr.net/npm/js-cookie@3.0.5/+esm";
+
 const CONSENT_KEY = "cookie-consent";
 
 const CookiesBanner = {
   mounted() {
     const banner = this.el;
-    const consent = localStorage.getItem(CONSENT_KEY);
+    const consent = Cookies.get(CONSENT_KEY);
 
-    if (consent === null) {
+    if (consent === undefined) {
       banner.style.display = "flex";
     } else {
       banner.style.display = "none";
@@ -18,7 +20,7 @@ const CookiesBanner = {
 
   setConsent(value) {
     const banner = this.el;
-    localStorage.setItem(CONSENT_KEY, value);
+    Cookies.set(CONSENT_KEY, value, { expires: 365 }); // Set cookie for 1 year
     banner.style.display = "none";
   },
 };

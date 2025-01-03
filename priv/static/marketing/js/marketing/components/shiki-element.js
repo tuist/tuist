@@ -1,4 +1,4 @@
-import * as shiki from "shiki";
+import * as shiki from "https://esm.sh/shiki@1.0.0";
 
 // https://github.com/shikijs/textmate-grammars-themes/blob/main/packages/tm-themes/themes/github-dark.json
 const theme = {
