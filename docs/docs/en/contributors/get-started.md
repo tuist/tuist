@@ -58,9 +58,8 @@ You'll also have to set the working directory to the root of the project being g
 
 ### From the terminal {#from-the-terminal}
 
-Although `tuist` provides a `tuist run` it does not support CLIs yet. Therefore, you'll have to use the Swift Package Manager to run the tool. To do that, you can run the following command:
+You can run `tuist` using Tuist itself through its `run` command:
 
 ```bash
-swift build --product ProjectDescription
-swift run tuist generate --path /path/to/project --no-open
+tuist run tuist generate --path /path/to/project --no-open
 ```
