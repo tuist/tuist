@@ -202,6 +202,8 @@ workflows:
     cache:
       cache_paths:
         - $CM_BUILD_DIR/.build
+    artifacts:
+      - /tmp/tuist/**
     scripts:
       - name: Set environment variables
         script: |
@@ -226,7 +228,7 @@ workflows:
       - name: Install Tuist dependencies
         script: mise x -- tuist install
       - name: Run tests
-        script: mise x -- tuist test TuistDependenciesAcceptanceTests
+        script: mise x -- tuist test TuistDependenciesAcceptanceTests --result-bundle-path /tmp/tuist/test-result-bundle
     triggering:
       <<: *branch_triggering
 
