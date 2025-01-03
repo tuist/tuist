@@ -91,7 +91,7 @@ final class InspectImplicitImportsService {
             .directTargetDependencies(path: target.project.path, name: target.target.name)
 
         let explicitTargetDependencies = targetDependencies.map { targetDependency in
-            if targetDependency.graphTarget.project.type == .external() {
+            if case .external = targetDependency.graphTarget.project.type {
                 return graphTraverser
                     .allTargetDependencies(path: target.project.path, name: target.target.name)
             } else {
