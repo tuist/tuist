@@ -115,6 +115,7 @@ public enum Module: String, CaseIterable {
     fileprivate var sharedDependencies: [TargetDependency] {
         return [
             .external(name: "Path"),
+            .external(name: "ServiceContextModule"),
             .external(name: "SystemPackage"),
         ]
     }
@@ -281,6 +282,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "ZIPFoundation"),
                     .external(name: "Difference"),
                     .external(name: "Command"),
+                    .external(name: "LoggingOSLog"),
                 ]
             case .kit:
                 [
@@ -652,6 +654,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "SwiftToolsSupport"),
                     .external(name: "FileSystem"),
                     .external(name: "Command"),
+                    .external(name: "Logging"),
                 ]
             case .kit:
                 []

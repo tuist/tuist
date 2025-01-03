@@ -332,10 +332,7 @@ final class TargetLinterTests: TuistUnitTestCase {
         )
         XCTContainsLintingIssue(
             staticFrameworkResult,
-            LintingIssue(
-                reason: "Target \(staticFramework.name) cannot contain resources. For \(staticFramework.product) targets to support resources, 'Bundle Accessors' feature should be enabled.",
-                severity: .error
-            )
+            LintingIssue(reason: "The target \(staticFramework.name) doesn't contain source files.", severity: .warning)
         )
 
         let dynamicFrameworkResult = try await subject.lint(

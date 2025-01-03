@@ -1,6 +1,7 @@
 import Foundation
 import Mockable
 import Path
+import ServiceContextModule
 import TuistSupport
 import XCTest
 
@@ -135,49 +136,53 @@ final class ServerSessionControllerTests: TuistUnitTestCase {
     }
 
     func test_logout_deletesLegacyCredentials() async throws {
-        // Given
-        let credentials = ServerCredentials(
-            token: "token",
-            accessToken: nil,
-            refreshToken: nil
-        )
-        given(credentialsStore)
-            .store(credentials: .value(credentials), serverURL: .value(serverURL))
-            .willReturn()
-        try await credentialsStore.store(credentials: credentials, serverURL: serverURL)
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            let credentials = ServerCredentials(
+                token: "token",
+                accessToken: nil,
+                refreshToken: nil
+            )
+            given(credentialsStore)
+                .store(credentials: .value(credentials), serverURL: .value(serverURL))
+                .willReturn()
+            try await credentialsStore.store(credentials: credentials, serverURL: serverURL)
 
-        given(credentialsStore)
-            .delete(serverURL: .value(serverURL))
-            .willReturn()
+            given(credentialsStore)
+                .delete(serverURL: .value(serverURL))
+                .willReturn()
 
-        // When
-        try await subject.logout(serverURL: serverURL)
+            // When
+            try await subject.logout(serverURL: serverURL)
 
-        // Then
-        XCTAssertPrinterOutputContains("Successfully logged out.")
+            // Then
+            XCTAssertPrinterOutputContains("Successfully logged out.")
+        }
     }
 
     func test_logout_deletesCredentials() async throws {
-        // Given
-        let credentials = ServerCredentials(
-            token: nil,
-            accessToken: "access-token",
-            refreshToken: "refresh-token"
-        )
-        given(credentialsStore)
-            .store(credentials: .value(credentials), serverURL: .value(serverURL))
-            .willReturn()
-        try await credentialsStore.store(credentials: credentials, serverURL: serverURL)
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            let credentials = ServerCredentials(
+                token: nil,
+                accessToken: "access-token",
+                refreshToken: "refresh-token"
+            )
+            given(credentialsStore)
+                .store(credentials: .value(credentials), serverURL: .value(serverURL))
+                .willReturn()
+            try await credentialsStore.store(credentials: credentials, serverURL: serverURL)
 
-        given(credentialsStore)
-            .delete(serverURL: .value(serverURL))
-            .willReturn()
+            given(credentialsStore)
+                .delete(serverURL: .value(serverURL))
+                .willReturn()
 
-        // When
-        try await subject.logout(serverURL: serverURL)
+            // When
+            try await subject.logout(serverURL: serverURL)
 
-        // Then
-        XCTAssertPrinterOutputContains("Successfully logged out.")
+            // Then
+            XCTAssertPrinterOutputContains("Successfully logged out.")
+        }
     }
 
     fileprivate func authURL() -> URL {

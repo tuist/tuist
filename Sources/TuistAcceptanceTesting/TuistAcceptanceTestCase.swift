@@ -32,10 +32,6 @@ open class TuistAcceptanceTestCase: XCTestCase {
 
         fileSystem = FileSystem()
 
-        DispatchQueue.once(token: "io.tuist.test.logging") {
-            LoggingSystem.bootstrap { AcceptanceTestCaseLogHandler(label: $0) }
-        }
-
         derivedDataDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
         fixtureTemporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
 

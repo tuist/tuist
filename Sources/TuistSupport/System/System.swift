@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import ServiceContextModule
 import TSCBasic
 
 extension ProcessResult {
@@ -108,13 +109,13 @@ public final class System: Systeming {
             loggingHandler: verbose ? { stdoutStream.send($0).send("\n").flush() } : nil
         )
 
-        logger.debug("\(escaped(arguments: arguments))")
+        ServiceContext.current?.logger?.debug("\(escaped(arguments: arguments))")
 
         try process.launch()
         let result = try process.waitUntilExit()
         let output = try result.utf8Output()
 
-        logger.debug("\(output)")
+        ServiceContext.current?.logger?.debug("\(output)")
 
         try result.throwIfErrored()
 
@@ -163,7 +164,7 @@ public final class System: Systeming {
             startNewProcessGroup: true
         )
 
-        logger.debug("\(escaped(arguments: arguments))")
+        ServiceContext.current?.logger?.debug("\(escaped(arguments: arguments))")
 
         try process.launch()
     }
@@ -205,7 +206,7 @@ public final class System: Systeming {
             loggingHandler: verbose ? { stdoutStream.send($0).send("\n").flush() } : nil
         )
 
-        logger.debug("\(escaped(arguments: arguments))")
+        ServiceContext.current?.logger?.debug("\(escaped(arguments: arguments))")
 
         try process.launch()
         let result = try process.waitUntilExit()

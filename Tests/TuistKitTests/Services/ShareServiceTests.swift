@@ -1,5 +1,6 @@
 import Foundation
 import Mockable
+import ServiceContextModule
 import TuistAutomation
 import TuistCore
 import TuistLoader
@@ -127,128 +128,130 @@ final class ShareServiceTests: TuistUnitTestCase {
     }
 
     func test_share_tuist_project() async throws {
-        // Given
-        given(configLoader)
-            .loadConfig(path: .any)
-            .willReturn(.test(fullHandle: "tuist/tuist"))
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            given(configLoader)
+                .loadConfig(path: .any)
+                .willReturn(.test(fullHandle: "tuist/tuist"))
 
-        let projectPath = try temporaryPath()
-        let appTarget: Target = .test(
-            name: "AppTarget",
-            destinations: [.appleVision, .iPhone],
-            productName: "App"
-        )
-        let appTargetTwo: Target = .test(name: "AppTwo")
-        let project: Project = .test(
-            targets: [
-                appTarget,
-                appTargetTwo,
-            ]
-        )
-        let graphAppTarget = GraphTarget(path: projectPath, target: appTarget, project: project)
-        let graphAppTargetTwo = GraphTarget(path: projectPath, target: appTargetTwo, project: project)
+            let projectPath = try temporaryPath()
+            let appTarget: Target = .test(
+                name: "AppTarget",
+                destinations: [.appleVision, .iPhone],
+                productName: "App"
+            )
+            let appTargetTwo: Target = .test(name: "AppTwo")
+            let project: Project = .test(
+                targets: [
+                    appTarget,
+                    appTargetTwo,
+                ]
+            )
+            let graphAppTarget = GraphTarget(path: projectPath, target: appTarget, project: project)
+            let graphAppTargetTwo = GraphTarget(path: projectPath, target: appTargetTwo, project: project)
 
-        given(manifestGraphLoader)
-            .load(path: .any)
-            .willReturn(
-                (
-                    .test(
-                        projects: [
-                            projectPath: project,
-                        ]
-                    ),
-                    [],
-                    MapperEnvironment(),
-                    []
+            given(manifestGraphLoader)
+                .load(path: .any)
+                .willReturn(
+                    (
+                        .test(
+                            projects: [
+                                projectPath: project,
+                            ]
+                        ),
+                        [],
+                        MapperEnvironment(),
+                        []
+                    )
                 )
+
+            given(userInputReader)
+                .readValue(
+                    asking: .any,
+                    values: .value([
+                        graphAppTarget,
+                        graphAppTargetTwo,
+                    ]),
+                    valueDescription: .any
+                )
+                .willReturn(graphAppTarget)
+
+            given(defaultConfigurationFetcher)
+                .fetch(configuration: .any, config: .any, graph: .any)
+                .willReturn("Debug")
+
+            let iosPath = try temporaryPath()
+            let iosDevicePath = try temporaryPath().appending(component: "iphoneos")
+            given(xcodeProjectBuildDirectoryLocator)
+                .locate(
+                    destinationType: .value(.simulator(.iOS)),
+                    projectPath: .any,
+                    derivedDataPath: .any,
+                    configuration: .any
+                )
+                .willReturn(iosPath)
+            given(xcodeProjectBuildDirectoryLocator)
+                .locate(
+                    destinationType: .value(.device(.iOS)),
+                    projectPath: .any,
+                    derivedDataPath: .any,
+                    configuration: .any
+                )
+                .willReturn(iosDevicePath)
+            try fileHandler.touch(iosPath.appending(component: "App.app"))
+            try fileHandler.touch(iosDevicePath.appending(component: "App.app"))
+
+            let visionOSPath = try temporaryPath()
+            given(xcodeProjectBuildDirectoryLocator)
+                .locate(
+                    destinationType: .value(.simulator(.visionOS)),
+                    projectPath: .any,
+                    derivedDataPath: .any,
+                    configuration: .any
+                )
+                .willReturn(visionOSPath)
+            given(xcodeProjectBuildDirectoryLocator)
+                .locate(
+                    destinationType: .value(.device(.visionOS)),
+                    projectPath: .any,
+                    derivedDataPath: .any,
+                    configuration: .any
+                )
+                .willReturn(try temporaryPath().appending(component: "visionOS"))
+            try fileHandler.touch(visionOSPath.appending(component: "App.app"))
+
+            given(appBundleLoader)
+                .load(.any)
+                .willReturn(.test())
+
+            // When
+            try await subject.run(
+                path: nil,
+                apps: [],
+                configuration: nil,
+                platforms: [],
+                derivedDataPath: nil,
+                json: false
             )
 
-        given(userInputReader)
-            .readValue(
-                asking: .any,
-                values: .value([
-                    graphAppTarget,
-                    graphAppTargetTwo,
-                ]),
-                valueDescription: .any
+            // Then
+            verify(previewsUploadService)
+                .uploadPreviews(
+                    .any,
+                    displayName: .any,
+                    version: .any,
+                    bundleIdentifier: .any,
+                    icon: .any,
+                    supportedPlatforms: .any,
+                    fullHandle: .value("tuist/tuist"),
+                    serverURL: .value(Constants.URLs.production)
+                )
+                .called(1)
+
+            XCTAssertStandardOutput(
+                pattern: "App uploaded – share it with others using the following link: \(shareURL.absoluteString)"
             )
-            .willReturn(graphAppTarget)
-
-        given(defaultConfigurationFetcher)
-            .fetch(configuration: .any, config: .any, graph: .any)
-            .willReturn("Debug")
-
-        let iosPath = try temporaryPath()
-        let iosDevicePath = try temporaryPath().appending(component: "iphoneos")
-        given(xcodeProjectBuildDirectoryLocator)
-            .locate(
-                destinationType: .value(.simulator(.iOS)),
-                projectPath: .any,
-                derivedDataPath: .any,
-                configuration: .any
-            )
-            .willReturn(iosPath)
-        given(xcodeProjectBuildDirectoryLocator)
-            .locate(
-                destinationType: .value(.device(.iOS)),
-                projectPath: .any,
-                derivedDataPath: .any,
-                configuration: .any
-            )
-            .willReturn(iosDevicePath)
-        try fileHandler.touch(iosPath.appending(component: "App.app"))
-        try fileHandler.touch(iosDevicePath.appending(component: "App.app"))
-
-        let visionOSPath = try temporaryPath()
-        given(xcodeProjectBuildDirectoryLocator)
-            .locate(
-                destinationType: .value(.simulator(.visionOS)),
-                projectPath: .any,
-                derivedDataPath: .any,
-                configuration: .any
-            )
-            .willReturn(visionOSPath)
-        given(xcodeProjectBuildDirectoryLocator)
-            .locate(
-                destinationType: .value(.device(.visionOS)),
-                projectPath: .any,
-                derivedDataPath: .any,
-                configuration: .any
-            )
-            .willReturn(try temporaryPath().appending(component: "visionOS"))
-        try fileHandler.touch(visionOSPath.appending(component: "App.app"))
-
-        given(appBundleLoader)
-            .load(.any)
-            .willReturn(.test())
-
-        // When
-        try await subject.run(
-            path: nil,
-            apps: [],
-            configuration: nil,
-            platforms: [],
-            derivedDataPath: nil,
-            json: false
-        )
-
-        // Then
-        verify(previewsUploadService)
-            .uploadPreviews(
-                .any,
-                displayName: .any,
-                version: .any,
-                bundleIdentifier: .any,
-                icon: .any,
-                supportedPlatforms: .any,
-                fullHandle: .value("tuist/tuist"),
-                serverURL: .value(Constants.URLs.production)
-            )
-            .called(1)
-
-        XCTAssertStandardOutput(
-            pattern: "App uploaded – share it with others using the following link: \(shareURL.absoluteString)"
-        )
+        }
     }
 
     func test_share_tuist_project_when_no_app_found() async throws {
@@ -336,285 +339,291 @@ final class ShareServiceTests: TuistUnitTestCase {
     }
 
     func test_share_tuist_project_with_a_specified_app() async throws {
-        // Given
-        given(configLoader)
-            .loadConfig(path: .any)
-            .willReturn(.test(fullHandle: "tuist/tuist"))
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            given(configLoader)
+                .loadConfig(path: .any)
+                .willReturn(.test(fullHandle: "tuist/tuist"))
 
-        let projectPath = try temporaryPath()
-        let appTarget: Target = .test(
-            name: "App",
-            destinations: [.appleVision, .iPhone]
-        )
-        let appTargetTwo: Target = .test(name: "AppTwo")
-        let project: Project = .test(
-            targets: [
-                appTarget,
-                appTargetTwo,
-            ]
-        )
-        let graphAppTargetTwo = GraphTarget(path: projectPath, target: appTargetTwo, project: project)
-
-        given(manifestGraphLoader)
-            .load(path: .any)
-            .willReturn(
-                (
-                    .test(
-                        projects: [
-                            projectPath: project,
-                        ]
-                    ),
-                    [],
-                    MapperEnvironment(),
-                    []
-                )
+            let projectPath = try temporaryPath()
+            let appTarget: Target = .test(
+                name: "App",
+                destinations: [.appleVision, .iPhone]
             )
-
-        given(userInputReader)
-            .readValue(
-                asking: .any,
-                values: .value([
-                    graphAppTargetTwo,
-                ]),
-                valueDescription: .any
+            let appTargetTwo: Target = .test(name: "AppTwo")
+            let project: Project = .test(
+                targets: [
+                    appTarget,
+                    appTargetTwo,
+                ]
             )
-            .willReturn(graphAppTargetTwo)
+            let graphAppTargetTwo = GraphTarget(path: projectPath, target: appTargetTwo, project: project)
 
-        given(defaultConfigurationFetcher)
-            .fetch(configuration: .any, config: .any, graph: .any)
-            .willReturn("Debug")
-
-        let iosPath = try temporaryPath()
-        given(xcodeProjectBuildDirectoryLocator)
-            .locate(
-                destinationType: .value(.simulator(.iOS)),
-                projectPath: .any,
-                derivedDataPath: .any,
-                configuration: .any
-            )
-            .willReturn(iosPath)
-        given(xcodeProjectBuildDirectoryLocator)
-            .locate(
-                destinationType: .value(.device(.iOS)),
-                projectPath: .any,
-                derivedDataPath: .any,
-                configuration: .any
-            )
-            .willReturn(try temporaryPath().appending(component: "iphoneos"))
-        try fileHandler.touch(iosPath.appending(component: "AppTwo.app"))
-
-        given(appBundleLoader)
-            .load(.any)
-            .willReturn(
-                .test(
-                    infoPlist: .test(
-                        version: Version(1, 0, 0),
-                        bundleId: "com.tuist.app",
-                        supportedPlatforms: [.simulator(.iOS)]
+            given(manifestGraphLoader)
+                .load(path: .any)
+                .willReturn(
+                    (
+                        .test(
+                            projects: [
+                                projectPath: project,
+                            ]
+                        ),
+                        [],
+                        MapperEnvironment(),
+                        []
                     )
                 )
+
+            given(userInputReader)
+                .readValue(
+                    asking: .any,
+                    values: .value([
+                        graphAppTargetTwo,
+                    ]),
+                    valueDescription: .any
+                )
+                .willReturn(graphAppTargetTwo)
+
+            given(defaultConfigurationFetcher)
+                .fetch(configuration: .any, config: .any, graph: .any)
+                .willReturn("Debug")
+
+            let iosPath = try temporaryPath()
+            given(xcodeProjectBuildDirectoryLocator)
+                .locate(
+                    destinationType: .value(.simulator(.iOS)),
+                    projectPath: .any,
+                    derivedDataPath: .any,
+                    configuration: .any
+                )
+                .willReturn(iosPath)
+            given(xcodeProjectBuildDirectoryLocator)
+                .locate(
+                    destinationType: .value(.device(.iOS)),
+                    projectPath: .any,
+                    derivedDataPath: .any,
+                    configuration: .any
+                )
+                .willReturn(try temporaryPath().appending(component: "iphoneos"))
+            try fileHandler.touch(iosPath.appending(component: "AppTwo.app"))
+
+            given(appBundleLoader)
+                .load(.any)
+                .willReturn(
+                    .test(
+                        infoPlist: .test(
+                            version: Version(1, 0, 0),
+                            bundleId: "com.tuist.app",
+                            supportedPlatforms: [.simulator(.iOS)]
+                        )
+                    )
+                )
+
+            // When
+            try await subject.run(
+                path: nil,
+                apps: ["AppTwo"],
+                configuration: nil,
+                platforms: [],
+                derivedDataPath: nil,
+                json: false
             )
 
-        // When
-        try await subject.run(
-            path: nil,
-            apps: ["AppTwo"],
-            configuration: nil,
-            platforms: [],
-            derivedDataPath: nil,
-            json: false
-        )
+            // Then
+            verify(previewsUploadService)
+                .uploadPreviews(
+                    .any,
+                    displayName: .any,
+                    version: .value("1.0.0"),
+                    bundleIdentifier: .value("com.tuist.app"),
+                    icon: .any,
+                    supportedPlatforms: .value([.simulator(.iOS)]),
+                    fullHandle: .value("tuist/tuist"),
+                    serverURL: .value(Constants.URLs.production)
+                )
+                .called(1)
 
-        // Then
-        verify(previewsUploadService)
-            .uploadPreviews(
-                .any,
-                displayName: .any,
-                version: .value("1.0.0"),
-                bundleIdentifier: .value("com.tuist.app"),
-                icon: .any,
-                supportedPlatforms: .value([.simulator(.iOS)]),
-                fullHandle: .value("tuist/tuist"),
-                serverURL: .value(Constants.URLs.production)
+            XCTAssertStandardOutput(
+                pattern: "AppTwo uploaded – share it with others using the following link: \(shareURL.absoluteString)"
             )
-            .called(1)
-
-        XCTAssertStandardOutput(
-            pattern: "AppTwo uploaded – share it with others using the following link: \(shareURL.absoluteString)"
-        )
+        }
     }
 
     func test_share_tuist_project_with_a_specified_app_and_json_flag() async throws {
-        // Given
-        let projectPath = try temporaryPath()
-        let appTarget: Target = .test(
-            name: "App"
-        )
-        let project: Project = .test(
-            targets: [
-                appTarget,
-            ]
-        )
-        let graphAppTarget = GraphTarget(path: projectPath, target: appTarget, project: project)
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            let projectPath = try temporaryPath()
+            let appTarget: Target = .test(
+                name: "App"
+            )
+            let project: Project = .test(
+                targets: [
+                    appTarget,
+                ]
+            )
+            let graphAppTarget = GraphTarget(path: projectPath, target: appTarget, project: project)
 
-        given(appBundleLoader)
-            .load(.any)
-            .willReturn(.test())
+            given(appBundleLoader)
+                .load(.any)
+                .willReturn(.test())
 
-        given(manifestGraphLoader)
-            .load(path: .any)
-            .willReturn(
-                (
-                    .test(
-                        projects: [
-                            projectPath: project,
-                        ]
-                    ),
-                    [],
-                    MapperEnvironment(),
-                    []
+            given(manifestGraphLoader)
+                .load(path: .any)
+                .willReturn(
+                    (
+                        .test(
+                            projects: [
+                                projectPath: project,
+                            ]
+                        ),
+                        [],
+                        MapperEnvironment(),
+                        []
+                    )
                 )
+
+            given(userInputReader)
+                .readValue(
+                    asking: .any,
+                    values: .any,
+                    valueDescription: .any
+                )
+                .willReturn(graphAppTarget)
+
+            given(defaultConfigurationFetcher)
+                .fetch(configuration: .any, config: .any, graph: .any)
+                .willReturn("Debug")
+
+            let iosPath = try temporaryPath()
+            given(xcodeProjectBuildDirectoryLocator)
+                .locate(
+                    destinationType: .value(.simulator(.iOS)),
+                    projectPath: .any,
+                    derivedDataPath: .any,
+                    configuration: .any
+                )
+                .willReturn(iosPath)
+            given(xcodeProjectBuildDirectoryLocator)
+                .locate(
+                    destinationType: .value(.device(.iOS)),
+                    projectPath: .any,
+                    derivedDataPath: .any,
+                    configuration: .any
+                )
+                .willReturn(try temporaryPath().appending(component: "iphoneos"))
+            try fileHandler.touch(iosPath.appending(component: "App.app"))
+
+            // When
+            try await subject.run(
+                path: nil,
+                apps: ["AppTwo"],
+                configuration: nil,
+                platforms: [],
+                derivedDataPath: nil,
+                json: true
             )
 
-        given(userInputReader)
-            .readValue(
-                asking: .any,
-                values: .any,
-                valueDescription: .any
+            XCTAssertStandardOutput(
+                pattern: """
+                {
+                  "bundleIdentifier": "com.tuist.app",
+                  "displayName": "App",
+                  "iconURL": "https://cloud.tuist.io/tuist/tuist/previews/preview-id/icon.png",
+                  "id": "preview-id",
+                  "qrCodeURL": "https://tuist.dev/tuist/tuist/previews/preview-id/qr-code.svg",
+                  "url": "https://test.tuist.io"
+                }
+                """
             )
-            .willReturn(graphAppTarget)
-
-        given(defaultConfigurationFetcher)
-            .fetch(configuration: .any, config: .any, graph: .any)
-            .willReturn("Debug")
-
-        let iosPath = try temporaryPath()
-        given(xcodeProjectBuildDirectoryLocator)
-            .locate(
-                destinationType: .value(.simulator(.iOS)),
-                projectPath: .any,
-                derivedDataPath: .any,
-                configuration: .any
-            )
-            .willReturn(iosPath)
-        given(xcodeProjectBuildDirectoryLocator)
-            .locate(
-                destinationType: .value(.device(.iOS)),
-                projectPath: .any,
-                derivedDataPath: .any,
-                configuration: .any
-            )
-            .willReturn(try temporaryPath().appending(component: "iphoneos"))
-        try fileHandler.touch(iosPath.appending(component: "App.app"))
-
-        // When
-        try await subject.run(
-            path: nil,
-            apps: ["AppTwo"],
-            configuration: nil,
-            platforms: [],
-            derivedDataPath: nil,
-            json: true
-        )
-
-        XCTAssertStandardOutput(
-            pattern: """
-            {
-              "bundleIdentifier": "com.tuist.app",
-              "displayName": "App",
-              "iconURL": "https://cloud.tuist.io/tuist/tuist/previews/preview-id/icon.png",
-              "id": "preview-id",
-              "qrCodeURL": "https://tuist.dev/tuist/tuist/previews/preview-id/qr-code.svg",
-              "url": "https://test.tuist.io"
-            }
-            """
-        )
+        }
     }
 
     func test_share_tuist_project_with_a_specified_appclip() async throws {
-        // Given
-        given(configLoader)
-            .loadConfig(path: .any)
-            .willReturn(.test(fullHandle: "tuist/tuist"))
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            given(configLoader)
+                .loadConfig(path: .any)
+                .willReturn(.test(fullHandle: "tuist/tuist"))
 
-        let projectPath = try temporaryPath()
-        let appClipTarget: Target = .test(
-            name: "AppClip",
-            product: .appClip
-        )
-        let appTarget: Target = .test(name: "App")
-        let project: Project = .test(
-            targets: [
-                appClipTarget,
-                appTarget,
-            ]
-        )
-        let graphAppClipTarget = GraphTarget(path: projectPath, target: appClipTarget, project: project)
+            let projectPath = try temporaryPath()
+            let appClipTarget: Target = .test(
+                name: "AppClip",
+                product: .appClip
+            )
+            let appTarget: Target = .test(name: "App")
+            let project: Project = .test(
+                targets: [
+                    appClipTarget,
+                    appTarget,
+                ]
+            )
+            let graphAppClipTarget = GraphTarget(path: projectPath, target: appClipTarget, project: project)
 
-        given(manifestGraphLoader)
-            .load(path: .any)
-            .willReturn(
-                (
-                    .test(
-                        projects: [
-                            projectPath: project,
-                        ]
-                    ),
-                    [],
-                    MapperEnvironment(),
-                    []
+            given(manifestGraphLoader)
+                .load(path: .any)
+                .willReturn(
+                    (
+                        .test(
+                            projects: [
+                                projectPath: project,
+                            ]
+                        ),
+                        [],
+                        MapperEnvironment(),
+                        []
+                    )
                 )
+
+            given(userInputReader)
+                .readValue(
+                    asking: .any,
+                    values: .any,
+                    valueDescription: .any
+                )
+                .willReturn(graphAppClipTarget)
+
+            given(defaultConfigurationFetcher)
+                .fetch(configuration: .any, config: .any, graph: .any)
+                .willReturn("Debug")
+
+            let iosPath = try temporaryPath()
+            given(xcodeProjectBuildDirectoryLocator)
+                .locate(
+                    destinationType: .value(.simulator(.iOS)),
+                    projectPath: .any,
+                    derivedDataPath: .any,
+                    configuration: .any
+                )
+                .willReturn(iosPath)
+            given(xcodeProjectBuildDirectoryLocator)
+                .locate(
+                    destinationType: .value(.device(.iOS)),
+                    projectPath: .any,
+                    derivedDataPath: .any,
+                    configuration: .any
+                )
+                .willReturn(try temporaryPath().appending(component: "iphoneos"))
+            try fileHandler.touch(iosPath.appending(component: "AppClip.app"))
+
+            given(appBundleLoader)
+                .load(.any)
+                .willReturn(.test())
+
+            // When
+            try await subject.run(
+                path: nil,
+                apps: ["AppClip"],
+                configuration: nil,
+                platforms: [],
+                derivedDataPath: nil,
+                json: false
             )
 
-        given(userInputReader)
-            .readValue(
-                asking: .any,
-                values: .any,
-                valueDescription: .any
+            // Then
+            XCTAssertStandardOutput(
+                pattern: "AppClip uploaded – share it with others using the following link: \(shareURL.absoluteString)"
             )
-            .willReturn(graphAppClipTarget)
-
-        given(defaultConfigurationFetcher)
-            .fetch(configuration: .any, config: .any, graph: .any)
-            .willReturn("Debug")
-
-        let iosPath = try temporaryPath()
-        given(xcodeProjectBuildDirectoryLocator)
-            .locate(
-                destinationType: .value(.simulator(.iOS)),
-                projectPath: .any,
-                derivedDataPath: .any,
-                configuration: .any
-            )
-            .willReturn(iosPath)
-        given(xcodeProjectBuildDirectoryLocator)
-            .locate(
-                destinationType: .value(.device(.iOS)),
-                projectPath: .any,
-                derivedDataPath: .any,
-                configuration: .any
-            )
-            .willReturn(try temporaryPath().appending(component: "iphoneos"))
-        try fileHandler.touch(iosPath.appending(component: "AppClip.app"))
-
-        given(appBundleLoader)
-            .load(.any)
-            .willReturn(.test())
-
-        // When
-        try await subject.run(
-            path: nil,
-            apps: ["AppClip"],
-            configuration: nil,
-            platforms: [],
-            derivedDataPath: nil,
-            json: false
-        )
-
-        // Then
-        XCTAssertStandardOutput(
-            pattern: "AppClip uploaded – share it with others using the following link: \(shareURL.absoluteString)"
-        )
+        }
     }
 
     func test_share_xcode_app_when_no_app_specified() async throws {
@@ -724,71 +733,73 @@ final class ShareServiceTests: TuistUnitTestCase {
     }
 
     func test_share_xcode_app() async throws {
-        // Given
-        given(configLoader)
-            .loadConfig(path: .any)
-            .willReturn(.test(fullHandle: "tuist/tuist"))
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            given(configLoader)
+                .loadConfig(path: .any)
+                .willReturn(.test(fullHandle: "tuist/tuist"))
 
-        manifestLoader.reset()
+            manifestLoader.reset()
 
-        given(manifestLoader)
-            .hasRootManifest(at: .any)
-            .willReturn(false)
+            given(manifestLoader)
+                .hasRootManifest(at: .any)
+                .willReturn(false)
 
-        let path = try temporaryPath()
-        let xcodeprojPath = try temporaryPath().appending(component: "App.xcodeproj")
-        try fileHandler.touch(xcodeprojPath)
+            let path = try temporaryPath()
+            let xcodeprojPath = try temporaryPath().appending(component: "App.xcodeproj")
+            try fileHandler.touch(xcodeprojPath)
 
-        let iosPath = try temporaryPath()
-        given(xcodeProjectBuildDirectoryLocator)
-            .locate(
-                destinationType: .value(.simulator(.iOS)),
-                projectPath: .any,
-                derivedDataPath: .any,
-                configuration: .any
+            let iosPath = try temporaryPath()
+            given(xcodeProjectBuildDirectoryLocator)
+                .locate(
+                    destinationType: .value(.simulator(.iOS)),
+                    projectPath: .any,
+                    derivedDataPath: .any,
+                    configuration: .any
+                )
+                .willReturn(iosPath)
+            given(xcodeProjectBuildDirectoryLocator)
+                .locate(
+                    destinationType: .value(.device(.iOS)),
+                    projectPath: .any,
+                    derivedDataPath: .any,
+                    configuration: .any
+                )
+                .willReturn(try temporaryPath().appending(component: "iphoneos"))
+            try fileHandler.touch(iosPath.appending(component: "App.app"))
+
+            given(appBundleLoader)
+                .load(.any)
+                .willReturn(.test())
+
+            // When
+            try await subject.run(
+                path: path.pathString,
+                apps: ["App"],
+                configuration: nil,
+                platforms: [.iOS],
+                derivedDataPath: nil,
+                json: false
             )
-            .willReturn(iosPath)
-        given(xcodeProjectBuildDirectoryLocator)
-            .locate(
-                destinationType: .value(.device(.iOS)),
-                projectPath: .any,
-                derivedDataPath: .any,
-                configuration: .any
+
+            // Then
+            verify(previewsUploadService)
+                .uploadPreviews(
+                    .any,
+                    displayName: .any,
+                    version: .any,
+                    bundleIdentifier: .any,
+                    icon: .any,
+                    supportedPlatforms: .any,
+                    fullHandle: .value("tuist/tuist"),
+                    serverURL: .value(Constants.URLs.production)
+                )
+                .called(1)
+
+            XCTAssertStandardOutput(
+                pattern: "App uploaded – share it with others using the following link: \(shareURL.absoluteString)"
             )
-            .willReturn(try temporaryPath().appending(component: "iphoneos"))
-        try fileHandler.touch(iosPath.appending(component: "App.app"))
-
-        given(appBundleLoader)
-            .load(.any)
-            .willReturn(.test())
-
-        // When
-        try await subject.run(
-            path: path.pathString,
-            apps: ["App"],
-            configuration: nil,
-            platforms: [.iOS],
-            derivedDataPath: nil,
-            json: false
-        )
-
-        // Then
-        verify(previewsUploadService)
-            .uploadPreviews(
-                .any,
-                displayName: .any,
-                version: .any,
-                bundleIdentifier: .any,
-                icon: .any,
-                supportedPlatforms: .any,
-                fullHandle: .value("tuist/tuist"),
-                serverURL: .value(Constants.URLs.production)
-            )
-            .called(1)
-
-        XCTAssertStandardOutput(
-            pattern: "App uploaded – share it with others using the following link: \(shareURL.absoluteString)"
-        )
+        }
     }
 
     func test_share_different_apps() async throws {
@@ -858,139 +869,143 @@ final class ShareServiceTests: TuistUnitTestCase {
     }
 
     func test_share_app_bundles() async throws {
-        // Given
-        given(configLoader)
-            .loadConfig(path: .any)
-            .willReturn(.test(fullHandle: "tuist/tuist"))
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            given(configLoader)
+                .loadConfig(path: .any)
+                .willReturn(.test(fullHandle: "tuist/tuist"))
 
-        let iosApp = try temporaryPath().appending(components: "iOS", "App.app")
-        let visionOSApp = try temporaryPath().appending(components: "visionOs", "App.app")
-        try await fileSystem.makeDirectory(at: iosApp)
-        let iosIconPath = iosApp.appending(component: "AppIcon60x60@2x.png")
-        try await fileSystem.touch(iosIconPath)
-        try await fileSystem.makeDirectory(at: visionOSApp)
+            let iosApp = try temporaryPath().appending(components: "iOS", "App.app")
+            let visionOSApp = try temporaryPath().appending(components: "visionOs", "App.app")
+            try await fileSystem.makeDirectory(at: iosApp)
+            let iosIconPath = iosApp.appending(component: "AppIcon60x60@2x.png")
+            try await fileSystem.touch(iosIconPath)
+            try await fileSystem.makeDirectory(at: visionOSApp)
 
-        given(appBundleLoader)
-            .load(.value(iosApp))
-            .willReturn(
-                .test(
-                    path: iosApp,
-                    infoPlist: .test(
-                        name: "App",
-                        bundleIcons: .test(
-                            primaryIcon: .test(
-                                iconFiles: [
-                                    "AppIcon60x60",
-                                ]
+            given(appBundleLoader)
+                .load(.value(iosApp))
+                .willReturn(
+                    .test(
+                        path: iosApp,
+                        infoPlist: .test(
+                            name: "App",
+                            bundleIcons: .test(
+                                primaryIcon: .test(
+                                    iconFiles: [
+                                        "AppIcon60x60",
+                                    ]
+                                )
                             )
                         )
                     )
                 )
+
+            given(appBundleLoader)
+                .load(.value(visionOSApp))
+                .willReturn(.test(infoPlist: .test(name: "App")))
+
+            // When
+            try await subject.run(
+                path: nil,
+                apps: [
+                    iosApp.pathString,
+                    visionOSApp.pathString,
+                ],
+                configuration: nil,
+                platforms: [],
+                derivedDataPath: nil,
+                json: false
             )
 
-        given(appBundleLoader)
-            .load(.value(visionOSApp))
-            .willReturn(.test(infoPlist: .test(name: "App")))
+            // Then
+            verify(previewsUploadService)
+                .uploadPreviews(
+                    .value(.appBundles([iosApp, visionOSApp])),
+                    displayName: .value("App"),
+                    version: .any,
+                    bundleIdentifier: .any,
+                    icon: .value(iosIconPath),
+                    supportedPlatforms: .any,
+                    fullHandle: .value("tuist/tuist"),
+                    serverURL: .value(Constants.URLs.production)
+                )
+                .called(1)
 
-        // When
-        try await subject.run(
-            path: nil,
-            apps: [
-                iosApp.pathString,
-                visionOSApp.pathString,
-            ],
-            configuration: nil,
-            platforms: [],
-            derivedDataPath: nil,
-            json: false
-        )
-
-        // Then
-        verify(previewsUploadService)
-            .uploadPreviews(
-                .value(.appBundles([iosApp, visionOSApp])),
-                displayName: .value("App"),
-                version: .any,
-                bundleIdentifier: .any,
-                icon: .value(iosIconPath),
-                supportedPlatforms: .any,
-                fullHandle: .value("tuist/tuist"),
-                serverURL: .value(Constants.URLs.production)
+            XCTAssertStandardOutput(
+                pattern: "App uploaded – share it with others using the following link: \(shareURL.absoluteString)"
             )
-            .called(1)
-
-        XCTAssertStandardOutput(
-            pattern: "App uploaded – share it with others using the following link: \(shareURL.absoluteString)"
-        )
+        }
     }
 
     func test_share_ipa() async throws {
-        // Given
-        given(configLoader)
-            .loadConfig(path: .any)
-            .willReturn(.test(fullHandle: "tuist/tuist"))
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            given(configLoader)
+                .loadConfig(path: .any)
+                .willReturn(.test(fullHandle: "tuist/tuist"))
 
-        let ipaPath = try temporaryPath().appending(components: "App.ipa")
-        let payloadPath = try temporaryPath().appending(components: "Payload")
-        let appBundlePath = payloadPath.appending(components: "App.app")
-        let iconPath = appBundlePath.appending(component: "AppIcon60x60@2x.png")
-        try await fileSystem.makeDirectory(at: ipaPath)
-        try await fileSystem.makeDirectory(at: payloadPath)
-        try await fileSystem.makeDirectory(at: appBundlePath)
-        try await fileSystem.touch(iconPath)
-        given(fileUnarchiver)
-            .unzip()
-            .willReturn(payloadPath)
+            let ipaPath = try temporaryPath().appending(components: "App.ipa")
+            let payloadPath = try temporaryPath().appending(components: "Payload")
+            let appBundlePath = payloadPath.appending(components: "App.app")
+            let iconPath = appBundlePath.appending(component: "AppIcon60x60@2x.png")
+            try await fileSystem.makeDirectory(at: ipaPath)
+            try await fileSystem.makeDirectory(at: payloadPath)
+            try await fileSystem.makeDirectory(at: appBundlePath)
+            try await fileSystem.touch(iconPath)
+            given(fileUnarchiver)
+                .unzip()
+                .willReturn(payloadPath)
 
-        given(appBundleLoader)
-            .load(.value(appBundlePath))
-            .willReturn(
-                .test(
-                    path: appBundlePath,
-                    infoPlist: .test(
-                        version: Version(1, 0, 0),
-                        name: "App",
-                        bundleId: "com.tuist.app",
-                        bundleIcons: .test(
-                            primaryIcon: .test(
-                                iconFiles: [
-                                    "AppIcon60x60",
-                                ]
+            given(appBundleLoader)
+                .load(.value(appBundlePath))
+                .willReturn(
+                    .test(
+                        path: appBundlePath,
+                        infoPlist: .test(
+                            version: Version(1, 0, 0),
+                            name: "App",
+                            bundleId: "com.tuist.app",
+                            bundleIcons: .test(
+                                primaryIcon: .test(
+                                    iconFiles: [
+                                        "AppIcon60x60",
+                                    ]
+                                )
                             )
                         )
                     )
                 )
+
+            // When
+            try await subject.run(
+                path: nil,
+                apps: [
+                    ipaPath.pathString,
+                ],
+                configuration: nil,
+                platforms: [],
+                derivedDataPath: nil,
+                json: false
             )
 
-        // When
-        try await subject.run(
-            path: nil,
-            apps: [
-                ipaPath.pathString,
-            ],
-            configuration: nil,
-            platforms: [],
-            derivedDataPath: nil,
-            json: false
-        )
+            // Then
+            verify(previewsUploadService)
+                .uploadPreviews(
+                    .value(.ipa(ipaPath)),
+                    displayName: .value("App"),
+                    version: .value("1.0.0"),
+                    bundleIdentifier: .value("com.tuist.app"),
+                    icon: .value(iconPath),
+                    supportedPlatforms: .any,
+                    fullHandle: .value("tuist/tuist"),
+                    serverURL: .value(Constants.URLs.production)
+                )
+                .called(1)
 
-        // Then
-        verify(previewsUploadService)
-            .uploadPreviews(
-                .value(.ipa(ipaPath)),
-                displayName: .value("App"),
-                version: .value("1.0.0"),
-                bundleIdentifier: .value("com.tuist.app"),
-                icon: .value(iconPath),
-                supportedPlatforms: .any,
-                fullHandle: .value("tuist/tuist"),
-                serverURL: .value(Constants.URLs.production)
+            XCTAssertStandardOutput(
+                pattern: "App uploaded – share it with others using the following link: \(shareURL.absoluteString)"
             )
-            .called(1)
-
-        XCTAssertStandardOutput(
-            pattern: "App uploaded – share it with others using the following link: \(shareURL.absoluteString)"
-        )
+        }
     }
 
     func test_share_ipa_when_it_does_not_contain_any_app_bundle() async throws {
