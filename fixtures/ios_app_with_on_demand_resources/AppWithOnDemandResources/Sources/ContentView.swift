@@ -4,14 +4,8 @@ public struct ContentView: View {
     public init() {}
 
     public var body: some View {
-        VStack {
-            Text("Hello, World!")
-                .padding()
-            HStack {
-                Image(.assets_image)
-                Image(.assets_nestedimage)
-            }
-        }
+        Text("Hello, World!")
+            .padding()
     }
 }
 

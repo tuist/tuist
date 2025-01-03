@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import ServiceContextModule
 import TuistCore
 import TuistGenerator
 import TuistLoader
@@ -68,7 +69,7 @@ final class EditService {
                 onlyCurrentDirectory: onlyCurrentDirectory,
                 plugins: plugins
             )
-            logger.notice("Opening Xcode to edit the project.", metadata: .pretty)
+            ServiceContext.current?.logger?.notice("Opening Xcode to edit the project.", metadata: .pretty)
             try opener.open(path: workspacePath, application: selectedXcode.path, wait: false)
 
         } else {
@@ -78,7 +79,7 @@ final class EditService {
                 onlyCurrentDirectory: onlyCurrentDirectory,
                 plugins: plugins
             )
-            logger.notice("Xcode project generated at \(workspacePath.pathString)", metadata: .success)
+            ServiceContext.current?.logger?.notice("Xcode project generated at \(workspacePath.pathString)", metadata: .success)
         }
     }
 
@@ -94,7 +95,7 @@ final class EditService {
 
     private func loadPlugins(at path: AbsolutePath) async -> Plugins {
         guard let config = try? await configLoader.loadConfig(path: path) else {
-            logger
+            ServiceContext.current?.logger?
                 .warning(
                     "Unable to load \(Constants.tuistManifestFileName), fix any compiler errors and re-run for plugins to be loaded."
                 )
@@ -102,7 +103,8 @@ final class EditService {
         }
 
         guard let plugins = try? await pluginService.loadPlugins(using: config) else {
-            logger.warning("Unable to load Plugin.swift manifest, fix and re-run in order to use plugin(s).")
+            ServiceContext.current?.logger?
+                .warning("Unable to load Plugin.swift manifest, fix and re-run in order to use plugin(s).")
             return .none
         }
 

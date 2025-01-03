@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import ServiceContextModule
 import TuistCore
 import TuistLoader
 import TuistServer
@@ -40,9 +41,9 @@ final class WhoamiService: WhoamiServicing {
         let config = try await configLoader.loadConfig(path: directoryPath)
         let serverURL = try serverURLService.url(configServerURL: config.url)
         if let whoami = try await serverSessionController.whoami(serverURL: serverURL) {
-            logger.notice("\(whoami)")
+            ServiceContext.current?.logger?.notice("\(whoami)")
         } else {
-            logger.notice("You are not logged in. Run 'tuist auth login'.")
+            ServiceContext.current?.logger?.notice("You are not logged in. Run 'tuist auth login'.")
         }
     }
 }

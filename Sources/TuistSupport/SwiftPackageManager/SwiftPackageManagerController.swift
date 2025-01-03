@@ -3,6 +3,7 @@ import FileSystem
 import Foundation
 import Mockable
 import Path
+import ServiceContextModule
 import TSCUtility
 
 /// Protocol that defines an interface to interact with the Swift Package Manager.
@@ -71,7 +72,7 @@ public struct SwiftPackageManagerController: SwiftPackageManagerControlling {
         self.init(
             system: System.shared,
             fileSystem: FileSystem(),
-            commandRunner: CommandRunner(logger: logger)
+            commandRunner: CommandRunner(logger: ServiceContext.$current.get()?.logger)
         )
     }
 

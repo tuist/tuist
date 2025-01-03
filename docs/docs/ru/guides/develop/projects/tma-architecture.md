@@ -29,7 +29,7 @@ A module represents an application feature and is a combination of the following
 
 We recommend following a naming convention for targets, something that you can enforce in your project thanks to Tuist's DSL.
 
-| Target             | Dependencies                | Content                     |
+| Target             | Зависимости                 | Content                     |
 | ------------------ | --------------------------- | --------------------------- |
 | `Feature`          | `FeatureInterface`          | Source code and resources   |
 | `FeatureInterface` | -                           | Public interface and models |
@@ -57,7 +57,7 @@ When all the app source code lives in the same target it is very easy to build i
 
 Reusing code across apps and other products like extensions is encouraged using frameworks or libraries. By building modules reusing them is pretty straightforward. We can build an iMessage extension, a Today Extension, or a watchOS application by just combining existing modules and adding _(when necessary)_ platform-specific UI layers.
 
-## Dependencies {#dependencies}
+## Зависимости {#dependencies}
 
 When a module depends on another module, it declares a dependency against its interface target. The benefit of this is two-fold. It prevents the implementation of a module to be coupled to the implementation of another module, and it speeds up clean builds because they only have to compile the implementation of our feature, and the interfaces of direct and transitive dependencies. This approach is inspired by SwiftRock's idea of [Reducing iOS Build Times by using Interface Modules](https://swiftrocks.com/reducing-ios-build-times-by-using-interface-targets).
 

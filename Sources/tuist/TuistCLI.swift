@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import ServiceContextModule
 import TSCBasic
 import TuistKit
 import TuistLoader
@@ -7,14 +8,14 @@ import TuistSupport
 
 @main
 @_documentation(visibility: private)
-private enum TuistServer {
+private enum TuistCLI {
     static func main() async throws {
         if CommandLine.arguments.contains("--quiet") && CommandLine.arguments.contains("--verbose") {
-            throw TuistAppError.exclusiveOptionError("quiet", "verbose")
+            throw TuistCLIError.exclusiveOptionError("quiet", "verbose")
         }
 
         if CommandLine.arguments.contains("--quiet") && CommandLine.arguments.contains("--json") {
-            throw TuistAppError.exclusiveOptionError("quiet", "json")
+            throw TuistCLIError.exclusiveOptionError("quiet", "json")
         }
 
         if CommandLine.arguments.contains("--verbose") {
@@ -26,25 +27,33 @@ private enum TuistServer {
         }
 
         let machineReadableCommands = [DumpCommand.self]
+
         // swiftformat:disable all
         let isCommandMachineReadable = CommandLine.arguments.count > 1 && machineReadableCommands.map { $0._commandName }.contains(CommandLine.arguments[1])
         // swiftformat:enable all
-        if isCommandMachineReadable || CommandLine.arguments.contains("--json") {
-            TuistSupport.LogOutput.bootstrap(
-                config: LoggingConfig(
-                    loggerType: .json,
-                    verbose: ProcessEnv.vars[Constants.EnvironmentVariables.verbose] != nil
-                )
+        let loggingConfig = if isCommandMachineReadable || CommandLine.arguments.contains("--json") {
+            LoggingConfig(
+                loggerType: .json,
+                verbose: ProcessEnv.vars[Constants.EnvironmentVariables.verbose] != nil
             )
         } else {
-            TuistSupport.LogOutput.bootstrap()
+            LoggingConfig.default
         }
+        let loggerHandler = Logger.defaultLoggerHandler(config: loggingConfig)
 
-        try await TuistCommand.main()
+        /// This is the old initialization method and will eventually go away.
+        LoggingSystem.bootstrap(loggerHandler)
+
+        var context = ServiceContext.topLevel
+        context.logger = Logger(label: "dev.tuist.cli", factory: loggerHandler)
+
+        try await ServiceContext.withValue(context) {
+            try await TuistCommand.main()
+        }
     }
 }
 
-private enum TuistAppError: FatalError {
+private enum TuistCLIError: FatalError {
     case exclusiveOptionError(String, String)
 
     var description: String {

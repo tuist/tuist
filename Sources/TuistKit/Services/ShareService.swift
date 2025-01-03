@@ -2,6 +2,7 @@ import AnyCodable
 import FileSystem
 import Foundation
 import Path
+import ServiceContextModule
 import TuistAutomation
 import TuistCore
 import TuistLoader
@@ -409,7 +410,7 @@ struct ShareService {
         serverURL: URL,
         json: Bool
     ) async throws {
-        logger.notice("Uploading \(displayName)...")
+        ServiceContext.current?.logger?.notice("Uploading \(displayName)...")
         let preview = try await previewsUploadService.uploadPreviews(
             previewUploadType,
             displayName: displayName,
@@ -420,7 +421,8 @@ struct ShareService {
             fullHandle: fullHandle,
             serverURL: serverURL
         )
-        logger.notice("\(displayName) uploaded – share it with others using the following link: \(preview.url.absoluteString)")
+        ServiceContext.current?.logger?
+            .notice("\(displayName) uploaded – share it with others using the following link: \(preview.url.absoluteString)")
 
         ShareCommand.analyticsDelegate?.addParameters(
             [
@@ -430,7 +432,7 @@ struct ShareService {
 
         if json {
             let previewJSON = try preview.toJSON()
-            logger.info(
+            ServiceContext.current?.logger?.info(
                 .init(
                     stringLiteral: previewJSON.toString(prettyPrint: true)
                 ),

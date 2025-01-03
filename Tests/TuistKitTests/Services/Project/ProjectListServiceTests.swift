@@ -1,5 +1,6 @@
 import Foundation
 import Mockable
+import ServiceContextModule
 import TuistLoader
 import TuistServer
 import TuistSupportTesting
@@ -35,39 +36,43 @@ final class ProjectListServiceTests: TuistUnitTestCase {
     }
 
     func test_project_list() async throws {
-        // Given
-        given(listProjectsService)
-            .listProjects(serverURL: .value(serverURL))
-            .willReturn(
-                [
-                    .test(id: 0, fullName: "tuist/test-one"),
-                    .test(id: 1, fullName: "tuist/test-two"),
-                ]
-            )
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            given(listProjectsService)
+                .listProjects(serverURL: .value(serverURL))
+                .willReturn(
+                    [
+                        .test(id: 0, fullName: "tuist/test-one"),
+                        .test(id: 1, fullName: "tuist/test-two"),
+                    ]
+                )
 
-        // When
-        try await subject.run(json: false, directory: nil)
+            // When
+            try await subject.run(json: false, directory: nil)
 
-        // Then
-        XCTAssertPrinterOutputContains("""
-        Listing all your projects:
-          • tuist/test-one
-          • tuist/test-two
-        """)
+            // Then
+            XCTAssertPrinterOutputContains("""
+            Listing all your projects:
+              • tuist/test-one
+              • tuist/test-two
+            """)
+        }
     }
 
     func test_project_list_when_none() async throws {
-        // Given
-        given(listProjectsService)
-            .listProjects(serverURL: .value(serverURL))
-            .willReturn([])
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            given(listProjectsService)
+                .listProjects(serverURL: .value(serverURL))
+                .willReturn([])
 
-        // When
-        try await subject.run(json: false, directory: nil)
+            // When
+            try await subject.run(json: false, directory: nil)
 
-        // Then
-        XCTAssertPrinterOutputContains(
-            "You currently have no Tuist projects. Create one by running `tuist project create`."
-        )
+            // Then
+            XCTAssertPrinterOutputContains(
+                "You currently have no Tuist projects. Create one by running `tuist project create`."
+            )
+        }
     }
 }

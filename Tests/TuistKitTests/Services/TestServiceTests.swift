@@ -1,6 +1,7 @@
 import Foundation
 import Mockable
 import Path
+import ServiceContextModule
 import TuistAutomation
 import TuistCache
 import TuistCore
@@ -567,35 +568,37 @@ final class TestServiceTests: TuistUnitTestCase {
 
     func test_run_tests_individual_scheme_with_no_test_actions() async throws {
         // Given
-        givenGenerator()
-        given(buildGraphInspector)
-            .testableSchemes(graphTraverser: .any)
-            .willReturn([])
-        given(generator)
-            .generateWithGraph(path: .any)
-            .willProduce { path in
-                (
-                    path,
-                    .test(workspace: .test(schemes: [.test(name: "ProjectSchemeOne", testAction: .test(targets: []))])),
-                    MapperEnvironment()
-                )
-            }
-        try fileHandler.touch(
-            testsCacheTemporaryDirectory.path.appending(component: "A")
-        )
-        try fileHandler.touch(
-            testsCacheTemporaryDirectory.path.appending(component: "B")
-        )
+        try await ServiceContext.withTestingDependencies {
+            givenGenerator()
+            given(buildGraphInspector)
+                .testableSchemes(graphTraverser: .any)
+                .willReturn([])
+            given(generator)
+                .generateWithGraph(path: .any)
+                .willProduce { path in
+                    (
+                        path,
+                        .test(workspace: .test(schemes: [.test(name: "ProjectSchemeOne", testAction: .test(targets: []))])),
+                        MapperEnvironment()
+                    )
+                }
+            try fileHandler.touch(
+                testsCacheTemporaryDirectory.path.appending(component: "A")
+            )
+            try fileHandler.touch(
+                testsCacheTemporaryDirectory.path.appending(component: "B")
+            )
 
-        // When
-        try await testRun(
-            schemeName: "ProjectSchemeOne",
-            path: try temporaryPath()
-        )
+            // When
+            try await testRun(
+                schemeName: "ProjectSchemeOne",
+                path: try temporaryPath()
+            )
 
-        // Then
-        XCTAssertStandardOutput(pattern: "The scheme ProjectSchemeOne's test action has no tests to run, finishing early.")
-        XCTAssertEmpty(testedSchemes)
+            // Then
+            XCTAssertStandardOutput(pattern: "The scheme ProjectSchemeOne's test action has no tests to run, finishing early.")
+            XCTAssertEmpty(testedSchemes)
+        }
     }
 
     func test_throws_when_scheme_does_not_exist_and_initial_graph_is_nil() async throws {
@@ -670,361 +673,371 @@ final class TestServiceTests: TuistUnitTestCase {
     }
 
     func test_skips_running_tests_when_scheme_is_in_initial_graph_only() async throws {
-        // Given
-        givenGenerator()
-        var environment = MapperEnvironment()
-        environment.initialGraph = .test(
-            projects: [
-                try temporaryPath(): .test(schemes: [.test(name: "ProjectSchemeOne")]),
-            ]
-        )
-        given(generator)
-            .generateWithGraph(path: .any)
-            .willProduce { path in
-                (
-                    path,
-                    .test(),
-                    environment
-                )
-            }
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            givenGenerator()
+            var environment = MapperEnvironment()
+            environment.initialGraph = .test(
+                projects: [
+                    try temporaryPath(): .test(schemes: [.test(name: "ProjectSchemeOne")]),
+                ]
+            )
+            given(generator)
+                .generateWithGraph(path: .any)
+                .willProduce { path in
+                    (
+                        path,
+                        .test(),
+                        environment
+                    )
+                }
 
-        // When
-        try await testRun(
-            schemeName: "ProjectSchemeOne",
-            path: try temporaryPath()
-        )
+            // When
+            try await testRun(
+                schemeName: "ProjectSchemeOne",
+                path: try temporaryPath()
+            )
 
-        // Then
-        XCTAssertEmpty(testedSchemes)
-        XCTAssertStandardOutput(pattern: "The scheme ProjectSchemeOne's test action has no tests to run, finishing early.")
+            // Then
+            XCTAssertEmpty(testedSchemes)
+            XCTAssertStandardOutput(pattern: "The scheme ProjectSchemeOne's test action has no tests to run, finishing early.")
+        }
     }
 
     func test_skips_running_tests_when_all_tests_are_cached() async throws {
-        // Given
-        givenGenerator()
-        var environment = MapperEnvironment()
-        environment.initialGraph = .test(
-            projects: [
-                try temporaryPath(): .test(schemes: [.test(name: "ProjectSchemeOne")]),
-            ]
-        )
-        given(generator)
-            .generateWithGraph(path: .any)
-            .willProduce { path in
-                (
-                    path,
-                    .test(),
-                    environment
-                )
-            }
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            givenGenerator()
+            var environment = MapperEnvironment()
+            environment.initialGraph = .test(
+                projects: [
+                    try temporaryPath(): .test(schemes: [.test(name: "ProjectSchemeOne")]),
+                ]
+            )
+            given(generator)
+                .generateWithGraph(path: .any)
+                .willProduce { path in
+                    (
+                        path,
+                        .test(),
+                        environment
+                    )
+                }
 
-        // When
-        try await testRun(
-            path: try temporaryPath()
-        )
+            // When
+            try await testRun(
+                path: try temporaryPath()
+            )
 
-        // Then
-        XCTAssertEmpty(testedSchemes)
-        XCTAssertStandardOutput(pattern: "There are no tests to run, finishing early")
+            // Then
+            XCTAssertEmpty(testedSchemes)
+            XCTAssertStandardOutput(pattern: "There are no tests to run, finishing early")
+        }
     }
 
     func test_skips_running_tests_when_all_tests_are_cached_with_a_custom_result_bundle_path() async throws {
-        // Given
-        givenGenerator()
-        var environment = MapperEnvironment()
-        environment.initialGraph = .test(
-            projects: [
-                try temporaryPath(): .test(schemes: [.test(name: "ProjectSchemeOne")]),
-            ]
-        )
-        given(generator)
-            .generateWithGraph(path: .any)
-            .willProduce { path in
-                (
-                    path,
-                    .test(),
-                    environment
-                )
-            }
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            givenGenerator()
+            var environment = MapperEnvironment()
+            environment.initialGraph = .test(
+                projects: [
+                    try temporaryPath(): .test(schemes: [.test(name: "ProjectSchemeOne")]),
+                ]
+            )
+            given(generator)
+                .generateWithGraph(path: .any)
+                .willProduce { path in
+                    (
+                        path,
+                        .test(),
+                        environment
+                    )
+                }
 
-        let resultBundlePath = try temporaryPath()
-            .appending(component: "test.xcresult")
+            let resultBundlePath = try temporaryPath()
+                .appending(component: "test.xcresult")
 
-        // When
-        try await testRun(
-            path: try temporaryPath(),
-            resultBundlePath: resultBundlePath
-        )
+            // When
+            try await testRun(
+                path: try temporaryPath(),
+                resultBundlePath: resultBundlePath
+            )
 
-        // Then
-        XCTAssertEmpty(testedSchemes)
-        XCTAssertStandardOutput(pattern: "There are no tests to run, finishing early")
+            // Then
+            XCTAssertEmpty(testedSchemes)
+            XCTAssertStandardOutput(pattern: "There are no tests to run, finishing early")
+        }
     }
 
     func test_run_tests_when_part_is_cached() async throws {
-        // Given
-        givenGenerator()
-        given(configLoader)
-            .loadConfig(path: .any)
-            .willReturn(.default)
-        given(buildGraphInspector)
-            .testableSchemes(graphTraverser: .any)
-            .willReturn([])
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            givenGenerator()
+            given(configLoader)
+                .loadConfig(path: .any)
+                .willReturn(.default)
+            given(buildGraphInspector)
+                .testableSchemes(graphTraverser: .any)
+                .willReturn([])
 
-        let projectPathOne = try temporaryPath().appending(component: "ProjectOne")
-        let schemeOne = Scheme.test(
-            name: "ProjectSchemeOne",
-            testAction: .test(
-                targets: [
-                    .test(target: TargetReference(projectPath: projectPathOne, name: "TargetA")),
-                ]
-            )
-        )
-        let schemeTwo = Scheme.test(
-            name: "ProjectSchemeTwo",
-            testAction: .test(
-                targets: []
-            )
-        )
-
-        given(buildGraphInspector)
-            .workspaceSchemes(graphTraverser: .any)
-            .willReturn([schemeOne, schemeTwo])
-        given(buildGraphInspector)
-            .testableTarget(
-                scheme: .any,
-                testPlan: .any,
-                testTargets: .any,
-                skipTestTargets: .any,
-                graphTraverser: .any
-            )
-            .willReturn(.test())
-
-        var environment = MapperEnvironment()
-        environment.initialGraph = .test(
-            projects: [
-                projectPathOne: .test(
-                    path: projectPathOne,
+            let projectPathOne = try temporaryPath().appending(component: "ProjectOne")
+            let schemeOne = Scheme.test(
+                name: "ProjectSchemeOne",
+                testAction: .test(
                     targets: [
-                        .test(name: "TargetA", bundleId: "io.tuist.TargetA"),
-                        .test(name: "TargetB", bundleId: "io.tuist.TargetB"),
-                        .test(name: "TargetC", bundleId: "io.tuist.TargetC"),
-                    ],
-                    schemes: [
-                        .test(
-                            name: "ProjectSchemeOne",
-                            testAction: .test(
-                                targets: [
-                                    .test(target: TargetReference(projectPath: projectPathOne, name: "TargetA")),
-                                    .test(target: TargetReference(projectPath: projectPathOne, name: "TargetB")),
-                                ]
-                            )
-                        ),
-                        .test(
-                            name: "ProjectSchemeTwo",
-                            testAction: .test(
-                                targets: [
-                                    .test(target: TargetReference(projectPath: projectPathOne, name: "TargetC")),
-                                ]
-                            )
-                        ),
+                        .test(target: TargetReference(projectPath: projectPathOne, name: "TargetA")),
                     ]
-                ),
-            ]
-        )
-        environment.targetTestHashes = [
-            projectPathOne: [
-                "TargetA": "hash-a",
-                "TargetB": "hash-b",
-                "TargetC": "hash-c",
-            ],
-        ]
-        environment.targetCacheItems = [
-            projectPathOne: [
-                "TargetB": .test(
-                    source: .local,
-                    cacheCategory: .selectiveTests
-                ),
-                "TargetC": .test(
-                    source: .remote,
-                    cacheCategory: .selectiveTests
-                ),
-            ],
-        ]
-        given(generator)
-            .generateWithGraph(path: .any)
-            .willProduce { path in
-                (
-                    path,
-                    .test(
-                        projects: [
-                            projectPathOne: .test(
-                                path: projectPathOne,
-                                targets: [
-                                    .test(name: "TargetA"),
-                                    .test(name: "TargetB"),
-                                ],
-                                schemes: [schemeOne, schemeTwo]
+                )
+            )
+            let schemeTwo = Scheme.test(
+                name: "ProjectSchemeTwo",
+                testAction: .test(
+                    targets: []
+                )
+            )
+
+            given(buildGraphInspector)
+                .workspaceSchemes(graphTraverser: .any)
+                .willReturn([schemeOne, schemeTwo])
+            given(buildGraphInspector)
+                .testableTarget(
+                    scheme: .any,
+                    testPlan: .any,
+                    testTargets: .any,
+                    skipTestTargets: .any,
+                    graphTraverser: .any
+                )
+                .willReturn(.test())
+
+            var environment = MapperEnvironment()
+            environment.initialGraph = .test(
+                projects: [
+                    projectPathOne: .test(
+                        path: projectPathOne,
+                        targets: [
+                            .test(name: "TargetA", bundleId: "io.tuist.TargetA"),
+                            .test(name: "TargetB", bundleId: "io.tuist.TargetB"),
+                            .test(name: "TargetC", bundleId: "io.tuist.TargetC"),
+                        ],
+                        schemes: [
+                            .test(
+                                name: "ProjectSchemeOne",
+                                testAction: .test(
+                                    targets: [
+                                        .test(target: TargetReference(projectPath: projectPathOne, name: "TargetA")),
+                                        .test(target: TargetReference(projectPath: projectPathOne, name: "TargetB")),
+                                    ]
+                                )
+                            ),
+                            .test(
+                                name: "ProjectSchemeTwo",
+                                testAction: .test(
+                                    targets: [
+                                        .test(target: TargetReference(projectPath: projectPathOne, name: "TargetC")),
+                                    ]
+                                )
                             ),
                         ]
                     ),
-                    environment
-                )
-            }
+                ]
+            )
+            environment.targetTestHashes = [
+                projectPathOne: [
+                    "TargetA": "hash-a",
+                    "TargetB": "hash-b",
+                    "TargetC": "hash-c",
+                ],
+            ]
+            environment.targetCacheItems = [
+                projectPathOne: [
+                    "TargetB": .test(
+                        source: .local,
+                        cacheCategory: .selectiveTests
+                    ),
+                    "TargetC": .test(
+                        source: .remote,
+                        cacheCategory: .selectiveTests
+                    ),
+                ],
+            ]
+            given(generator)
+                .generateWithGraph(path: .any)
+                .willProduce { path in
+                    (
+                        path,
+                        .test(
+                            projects: [
+                                projectPathOne: .test(
+                                    path: projectPathOne,
+                                    targets: [
+                                        .test(name: "TargetA"),
+                                        .test(name: "TargetB"),
+                                    ],
+                                    schemes: [schemeOne, schemeTwo]
+                                ),
+                            ]
+                        ),
+                        environment
+                    )
+                }
 
-        // When
-        try await testRun(
-            path: try temporaryPath()
-        )
+            // When
+            try await testRun(
+                path: try temporaryPath()
+            )
 
-        // Then
-        XCTAssertEqual(testedSchemes, ["ProjectSchemeOne"])
-        XCTAssertStandardOutput(
-            pattern: "The following targets have not changed since the last successful run and will be skipped: TargetB, TargetC"
-        )
-        verify(analyticsDelegate)
-            .selectiveTestsAnalytics(
-                newValue: .value(
-                    SelectiveTestsAnalytics(
-                        testTargets: ["TargetA", "TargetB", "TargetC"],
-                        localTestTargetHits: ["TargetB"],
-                        remoteTestTargetHits: ["TargetC"]
+            // Then
+            XCTAssertEqual(testedSchemes, ["ProjectSchemeOne"])
+            XCTAssertStandardOutput(
+                pattern: "The following targets have not changed since the last successful run and will be skipped: TargetB, TargetC"
+            )
+            verify(analyticsDelegate)
+                .selectiveTestsAnalytics(
+                    newValue: .value(
+                        SelectiveTestsAnalytics(
+                            testTargets: ["TargetA", "TargetB", "TargetC"],
+                            localTestTargetHits: ["TargetB"],
+                            remoteTestTargetHits: ["TargetC"]
+                        )
                     )
                 )
-            )
-            .setCalled(1)
-        verify(cacheStorage)
-            .store(
-                .value(
-                    [
-                        CacheStorableItem(name: "TargetA", hash: "hash-a"): [],
-                    ]
-                ),
-                cacheCategory: .value(.selectiveTests)
-            )
-            .called(1)
+                .setCalled(1)
+            verify(cacheStorage)
+                .store(
+                    .value(
+                        [
+                            CacheStorableItem(name: "TargetA", hash: "hash-a"): [],
+                        ]
+                    ),
+                    cacheCategory: .value(.selectiveTests)
+                )
+                .called(1)
+        }
     }
 
     func test_run_tests_when_part_is_cached_and_scheme_is_passed() async throws {
-        // Given
-        givenGenerator()
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            givenGenerator()
 
-        let projectPathOne = try temporaryPath().appending(component: "ProjectOne")
-        let schemeOne = Scheme.test(
-            name: "ProjectSchemeOne",
-            testAction: .test(
-                targets: [
-                    .test(target: TargetReference(projectPath: projectPathOne, name: "TargetA")),
-                ]
-            )
-        )
-        let schemeTwo = Scheme.test(
-            name: "ProjectSchemeTwo",
-            testAction: .test(
-                targets: [
-                    .test(target: TargetReference(projectPath: projectPathOne, name: "TargetD")),
-                ]
-            )
-        )
-
-        given(buildGraphInspector)
-            .workspaceSchemes(graphTraverser: .any)
-            .willReturn([schemeOne, schemeTwo])
-        given(buildGraphInspector)
-            .testableTarget(
-                scheme: .any,
-                testPlan: .any,
-                testTargets: .any,
-                skipTestTargets: .any,
-                graphTraverser: .any
-            )
-            .willReturn(.test())
-        var environment = MapperEnvironment()
-        environment.initialGraph = .test(
-            projects: [
-                projectPathOne: .test(
-                    path: projectPathOne,
+            let projectPathOne = try temporaryPath().appending(component: "ProjectOne")
+            let schemeOne = Scheme.test(
+                name: "ProjectSchemeOne",
+                testAction: .test(
                     targets: [
-                        .test(name: "TargetA", bundleId: "io.tuist.TargetA"),
-                        .test(name: "TargetB", bundleId: "io.tuist.TargetB"),
-                        .test(name: "TargetC", bundleId: "io.tuist.TargetC"),
-                        .test(name: "TargetD", bundleId: "io.tuist.TargetD"),
-                    ],
-                    schemes: [
-                        .test(
-                            name: "ProjectSchemeOne",
-                            testAction: .test(
-                                targets: [
-                                    .test(target: TargetReference(projectPath: projectPathOne, name: "TargetA")),
-                                    .test(target: TargetReference(projectPath: projectPathOne, name: "TargetB")),
-                                ]
-                            )
-                        ),
-                        .test(
-                            name: "ProjectSchemeTwo",
-                            testAction: .test(
-                                targets: [
-                                    .test(target: TargetReference(projectPath: projectPathOne, name: "TargetC")),
-                                    .test(target: TargetReference(projectPath: projectPathOne, name: "TargetD")),
-                                ]
-                            )
-                        ),
+                        .test(target: TargetReference(projectPath: projectPathOne, name: "TargetA")),
                     ]
-                ),
-            ]
-        )
-        environment.targetTestHashes = [
-            projectPathOne: [
-                "TargetA": "hash-a",
-                "TargetB": "hash-b",
-                "TargetC": "hash-c",
-                "TargetD": "hash-d",
-            ],
-        ]
-        given(generator)
-            .generateWithGraph(path: .any)
-            .willProduce { path in
-                (
-                    path,
-                    .test(
-                        projects: [
-                            projectPathOne: .test(
-                                path: projectPathOne,
-                                targets: [
-                                    .test(name: "TargetA"),
-                                    .test(name: "TargetB"),
-                                    .test(name: "TargetC"),
-                                    .test(name: "TargetD"),
-                                ],
-                                schemes: [schemeOne, schemeTwo]
+                )
+            )
+            let schemeTwo = Scheme.test(
+                name: "ProjectSchemeTwo",
+                testAction: .test(
+                    targets: [
+                        .test(target: TargetReference(projectPath: projectPathOne, name: "TargetD")),
+                    ]
+                )
+            )
+
+            given(buildGraphInspector)
+                .workspaceSchemes(graphTraverser: .any)
+                .willReturn([schemeOne, schemeTwo])
+            given(buildGraphInspector)
+                .testableTarget(
+                    scheme: .any,
+                    testPlan: .any,
+                    testTargets: .any,
+                    skipTestTargets: .any,
+                    graphTraverser: .any
+                )
+                .willReturn(.test())
+            var environment = MapperEnvironment()
+            environment.initialGraph = .test(
+                projects: [
+                    projectPathOne: .test(
+                        path: projectPathOne,
+                        targets: [
+                            .test(name: "TargetA", bundleId: "io.tuist.TargetA"),
+                            .test(name: "TargetB", bundleId: "io.tuist.TargetB"),
+                            .test(name: "TargetC", bundleId: "io.tuist.TargetC"),
+                            .test(name: "TargetD", bundleId: "io.tuist.TargetD"),
+                        ],
+                        schemes: [
+                            .test(
+                                name: "ProjectSchemeOne",
+                                testAction: .test(
+                                    targets: [
+                                        .test(target: TargetReference(projectPath: projectPathOne, name: "TargetA")),
+                                        .test(target: TargetReference(projectPath: projectPathOne, name: "TargetB")),
+                                    ]
+                                )
+                            ),
+                            .test(
+                                name: "ProjectSchemeTwo",
+                                testAction: .test(
+                                    targets: [
+                                        .test(target: TargetReference(projectPath: projectPathOne, name: "TargetC")),
+                                        .test(target: TargetReference(projectPath: projectPathOne, name: "TargetD")),
+                                    ]
+                                )
                             ),
                         ]
                     ),
-                    environment
-                )
-            }
-
-        // When
-        try await testRun(
-            schemeName: "ProjectSchemeTwo",
-            path: try temporaryPath()
-        )
-
-        // Then
-        XCTAssertEqual(testedSchemes, ["ProjectSchemeTwo"])
-        XCTAssertStandardOutput(
-            pattern: "The following targets have not changed since the last successful run and will be skipped: TargetC"
-        )
-        verify(cacheStorage)
-            .store(
-                .value(
-                    [
-                        CacheStorableItem(name: "TargetD", hash: "hash-d"): [],
-                    ]
-                ),
-                cacheCategory: .value(.selectiveTests)
+                ]
             )
-            .called(1)
+            environment.targetTestHashes = [
+                projectPathOne: [
+                    "TargetA": "hash-a",
+                    "TargetB": "hash-b",
+                    "TargetC": "hash-c",
+                    "TargetD": "hash-d",
+                ],
+            ]
+            given(generator)
+                .generateWithGraph(path: .any)
+                .willProduce { path in
+                    (
+                        path,
+                        .test(
+                            projects: [
+                                projectPathOne: .test(
+                                    path: projectPathOne,
+                                    targets: [
+                                        .test(name: "TargetA"),
+                                        .test(name: "TargetB"),
+                                        .test(name: "TargetC"),
+                                        .test(name: "TargetD"),
+                                    ],
+                                    schemes: [schemeOne, schemeTwo]
+                                ),
+                            ]
+                        ),
+                        environment
+                    )
+                }
+
+            // When
+            try await testRun(
+                schemeName: "ProjectSchemeTwo",
+                path: try temporaryPath()
+            )
+
+            // Then
+            XCTAssertEqual(testedSchemes, ["ProjectSchemeTwo"])
+            XCTAssertStandardOutput(
+                pattern: "The following targets have not changed since the last successful run and will be skipped: TargetC"
+            )
+            verify(cacheStorage)
+                .store(
+                    .value(
+                        [
+                            CacheStorableItem(name: "TargetD", hash: "hash-d"): [],
+                        ]
+                    ),
+                    cacheCategory: .value(.selectiveTests)
+                )
+                .called(1)
+        }
     }
 
     func test_run_tests_with_skipped_targets() async throws {
@@ -1131,26 +1144,28 @@ final class TestServiceTests: TuistUnitTestCase {
     }
 
     func test_run_tests_when_no_project_schemes_present() async throws {
-        // Given
-        givenGenerator()
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            givenGenerator()
 
-        let graph: Graph = .test()
-        var environment = MapperEnvironment()
-        environment.initialGraph = graph
-        given(generator)
-            .generateWithGraph(path: .any)
-            .willProduce { path in
-                (path, .test(), environment)
-            }
+            let graph: Graph = .test()
+            var environment = MapperEnvironment()
+            environment.initialGraph = graph
+            given(generator)
+                .generateWithGraph(path: .any)
+                .willProduce { path in
+                    (path, .test(), environment)
+                }
 
-        // When
-        try await testRun(
-            path: try temporaryPath()
-        )
+            // When
+            try await testRun(
+                path: try temporaryPath()
+            )
 
-        // Then
-        XCTAssertEmpty(testedSchemes)
-        XCTAssertPrinterOutputContains("There are no tests to run, finishing early")
+            // Then
+            XCTAssertEmpty(testedSchemes)
+            XCTAssertPrinterOutputContains("There are no tests to run, finishing early")
+        }
     }
 
     func test_run_uses_resource_bundle_path() async throws {

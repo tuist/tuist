@@ -1,4 +1,5 @@
 import Path
+import ServiceContextModule
 import TuistAcceptanceTesting
 import TuistSupport
 import TuistSupportTesting
@@ -106,10 +107,18 @@ final class GenerateAcceptanceTestiOSAppWithFrameworkAndResources: TuistAcceptan
             "resource_without_extension",
             "StaticFrameworkResources.bundle",
             "StaticFramework2Resources.bundle",
+        ] {
+            try await XCTAssertProductWithDestinationContainsResource(
+                "App.app",
+                destination: "Debug-iphonesimulator",
+                resource: resource
+            )
+        }
+        for resource in [
             "StaticFramework3_StaticFramework3.bundle",
             "StaticFramework4_StaticFramework4.bundle",
         ] {
-            try await XCTAssertProductWithDestinationContainsResource(
+            try await XCTAssertProductWithDestinationDoesNotContainResource(
                 "App.app",
                 destination: "Debug-iphonesimulator",
                 resource: resource
@@ -131,12 +140,12 @@ final class GenerateAcceptanceTestiOSAppWithFrameworkAndResources: TuistAcceptan
             resource: "StaticFramework2Resources-tuist.png"
         )
         try await XCTAssertProductWithDestinationContainsResource(
-            "StaticFramework3_StaticFramework3.bundle",
+            "App.app/Frameworks/StaticFramework3.framework",
             destination: "Debug-iphonesimulator",
             resource: "StaticFramework3Resources-tuist.png"
         )
         try await XCTAssertProductWithDestinationContainsResource(
-            "StaticFramework4_StaticFramework4.bundle",
+            "App.app/Frameworks/StaticFramework4.framework",
             destination: "Debug-iphonesimulator",
             resource: "StaticFramework4Resources-tuist.png"
         )
@@ -388,18 +397,20 @@ final class GenerateAcceptanceTestiOSAppWithMultiConfigs: TuistAcceptanceTestCas
 
 final class GenerateAcceptanceTestiOSAppWithIncompatibleXcode: TuistAcceptanceTestCase {
     func test_ios_app_with_incompatible_xcode() async throws {
-        try await setUpFixture(.iosAppWithIncompatibleXcode)
-        do {
-            try await run(GenerateCommand.self)
-            XCTFail("Generate should have failed")
-        } catch {
-            XCTAssertStandardError(
-                pattern: "which is not compatible with this project's Xcode version requirement of 3.2.1."
-            )
-            XCTAssertEqual(
-                (error as? FatalError)?.description,
-                "Fatal linting issues found"
-            )
+        try await ServiceContext.withTestingDependencies {
+            try await setUpFixture(.iosAppWithIncompatibleXcode)
+            do {
+                try await run(GenerateCommand.self)
+                XCTFail("Generate should have failed")
+            } catch {
+                XCTAssertStandardError(
+                    pattern: "which is not compatible with this project's Xcode version requirement of 3.2.1."
+                )
+                XCTAssertEqual(
+                    (error as? FatalError)?.description,
+                    "Fatal linting issues found"
+                )
+            }
         }
     }
 }
@@ -730,9 +741,11 @@ final class GenerateAcceptanceTestmacOSAppWithCopyFiles: TuistAcceptanceTestCase
 
 final class GenerateAcceptanceTestManifestWithLogs: TuistAcceptanceTestCase {
     func test_manifest_with_logs() async throws {
-        try await setUpFixture(.manifestWithLogs)
-        try await run(GenerateCommand.self)
-        XCTAssertStandardOutput(pattern: "Target name - App")
+        try await ServiceContext.withTestingDependencies {
+            try await setUpFixture(.manifestWithLogs)
+            try await run(GenerateCommand.self)
+            XCTAssertStandardOutput(pattern: "Target name - App")
+        }
     }
 }
 
@@ -1135,9 +1148,9 @@ final class GenerateAcceptanceTestAppWithMacBundle: TuistAcceptanceTestCase {
         try await run(BuildCommand.self, "App", "--platform", "ios")
 
         try await XCTAssertProductWithDestinationContainsResource(
-            "App.app",
+            "App.app/Contents/Frameworks/ResourcesFramework.framework",
             destination: "Debug-maccatalyst",
-            resource: "Resources/ResourcesFramework_ResourcesFramework.bundle"
+            resource: "greeting.txt"
         )
         try await XCTAssertProductWithDestinationDoesNotContainResource(
             "App.app",

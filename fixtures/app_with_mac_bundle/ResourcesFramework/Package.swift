@@ -11,7 +11,7 @@ let package = Package(
         .target(
             name: "ResourcesFramework",
             path: "Sources",
-            resources: [.process("demo.json")]
+            resources: [.process("greeting.txt")]
         ),
     ]
 )
