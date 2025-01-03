@@ -1,6 +1,5 @@
 import ArgumentParser
 import Foundation
-import Path
 import TuistLoader
 import TuistSupport
 

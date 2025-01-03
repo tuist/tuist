@@ -2,13 +2,11 @@ import DOT
 import Foundation
 import GraphViz
 import Mockable
-import Path
 import ProjectAutomation
 import ServiceContextModule
 import TuistCore
 import TuistPlugin
 import TuistSupport
-import XcodeGraph
 import XcodeProj
 import XCTest
 

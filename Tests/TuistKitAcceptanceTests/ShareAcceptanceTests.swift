@@ -7,7 +7,6 @@ import TuistSupportTesting
 import XCTest
 
 @testable import TuistKit
-@testable import TuistServer
 
 final class ShareAcceptanceTests: ServerAcceptanceTestCase {
     func test_share_ios_app_with_frameworks() async throws {

@@ -1,5 +1,4 @@
 import Mockable
-import Path
 import ServiceContextModule
 import TuistCore
 import TuistLoader
@@ -7,7 +6,6 @@ import TuistLoaderTesting
 import TuistPluginTesting
 import TuistScaffold
 import TuistSupportTesting
-import XcodeGraph
 import XCTest
 
 @testable import TuistKit

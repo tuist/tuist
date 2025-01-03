@@ -1,7 +1,6 @@
 import AnyCodable
 import ArgumentParser
 import Foundation
-import Path
 import TuistCore
 import TuistGenerator
 import TuistLoader

@@ -1,5 +1,4 @@
 import Foundation
-import XcodeGraph
 
 protocol CacheVersionFetching {
     func version() -> CacheVersion

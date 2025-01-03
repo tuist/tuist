@@ -6,7 +6,6 @@ import TuistCore
 import TuistLoader
 import TuistServer
 import TuistSupport
-import XcodeGraph
 
 enum TuistCleanCategory: ExpressibleByArgument, CaseIterable, Equatable {
     static let allCases = CacheCategory.allCases

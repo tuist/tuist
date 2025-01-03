@@ -1,4 +1,3 @@
-import Foundation
 import Path
 
 /// Directory Descriptor

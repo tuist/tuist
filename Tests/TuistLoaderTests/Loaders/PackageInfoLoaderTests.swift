@@ -1,9 +1,7 @@
-import Path
 import TSCUtility
 import TuistCore
 import TuistSupport
 import TuistSupportTesting
-import XcodeGraph
 import XCTest
 @testable import TuistLoader
 

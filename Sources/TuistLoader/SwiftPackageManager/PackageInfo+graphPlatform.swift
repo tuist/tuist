@@ -1,7 +1,6 @@
 import Foundation
 import ProjectDescription
 import TuistSupport
-import XcodeGraph
 
 extension PackageInfo.Platform {
     func destinations() throws -> ProjectDescription.Destinations {
