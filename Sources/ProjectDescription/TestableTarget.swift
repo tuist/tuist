@@ -82,7 +82,6 @@ public struct TestableTarget: Equatable, Codable, ExpressibleByStringInterpolati
     ///   - isSkipped: Whether to skip this test target. If true, the test target is disabled.
     ///   - parallelization: Whether to run tests in parallel. Can be either `.disabled`, `.enabled`, or `.swiftTestingOnly`. The
     /// default value is `.disabled`.
-    ///   - isParallelizable: Whether to run in parallel.
     ///   - isRandomExecutionOrdering: Whether to test in random order.
     ///   - simulatedLocation: The simulated GPS location to use when testing this target.
     ///   Please note that the `.custom(gpxPath:)` case must refer to a valid GPX file in your project’s resources.
