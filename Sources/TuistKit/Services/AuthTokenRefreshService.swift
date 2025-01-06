@@ -1,12 +1,12 @@
 import FileSystem
 import Foundation
+import Mockable
 import Path
 import ServiceContextModule
 import TuistCore
 import TuistLoader
 import TuistServer
 import TuistSupport
-import Mockable
 
 @Mockable
 protocol AuthTokenRefreshServicing: AnyObject {
@@ -39,7 +39,7 @@ final class AuthTokenRefreshService: AuthTokenRefreshServicing {
         self.fileSystem = fileSystem
         self.serverURLService = serverURLService
         self.refreshAuthTokenService = refreshAuthTokenService
-       self.serverCredentialsStore = serverCredentialsStore
+        self.serverCredentialsStore = serverCredentialsStore
         self.serverSessionController = serverSessionController
         self.serverAuthenticationController = serverAuthenticationController
     }
@@ -93,6 +93,5 @@ final class AuthTokenRefreshService: AuthTokenRefreshServicing {
         } catch {
             throw ServerClientAuthenticationError.notAuthenticated
         }
-
     }
 }

@@ -83,7 +83,7 @@ final class AccountUpdateService: AccountUpdateServicing {
             serverURL: serverURL,
             accountHandle: sendAccountHandle!,
             handle: handle
-        ) 
+        )
         try await authTokenRefreshService.run(directory: directory)
 
         ServiceContext.current?.logger?.notice("Successfully updated account.", metadata: .success)
