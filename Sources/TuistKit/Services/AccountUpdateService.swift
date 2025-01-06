@@ -14,8 +14,21 @@ protocol AccountUpdateServicing: AnyObject {
     ) async throws
 }
 
-enum AccountUpdateError: Error {
-    case missingAccountHandle
+enum AccountUpdateServiceError: Equatable, FatalError {
+    case missingHandle
+
+    var type: TuistSupport.ErrorType {
+        switch self {
+        case .missingHandle: .abort
+        }
+    }
+
+    var description: String {
+        switch self {
+        case .missingHandle:
+            return "We couldn't update the account because no handle was provided, and no logged in user was found."
+        }
+    }
 }
 
 final class AccountUpdateService: AccountUpdateServicing {
@@ -64,15 +77,20 @@ final class AccountUpdateService: AccountUpdateServicing {
         let config = try await configLoader.loadConfig(path: directoryPath)
         let serverURL = try serverURLService.url(configServerURL: config.url)
 
+        debugPrint("url")
+        debugPrint("Account handle: \(accountHandle)")
+
         let sendAccountHandle: String?
         if let accountHandle { sendAccountHandle = accountHandle } else { sendAccountHandle = try await serverSessionController.whoami(serverURL: serverURL) }
-        if sendAccountHandle == nil { throw AccountUpdateError.missingAccountHandle }
+        if sendAccountHandle == nil { throw AccountUpdateServiceError.missingHandle }
+
+        debugPrint("Account handle: \(sendAccountHandle!)")
 
         let account = try await updateAccountService.updateAccount(
             serverURL: serverURL,
             accountHandle: sendAccountHandle!,
             handle: handle
-        ) 
+        )
 
         guard let token = try await serverAuthenticationController.authenticationToken(serverURL: serverURL)
         else {
@@ -82,7 +100,10 @@ final class AccountUpdateService: AccountUpdateServicing {
         switch token {
         case let .user(legacyToken: legacyToken, accessToken: accessToken, refreshToken: refreshToken):
             if let refreshToken {
-                let result = try await refreshAuthTokenService.refreshTokens(serverURL: serverURL, refreshToken: refreshToken.token)
+                let result = try await refreshAuthTokenService.refreshTokens(
+                    serverURL: serverURL,
+                    refreshToken: refreshToken.token
+                )
             }
         case _:
             return

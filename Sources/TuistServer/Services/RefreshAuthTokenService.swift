@@ -50,7 +50,7 @@ public final class RefreshAuthTokenService: RefreshAuthTokenServicing {
         do {
             let newTokens = try await RetryProvider()
                 .runWithRetries {
-                    try await self.serverRefreshToken(serverURL: serverURL, refreshToken: refreshToken)
+                    try await self.fetchRefreshToken(serverURL: serverURL, refreshToken: refreshToken)
                 }
 
             try await serverCredentialsStore
@@ -69,7 +69,7 @@ public final class RefreshAuthTokenService: RefreshAuthTokenServicing {
         }
     }
 
-    func serverRefreshToken(serverURL: URL, refreshToken: String) async throws -> ServerAuthenticationTokens {
+    func fetchRefreshToken(serverURL: URL, refreshToken: String) async throws -> ServerAuthenticationTokens {
         let client = Client.unauthenticated(serverURL: serverURL)
 
         let response = try await client.refreshToken(

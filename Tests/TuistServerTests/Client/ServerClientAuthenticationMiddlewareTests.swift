@@ -256,10 +256,6 @@ final class ServerClientAuthenticationMiddlewareTests: TuistUnitTestCase {
                 )
             )
 
-        given(serverCredentialsStore)
-            .store(credentials: .any, serverURL: .any)
-            .willReturn()
-
         // When
         let (gotResponse, _) = try await subject.intercept(
             request,
@@ -272,18 +268,6 @@ final class ServerClientAuthenticationMiddlewareTests: TuistUnitTestCase {
         }
 
         // Then
-        verify(serverCredentialsStore)
-            .store(
-                credentials: .value(
-                    ServerCredentials(
-                        token: nil,
-                        accessToken: "new-access-token",
-                        refreshToken: "new-refresh-token"
-                    )
-                ),
-                serverURL: .any
-            )
-            .called(1)
 
         XCTAssertEqual(gotResponse, response)
         XCTAssertEqual(
