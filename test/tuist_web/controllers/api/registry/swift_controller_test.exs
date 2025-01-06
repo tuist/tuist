@@ -6,6 +6,9 @@ defmodule TuistWeb.API.Registry.SwiftControllerTest do
   alias TuistTestSupport.Fixtures.Registry.Swift.PackagesFixtures
   use TuistTestSupport.Cases.ConnCase, async: false
   use Mimic
+  import TelemetryTest
+
+  setup [:telemetry_listen]
 
   setup %{conn: conn} do
     user = AccountsFixtures.user_fixture(preload: [:account])
@@ -437,6 +440,7 @@ defmodule TuistWeb.API.Registry.SwiftControllerTest do
   end
 
   describe "GET /api/accounts/:account_handle/registry/swift/:scope/:name/:version.zip" do
+    @describetag telemetry_listen: [:analytics, :registry, :swift, :source_archive_download]
     test "returns version source archive", %{conn: conn, account: account} do
       # Given
       PackagesFixtures.package_fixture(scope: "Alamofire", name: "Alamofire")
@@ -461,6 +465,13 @@ defmodule TuistWeb.API.Registry.SwiftControllerTest do
       # Then
       assert response(conn, 200) =~ source_archive_content
       assert get_resp_header(conn, "content-type") == ["application/zip; charset=utf-8"]
+
+      assert_receive {:telemetry_event,
+                      %{
+                        event: [:analytics, :registry, :swift, :source_archive_download],
+                        measurements: %{},
+                        metadata: %{}
+                      }}
     end
 
     test "returns :not_found when the source archive doesn't exist", %{

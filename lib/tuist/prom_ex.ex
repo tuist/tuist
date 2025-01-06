@@ -70,7 +70,8 @@ defmodule Tuist.PromEx do
         Tuist.Accounts.PromExPlugin,
         Tuist.Projects.PromExPlugin,
         Tuist.Cache.PromExPlugin,
-        Tuist.Previews.PromExPlugin
+        Tuist.Previews.PromExPlugin,
+        Tuist.Registry.Swift.PromExPlugin
       ]
 
     plugins =

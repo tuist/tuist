@@ -242,6 +242,12 @@ defmodule TuistWeb.API.Registry.SwiftController do
       )
 
     if Storage.object_exists?(object_key) do
+      :telemetry.execute(
+        [:analytics, :registry, :swift, :source_archive_download],
+        %{},
+        %{}
+      )
+
       conn
       |> put_resp_header("content-version", "1")
       |> put_resp_content_type("application/zip")
