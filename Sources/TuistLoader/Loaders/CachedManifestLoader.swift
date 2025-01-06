@@ -288,7 +288,7 @@ public class CachedManifestLoader: ManifestLoading {
             guard error.code == .fileAlreadyExists else {
                 throw error
             }
-            ServiceContext.current?.logger?.info("Encounter a `fileAlreadyExists` error, disregarding it")
+            ServiceContext.current?.logger?.info("Encountered a `fileAlreadyExists` error, disregarding it")
         }
     }
 
