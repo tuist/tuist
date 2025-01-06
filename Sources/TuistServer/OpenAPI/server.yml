@@ -3126,6 +3126,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: You don't have permission to update this account.
+        404:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: An account with this handle was not found.
       summary: Change user's account
       tags:
         - Account

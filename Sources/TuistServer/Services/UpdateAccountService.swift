@@ -17,12 +17,13 @@ enum UpdateAccountServiceError: FatalError {
     case badRequest(String)
     case unauthorized(String)
     case forbidden(String)
+    case notFound(String)
 
     var type: ErrorType {
         switch self {
         case .unknownError:
             return .bug
-        case .badRequest, .unauthorized, .forbidden:
+        case .badRequest, .unauthorized, .forbidden, .notFound:
             return .abort
         }
     }
@@ -31,7 +32,7 @@ enum UpdateAccountServiceError: FatalError {
         switch self {
         case let .unknownError(statusCode):
             return "We could not update the account due to an unknown Tuist response of \(statusCode)."
-        case let .badRequest(message), let .unauthorized(message), let .forbidden(message):
+        case let .badRequest(message), let .unauthorized(message), let .forbidden(message), let .notFound(message):
             return message
         }
     }
@@ -78,6 +79,11 @@ public final class UpdateAccountService: UpdateAccountServicing {
             switch badRequest.body {
             case let .json(error):
                 throw UpdateAccountServiceError.badRequest(error.message)
+            }
+        case let .notFound(notFound):
+            switch notFound.body {
+            case let .json(error):
+                throw UpdateAccountServiceError.notFound(error.message)
             }
         case let .undocumented(statusCode: statusCode, _):
             throw UpdateAccountServiceError.unknownError(statusCode)
