@@ -58,13 +58,13 @@ Tuist에 기여하기 위해 최소 요구 사항은 다음과 같습니다:
 
 ### Terminal {#from-the-terminal}
 
-You can run `tuist` using Tuist itself through its `run` command:
+Tuist의 `run` 명령어를 통해 `tuist`를 수행할 수 있습니다:
 
 ```bash
 tuist run tuist generate --path /path/to/project --no-open
 ```
 
-Alternatively, you can also run it through the Swift Package Manager directly:
+또한 Swift Package Manager를 통해 직접 실행할 수도 있습니다:
 
 ```bash
 swift build --product ProjectDescription
