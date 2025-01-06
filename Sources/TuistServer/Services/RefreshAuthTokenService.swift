@@ -35,41 +35,12 @@ public enum RefreshAuthTokenServiceError: FatalError, Equatable {
 }
 
 public final class RefreshAuthTokenService: RefreshAuthTokenServicing {
-    private let serverCredentialsStore: ServerCredentialsStoring
-    public init(
-        serverCredentialsStore: ServerCredentialsStoring = ServerCredentialsStore()
-
-    ) {
-        self.serverCredentialsStore = serverCredentialsStore
-    }
+    public init() {}
 
     public func refreshTokens(
         serverURL: URL,
         refreshToken: String
     ) async throws -> ServerAuthenticationTokens {
-        do {
-            let newTokens = try await RetryProvider()
-                .runWithRetries {
-                    try await self.fetchRefreshToken(serverURL: serverURL, refreshToken: refreshToken)
-                }
-
-            try await serverCredentialsStore
-                .store(
-                    credentials: ServerCredentials(
-                        token: nil,
-                        accessToken: newTokens.accessToken,
-                        refreshToken: newTokens.refreshToken
-                    ),
-                    serverURL: serverURL
-                )
-
-            return newTokens
-        } catch {
-            throw ServerClientAuthenticationError.notAuthenticated
-        }
-    }
-
-    func fetchRefreshToken(serverURL: URL, refreshToken: String) async throws -> ServerAuthenticationTokens {
         let client = Client.unauthenticated(serverURL: serverURL)
 
         let response = try await client.refreshToken(
@@ -80,10 +51,7 @@ public final class RefreshAuthTokenService: RefreshAuthTokenServicing {
         case let .ok(okResponse):
             switch okResponse.body {
             case let .json(tokens):
-                return ServerAuthenticationTokens(
-                    accessToken: tokens.access_token,
-                    refreshToken: tokens.refresh_token
-                )
+                return ServerAuthenticationTokens(accessToken: tokens.access_token, refreshToken: tokens.refresh_token)
             }
         case let .unauthorized(unauthorizedResponse):
             switch unauthorizedResponse.body {

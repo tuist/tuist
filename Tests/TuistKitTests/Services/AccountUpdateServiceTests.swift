@@ -14,9 +14,8 @@ struct AccountUpdateServiceTests {
     private let fileSystem = FileSystem()
     private let serverURLService = MockServerURLServicing()
     private let updateAccountService = MockUpdateAccountServicing()
-    private let refreshAuthTokenService = MockRefreshAuthTokenServicing()
+    private let authTokenRefreshService = MockAuthTokenRefreshServicing()
     private let serverSessionController = MockServerSessionControlling()
-    private let serverAuthenticationController = MockServerAuthenticationControlling()
 
     init() {
         subject = AccountUpdateService(
@@ -24,9 +23,8 @@ struct AccountUpdateServiceTests {
             fileSystem: fileSystem,
             serverURLService: serverURLService,
             updateAccountService: updateAccountService,
-            refreshAuthTokenService: refreshAuthTokenService,
-            serverSessionController: serverSessionController,
-            serverAuthenticationController: serverAuthenticationController
+            authTokenRefreshService: authTokenRefreshService,
+            serverSessionController: serverSessionController
         )
 
         given(configLoader)
@@ -36,11 +34,6 @@ struct AccountUpdateServiceTests {
             .url(configServerURL: .any)
             .willReturn(.test())
 
-        given(serverAuthenticationController).authenticationToken(serverURL: .any).willReturn(.user(
-            legacyToken: nil,
-            accessToken: .test(),
-            refreshToken: .test()
-        ))
         given(updateAccountService)
             .updateAccount(
                 serverURL: .any,
@@ -48,8 +41,7 @@ struct AccountUpdateServiceTests {
                 handle: .any
             )
             .willReturn(.test())
-        given(refreshAuthTokenService).refreshTokens(serverURL: .any, refreshToken: .value("token")).willReturn(.init(accessToken:
-            "new-access-token", refreshToken: "new-refresh-token"))
+        given(authTokenRefreshService).run(directory: .any).willReturn()
     }
 
     @Test func test_update_with_implicit_handle() async throws {
@@ -70,9 +62,8 @@ struct AccountUpdateServiceTests {
             handle: .value("newhandle")
         ).called(1)
 
-        verify(refreshAuthTokenService).refreshTokens(
-            serverURL: .any,
-            refreshToken: .value("token")
+        verify(authTokenRefreshService).run(
+            directory: .any
         ).called(1)
     }
 
@@ -91,9 +82,8 @@ struct AccountUpdateServiceTests {
         verify(updateAccountService).updateAccount(serverURL: .any, accountHandle: .value("foo"), handle: .value("newhandle"))
             .called(1)
 
-        verify(refreshAuthTokenService).refreshTokens(
-            serverURL: .any,
-            refreshToken: .value("token")
+        verify(authTokenRefreshService).run(
+            directory: .any
         ).called(1)
     }
 

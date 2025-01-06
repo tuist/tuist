@@ -37,9 +37,8 @@ final class AccountUpdateService: AccountUpdateServicing {
     private let fileSystem: FileSysteming
     private let serverURLService: ServerURLServicing
     private let updateAccountService: UpdateAccountServicing
-    private let refreshAuthTokenService: RefreshAuthTokenServicing
+    private let authTokenRefreshService: AuthTokenRefreshServicing
     private let serverSessionController: ServerSessionControlling
-    private let serverAuthenticationController: ServerAuthenticationControlling
 
     // MARK: - Init
 
@@ -48,17 +47,15 @@ final class AccountUpdateService: AccountUpdateServicing {
         fileSystem: FileSysteming = FileSystem(),
         serverURLService: ServerURLServicing = ServerURLService(),
         updateAccountService: UpdateAccountServicing = UpdateAccountService(),
-        refreshAuthTokenService: RefreshAuthTokenServicing = RefreshAuthTokenService(),
-        serverSessionController: ServerSessionControlling = ServerSessionController(),
-        serverAuthenticationController: ServerAuthenticationControlling = ServerAuthenticationController()
+        authTokenRefreshService: AuthTokenRefreshServicing = AuthTokenRefreshService(),
+        serverSessionController: ServerSessionControlling = ServerSessionController()
     ) {
         self.configLoader = configLoader
         self.fileSystem = fileSystem
         self.serverURLService = serverURLService
         self.updateAccountService = updateAccountService
-        self.refreshAuthTokenService = refreshAuthTokenService
+        self.authTokenRefreshService = authTokenRefreshService
         self.serverSessionController = serverSessionController
-        self.serverAuthenticationController = serverAuthenticationController
     }
 
     func run(
@@ -82,28 +79,12 @@ final class AccountUpdateService: AccountUpdateServicing {
         if let accountHandle { sendAccountHandle = accountHandle } else { sendAccountHandle = try await serverSessionController.whoami(serverURL: serverURL) }
         if sendAccountHandle == nil { throw AccountUpdateServiceError.missingHandle }
 
-        let account = try await updateAccountService.updateAccount(
+        try await updateAccountService.updateAccount(
             serverURL: serverURL,
             accountHandle: sendAccountHandle!,
             handle: handle
-        )
-
-        guard let token = try await serverAuthenticationController.authenticationToken(serverURL: serverURL)
-        else {
-            throw ServerClientAuthenticationError.notAuthenticated
-        }
-
-        switch token {
-        case let .user(legacyToken: legacyToken, accessToken: accessToken, refreshToken: refreshToken):
-            if let refreshToken {
-                let result = try await refreshAuthTokenService.refreshTokens(
-                    serverURL: serverURL,
-                    refreshToken: refreshToken.token
-                )
-            }
-        case _:
-            return
-        }
+        ) 
+        try await authTokenRefreshService.run(directory: directory)
 
         ServiceContext.current?.logger?.notice("Successfully updated account.", metadata: .success)
     }
