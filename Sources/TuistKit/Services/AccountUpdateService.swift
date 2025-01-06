@@ -1,6 +1,7 @@
 import FileSystem
 import Foundation
 import Path
+import ServiceContextModule
 import TuistCore
 import TuistLoader
 import TuistServer
@@ -77,14 +78,9 @@ final class AccountUpdateService: AccountUpdateServicing {
         let config = try await configLoader.loadConfig(path: directoryPath)
         let serverURL = try serverURLService.url(configServerURL: config.url)
 
-        debugPrint("url")
-        debugPrint("Account handle: \(accountHandle)")
-
         let sendAccountHandle: String?
         if let accountHandle { sendAccountHandle = accountHandle } else { sendAccountHandle = try await serverSessionController.whoami(serverURL: serverURL) }
         if sendAccountHandle == nil { throw AccountUpdateServiceError.missingHandle }
-
-        debugPrint("Account handle: \(sendAccountHandle!)")
 
         let account = try await updateAccountService.updateAccount(
             serverURL: serverURL,
@@ -109,6 +105,6 @@ final class AccountUpdateService: AccountUpdateServicing {
             return
         }
 
-        logger.notice("Successfully updated account", metadata: .success)
+        ServiceContext.current?.logger?.notice("Successfully updated account.", metadata: .success)
     }
 }
