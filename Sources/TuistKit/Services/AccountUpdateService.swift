@@ -23,7 +23,9 @@ final class AccountUpdateService: AccountUpdateServicing {
     private let fileSystem: FileSysteming
     private let serverURLService: ServerURLServicing
     private let updateAccountService: UpdateAccountServicing
+    private let refreshAuthTokenService: RefreshAuthTokenServicing
     private let serverSessionController: ServerSessionControlling
+    private let serverAuthenticationController: ServerAuthenticationControlling
 
     // MARK: - Init
 
@@ -32,13 +34,17 @@ final class AccountUpdateService: AccountUpdateServicing {
         fileSystem: FileSysteming = FileSystem(),
         serverURLService: ServerURLServicing = ServerURLService(),
         updateAccountService: UpdateAccountServicing = UpdateAccountService(),
-        serverSessionController: ServerSessionControlling = ServerSessionController()
+        refreshAuthTokenService: RefreshAuthTokenServicing = RefreshAuthTokenService(),
+        serverSessionController: ServerSessionControlling = ServerSessionController(),
+        serverAuthenticationController: ServerAuthenticationControlling = ServerAuthenticationController()
     ) {
         self.configLoader = configLoader
         self.fileSystem = fileSystem
         self.serverURLService = serverURLService
         self.updateAccountService = updateAccountService
+        self.refreshAuthTokenService = refreshAuthTokenService
         self.serverSessionController = serverSessionController
+        self.serverAuthenticationController = serverAuthenticationController
     }
 
     func run(
@@ -60,10 +66,28 @@ final class AccountUpdateService: AccountUpdateServicing {
 
         let sendAccountHandle: String?
         if let accountHandle { sendAccountHandle = accountHandle } else { sendAccountHandle = try await serverSessionController.whoami(serverURL: serverURL) }
-        if sendAccountHandle == nil { throw AccountUpdateError.missingAccountHandle}
+        if sendAccountHandle == nil { throw AccountUpdateError.missingAccountHandle }
 
-        if let name = try await updateAccountService.updateAccount(serverURL: serverURL, accountHandle: sendAccountHandle!, handle: handle) {
-            logger.notice("Successfully updated username to \(name).", metadata: .success)
+        let account = try await updateAccountService.updateAccount(
+            serverURL: serverURL,
+            accountHandle: sendAccountHandle!,
+            handle: handle
+        ) 
+
+        guard let token = try await serverAuthenticationController.authenticationToken(serverURL: serverURL)
+        else {
+            throw ServerClientAuthenticationError.notAuthenticated
         }
+
+        switch token {
+        case let .user(legacyToken: legacyToken, accessToken: accessToken, refreshToken: refreshToken):
+            if let refreshToken {
+                let result = try await refreshAuthTokenService.refreshTokens(serverURL: serverURL, refreshToken: refreshToken.token)
+            }
+        case _:
+            return
+        }
+
+        logger.notice("Successfully updated account", metadata: .success)
     }
 }

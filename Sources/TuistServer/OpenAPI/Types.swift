@@ -1489,6 +1489,33 @@ internal enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/PreviewIndexPage`.
         internal typealias PreviewIndexPage = Swift.Int
+        /// - Remark: Generated from `#/components/schemas/Account`.
+        internal struct Account: Codable, Hashable, Sendable {
+            /// The handle of the account
+            ///
+            /// - Remark: Generated from `#/components/schemas/Account/handle`.
+            internal var handle: Swift.String
+            /// ID of the account
+            ///
+            /// - Remark: Generated from `#/components/schemas/Account/id`.
+            internal var id: Swift.Double
+            /// Creates a new `Account`.
+            ///
+            /// - Parameters:
+            ///   - handle: The handle of the account
+            ///   - id: ID of the account
+            internal init(
+                handle: Swift.String,
+                id: Swift.Double
+            ) {
+                self.handle = handle
+                self.id = id
+            }
+            internal enum CodingKeys: String, CodingKey {
+                case handle
+                case id
+            }
+        }
         /// An organization member
         ///
         /// - Remark: Generated from `#/components/schemas/OrganizationMember`.
@@ -15556,12 +15583,12 @@ internal enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/PATCH/responses/200/content`.
                 internal enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/PATCH/responses/200/content/application\/json`.
-                    case json(OpenAPIRuntime.OpenAPIObjectContainer)
+                    case json(Components.Schemas.Account)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    internal var json: OpenAPIRuntime.OpenAPIObjectContainer {
+                    internal var json: Components.Schemas.Account {
                         get throws {
                             switch self {
                             case let .json(body):

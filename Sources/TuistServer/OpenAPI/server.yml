@@ -263,6 +263,20 @@ components:
       minimum: 1
       title: PreviewIndexPage
       type: integer
+    Account:
+      properties:
+        handle:
+          description: The handle of the account
+          type: string
+        id:
+          description: ID of the account
+          type: number
+      required:
+        - id
+        - handle
+      title: Account
+      type: object
+      x-struct: Elixir.TuistWeb.API.Schemas.Account
     OrganizationMember:
       description: An organization member
       properties:
@@ -3092,9 +3106,7 @@ paths:
           content:
             application/json:
               schema:
-                description: Empty response indicating success
-                properties: {}
-                type: object
+                $ref: '#/components/schemas/Account'
           description: Account successfully updated
         400:
           content:

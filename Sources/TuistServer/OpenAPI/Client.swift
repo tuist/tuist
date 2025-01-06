@@ -5830,7 +5830,7 @@ internal struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            OpenAPIRuntime.OpenAPIObjectContainer.self,
+                            Components.Schemas.Account.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)

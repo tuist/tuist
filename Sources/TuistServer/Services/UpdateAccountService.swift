@@ -9,7 +9,7 @@ public protocol UpdateAccountServicing {
         serverURL: URL,
         accountHandle: String,
         handle: String?
-    ) async throws -> String?
+    ) async throws -> ServerAccount
 }
 
 enum UpdateAccountServiceError: FatalError {
@@ -44,7 +44,7 @@ public final class UpdateAccountService: UpdateAccountServicing {
         serverURL: URL,
         accountHandle: String,
         handle: String?
-    ) async throws -> String? {
+    ) async throws -> ServerAccount {
         let client = Client.authenticated(serverURL: serverURL)
         let response = try await client.updateAccount(
             .init(
@@ -60,7 +60,10 @@ public final class UpdateAccountService: UpdateAccountServicing {
         )
         switch response {
         case let .ok(okResponse):
-            return handle
+            switch okResponse.body {
+            case let .json(account):
+                return ServerAccount(account)
+            }
         case let .unauthorized(unauthorized):
             switch unauthorized.body {
             case let .json(error):

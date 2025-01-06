@@ -90,7 +90,7 @@ struct ServerClientAuthenticationMiddleware: ClientMiddleware {
 
                 if isExpired {
                     tokenValue = try await cachedValueStore.getValue(key: refreshToken.token) {
-                        try await refreshTokens(baseURL: baseURL, refreshToken: refreshToken)
+                        try await refreshAuthTokenService.refreshTokens(serverURL: baseURL, refreshToken: refreshToken.token)
                     }
                     .accessToken
                 } else {
@@ -105,32 +105,5 @@ struct ServerClientAuthenticationMiddleware: ClientMiddleware {
             name: .authorization, value: "Bearer \(tokenValue)"
         ))
         return try await next(request, body, baseURL)
-    }
-
-    private func refreshTokens(
-        baseURL: URL,
-        refreshToken: JWT
-    ) async throws -> ServerAuthenticationTokens {
-        do {
-            let newTokens = try await RetryProvider()
-                .runWithRetries {
-                    return try await refreshAuthTokenService.refreshTokens(
-                        serverURL: baseURL,
-                        refreshToken: refreshToken.token
-                    )
-                }
-            try await serverCredentialsStore
-                .store(
-                    credentials: ServerCredentials(
-                        token: nil,
-                        accessToken: newTokens.accessToken,
-                        refreshToken: newTokens.refreshToken
-                    ),
-                    serverURL: baseURL
-                )
-            return newTokens
-        } catch {
-            throw ServerClientAuthenticationError.notAuthenticated
-        }
     }
 }
