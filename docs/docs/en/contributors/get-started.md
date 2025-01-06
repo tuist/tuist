@@ -63,3 +63,10 @@ You can run `tuist` using Tuist itself through its `run` command:
 ```bash
 tuist run tuist generate --path /path/to/project --no-open
 ```
+
+Alternatively, you can also run it through the Swift Package Manager directly:
+
+```bash
+swift build --product ProjectDescription
+swift run tuist generate --path /path/to/project --no-open
+```
