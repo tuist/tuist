@@ -353,6 +353,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "FileSystem"),
                     .external(name: "XcodeProj"),
                     .external(name: "SwiftToolsSupport"),
+                    .external(name: "_NIOFileSystem"),
                 ]
             case .asyncQueue:
                 [
@@ -534,6 +535,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "SwiftToolsSupport"),
                     .external(name: "FileSystem"),
                     .external(name: "XcodeGraph"),
+                    .external(name: "_NIOFileSystem"),
                 ]
             case .asyncQueue:
                 [
