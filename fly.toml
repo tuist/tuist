@@ -24,7 +24,7 @@ console_command = "/app/bin/rails console"
 
 [[vm]]
   cpu_kind = 'performance'
-  memory = "4096mb"
+  memory = "8192mb"
   cpus = 2
 
 [[services]]
