@@ -1,5 +1,4 @@
 import ArgumentParser
-import Foundation
 
 struct AccountCommand: ParsableCommand {
     static var configuration: CommandConfiguration {

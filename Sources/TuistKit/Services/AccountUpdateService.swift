@@ -27,7 +27,7 @@ enum AccountUpdateServiceError: Equatable, FatalError {
     var description: String {
         switch self {
         case .missingHandle:
-            return "We couldn't update the account because no handle was provided, and no logged in user was found."
+            "We couldn't update the account because no handle was provided, and no logged in user was found."
         }
     }
 }
