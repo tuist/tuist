@@ -59,7 +59,13 @@ Tuist に貢献するには、最低限の要件があります。
 
 ### ターミナル経由 {#from-the-terminal}
 
-`tuist` には `tuist run` コマンドがありますが、CLIにはまだ対応していません。 そのため、Swift Package Manager を使用してツールを実行する必要があります。 以下のコマンドを実行してください。
+You can run `tuist` using Tuist itself through its `run` command:
+
+```bash
+tuist run tuist generate --path /path/to/project --no-open
+```
+
+Alternatively, you can also run it through the Swift Package Manager directly:
 
 ```bash
 swift build --product ProjectDescription
