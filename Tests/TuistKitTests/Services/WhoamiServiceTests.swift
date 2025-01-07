@@ -60,7 +60,6 @@ final class WhoamiServiceTests: TuistUnitTestCase {
                 .getAuthenticatedHandle(serverURL: .value(serverURL))
                 .willThrow(ServerSessionControllerError.unauthenticated)
 
-
             await XCTAssertThrowsSpecific(try await subject.run(directory: nil), ServerSessionControllerError.unauthenticated)
         }
     }

@@ -69,7 +69,7 @@ struct AuthTokenRefreshService: AuthTokenRefreshServicing {
         do {
             let newTokens = try await RetryProvider()
                 .runWithRetries {
-                    return try await self.refreshAuthTokenService.refreshTokens(
+                    return try await refreshAuthTokenService.refreshTokens(
                         serverURL: serverURL,
                         refreshToken: refreshToken
                     )
