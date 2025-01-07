@@ -344,7 +344,7 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
         XCTAssertEqual(result.name, "App")
     }
 
-    func test_throwing_OtherNIOErrors() async throws {
+    func test_throwing_otherNIOErrors() async throws {
         // Given
         let expectedError = NIOFileSystem.FileSystemError(
             code: .invalidArgument,
