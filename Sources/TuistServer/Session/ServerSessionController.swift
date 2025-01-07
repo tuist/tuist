@@ -18,6 +18,23 @@ public enum DeviceCodeType {
     }
 }
 
+public enum ServerSessionControllerError: Equatable, FatalError {
+    case unauthenticated
+
+    public var type: TuistSupport.ErrorType {
+        switch self {
+        case .unauthenticated: .abort
+        }
+    }
+
+    public var description: String {
+        switch self {
+        case .unauthenticated:
+            "You are not logged in. Run 'tuist auth login'."
+        }
+    }
+}
+
 @Mockable
 public protocol ServerSessionControlling: AnyObject {
     /// It authenticates the user for the server with the given URL.
@@ -33,8 +50,11 @@ public protocol ServerSessionControlling: AnyObject {
         onAuthWaitBegin: @escaping () -> Void
     ) async throws
 
-    /// - Returns: Account handle for the signed-in user for the server with the given URL
+    /// - Returns: Account handle for the signed-in user for the server with the given URL. Returns nil if no user is logged in.
     func whoami(serverURL: URL) async throws -> String?
+
+    /// - Returns: Account handle for the signed-in user for the server with the given URL. Throws if no user is logged in.
+    func getAuthenticatedHandle(serverURL: URL) async throws -> String
 
     /// Removes the session for the server with the given URL.
     /// - Parameter serverURL: Server URL.
@@ -123,6 +143,21 @@ public final class ServerSessionController: ServerSessionControlling {
             return accessToken?.preferredUsername
         case .project:
             return nil
+        }
+    }
+
+    public func getAuthenticatedHandle(serverURL: URL) async throws -> String {
+        guard let token = try await serverAuthenticationController.authenticationToken(serverURL: serverURL) else {
+            throw ServerSessionControllerError.unauthenticated
+        }
+        switch token {
+        case let .user(legacyToken: _, accessToken: accessToken, refreshToken: _):
+            guard let username = accessToken?.preferredUsername else {
+                throw ServerSessionControllerError.unauthenticated
+            }
+            return username
+        case .project:
+            throw ServerSessionControllerError.unauthenticated
         }
     }
 

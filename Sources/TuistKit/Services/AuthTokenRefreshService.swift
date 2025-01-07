@@ -9,13 +9,13 @@ import TuistServer
 import TuistSupport
 
 @Mockable
-protocol AuthTokenRefreshServicing: AnyObject {
-    func run(
-        directory: String?
+protocol AuthTokenRefreshServicing {
+    func refreshTokens(
+        path: AbsolutePath
     ) async throws
 }
 
-final class AuthTokenRefreshService: AuthTokenRefreshServicing {
+struct AuthTokenRefreshService: AuthTokenRefreshServicing {
     private let configLoader: ConfigLoading
     private let fileSystem: FileSysteming
     private let serverURLService: ServerURLServicing
@@ -44,17 +44,10 @@ final class AuthTokenRefreshService: AuthTokenRefreshServicing {
         self.serverAuthenticationController = serverAuthenticationController
     }
 
-    func run(
-        directory: String?
+    func refreshTokens(
+        path: AbsolutePath
     ) async throws {
-        let directoryPath: AbsolutePath
-        if let directory {
-            directoryPath = try AbsolutePath(validating: directory, relativeTo: try await fileSystem.currentWorkingDirectory())
-        } else {
-            directoryPath = try await fileSystem.currentWorkingDirectory()
-        }
-
-        let config = try await configLoader.loadConfig(path: directoryPath)
+        let config = try await configLoader.loadConfig(path: path)
         let serverURL = try serverURLService.url(configServerURL: config.url)
 
         guard let token = try await serverAuthenticationController.authenticationToken(serverURL: serverURL)
@@ -63,7 +56,7 @@ final class AuthTokenRefreshService: AuthTokenRefreshServicing {
         }
 
         switch token {
-        case let .user(legacyToken: legacyToken, accessToken: accessToken, refreshToken: refreshToken):
+        case let .user(legacyToken: _, accessToken: _, refreshToken: refreshToken):
             if let refreshToken {
                 try await fetchTokens(serverURL: serverURL, refreshToken: refreshToken.token)
             }

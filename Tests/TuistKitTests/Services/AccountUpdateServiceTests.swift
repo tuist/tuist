@@ -41,12 +41,12 @@ struct AccountUpdateServiceTests {
                 handle: .any
             )
             .willReturn(.test())
-        given(authTokenRefreshService).run(directory: .any).willReturn()
+        given(authTokenRefreshService).refreshTokens(path: .any).willReturn()
     }
 
     @Test func test_update_with_implicit_handle() async throws {
         // Given
-        given(serverSessionController).whoami(serverURL: .any).willReturn("tuistrocks")
+        given(serverSessionController).getAuthenticatedHandle(serverURL: .any).willReturn("tuistrocks")
 
         // When
         try await subject.run(
@@ -62,14 +62,14 @@ struct AccountUpdateServiceTests {
             handle: .value("newhandle")
         ).called(1)
 
-        verify(authTokenRefreshService).run(
-            directory: .any
+        verify(authTokenRefreshService).refreshTokens(
+            path: .any
         ).called(1)
     }
 
     @Test func test_update_with_explicit_handle() async throws {
         // Given
-        given(serverSessionController).whoami(serverURL: .any).willReturn("tuistrocks")
+        given(serverSessionController).getAuthenticatedHandle(serverURL: .any).willReturn("tuistrocks")
 
         // When
         try await subject.run(
@@ -82,22 +82,8 @@ struct AccountUpdateServiceTests {
         verify(updateAccountService).updateAccount(serverURL: .any, accountHandle: .value("foo"), handle: .value("newhandle"))
             .called(1)
 
-        verify(authTokenRefreshService).run(
-            directory: .any
+        verify(authTokenRefreshService).refreshTokens(
+            path: .any
         ).called(1)
-    }
-
-    @Test func test_not_logged_in() async throws {
-        // Given
-        given(serverSessionController).whoami(serverURL: .any).willReturn(nil)
-
-        await #expect(throws: AccountUpdateServiceError.missingHandle) {
-            // Then
-            try await subject.run(
-                accountHandle: nil,
-                handle: "newhandle",
-                directory: nil
-            )
-        }
     }
 }

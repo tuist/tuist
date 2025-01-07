@@ -11,7 +11,7 @@ struct AccountUpdateCommand: AsyncParsableCommand {
     }
 
     @Argument(
-        help: "The account handle of the account to update. If omitted, defaults to the account of the authenticated user."
+        help: "The account handle of the account to update. If omitted, defaults to the account you're currently authenticated as."
     )
     var accountHandle: String?
 

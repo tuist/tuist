@@ -1,4 +1,5 @@
 import Foundation
+import TuistSupport
 import Mockable
 import Testing
 import TuistServer
@@ -21,6 +22,7 @@ struct AuthTokenRefreshServiceTests {
 
     @Test func stores_new_tokens() async throws {
         // Given
+        let path = try TemporaryDirectory(removeTreeOnDeinit: true).path
         given(refreshAuthTokenService).refreshTokens(serverURL: .any, refreshToken: .value("token")).willReturn(.init(accessToken:
             "new-access-token", refreshToken: "new-refresh-token"))
         given(serverAuthenticationController).authenticationToken(serverURL: .any).willReturn(.user(
@@ -33,8 +35,8 @@ struct AuthTokenRefreshServiceTests {
             .willReturn()
 
         // When
-        try await subject.run(
-            directory: nil
+        try await subject.refreshTokens(
+            path: path
         )
 
         // Then

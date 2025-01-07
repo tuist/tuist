@@ -7,7 +7,7 @@ import TuistLoader
 import TuistServer
 import TuistSupport
 
-protocol AccountUpdateServicing: AnyObject {
+protocol AccountUpdateServicing {
     func run(
         accountHandle: String?,
         handle: String?,
@@ -27,12 +27,12 @@ enum AccountUpdateServiceError: Equatable, FatalError {
     var description: String {
         switch self {
         case .missingHandle:
-            "We couldn't update the account because no handle was provided, and no logged in user was found."
+            "You are not logged in. Run 'tuist auth login'."
         }
     }
 }
 
-final class AccountUpdateService: AccountUpdateServicing {
+struct AccountUpdateService: AccountUpdateServicing {
     private let configLoader: ConfigLoading
     private let fileSystem: FileSysteming
     private let serverURLService: ServerURLServicing
@@ -75,17 +75,21 @@ final class AccountUpdateService: AccountUpdateServicing {
         let config = try await configLoader.loadConfig(path: directoryPath)
         let serverURL = try serverURLService.url(configServerURL: config.url)
 
-        let sendAccountHandle: String?
-        if let accountHandle { sendAccountHandle = accountHandle } else { sendAccountHandle = try await serverSessionController.whoami(serverURL: serverURL) }
-        if sendAccountHandle == nil { throw AccountUpdateServiceError.missingHandle }
+        let passedAccountHandle = accountHandle
+        let accountHandle: String
+        if let passedAccountHandle {
+            accountHandle = passedAccountHandle
+        } else {
+            accountHandle = try await serverSessionController.getAuthenticatedHandle(serverURL: serverURL)
+        }
 
-        try await updateAccountService.updateAccount(
+        let account = try await updateAccountService.updateAccount(
             serverURL: serverURL,
-            accountHandle: sendAccountHandle!,
+            accountHandle: accountHandle,
             handle: handle
         )
-        try await authTokenRefreshService.run(directory: directory)
+        try await authTokenRefreshService.refreshTokens(path: directoryPath)
 
-        ServiceContext.current?.logger?.notice("Successfully updated account.", metadata: .success)
+        ServiceContext.current?.logger?.notice("The account \(account.handle) was successfully updated.", metadata: .success)
     }
 }
