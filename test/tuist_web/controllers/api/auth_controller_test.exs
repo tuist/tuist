@@ -201,7 +201,7 @@ defmodule TuistWeb.API.AuthControllerTest do
   describe "POST /auth" do
     test "returns API tokens if the email and password are valid", %{conn: conn} do
       # Given
-      user = AccountsFixtures.user_fixture(password: "password")
+      user = AccountsFixtures.user_fixture(password: "password") |> Tuist.Repo.preload(:account)
 
       # When
       conn =
@@ -212,15 +212,23 @@ defmodule TuistWeb.API.AuthControllerTest do
       # Then
       response = json_response(conn, :ok)
 
-      assert Tuist.Authentication.decode_and_verify(response["access_token"], %{
-               "typ" => "access",
-               "sub" => user.id
-             })
+      {:ok, access_token_claims} =
+        assert Tuist.Authentication.decode_and_verify(response["access_token"], %{
+                 "typ" => "access"
+               })
 
-      assert Tuist.Authentication.decode_and_verify(response["refresh_token"], %{
-               "typ" => "refresh",
-               "sub" => user.id
-             })
+      assert access_token_claims["sub"] == to_string(user.id)
+      assert access_token_claims["email"] == user.email
+      assert access_token_claims["preferred_username"] == user.account.name
+
+      {:ok, refresh_token_claims} =
+        assert Tuist.Authentication.decode_and_verify(response["refresh_token"], %{
+                 "typ" => "refresh"
+               })
+
+      assert refresh_token_claims["sub"] == to_string(user.id)
+      assert refresh_token_claims["email"] == user.email
+      assert refresh_token_claims["preferred_username"] == user.account.name
     end
 
     test "returns unauthorized when the password is invalid", %{conn: conn} do

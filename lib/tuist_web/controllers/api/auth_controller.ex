@@ -239,13 +239,17 @@ defmodule TuistWeb.API.AuthController do
 
       {:ok, user} ->
         {:ok, access_token, _opts} =
-          Authentication.encode_and_sign(user, %{},
+          Authentication.encode_and_sign(
+            user,
+            %{email: user.email, preferred_username: user.account.name},
             token_type: :access,
             ttl: @access_token_ttl
           )
 
         {:ok, refresh_token, _opts} =
-          Authentication.encode_and_sign(user, %{},
+          Authentication.encode_and_sign(
+            user,
+            %{email: user.email, preferred_username: user.account.name},
             token_type: :refresh,
             ttl: @refresh_token_ttl
           )
