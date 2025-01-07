@@ -285,9 +285,9 @@ internal protocol APIProtocol: Sendable {
     /// - Remark: HTTP `DELETE /api/projects/{id}`.
     /// - Remark: Generated from `#/paths//api/projects/{id}/delete(deleteProject)`.
     func deleteProject(_ input: Operations.deleteProject.Input) async throws -> Operations.deleteProject.Output
-    /// Change user's account
+    /// Update account
     ///
-    /// Updates the authenticated account
+    /// Updates the given account
     ///
     /// - Remark: HTTP `PATCH /api/accounts/{account_handle}`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/patch(updateAccount)`.
@@ -927,9 +927,9 @@ extension APIProtocol {
             headers: headers
         ))
     }
-    /// Change user's account
+    /// Update account
     ///
-    /// Updates the authenticated account
+    /// Updates the given account
     ///
     /// - Remark: HTTP `PATCH /api/accounts/{account_handle}`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/patch(updateAccount)`.
@@ -15503,9 +15503,9 @@ internal enum Operations {
             }
         }
     }
-    /// Change user's account
+    /// Update account
     ///
-    /// Updates the authenticated account
+    /// Updates the given account
     ///
     /// - Remark: HTTP `PATCH /api/accounts/{account_handle}`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/patch(updateAccount)`.

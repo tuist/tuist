@@ -3081,7 +3081,7 @@ paths:
   /api/accounts/{account_handle}:
     patch:
       callbacks: {}
-      description: Updates the authenticated account
+      description: Updates the given account
       operationId: updateAccount
       parameters:
         - description: The handle of the account.
@@ -3132,7 +3132,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: An account with this handle was not found.
-      summary: Change user's account
+      summary: Update account
       tags:
         - Account
   /api/runs/{run_id}/complete_artifacts_uploads:

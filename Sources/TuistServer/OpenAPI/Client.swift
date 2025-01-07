@@ -5777,9 +5777,9 @@ internal struct Client: APIProtocol {
             }
         )
     }
-    /// Change user's account
+    /// Update account
     ///
-    /// Updates the authenticated account
+    /// Updates the given account
     ///
     /// - Remark: HTTP `PATCH /api/accounts/{account_handle}`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/patch(updateAccount)`.
