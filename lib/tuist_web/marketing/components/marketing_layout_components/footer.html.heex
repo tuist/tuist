@@ -11,7 +11,8 @@
       </h2>
     </div>
 
-    <% any_ongoing_incident? = Tuist.Incidents.any_ongoing_incident?() %>
+    <%!-- <% any_ongoing_incident? = Tuist.Incidents.any_ongoing_incident?() %> --%>
+    <% any_ongoing_incident? = false %>
 
     <%= if any_ongoing_incident? do %>
       <.link
