@@ -1,5 +1,5 @@
 ---
-title: We ❤️ openness
+title: We ❤️ openness · Tuist
 description: We are building an open company, and we believe that openness is the key to building the best tools for developers. This document outlines our commitment to openness and how we are building Tuist in the open.
 ---
 

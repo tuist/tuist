@@ -41,6 +41,7 @@ defmodule TuistWeb.Marketing.MarketingController do
       :head_description,
       "Learn more about Tuist, the open-source project that helps you scale your Swift development."
     )
+    |> assign(:head_title, "About Tuist")
     |> render(:about, layout: false)
   end
 

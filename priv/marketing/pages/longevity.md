@@ -1,9 +1,9 @@
 ---
-title: Longevity manifesto
+title: Longevity manifesto · Tuist
 description: Tuist was built for the future of Xcode development. We believe that code is abundant and should be owned by both everyone and no one.
 ---
 
-## Longevity Manifesto
+# Longevity Manifesto
 
 _Last updated February 14, 2024_
 

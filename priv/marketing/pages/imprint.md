@@ -1,5 +1,5 @@
 ---
-title: Imprint
+title: Imprint · Tuist
 description: Tuist was built for the future of Xcode development. We believe that code is abundant and should be owned by both everyone and no one.
 ---
 

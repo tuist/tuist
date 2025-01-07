@@ -1,5 +1,5 @@
 ---
-title: Trademark guidelines
+title: Trademark guidelines · Tuist
 description: These guidelines outline the proper use of Tuist's trademarks and logos.
 ---
 
