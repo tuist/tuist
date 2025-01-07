@@ -1,4 +1,3 @@
-import FileSystem
 import Foundation
 import Path
 import XCTest

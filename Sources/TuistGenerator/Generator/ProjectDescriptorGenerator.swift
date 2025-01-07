@@ -1,5 +1,4 @@
 import Foundation
-import Path
 import ServiceContextModule
 import TuistCore
 import TuistSupport

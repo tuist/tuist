@@ -6,7 +6,6 @@ import TuistSupportTesting
 import XCTest
 
 @testable import TuistKit
-@testable import TuistServer
 
 final class ProjectAcceptanceTestProjects: ServerAcceptanceTestCase {
     func test_list_project() async throws {

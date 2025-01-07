@@ -1,7 +1,6 @@
 import Foundation
 import Path
 import ServiceContextModule
-import TuistAutomation
 import TuistCache
 import TuistCore
 import TuistHasher

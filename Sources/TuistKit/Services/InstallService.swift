@@ -7,7 +7,6 @@ import TuistDependencies
 import TuistLoader
 import TuistPlugin
 import TuistSupport
-import XcodeGraph
 
 final class InstallService {
     private let pluginService: PluginServicing

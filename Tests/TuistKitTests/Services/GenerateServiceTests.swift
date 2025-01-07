@@ -7,7 +7,6 @@ import TuistCore
 import TuistLoader
 import TuistServer
 import TuistSupport
-import XcodeGraph
 import XcodeProj
 import XCTest
 @testable import TuistCoreTesting

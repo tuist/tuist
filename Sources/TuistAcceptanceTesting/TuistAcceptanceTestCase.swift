@@ -4,7 +4,6 @@ import FileSystem
 import Path
 import TuistCore
 @_exported import TuistKit
-import XcodeGraph
 import XcodeProj
 import XCTest
 

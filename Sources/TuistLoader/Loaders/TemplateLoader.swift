@@ -4,7 +4,6 @@ import Path
 import ProjectDescription
 import TuistCore
 import TuistSupport
-import XcodeGraph
 
 @Mockable
 public protocol TemplateLoading {

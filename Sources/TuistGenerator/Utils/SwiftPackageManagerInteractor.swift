@@ -4,7 +4,6 @@ import Path
 import ServiceContextModule
 import TuistCore
 import TuistSupport
-import XcodeGraph
 
 /// Swift Package Manager Interactor
 ///

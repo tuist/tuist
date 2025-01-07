@@ -5,7 +5,6 @@ import TuistLoader
 import TuistPlugin
 import TuistScaffold
 import TuistSupport
-import XcodeGraph
 
 enum ScaffoldServiceError: FatalError, Equatable {
     var type: ErrorType {

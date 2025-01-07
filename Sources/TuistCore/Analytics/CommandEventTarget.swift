@@ -1,4 +1,3 @@
-import Foundation
 import XcodeGraph
 
 /// A simplified version of `Target` to store in `CommandEvent`.

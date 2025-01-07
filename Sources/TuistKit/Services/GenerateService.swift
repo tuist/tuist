@@ -8,7 +8,6 @@ import TuistLoader
 import TuistPlugin
 import TuistServer
 import TuistSupport
-import XcodeGraph
 
 final class GenerateService {
     private let opener: Opening

@@ -5,7 +5,6 @@ import TuistLoader
 import TuistServer
 import TuistSupport
 import TuistSupportTesting
-import XcodeGraph
 
 @testable import TuistKit
 

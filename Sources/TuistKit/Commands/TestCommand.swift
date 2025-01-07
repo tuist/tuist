@@ -6,7 +6,6 @@ import ServiceContextModule
 import TuistCore
 import TuistServer
 import TuistSupport
-import XcodeGraph
 
 /// Command that tests a target from the project in the current directory.
 public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {

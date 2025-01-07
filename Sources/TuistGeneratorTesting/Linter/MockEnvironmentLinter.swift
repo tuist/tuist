@@ -1,5 +1,4 @@
 import Foundation
-import Path
 import TuistCore
 
 @testable import TuistGenerator

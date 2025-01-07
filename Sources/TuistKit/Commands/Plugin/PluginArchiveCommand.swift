@@ -1,6 +1,5 @@
 import ArgumentParser
 import Foundation
-import Path
 
 struct PluginArchiveCommand: AsyncParsableCommand {
     static var configuration: CommandConfiguration {
