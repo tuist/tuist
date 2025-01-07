@@ -10,7 +10,7 @@ msgstr ""
 "Project-Id-Version: tuist-website\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Language-Team: Korean\n"
-"PO-Revision-Date: 2024-12-23 14:35\n"
+"PO-Revision-Date: 2025-01-06 22:29\n"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:390
 #, elixir-autogen, elixir-format
@@ -43,7 +43,7 @@ msgstr "%{last_4_digits}로 끝나는 %{card_name}"
 #, elixir-autogen, elixir-format
 msgid "%{count} minute"
 msgid_plural "%{count} minutes"
-msgstr[0] "%{count} 분"
+msgstr[0] "%{count}분"
 
 #: lib/tuist_web/live/account_billing_live.html.heex:66
 #, elixir-autogen, elixir-format
@@ -67,12 +67,12 @@ msgstr "%{display_name} · Tuist"
 #: lib/tuist_web/live/project_run_detail_live.html.heex:95
 #, elixir-autogen, elixir-format
 msgid "%{duration} s"
-msgstr "%{duration} 초"
+msgstr "%{duration}초"
 
 #: lib/tuist_web/live/project_dashboard_live.html.heex:90
 #, elixir-autogen, elixir-format
 msgid "%{hit_rate} %"
-msgstr "%{hit_rate} %"
+msgstr "%{hit_rate}%"
 
 #: lib/tuist_web/live/account_billing_live.html.heex:205
 #, elixir-autogen, elixir-format
@@ -105,22 +105,22 @@ msgstr ""
 #: lib/tuist_web/live/project_dashboard_live.html.heex:15
 #, elixir-autogen, elixir-format
 msgid "12 months"
-msgstr ""
+msgstr "12개월"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:41
 #, elixir-autogen, elixir-format
 msgid "1250 tests ran successfully"
-msgstr ""
+msgstr "1250개의 테스트가 성공적으로 수행되었습니다"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:71
 #, elixir-autogen, elixir-format
 msgid "200"
-msgstr ""
+msgstr "200"
 
 #: lib/tuist_web/live/project_dashboard_live.html.heex:12
 #, elixir-autogen, elixir-format
 msgid "30 days"
-msgstr ""
+msgstr "30일"
 
 #: lib/tuist_web/controllers/error_html.ex:24
 #, elixir-autogen, elixir-format
@@ -145,7 +145,7 @@ msgstr ""
 #: lib/tuist_web/live/project_dashboard_live.html.heex:9
 #, elixir-autogen, elixir-format
 msgid "7 days"
-msgstr ""
+msgstr "7일"
 
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:265
 #, elixir-autogen, elixir-format
@@ -195,7 +195,7 @@ msgstr ""
 msgid "About us"
 msgstr ""
 
-#: lib/tuist_web/marketing/layouts/marketing.html.heex:121
+#: lib/tuist_web/marketing/layouts/marketing.html.heex:122
 #, elixir-autogen, elixir-format
 msgid "Accept"
 msgstr ""
@@ -1763,7 +1763,7 @@ msgstr ""
 msgid "The project you are looking for doesn't exist or has been moved."
 msgstr ""
 
-#: lib/tuist_web/marketing/layouts/marketing.html.heex:108
+#: lib/tuist_web/marketing/layouts/marketing.html.heex:109
 #, elixir-autogen, elixir-format
 msgid "This site uses cookies. By continuing to use our site, you agree to %{use_of_cookies}."
 msgstr ""
@@ -1808,8 +1808,8 @@ msgstr ""
 msgid "Tuist"
 msgstr ""
 
-#: lib/tuist_web/marketing/layouts/marketing.html.heex:39
-#: lib/tuist_web/marketing/layouts/marketing.html.heex:45
+#: lib/tuist_web/marketing/layouts/marketing.html.heex:40
+#: lib/tuist_web/marketing/layouts/marketing.html.heex:46
 #, elixir-autogen, elixir-format
 msgid "Tuist Blog"
 msgstr ""
@@ -1825,8 +1825,8 @@ msgstr ""
 msgid "Tuist Cache"
 msgstr ""
 
-#: lib/tuist_web/marketing/layouts/marketing.html.heex:54
-#: lib/tuist_web/marketing/layouts/marketing.html.heex:60
+#: lib/tuist_web/marketing/layouts/marketing.html.heex:55
+#: lib/tuist_web/marketing/layouts/marketing.html.heex:61
 #, elixir-autogen, elixir-format
 msgid "Tuist Changelog"
 msgstr ""
@@ -2088,7 +2088,7 @@ msgstr ""
 msgid "We prioritize developer happiness because we know it's closely tied to creating better apps."
 msgstr ""
 
-#: lib/tuist_web/marketing/layouts/marketing.html.heex:104
+#: lib/tuist_web/marketing/layouts/marketing.html.heex:105
 #, elixir-autogen, elixir-format
 msgid "We use cookies"
 msgstr ""
@@ -2286,7 +2286,7 @@ msgstr ""
 msgid "test runs"
 msgstr ""
 
-#: lib/tuist_web/marketing/layouts/marketing.html.heex:110
+#: lib/tuist_web/marketing/layouts/marketing.html.heex:111
 #, elixir-autogen, elixir-format
 msgid "use of cookies"
 msgstr ""
