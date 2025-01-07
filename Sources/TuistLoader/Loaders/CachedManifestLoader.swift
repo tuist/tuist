@@ -285,10 +285,12 @@ public class CachedManifestLoader: ManifestLoading {
         do {
             try await write(cachedManifestContent: cachedManifestContent, to: cachedManifestPath)
         } catch let error as NIOFileSystem.FileSystemError {
-            guard error.code == .fileAlreadyExists else {
+            if error.code == .fileAlreadyExists {
+                ServiceContext.current?.logger?.info("The manifest at \(cachedManifestPath) is already cached, skipping...")
+            } else {
                 throw error
             }
-            ServiceContext.current?.logger?.info("Encountered a `fileAlreadyExists` error, disregarding it")
+            
         }
     }
 

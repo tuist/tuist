@@ -454,7 +454,7 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
     }
 }
 
-extension NIOFileSystem.FileSystemError: @retroactive Equatable {
+extension NIOFileSystem.FileSystemError: Equatable {
     public static func == (lhs: _NIOFileSystem.FileSystemError, rhs: _NIOFileSystem.FileSystemError) -> Bool {
         return lhs.code == rhs.code && lhs.message == rhs.message && lhs.location == rhs.location
     }
