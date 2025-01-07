@@ -8,6 +8,7 @@ defmodule Tuist.Registry.Swift.PackagesTest do
   alias Tuist.Repo
   alias Tuist.Registry.Swift.Packages
   alias TuistTestSupport.Fixtures.Registry.Swift.PackagesFixtures
+  alias TuistTestSupport.Fixtures.AccountsFixtures
   use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
@@ -1053,6 +1054,25 @@ defmodule Tuist.Registry.Swift.PackagesTest do
 
       # Then
       assert got == "registry/swift/my/package/5.10.1/Package.swift"
+    end
+  end
+
+  describe "create_package_download_event/1" do
+    test "creates a package download event" do
+      # Given
+      package_release = PackagesFixtures.package_release_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+
+      # When
+      package_download_event =
+        Packages.create_package_download_event(%{
+          package_release: package_release,
+          account: account
+        })
+
+      # Then
+      assert package_download_event.package_release_id == package_release.id
+      assert package_download_event.account_id == account.id
     end
   end
 end

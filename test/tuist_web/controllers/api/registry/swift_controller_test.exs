@@ -4,6 +4,8 @@ defmodule TuistWeb.API.Registry.SwiftControllerTest do
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias Tuist.Storage
   alias TuistTestSupport.Fixtures.Registry.Swift.PackagesFixtures
+  alias Tuist.Registry.Swift.Packages.PackageDownloadEvent
+  alias Tuist.Repo
   use TuistTestSupport.Cases.ConnCase, async: false
   use Mimic
   import TelemetryTest
@@ -443,7 +445,13 @@ defmodule TuistWeb.API.Registry.SwiftControllerTest do
     @describetag telemetry_listen: [:analytics, :registry, :swift, :source_archive_download]
     test "returns version source archive", %{conn: conn, account: account} do
       # Given
-      PackagesFixtures.package_fixture(scope: "Alamofire", name: "Alamofire")
+      package = PackagesFixtures.package_fixture(scope: "Alamofire", name: "Alamofire")
+
+      package_release =
+        PackagesFixtures.package_release_fixture(
+          package_id: package.id,
+          version: "5.0.0"
+        )
 
       Storage
       |> stub(:object_exists?, fn "registry/swift/alamofire/alamofire/5.0.0/source_archive.zip" ->
@@ -472,6 +480,10 @@ defmodule TuistWeb.API.Registry.SwiftControllerTest do
                         measurements: %{},
                         metadata: %{}
                       }}
+
+      [package_download_event] = Repo.all(PackageDownloadEvent)
+      assert package_download_event.account_id == account.id
+      assert package_download_event.package_release_id == package_release.id
     end
 
     test "returns :not_found when the source archive doesn't exist", %{

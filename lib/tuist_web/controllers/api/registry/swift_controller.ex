@@ -5,6 +5,7 @@ defmodule TuistWeb.API.Registry.SwiftController do
   alias Tuist.Registry.Swift.Packages.PackageManifest
   alias Tuist.Registry.Swift.Packages.PackageRelease
   alias Tuist.Registry.Swift.Packages
+  alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.VCS
   alias Tuist.Storage
 
@@ -234,7 +235,17 @@ defmodule TuistWeb.API.Registry.SwiftController do
     )
   end
 
-  def download_release(conn, %{"scope" => scope, "name" => name, "version" => version}) do
+  def download_release(
+        %{assigns: %{current_authenticated_account: %AuthenticatedAccount{account: account}}} =
+          conn,
+        %{
+          "scope" => scope,
+          "name" => name,
+          "version" => version
+        }
+      ) do
+    package = Packages.get_package_by_scope_and_name(%{scope: scope, name: name})
+
     object_key =
       Packages.package_object_key(%{scope: scope, name: name},
         version: version,
@@ -248,10 +259,21 @@ defmodule TuistWeb.API.Registry.SwiftController do
         %{}
       )
 
+      package_release =
+        Packages.get_package_release_by_version(%{package: package, version: version})
+
+      Packages.create_package_download_event(%{
+        package_release: package_release,
+        account: account
+      })
+
       conn
       |> put_resp_header("content-version", "1")
       |> put_resp_content_type("application/zip")
-      |> put_resp_header("content-disposition", "attachment; filename=\"#{name}-#{version}.zip\"")
+      |> put_resp_header(
+        "content-disposition",
+        "attachment; filename=\"#{name}-#{version}.zip\""
+      )
       |> send_chunked(:ok)
       |> stream_object(object_key)
     else

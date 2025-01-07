@@ -9,10 +9,11 @@ defmodule Tuist.Registry.Swift.Packages do
   alias Tuist.VCS.Repositories.Content
   alias Tuist.Registry.Swift.Packages.PackageRelease
   alias Tuist.Registry.Swift.Packages.Package
+  alias Tuist.Registry.Swift.Packages.PackageDownloadEvent
   alias Tuist.VCS
-  alias Tuist.Registry.Swift.Packages.Package
   alias Tuist.Repo
   alias Tuist.Storage
+  alias Tuist.Accounts.Account
 
   @alternate_package_manifest_regex ~r/\APackage@swift-(\d+)(?:\.(\d+))?(?:\.(\d+))?.swift\z/
 
@@ -387,5 +388,17 @@ defmodule Tuist.Registry.Swift.Packages do
     else
       object_key <> "/#{path}"
     end
+  end
+
+  def create_package_download_event(%{
+        package_release: %PackageRelease{id: package_release_id},
+        account: %Account{id: account_id}
+      }) do
+    %PackageDownloadEvent{}
+    |> PackageDownloadEvent.create_changeset(%{
+      package_release_id: package_release_id,
+      account_id: account_id
+    })
+    |> Repo.insert!()
   end
 end
