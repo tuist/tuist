@@ -75,4 +75,11 @@ defmodule Tuist.AccountTest do
       assert ["can't be blank"] == errors_on(changeset).organization_id
     end
   end
+
+  describe "update_changeset/2" do
+    test "validates name format" do
+      assert Account.update_changeset(%Account{}, %{name: "myname"}).valid?
+      refute Account.update_changeset(%Account{}, %{name: "my.name"}).valid?
+    end
+  end
 end

@@ -923,6 +923,15 @@ defmodule Tuist.Accounts do
   end
 
   @doc """
+  Updates the account's name.
+  """
+  def update_account(%Account{} = account, attrs) do
+    account
+    |> Account.update_changeset(attrs)
+    |> Repo.update()
+  end
+
+  @doc """
   Gets the user with the given signed token.
   """
   def get_user_by_session_token(token, opts \\ []) do

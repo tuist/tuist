@@ -437,7 +437,7 @@ defmodule Tuist.BillingTest do
       customer_id = "customer_id"
 
       account =
-        user.account |> Account.update_changeset(%{customer_id: customer_id}) |> Repo.update!()
+        user.account |> Account.billing_changeset(%{customer_id: customer_id}) |> Repo.update!()
 
       Stripe.Request
       |> stub(:make_request, fn %{

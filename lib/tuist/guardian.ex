@@ -56,7 +56,7 @@ defmodule Tuist.Guardian do
     end
   end
 
-  def on_revoke(claims, token, _options) do
+  def on_revoke(claims, token, _options \\ []) do
     with {:ok, _} <- Guardian.DB.on_revoke(claims, token) do
       {:ok, claims}
     end

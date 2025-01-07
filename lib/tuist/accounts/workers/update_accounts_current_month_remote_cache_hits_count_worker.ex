@@ -24,7 +24,7 @@ defmodule Tuist.Accounts.Workers.UpdateAccountsCurrentMonthRemoteCacheHitsCountW
   end
 
   def update_current_month_remote_cache_hits_count(account, %{now: now}) do
-    Account.update_changeset(account, %{
+    Account.billing_changeset(account, %{
       current_month_remote_cache_hits_count:
         get_current_month_remote_cache_hits_count_query(account, %{now: now}) |> Repo.one(),
       current_month_remote_cache_hits_count_updated_at: now

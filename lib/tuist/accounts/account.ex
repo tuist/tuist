@@ -50,30 +50,31 @@ defmodule Tuist.Accounts.Account do
         []
       end
     end)
-    |> validate_change(:name, fn :name, name ->
-      if String.contains?(name, ".") do
-        [name: "can't contain a dot"]
-      else
-        []
-      end
-    end)
-    |> validate_allowed_handle()
-    |> update_change(:name, &String.downcase/1)
-    |> unique_constraint(:name, name: "index_accounts_on_name")
+    |> validate_handle()
     |> unique_constraint([:user_id])
     |> unique_constraint([:organization_id])
   end
 
-  def validate_allowed_handle(changeset) do
-    changeset |> validate_exclusion(:name, Application.get_env(:tuist, :blocked_handles))
-  end
-
-  def update_changeset(account, attrs) do
+  def billing_changeset(account, attrs) do
     account
     |> cast(attrs, [
       :customer_id,
       :current_month_remote_cache_hits_count,
       :current_month_remote_cache_hits_count_updated_at
     ])
+  end
+
+  def update_changeset(account, attrs) do
+    account
+    |> cast(attrs, [:name])
+    |> validate_handle()
+  end
+
+  defp validate_handle(changeset) do
+    changeset
+    |> validate_format(:name, ~r/^[^.]+$/, message: "can't contain a dot")
+    |> validate_exclusion(:name, Application.get_env(:tuist, :blocked_handles))
+    |> update_change(:name, &String.downcase/1)
+    |> unique_constraint(:name, name: "index_accounts_on_name")
   end
 end

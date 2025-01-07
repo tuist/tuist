@@ -1086,6 +1086,33 @@ defmodule Tuist.AccountsTest do
     end
   end
 
+  describe "update_account/2" do
+    setup do
+      %{user: user_fixture()}
+    end
+
+    test "updates the user's name", %{user: user} do
+      account = Repo.preload(user, :account).account
+      assert {:ok, account} = Accounts.update_account(account, %{name: "christoph"})
+      assert account.name == "christoph"
+    end
+
+    test "lowercases the handle", %{user: user} do
+      account = Repo.preload(user, :account).account
+      assert {:ok, account} = Accounts.update_account(account, %{name: "Christoph"})
+      assert account.name == "christoph"
+    end
+
+    test "validates name format", %{user: user} do
+      account = Repo.preload(user, :account).account
+
+      assert {:error, changeset} =
+               Accounts.update_account(account, %{name: "Christoph.Schmatzler"})
+
+      assert changeset.errors[:name]
+    end
+  end
+
   describe "generate_user_session_token/1" do
     setup do
       %{user: user_fixture()}

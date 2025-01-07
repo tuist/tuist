@@ -38,8 +38,32 @@ defmodule Tuist.Authentication do
     end
   end
 
-  def refresh(token, opts) do
-    Tuist.Guardian.refresh(token, opts)
+  @doc """
+    Refreshes a given token, updating the account handle in the `preferred_username` claim.
+
+    This overrides the default `refresh/2` function in `Tuist.Guardian` in order to support us updating the handle. Guardian's `on_*` hooks
+    only run _after_ a token has been refreshed, resulting in the need to override the `refresh/2` function to update the handle _before_ a
+    new token is signed.
+
+    This follows the same functionality as the `refresh` function:
+    1. Decode the old token to make sure it is valid.
+    2. Drop the `jti`, `iss`, `iat`, `nbf`, and `exp` claims from the old token. [`Guardian.Token.Jwt.reset_claims/3`]
+    3. Sign a new token.
+    4. Call `on_refresh`, which is a wrapper around `on_encode_and_sign` and `on_revoke` - the `on_revoke_and_sign` hook is automatically
+       called by us calling `encode_and_sign` here, we are calling `on_revoke` manually.
+
+  """
+  def refresh(old_token, opts) do
+    with {:ok, user, old_claims} <- Tuist.Guardian.resource_from_token(old_token, %{}, opts),
+         preferred_username = Tuist.Repo.preload(user, :account).account.name,
+         new_claims =
+           old_claims
+           |> Map.drop(["jti", "iss", "iat", "nbf", "exp"])
+           |> Map.put("preferred_username", preferred_username),
+         {:ok, new_token, new_claims} <- Tuist.Guardian.encode_and_sign(user, new_claims, opts) do
+      Tuist.Guardian.on_revoke(old_claims, old_token)
+      {:ok, {old_token, old_claims}, {new_token, new_claims}}
+    end
   end
 
   def exchange(old_token, from_type, to_type, options) do

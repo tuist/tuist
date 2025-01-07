@@ -14,7 +14,7 @@ defmodule Tuist.Billing.UpdateRemoteCacheHitWorkerTest do
     customer_id = "customer_id"
 
     account
-    |> Account.update_changeset(%{plan: :pro, customer_id: customer_id})
+    |> Account.billing_changeset(%{plan: :pro, customer_id: customer_id})
     |> Tuist.Repo.update!()
 
     date = ~U[2024-04-30 10:20:30Z]

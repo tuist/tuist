@@ -35,6 +35,7 @@ defmodule Tuist do
       # They are modules that are core to the Tuist domain (e.g. accounts) and that other
       # features build upon.
       Accounts,
+      Accounts.Account,
       Accounts.AuthenticatedAccount,
       Accounts.User,
       Authentication,

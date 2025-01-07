@@ -137,6 +137,8 @@ defmodule TuistWeb.Router do
     pipe_through [:open_api, :authenticated_api, :on_premise_api]
 
     scope "/accounts/:account_handle" do
+      patch "/", AccountController, :update_account
+
       scope "/tokens" do
         post "/", AccountTokensController, :create
       end

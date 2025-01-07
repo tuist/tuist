@@ -5,6 +5,7 @@ defmodule Tuist.AuthenticationTest do
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   use TuistTestSupport.Cases.DataCase
   alias Tuist.Authentication
+  alias Tuist.Accounts.User
   alias TuistTestSupport.Fixtures.AccountsFixtures
   use Mimic
 
@@ -68,5 +69,35 @@ defmodule Tuist.AuthenticationTest do
              scopes: [:account_registry_read],
              account: account
            }
+  end
+
+  test "refresh/2 refreshes the account handle" do
+    # Given
+    %User{id: id, account: %{name: name}} =
+      user = AccountsFixtures.user_fixture(preload: :account)
+
+    {:ok, refresh_token, _opts} =
+      Authentication.encode_and_sign(
+        user,
+        %{
+          email: user.email,
+          preferred_username: user.account.name
+        },
+        token_type: :refresh,
+        ttl: {60, :minute}
+      )
+
+    {:ok, %User{id: ^id}, %{"preferred_username" => ^name}} =
+      Tuist.Guardian.resource_from_token(refresh_token)
+
+    # When
+    new_handle = "new#{System.unique_integer()}"
+    Accounts.update_account(user.account, %{name: new_handle})
+
+    # Then
+    {:ok, _old_token, {_new_refresh_token, new_claims}} =
+      Authentication.refresh(refresh_token, ttl: {60, :minute})
+
+    assert new_claims["preferred_username"] == new_handle
   end
 end
