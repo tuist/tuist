@@ -286,7 +286,7 @@ public class CachedManifestLoader: ManifestLoading {
             try await write(cachedManifestContent: cachedManifestContent, to: cachedManifestPath)
         } catch let error as NIOFileSystem.FileSystemError {
             if error.code == .fileAlreadyExists {
-                ServiceContext.current?.logger?.info("The manifest at \(cachedManifestPath) is already cached, skipping...")
+                ServiceContext.current?.logger?.debug("The manifest at \(cachedManifestPath) is already cached, skipping...")
             } else {
                 throw error
             }
