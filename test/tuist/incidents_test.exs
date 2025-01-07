@@ -38,7 +38,7 @@ defmodule Tuist.IncidentsTest do
       |> stub(
         :get,
         fn "https://status.tuist.dev/proxy/status.tuist.dev" ->
-          {:ok, %Req.Response{status: 200, body: Jason.encode!(status)}}
+          {:ok, %Req.Response{status: 200, body: status}}
         end
       )
 
@@ -74,7 +74,7 @@ defmodule Tuist.IncidentsTest do
       |> stub(
         :get,
         fn "https://status.tuist.dev/proxy/status.tuist.dev" ->
-          {:ok, %Req.Response{status: 200, body: Jason.encode!(status)}}
+          {:ok, %Req.Response{status: 200, body: status}}
         end
       )
 
