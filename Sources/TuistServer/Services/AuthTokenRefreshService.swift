@@ -4,7 +4,6 @@ import Mockable
 import Path
 import ServiceContextModule
 import TuistCore
-import TuistLoader
 import TuistSupport
 
 @Mockable
