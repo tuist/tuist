@@ -8,12 +8,26 @@ import XCTest
 @testable import TuistKit
 @testable import TuistServer
 
-final class AccountAcceptanceTestProjects: ServerAcceptanceTestCase {
+final class AccountAcceptanceTest: ServerAcceptanceTestCase {
     func test_update_account_with_logged_in_user() async throws {
         try await ServiceContext.withTestingDependencies {
             try await setUpFixture(.iosAppWithFrameworks)
-            try await run(AccountUpdateCommand.self, "--handle", "new-handle")
-            XCTAssertStandardOutput(pattern: "The account new-handle was successfully updated.")
+            try await run(AccountUpdateCommand.self, "--handle", "tuistrocks")
+            XCTAssertStandardOutput(pattern: "The account tuistrocks was successfully updated.")
+        }
+    }
+    
+    func test_update_account_with_organization_handle() async throws {
+        try await ServiceContext.withTestingDependencies {
+            try await setUpFixture(.iosAppWithFrameworks)
+            let newHandle = String(UUID().uuidString.prefix(12).lowercased())
+            try await run(AccountUpdateCommand.self, organizationHandle, "--handle", newHandle)
+ 
+            XCTAssertStandardOutput(pattern: "The account \(newHandle) was successfully updated.")
+            
+            // Update handles for teardown function.
+            self.organizationHandle = newHandle
+            self.fullHandle = "\(newHandle)/\(projectHandle)"
         }
     }
 }
