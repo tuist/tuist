@@ -15,23 +15,6 @@ protocol AccountUpdateServicing {
     ) async throws
 }
 
-enum AccountUpdateServiceError: Equatable, FatalError {
-    case missingHandle
-
-    var type: TuistSupport.ErrorType {
-        switch self {
-        case .missingHandle: .abort
-        }
-    }
-
-    var description: String {
-        switch self {
-        case .missingHandle:
-            "You are not logged in. Run 'tuist auth login'."
-        }
-    }
-}
-
 struct AccountUpdateService: AccountUpdateServicing {
     private let configLoader: ConfigLoading
     private let fileSystem: FileSysteming
@@ -80,7 +63,7 @@ struct AccountUpdateService: AccountUpdateServicing {
         if let passedAccountHandle {
             accountHandle = passedAccountHandle
         } else {
-            accountHandle = try await serverSessionController.getAuthenticatedHandle(serverURL: serverURL)
+            accountHandle = try await serverSessionController.authenticatedHandle(serverURL: serverURL)
         }
 
         let account = try await updateAccountService.updateAccount(
@@ -88,7 +71,7 @@ struct AccountUpdateService: AccountUpdateServicing {
             accountHandle: accountHandle,
             handle: handle
         )
-        try await authTokenRefreshService.refreshTokens(path: directoryPath)
+        try await authTokenRefreshService.refreshTokens(path: directoryPath, serverURL: serverURL)
 
         ServiceContext.current?.logger?.notice("The account \(account.handle) was successfully updated.", metadata: .success)
     }

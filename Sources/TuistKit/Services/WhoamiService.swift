@@ -40,7 +40,7 @@ final class WhoamiService: WhoamiServicing {
         }
         let config = try await configLoader.loadConfig(path: directoryPath)
         let serverURL = try serverURLService.url(configServerURL: config.url)
-        let whoami = try await serverSessionController.getAuthenticatedHandle(serverURL: serverURL)
+        let whoami = try await serverSessionController.authenticatedHandle(serverURL: serverURL)
         ServiceContext.current?.logger?.notice("\(whoami)")
     }
 }

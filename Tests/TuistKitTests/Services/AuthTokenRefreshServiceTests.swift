@@ -36,7 +36,8 @@ struct AuthTokenRefreshServiceTests {
 
         // When
         try await subject.refreshTokens(
-            path: path
+            path: path,
+            serverURL: URL(string: "https://test.tuist.io")!
         )
 
         // Then

@@ -54,7 +54,7 @@ public protocol ServerSessionControlling: AnyObject {
     func whoami(serverURL: URL) async throws -> String?
 
     /// - Returns: Account handle for the signed-in user for the server with the given URL. Throws if no user is logged in.
-    func getAuthenticatedHandle(serverURL: URL) async throws -> String
+    func authenticatedHandle(serverURL: URL) async throws -> String
 
     /// Removes the session for the server with the given URL.
     /// - Parameter serverURL: Server URL.
@@ -146,7 +146,7 @@ public final class ServerSessionController: ServerSessionControlling {
         }
     }
 
-    public func getAuthenticatedHandle(serverURL: URL) async throws -> String {
+    public func authenticatedHandle(serverURL: URL) async throws -> String {
         guard let token = try await serverAuthenticationController.authenticationToken(serverURL: serverURL) else {
             throw ServerSessionControllerError.unauthenticated
         }

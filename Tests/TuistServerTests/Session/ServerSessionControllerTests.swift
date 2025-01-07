@@ -168,7 +168,7 @@ final class ServerSessionControllerTests: TuistUnitTestCase {
 
         // Then
         await XCTAssertThrowsSpecific(
-            try await subject.getAuthenticatedHandle(serverURL: serverURL),
+            try await subject.authenticatedHandle(serverURL: serverURL),
             ServerSessionControllerError.unauthenticated
         )
     }

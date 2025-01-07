@@ -11,14 +11,13 @@ import TuistSupport
 @Mockable
 protocol AuthTokenRefreshServicing {
     func refreshTokens(
-        path: AbsolutePath
+        path: AbsolutePath,
+        serverURL: URL
     ) async throws
 }
 
 struct AuthTokenRefreshService: AuthTokenRefreshServicing {
-    private let configLoader: ConfigLoading
     private let fileSystem: FileSysteming
-    private let serverURLService: ServerURLServicing
     private let refreshAuthTokenService: RefreshAuthTokenServicing
     private let serverCredentialsStore: ServerCredentialsStoring
     private let serverSessionController: ServerSessionControlling
@@ -27,17 +26,13 @@ struct AuthTokenRefreshService: AuthTokenRefreshServicing {
     // MARK: - Init
 
     init(
-        configLoader: ConfigLoading = ConfigLoader(warningController: WarningController.shared),
         fileSystem: FileSysteming = FileSystem(),
-        serverURLService: ServerURLServicing = ServerURLService(),
         refreshAuthTokenService: RefreshAuthTokenServicing = RefreshAuthTokenService(),
         serverCredentialsStore: ServerCredentialsStoring = ServerCredentialsStore(),
         serverSessionController: ServerSessionControlling = ServerSessionController(),
         serverAuthenticationController: ServerAuthenticationControlling = ServerAuthenticationController()
     ) {
-        self.configLoader = configLoader
         self.fileSystem = fileSystem
-        self.serverURLService = serverURLService
         self.refreshAuthTokenService = refreshAuthTokenService
         self.serverCredentialsStore = serverCredentialsStore
         self.serverSessionController = serverSessionController
@@ -45,11 +40,9 @@ struct AuthTokenRefreshService: AuthTokenRefreshServicing {
     }
 
     func refreshTokens(
-        path: AbsolutePath
+        path: AbsolutePath,
+        serverURL: URL
     ) async throws {
-        let config = try await configLoader.loadConfig(path: path)
-        let serverURL = try serverURLService.url(configServerURL: config.url)
-
         guard let token = try await serverAuthenticationController.authenticationToken(serverURL: serverURL)
         else {
             throw ServerClientAuthenticationError.notAuthenticated
@@ -65,7 +58,7 @@ struct AuthTokenRefreshService: AuthTokenRefreshServicing {
         }
     }
 
-    func fetchTokens(serverURL: URL, refreshToken: String) async throws {
+    private func fetchTokens(serverURL: URL, refreshToken: String) async throws {
         do {
             let newTokens = try await RetryProvider()
                 .runWithRetries {

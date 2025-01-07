@@ -41,12 +41,12 @@ struct AccountUpdateServiceTests {
                 handle: .any
             )
             .willReturn(.test())
-        given(authTokenRefreshService).refreshTokens(path: .any).willReturn()
+        given(authTokenRefreshService).refreshTokens(path: .any, serverURL: .any).willReturn()
     }
 
     @Test func test_update_with_implicit_handle() async throws {
         // Given
-        given(serverSessionController).getAuthenticatedHandle(serverURL: .any).willReturn("tuistrocks")
+        given(serverSessionController).authenticatedHandle(serverURL: .any).willReturn("tuistrocks")
 
         // When
         try await subject.run(
@@ -63,13 +63,14 @@ struct AccountUpdateServiceTests {
         ).called(1)
 
         verify(authTokenRefreshService).refreshTokens(
-            path: .any
+            path: .any,
+            serverURL: .any
         ).called(1)
     }
 
     @Test func test_update_with_explicit_handle() async throws {
         // Given
-        given(serverSessionController).getAuthenticatedHandle(serverURL: .any).willReturn("tuistrocks")
+        given(serverSessionController).authenticatedHandle(serverURL: .any).willReturn("tuistrocks")
 
         // When
         try await subject.run(
@@ -83,7 +84,8 @@ struct AccountUpdateServiceTests {
             .called(1)
 
         verify(authTokenRefreshService).refreshTokens(
-            path: .any
+            path: .any,
+            serverURL: .any
         ).called(1)
     }
 }

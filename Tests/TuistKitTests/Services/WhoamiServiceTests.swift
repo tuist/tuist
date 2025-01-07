@@ -42,7 +42,7 @@ final class WhoamiServiceTests: TuistUnitTestCase {
         try await ServiceContext.withTestingDependencies {
             // Given
             given(serverSessionController)
-                .getAuthenticatedHandle(serverURL: .value(serverURL))
+                .authenticatedHandle(serverURL: .value(serverURL))
                 .willReturn("tuist@tuist.io")
 
             // When
@@ -57,7 +57,7 @@ final class WhoamiServiceTests: TuistUnitTestCase {
         try await ServiceContext.withTestingDependencies {
             // Given
             given(serverSessionController)
-                .getAuthenticatedHandle(serverURL: .value(serverURL))
+                .authenticatedHandle(serverURL: .value(serverURL))
                 .willThrow(ServerSessionControllerError.unauthenticated)
 
             await XCTAssertThrowsSpecific(try await subject.run(directory: nil), ServerSessionControllerError.unauthenticated)
