@@ -1,9 +1,9 @@
 import Foundation
 import ServiceContextModule
 import TuistAcceptanceTesting
+import TuistServer
 import TuistSupport
 import TuistSupportTesting
-import TuistServer
 import XCTest
 
 @testable import TuistKit

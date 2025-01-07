@@ -9,7 +9,7 @@ import TuistSupport
 
 @Mockable
 public protocol AuthTokenRefreshServicing {
-     func refreshTokens(
+    func refreshTokens(
         path: AbsolutePath,
         serverURL: URL
     ) async throws
@@ -39,7 +39,7 @@ public struct AuthTokenRefreshService: AuthTokenRefreshServicing {
     }
 
     public func refreshTokens(
-        path: AbsolutePath,
+        path _: AbsolutePath,
         serverURL: URL
     ) async throws {
         guard let token = try await serverAuthenticationController.authenticationToken(serverURL: serverURL)
