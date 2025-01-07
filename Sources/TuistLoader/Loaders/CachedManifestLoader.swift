@@ -290,7 +290,6 @@ public class CachedManifestLoader: ManifestLoading {
             } else {
                 throw error
             }
-            
         }
     }
 
