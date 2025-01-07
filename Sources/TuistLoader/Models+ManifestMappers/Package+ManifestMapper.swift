@@ -16,6 +16,8 @@ extension XcodeGraph.Package {
             return .local(path: try generatorPaths.resolve(path: local))
         case let .remote(url: url, requirement: version):
             return .remote(url: url, requirement: .from(manifest: version))
+        case let .registry(identifier: identifier, requirement: version):
+            return .remote(url: identifier, requirement: .from(manifest: version))
         }
     }
 }

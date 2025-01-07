@@ -59,6 +59,16 @@ final class DependenciesAcceptanceTestAppRegistryAndAlamofire: ServerAcceptanceT
     }
 }
 
+final class DependenciesAcceptanceTestAppRegistryAndAlamofireAsXcodePackage: ServerAcceptanceTestCase {
+    func test_app_with_registry_and_alamofire() async throws {
+        try await setUpFixture(.appWithRegistryAndAlamofireAsXcodePackage)
+        try await run(RegistrySetupCommand.self)
+        try await run(RegistryLoginCommand.self)
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self, "App")
+    }
+}
+
 final class DependenciesAcceptanceTestIosAppWithSPMDependencies: TuistAcceptanceTestCase {
     func test_ios_app_spm_dependencies() async throws {
         try await setUpFixture(.iosAppWithSpmDependencies)
