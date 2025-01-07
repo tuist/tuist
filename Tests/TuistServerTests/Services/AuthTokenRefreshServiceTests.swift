@@ -1,10 +1,9 @@
 import Foundation
 import Mockable
 import Testing
-import TuistServer
 import TuistSupport
 
-@testable import TuistKit
+@testable import TuistServer
 
 struct AuthTokenRefreshServiceTests {
     private let subject: AuthTokenRefreshService

@@ -5,18 +5,17 @@ import Path
 import ServiceContextModule
 import TuistCore
 import TuistLoader
-import TuistServer
 import TuistSupport
 
 @Mockable
-protocol AuthTokenRefreshServicing {
-    func refreshTokens(
+public protocol AuthTokenRefreshServicing {
+     func refreshTokens(
         path: AbsolutePath,
         serverURL: URL
     ) async throws
 }
 
-struct AuthTokenRefreshService: AuthTokenRefreshServicing {
+public struct AuthTokenRefreshService: AuthTokenRefreshServicing {
     private let fileSystem: FileSysteming
     private let refreshAuthTokenService: RefreshAuthTokenServicing
     private let serverCredentialsStore: ServerCredentialsStoring
@@ -25,7 +24,7 @@ struct AuthTokenRefreshService: AuthTokenRefreshServicing {
 
     // MARK: - Init
 
-    init(
+    public init(
         fileSystem: FileSysteming = FileSystem(),
         refreshAuthTokenService: RefreshAuthTokenServicing = RefreshAuthTokenService(),
         serverCredentialsStore: ServerCredentialsStoring = ServerCredentialsStore(),
@@ -39,7 +38,7 @@ struct AuthTokenRefreshService: AuthTokenRefreshServicing {
         self.serverAuthenticationController = serverAuthenticationController
     }
 
-    func refreshTokens(
+    public func refreshTokens(
         path: AbsolutePath,
         serverURL: URL
     ) async throws {
