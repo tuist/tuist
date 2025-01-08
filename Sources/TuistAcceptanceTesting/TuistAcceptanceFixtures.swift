@@ -15,6 +15,7 @@ public enum TuistAcceptanceFixtures {
     case appWithPreviews
     case appWithRealm
     case appWithRegistryAndAlamofire
+    case appWithRegistryAndAlamofireAsXcodePackage
     case appWithRevenueCat
     case appWithSpmDependencies
     case appWithSpmModuleAliases
@@ -128,6 +129,8 @@ public enum TuistAcceptanceFixtures {
             return "app_with_realm"
         case .appWithRegistryAndAlamofire:
             return "app_with_registry_and_alamofire"
+        case .appWithRegistryAndAlamofireAsXcodePackage:
+            return "app_with_registry_and_alamofire_as_xcode_package"
         case .appWithRevenueCat:
             return "app_with_revenue_cat"
         case .appWithSpmDependencies:
