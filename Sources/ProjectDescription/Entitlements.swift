@@ -1,5 +1,3 @@
-import Foundation
-
 // MARK: - Entitlements
 
 public enum Entitlements: Codable, Equatable, Sendable {

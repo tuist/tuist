@@ -1,5 +1,3 @@
-import Foundation
-
 /// A glob pattern configuration representing source files and its compiler flags, if any.
 public struct SourceFileGlob: Codable, Equatable, Sendable {
     /// Type of the source file.

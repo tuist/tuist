@@ -1,5 +1,3 @@
-import Foundation
-
 /// Options of compatibles Xcode versions.
 public enum CompatibleXcodeVersions: ExpressibleByArrayLiteral, ExpressibleByStringInterpolation, Codable, Equatable, Sendable {
     /// The project supports all Xcode versions.
