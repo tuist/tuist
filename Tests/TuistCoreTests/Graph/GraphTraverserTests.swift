@@ -1665,7 +1665,19 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.embeddableFrameworks(path: project.path, name: unitTests.name).sorted()
 
         // Then
-        XCTAssertTrue(got.isEmpty)
+        XCTAssertEqual(
+            got,
+            [
+                .testProduct(
+                    target: "LocallyBuiltFramework",
+                    productName: "LocallyBuiltFramework.framework"
+                ),
+                .testFramework(
+                    path: "/test/test.framework",
+                    binaryPath: "/test/test.framework/test"
+                ),
+            ]
+        )
     }
 
     func test_embeddableFrameworks_whenHostedTestTarget_transitiveDependencies() throws {

@@ -352,13 +352,20 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         """
         // MARK: - Swift Bundle Accessor for Frameworks
         extension Foundation.Bundle {
-        /// Since \(target.name) is a \(target.product), \
-        a cut down framework is embedded, with all the resources but only a stub Mach-O image.
-        static let module: Bundle = {
-        var candidates = [Bundle.main.privateFrameworksURL]
-        \(iterateOverCandidatesString(appendingPath: "\"\(target.name).framework\""))
-        fatalError("unable to find \(target.product) \\"\(target.name).framework\\"")
-        }()
+            /// Since \(target.name) is a \(target.product), \
+            a cut down framework is embedded, with all the resources but only a stub Mach-O image.
+            static let module: Bundle = {
+                final class BundleFinder {}
+                let bundleFinderResourceURL = Bundle(for: BundleFinder.self).resourceURL?.appendingPath("..")
+                var candidates = [
+                    Bundle.main.privateFrameworksURL,
+                    bundleFinderResourceURL,
+                    bundleFinderResourceURL?.appendingPath("Frameworks"),
+                ]
+
+                \(iterateOverCandidatesString(appendingPath: "\"\(target.name).framework\""))
+                fatalError("unable to find \(target.product) \\"\(target.name).framework\\"")
+            }()
         }
 
         \(appendingPathToURLString())
@@ -367,15 +374,6 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
 
     private static func iterateOverCandidatesString(appendingPath: String) -> String {
         """
-        // This is a fix to make unit tests work with bundled resources.
-        // Making this change allows unit tests to search one directory up for the framework.
-        // More context can be found in this PR: https://github.com/tuist/tuist/pull/6895
-        #if canImport(XCTest)
-        final class UnitTestBundleFinder {}
-        let bundleFinderResourceURL = Bundle(for: UnitTestBundleFinder.self).resourceURL?.appendingPath("..")
-        candidates.append(bundleFinderResourceURL)
-        #endif
-
         for candidate in candidates {
             let frameworkUrl = candidate?.appendingPath(\(appendingPath))
             if let bundle = frameworkUrl.flatMap(Bundle.init(url:)) {
