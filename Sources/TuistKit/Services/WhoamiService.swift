@@ -40,10 +40,7 @@ final class WhoamiService: WhoamiServicing {
         }
         let config = try await configLoader.loadConfig(path: directoryPath)
         let serverURL = try serverURLService.url(configServerURL: config.url)
-        if let whoami = try await serverSessionController.whoami(serverURL: serverURL) {
-            ServiceContext.current?.logger?.notice("\(whoami)")
-        } else {
-            ServiceContext.current?.logger?.notice("You are not logged in. Run 'tuist auth login'.")
-        }
+        let whoami = try await serverSessionController.authenticatedHandle(serverURL: serverURL)
+        ServiceContext.current?.logger?.notice("\(whoami)")
     }
 }
