@@ -35,12 +35,33 @@ Xcode는 현재 소스 제어 패키지를 레지스트리로 자동으로 대�
 
 ### Xcode 기본 통합을 사용하는 Tuist 프로젝트 {#tuist-project-with-xcode-default-integration}
 
-> [!IMPORTANT] 패키지의 Xcode 기본 통합을 사용하는 Tuist 프로젝트를 곧 제공할 예정입니다.
-> 최근 개발상황은 [커뮤니티 포럼](https://community.tuist.dev/t/tuist-registry-initiative/262/2)에서 확인하세요.
+If you are using the <LocalizedLink href="/guides/develop/projects/dependencies#xcodes-default-integration">Xcode's default integration</LocalizedLink> of packages with Tuist Projects, you need to use the registry identifier instead of a URL when adding a package:
 
-### XcodeProj 기반의 통합을 사용하는 Tuist 프로젝트 {#tuist-project-with-xcodeproj-based-integration}
+```swift
+import ProjectDescription
 
-If you are using the <LocalizedLink href="/guides/develop/projects/dependencies#tuists-xcodeprojbased-integration">XcodeProj-based integration</LocalizedLink>, you can use the `--replace-scm-with-registry` flag to resolve dependencies from the registry if they are available. `Tuist.swift` 파일에 `installOptions`를 추가합니다:
+let project = Project(
+    name: "MyProject",
+    packages: [
+        // Source control resolution
+        // .package(url: "https://github.com/pointfreeco/swift-composable-architecture", from: "0.1.0")
+        // Registry resolution
+        .package(id: "pointfreeco.swift-composable-architecture", from: "0.1.0")
+    ],
+    .target(
+        name: "App",
+        product: .app,
+        bundleId: "io.tuist.App",
+        dependencies: [
+            .package(product: "ComposableArchitecture"),
+        ]
+    )
+)
+```
+
+### Tuist project with the XcodeProj-based integration {#tuist-project-with-xcodeproj-based-integration}
+
+If you are using the <LocalizedLink href="/guides/develop/projects/dependencies#tuists-xcodeprojbased-integration">XcodeProj-based integration</LocalizedLink>, you can use the `--replace-scm-with-registry` flag to resolve dependencies from the registry if they are available. Add it to the `installOptions` in your `Tuist.swift` file:
 
 ```swift
 import ProjectDescription
@@ -53,7 +74,7 @@ let tuist = Tuist(
 )
 ```
 
-의존성을 처리할 때마다 레지스트리를 사용하려면 `Tuist/Package.swift` 파일의 `dependencies`를 URL이 아닌 레지스트리 식별자를 사용하도록 업데이트 해야 합니다. 레지스트리 식별자는 `{organization}.{repository}` 형식을 가집니다. 예를 들어, `swift-composable-architecture` 패키지의 레지스트리를 사용하려면 다음처럼 작성해야 합니다:
+If you want to ensure that the registry is used every time you resolve dependencies, you will need to update `dependencies` in your `Tuist/Package.swift` file to use the registry identifier instead of a URL. The registry identifier is always in the form of `{organization}.{repository}`. For example, to use the registry for the `swift-composable-architecture` package, do the following:
 
 ```diff
 dependencies: [
@@ -62,15 +83,15 @@ dependencies: [
 ]
 ```
 
-### Swift 패키지 {#swift-package}
+### Swift package {#swift-package}
 
-Swift 패키지로 작업 중이라면, 레지스트리에서 의존성을 해결하기 위해 `--replace-scm-with-registry` 플래그를 사용할 수 있습니다:
+If you are working on a Swift package, you can use the `--replace-scm-with-registry` flag to resolve dependencies from the registry if they are available:
 
 ```bash
 swift package --replace-scm-with-registry resolve
 ```
 
-의존성을 해결할 때마다 레지스트리를 사용하려면 `Package.swift` 파일의 `dependencies`를 URL 대신 레지스트리 식별자로 사용해야 합니다. 레지스트리 식별자는 `{organization}.{repository}` 형식을 가집니다. 예를 들어, `swift-composable-architecture` 패키지의 레지스트리를 사용하려면 다음처럼 작성해야 합니다:
+If you want to ensure that the registry is used every time you resolve dependencies, you will need to update `dependencies` in your `Package.swift` file to use the registry identifier instead of a URL. The registry identifier is always in the form of `{organization}.{repository}`. For example, to use the registry for the `swift-composable-architecture` package, do the following:
 
 ```diff
 dependencies: [
@@ -81,9 +102,9 @@ dependencies: [
 
 ## Continuous Integration (CI) {#continuous-integration-ci}
 
-CI에서 레지스트리를 사용하려면 워크플로우 중 `tuist registry login`을 수행하여 레지스트리에 로그인했는지 확인해야 합니다.
+To use the registry on your CI, you need to ensure that you have logged in to the registry by running `tuist registry login` as part of your workflow.
 
-레지스트리 자격 증명이 키체인에 저장되므로 이를 설정해야 합니다. 일부 CI나 [Fastlane](https://fastlane.tools/)과 같은 자동화 툴은 이미 임시 키체인을 생성하거나 키체인을 생성하는 방법을 제공합니다. 하지만 다음의 코드를 사용해 직접 키체인을 생성할 수도 있습니다:
+Since the registry credentials are stored in a keychain, you need to set it up as well. Note some CI providers or automation tools like [Fastlane](https://fastlane.tools/) already create a temporary keychain or provide a built-in way how to create one. However, you can also create one by creating a custom step with the following code:
 
 ```bash
 TMP_DIRECTORY=$(mktemp -d)
@@ -95,7 +116,7 @@ security default-keychain -s $KEYCHAIN_PATH
 security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
 ```
 
-GitHub Actions에 대한 예제는 다음과 같습니다:
+An example workflow for GitHub Actions could then look like this:
 
 ```yaml
 name: Build
