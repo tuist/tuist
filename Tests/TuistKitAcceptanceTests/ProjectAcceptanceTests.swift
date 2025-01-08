@@ -25,7 +25,7 @@ final class ProjectAcceptanceTestProjectTokens: ServerAcceptanceTestCase {
             try await run(ProjectTokensCreateCommand.self, fullHandle)
             try await run(ProjectTokensListCommand.self, fullHandle)
             let id = try XCTUnwrap(
-                ServiceContext.current?.testingLogHandler?.collected[.info, <=]
+                ServiceContext.current?.testingLogHandler?.collected[.notice, ==]
                     .components(separatedBy: .newlines)
                     .dropLast().last?
                     .components(separatedBy: .whitespaces)
