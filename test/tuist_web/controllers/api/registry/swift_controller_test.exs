@@ -48,8 +48,10 @@ defmodule TuistWeb.API.Registry.SwiftControllerTest do
         )
 
       # Then
-      response = json_response(conn, :ok)
-      assert response["identifiers"] == []
+      assert json_response(conn, :not_found) == %{
+               "message" =>
+                 "The package https://github.com/Alamofire/Alamofire was not found in the registry."
+             }
     end
 
     test "returns empty array when the VCS is unsupported", %{conn: conn, account: account} do
@@ -61,8 +63,10 @@ defmodule TuistWeb.API.Registry.SwiftControllerTest do
         )
 
       # Then
-      response = json_response(conn, :ok)
-      assert response["identifiers"] == []
+      assert json_response(conn, :not_found) == %{
+               "message" =>
+                 "The package https://gitlab.com/Alamofire/Alamofire was not found in the registry."
+             }
     end
 
     test "returns the identifier when the package exists", %{conn: conn, account: account} do

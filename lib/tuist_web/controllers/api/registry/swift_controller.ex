@@ -30,7 +30,8 @@ defmodule TuistWeb.API.Registry.SwiftController do
         if is_nil(Packages.get_package_by_scope_and_name(%{scope: scope, name: name})) do
           conn
           |> put_resp_header("content-version", "1")
-          |> json(%{identifiers: []})
+          |> put_status(:not_found)
+          |> json(%{message: "The package #{repository_url} was not found in the registry."})
         else
           conn
           |> put_resp_header("content-version", "1")
@@ -40,7 +41,8 @@ defmodule TuistWeb.API.Registry.SwiftController do
       {:error, :unsupported_vcs} ->
         conn
         |> put_resp_header("content-version", "1")
-        |> json(%{identifiers: []})
+        |> put_status(:not_found)
+        |> json(%{message: "The package #{repository_url} was not found in the registry."})
     end
   end
 
