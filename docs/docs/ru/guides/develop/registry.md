@@ -35,8 +35,29 @@ Note that Xcode currently doesn't support automatically replacing source control
 
 ### Tuist project with the Xcode default integration {#tuist-project-with-xcode-default-integration}
 
-> [!IMPORTANT] Support for Tuist projects with the Xcode default integration of packages is coming soon.
-> Follow the latest development at [our community forum](https://community.tuist.dev/t/tuist-registry-initiative/262/2).
+If you are using the <LocalizedLink href="/guides/develop/projects/dependencies#xcodes-default-integration">Xcode's default integration</LocalizedLink> of packages with Tuist Projects, you need to use the registry identifier instead of a URL when adding a package:
+
+```swift
+import ProjectDescription
+
+let project = Project(
+    name: "MyProject",
+    packages: [
+        // Source control resolution
+        // .package(url: "https://github.com/pointfreeco/swift-composable-architecture", from: "0.1.0")
+        // Registry resolution
+        .package(id: "pointfreeco.swift-composable-architecture", from: "0.1.0")
+    ],
+    .target(
+        name: "App",
+        product: .app,
+        bundleId: "io.tuist.App",
+        dependencies: [
+            .package(product: "ComposableArchitecture"),
+        ]
+    )
+)
+```
 
 ### Tuist project with the XcodeProj-based integration {#tuist-project-with-xcodeproj-based-integration}
 
