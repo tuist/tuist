@@ -71,7 +71,7 @@ struct AccountUpdateService: AccountUpdateServicing {
             accountHandle: accountHandle,
             handle: handle
         )
-        try await authTokenRefreshService.refreshTokens(path: directoryPath, serverURL: serverURL)
+        try await authTokenRefreshService.refreshTokens(serverURL: serverURL)
 
         ServiceContext.current?.logger?.notice("The account \(account.handle) was successfully updated.", metadata: .success)
     }

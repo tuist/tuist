@@ -41,7 +41,7 @@ struct AccountUpdateServiceTests {
                 handle: .any
             )
             .willReturn(.test())
-        given(authTokenRefreshService).refreshTokens(path: .any, serverURL: .any).willReturn()
+        given(authTokenRefreshService).refreshTokens(serverURL: .any).willReturn()
     }
 
     @Test func test_update_with_implicit_handle() async throws {
@@ -63,7 +63,6 @@ struct AccountUpdateServiceTests {
         ).called(1)
 
         verify(authTokenRefreshService).refreshTokens(
-            path: .any,
             serverURL: .any
         ).called(1)
     }
@@ -84,7 +83,6 @@ struct AccountUpdateServiceTests {
             .called(1)
 
         verify(authTokenRefreshService).refreshTokens(
-            path: .any,
             serverURL: .any
         ).called(1)
     }

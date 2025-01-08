@@ -21,7 +21,6 @@ struct AuthTokenRefreshServiceTests {
 
     @Test func stores_new_tokens() async throws {
         // Given
-        let path = try TemporaryDirectory(removeTreeOnDeinit: true).path
         given(refreshAuthTokenService).refreshTokens(serverURL: .any, refreshToken: .value("token")).willReturn(.init(accessToken:
             "new-access-token", refreshToken: "new-refresh-token"))
         given(serverAuthenticationController).authenticationToken(serverURL: .any).willReturn(.user(
@@ -35,8 +34,7 @@ struct AuthTokenRefreshServiceTests {
 
         // When
         try await subject.refreshTokens(
-            path: path,
-            serverURL: URL(string: "https://test.tuist.io")!
+            serverURL: .test()
         )
 
         // Then

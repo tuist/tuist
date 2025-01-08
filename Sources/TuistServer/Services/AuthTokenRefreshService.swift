@@ -1,7 +1,6 @@
 import FileSystem
 import Foundation
 import Mockable
-import Path
 import ServiceContextModule
 import TuistCore
 import TuistSupport
@@ -9,7 +8,6 @@ import TuistSupport
 @Mockable
 public protocol AuthTokenRefreshServicing {
     func refreshTokens(
-        path: AbsolutePath,
         serverURL: URL
     ) async throws
 }
@@ -38,7 +36,6 @@ public struct AuthTokenRefreshService: AuthTokenRefreshServicing {
     }
 
     public func refreshTokens(
-        path _: AbsolutePath,
         serverURL: URL
     ) async throws {
         guard let token = try await serverAuthenticationController.authenticationToken(serverURL: serverURL)
@@ -51,7 +48,7 @@ public struct AuthTokenRefreshService: AuthTokenRefreshServicing {
             if let refreshToken {
                 try await fetchTokens(serverURL: serverURL, refreshToken: refreshToken.token)
             }
-        case _:
+        case .project:
             return
         }
     }
