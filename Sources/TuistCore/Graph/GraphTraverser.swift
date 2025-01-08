@@ -403,14 +403,10 @@ public class GraphTraverser: GraphTraversing {
         )
 
         // Exclude any products embed in unit test host apps
-        if target.target.product == .unitTests {
-            if let hostApp = unitTestHost(path: path, name: name) {
-                references.subtract(
-                    embeddableFrameworks(path: hostApp.path, name: hostApp.target.name)
-                )
-            } else {
-                references = Set()
-            }
+        if target.target.product == .unitTests, let hostApp = unitTestHost(path: path, name: name) {
+            references.subtract(
+                embeddableFrameworks(path: hostApp.path, name: hostApp.target.name)
+            )
         }
 
         return references

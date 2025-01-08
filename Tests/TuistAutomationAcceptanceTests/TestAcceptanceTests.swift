@@ -77,6 +77,11 @@ final class TestAcceptanceTests: TuistAcceptanceTestCase {
             try await run(TestCommand.self, "App", "--configuration", "Debug", "--", "-configuration", "Debug")
         )
     }
+
+    func test_with_multiplatform_app() async throws {
+        try await setUpFixture(.multiplatformApp)
+        try await run(TestCommand.self)
+    }
 }
 
 // Feature: Tests projects using Tuist test
