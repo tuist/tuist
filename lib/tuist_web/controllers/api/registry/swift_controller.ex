@@ -217,7 +217,7 @@ defmodule TuistWeb.API.Registry.SwiftController do
         # This is a workaround for: https://github.com/swiftlang/swift-package-manager/pull/8188
         swift_version =
           if String.split(swift_version, ".") |> Enum.count() == 1 do
-            swift_version = swift_version <> ".0"
+            swift_version <> ".0"
           else
             swift_version
           end

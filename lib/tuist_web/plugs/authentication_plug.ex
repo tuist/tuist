@@ -50,7 +50,7 @@ defmodule TuistWeb.AuthenticationPlug do
 
         conn =
           if token |> Projects.legacy_token?() and not is_nil(cli_version) and
-               cli_version >= Version.parse!("4.21.0") do
+               Version.compare(cli_version, Version.parse!("4.20.0")) == :gt do
             conn
             |> WarningsHeaderPlug.put_warning(
               "The project token you are using is deprecated. Please create a new token by running `tuist projects token create #{account.name}/#{project.name}."

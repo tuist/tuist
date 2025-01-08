@@ -292,14 +292,14 @@ defmodule TuistWeb.API.AnalyticsController do
           },
           body_params:
             %{
-              "type" => type
+              type: type
             } = command_event_artifact
         } = conn,
         _params
       ) do
     upload_id =
       Storage.multipart_start(
-        get_object_key(%{type: type, run_id: run_id, name: command_event_artifact["name"]})
+        get_object_key(%{type: type, run_id: run_id, name: command_event_artifact.name})
       )
 
     conn |> json(%{status: "success", data: %{upload_id: upload_id}})
@@ -347,23 +347,23 @@ defmodule TuistWeb.API.AnalyticsController do
           body_params: %{
             command_event_artifact:
               %{
-                "type" => type
+                type: type
               } = command_event_artifact,
             multipart_upload_part:
               %{
-                "part_number" => part_number,
-                "upload_id" => upload_id
+                part_number: part_number,
+                upload_id: upload_id
               } = multipart_upload_part
           }
         } = conn,
         _params
       ) do
     expires_in = 120
-    content_length = Map.get(multipart_upload_part, "content_length")
+    content_length = Map.get(multipart_upload_part, :content_length)
 
     url =
       Storage.multipart_generate_url(
-        get_object_key(%{type: type, run_id: run_id, name: command_event_artifact["name"]}),
+        get_object_key(%{type: type, run_id: run_id, name: command_event_artifact.name}),
         upload_id,
         part_number,
         expires_in: expires_in,
@@ -416,7 +416,7 @@ defmodule TuistWeb.API.AnalyticsController do
           body_params: %{
             command_event_artifact:
               %{
-                "type" => type
+                type: type
               } = command_event_artifact,
             multipart_upload_parts: %ArtifactMultipartUploadParts{
               parts: parts,
@@ -427,7 +427,7 @@ defmodule TuistWeb.API.AnalyticsController do
         _params
       ) do
     object_key =
-      get_object_key(%{type: type, run_id: run_id, name: command_event_artifact["name"]})
+      get_object_key(%{type: type, run_id: run_id, name: command_event_artifact.name})
 
     :ok =
       Storage.multipart_complete_upload(

@@ -1,5 +1,5 @@
 [tools]
-"elixir" = "1.18.0"
+"elixir" = "1.18.1"
 "flyctl" = "0.3.41"
 "erlang" = "27.2"
 

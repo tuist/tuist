@@ -248,7 +248,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       # Given
       preview_id = "preview-id"
       upload_id = "12344"
-      part_number = "3"
+      part_number = 3
       upload_url = "https://url.com"
 
       object_key =

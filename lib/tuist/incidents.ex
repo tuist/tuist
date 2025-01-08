@@ -3,6 +3,7 @@ defmodule Tuist.Incidents do
   This module provides utilities obtain information about ongoing incidents.
   """
   use Retry
+  require Logger
 
   def any_ongoing_incident?(opts \\ []) do
     ttl = opts |> Keyword.get(:ttl, :timer.minutes(1))

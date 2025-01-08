@@ -399,7 +399,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       account = Accounts.get_account_by_id(project.account_id)
       command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
       upload_id = "12344"
-      part_number = "3"
+      part_number = 3
       upload_url = "https://url.com"
 
       object_key =

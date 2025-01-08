@@ -4,21 +4,23 @@ defmodule TuistWeb.API.Schemas.ArtifactMultipartUploadPart do
   """
 
   require OpenApiSpex
+  alias OpenApiSpex.Schema
 
   OpenApiSpex.schema(%{
     title: "ArtifactMultipartUploadPart",
     description:
       "Represents an multipart upload's part identified by the upload id and the part number",
+    type: :object,
     properties: %{
-      part_number: %OpenApiSpex.Schema{
+      part_number: %Schema{
         description: "The part number of the multipart upload.",
         type: :integer
       },
-      upload_id: %OpenApiSpex.Schema{
+      upload_id: %Schema{
         description: "The upload ID.",
         type: :string
       },
-      content_length: %OpenApiSpex.Schema{
+      content_length: %Schema{
         description: "The content length of the part.",
         type: :integer
       }

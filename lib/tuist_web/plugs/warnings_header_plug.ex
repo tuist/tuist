@@ -24,7 +24,7 @@ defmodule TuistWeb.WarningsHeaderPlug do
 
       # There was a bug fixed in version 4.11.0 caused by the client-logic not base64-decoding
       # the header.
-      not Enum.empty?(warnings) and cli_version >= Version.parse!("4.11.0") ->
+      not Enum.empty?(warnings) and Version.compare(cli_version, Version.parse!("4.10.2")) == :gt ->
         put_resp_header(
           conn,
           "x-tuist-cloud-warnings",

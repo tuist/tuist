@@ -28,7 +28,7 @@ defmodule TuistWeb.App do
 
     TuistWeb.Authorization.require_user_can_read_project(%{
       user: user,
-      owner_handle: owner_handle,
+      account_handle: owner_handle,
       project_handle: project_handle
     })
 

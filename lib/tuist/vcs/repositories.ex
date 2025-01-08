@@ -45,7 +45,7 @@ defmodule Tuist.VCS.Repositories do
              {:permission,
               Tuist.GitHub.Client.get_user_permission(%{
                 username: username,
-                full_handle: full_handle
+                repository_full_handle: full_handle
               })} do
         {:ok, permission}
       else

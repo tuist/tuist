@@ -183,15 +183,15 @@ defmodule TuistWeb.API.PreviewsController do
             preview_id: preview_id,
             multipart_upload_part:
               %{
-                "part_number" => part_number,
-                "upload_id" => upload_id
+                part_number: part_number,
+                upload_id: upload_id
               } = multipart_upload_part
           }
         } = conn,
         _params
       ) do
     expires_in = 120
-    content_length = Map.get(multipart_upload_part, "content_length")
+    content_length = Map.get(multipart_upload_part, :content_length)
 
     url =
       Storage.multipart_generate_url(
