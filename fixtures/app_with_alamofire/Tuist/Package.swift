@@ -3,12 +3,14 @@
 
 #if TUIST
     import struct ProjectDescription.PackageSettings
+    import ProjectDescriptionHelpers
 
     let packageSettings = PackageSettings(
         // Customize the product types for specific package product
         // Default is .staticFramework
         // productTypes: ["Alamofire": .framework,]
-        productTypes: [:]
+        productTypes: [:],
+        baseSettings: .baseSettings()
     )
 #endif
 
