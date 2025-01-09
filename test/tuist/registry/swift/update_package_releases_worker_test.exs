@@ -26,6 +26,9 @@ defmodule Tuist.Registry.Swift.Workers.UpdatePackageReleasesWorkerTest do
     _package_three =
       PackagesFixtures.package_fixture(last_updated_releases_at: ~U[2024-07-31 00:02:00Z])
 
+    package_four =
+      PackagesFixtures.package_fixture(last_updated_releases_at: nil)
+
     Time
     |> stub(:utc_now, fn -> ~U[2024-07-31 00:03:00Z] end)
 
@@ -33,10 +36,11 @@ defmodule Tuist.Registry.Swift.Workers.UpdatePackageReleasesWorkerTest do
     |> stub(:create_missing_package_releases, fn
       %{package: ^package_one, token: "github_token"} -> :ok
       %{package: ^package_two, token: "github_token"} -> :ok
+      %{package: ^package_four, token: "github_token"} -> :ok
     end)
 
     # When
-    UpdatePackageReleasesWorker.perform(%Oban.Job{args: %{limit: 2}})
+    UpdatePackageReleasesWorker.perform(%Oban.Job{args: %{limit: 3}})
 
     # Then
     assert Packages.get_package_by_scope_and_name(%{
@@ -47,6 +51,11 @@ defmodule Tuist.Registry.Swift.Workers.UpdatePackageReleasesWorkerTest do
     assert Packages.get_package_by_scope_and_name(%{
              scope: package_two.scope,
              name: package_two.name
+           }).last_updated_releases_at == ~U[2024-07-31 00:03:00Z]
+
+    assert Packages.get_package_by_scope_and_name(%{
+             scope: package_four.scope,
+             name: package_four.name
            }).last_updated_releases_at == ~U[2024-07-31 00:03:00Z]
   end
 end
