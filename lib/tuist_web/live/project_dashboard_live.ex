@@ -65,7 +65,7 @@ defmodule TuistWeb.ProjectDashboardLive do
     {
       :noreply,
       socket
-      |> redirect(to: ~p"/#{account.name}/#{project.name}?#{query}")
+      |> push_patch(to: ~p"/#{account.name}/#{project.name}?#{query}")
     }
   end
 
