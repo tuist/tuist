@@ -1,5 +1,3 @@
-import Foundation
-
 /// A configuration name.
 ///
 /// It has build-in support for ``debug`` and ``release`` configurations.

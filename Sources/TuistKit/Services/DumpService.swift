@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import ServiceContextModule
 import TSCBasic
 import TuistCore
 import TuistLoader
@@ -45,7 +46,7 @@ final class DumpService {
         }
 
         let json: JSON = try encoded.toJSON()
-        logger.notice("\(json.toString(prettyPrint: true))", metadata: .json)
+        ServiceContext.current?.logger?.notice("\(json.toString(prettyPrint: true))", metadata: .json)
     }
 }
 

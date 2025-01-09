@@ -1,6 +1,7 @@
 import FileSystem
 import Foundation
 import Path
+import ServiceContextModule
 import struct TSCUtility.Version
 import TuistAutomation
 import TuistCore
@@ -202,7 +203,7 @@ final class RunService {
         device: String?,
         version: Version?
     ) async throws {
-        logger.notice("Runnning \(previewLink.absoluteString)...")
+        ServiceContext.current?.logger?.notice("Runnning \(previewLink.absoluteString)...")
         guard let scheme = previewLink.scheme,
               let host = previewLink.host,
               let serverURL = URL(string: "\(scheme)://\(host)\(previewLink.port.map { ":" + String($0) } ?? "")"),
@@ -252,7 +253,7 @@ final class RunService {
         let generator = generatorFactory.defaultGenerator(config: config, sources: [])
         let workspacePath = try await buildGraphInspector.workspacePath(directory: path)
         if generate || workspacePath == nil {
-            logger.notice("Generating project for running", metadata: .section)
+            ServiceContext.current?.logger?.notice("Generating project for running", metadata: .section)
             graph = try await generator.generateWithGraph(path: path).1
         } else {
             graph = try await generator.load(path: path)
@@ -265,7 +266,8 @@ final class RunService {
         let graphTraverser = GraphTraverser(graph: graph)
         let runnableSchemes = buildGraphInspector.runnableSchemes(graphTraverser: graphTraverser)
 
-        logger.debug("Found the following runnable schemes: \(runnableSchemes.map(\.name).joined(separator: ", "))")
+        ServiceContext.current?.logger?
+            .debug("Found the following runnable schemes: \(runnableSchemes.map(\.name).joined(separator: ", "))")
 
         guard let scheme = runnableSchemes.first(where: { $0.name == scheme }) else {
             throw RunServiceError.schemeNotFound(scheme: scheme, existing: runnableSchemes.map(\.name))

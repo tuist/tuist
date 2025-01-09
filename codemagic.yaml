@@ -4,6 +4,8 @@ workflows:
     max_build_duration: 60
     environment:
       xcode: 16.1
+      groups:
+        - github_credentials
     scripts:
       - name: Set environment variables
         script: |
@@ -31,8 +33,8 @@ workflows:
     max_build_duration: 60
     environment:
       xcode: 16.1
-      # groups:
-      # - github_credentials
+      groups:
+        - github_credentials
     scripts:
       - name: Set environment variables
         script: |
@@ -50,9 +52,9 @@ workflows:
     max_build_duration: 60
     environment:
       xcode: 16.1
-      # groups:
-      # - tuist
-      # - github_credentials
+      groups:
+        - tuist
+        - github_credentials
     scripts:
       - name: Set environment variables
         script: |
@@ -74,9 +76,9 @@ workflows:
     max_build_duration: 60
     environment:
       xcode: 16.1
-      # groups:
-      #   - tuist
-      #   - github_credentials
+      groups:
+        - tuist
+        - github_credentials
     cache:
       cache_paths:
         - $CM_BUILD_DIR/.build
@@ -99,9 +101,9 @@ workflows:
     max_build_duration: 60
     environment:
       xcode: 16.1
-      # groups:
-      #   - tuist
-      #   - github_credentials
+      groups:
+        - tuist
+        - github_credentials
     cache:
       cache_paths:
         - $CM_BUILD_DIR/.build
@@ -166,9 +168,9 @@ workflows:
     max_build_duration: 60
     environment:
       xcode: 16.1
-      # groups:
-      #   - tuist
-      #   - github_credentials
+      groups:
+        - tuist
+        - github_credentials
     cache:
       cache_paths:
         - $CM_BUILD_DIR/.build
@@ -196,9 +198,9 @@ workflows:
     max_build_duration: 60
     environment:
       xcode: 16.1
-      # groups:
-      #   - tuist
-      #   - github_credentials
+      groups:
+        - tuist
+        - github_credentials
     cache:
       cache_paths:
         - $CM_BUILD_DIR/.build
@@ -235,9 +237,9 @@ workflows:
     max_build_duration: 60
     environment:
       xcode: 16.1
-      # groups:
-      #   - tuist
-      #   - github_credentials
+      groups:
+        - tuist
+        - github_credentials
     cache:
       cache_paths:
         - $CM_BUILD_DIR/.build
@@ -265,9 +267,9 @@ workflows:
     max_build_duration: 60
     environment:
       xcode: 16.1
-      # groups:
-      #   - tuist
-      #   - github_credentials
+      groups:
+        - tuist
+        - github_credentials
     cache:
       cache_paths:
         - $CM_BUILD_DIR/.build
@@ -294,9 +296,9 @@ workflows:
     max_build_duration: 60
     environment:
       xcode: 16.1
-      # groups:
-      #   - tuist
-      #   - github_credentials
+      groups:
+        - tuist
+        - github_credentials
     cache:
       cache_paths:
         - $CM_BUILD_DIR/.build

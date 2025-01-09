@@ -1,4 +1,3 @@
-import Path
 import ProjectDescription
 import TSCUtility
 import TuistSupport

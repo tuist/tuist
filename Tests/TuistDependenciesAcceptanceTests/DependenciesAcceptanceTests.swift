@@ -1,5 +1,5 @@
 import Command
-import Path
+import ServiceContextModule
 import TuistAcceptanceTesting
 import TuistSupport
 import TuistSupportTesting
@@ -58,6 +58,16 @@ final class DependenciesAcceptanceTestAppRegistryAndAlamofire: ServerAcceptanceT
     }
 }
 
+final class DependenciesAcceptanceTestAppRegistryAndAlamofireAsXcodePackage: ServerAcceptanceTestCase {
+    func test_app_with_registry_and_alamofire() async throws {
+        try await setUpFixture(.appWithRegistryAndAlamofireAsXcodePackage)
+        try await run(RegistrySetupCommand.self)
+        try await run(RegistryLoginCommand.self)
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self, "App")
+    }
+}
+
 final class DependenciesAcceptanceTestIosAppWithSPMDependencies: TuistAcceptanceTestCase {
     func test_ios_app_spm_dependencies() async throws {
         try await setUpFixture(.iosAppWithSpmDependencies)
@@ -85,17 +95,20 @@ final class DependenciesAcceptanceTestIosAppWithSPMDependenciesForceResolvedVers
 
 final class DependenciesAcceptanceTestIosAppWithSPMDependenciesWithOutdatedDependencies: TuistAcceptanceTestCase {
     func test() async throws {
-        try await setUpFixture(.iosAppWithSpmDependencies)
-        try await run(InstallCommand.self)
-        let packageResolvedPath = fixturePath.appending(components: ["Tuist", "Package.resolved"])
-        let packageResolvedContents = try await fileSystem.readTextFile(at: packageResolvedPath)
-        try FileHandler.shared.write(packageResolvedContents + " ", path: packageResolvedPath, atomically: true)
-        try await run(GenerateCommand.self)
-        XCTAssertStandardOutput(pattern: "We detected outdated dependencies. Please run \"tuist install\" to update them.")
-        TestingLogHandler.reset()
-        try await run(InstallCommand.self)
-        try await run(GenerateCommand.self)
-        XCTAssertStandardOutputNotContains("We detected outdated dependencies. Please run \"tuist install\" to update them.")
+        try await ServiceContext.withTestingDependencies {
+            try await setUpFixture(.iosAppWithSpmDependencies)
+            try await run(InstallCommand.self)
+            let packageResolvedPath = fixturePath.appending(components: ["Tuist", "Package.resolved"])
+            let packageResolvedContents = try await fileSystem.readTextFile(at: packageResolvedPath)
+            try FileHandler.shared.write(packageResolvedContents + " ", path: packageResolvedPath, atomically: true)
+            try await run(GenerateCommand.self)
+            XCTAssertStandardOutput(pattern: "We detected outdated dependencies. Please run \"tuist install\" to update them.")
+
+            ServiceContext.current?.testingLogHandler?.flush()
+            try await run(InstallCommand.self)
+            try await run(GenerateCommand.self)
+            XCTAssertStandardOutputNotContains("We detected outdated dependencies. Please run \"tuist install\" to update them.")
+        }
     }
 }
 

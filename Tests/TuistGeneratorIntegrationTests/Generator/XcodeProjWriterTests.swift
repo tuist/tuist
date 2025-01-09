@@ -1,7 +1,5 @@
 
-import FileSystem
 import Foundation
-import Path
 import TuistCore
 import TuistGeneratorTesting
 import TuistSupport

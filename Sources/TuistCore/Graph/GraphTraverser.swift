@@ -228,10 +228,15 @@ public class GraphTraverser: GraphTraversing {
         GraphDependencyReference
     > {
         guard let target = graph.projects[path]?.targets[name] else { return [] }
-        guard target.supportsResources else { return [] }
 
-        let canHostResources: (GraphDependency) -> Bool = {
-            self.target(from: $0)?.target.supportsResources == true
+        func canHostResources(target: Target) -> Bool {
+            target.supportsResources && (target.product != .staticFramework || target.containsResources)
+        }
+
+        guard canHostResources(target: target) else { return [] }
+
+        func canHostResources(dependency: GraphDependency) -> Bool {
+            testTarget(dependency: dependency) { canHostResources(target: $0) }
         }
 
         let bundles = filterDependencies(
@@ -253,8 +258,7 @@ public class GraphTraverser: GraphTraversing {
                 // Precompiled bundles are embedded to any downstream target that supports resources to ensure Xcode previews work
                 // reliably.
                 // See this issue for more details: https://github.com/tuist/tuist/pull/6865
-                return (dependency.isPrecompiled && target.supportsResources) ||
-                    (isDependencyExternal(dependency) && canEmbedBundles(target: target))
+                return dependency.isPrecompiled || (isDependencyExternal(dependency) && canEmbedBundles(target: target))
             },
             skip: canDependencyEmbedBundles
         )
@@ -266,12 +270,8 @@ public class GraphTraverser: GraphTraversing {
     }
 
     public func target(from dependency: GraphDependency) -> GraphTarget? {
-        guard case let GraphDependency.target(name, path, _) = dependency else {
-            return nil
-        }
-        guard let target = graph.projects[path]?.targets[name] else { return nil }
-        guard let project = graph.projects[path] else { return nil }
-        return GraphTarget(path: path, target: target, project: project)
+        guard case let GraphDependency.target(name, path, _) = dependency else { return nil }
+        return target(path: path, name: name)
     }
 
     public func appExtensionDependencies(path: Path.AbsolutePath, name: String) -> Set<
@@ -349,12 +349,12 @@ public class GraphTraverser: GraphTraversing {
         guard let target = target(path: path, name: name), canEmbedFrameworks(target: target.target)
         else { return Set() }
 
-        var references: Set<GraphDependencyReference> = Set([])
+        var references = Set<GraphDependencyReference>()
 
         /// Precompiled frameworks
         var precompiledFrameworks = filterDependencies(
             from: .target(name: name, path: path),
-            test: { $0.isPrecompiledDynamicAndLinkable },
+            test: \.isPrecompiledAndLinkable,
             skip: or(canDependencyEmbedBinaries, isDependencyPrecompiledMacro)
         )
         // Skip merged precompiled libraries from merging into the runnable binary
@@ -379,8 +379,12 @@ public class GraphTraverser: GraphTraversing {
         /// Other targets' frameworks.
         var otherTargetFrameworks = filterDependencies(
             from: .target(name: name, path: path),
-            test: isDependencyDynamicTarget,
-            skip: canDependencyEmbedBinaries
+            test: isEmbeddableDependencyTarget,
+            skip: { dependency in
+                testTarget(dependency: dependency) { target in
+                    canEmbedFrameworks(target: target) || target.product == .macro
+                }
+            }
         )
 
         if target.target.mergedBinaryType != .disabled {
@@ -399,14 +403,10 @@ public class GraphTraverser: GraphTraversing {
         )
 
         // Exclude any products embed in unit test host apps
-        if target.target.product == .unitTests {
-            if let hostApp = unitTestHost(path: path, name: name) {
-                references.subtract(
-                    embeddableFrameworks(path: hostApp.path, name: hostApp.target.name)
-                )
-            } else {
-                references = Set()
-            }
+        if target.target.product == .unitTests, let hostApp = unitTestHost(path: path, name: name) {
+            references.subtract(
+                embeddableFrameworks(path: hostApp.path, name: hostApp.target.name)
+            )
         }
 
         return references
@@ -501,12 +501,7 @@ public class GraphTraverser: GraphTraversing {
             staticXCFrameworksLinkedByDynamicXCFrameworkDependencies.flatMap {
                 guard let dependencies = dependencies[$0] else { return [GraphDependency]() }
                 return dependencies.filter {
-                    switch $0 {
-                    case .sdk:
-                        return true
-                    default:
-                        return false
-                    }
+                    if case GraphDependency.sdk = $0 { true } else { false }
                 }
             }
 
@@ -545,7 +540,7 @@ public class GraphTraverser: GraphTraversing {
                     self.graph.dependencies[dependency, default: []]
                         .lazy
                         .filter(\.isTarget)
-                        .filter(isDependencyDynamicTarget)
+                        .filter(isEmbeddableDependencyTarget)
                 }
 
             let staticDependenciesPrecompiledLibrariesAndFrameworks =
@@ -1095,7 +1090,7 @@ public class GraphTraverser: GraphTraversing {
 
         stack.push(Array(rootDependencies))
 
-        var visited: Set<GraphDependency> = .init()
+        var visited = Set<GraphDependency>()
         var references = Set<GraphDependency>()
 
         while !stack.isEmpty {
@@ -1284,7 +1279,7 @@ public class GraphTraverser: GraphTraversing {
         }
     }
 
-    func isDependencyPrecompiledMacro(_ dependency: GraphDependency) -> Bool {
+    private func isDependencyPrecompiledMacro(_ dependency: GraphDependency) -> Bool {
         switch dependency {
         case .macro:
             return true
@@ -1336,21 +1331,15 @@ public class GraphTraverser: GraphTraversing {
         return xcframework.mergeable
     }
 
-    func isDependencyDynamicNonMergeableTarget(dependency: GraphDependency) -> Bool {
-        guard case let GraphDependency.target(name, path, _) = dependency,
-              let target = target(path: path, name: name)
-        else { return false }
-        return !target.target.mergeable
+    private func isDependencyDynamicNonMergeableTarget(dependency: GraphDependency) -> Bool {
+        testTarget(dependency: dependency) { !$0.mergeable }
     }
 
-    func isDependencyStaticTarget(dependency: GraphDependency) -> Bool {
-        guard case let GraphDependency.target(name, path, _) = dependency,
-              let target = target(path: path, name: name)
-        else { return false }
-        return target.target.product.isStatic
+    private func isDependencyStaticTarget(dependency: GraphDependency) -> Bool {
+        testTarget(dependency: dependency, test: \.product.isStatic)
     }
 
-    func isDependencyStatic(dependency: GraphDependency) -> Bool {
+    private func isDependencyStatic(dependency: GraphDependency) -> Bool {
         switch dependency {
         case .macro:
             return false
@@ -1368,64 +1357,31 @@ public class GraphTraverser: GraphTraversing {
         }
     }
 
-    func isDependencyDynamicLibrary(dependency: GraphDependency) -> Bool {
-        guard case let GraphDependency.target(name, path, _) = dependency,
-              let target = target(path: path, name: name)
-        else { return false }
-        return target.target.product == .dynamicLibrary
+    private func isDependencyDynamicLibrary(dependency: GraphDependency) -> Bool {
+        testTarget(dependency: dependency) { $0.product == .dynamicLibrary }
     }
 
-    func isDependencyFramework(dependency: GraphDependency) -> Bool {
-        guard case let GraphDependency.target(name, path, _) = dependency,
-              let target = target(path: path, name: name)
-        else { return false }
-        return target.target.product == .framework
+    private func isDependencyFramework(dependency: GraphDependency) -> Bool {
+        testTarget(dependency: dependency) { $0.product == .framework }
     }
 
-    func isDependencyDynamicTarget(dependency: GraphDependency) -> Bool {
-        switch dependency {
-        case .macro: return false
-        case .xcframework: return false
-        case .framework: return false
-        case .library: return false
-        case .bundle: return false
-        case .packageProduct: return false
-        case let .target(name, path, _):
-            guard let target = target(path: path, name: name) else { return false }
-            return target.target.product.isDynamic
-        case .sdk: return false
+    private func isEmbeddableDependencyTarget(dependency: GraphDependency) -> Bool {
+        testTarget(dependency: dependency) {
+            $0.product.isDynamic || $0.product == .staticFramework && $0.containsResources
         }
     }
 
-    func isDependencyPrecompiledDynamicAndLinkable(dependency: GraphDependency) -> Bool {
-        switch dependency {
-        case let .xcframework(xcframework):
-            return xcframework.linking == .dynamic
-        case let .framework(_, _, _, _, linking, _, _),
-             let .library(
-                 path: _, publicHeaders: _, linking: linking, architectures: _, swiftModuleMap: _
-             ):
-            return linking == .dynamic
-        case .bundle: return false
-        case .packageProduct: return false
-        case .target: return false
-        case .sdk: return false
-        case .macro: return false
-        }
+    private func canDependencyEmbedBinaries(dependency: GraphDependency) -> Bool {
+        testTarget(dependency: dependency, test: canEmbedFrameworks)
     }
 
-    func canDependencyEmbedBinaries(dependency: GraphDependency) -> Bool {
-        guard case let GraphDependency.target(name, path, _) = dependency,
-              let target = target(path: path, name: name)
-        else { return false }
-        return canEmbedFrameworks(target: target.target)
+    private func canDependencyEmbedBundles(dependency: GraphDependency) -> Bool {
+        testTarget(dependency: dependency, test: canEmbedBundles)
     }
 
-    func canDependencyEmbedBundles(dependency: GraphDependency) -> Bool {
-        guard case let GraphDependency.target(name, path, _) = dependency,
-              let target = target(path: path, name: name)
-        else { return false }
-        return canEmbedBundles(target: target.target)
+    private func testTarget(dependency: GraphDependency, test: (_ target: Target) -> Bool) -> Bool {
+        guard let target = target(from: dependency) else { return false }
+        return test(target.target)
     }
 
     func canDependencyLinkStaticProducts(dependency: GraphDependency) -> Bool {
@@ -1619,11 +1575,10 @@ public class GraphTraverser: GraphTraversing {
 
 extension GraphDependency {
     fileprivate var xcframeworkDependency: GraphDependency.XCFramework? {
-        switch self {
-        case let .xcframework(xcframework):
-            return xcframework
-        default:
-            return nil
-        }
+        if case let .xcframework(xcframework) = self { xcframework } else { nil }
+    }
+
+    fileprivate var isPrecompiledAndLinkable: Bool {
+        if case .xcframework = self { true } else { isPrecompiledDynamicAndLinkable }
     }
 }

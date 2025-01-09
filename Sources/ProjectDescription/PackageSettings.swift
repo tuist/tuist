@@ -1,5 +1,3 @@
-import Foundation
-
 /// A custom Swift Package Manager configuration
 ///
 ///

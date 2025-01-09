@@ -1,5 +1,3 @@
-import Foundation
-
 /// An action that runs the built products.
 ///
 /// It's initialized with the .runAction static method.

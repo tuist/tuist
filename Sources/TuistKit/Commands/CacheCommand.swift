@@ -1,8 +1,6 @@
 import AnyCodable
 import ArgumentParser
 import Foundation
-import Path
-import TuistServer
 import TuistSupport
 
 /// Command to cache targets as `.(xc)framework`s and speed up your and your peers' build times.

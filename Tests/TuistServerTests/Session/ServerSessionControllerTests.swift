@@ -1,6 +1,6 @@
 import Foundation
 import Mockable
-import Path
+import ServiceContextModule
 import TuistSupport
 import XCTest
 
@@ -134,50 +134,93 @@ final class ServerSessionControllerTests: TuistUnitTestCase {
         XCTAssertEqual(got, nil)
     }
 
-    func test_logout_deletesLegacyCredentials() async throws {
+    func test_get_authenticated_handle_when_logged_in() async throws {
         // Given
-        let credentials = ServerCredentials(
-            token: "token",
-            accessToken: nil,
-            refreshToken: nil
-        )
-        given(credentialsStore)
-            .store(credentials: .value(credentials), serverURL: .value(serverURL))
-            .willReturn()
-        try await credentialsStore.store(credentials: credentials, serverURL: serverURL)
-
-        given(credentialsStore)
-            .delete(serverURL: .value(serverURL))
-            .willReturn()
+        given(serverAuthenticationController)
+            .authenticationToken(serverURL: .value(serverURL))
+            .willReturn(
+                .user(
+                    legacyToken: nil,
+                    accessToken: .test(
+                        email: "tuist@tuist.io",
+                        preferredUsername: "tuist"
+                    ),
+                    refreshToken: .test(
+                        email: "tuist@tuist.io",
+                        preferredUsername: "tuist"
+                    )
+                )
+            )
 
         // When
-        try await subject.logout(serverURL: serverURL)
+        let got = try await subject.whoami(serverURL: serverURL)
 
         // Then
-        XCTAssertPrinterOutputContains("Successfully logged out.")
+        XCTAssertEqual(got, "tuist")
+    }
+
+    func test_get_authenticated_handle_when_logged_out() async throws {
+        given(serverAuthenticationController)
+            .authenticationToken(serverURL: .value(serverURL))
+            .willReturn(
+                .user(legacyToken: nil, accessToken: nil, refreshToken: nil)
+            )
+
+        // Then
+        await XCTAssertThrowsSpecific(
+            try await subject.authenticatedHandle(serverURL: serverURL),
+            ServerSessionControllerError.unauthenticated
+        )
+    }
+
+    func test_logout_deletesLegacyCredentials() async throws {
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            let credentials = ServerCredentials(
+                token: "token",
+                accessToken: nil,
+                refreshToken: nil
+            )
+            given(credentialsStore)
+                .store(credentials: .value(credentials), serverURL: .value(serverURL))
+                .willReturn()
+            try await credentialsStore.store(credentials: credentials, serverURL: serverURL)
+
+            given(credentialsStore)
+                .delete(serverURL: .value(serverURL))
+                .willReturn()
+
+            // When
+            try await subject.logout(serverURL: serverURL)
+
+            // Then
+            XCTAssertPrinterOutputContains("Successfully logged out.")
+        }
     }
 
     func test_logout_deletesCredentials() async throws {
-        // Given
-        let credentials = ServerCredentials(
-            token: nil,
-            accessToken: "access-token",
-            refreshToken: "refresh-token"
-        )
-        given(credentialsStore)
-            .store(credentials: .value(credentials), serverURL: .value(serverURL))
-            .willReturn()
-        try await credentialsStore.store(credentials: credentials, serverURL: serverURL)
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            let credentials = ServerCredentials(
+                token: nil,
+                accessToken: "access-token",
+                refreshToken: "refresh-token"
+            )
+            given(credentialsStore)
+                .store(credentials: .value(credentials), serverURL: .value(serverURL))
+                .willReturn()
+            try await credentialsStore.store(credentials: credentials, serverURL: serverURL)
 
-        given(credentialsStore)
-            .delete(serverURL: .value(serverURL))
-            .willReturn()
+            given(credentialsStore)
+                .delete(serverURL: .value(serverURL))
+                .willReturn()
 
-        // When
-        try await subject.logout(serverURL: serverURL)
+            // When
+            try await subject.logout(serverURL: serverURL)
 
-        // Then
-        XCTAssertPrinterOutputContains("Successfully logged out.")
+            // Then
+            XCTAssertPrinterOutputContains("Successfully logged out.")
+        }
     }
 
     fileprivate func authURL() -> URL {

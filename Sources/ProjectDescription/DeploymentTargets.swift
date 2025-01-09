@@ -1,5 +1,3 @@
-import Foundation
-
 // MARK: - DeploymentTargets
 
 /// A struct representing the minimum deployment versions for each platform.

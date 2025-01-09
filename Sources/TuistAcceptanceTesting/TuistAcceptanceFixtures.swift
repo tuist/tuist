@@ -15,6 +15,7 @@ public enum TuistAcceptanceFixtures {
     case appWithPreviews
     case appWithRealm
     case appWithRegistryAndAlamofire
+    case appWithRegistryAndAlamofireAsXcodePackage
     case appWithRevenueCat
     case appWithSpmDependencies
     case appWithSpmModuleAliases
@@ -78,6 +79,7 @@ public enum TuistAcceptanceFixtures {
     case macosAppWithCopyFiles
     case macosAppWithExtensions
     case manifestWithLogs
+    case multiplatformApp
     case multiplatformAppWithExtension
     case multiplatformAppWithMacrosAndEmbeddedWatchOSApp
     case multiplatformAppWithSdk
@@ -128,6 +130,8 @@ public enum TuistAcceptanceFixtures {
             return "app_with_realm"
         case .appWithRegistryAndAlamofire:
             return "app_with_registry_and_alamofire"
+        case .appWithRegistryAndAlamofireAsXcodePackage:
+            return "app_with_registry_and_alamofire_as_xcode_package"
         case .appWithRevenueCat:
             return "app_with_revenue_cat"
         case .appWithSpmDependencies:
@@ -254,6 +258,8 @@ public enum TuistAcceptanceFixtures {
             return "macos_app_with_extensions"
         case .manifestWithLogs:
             return "manifest_with_logs"
+        case .multiplatformApp:
+            return "multiplatform_app"
         case .multiplatformAppWithExtension:
             return "multiplatform_app_with_extension"
         case .multiplatformAppWithMacrosAndEmbeddedWatchOSApp:

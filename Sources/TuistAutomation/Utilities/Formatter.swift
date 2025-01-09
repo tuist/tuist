@@ -1,5 +1,3 @@
-import Foundation
-import TuistCore
 import TuistSupport
 import XcbeautifyLib
 

@@ -1,5 +1,3 @@
-import Foundation
-
 /// A build phase action used to copy files.
 ///
 /// Copy files actions, represented as target copy files build phases, are useful to associate project files

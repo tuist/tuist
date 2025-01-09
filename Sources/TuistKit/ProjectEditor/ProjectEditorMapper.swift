@@ -1,6 +1,7 @@
 import FileSystem
 import Foundation
 import Path
+import ServiceContextModule
 import TuistCore
 import TuistLoader
 import TuistSupport
@@ -57,7 +58,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         stencils: [AbsolutePath],
         projectDescriptionSearchPath: AbsolutePath
     ) async throws -> Graph {
-        logger.notice("Building the editable project graph")
+        ServiceContext.current?.logger?.notice("Building the editable project graph")
         let swiftVersion = try SwiftVersionProvider.shared.swiftVersion()
 
         let pluginsProject = try await mapPluginsProject(

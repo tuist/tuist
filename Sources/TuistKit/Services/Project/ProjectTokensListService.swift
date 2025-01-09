@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import ServiceContextModule
 import TuistLoader
 import TuistServer
 import TuistSupport
@@ -45,13 +46,14 @@ final class ProjectTokensListService: ProjectTokensListServicing {
         )
 
         if tokens.isEmpty {
-            logger.notice("No project tokens found. Create one by running `tuist project tokens create \(fullHandle).")
+            ServiceContext.current?.logger?
+                .notice("No project tokens found. Create one by running `tuist project tokens create \(fullHandle).")
         } else {
             let textTable = TextTable<ServerProjectToken> { [
                 TextTable.Column(title: "ID", value: $0.id),
                 TextTable.Column(title: "Created at", value: $0.insertedAt),
             ] }
-            logger.notice("\(textTable.render(tokens))")
+            ServiceContext.current?.logger?.notice("\(textTable.render(tokens))")
         }
     }
 }

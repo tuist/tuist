@@ -1,6 +1,5 @@
 import ArgumentParser
 import Foundation
-import Path
 
 public struct PluginBuildCommand: ParsableCommand {
     public init() {}

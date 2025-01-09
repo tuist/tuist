@@ -724,7 +724,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         let testableTarget = TestableTarget(
             target: TargetReference(projectPath: project.path, name: "AppTests"),
             skipped: false,
-            parallelizable: true,
+            parallelization: .all,
             randomExecutionOrdering: true
         )
         let testAction = TestAction.test(targets: [testableTarget])
@@ -756,7 +756,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         // Then
         let testableTargetReference = result.testables[0]
         XCTAssertEqual(testableTargetReference.skipped, false)
-        XCTAssertEqual(testableTargetReference.parallelizable, true)
+        XCTAssertEqual(testableTargetReference.parallelization, .all)
         XCTAssertEqual(testableTargetReference.randomExecutionOrdering, true)
     }
 

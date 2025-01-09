@@ -4,7 +4,6 @@ import FileSystem
 import Path
 import TuistCore
 @_exported import TuistKit
-import XcodeGraph
 import XcodeProj
 import XCTest
 
@@ -31,10 +30,6 @@ open class TuistAcceptanceTestCase: XCTestCase {
         try await super.setUp()
 
         fileSystem = FileSystem()
-
-        DispatchQueue.once(token: "io.tuist.test.logging") {
-            LoggingSystem.bootstrap { AcceptanceTestCaseLogHandler(label: $0) }
-        }
 
         derivedDataDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
         fixtureTemporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)

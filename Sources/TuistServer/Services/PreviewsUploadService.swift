@@ -4,7 +4,6 @@ import Mockable
 import Path
 import TuistCore
 import TuistSupport
-import XcodeGraph
 
 public enum PreviewUploadType: Equatable {
     case ipa(AbsolutePath)

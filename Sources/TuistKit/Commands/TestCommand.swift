@@ -2,10 +2,10 @@ import AnyCodable
 import ArgumentParser
 import Foundation
 import Path
+import ServiceContextModule
 import TuistCore
 import TuistServer
 import TuistSupport
-import XcodeGraph
 
 /// Command that tests a target from the project in the current directory.
 public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
@@ -207,13 +207,13 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
 
         // Suggest the user to use passthrough arguments if already supported by xcodebuild
         if let derivedDataPath {
-            logger
+            ServiceContext.current?.logger?
                 .warning(
                     "--derivedDataPath is deprecated please use -derivedDataPath \(derivedDataPath) after the terminator (--) instead to passthrough parameters to xcodebuild"
                 )
         }
         if retryCount > 0 {
-            logger
+            ServiceContext.current?.logger?
                 .warning(
                     "--retryCount is deprecated please use -retry-tests-on-failure -test-iterations \(retryCount + 1) after the terminator (--) instead to passthrough parameters to xcodebuild"
                 )

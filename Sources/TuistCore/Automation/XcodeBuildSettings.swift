@@ -1,6 +1,3 @@
-import Foundation
-import Path
-
 public struct XcodeBuildSettings {
     public typealias DictionaryType = [String: String]
     private let settings: DictionaryType

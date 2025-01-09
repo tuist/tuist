@@ -285,6 +285,13 @@ internal protocol APIProtocol: Sendable {
     /// - Remark: HTTP `DELETE /api/projects/{id}`.
     /// - Remark: Generated from `#/paths//api/projects/{id}/delete(deleteProject)`.
     func deleteProject(_ input: Operations.deleteProject.Input) async throws -> Operations.deleteProject.Output
+    /// Update account
+    ///
+    /// Updates the given account
+    ///
+    /// - Remark: HTTP `PATCH /api/accounts/{account_handle}`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/patch(updateAccount)`.
+    func updateAccount(_ input: Operations.updateAccount.Input) async throws -> Operations.updateAccount.Output
     /// Completes artifacts uploads for a given command event
     ///
     /// Given a command event, it marks all artifact uploads as finished and does extra processing of a given command run, such as test flakiness detection.
@@ -920,6 +927,23 @@ extension APIProtocol {
             headers: headers
         ))
     }
+    /// Update account
+    ///
+    /// Updates the given account
+    ///
+    /// - Remark: HTTP `PATCH /api/accounts/{account_handle}`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/patch(updateAccount)`.
+    internal func updateAccount(
+        path: Operations.updateAccount.Input.Path,
+        headers: Operations.updateAccount.Input.Headers = .init(),
+        body: Operations.updateAccount.Input.Body? = nil
+    ) async throws -> Operations.updateAccount.Output {
+        try await updateAccount(Operations.updateAccount.Input(
+            path: path,
+            headers: headers,
+            body: body
+        ))
+    }
     /// Completes artifacts uploads for a given command event
     ///
     /// Given a command event, it marks all artifact uploads as finished and does extra processing of a given command run, such as test flakiness detection.
@@ -987,25 +1011,6 @@ internal enum Components {
             }
             internal enum CodingKeys: String, CodingKey {
                 case organizations
-            }
-        }
-        /// A new account token.
-        ///
-        /// - Remark: Generated from `#/components/schemas/AccountFullToken`.
-        internal struct AccountFullToken: Codable, Hashable, Sendable {
-            /// The generated account token.
-            ///
-            /// - Remark: Generated from `#/components/schemas/AccountFullToken/token`.
-            internal var token: Swift.String
-            /// Creates a new `AccountFullToken`.
-            ///
-            /// - Parameters:
-            ///   - token: The generated account token.
-            internal init(token: Swift.String) {
-                self.token = token
-            }
-            internal enum CodingKeys: String, CodingKey {
-                case token
             }
         }
         /// The upload has been initiated and a ID is returned to upload the various parts using multi-part uploads
@@ -1484,6 +1489,33 @@ internal enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/PreviewIndexPage`.
         internal typealias PreviewIndexPage = Swift.Int
+        /// - Remark: Generated from `#/components/schemas/Account`.
+        internal struct Account: Codable, Hashable, Sendable {
+            /// The handle of the account
+            ///
+            /// - Remark: Generated from `#/components/schemas/Account/handle`.
+            internal var handle: Swift.String
+            /// ID of the account
+            ///
+            /// - Remark: Generated from `#/components/schemas/Account/id`.
+            internal var id: Swift.Double
+            /// Creates a new `Account`.
+            ///
+            /// - Parameters:
+            ///   - handle: The handle of the account
+            ///   - id: ID of the account
+            internal init(
+                handle: Swift.String,
+                id: Swift.Double
+            ) {
+                self.handle = handle
+                self.id = id
+            }
+            internal enum CodingKeys: String, CodingKey {
+                case handle
+                case id
+            }
+        }
         /// An organization member
         ///
         /// - Remark: Generated from `#/components/schemas/OrganizationMember`.
@@ -1817,35 +1849,6 @@ internal enum Components {
                 case inserted_at
             }
         }
-        /// The request to create a new account token.
-        ///
-        /// - Remark: Generated from `#/components/schemas/AccountTokenRequest`.
-        internal struct AccountTokenRequest: Codable, Hashable, Sendable {
-            /// The scope of the token.
-            ///
-            /// - Remark: Generated from `#/components/schemas/AccountTokenRequest/scopesPayload`.
-            internal enum scopesPayloadPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                case account_registry_read = "account_registry_read"
-            }
-            /// The scopes for the new account token.
-            ///
-            /// - Remark: Generated from `#/components/schemas/AccountTokenRequest/scopes`.
-            internal typealias scopesPayload = [Components.Schemas.AccountTokenRequest.scopesPayloadPayload]
-            /// The scopes for the new account token.
-            ///
-            /// - Remark: Generated from `#/components/schemas/AccountTokenRequest/scopes`.
-            internal var scopes: Components.Schemas.AccountTokenRequest.scopesPayload
-            /// Creates a new `AccountTokenRequest`.
-            ///
-            /// - Parameters:
-            ///   - scopes: The scopes for the new account token.
-            internal init(scopes: Components.Schemas.AccountTokenRequest.scopesPayload) {
-                self.scopes = scopes
-            }
-            internal enum CodingKeys: String, CodingKey {
-                case scopes
-            }
-        }
         /// The scope of the token.
         ///
         /// - Remark: Generated from `#/components/schemas/AccountTokenScope`.
@@ -2012,6 +2015,25 @@ internal enum Components {
                 case message
             }
         }
+        /// A new account token.
+        ///
+        /// - Remark: Generated from `#/components/schemas/AccountToken`.
+        internal struct AccountToken: Codable, Hashable, Sendable {
+            /// The generated account token.
+            ///
+            /// - Remark: Generated from `#/components/schemas/AccountToken/token`.
+            internal var token: Swift.String
+            /// Creates a new `AccountToken`.
+            ///
+            /// - Parameters:
+            ///   - token: The generated account token.
+            internal init(token: Swift.String) {
+                self.token = token
+            }
+            internal enum CodingKeys: String, CodingKey {
+                case token
+            }
+        }
         /// The artifact exists in the cache and can be downloaded
         ///
         /// - Remark: Generated from `#/components/schemas/CacheArtifactExistence`.
@@ -2143,6 +2165,35 @@ internal enum Components {
             internal enum CodingKeys: String, CodingKey {
                 case access_token
                 case refresh_token
+            }
+        }
+        /// The request to create a new account token.
+        ///
+        /// - Remark: Generated from `#/components/schemas/CreateAccountToken`.
+        internal struct CreateAccountToken: Codable, Hashable, Sendable {
+            /// The scope of the token.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateAccountToken/scopesPayload`.
+            internal enum scopesPayloadPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case account_registry_read = "account_registry_read"
+            }
+            /// The scopes for the new account token.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateAccountToken/scopes`.
+            internal typealias scopesPayload = [Components.Schemas.CreateAccountToken.scopesPayloadPayload]
+            /// The scopes for the new account token.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateAccountToken/scopes`.
+            internal var scopes: Components.Schemas.CreateAccountToken.scopesPayload
+            /// Creates a new `CreateAccountToken`.
+            ///
+            /// - Parameters:
+            ///   - scopes: The scopes for the new account token.
+            internal init(scopes: Components.Schemas.CreateAccountToken.scopesPayload) {
+                self.scopes = scopes
+            }
+            internal enum CodingKeys: String, CodingKey {
+                case scopes
             }
         }
         /// The maximum number of preview to return in a single page.
@@ -15409,6 +15460,368 @@ internal enum Operations {
             /// - Throws: An error if `self` is not `.notFound`.
             /// - SeeAlso: `.notFound`.
             internal var notFound: Operations.deleteProject.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        internal enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            internal init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            internal var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            internal static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Update account
+    ///
+    /// Updates the given account
+    ///
+    /// - Remark: HTTP `PATCH /api/accounts/{account_handle}`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/patch(updateAccount)`.
+    internal enum updateAccount {
+        internal static let id: Swift.String = "updateAccount"
+        internal struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/PATCH/path`.
+            internal struct Path: Sendable, Hashable {
+                /// The handle of the account.
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/PATCH/path/account_handle`.
+                internal var account_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the account.
+                internal init(account_handle: Swift.String) {
+                    self.account_handle = account_handle
+                }
+            }
+            internal var path: Operations.updateAccount.Input.Path
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/PATCH/header`.
+            internal struct Headers: Sendable, Hashable {
+                internal var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.updateAccount.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                internal init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.updateAccount.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            internal var headers: Operations.updateAccount.Input.Headers
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/PATCH/requestBody`.
+            internal enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/PATCH/requestBody/json`.
+                internal struct jsonPayload: Codable, Hashable, Sendable {
+                    /// The new account handle.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/PATCH/requestBody/json/handle`.
+                    internal var handle: Swift.String?
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - handle: The new account handle.
+                    internal init(handle: Swift.String? = nil) {
+                        self.handle = handle
+                    }
+                    internal enum CodingKeys: String, CodingKey {
+                        case handle
+                    }
+                }
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/PATCH/requestBody/content/application\/json`.
+                case json(Operations.updateAccount.Input.Body.jsonPayload)
+            }
+            internal var body: Operations.updateAccount.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            ///   - body:
+            internal init(
+                path: Operations.updateAccount.Input.Path,
+                headers: Operations.updateAccount.Input.Headers = .init(),
+                body: Operations.updateAccount.Input.Body? = nil
+            ) {
+                self.path = path
+                self.headers = headers
+                self.body = body
+            }
+        }
+        internal enum Output: Sendable, Hashable {
+            internal struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/PATCH/responses/200/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/PATCH/responses/200/content/application\/json`.
+                    case json(Components.Schemas.Account)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas.Account {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.updateAccount.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.updateAccount.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Account successfully updated
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/patch(updateAccount)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.updateAccount.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            internal var ok: Operations.updateAccount.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/PATCH/responses/400/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/PATCH/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.updateAccount.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.updateAccount.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// An error occurred while updating the account.
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/patch(updateAccount)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.updateAccount.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            internal var badRequest: Operations.updateAccount.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/PATCH/responses/401/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/PATCH/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.updateAccount.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.updateAccount.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to update your account.
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/patch(updateAccount)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.updateAccount.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            internal var unauthorized: Operations.updateAccount.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/PATCH/responses/403/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/PATCH/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.updateAccount.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.updateAccount.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// You don't have permission to update this account.
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/patch(updateAccount)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.updateAccount.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            internal var forbidden: Operations.updateAccount.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/PATCH/responses/404/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/PATCH/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.updateAccount.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.updateAccount.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// An account with this handle was not found.
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/patch(updateAccount)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.updateAccount.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            internal var notFound: Operations.updateAccount.Output.NotFound {
                 get throws {
                     switch self {
                     case let .notFound(response):

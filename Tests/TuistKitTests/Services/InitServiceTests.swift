@@ -1,6 +1,5 @@
 import Foundation
 import Mockable
-import Path
 import TuistCore
 import TuistLoader
 import TuistLoaderTesting
@@ -43,11 +42,38 @@ final class InitServiceTests: TuistUnitTestCase {
 
     func test_fails_when_directory_not_empty() async throws {
         // Given
+        try await fileSystem.runInTemporaryDirectory(prefix: "InitService") { path in
+            try await fileSystem.touch(path.appending(component: "dummy"))
+            let defaultTemplatePath = try temporaryPath().appending(component: "default")
+            given(templatesDirectoryLocator)
+                .templateDirectories(at: .any)
+                .willReturn([defaultTemplatePath])
+            given(templateLoader)
+                .loadTemplate(at: .any, plugins: .any)
+                .willReturn(.test())
+            given(templateGenerator)
+                .generate(
+                    template: .any,
+                    to: .any,
+                    attributes: .any
+                )
+                .willReturn()
+
+            // Then
+            await XCTAssertThrowsSpecific(
+                { try await subject.testRun(path: path.pathString) },
+                InitServiceError.nonEmptyDirectory(path)
+            )
+        }
+    }
+
+    func test_succeeds_when_directory_only_contains_mise() async throws {
+        // Given
         let path = FileHandler.shared.currentPath
-        try FileHandler.shared.touch(path.appending(component: "dummy"))
+        try FileHandler.shared.touch(path.appending(component: "mise.toml"))
 
         // Then
-        await XCTAssertThrowsSpecific({ try await self.subject.testRun() }, InitServiceError.nonEmptyDirectory(path))
+        XCTAssertNoThrow { try await self.subject.testRun() }
     }
 
     func test_init_fails_when_template_not_found() async throws {
