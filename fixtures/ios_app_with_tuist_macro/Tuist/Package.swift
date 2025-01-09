@@ -1,5 +1,5 @@
 // swift-tools-version: 6.0
-import PackageDescription
+@preconcurrency import PackageDescription
 
 #if TUIST
     import struct ProjectDescription.PackageSettings
@@ -18,5 +18,6 @@ let package = Package(
         // Add your own dependencies here:
         // .package(url: "https://github.com/Alamofire/Alamofire", from: "5.0.0"),
         // You can read more about dependencies here: https://docs.tuist.io/documentation/tuist/dependencies
+		.package(url: "https://github.com/apple/swift-syntax", exact: "600.0.1"),
     ]
 )

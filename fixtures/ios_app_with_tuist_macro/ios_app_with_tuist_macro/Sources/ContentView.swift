@@ -2,10 +2,11 @@ import SwiftUI
 import TuistMacro
 
 public struct ContentView: View {
+	private let result = #stringify(1 + 1)
+	
     public var body: some View {
 		VStack {
-			Text("Hello, World!")
-			Text(#stringify(1 + 1 ))
+			Text("Hello, \(result)")
 		}
 		.padding()
     }
