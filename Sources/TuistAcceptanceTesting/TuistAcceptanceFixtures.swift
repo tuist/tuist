@@ -12,11 +12,13 @@ public enum TuistAcceptanceFixtures {
     case appWithGoogleMaps
     case appWithMetalOptions
     case appWithPlugins
+    case appWithPocketSVG
     case appWithPreviews
     case appWithRealm
     case appWithRegistryAndAlamofire
     case appWithRegistryAndAlamofireAsXcodePackage
     case appWithRevenueCat
+    case appWithSBTUITestTunnel
     case appWithSpmDependencies
     case appWithSpmModuleAliases
     case appWithSwiftCMark
@@ -124,6 +126,8 @@ public enum TuistAcceptanceFixtures {
             return "app_with_metal_options"
         case .appWithPlugins:
             return "app_with_plugins"
+        case .appWithPocketSVG:
+            return "app_with_pocket_svg"
         case .appWithPreviews:
             return "app_with_previews"
         case .appWithRealm:
@@ -134,6 +138,8 @@ public enum TuistAcceptanceFixtures {
             return "app_with_registry_and_alamofire_as_xcode_package"
         case .appWithRevenueCat:
             return "app_with_revenue_cat"
+        case .appWithSBTUITestTunnel:
+            return "app_with_sbtuitesttunnel"
         case .appWithSpmDependencies:
             return "app_with_spm_dependencies"
         case .appWithSpmModuleAliases:

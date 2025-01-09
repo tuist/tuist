@@ -354,7 +354,7 @@ public class GraphTraverser: GraphTraversing {
         /// Precompiled frameworks
         var precompiledFrameworks = filterDependencies(
             from: .target(name: name, path: path),
-            test: \.isPrecompiledAndLinkable,
+            test: \.isPrecompiledDynamicAndLinkable,
             skip: or(canDependencyEmbedBinaries, isDependencyPrecompiledMacro)
         )
         // Skip merged precompiled libraries from merging into the runnable binary
@@ -403,10 +403,14 @@ public class GraphTraverser: GraphTraversing {
         )
 
         // Exclude any products embed in unit test host apps
-        if target.target.product == .unitTests, let hostApp = unitTestHost(path: path, name: name) {
-            references.subtract(
-                embeddableFrameworks(path: hostApp.path, name: hostApp.target.name)
-            )
+        if target.target.product == .unitTests {
+            if let hostApp = unitTestHost(path: path, name: name) {
+                references.subtract(
+                    embeddableFrameworks(path: hostApp.path, name: hostApp.target.name)
+                )
+            } else {
+                references = Set()
+            }
         }
 
         return references
@@ -1578,7 +1582,7 @@ extension GraphDependency {
         if case let .xcframework(xcframework) = self { xcframework } else { nil }
     }
 
-    fileprivate var isPrecompiledAndLinkable: Bool {
+    private var isPrecompiledAndLinkable: Bool {
         if case .xcframework = self { true } else { isPrecompiledDynamicAndLinkable }
     }
 }

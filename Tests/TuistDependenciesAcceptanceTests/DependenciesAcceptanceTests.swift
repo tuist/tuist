@@ -44,6 +44,15 @@ final class DependenciesAcceptanceTestAppAlamofire: TuistAcceptanceTestCase {
     }
 }
 
+final class DependenciesAcceptanceTestAppPocketSVG: TuistAcceptanceTestCase {
+    func test_app_with_pocket_svg() async throws {
+        try await setUpFixture(.appWithPocketSVG)
+        try await run(InstallCommand.self)
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self, "App")
+    }
+}
+
 final class DependenciesAcceptanceTestAppRegistryAndAlamofire: ServerAcceptanceTestCase {
     func test_app_with_registry_and_alamofire() async throws {
         try await setUpFixture(.appWithRegistryAndAlamofire)
@@ -63,6 +72,15 @@ final class DependenciesAcceptanceTestAppRegistryAndAlamofireAsXcodePackage: Ser
         try await setUpFixture(.appWithRegistryAndAlamofireAsXcodePackage)
         try await run(RegistrySetupCommand.self)
         try await run(RegistryLoginCommand.self)
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self, "App")
+    }
+}
+
+final class DependenciesAcceptanceTestAppSBTUITestTunnel: TuistAcceptanceTestCase {
+    func test_app_with_sbtuitesttunnel() async throws {
+        try await setUpFixture(.appWithSBTUITestTunnel)
+        try await run(InstallCommand.self)
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self, "App")
     }

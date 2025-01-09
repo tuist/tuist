@@ -118,7 +118,7 @@ final class GenerateAcceptanceTestiOSAppWithFrameworkAndResources: TuistAcceptan
             "StaticFramework3_StaticFramework3.bundle",
             "StaticFramework4_StaticFramework4.bundle",
         ] {
-            try await XCTAssertProductWithDestinationDoesNotContainResource(
+            try await XCTAssertProductWithDestinationContainsResource(
                 "App.app",
                 destination: "Debug-iphonesimulator",
                 resource: resource
@@ -140,12 +140,12 @@ final class GenerateAcceptanceTestiOSAppWithFrameworkAndResources: TuistAcceptan
             resource: "StaticFramework2Resources-tuist.png"
         )
         try await XCTAssertProductWithDestinationContainsResource(
-            "App.app/Frameworks/StaticFramework3.framework",
+            "StaticFramework3_StaticFramework3.bundle",
             destination: "Debug-iphonesimulator",
             resource: "StaticFramework3Resources-tuist.png"
         )
         try await XCTAssertProductWithDestinationContainsResource(
-            "App.app/Frameworks/StaticFramework4.framework",
+            "StaticFramework4_StaticFramework4.bundle",
             destination: "Debug-iphonesimulator",
             resource: "StaticFramework4Resources-tuist.png"
         )
@@ -1164,9 +1164,9 @@ final class GenerateAcceptanceTestAppWithMacBundle: TuistAcceptanceTestCase {
         try await run(BuildCommand.self, "App", "--platform", "ios")
 
         try await XCTAssertProductWithDestinationContainsResource(
-            "App.app/Contents/Frameworks/ResourcesFramework.framework",
+            "App.app",
             destination: "Debug-maccatalyst",
-            resource: "greeting.txt"
+            resource: "Resources/ResourcesFramework_ResourcesFramework.bundle"
         )
         try await XCTAssertProductWithDestinationDoesNotContainResource(
             "App.app",
