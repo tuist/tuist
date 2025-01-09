@@ -45,6 +45,7 @@ public class MockFileSystem: FileSysteming {
     public var copyOverride: ((AbsolutePath, AbsolutePath) async throws -> Void) = { _, _ in }
     public var locateTraversingUpOverride: ((AbsolutePath, RelativePath) async throws -> AbsolutePath?) = { _, _ in return nil }
     public var createSymbolicLinkOverride: ((AbsolutePath, AbsolutePath) async throws -> Void) = { _, _ in }
+    public var createRelativeSymbolicLinkOverride: ((AbsolutePath, RelativePath) async throws -> Void) = { _, _ in }
     public var resolveSymbolicLinkOverride: ((AbsolutePath) async throws -> AbsolutePath) = { symlinkPath in return symlinkPath }
     public var zipFileOrDirectoryContentOverride: ((AbsolutePath, AbsolutePath) async throws -> Void) = { _, _ in }
     public var unzipOverride: ((AbsolutePath, AbsolutePath) async throws -> Void) = { _, _ in }
@@ -167,6 +168,10 @@ public class MockFileSystem: FileSysteming {
 
     public func locateTraversingUp(from: Path.AbsolutePath, relativePath: Path.RelativePath) async throws -> Path.AbsolutePath? {
         try await locateTraversingUpOverride(from, relativePath)
+    }
+
+    public func createSymbolicLink(from: Path.AbsolutePath, to: Path.RelativePath) async throws {
+        try await createRelativeSymbolicLinkOverride(from, to)
     }
 
     public func createSymbolicLink(from: Path.AbsolutePath, to: Path.AbsolutePath) async throws {
