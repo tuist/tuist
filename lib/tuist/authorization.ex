@@ -173,7 +173,7 @@ defmodule Tuist.Authorization do
   end
 
   def can(%User{} = user, :create, %Account{} = account, :token) do
-    Accounts.owns_account_or_is_admin_to_account_organization?(user, account)
+    Accounts.owns_account_or_belongs_to_account_organization?(user, account)
   end
 
   def can(%User{} = user, :read, %Account{} = account, :token) do

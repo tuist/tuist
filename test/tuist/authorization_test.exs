@@ -1273,7 +1273,7 @@ defmodule Tuist.AuthorizationTest do
     Accounts.add_user_to_organization(user, organization, role: :user)
 
     # When
-    assert Authorization.can(user, :create, account, :token) == false
+    assert Authorization.can(user, :create, account, :token) == true
   end
 
   test "can.create.account.token when the subject does not belong to the account organization" do
