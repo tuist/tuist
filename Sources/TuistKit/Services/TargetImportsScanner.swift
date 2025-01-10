@@ -2,7 +2,7 @@ import FileSystem
 import Mockable
 import Path
 import XcodeGraph
-private import struct NIOFileSystem.FileSystemError
+import Foundation
 
 @Mockable
 protocol TargetImportsScanning {
@@ -30,7 +30,7 @@ final class TargetImportsScanner: TargetImportsScanning {
         }
         var imports = Set(
             try await filesToScan.concurrentMap { file in
-                try await self.matchPattern(at: file)
+                try self.matchPattern(at: file)
             }
             .flatMap { $0 }
         )
@@ -38,7 +38,7 @@ final class TargetImportsScanner: TargetImportsScanning {
         return imports
     }
 
-    private func matchPattern(at path: AbsolutePath) async throws -> Set<String> {
+    private func matchPattern(at path: AbsolutePath) throws -> Set<String> {
         let language: ProgrammingLanguage
         switch path.extension {
         case "swift":
@@ -49,27 +49,15 @@ final class TargetImportsScanner: TargetImportsScanning {
             return []
         }
 
-        let sourceCode = try await readFile(at: path)
+        let sourceCode = try readFile(at: path)
         return try importSourceCodeScanner.extractImports(
             from: sourceCode,
             language: language
         )
     }
     
-    private func readFile(at path: AbsolutePath) async throws -> String {
-        do {
-            return try await fileSystem.readTextFile(at: path)
-        } catch let error as NIOFileSystem.FileSystemError where error.code == .unavailable {
-            guard let error = error.cause as? NIOFileSystem.FileSystemError.SystemCallError else {
-                throw error
-            }
-            guard error.errno == .tooManyOpenFiles else {
-                throw error
-            }
-            try await Task.sleep(for: .seconds(1))
-            return try await readFile(at: path)
-        } catch {
-            throw error
-        }
+    private func readFile(at path: AbsolutePath) throws -> String {
+        let encoding = String.Encoding.utf8
+        return try NSString(contentsOfFile: path.pathString, encoding: encoding.rawValue) as String
     }
 }
