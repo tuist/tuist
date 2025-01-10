@@ -58,6 +58,10 @@ let project = Project(
 )
 ```
 
+> [!NOTE]
+> The registry identifier is always in the form of `{scope}.{name}`. The identifier can't contain more than one dot. If the repository name contains a dot, it's replaced with an underscore.
+> For example, the `https://github.com/groue/GRDB.swift` package would have the registry identifier `groue.GRDB_swift`.
+
 ### Tuist project with the XcodeProj-based integration {#tuist-project-with-xcodeproj-based-integration}
 
 If you are using the <LocalizedLink href="/guides/develop/projects/dependencies#tuists-xcodeprojbased-integration">XcodeProj-based integration</LocalizedLink>, you can use the ``--replace-scm-with-registry`` flag to resolve dependencies from the registry if they are available. Add it to the `installOptions` in your `Tuist.swift` file:
@@ -80,6 +84,10 @@ dependencies: [
 ]
 ```
 
+> [!NOTE]
+> The registry identifier is always in the form of `{scope}.{name}`. The identifier can't contain more than one dot. If the repository name contains a dot, it's replaced with an underscore.
+> For example, the `https://github.com/groue/GRDB.swift` package would have the registry identifier `groue.GRDB_swift`.
+
 ### Swift package {#swift-package}
 
 If you are working on a Swift package, you can use the `--replace-scm-with-registry` flag to resolve dependencies from the registry if they are available:
@@ -95,6 +103,10 @@ dependencies: [
 +   .package(id: "pointfreeco.swift-composable-architecture", from: "0.1.0")
 ]
 ```
+
+> [!NOTE]
+> The registry identifier is always in the form of `{scope}.{name}`. The identifier can't contain more than one dot. If the repository name contains a dot, it's replaced with an underscore.
+> For example, the `https://github.com/groue/GRDB.swift` package would have the registry identifier `groue.GRDB_swift`.
 
 ## Continuous Integration (CI) {#continuous-integration-ci}
 
