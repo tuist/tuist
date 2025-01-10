@@ -1,4 +1,5 @@
 defmodule TuistWeb.API.Registry.SwiftControllerTest do
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias Tuist.Accounts.AuthenticatedAccount
   alias TuistWeb.Authentication
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -509,6 +510,47 @@ defmodule TuistWeb.API.Registry.SwiftControllerTest do
 
       # Then
       assert conn.status == 404
+    end
+
+    test "returns version source archive when authenticated as project", %{
+      conn: conn,
+      account: account
+    } do
+      # Given
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+      conn =
+        conn
+        |> Authentication.put_current_authenticated_account(nil)
+        |> Authentication.put_current_project(project)
+
+      package = PackagesFixtures.package_fixture(scope: "Alamofire", name: "Alamofire")
+
+      PackagesFixtures.package_release_fixture(
+        package_id: package.id,
+        version: "5.0.0"
+      )
+
+      Storage
+      |> stub(:object_exists?, fn "registry/swift/alamofire/alamofire/5.0.0/source_archive.zip" ->
+        true
+      end)
+
+      source_archive_content = "Source archive content"
+
+      Storage
+      |> stub(:stream_object, fn _ ->
+        Stream.map([source_archive_content], fn chunk -> chunk end)
+      end)
+
+      # When
+      conn =
+        conn
+        |> get(~p"/api/accounts/#{account.name}/registry/swift/Alamofire/Alamofire/5.0.0.zip")
+
+      # Then
+      assert response(conn, 200) =~ source_archive_content
+      assert get_resp_header(conn, "content-type") == ["application/zip; charset=utf-8"]
     end
   end
 

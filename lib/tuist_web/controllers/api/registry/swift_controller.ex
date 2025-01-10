@@ -1,6 +1,8 @@
 defmodule TuistWeb.API.Registry.SwiftController do
   use TuistWeb, :controller
   import Plug.Conn
+  alias Tuist.Projects.Project
+  alias TuistWeb.Authentication
   alias Tuist.Registry.Swift.Packages.Package
   alias Tuist.Registry.Swift.Packages.PackageManifest
   alias Tuist.Registry.Swift.Packages.PackageRelease
@@ -238,14 +240,19 @@ defmodule TuistWeb.API.Registry.SwiftController do
   end
 
   def download_release(
-        %{assigns: %{current_authenticated_account: %AuthenticatedAccount{account: account}}} =
-          conn,
+        conn,
         %{
           "scope" => scope,
           "name" => name,
           "version" => version
         }
       ) do
+    account =
+      case conn |> Authentication.authenticated_subject() do
+        %Project{} = project -> project |> Tuist.Repo.preload(:account) |> Map.get(:account)
+        %AuthenticatedAccount{account: account} -> account
+      end
+
     package = Packages.get_package_by_scope_and_name(%{scope: scope, name: name})
 
     object_key =
