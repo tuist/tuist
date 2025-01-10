@@ -16,7 +16,7 @@ public enum ServerClientAuthenticationError: FatalError, Equatable {
     public var description: String {
         switch self {
         case .notAuthenticated:
-            return "You must be logged in to do this."
+            return "You must be logged in to do this. To log in, run 'tuist auth login'."
         }
     }
 }
