@@ -2,6 +2,7 @@ import FileSystem
 import Mockable
 import Path
 import XcodeGraph
+private import struct NIOFileSystem.FileSystemError
 
 @Mockable
 protocol TargetImportsScanning {
@@ -48,10 +49,27 @@ final class TargetImportsScanner: TargetImportsScanning {
             return []
         }
 
-        let sourceCode = try await fileSystem.readTextFile(at: path)
+        let sourceCode = try await readFile(at: path)
         return try importSourceCodeScanner.extractImports(
             from: sourceCode,
             language: language
         )
+    }
+    
+    private func readFile(at path: AbsolutePath) async throws -> String {
+        do {
+            return try await fileSystem.readTextFile(at: path)
+        } catch let error as NIOFileSystem.FileSystemError where error.code == .unavailable {
+            guard let error = error.cause as? NIOFileSystem.FileSystemError.SystemCallError else {
+                throw error
+            }
+            guard error.errno == .tooManyOpenFiles else {
+                throw error
+            }
+            try await Task.sleep(for: .seconds(1))
+            return try await readFile(at: path)
+        } catch {
+            throw error
+        }
     }
 }
