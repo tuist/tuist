@@ -3,7 +3,13 @@ defmodule Tuist.Registry.Swift.Workers.UpdatePackageReleasesWorker do
   A worker that updates Swift package releases.
   """
   alias Tuist.Environment
-  use Oban.Worker
+
+  use Oban.Worker,
+    unique: [
+      period: :infinity,
+      states: [:available, :scheduled, :executing, :retryable]
+    ],
+    max_attempts: 3
 
   alias Tuist.Time
   alias Tuist.Registry.Swift.Packages
