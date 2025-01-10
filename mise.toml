@@ -15,5 +15,5 @@ create-dmg = "https://github.com/tuist/asdf-create-dmg.git"
 
 [settings]
 jobs = 6
-http_timeout = "60"
+http_timeout = 60
 experimental = true
