@@ -3,6 +3,7 @@ defmodule Tuist.Registry.Swift.Workers.UpdatePackageReleasesWorker do
   A worker that updates Swift package releases.
   """
   alias Tuist.Environment
+  import Environment, only: [run_if_error_tracking_enabled: 1]
 
   use Oban.Worker,
     unique: [
@@ -26,6 +27,16 @@ defmodule Tuist.Registry.Swift.Workers.UpdatePackageReleasesWorker do
       })
 
     for package <- packages do
+      run_if_error_tracking_enabled do
+        Appsignal.Span.set_sample_data(
+          Appsignal.Tracer.root_span(),
+          "tags",
+          %{
+            package: package.scope <> "/" <> package.name
+          }
+        )
+      end
+
       Packages.create_missing_package_releases(%{
         package: package,
         token: Environment.github_token_update_package_releases()
