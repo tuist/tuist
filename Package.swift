@@ -512,7 +512,7 @@ let package = Package(
         ),
         .package(url: "https://github.com/tuist/Path", .upToNextMajor(from: "0.3.0")),
         .package(
-            url: "https://github.com/tuist/XcodeGraph.git", branch: "revert/supports-resources"
+            url: "https://github.com/tuist/XcodeGraph.git", exact: "1.3.2"
         ),
         .package(url: "https://github.com/tuist/FileSystem.git", .upToNextMajor(from: "0.6.17")),
         .package(url: "https://github.com/tuist/Command.git", exact: "0.8.0"),
