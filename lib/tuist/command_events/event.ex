@@ -15,6 +15,7 @@ defmodule Tuist.CommandEvents.Event do
       :project_id,
       :name,
       :git_commit_sha,
+      :git_ref,
       :git_branch,
       :preview_display_name,
       :preview_bundle_identifier,

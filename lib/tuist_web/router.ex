@@ -168,6 +168,10 @@ defmodule TuistWeb.Router do
         get "/", ProjectsController, :show
         put "/", ProjectsController, :update
 
+        scope "/runs" do
+          get "/", RunsController, :index
+        end
+
         scope "/previews" do
           post "/start", PreviewsController, :multipart_start
           post "/generate-url", PreviewsController, :multipart_generate_url
