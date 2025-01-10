@@ -1,5 +1,5 @@
 {
-  "originHash" : "d6444981d701f7aa8db678d455ef339a98264a3d458b912df6de7289098a2086",
+  "originHash" : "4bdc4a039e65def1fe1c6f10346358f9ac749297da482555d002c8151bd078f6",
   "pins" : [
     {
       "identity" : "aexml",
@@ -51,8 +51,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/FileSystem.git",
       "state" : {
-        "revision" : "e26c0940dec44ccfc5b412cd851403fade675048",
-        "version" : "0.6.17"
+        "revision" : "f5f8b0be3bc2647f37f6aa176d8f0f7dd5cb4252",
+        "version" : "0.7.0"
       }
     },
     {
@@ -231,8 +231,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-log.git",
       "state" : {
-        "revision" : "9cb486020ebf03bfa5b5df985387a14a98744537",
-        "version" : "1.6.1"
+        "revision" : "96a2f8a0fa41e9e09af4585e2724c4e825410b91",
+        "version" : "1.6.2"
       }
     },
     {
