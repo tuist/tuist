@@ -3,6 +3,7 @@
 @import "./app/layouts.css";
 @import "./app/components.css";
 @import "./app/pages.css";
+@import "./app/noora.css";
 
 body {
   margin: 0;

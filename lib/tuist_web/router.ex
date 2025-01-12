@@ -5,6 +5,7 @@ defmodule TuistWeb.Router do
   import TuistWeb.Authorization
   import TuistWeb.RateLimit
   import Phoenix.LiveDashboard.Router
+  import PhoenixStorybook.Router
   import Redirect
 
   use ErrorTracker.Web, :router
@@ -71,6 +72,10 @@ defmodule TuistWeb.Router do
 
   pipeline :analytics do
     plug TuistWeb.AnalyticsPlug, :track_page_view
+  end
+
+  scope "/" do
+    storybook_assets()
   end
 
   # Marketing
@@ -261,6 +266,12 @@ defmodule TuistWeb.Router do
   # Ops Routes
   pipeline :ops do
     plug TuistWeb.Authorization, [:current_user, :read, :ops]
+  end
+
+  scope "/" do
+    pipe_through [:browser_app, :ops]
+
+    live_storybook "/ops/storybook", backend_module: TuistWeb.Storybook
   end
 
   scope "/ops" do
