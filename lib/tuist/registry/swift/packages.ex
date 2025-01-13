@@ -75,7 +75,9 @@ defmodule Tuist.Registry.Swift.Packages do
     })
     |> Enum.map(& &1.name)
     |> Enum.filter(fn version ->
-      Regex.match?(~r/^v?\d+\.\d+\.\d+$/, version) and
+      # Matches semantic version as per: https://semver.org/
+      # Examples: 1.0.0, 1.0.0-alpha, 1.0.0-alpha.1
+      Regex.match?(~r/^v?\d+\.\d+\.\d+[0-9A-Za-z-]*(\.[0-9A-Za-z]*)?$/, version) and
         not Enum.any?(package.package_releases, &(&1.version == semantic_version(version)))
     end)
     |> Enum.uniq_by(&semantic_version(&1))
@@ -89,8 +91,20 @@ defmodule Tuist.Registry.Swift.Packages do
   end
 
   defp semantic_version(version) do
-    version
-    |> String.trim_leading("v")
+    version =
+      version
+      |> String.trim_leading("v")
+
+    if String.contains?(version, "-") do
+      [version, pre_release] = String.split(version, "-")
+      # SwiftPM expects between pre-release and build identifier a plus instead of a dot
+      # Semantic version: 1.0.0-alpha.1
+      # SwiftPM version: 1.0.0-alpha+1
+      pre_release_with_replaced_dot = String.replace(pre_release, ".", "+")
+      "#{version}-#{pre_release_with_replaced_dot}"
+    else
+      version
+    end
   end
 
   def create_package_release(%{

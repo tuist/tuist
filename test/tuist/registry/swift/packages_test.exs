@@ -234,6 +234,57 @@ defmodule Tuist.Registry.Swift.PackagesTest do
              ]
     end
 
+    test "creates missing package pre-releases" do
+      # Given
+      package =
+        PackagesFixtures.package_fixture(
+          scope: "Alamofire",
+          name: "Alamofire"
+        )
+
+      Storage
+      |> stub(:put_object, fn
+        "registry/swift/alamofire/alamofire/5.10.2-beta/Package.swift", _ -> :ok
+        "registry/swift/alamofire/alamofire/5.10.2-beta/source_archive.zip", _ -> :ok
+        "registry/swift/alamofire/alamofire/5.10.2-beta+1/Package.swift", _ -> :ok
+        "registry/swift/alamofire/alamofire/5.10.2-beta+1/source_archive.zip", _ -> :ok
+        "registry/swift/alamofire/alamofire/5.10.2-beta+2/Package.swift", _ -> :ok
+        "registry/swift/alamofire/alamofire/5.10.2-beta+2/source_archive.zip", _ -> :ok
+      end)
+
+      VCS
+      |> stub(:get_tags, fn _ ->
+        [
+          %Tag{name: "5.10.2-beta"},
+          %Tag{name: "5.10.2-beta.1"},
+          %Tag{name: "v5.10.2-beta.2"}
+        ]
+      end)
+
+      VCS
+      |> stub(:get_source_archive_by_tag_and_repository_full_handle, fn _ ->
+        {:ok, [{~c"File.swift", "File contents"}]}
+      end)
+
+      VCS
+      |> stub(:get_repository_content, fn _, _ ->
+        {:ok, [%Content{path: "File.swift", content: "content"}]}
+      end)
+
+      Base64
+      |> stub(:decode, fn "content" -> "content" end)
+
+      # When
+      got = Packages.create_missing_package_releases(%{package: package, token: "github_token"})
+
+      # Then
+      assert got |> Enum.map(& &1.version) == [
+               "5.10.2-beta",
+               "5.10.2-beta+1",
+               "5.10.2-beta+2"
+             ]
+    end
+
     test "creates missing package releases Package.swift includes references to binaries" do
       # Given
       package =
