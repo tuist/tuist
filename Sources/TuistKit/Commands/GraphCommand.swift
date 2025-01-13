@@ -111,7 +111,7 @@ public struct GraphCommand: AsyncParsableCommand, HasTrackableParameters {
 }
 
 enum GraphFormat: String, ExpressibleByArgument, CaseIterable {
-    case dot, json, png, svg
+    case dot, json, legacyJSON, png, svg
 }
 
 extension GraphViz.LayoutAlgorithm: ArgumentParser.ExpressibleByArgument {
