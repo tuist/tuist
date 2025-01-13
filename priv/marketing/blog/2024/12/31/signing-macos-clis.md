@@ -64,48 +64,14 @@ TEAM_ID="U6LC622NKF"
 APPLE_ID="..."
 APP_SPECIFIC_PASSWORD="..."
 RAW_JSON=$(xcrun notarytool submit "notarization-bundle.zip" \
+    --wait \
     --apple-id "$APPLE_ID" \
     --team-id "$TEAM_ID" \
     --password "$APP_SPECIFIC_PASSWORD" \
     --output-format json)
 echo "$RAW_JSON"
 SUBMISSION_ID=$(echo "$RAW_JSON" | jq -r '.id')
-echo "Submission ID: $SUBMISSION_ID"
-```
-
-The submission will yield an ID that we can use to poll the status of the submission:
-
-```bash
-while true; do
-    STATUS=$(xcrun notarytool info "$SUBMISSION_ID" \
-        --apple-id "$APPLE_ID" \
-        --team-id "$TEAM_ID" \
-        --password "$APP_SPECIFIC_PASSWORD" \
-        --output-format json | jq -r '.status')
-
-    case $STATUS in
-        "Accepted")
-            echo -e "Notarization succeeded!"
-            break
-            ;;
-        "In Progress")
-            echo "Notarization in progress... waiting 30 seconds"
-            sleep 30
-            ;;
-        "Invalid"|"Rejected")
-            echo "Notarization failed with status: $STATUS"
-            xcrun notarytool log "$SUBMISSION_ID" \
-                --apple-id "$APPLE_ID" \
-                --team-id "$TEAM_ID" \
-                --password "$APP_SPECIFIC_PASSWORD"
-            exit 1
-            ;;
-        *)
-            echo "Unknown status: $STATUS"
-            exit 1
-            ;;
-    esac
-done
+echo "Notarized with submission id: $SUBMISSION_ID"
 ```
 
 Once the submission is accepted, your CLI should be ready to be distributed to the users.
@@ -154,5 +120,3 @@ security import $CERTIFICATE_PATH -P $CERTIFICATE_PASSWORD -A
 ## Conclusion
 
 By following the steps outlined in this guide, you can ensure that your CLI is properly signed and notarized for macOS. This not only helps in preventing security warnings but also builds trust with your users by ensuring that your software is from a verified source. Remember to regularly update your certificates and keep your signing and notarization processes up to date with Apple's guidelines to maintain a smooth user experience.
-
-
