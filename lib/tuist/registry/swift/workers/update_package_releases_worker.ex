@@ -14,6 +14,7 @@ defmodule Tuist.Registry.Swift.Workers.UpdatePackageReleasesWorker do
 
   alias Tuist.Time
   alias Tuist.Registry.Swift.Packages
+  require Logger
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: args}) do
@@ -27,6 +28,8 @@ defmodule Tuist.Registry.Swift.Workers.UpdatePackageReleasesWorker do
       })
 
     for package <- packages do
+      Logger.info("Updating package releases for #{package.scope}/#{package.name}")
+
       run_if_error_tracking_enabled do
         Appsignal.Span.set_sample_data(
           Appsignal.Tracer.root_span(),
