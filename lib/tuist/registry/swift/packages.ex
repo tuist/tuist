@@ -124,11 +124,18 @@ defmodule Tuist.Registry.Swift.Packages do
       end)
       |> Enum.map(fn {file_name, file_content} ->
         cond do
+          # The Swift package manifest needs to be in the root of the repository.
+          List.to_string(file_name) |> String.split("/") |> Enum.count() > 2 ->
+            {file_name, file_content}
+
           List.to_string(file_name) |> String.ends_with?("Package.swift") ->
             {file_name,
              replace_package_by_name_references_with_product_in_package_manifest(file_content)}
 
-          Regex.match?(@alternate_package_manifest_regex, List.to_string(file_name)) ->
+          Regex.match?(
+            @alternate_package_manifest_regex,
+            List.to_string(file_name) |> String.split("/") |> List.last()
+          ) ->
             {file_name,
              replace_package_by_name_references_with_product_in_package_manifest(file_content)}
 

@@ -462,16 +462,19 @@ defmodule Tuist.Registry.Swift.PackagesTest do
       |> stub(:get_source_archive_by_tag_and_repository_full_handle, fn _ ->
         {:ok,
          [
-           {~c"File.swift", "File contents"},
-           {~c"Package.swift", initial_package_manifest_content},
-           {~c"Package@swift-5.9.swift", initial_package_manifest_content}
+           {~c"root/File.swift", "File contents"},
+           {~c"root/Package.swift", initial_package_manifest_content},
+           {~c"root/Package@swift-5.9.swift", initial_package_manifest_content},
+           # Package.swift that's not in the root is not updated
+           {~c"root/Sources/Package.swift", initial_package_manifest_content}
          ]}
       end)
 
       expected_files = [
-        {~c"File.swift", "File contents"},
-        {~c"Package.swift", expected_package_manifest_content},
-        {~c"Package@swift-5.9.swift", expected_package_manifest_content}
+        {~c"root/File.swift", "File contents"},
+        {~c"root/Package.swift", expected_package_manifest_content},
+        {~c"root/Package@swift-5.9.swift", expected_package_manifest_content},
+        {~c"root/Sources/Package.swift", initial_package_manifest_content}
       ]
 
       Zip
@@ -482,15 +485,19 @@ defmodule Tuist.Registry.Swift.PackagesTest do
 
       VCS
       |> stub(:get_repository_content, fn
-        _, [reference: "v5.10.2", path: "Package.swift"] ->
-          {:ok, %Content{path: "Package.swift", content: initial_package_manifest_content}}
+        _, [reference: "v5.10.2", path: "root/Package.swift"] ->
+          {:ok, %Content{path: "root/Package.swift", content: initial_package_manifest_content}}
 
-        _, [reference: "v5.10.2", path: "Package@swift-5.9.swift"] ->
+        _, [reference: "v5.10.2", path: "root/Package@swift-5.9.swift"] ->
           {:ok,
-           %Content{path: "Package@swift-5.9.swift", content: initial_package_manifest_content}}
+           %Content{
+             path: "root/Package@swift-5.9.swift",
+             content: initial_package_manifest_content
+           }}
 
         _, _ ->
-          {:ok, [%Content{path: "Package.swift"}, %Content{path: "Package@swift-5.9.swift"}]}
+          {:ok,
+           [%Content{path: "root/Package.swift"}, %Content{path: "root/Package@swift-5.9.swift"}]}
       end)
 
       # When
