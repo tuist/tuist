@@ -43,7 +43,6 @@ defmodule TuistWeb.Router do
     plug :put_secure_browser_headers
     plug Ueberauth
     plug :fetch_current_user
-    plug TuistWeb.MarketingOrAppRedirectPlug
     plug :content_security_policy
   end
 
@@ -57,12 +56,13 @@ defmodule TuistWeb.Router do
     plug :put_secure_browser_headers
     plug Ueberauth
     plug :fetch_current_user
-    plug TuistWeb.MarketingOrAppRedirectPlug
     plug :content_security_policy
+    plug TuistWeb.OnPremisePlug, :forward_marketing_to_dashboard
   end
 
   pipeline :browser_marketing_feed do
     plug :accepts, ["xml"]
+    plug TuistWeb.OnPremisePlug, :forward_marketing_to_dashboard
   end
 
   pipeline :non_authenticated_api do
@@ -87,8 +87,8 @@ defmodule TuistWeb.Router do
   end
 
   pipeline :on_premise_api do
-    plug TuistWeb.OnPremiseLicensePlug, :api
-    plug TuistWeb.EnsureOnPremiseUsesRecentCLIVersionPlug
+    plug TuistWeb.OnPremisePlug, :api_license_validation
+    plug TuistWeb.OnPremisePlug, :warn_on_outdated_cli
   end
 
   pipeline :analytics do
@@ -102,7 +102,7 @@ defmodule TuistWeb.Router do
   # Marketing
 
   scope "/" do
-    pipe_through [:redirect_to_production_if_on_premise, :browser_marketing_feed]
+    pipe_through [:browser_marketing_feed]
 
     redirect("/rss.xml", "/blog/rss.xml", :permanent, preserve_query_string: true)
 
@@ -124,7 +124,6 @@ defmodule TuistWeb.Router do
 
   scope "/" do
     pipe_through [
-      :redirect_to_production_if_on_premise,
       :open_api,
       :browser_marketing,
       :assign_current_path
@@ -488,13 +487,5 @@ defmodule TuistWeb.Router do
     # Once we iterate on the open-graph tags of the dashboard pages for public projects
     # we should iterate on this to enable indexing for public projects
     conn |> put_resp_header("x-robots-tags", "index, follow")
-  end
-
-  def redirect_to_production_if_on_premise(%{request_path: request_path} = conn, _params) do
-    if Tuist.Environment.on_premise?() do
-      conn |> redirect(external: Tuist.Environment.app_url(path: request_path))
-    else
-      conn
-    end
   end
 end

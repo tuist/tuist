@@ -1,15 +1,53 @@
-defmodule TuistWeb.EnsureOnPremiseUsesRecentCLIVersionPlug do
-  @moduledoc ~S"""
-  This plug ensures that the on-premise version of Tuist is up-to-date with the version of the CLI that is being used.
+defmodule TuistWeb.OnPremisePlug do
+  @moduledoc """
+  This module contains plugs specific to on-premise customers.
   """
   import Plug.Conn
   use TuistWeb, :controller
   alias Tuist.Environment
+  alias Tuist.License
+  alias Tuist.Time
   alias TuistWeb.WarningsHeaderPlug
+  alias TuistWeb.Authentication
 
-  def init(opts), do: opts
+  def init(:api_license_validation), do: :api_license_validation
+  def init(:warn_on_outdated_cli), do: :warn_on_outdated_cli
+  def init(:forward_marketing_to_dashboard), do: :forward_marketing_to_dashboard
 
-  def call(conn, _opts) do
+  def call(conn, opts) do
+    if Environment.on_premise?() do
+      call_on_premise(conn, opts)
+    else
+      conn
+    end
+  end
+
+  def call_on_premise(conn, :api_license_validation) do
+    case License.get_license() do
+      {:ok, %{valid: true, expiration_date: expiration_date}} ->
+        if Date.diff(expiration_date, Time.utc_now()) < 30 do
+          TuistWeb.WarningsHeaderPlug.put_warning(
+            conn,
+            "The license will expire in #{DateTime.diff(expiration_date, Time.utc_now(), :day)} days. Please, contact contact@tuist.io to renovate it."
+          )
+        else
+          conn
+        end
+
+      {:ok, %{valid: true}} ->
+        conn
+
+      _ ->
+        conn
+        |> put_status(422)
+        |> json(%{
+          message: "The license has expired. Please, contact contact@tuist.io to renovate it."
+        })
+        |> halt()
+    end
+  end
+
+  def call_on_premise(conn, :warn_on_outdated_cli) do
     cli_release_date_string =
       conn |> get_req_header("x-tuist-cli-release-date") |> List.first()
 
@@ -57,6 +95,16 @@ defmodule TuistWeb.EnsureOnPremiseUsesRecentCLIVersionPlug do
       end
     else
       conn
+    end
+  end
+
+  def call_on_premise(conn, :forward_marketing_to_dashboard) do
+    current_user = Authentication.current_user(conn)
+
+    if is_nil(current_user) do
+      conn |> redirect(to: ~p"/users/log_in") |> halt()
+    else
+      conn |> redirect(to: Authentication.signed_in_path(current_user)) |> halt()
     end
   end
 end
