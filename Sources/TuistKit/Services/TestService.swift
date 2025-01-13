@@ -370,11 +370,7 @@ final class TestService { // swiftlint:disable:this type_body_length
         let graphTraverser = GraphTraverser(graph: graph)
         let testSchemes = schemes
             .filter {
-                $0.testAction.map { !$0.targets.isEmpty } ?? false || !self.testActionTargets(
-                    for: $0,
-                    testPlanConfiguration: testPlanConfiguration,
-                    graph: graph
-                ).isEmpty
+                !self.testActionTargetReferences(scheme: $0, testPlanConfiguration: testPlanConfiguration).isEmpty
             }
 
         guard shouldRunTest(
@@ -500,11 +496,7 @@ final class TestService { // swiftlint:disable:this type_body_length
 
         let testSchemes = schemes
             .filter {
-                !self.testActionTargets(
-                    for: $0,
-                    testPlanConfiguration: testPlanConfiguration,
-                    graph: graph
-                ).isEmpty
+                !self.testActionTargetReferences(scheme: $0, testPlanConfiguration: testPlanConfiguration).isEmpty
             }
 
         if testSchemes.isEmpty {
@@ -544,14 +536,24 @@ final class TestService { // swiftlint:disable:this type_body_length
         testPlanConfiguration: TestPlanConfiguration?,
         graph: Graph
     ) -> [GraphTarget] {
-        return schemes.flatMap { testActionTargets(for: $0, testPlanConfiguration: testPlanConfiguration, graph: graph) }
+        return schemes
+            .flatMap {
+                testActionTargetReferences(scheme: $0, testPlanConfiguration: testPlanConfiguration)
+            }
+            .compactMap {
+                guard let project = graph.projects[$0.projectPath],
+                      let target = project.targets[$0.name]
+                else {
+                    return nil
+                }
+                return GraphTarget(path: project.path, target: target, project: project)
+            }
     }
-
-    private func testActionTargets(
-        for scheme: Scheme,
-        testPlanConfiguration: TestPlanConfiguration?,
-        graph: Graph
-    ) -> [GraphTarget] {
+    
+    private func testActionTargetReferences(
+        scheme: Scheme,
+        testPlanConfiguration: TestPlanConfiguration?
+    ) -> [TargetReference] {
         let targets =
             if let testPlanConfiguration {
                 scheme.testAction?.testPlans?
@@ -561,15 +563,8 @@ final class TestService { // swiftlint:disable:this type_body_length
             } else {
                 scheme.testAction?.targets.map(\.target) ?? []
             }
-
-        return targets.compactMap {
-            guard let project = graph.projects[$0.projectPath],
-                  let target = project.targets[$0.name]
-            else {
-                return nil
-            }
-            return GraphTarget(path: project.path, target: target, project: project)
-        }
+        
+        return targets
     }
 
     private func storeSuccessfulTestHashes(
