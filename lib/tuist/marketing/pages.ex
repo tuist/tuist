@@ -15,6 +15,7 @@ defmodule Tuist.Marketing.Pages do
     parser: PageParser,
     highlighters: [],
     earmark_options: [
+      smartypants: false,
       postprocessor: &ASTProcessor.process/1
     ]
 

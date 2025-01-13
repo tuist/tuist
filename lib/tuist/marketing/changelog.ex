@@ -14,6 +14,7 @@ defmodule Tuist.Marketing.Changelog do
     parser: EntryParser,
     highlighters: [],
     earmark_options: [
+      smartypants: false,
       postprocessor: &ASTProcessor.process/1
     ]
 

@@ -14,6 +14,7 @@ defmodule Tuist.Marketing.Blog do
     parser: PostParser,
     highlighters: [],
     earmark_options: [
+      smartypants: false,
       postprocessor: &ASTProcessor.process/1
     ]
 
