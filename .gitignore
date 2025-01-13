@@ -75,7 +75,12 @@ playground.xcworkspace
 # End of https://www.gitignore.io/api/swift,macos
 
 **/*.xcodeproj
-**/*.xcworkspace
+**/*.xcworkspace/*
+!**/*.xcworkspace/xcshareddata
+**/*.xcworkspace/xcshareddata/*
+!**/*.xcworkspace/xcshareddata/swiftpm
+**/*.xcworkspace/xcshareddata/swiftpm/*
+!**/*.xcworkspace/xcshareddata/swiftpm/configuration
 .byebug_history
 *.xcarchive
 tmp/

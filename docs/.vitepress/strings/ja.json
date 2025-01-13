@@ -265,14 +265,17 @@
               "items": {
                 "cache": {
                   "text": "キャッシュ"
+                },
+                "registry": {
+                  "text": "Registry"
                 }
               }
             },
             "test": {
               "text": "テスト",
               "items": {
-                "smart-runner": {
-                  "text": "スマートランナー"
+                "selective-testing": {
+                  "text": "Selective testing"
                 },
                 "flakiness": {
                   "text": "Flaky なテスト"

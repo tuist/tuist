@@ -1,5 +1,6 @@
 import Foundation
 import Mockable
+import ServiceContextModule
 
 enum UserInputReaderError: FatalError, Equatable {
     case noValuesProvided(String)
@@ -72,22 +73,22 @@ public struct UserInputReader: UserInputReading {
 
     public func readInt(asking prompt: String, maxValueAllowed: Int) -> Int {
         while true {
-            logger.notice("\(prompt)")
+            ServiceContext.current?.logger?.notice("\(prompt)")
             if let input = reader(true), !input.isEmpty, let intValue = Int(input), intValue < maxValueAllowed {
                 return intValue
             } else {
-                logger.notice("Invalid input. Please enter a valid integer.")
+                ServiceContext.current?.logger?.notice("Invalid input. Please enter a valid integer.")
             }
         }
     }
 
     public func readString(asking prompt: String) -> String {
         while true {
-            logger.notice("\(prompt)")
+            ServiceContext.current?.logger?.notice("\(prompt)")
             if let input = reader(true), !input.isEmpty {
                 return input
             } else {
-                logger.notice("The value is empty. Please, enter a non-empty value.")
+                ServiceContext.current?.logger?.notice("The value is empty. Please, enter a non-empty value.")
             }
         }
     }

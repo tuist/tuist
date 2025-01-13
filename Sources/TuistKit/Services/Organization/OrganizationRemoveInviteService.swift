@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import ServiceContextModule
 import TuistLoader
 import TuistServer
 import TuistSupport
@@ -47,6 +48,7 @@ final class OrganizationRemoveInviteService: OrganizationRemoveInviteServicing {
             serverURL: serverURL
         )
 
-        logger.info("The invitation for \(email) to the \(organizationName) organization was successfully cancelled.")
+        ServiceContext.current?.logger?
+            .info("The invitation for \(email) to the \(organizationName) organization was successfully cancelled.")
     }
 }

@@ -121,6 +121,7 @@ let targets: [Target] = [
             "Mockable",
             "FileSystem",
             "Command",
+            .product(name: "ServiceContextModule", package: "swift-service-context"),
         ],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
@@ -496,7 +497,7 @@ let package = Package(
         .package(url: "https://github.com/tuist/GraphViz.git", exact: "0.4.2"),
         .package(url: "https://github.com/SwiftGen/StencilSwiftKit", exact: "2.10.1"),
         .package(url: "https://github.com/SwiftGen/SwiftGen", exact: "6.6.2"),
-        .package(url: "https://github.com/tuist/XcodeProj", exact: "8.24.4"),
+        .package(url: "https://github.com/tuist/XcodeProj", exact: "8.26.1"),
         .package(url: "https://github.com/cpisciotta/xcbeautify", .upToNextMajor(from: "2.13.0")),
         .package(url: "https://github.com/krzysztofzablocki/Difference.git", from: "1.0.2"),
         .package(url: "https://github.com/Kolos65/Mockable.git", exact: "0.0.11"),
@@ -511,12 +512,14 @@ let package = Package(
         ),
         .package(url: "https://github.com/tuist/Path", .upToNextMajor(from: "0.3.0")),
         .package(
-            url: "https://github.com/tuist/XcodeGraph.git", exact: "1.1.0"
+            url: "https://github.com/tuist/XcodeGraph.git", exact: "1.3.2"
         ),
-        .package(url: "https://github.com/tuist/FileSystem.git", .upToNextMajor(from: "0.6.17")),
+        .package(url: "https://github.com/tuist/FileSystem.git", .upToNextMajor(from: "0.7.0")),
         .package(url: "https://github.com/tuist/Command.git", exact: "0.8.0"),
         .package(url: "https://github.com/sparkle-project/Sparkle.git", from: "2.6.4"),
         .package(url: "https://github.com/apple/swift-collections", .upToNextMajor(from: "1.1.4")),
+        .package(url: "https://github.com/apple/swift-service-context", .upToNextMajor(from: "1.0.0")),
+        .package(url: "https://github.com/chrisaljoudi/swift-log-oslog.git", .upToNextMajor(from: "0.2.2")),
     ],
     targets: targets
 )

@@ -2,6 +2,7 @@ import FileSystem
 import Foundation
 import Mockable
 import Path
+import ServiceContextModule
 import TuistSupport
 import XcodeGraph
 
@@ -193,7 +194,7 @@ public final class XCFrameworkMetadataProvider: PrecompiledMetadataProvider,
             let relativeArchitectureBinaryPath = binaryPath.components.suffix(3).joined(
                 separator: "/"
             )
-            logger
+            ServiceContext.current?.logger?
                 .warning(
                     "\(xcframeworkPath.basename) is missing architecture \(relativeArchitectureBinaryPath) defined in the Info.plist"
                 )

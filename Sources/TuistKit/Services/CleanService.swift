@@ -1,11 +1,11 @@
 import FileSystem
 import Foundation
 import Path
+import ServiceContextModule
 import TuistCore
 import TuistLoader
 import TuistServer
 import TuistSupport
-import XcodeGraph
 
 enum TuistCleanCategory: ExpressibleByArgument, CaseIterable, Equatable {
     static let allCases = CacheCategory.allCases
@@ -125,9 +125,12 @@ final class CleanService {
             {
                 try await fileSystem.remove(directory)
                 try await fileSystem.makeDirectory(at: directory)
-                logger.notice("Successfully cleaned artifacts at path \(directory.pathString)", metadata: .success)
+                ServiceContext.current?.logger?.notice(
+                    "Successfully cleaned artifacts at path \(directory.pathString)",
+                    metadata: .success
+                )
             } else {
-                logger.notice("There's nothing to clean for \(category.defaultValueDescription)")
+                ServiceContext.current?.logger?.notice("There's nothing to clean for \(category.defaultValueDescription)")
             }
         }
 
@@ -140,7 +143,7 @@ final class CleanService {
                 fullHandle: fullHandle
             )
 
-            logger.notice("Successfully cleaned the remote storage.")
+            ServiceContext.current?.logger?.notice("Successfully cleaned the remote storage.")
         }
     }
 }

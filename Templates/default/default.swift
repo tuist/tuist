@@ -50,7 +50,7 @@ let template = Template(
             templatePath: "Gitignore.stencil"
         ),
         .file(
-            path: ".mise.toml",
+            path: "mise.toml",
             templatePath: "mise.stencil"
         ),
     ]

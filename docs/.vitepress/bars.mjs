@@ -245,7 +245,7 @@ export function serverSidebar(locale) {
         locale,
         "sidebars.server.items.api-documentation.text",
       ),
-      link: "https://cloud.tuist.io/api/docs",
+      link: "https://tuist.dev/api/docs",
     },
     {
       text: localizedString(locale, "sidebars.server.items.status.text"),

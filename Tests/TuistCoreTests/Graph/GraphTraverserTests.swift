@@ -819,33 +819,6 @@ final class GraphTraverserTests: TuistUnitTestCase {
         )
     }
 
-    func test_resourceBundleDependencies_skip_mac_bundle() {
-        // Given
-        // App -> Mac Bundle
-        let app = Target.test(name: "App", destinations: [.iPhone, .macCatalyst], product: .app)
-        let bundle = Target.test(name: "MacBundle", platform: .macOS, product: .bundle)
-        let project = Project.test(targets: [app, bundle])
-
-        let dependencies: [GraphDependency: Set<GraphDependency>] = [
-            .target(name: app.name, path: project.path): Set([.target(name: bundle.name, path: project.path)]),
-            .target(name: bundle.name, path: project.path): Set([]),
-        ]
-
-        // Given: Value Graph
-        let graph = Graph.test(
-            path: project.path,
-            projects: [project.path: project],
-            dependencies: dependencies
-        )
-        let subject = GraphTraverser(graph: graph)
-
-        // When
-        let got = subject.resourceBundleDependencies(path: project.path, name: app.name)
-
-        // Then
-        XCTAssertEmpty(got)
-    }
-
     func test_target_from_dependency() {
         // Given
         let app = Target.test(name: "App", product: .app)

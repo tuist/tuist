@@ -1,5 +1,3 @@
-import Foundation
-
 public struct TemplateString: Encodable, Decodable, Equatable {
     /// Contains a string that can be interpolated with options.
     let rawString: String

@@ -1,6 +1,5 @@
 import Command
 import Mockable
-import Path
 import TSCUtility
 import TuistCore
 import TuistSupportTesting

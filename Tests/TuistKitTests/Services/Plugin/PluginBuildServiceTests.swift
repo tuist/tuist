@@ -1,4 +1,3 @@
-import Path
 import TuistSupport
 import TuistSupportTesting
 import XCTest

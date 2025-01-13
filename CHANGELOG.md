@@ -1,5 +1,65 @@
 # Changelog
 
+## 4.39.0 - 2025-01-08
+
+### CLI
+
+#### Changed
+
+- Update deprecation warning message to PackageSettings initializer [#7201](https://github.com/tuist/tuist/pull/7201) by [@sanghyeok-kim](https://github.com/sanghyeok-kim)
+- Temporarily comment out secrets to unblock PRs from forks [#7212](https://github.com/tuist/tuist/pull/7212) by [@fortmarek](https://github.com/fortmarek)
+- Embed static frameworks with bundled resources instead of generating a new bundle [#7006](https://github.com/tuist/tuist/pull/7006) by [@vldalx](https://github.com/vldalx)
+- Allow [.]mise.toml in directories targeted by 'tuist init' [#7186](https://github.com/tuist/tuist/pull/7186) by [@stevelandeyasana](https://github.com/stevelandeyasana)
+- Improve performance of tuist graph command [#7129](https://github.com/tuist/tuist/pull/7129) by [@pavel-trafimuk](https://github.com/pavel-trafimuk)
+- Update outdated note about having to use SPM to run tuist [#7216](https://github.com/tuist/tuist/pull/7216) by [@cschmatzler](https://github.com/cschmatzler)
+- Revert "Temporarily remove comment out secrets to unblock PRs from forks (#7212) [#7224](https://github.com/tuist/tuist/pull/7224) by [@fortmarek](https://github.com/fortmarek)
+- Remove unncessary Foundation imports from ProjectDescription and make the required ones @_implementationOnly [#7207](https://github.com/tuist/tuist/pull/7207) by [@pepicrft](https://github.com/pepicrft)
+
+#### Added
+
+- Add TUIST_CACHE_EXTERNAL_ONLY environment value for `tuist cache` [#7183](https://github.com/tuist/tuist/pull/7183) by [@nathansalaun-sofia](https://github.com/nathansalaun-sofia)
+- Update install-tuist.md, added fish completions docs [#7208](https://github.com/tuist/tuist/pull/7208) by [@EmranMR](https://github.com/EmranMR)
+- Add TestableTarget.parallelization property [#7200](https://github.com/tuist/tuist/pull/7200) by [@fortmarek](https://github.com/fortmarek)
+- Add registry support for Xcode integration of packages in Tuist Projects [#7225](https://github.com/tuist/tuist/pull/7225) by [@fortmarek](https://github.com/fortmarek)
+- Add ability to change account username [#7209](https://github.com/tuist/tuist/pull/7209) by [@cschmatzler](https://github.com/cschmatzler)
+
+#### Fixed
+
+- Fix inspect implicit-imports false positives for external targets [#7213](https://github.com/tuist/tuist/pull/7213) by [@ffittschen](https://github.com/ffittschen)
+- Fix tuist generate for local SPM packages does not respect swift language mode for generated projects  [#7211](https://github.com/tuist/tuist/pull/7211) by [@mihaicris](https://github.com/mihaicris)
+- Fix race condition when running multiple tuist dump commands in parallel [#7222](https://github.com/tuist/tuist/pull/7222) by [@danibachar](https://github.com/danibachar)
+- Embed prebuilt frameworks in unit test target without a host app [#7229](https://github.com/tuist/tuist/pull/7229) by [@fortmarek](https://github.com/fortmarek)
+
+### CLI (Server features)
+
+- no changes
+
+## 4.38.2 - 2024-12-24
+
+### CLI
+
+#### Changed
+
+- Document how to verify the authenticity of binaries [#7184](https://github.com/tuist/tuist/pull/7184) by [@pepicrft](https://github.com/pepicrft)
+
+#### Fixed
+
+- docs: Fix configuration name in xcode-project.md [#7177](https://github.com/tuist/tuist/pull/7177) by [@fortmarek](https://github.com/fortmarek)
+
+### CLI (Server features)
+
+- no changes
+
+## 4.38.1 - 2024-12-18
+
+### CLI
+
+- no changes
+
+### CLI (Server features)
+
+- no changes
+
 ## 4.37.0 - 2024-12-11
 
 ### CLI

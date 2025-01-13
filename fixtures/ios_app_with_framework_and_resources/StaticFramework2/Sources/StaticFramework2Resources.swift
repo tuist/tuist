@@ -24,7 +24,7 @@ extension Bundle {
             ofType: "bundle"
         )
 
-        guard let bundle = path.flatMap({ Bundle(path: $0) }) else {
+        guard let bundle = path.flatMap(Bundle.init(path:)) else {
             fatalError("StaticFramework2Resources could not be loaded")
         }
 

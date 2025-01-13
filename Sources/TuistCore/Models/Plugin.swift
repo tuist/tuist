@@ -1,5 +1,4 @@
 import Foundation
-import Path
 
 /// A `Plugin` used to extend Tuist.
 public struct Plugin: Equatable, Hashable {

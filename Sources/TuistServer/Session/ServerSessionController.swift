@@ -1,5 +1,6 @@
 import Foundation
 import Mockable
+import ServiceContextModule
 import TuistSupport
 
 /// Type of device code used for authentication.
@@ -13,6 +14,23 @@ public enum DeviceCodeType {
             "app"
         case .cli:
             "cli"
+        }
+    }
+}
+
+public enum ServerSessionControllerError: Equatable, FatalError {
+    case unauthenticated
+
+    public var type: TuistSupport.ErrorType {
+        switch self {
+        case .unauthenticated: .abort
+        }
+    }
+
+    public var description: String {
+        switch self {
+        case .unauthenticated:
+            "You are not logged in. Run 'tuist auth login'."
         }
     }
 }
@@ -32,8 +50,11 @@ public protocol ServerSessionControlling: AnyObject {
         onAuthWaitBegin: @escaping () -> Void
     ) async throws
 
-    /// - Returns: Account handle for the signed-in user for the server with the given URL
+    /// - Returns: Account handle for the signed-in user for the server with the given URL. Returns nil if no user is logged in.
     func whoami(serverURL: URL) async throws -> String?
+
+    /// - Returns: Account handle for the signed-in user for the server with the given URL. Throws if no user is logged in.
+    func authenticatedHandle(serverURL: URL) async throws -> String
 
     /// Removes the session for the server with the given URL.
     /// - Parameter serverURL: Server URL.
@@ -112,7 +133,7 @@ public final class ServerSessionController: ServerSessionControlling {
             refreshToken: tokens.refreshToken
         )
         try await credentialsStore.store(credentials: credentials, serverURL: serverURL)
-        logger.notice("Credentials stored successfully", metadata: .success)
+        ServiceContext.current?.logger?.notice("Credentials stored successfully", metadata: .success)
     }
 
     public func whoami(serverURL: URL) async throws -> String? {
@@ -125,9 +146,24 @@ public final class ServerSessionController: ServerSessionControlling {
         }
     }
 
+    public func authenticatedHandle(serverURL: URL) async throws -> String {
+        guard let token = try await serverAuthenticationController.authenticationToken(serverURL: serverURL) else {
+            throw ServerSessionControllerError.unauthenticated
+        }
+        switch token {
+        case let .user(legacyToken: _, accessToken: accessToken, refreshToken: _):
+            guard let username = accessToken?.preferredUsername else {
+                throw ServerSessionControllerError.unauthenticated
+            }
+            return username
+        case .project:
+            throw ServerSessionControllerError.unauthenticated
+        }
+    }
+
     public func logout(serverURL: URL) async throws {
         try await credentialsStore.delete(serverURL: serverURL)
-        logger.notice("Successfully logged out.", metadata: .success)
+        ServiceContext.current?.logger?.notice("Successfully logged out.", metadata: .success)
     }
 
     private func getAuthTokens(

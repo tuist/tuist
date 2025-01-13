@@ -1,12 +1,12 @@
 import Foundation
 import Mockable
 import Path
+import ServiceContextModule
 import TuistCache
 import TuistCore
 import TuistLoader
 import TuistServer
 import TuistSupport
-import XcodeGraph
 import XcodeProj
 import XCTest
 @testable import TuistCoreTesting
@@ -144,32 +144,34 @@ final class GenerateServiceTests: TuistUnitTestCase {
     }
 
     func test_run_timeIsPrinted() async throws {
-        // Given
-        let workspacePath = try AbsolutePath(validating: "/test.xcworkspace")
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            let workspacePath = try AbsolutePath(validating: "/test.xcworkspace")
 
-        given(opener)
-            .open(path: .any)
-            .willReturn()
+            given(opener)
+                .open(path: .any)
+                .willReturn()
 
-        given(generator)
-            .generateWithGraph(path: .any)
-            .willReturn((workspacePath, .test(), MapperEnvironment()))
-        clock.assertOnUnexpectedCalls = true
-        clock.primedTimers = [
-            0.234,
-        ]
+            given(generator)
+                .generateWithGraph(path: .any)
+                .willReturn((workspacePath, .test(), MapperEnvironment()))
+            clock.assertOnUnexpectedCalls = true
+            clock.primedTimers = [
+                0.234,
+            ]
 
-        // When
-        try await subject.run(
-            path: nil,
-            sources: [],
-            noOpen: false,
-            configuration: nil,
-            ignoreBinaryCache: false,
-            analyticsDelegate: analyticsDelegate
-        )
+            // When
+            try await subject.run(
+                path: nil,
+                sources: [],
+                noOpen: false,
+                configuration: nil,
+                ignoreBinaryCache: false,
+                analyticsDelegate: analyticsDelegate
+            )
 
-        // Then
-        XCTAssertPrinterOutputContains("Total time taken: 0.234s")
+            // Then
+            XCTAssertPrinterOutputContains("Total time taken: 0.234s")
+        }
     }
 }

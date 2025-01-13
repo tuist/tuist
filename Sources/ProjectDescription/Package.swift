@@ -6,10 +6,12 @@
 ///     - local: A relative path to the package.
 public enum Package: Equatable, Codable, Sendable {
     case remote(url: String, requirement: Requirement)
+    case registry(identifier: String, requirement: Requirement)
     case local(path: Path)
 
     private enum Kind: String, Codable {
         case remote
+        case registry
         case local
     }
 }
@@ -62,7 +64,7 @@ extension Package {
     ///
     /// - Parameters:
     ///     - url: The valid Git URL of the package.
-    ///     - requirement: A dependency requirement. See static methods on `Package.Dependency.Requirement` for available options.
+    ///     - requirement: A dependency requirement. See static methods on `Package.Requirement` for available options.
     public static func package(url: String, _ requirement: Package.Requirement) -> Package {
         .remote(url: url, requirement: requirement)
     }
@@ -114,6 +116,113 @@ extension Package {
     /// - Parameter path: The path of the package.
     public static func package(path: Path) -> Package {
         .local(path: path)
+    }
+
+    /// Adds a package dependency that uses the version requirement, starting with the given minimum version,
+    /// going up to the next major version.
+    ///
+    /// This is the recommended way to specify a remote package dependency.
+    /// It allows you to specify the minimum version you require, allows updates that include bug fixes
+    /// and backward-compatible feature updates, but requires you to explicitly update to a new major version of the dependency.
+    /// This approach provides the maximum flexibility on which version to use,
+    /// while making sure you don't update to a version with breaking changes,
+    /// and helps to prevent conflicts in your dependency graph.
+    ///
+    /// The following example allows the Swift Package Manager to select a version
+    /// like a  `1.2.3`, `1.2.4`, or `1.3.0`, but not `2.0.0`.
+    ///
+    /// ```swift
+    /// .package(id: "scope.name", from: "1.2.3"),
+    /// ```
+    ///
+    /// - Parameters:
+    ///   - id: The identity of the package.
+    ///   - version: The minimum version requirement.
+    ///
+    /// - Returns: A `Package` instance.
+    public static func package(id: String, from version: Version) -> Package {
+        .registry(identifier: id, requirement: .upToNextMajor(from: version))
+    }
+
+    /// Adds a package dependency that uses the exact version requirement.
+    ///
+    /// Specifying exact version requirements are not recommended as
+    /// they can cause conflicts in your dependency graph when multiple other packages depend on a package.
+    /// Because Swift packages follow the semantic versioning convention,
+    /// think about specifying a version range instead.
+    ///
+    /// The following example instructs the Swift Package Manager to use version `1.2.3`.
+    ///
+    /// ```swift
+    /// .package(id: "scope.name", exact: "1.2.3"),
+    /// ```
+    ///
+    /// - Parameters:
+    ///   - id: The identity of the package.
+    ///   - version: The exact version of the dependency for this requirement.
+    ///
+    /// - Returns: A `Package` instance.
+    public static func package(id: String, exact version: Version) -> Package {
+        .registry(identifier: id, requirement: .exact(version))
+    }
+
+    /// Adds a package dependency starting with a specific minimum version, up to
+    /// but not including a specified maximum version.
+    ///
+    /// The following example allows the Swift Package Manager to pick
+    /// versions `1.2.3`, `1.2.4`, `1.2.5`, but not `1.2.6`.
+    ///
+    /// ```swift
+    /// .package(id: "scope.name", "1.2.3"..<"1.2.6"),
+    /// ```
+    ///
+    /// The following example allows the Swift Package Manager to pick
+    /// versions between 1.0.0 and 2.0.0
+    ///
+    /// ```swift
+    /// .package(id: "scope.name", .upToNextMajor(from: "1.0.0")),
+    /// ```
+    ///
+    /// The following example allows the Swift Package Manager to pick
+    /// versions between 1.0.0 and 1.1.0
+    ///
+    /// ```swift
+    /// .package(id: "scope.name", .upToNextMinor(from: "1.0.0")),
+    /// ```
+    ///
+    /// - Parameters:
+    ///   - id: The identity of the package.
+    ///   - range: The custom version range requirement.
+    ///
+    /// - Returns: A `Package` instance.
+    public static func package(id: String, _ range: Range<Version>) -> Package {
+        .registry(identifier: id, requirement: .range(from: range.lowerBound, to: range.upperBound))
+    }
+
+    /// Adds a package dependency starting with a specific minimum version, going
+    /// up to and including a specific maximum version.
+    ///
+    /// The following example allows the Swift Package Manager to pick
+    /// versions 1.2.3, 1.2.4, 1.2.5, as well as 1.2.6.
+    ///
+    /// ```swift
+    /// .package(id: "scope.name", "1.2.3"..."1.2.6"),
+    /// ```
+    ///
+    /// - Parameters:
+    ///   - id: The identity of the package.
+    ///   - range: The closed version range requirement.
+    ///
+    /// - Returns: A `Package` instance.
+    public static func package(id: String, _ range: ClosedRange<Version>) -> Package {
+        // Increase upperbound's patch version by one.
+        let upper = range.upperBound
+        let upperBound = Version(
+            upper.major, upper.minor, upper.patch + 1,
+            prereleaseIdentifiers: upper.prereleaseIdentifiers,
+            buildMetadataIdentifiers: upper.buildMetadataIdentifiers
+        )
+        return .registry(identifier: id, requirement: .range(from: range.lowerBound, to: upperBound))
     }
 }
 

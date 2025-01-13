@@ -3,6 +3,7 @@ import FileSystem
 import Foundation
 import Mockable
 import Path
+import ServiceContextModule
 import TuistSupport
 import XcodeGraph
 
@@ -84,7 +85,7 @@ public final class DeviceController: DeviceControlling {
         at path: AbsolutePath,
         device: PhysicalDevice
     ) async throws {
-        logger.debug("Installing app at \(path) on simulator device with id \(device.id)")
+        ServiceContext.current?.logger?.debug("Installing app at \(path) on simulator device with id \(device.id)")
         do {
             _ = try await commandRunner.run(
                 arguments: [
@@ -108,7 +109,8 @@ public final class DeviceController: DeviceControlling {
         bundleId: String,
         device: PhysicalDevice
     ) async throws {
-        logger.debug("Launching app with bundle id \(bundleId) on a physical device with id \(device.id)")
+        ServiceContext.current?.logger?
+            .debug("Launching app with bundle id \(bundleId) on a physical device with id \(device.id)")
         _ = try await commandRunner.run(
             arguments: [
                 "/usr/bin/xcrun", "devicectl",

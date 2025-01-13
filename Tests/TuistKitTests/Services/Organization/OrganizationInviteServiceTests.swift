@@ -1,10 +1,10 @@
 import Foundation
 import Mockable
+import ServiceContextModule
 import TuistLoader
 import TuistServer
 import TuistSupport
 import TuistSupportTesting
-import XcodeGraph
 import XCTest
 @testable import TuistKit
 
@@ -36,32 +36,34 @@ final class OrganizationInviteServiceTests: TuistUnitTestCase {
     }
 
     func test_invite() async throws {
-        // Given
-        given(createOrganizationInviteService)
-            .createOrganizationInvite(
-                organizationName: .value("tuist"),
-                email: .value("tuist@test.io"),
-                serverURL: .value(serverURL)
-            )
-            .willReturn(
-                .test(
-                    inviteeEmail: "tuist@test.io",
-                    token: "invitation-token"
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            given(createOrganizationInviteService)
+                .createOrganizationInvite(
+                    organizationName: .value("tuist"),
+                    email: .value("tuist@test.io"),
+                    serverURL: .value(serverURL)
                 )
+                .willReturn(
+                    .test(
+                        inviteeEmail: "tuist@test.io",
+                        token: "invitation-token"
+                    )
+                )
+
+            // When
+            try await subject.run(
+                organizationName: "tuist",
+                email: "tuist@test.io",
+                directory: nil
             )
 
-        // When
-        try await subject.run(
-            organizationName: "tuist",
-            email: "tuist@test.io",
-            directory: nil
-        )
+            // Then
+            XCTAssertPrinterOutputContains("""
+            tuist@test.io was successfully invited to the tuist organization 🎉
 
-        // Then
-        XCTAssertPrinterOutputContains("""
-        tuist@test.io was successfully invited to the tuist organization 🎉
-
-        You can also share with them the invite link directly: \(serverURL.absoluteString)/auth/invitations/invitation-token
-        """)
+            You can also share with them the invite link directly: \(serverURL.absoluteString)/auth/invitations/invitation-token
+            """)
+        }
     }
 }

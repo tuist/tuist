@@ -1,5 +1,4 @@
 import Foundation
-import Path
 import ProjectDescription
 import TuistCore
 import XcodeGraph
@@ -31,10 +30,16 @@ extension XcodeGraph.TestableTarget {
             }
         }
 
+        let parallelization: XcodeGraph.TestableTarget.Parallelization = switch manifest.parallelization {
+        case .disabled: .none
+        case .swiftTestingOnly: .swiftTestingOnly
+        case .enabled: .all
+        }
+
         return TestableTarget(
             target: target,
             skipped: manifest.isSkipped,
-            parallelizable: manifest.isParallelizable,
+            parallelization: parallelization,
             randomExecutionOrdering: manifest.isRandomExecutionOrdering,
             simulatedLocation: simulatedLocation
         )

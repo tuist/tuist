@@ -2,6 +2,7 @@ import FileSystem
 import Foundation
 import Path
 import PathKit
+import ServiceContextModule
 import TuistSupport
 import XcodeProj
 
@@ -57,7 +58,7 @@ public final class SettingsToXCConfigExtractor: SettingsToXCConfigExtracting {
         let buildConfigurations = try buildConfigurations(pbxproj: pbxproj, targetName: targetName)
 
         if buildConfigurations.isEmpty {
-            logger.notice("The list of configurations is empty. Exiting...")
+            ServiceContext.current?.logger?.notice("The list of configurations is empty. Exiting...")
             return
         }
 
@@ -99,7 +100,10 @@ public final class SettingsToXCConfigExtractor: SettingsToXCConfigExtracting {
             buildSettingsLines.sorted().joined(separator: "\n"),
         ].joined(separator: "\n\n")
         try FileHandler.shared.write(buildSettingsContent, path: xcconfigPath, atomically: true)
-        logger.notice("Build settings successfully extracted into \(xcconfigPath.pathString)", metadata: .success)
+        ServiceContext.current?.logger?.notice(
+            "Build settings successfully extracted into \(xcconfigPath.pathString)",
+            metadata: .success
+        )
     }
 
     private func buildConfigurations(pbxproj: PBXProj, targetName: String?) throws -> [XCBuildConfiguration] {

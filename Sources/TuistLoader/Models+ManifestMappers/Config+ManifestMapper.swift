@@ -4,7 +4,6 @@ import ProjectDescription
 import TSCUtility
 import TuistCore
 import TuistSupport
-import XcodeGraph
 
 enum ConfigManifestMapperError: FatalError {
     /// Thrown when the server URL is invalid.

@@ -1,13 +1,12 @@
 import Foundation
 import Mockable
-import Path
+import ServiceContextModule
 import TuistCore
 import TuistCoreTesting
 import TuistLoader
 import TuistLoaderTesting
 import TuistServer
 import TuistSupport
-import XcodeGraph
 import XCTest
 @testable import TuistKit
 @testable import TuistSupportTesting
@@ -81,130 +80,136 @@ final class LoginServiceTests: TuistUnitTestCase {
     }
 
     func test_authenticate_when_password_is_provided() async throws {
-        // Given
-        given(userInputReader)
-            .readString(asking: .value("Email:"))
-            .willReturn("email@tuist.io")
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            given(userInputReader)
+                .readString(asking: .value("Email:"))
+                .willReturn("email@tuist.io")
 
-        given(serverCredentialsStore)
-            .store(
-                credentials: .value(
-                    ServerCredentials(
-                        token: nil,
+            given(serverCredentialsStore)
+                .store(
+                    credentials: .value(
+                        ServerCredentials(
+                            token: nil,
+                            accessToken: "access-token",
+                            refreshToken: "refresh-token"
+                        )
+                    ),
+                    serverURL: .any
+                )
+                .willReturn()
+
+            given(authenticateService)
+                .authenticate(
+                    email: .value("email@tuist.io"),
+                    password: .value("password"),
+                    serverURL: .value(serverURL)
+                )
+                .willReturn(
+                    ServerAuthenticationTokens(
                         accessToken: "access-token",
                         refreshToken: "refresh-token"
                     )
-                ),
-                serverURL: .any
-            )
-            .willReturn()
-
-        given(authenticateService)
-            .authenticate(
-                email: .value("email@tuist.io"),
-                password: .value("password"),
-                serverURL: .value(serverURL)
-            )
-            .willReturn(
-                ServerAuthenticationTokens(
-                    accessToken: "access-token",
-                    refreshToken: "refresh-token"
                 )
+
+            // When
+            try await subject.run(
+                email: nil,
+                password: "password",
+                directory: nil
             )
 
-        // When
-        try await subject.run(
-            email: nil,
-            password: "password",
-            directory: nil
-        )
-
-        // Then
-        XCTAssertStandardOutput(pattern: "Successfully logged in.")
+            // Then
+            XCTAssertStandardOutput(pattern: "Successfully logged in.")
+        }
     }
 
     func test_authenticate_when_email_is_provided() async throws {
-        // Given
-        given(userInputReader)
-            .readString(asking: .value("Password:"))
-            .willReturn("password")
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            given(userInputReader)
+                .readString(asking: .value("Password:"))
+                .willReturn("password")
 
-        given(serverCredentialsStore)
-            .store(
-                credentials: .value(
-                    ServerCredentials(
-                        token: nil,
+            given(serverCredentialsStore)
+                .store(
+                    credentials: .value(
+                        ServerCredentials(
+                            token: nil,
+                            accessToken: "access-token",
+                            refreshToken: "refresh-token"
+                        )
+                    ),
+                    serverURL: .any
+                )
+                .willReturn()
+
+            given(authenticateService)
+                .authenticate(
+                    email: .value("email@tuist.io"),
+                    password: .value("password"),
+                    serverURL: .value(serverURL)
+                )
+                .willReturn(
+                    ServerAuthenticationTokens(
                         accessToken: "access-token",
                         refreshToken: "refresh-token"
                     )
-                ),
-                serverURL: .any
-            )
-            .willReturn()
-
-        given(authenticateService)
-            .authenticate(
-                email: .value("email@tuist.io"),
-                password: .value("password"),
-                serverURL: .value(serverURL)
-            )
-            .willReturn(
-                ServerAuthenticationTokens(
-                    accessToken: "access-token",
-                    refreshToken: "refresh-token"
                 )
+
+            // When
+            try await subject.run(
+                email: "email@tuist.io",
+                password: nil,
+                directory: nil
             )
 
-        // When
-        try await subject.run(
-            email: "email@tuist.io",
-            password: nil,
-            directory: nil
-        )
-
-        // Then
-        XCTAssertStandardOutput(pattern: "Successfully logged in.")
+            // Then
+            XCTAssertStandardOutput(pattern: "Successfully logged in.")
+        }
     }
 
     func test_authenticate_when_email_and_password_are_provided() async throws {
-        // Given
-        given(serverCredentialsStore)
-            .store(
-                credentials: .value(
-                    ServerCredentials(
-                        token: nil,
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            given(serverCredentialsStore)
+                .store(
+                    credentials: .value(
+                        ServerCredentials(
+                            token: nil,
+                            accessToken: "access-token",
+                            refreshToken: "refresh-token"
+                        )
+                    ),
+                    serverURL: .any
+                )
+                .willReturn()
+
+            given(authenticateService)
+                .authenticate(
+                    email: .value("email@tuist.io"),
+                    password: .value("password"),
+                    serverURL: .value(serverURL)
+                )
+                .willReturn(
+                    ServerAuthenticationTokens(
                         accessToken: "access-token",
                         refreshToken: "refresh-token"
                     )
-                ),
-                serverURL: .any
-            )
-            .willReturn()
-
-        given(authenticateService)
-            .authenticate(
-                email: .value("email@tuist.io"),
-                password: .value("password"),
-                serverURL: .value(serverURL)
-            )
-            .willReturn(
-                ServerAuthenticationTokens(
-                    accessToken: "access-token",
-                    refreshToken: "refresh-token"
                 )
+
+            // When
+            try await subject.run(
+                email: "email@tuist.io",
+                password: "password",
+                directory: nil
             )
 
-        // When
-        try await subject.run(
-            email: "email@tuist.io",
-            password: "password",
-            directory: nil
-        )
-
-        // Then
-        XCTAssertStandardOutput(pattern: "Successfully logged in.")
-        verify(userInputReader)
-            .readString(asking: .any)
-            .called(0)
+            // Then
+            XCTAssertStandardOutput(pattern: "Successfully logged in.")
+            verify(userInputReader)
+                .readString(asking: .any)
+                .called(0)
+        }
     }
 }

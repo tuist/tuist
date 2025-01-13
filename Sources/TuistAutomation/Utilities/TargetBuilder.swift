@@ -1,6 +1,6 @@
 import FileSystem
 import Path
-import TSCUtility
+import ServiceContextModule
 import TuistCore
 import TuistSupport
 import XcodeGraph
@@ -95,7 +95,7 @@ public final class TargetBuilder: TargetBuilding {
         graphTraverser: GraphTraversing,
         passthroughXcodeBuildArguments: [String]
     ) async throws {
-        logger.log(level: .notice, "Building scheme \(scheme.name)", metadata: .section)
+        ServiceContext.current?.logger?.log(level: .notice, "Building scheme \(scheme.name)", metadata: .section)
 
         let buildArguments = buildGraphInspector.buildArguments(
             project: target.project,
@@ -160,7 +160,11 @@ public final class TargetBuilder: TargetBuilding {
         if try await !fileSystem.exists(buildOutputPath) {
             try FileHandler.shared.createFolder(buildOutputPath)
         }
-        logger.log(level: .notice, "Copying build products to \(buildOutputPath.pathString)", metadata: .subsection)
+        ServiceContext.current?.logger?.log(
+            level: .notice,
+            "Copying build products to \(buildOutputPath.pathString)",
+            metadata: .subsection
+        )
 
         for product in try FileHandler.shared.contentsOfDirectory(xcodeSchemeBuildPath) {
             let productOutputPath = buildOutputPath.appending(component: product.basename)

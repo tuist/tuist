@@ -3,6 +3,7 @@ import Foundation
 import Mockable
 import Path
 import ProjectDescription
+import ServiceContextModule
 import TuistCore
 import TuistDependencies
 import TuistGenerator
@@ -87,8 +88,8 @@ public class Generator: Generating {
     }
 
     func load(path: AbsolutePath) async throws -> (Graph, [SideEffectDescriptor], MapperEnvironment) {
-        logger.notice("Loading and constructing the graph", metadata: .section)
-        logger.notice("It might take a while if the cache is empty")
+        ServiceContext.current?.logger?.notice("Loading and constructing the graph", metadata: .section)
+        ServiceContext.current?.logger?.notice("It might take a while if the cache is empty")
 
         let (graph, sideEffectDescriptors, environment, issues) = try await manifestGraphLoader.load(path: path)
 
