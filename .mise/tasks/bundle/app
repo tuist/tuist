@@ -63,42 +63,12 @@ BUILD_DMG_PATH=$BUILD_ARTIFACTS_DIRECTORY/Tuist.dmg
 create-dmg --background $MISE_PROJECT_ROOT/assets/dmg-background.png --hide-extension "Tuist.app" --icon "Tuist.app" 139 161 --icon-size 95 --window-size 605 363 --app-drop-link 467 161 --volname "Tuist App" "$BUILD_DMG_PATH" "$BUILD_DIRECTORY_BINARY"
 codesign --force --timestamp --options runtime --sign "Developer ID Application: Tuist GmbH (U6LC622NKF)" --identifier "io.tuist.app.tuist-app-dmg" "$BUILD_DMG_PATH"
 
-SUBMISSION_ID=$(xcrun notarytool submit "${BUILD_DMG_PATH}" \
+xcrun notarytool submit "${BUILD_DMG_PATH}" \
+    --wait \
     --apple-id "$APPLE_ID" \
     --team-id "$TEAM_ID" \
     --password "$APP_SPECIFIC_PASSWORD" \
     --output-format json | jq -r '.id')
-
-while true; do
-    STATUS=$(xcrun notarytool info "$SUBMISSION_ID" \
-        --apple-id "$APPLE_ID" \
-        --team-id "$TEAM_ID" \
-        --password "$APP_SPECIFIC_PASSWORD" \
-        --output-format json | jq -r '.status')
-
-    case $STATUS in
-        "Accepted")
-            echo -e "${GREEN}Notarization succeeded!${NC}"
-            break
-            ;;
-        "In Progress")
-            print_status "Notarization in progress... waiting 30 seconds"
-            sleep 30
-            ;;
-        "Invalid"|"Rejected")
-            echo "Notarization failed with status: $STATUS"
-            xcrun notarytool log "$SUBMISSION_ID" \
-                --apple-id "$APPLE_ID" \
-                --team-id "$TEAM_ID" \
-                --password "$APP_SPECIFIC_PASSWORD"
-            exit 1
-            ;;
-        *)
-            echo "Unknown status: $STATUS"
-            exit 1
-            ;;
-    esac
-done
 
 # Generating shasums
 print_status "Generating shasums..."
