@@ -193,7 +193,7 @@ msgstr ""
 msgid "About us"
 msgstr ""
 
-#: lib/tuist_web/marketing/layouts/marketing.html.heex:122
+#: lib/tuist_web/marketing/layouts/marketing.html.heex:124
 #, elixir-autogen, elixir-format
 msgid "Accept"
 msgstr ""
@@ -1098,7 +1098,7 @@ msgstr ""
 msgid "Module: %{module_name}"
 msgstr ""
 
-#: lib/tuist_web/marketing/components/marketing_layout_components.ex:322
+#: lib/tuist_web/marketing/components/marketing_layout_components.ex:323
 #, elixir-autogen, elixir-format
 msgid "Most popular"
 msgstr ""
@@ -1761,7 +1761,7 @@ msgstr ""
 msgid "The project you are looking for doesn't exist or has been moved."
 msgstr ""
 
-#: lib/tuist_web/marketing/layouts/marketing.html.heex:109
+#: lib/tuist_web/marketing/layouts/marketing.html.heex:111
 #, elixir-autogen, elixir-format
 msgid "This site uses cookies. By continuing to use our site, you agree to %{use_of_cookies}."
 msgstr ""
@@ -1806,8 +1806,8 @@ msgstr ""
 msgid "Tuist"
 msgstr ""
 
-#: lib/tuist_web/marketing/layouts/marketing.html.heex:40
-#: lib/tuist_web/marketing/layouts/marketing.html.heex:46
+#: lib/tuist_web/marketing/layouts/marketing.html.heex:42
+#: lib/tuist_web/marketing/layouts/marketing.html.heex:48
 #, elixir-autogen, elixir-format
 msgid "Tuist Blog"
 msgstr ""
@@ -1823,8 +1823,8 @@ msgstr ""
 msgid "Tuist Cache"
 msgstr ""
 
-#: lib/tuist_web/marketing/layouts/marketing.html.heex:55
-#: lib/tuist_web/marketing/layouts/marketing.html.heex:61
+#: lib/tuist_web/marketing/layouts/marketing.html.heex:57
+#: lib/tuist_web/marketing/layouts/marketing.html.heex:63
 #, elixir-autogen, elixir-format
 msgid "Tuist Changelog"
 msgstr ""
@@ -1862,7 +1862,7 @@ msgstr ""
 msgid "Tuist app is connected"
 msgstr ""
 
-#: lib/tuist_web/components/layout_components.ex:10
+#: lib/tuist_web/components/layout_components.ex:11
 #, elixir-autogen, elixir-format
 msgid "Tuist extends Apple's tools, helping you ship apps that stand out."
 msgstr ""
@@ -2086,7 +2086,7 @@ msgstr ""
 msgid "We prioritize developer happiness because we know it's closely tied to creating better apps."
 msgstr ""
 
-#: lib/tuist_web/marketing/layouts/marketing.html.heex:105
+#: lib/tuist_web/marketing/layouts/marketing.html.heex:107
 #, elixir-autogen, elixir-format
 msgid "We use cookies"
 msgstr ""
@@ -2284,7 +2284,7 @@ msgstr ""
 msgid "test runs"
 msgstr ""
 
-#: lib/tuist_web/marketing/layouts/marketing.html.heex:111
+#: lib/tuist_web/marketing/layouts/marketing.html.heex:113
 #, elixir-autogen, elixir-format
 msgid "use of cookies"
 msgstr ""

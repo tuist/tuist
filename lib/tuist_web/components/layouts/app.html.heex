@@ -3,6 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="csp-nonce" content={get_csp_nonce()} />
     <meta name="csrf-token" content={get_csrf_token()} />
     <.live_title>
       {assigns[:head_title] || "Tuist"}
@@ -11,7 +12,7 @@
     <TuistWeb.LayoutComponents.head_x_meta_tags {assigns} />
     
 <!-- Import Maps -->
-    <script type="importmap">
+    <script type="importmap" nonce={get_csp_nonce()}>
       {
         "imports": {
           "phoenix_html": "https://cdn.jsdelivr.net/npm/phoenix_html@4.1.1/+esm",
@@ -24,7 +25,7 @@
     <link phx-track-static rel="stylesheet" href={~p"/app/css/app.css"} />
     <script defer phx-track-static type="module" src={~p"/app/js/app.js"}>
     </script>
-    <script>
+    <script nonce={get_csp_nonce()}>
       function cssvar(name) {
         return getComputedStyle(document.documentElement).getPropertyValue(name);
       }

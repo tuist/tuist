@@ -3,6 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="csp-nonce" content={get_csp_nonce()} />
     <meta name="csrf-token" content={get_csrf_token()} />
     <.live_title>
       {assigns[:head_title] || "Tuist"}
@@ -14,12 +15,13 @@
         structured_data <-
           TuistWeb.Marketing.StructuredMarkup.get_json_serialized_structured_data(assigns)
       }
+      nonce={get_csp_nonce()}
       type="application/ld+json"
     >
       <%= raw structured_data %>
     </script>
     <!-- Import Maps -->
-    <script type="importmap">
+    <script type="importmap" nonce={get_csp_nonce()}>
       {
         "imports": {
           "phoenix_html": "https://cdn.jsdelivr.net/npm/phoenix_html@4.1.1/+esm",
@@ -72,7 +74,7 @@
 
     <TuistWeb.LayoutComponents.head_analytics_scripts {assigns} />
     <!-- Chat box -->
-    <script>
+    <script nonce={get_csp_nonce()}>
       (function(d,t) {
         var BASE_URL="https://app.chatwoot.com";
         var g=d.createElement(t),s=d.getElementsByTagName(t)[0];

@@ -4,6 +4,7 @@ defmodule TuistWeb.Marketing.MarketingLayoutComponents do
   """
   use TuistWeb, :live_component
   import TuistWeb.Marketing.MarketingIcons
+  import TuistWeb.CSP, only: [get_csp_nonce: 0]
 
   embed_templates "marketing_layout_components/*"
 
@@ -301,7 +302,7 @@ defmodule TuistWeb.Marketing.MarketingLayoutComponents do
         else:
           "background-image: url(#{assigns[:image_url]}); background-size: cover; background-position: center;"
       ) %>
-    <div class="marketing__component__more_card__content__image" style={style}>
+    <div class="marketing__component__more_card__content__image" style={style} nonce={get_csp_nonce()}>
       <.primary_icon_button href={@href} />
     </div>
     """

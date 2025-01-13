@@ -29,6 +29,7 @@ defmodule TuistWeb do
       import Plug.Conn
       import Phoenix.Controller
       import Phoenix.LiveView.Router
+      import TuistWeb.CSP, only: [put_content_security_policy: 2]
     end
   end
 
@@ -57,6 +58,8 @@ defmodule TuistWeb do
       import TuistWeb.AppLayoutComponents
       use Gettext, backend: TuistWeb.Gettext
 
+      on_mount(TuistWeb.CSP)
+
       unquote(html_helpers())
     end
   end
@@ -83,6 +86,9 @@ defmodule TuistWeb do
   def html do
     quote do
       use Phoenix.Component
+
+      import TuistWeb.CSP,
+        only: [get_csp_nonce: 0]
 
       import Phoenix.Controller,
         only: [get_csrf_token: 0, view_module: 1, view_template: 1]

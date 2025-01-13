@@ -14,6 +14,25 @@ defmodule TuistWeb.Router do
     plug OpenApiSpex.Plug.PutApiSpec, module: TuistWeb.API.Spec
   end
 
+  pipeline :content_security_policy do
+    plug :put_content_security_policy,
+      img_src:
+        "'self' data: https://github.com https://*.githubusercontent.com https://*.gravatar.com",
+      style_src: "'self' 'unsafe-inline' https://fonts.googleapis.com https://*.chatwoot.com",
+      # 'unsafe-inline' is needed for Chatwoot, which doesn't support nonce:
+      # https://github.com/chatwoot/chatwoot/issues/8892
+      style_src_attr: "'unsafe-inline'",
+      style_src_elem:
+        "'self' 'unsafe-inline' https://fonts.googleapis.com https://*.chatwoot.com",
+      # wasm-unsafe-eval is necssary for the Shiki code highlighting
+      script_src: "'self' 'nonce' 'wasm-unsafe-eval'",
+      script_src_elem:
+        "'self' 'nonce' https://cdn.jsdelivr.net https://esm.sh https://*.chatwoot.com https://*.getkoala.com",
+      font_src: "'self' https://fonts.gstatic.com data:",
+      frame_src: "'self' https://app.chatwoot.com",
+      connect_src: "'self' wss://*.getkoala.com https://*.getkoala.com https://*.chatwoot.com"
+  end
+
   pipeline :browser_app do
     plug :accepts, ["html"]
     plug :disable_robot_indexing
@@ -25,6 +44,7 @@ defmodule TuistWeb.Router do
     plug Ueberauth
     plug :fetch_current_user
     plug TuistWeb.MarketingOrAppRedirectPlug
+    plug :content_security_policy
   end
 
   pipeline :browser_marketing do
@@ -38,6 +58,7 @@ defmodule TuistWeb.Router do
     plug Ueberauth
     plug :fetch_current_user
     plug TuistWeb.MarketingOrAppRedirectPlug
+    plug :content_security_policy
   end
 
   pipeline :browser_marketing_feed do
