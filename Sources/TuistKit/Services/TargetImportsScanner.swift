@@ -1,7 +1,7 @@
+import Foundation
 import Mockable
 import Path
 import XcodeGraph
-import Foundation
 
 @Mockable
 protocol TargetImportsScanning {
@@ -51,7 +51,7 @@ final class TargetImportsScanner: TargetImportsScanning {
             language: language
         )
     }
-    
+
     private func readFile(at path: AbsolutePath) throws -> String {
         let encoding = String.Encoding.utf8
         return try NSString(contentsOfFile: path.pathString, encoding: encoding.rawValue) as String
