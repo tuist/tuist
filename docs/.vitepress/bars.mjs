@@ -89,7 +89,7 @@ export function navBar(locale) {
         locale,
         "navbar.guides.text",
       )} ${bookOpen01Icon()}</span>`,
-      link: `/${locale}/`,
+      link: `/${locale}/guides/quick-start/install-tuist`,
     },
     {
       text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${localizedString(
@@ -257,6 +257,15 @@ export function serverSidebar(locale) {
         "sidebars.server.items.metrics-dashboard.text",
       ),
       link: "https://tuist.grafana.net/public-dashboards/1f85f1c3895e48febd02cc7350ade2d9",
+    },
+  ];
+}
+
+export function homeSidebar(locale) {
+  return [
+    {
+      text: "Home",
+      link: `/${locale}/`,
     },
   ];
 }
