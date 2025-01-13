@@ -549,7 +549,7 @@ final class TestService { // swiftlint:disable:this type_body_length
                 return GraphTarget(path: project.path, target: target, project: project)
             }
     }
-    
+
     private func testActionTargetReferences(
         scheme: Scheme,
         testPlanConfiguration: TestPlanConfiguration?
@@ -563,7 +563,7 @@ final class TestService { // swiftlint:disable:this type_body_length
             } else {
                 scheme.testAction?.targets.map(\.target) ?? []
             }
-        
+
         return targets
     }
 
