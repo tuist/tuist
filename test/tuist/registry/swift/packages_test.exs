@@ -364,6 +364,100 @@ defmodule Tuist.Registry.Swift.PackagesTest do
              ]
     end
 
+    test "creates missing package releases when Package.swift includes url references with String interpolation" do
+      # Given
+      package =
+        PackagesFixtures.package_fixture(
+          scope: "catterwaul",
+          name: "tuplay"
+        )
+
+      Storage
+      |> stub(:put_object, fn
+        "registry/swift/catterwaul/tuplay/5.10.2/Package.swift", _ -> :ok
+        "registry/swift/catterwaul/tuplay/5.10.2/source_archive.zip", _ -> :ok
+      end)
+
+      VCS
+      |> stub(:get_tags, fn _ ->
+        [
+          %Tag{name: "5.10.2"}
+        ]
+      end)
+
+      package_manifest_content = """
+      // swift-tools-version: 6.0
+      import PackageDescription
+
+      let package = Package(
+        name: "Tuplay",
+        dependencies: [
+          Dependency.swift(repositoryName: "docc-plugin").package
+        ]
+      )
+
+      struct Dependency {
+        let package: Package.Dependency
+        let product: Target.Dependency
+      }
+
+      extension Dependency {
+        static func swift(organization: String = "swiftlang", repositoryName: String) -> Self {
+          .init(
+            organization: organization,
+            name: repositoryName.split(separator: "-").map(\.capitalized).joined(),
+            repositoryName: "swift-\(repositoryName)"
+          )
+        }
+
+        private init(organization: String, name: String, repositoryName: String, branch: String? = nil) {
+          self.init(
+            package: .package(
+              url: "https://github.com/\\(organization)/\\(repositoryName)",
+              branch: branch ?? "main"
+            ),
+            product: .product(name: name, package: repositoryName)
+          )
+        }
+      }
+      """
+
+      VCS
+      |> stub(:get_source_archive_by_tag_and_repository_full_handle, fn _ ->
+        {:ok,
+         [
+           {~c"root-directory", ""},
+           {~c"root-directory/Package.swift", package_manifest_content}
+         ]}
+      end)
+
+      expected_files = [
+        {~c"root-directory/Package.swift", package_manifest_content}
+      ]
+
+      Zip
+      |> stub(:create, fn name, file_list, _ ->
+        assert file_list == expected_files
+        {:ok, {name, <<>>}}
+      end)
+
+      VCS
+      |> stub(:get_repository_content, fn _, _ ->
+        {:ok, [%Content{path: "File.swift", content: "content"}]}
+      end)
+
+      Base64
+      |> stub(:decode, fn "content" -> "content" end)
+
+      # When
+      got = Packages.create_missing_package_releases(%{package: package, token: "github_token"})
+
+      # Then
+      assert got |> Enum.map(& &1.version) == [
+               "5.10.2"
+             ]
+    end
+
     test "creates missing package releases with fixed Package.swift manifests when package products are referenced by name" do
       # Given
       package =

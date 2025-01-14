@@ -344,7 +344,7 @@ defmodule Tuist.Registry.Swift.Packages do
   end
 
   defp extract_url_only_packages(package_manifest) do
-    Regex.scan(~r/\.package\(\s*url:\s*"([^"]+)"/, package_manifest)
+    Regex.scan(~r/\.package\(\s*url:\s*"([^"\\]+)"/, package_manifest)
     |> Enum.map(&List.last/1)
     |> Enum.map(&VCS.get_repository_full_handle_from_url/1)
     |> Enum.filter(&(String.split(&1, "/") |> Enum.count() == 2))
@@ -353,7 +353,7 @@ defmodule Tuist.Registry.Swift.Packages do
   end
 
   defp extract_named_url_packages(package_manifest) do
-    Regex.scan(~r/\.package\(\s*name:\s*"([^"]+)"\s*,\s*url:\s*"([^"]+)/, package_manifest)
+    Regex.scan(~r/\.package\(\s*name:\s*"([^"\\]+)"\s*,\s*url:\s*"([^"\\]+)/, package_manifest)
     |> Enum.map(&Enum.slice(&1, -2, 2))
     |> Enum.map(fn [by_name_reference, package_url] ->
       [scope, package_name] =
