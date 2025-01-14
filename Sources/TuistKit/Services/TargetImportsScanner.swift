@@ -1,7 +1,9 @@
-import Foundation
+import FileSystem
 import Mockable
 import Path
 import XcodeGraph
+
+private import enum NIOCore.System
 
 @Mockable
 protocol TargetImportsScanning {
@@ -10,11 +12,17 @@ protocol TargetImportsScanning {
 
 final class TargetImportsScanner: TargetImportsScanning {
     private let importSourceCodeScanner: ImportSourceCodeScanner
+    private let fileSystem: FileSystem
+    // workaround until not solved issue:
+    // https://github.com/tuist/FileSystem/issues/54
+    private static let maxConcurrentTasks = NIOCore.System.coreCount
 
     init(
-        importSourceCodeScanner: ImportSourceCodeScanner = ImportSourceCodeScanner()
+        importSourceCodeScanner: ImportSourceCodeScanner = ImportSourceCodeScanner(),
+        fileSystem: FileSystem = FileSystem()
     ) {
         self.importSourceCodeScanner = importSourceCodeScanner
+        self.fileSystem = fileSystem
     }
 
     func imports(for target: XcodeGraph.Target) async throws -> Set<String> {
@@ -25,8 +33,8 @@ final class TargetImportsScanner: TargetImportsScanning {
             filesToScan.append(contentsOf: headers.project)
         }
         var imports = Set(
-            try await filesToScan.concurrentMap { file in
-                try self.matchPattern(at: file)
+            try await filesToScan.concurrentMap(maxConcurrentTasks: Self.maxConcurrentTasks) { file in
+                try await self.matchPattern(at: file)
             }
             .flatMap { $0 }
         )
@@ -34,7 +42,7 @@ final class TargetImportsScanner: TargetImportsScanning {
         return imports
     }
 
-    private func matchPattern(at path: AbsolutePath) throws -> Set<String> {
+    private func matchPattern(at path: AbsolutePath) async throws -> Set<String> {
         let language: ProgrammingLanguage
         switch path.extension {
         case "swift":
@@ -45,15 +53,10 @@ final class TargetImportsScanner: TargetImportsScanning {
             return []
         }
 
-        let sourceCode = try readFile(at: path)
+        let sourceCode = try await fileSystem.readTextFile(at: path)
         return try importSourceCodeScanner.extractImports(
             from: sourceCode,
             language: language
         )
-    }
-
-    private func readFile(at path: AbsolutePath) throws -> String {
-        let encoding = String.Encoding.utf8
-        return try NSString(contentsOfFile: path.pathString, encoding: encoding.rawValue) as String
     }
 }
