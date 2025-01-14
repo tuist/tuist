@@ -2,10 +2,10 @@ import Foundation
 
 // MARK: - Configuration
 
-// The build Configuration of a target.
+// A the build Configuration of a target.
 
-public struct Configuration: Equatable, Codable {
-    private let settings: SettingsDictionary
+public struct Configuration: Equatable, Codable, Sendable {
+    let settings: SettingsDictionary
 
     public init(
         settings: SettingsDictionary
@@ -16,16 +16,19 @@ public struct Configuration: Equatable, Codable {
 
 // MARK: - BuildConfiguration
 
-public struct BuildConfiguration: Codable, Hashable {
-    public enum Variant: Codable {
+public struct BuildConfiguration: Equatable, Codable, Hashable, Sendable {
+    public enum Variant: String, Codable, Hashable, Sendable {
         case debug
         case release
     }
 
-    private let name: String
-    private let variant: Variant
+    public var name: String
+    public var variant: BuildConfiguration.Variant
 
-    public init(name: String, variant: Variant) {
+    public init(
+        name: String,
+        variant: BuildConfiguration.Variant
+    ) {
         self.name = name
         self.variant = variant
     }
@@ -33,7 +36,7 @@ public struct BuildConfiguration: Codable, Hashable {
 
 public typealias SettingsDictionary = [String: SettingValue]
 
-public enum SettingValue: Equatable, Codable {
+public enum SettingValue: Equatable, Codable, Sendable {
     case string(value: String)
     case array(value: [String])
 
