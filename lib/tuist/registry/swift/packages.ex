@@ -95,15 +95,16 @@ defmodule Tuist.Registry.Swift.Packages do
       version
       |> String.trim_leading("v")
 
-    if String.contains?(version, "-") do
-      [version, pre_release] = String.split(version, "-")
-      # SwiftPM expects between pre-release and build identifier a plus instead of a dot
-      # Semantic version: 1.0.0-alpha.1
-      # SwiftPM version: 1.0.0-alpha+1
-      pre_release_with_replaced_dot = String.replace(pre_release, ".", "+")
-      "#{version}-#{pre_release_with_replaced_dot}"
-    else
-      version
+    case String.split(version, "-") do
+      [version, pre_release] ->
+        # SwiftPM expects between pre-release and build identifier a plus instead of a dot
+        # Semantic version: 1.0.0-alpha.1
+        # SwiftPM version: 1.0.0-alpha+1
+        pre_release_with_replaced_dot = String.replace(pre_release, ".", "+")
+        "#{version}-#{pre_release_with_replaced_dot}"
+
+      _ ->
+        version
     end
   end
 
