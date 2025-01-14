@@ -158,6 +158,26 @@ jobs:
         run: mix deps.get
       - name: Check format
         run: mix format --check-formatted
+  security:
+    name: Security
+    runs-on: "blacksmith-4vcpu-ubuntu-2204"
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4 # v4
+      - uses: jdx/mise-action@v2
+      - name: Restore Cache
+        uses: actions/cache@v3
+        id: mix-cache
+        with:
+          path: |
+            deps
+            _build
+            _site
+          key: mix-${{ hashFiles('mix.lock') }}
+      - name: Install dependencies
+        run: mix deps.get
+      - name: Check
+        run: mise run security
   build_on_premise_image:
     name: Build on-premise image
     runs-on: "blacksmith-4vcpu-ubuntu-2204"

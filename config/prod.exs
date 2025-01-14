@@ -1,3 +1,4 @@
+# sobelow_skip ["Config.HTTPS"]
 import Config
 
 # Note we also include the path to a cache manifest

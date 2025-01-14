@@ -115,7 +115,8 @@ defmodule Tuist.MixProject do
       {:image, "~> 0.55.0"},
       {:boundary, "~> 0.10", runtime: false},
       {:makeup, "~> 1.2", override: true},
-      {:phoenix_storybook, "~> 0.8.0"}
+      {:phoenix_storybook, "~> 0.8.0"},
+      {:sobelow, "~> 0.13", only: [:dev, :test], runtime: false}
     ]
   end
 
