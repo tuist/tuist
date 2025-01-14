@@ -1034,6 +1034,7 @@ extension ProjectDescription.Settings {
             "Cuckoo", // https://github.com/Brightify/Cuckoo
             "_SwiftSyntaxTestSupport", // https://github.com/swiftlang/swift-syntax
             "SwiftSyntaxMacrosTestSupport", // https://github.com/swiftlang/swift-syntax
+            "IssueReportingTestSupport", // https://github.com/pointfreeco/swift-issue-reporting
         ]
 
         let resolvedSettings = try mapper.mapSettings()
