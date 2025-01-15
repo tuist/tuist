@@ -1,9 +1,8 @@
 import FileSystem
 import Mockable
 import Path
+import TuistSupport
 import XcodeGraph
-
-private import enum NIOCore.System
 
 @Mockable
 protocol TargetImportsScanning {
@@ -13,9 +12,6 @@ protocol TargetImportsScanning {
 final class TargetImportsScanner: TargetImportsScanning {
     private let importSourceCodeScanner: ImportSourceCodeScanner
     private let fileSystem: FileSystem
-    // workaround until not solved issue:
-    // https://github.com/tuist/FileSystem/issues/54
-    private static let maxConcurrentTasks = NIOCore.System.coreCount
 
     init(
         importSourceCodeScanner: ImportSourceCodeScanner = ImportSourceCodeScanner(),
@@ -33,7 +29,7 @@ final class TargetImportsScanner: TargetImportsScanning {
             filesToScan.append(contentsOf: headers.project)
         }
         var imports = Set(
-            try await filesToScan.concurrentMap(maxConcurrentTasks: Self.maxConcurrentTasks) { file in
+            try await filesToScan.concurrentMap(maxConcurrentTasks: Constants.Async.filehandlingMaxTasksCount) { file in
                 try await self.matchPattern(at: file)
             }
             .flatMap { $0 }
