@@ -1,4 +1,6 @@
 :root {
+  --color-scheme: light dark;
+
   /* Colors */
   --noora-purple-50: oklch(97% 0.015 286.1);
   --noora-purple-100: oklch(88.3% 0.06 287.2);
@@ -145,6 +147,11 @@
   --noora-radius-2xlarge: 1rem;
   --noora-radius-max: 1000px;
 
+  /* Icon */
+  --noora-icon-size-small: 0.75rem;
+  --noora-icon-size-medium: 1rem;
+  --noora-icon-size-large: 1.25rem;
+
   /* Typography */
   --noora-font-heading: "DM Sans", sans-serif;
   --noora-font-body: "Inter Variable", sans-serif;
@@ -155,21 +162,33 @@
   --noora-font-weight-semibold: 600;
   --noora-font-weight-bold: 700;
 
-  --noora-font-color-primary: var(--noora-neutral-light-1100);
-  --noora-font-color-secondary: var(--noora-neutral-light-1000);
-  --noora-font-color-disabled: var(--noora-neutral-light-800);
-  --noora-font-color-information: var(--noora-neutral-azure-500);
-  --noora-font-color-success: var(--noora-green-600);
-  --noora-font-color-warning: var(--noora-orange-600);
-  --noora-font-color-error: var(--noora-red-500);
+  --noora-font-color-primary: light-dark(var(--noora-neutral-light-1100), var(-noora-neutral-light-100));
+  --noora-font-color-secondary: light-dark(var(--noora-neutral-light-1000), var(--noora-neutral-light-400));
+  --noora-font-color-disabled: light-dark(var(--noora-neutral-light-800), var(--noora-neutral-light-900));
+  --noora-font-color-information: light-dark(var(--noora-neutral-azure-500), var(--noora-neutral-azure-300));
+  --noora-font-color-success: light-dark(var(--noora-green-600), var(--noora-green-400));
+  --noora-font-color-warning: light-dark(var(--noora-orange-600), var(--noora-orange-400));
+  --noora-font-color-error: light-dark(var(--noora-red-500), var(--noora-red-300));
+
+  --noora-display-xlarge-font: 2.5rem/3rem var(--noora-font-heading);
+  --noora-display-large-font: 2.375rem/2.875rem var(--noora-font-heading);
+  --noora-display-medium-font: 2.25rem/2.625rem var(--noora-font-heading);
+  --noora-display-small-font: 2.125rem/2.5rem var(--noora-font-heading);
+  --noora-body-large-font: 1rem/1.5rem var(--noora-font-body);
+  --noora-body-medium-font: 0.875rem/1.25rem var(--noora-font-body);
+  --noora-body-small-font: 0.75rem/1rem var(--noora-font-body);
 }
 
-[data-theme="dark"] {
-  --noora-font-color-primary: var(--noora-neutral-light-100);
-  --noora-font-color-secondary: var(--noora-neutral-light-400);
-  --noora-font-color-disabled: var(--noora-neutral-light-900);
-  --noora-font-color-information: var(--noora-neutral-azure-300);
-  --noora-font-color-success: var(--noora-green-400);
-  --noora-font-color-warning: var(--noora-orange-400);
-  --noora-font-color-error: var(--noora-red-300);
+@media screen and (min-width: 768px) {
+  :root {
+    --noora-display-xlarge-font: 4.5rem/4.875rem var(--noora-font-heading);
+    --noora-display-large-font: 4rem/4.375rem var(--noora-font-heading);
+    --noora-display-medium-font: 3.5rem/4rem var(--noora-font-heading);
+    --noora-display-small-font: 3rem/3.5rem var(--noora-font-heading);
+  }
+}
+
+/* Dark mode for Storybook */
+.noora-dark {
+  color-scheme: dark;
 }

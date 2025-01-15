@@ -6,5 +6,7 @@ defmodule TuistWeb.Storybook do
     content_path: Path.expand("./storybook", __DIR__),
     css_path: "/app/css/app/noora.css",
     js_path: "/app/js/app.js",
-    sandbox_class: "tuist-web"
+    sandbox_class: "tuist-web",
+    color_mode: true,
+    color_mode_sandbox_dark_class: "noora-dark"
 end
