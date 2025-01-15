@@ -1,6 +1,7 @@
 import FileSystem
 import Mockable
 import Path
+import TuistSupport
 import XcodeGraph
 
 @Mockable
@@ -28,7 +29,7 @@ final class TargetImportsScanner: TargetImportsScanning {
             filesToScan.append(contentsOf: headers.project)
         }
         var imports = Set(
-            try await filesToScan.concurrentMap { file in
+            try await filesToScan.concurrentMap(maxConcurrentTasks: Constants.Async.filehandlingMaxTasksCount) { file in
                 try await self.matchPattern(at: file)
             }
             .flatMap { $0 }
