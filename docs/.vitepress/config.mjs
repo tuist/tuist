@@ -293,6 +293,12 @@ export default defineConfig({
 /guides/dashboard/on-premise/metrics /server/on-premise/metrics 301
 /:locale/references/project-description/structs/config /:locale/references/project-description/structs/tuist  301
 /:locale/guides/develop/test/smart-runner /:locale/guides/develop/test/selective-testing 301
+/:locale/guides/start/new-project /:locale/guides/develop/projects/adoption/new-project 301
+/:locale/guides/start/swift-package /:locale/guides/develop/projects/adoption/swift-package 301
+/:locale/guides/start/migrate/xcode-project /:locale/guides/develop/projects/adoption/migrate/xcode-project 301
+/:locale/guides/start/migrate/swift-package /:locale/guides/develop/projects/adoption/migrate/swift-package 301
+/:locale/guides/start/migrate/xcodegen-project /:locale/guides/develop/projects/adoption/migrate/xcodegen-project 301
+/:locale/guides/start/migrate/bazel-project /:locale/guides/develop/projects/adoption/migrate/bazel-project 301
 /documentation/tuist/* / 301
 /:locale/guides/develop/build/registry /:locale/guides/develop/registry 301
 ${await fs.readFile(path.join(import.meta.dirname, "locale-redirects.txt"), {
