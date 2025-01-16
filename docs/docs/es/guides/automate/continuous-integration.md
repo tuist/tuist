@@ -1,6 +1,6 @@
 ---
 title: Continuous Integration (CI)
-titleTemplate: :title · Automate · Develop · Guides · Tuist
+titleTemplate: :title · Automate · Guides · Tuist
 description: Learn how to use Tuist in your CI workflows.
 ---
 
@@ -77,7 +77,7 @@ workflows:
 
 ### GitHub Actions {#github-actions}
 
-On [GitHub Actions](https://docs.github.com/en/actions) you can an additional step to install Tuist, and in the case of managing the installation of Mise, you can use the [mise-action](https://github.com/jdx/mise-action), which abstracts the installation of Mise and Tuist:
+On [GitHub Actions](https://docs.github.com/es/actions) you can an additional step to install Tuist, and in the case of managing the installation of Mise, you can use the [mise-action](https://github.com/jdx/mise-action), which abstracts the installation of Mise and Tuist:
 
 ::: code-group
 

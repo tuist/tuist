@@ -1,6 +1,6 @@
 ---
 title: Workflows
-titleTemplate: :title · Автоматизация · Разработка · Руководства · Tuist
+titleTemplate: :title · Разработка · Руководства · Tuist
 description: Integrate your changes through workflows.
 ---
 

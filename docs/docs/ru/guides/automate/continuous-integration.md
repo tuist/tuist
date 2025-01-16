@@ -1,6 +1,6 @@
 ---
 title: Непрерывная интеграция (CI)
-titleTemplate: :title · Автоматизация · Разработка · Руководства · Tuist
+titleTemplate: :title · Разработка · Руководства · Tuist
 description: Узнайте, как использовать Tuist в ваших рабочих процессах CI.
 ---
 

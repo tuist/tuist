@@ -1,6 +1,6 @@
 ---
 title: Continuous Integration (CI)
-titleTemplate: :title · Automate · Develop · Guides · Tuist
+titleTemplate: :title · Automate · Guides · Tuist
 description: CI 워크플로우에서 Tuist를 사용하는 방법에 대해 알아보세요.
 ---
 

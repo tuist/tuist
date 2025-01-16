@@ -1,6 +1,6 @@
 ---
 title: Workflows
-titleTemplate: :title · Automate · Develop · Guides · Tuist
+titleTemplate: :title · Automate · Guides · Tuist
 description: 변경 사항을 워크플로우를 통해 통합하세요.
 ---
 
