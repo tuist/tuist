@@ -105,7 +105,6 @@ struct RegistryLoginService {
     ) async throws {
         switch try await serverAuthenticationController.authenticationToken(serverURL: serverURL) {
         case let .project(projectToken):
-            let manifest = try await manifestFilesLocator.locatePackageManifest(at: path)
             if try await manifestFilesLocator.locatePackageManifest(at: path) == nil {
                 // We add internet password to the keychain only if the packages are resolved by Xcode and not SwiftPM directly.
                 // This is because when we run `swift package-registry login`, the `swift` CLI gets automatically access to the
