@@ -318,65 +318,6 @@ export function guidesSidebar(locale) {
     {
       text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${localizedString(
         locale,
-        "sidebars.guides.items.start.text",
-      )} ${cubeOutlineIcon()}</span>`,
-      items: [
-        {
-          text: localizedString(
-            locale,
-            "sidebars.guides.items.start.items.new-project.text",
-          ),
-          link: `/${locale}/guides/start/new-project`,
-        },
-        {
-          text: localizedString(
-            locale,
-            "sidebars.guides.items.start.items.swift-package.text",
-          ),
-          link: `/${locale}/guides/start/swift-package`,
-        },
-        {
-          text: localizedString(
-            locale,
-            "sidebars.guides.items.start.items.migrate.text",
-          ),
-          collapsed: true,
-          items: [
-            {
-              text: localizedString(
-                locale,
-                "sidebars.guides.items.start.items.migrate.items.xcode-project.text",
-              ),
-              link: `/${locale}/guides/start/migrate/xcode-project`,
-            },
-            {
-              text: localizedString(
-                locale,
-                "sidebars.guides.items.start.items.migrate.items.swift-package.text",
-              ),
-              link: `/${locale}/guides/start/migrate/swift-package`,
-            },
-            {
-              text: localizedString(
-                locale,
-                "sidebars.guides.items.start.items.migrate.items.xcodegen-project.text",
-              ),
-              link: `/${locale}/guides/start/migrate/xcodegen-project`,
-            },
-            {
-              text: localizedString(
-                locale,
-                "sidebars.guides.items.start.items.migrate.items.bazel-project.text",
-              ),
-              link: `/${locale}/guides/start/migrate/bazel-project`,
-            },
-          ],
-        },
-      ],
-    },
-    {
-      text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${localizedString(
-        locale,
         "sidebars.guides.items.develop.text",
       )} ${cube02Icon()}</span>`,
       items: [
@@ -388,6 +329,66 @@ export function guidesSidebar(locale) {
           collapsed: true,
           link: `/${locale}/guides/develop/projects`,
           items: [
+            {
+              text: localizedString(
+                locale,
+                "sidebars.guides.items.develop.items.projects.items.adoption.text",
+              ),
+              collapsed: true,
+              items: [
+                {
+                  text: localizedString(
+                    locale,
+                    "sidebars.guides.items.develop.items.projects.items.adoption.items.new-project.text",
+                  ),
+                  link: `/${locale}/guides/develop/projects/adoption/new-project`,
+                },
+                {
+                  text: localizedString(
+                    locale,
+                    "sidebars.guides.items.develop.items.projects.items.adoption.items.swift-package.text",
+                  ),
+                  link: `/${locale}/guides/develop/projects/adoption/swift-package`,
+                },
+                {
+                  text: localizedString(
+                    locale,
+                    "sidebars.guides.items.develop.items.projects.items.adoption.items.migrate.text",
+                  ),
+                  collapsed: true,
+                  items: [
+                    {
+                      text: localizedString(
+                        locale,
+                        "sidebars.guides.items.develop.items.projects.items.adoption.items.migrate.items.xcode-project.text",
+                      ),
+                      link: `/${locale}/guides/develop/projects/adoption/migrate/xcode-project`,
+                    },
+                    {
+                      text: localizedString(
+                        locale,
+                        "sidebars.guides.items.develop.items.projects.items.adoption.items.migrate.items.swift-package.text",
+                      ),
+                      link: `/${locale}/guides/develop/projects/adoption/migrate/swift-package`,
+                    },
+                    {
+                      text: localizedString(
+                        locale,
+                        "sidebars.guides.items.develop.items.projects.items.adoption.items.migrate.items.xcodegen-project.text",
+                      ),
+                      link: `/${locale}/guides/develop/projects/adoption/migrate/xcodegen-project`,
+                    },
+                    {
+                      text: localizedString(
+                        locale,
+                        "sidebars.guides.items.develop.items.projects.items.adoption.items.migrate.items.bazel-project.text",
+                      ),
+                      link: `/${locale}/guides/develop/projects/adoption/migrate/bazel-project`,
+                    },
+                  ],
+                },
+              ],
+            },
             {
               text: localizedString(
                 locale,

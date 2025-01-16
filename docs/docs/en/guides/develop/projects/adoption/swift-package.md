@@ -1,6 +1,6 @@
 ---
 title: Use Tuist with a Swift Package
-titleTemplate: :title · Start · Guides · Tuist
+titleTemplate: :title · Adoption · Projects · Develop · Guides · Tuist
 description: Learn how to use Tuist with a Swift Package.
 ---
 

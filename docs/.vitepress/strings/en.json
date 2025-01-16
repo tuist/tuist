@@ -185,40 +185,40 @@
             }
           }
         },
-        "start": {
-          "text": "Start",
-          "items": {
-            "new-project": {
-              "text": "Create a new project"
-            },
-            "swift-package": {
-              "text": "Try with a Swift Package"
-            },
-            "migrate": {
-              "text": "Migrate",
-              "items": {
-                "xcode-project": {
-                  "text": "An Xcode project"
-                },
-                "swift-package": {
-                  "text": "A Swift package"
-                },
-                "xcodegen-project": {
-                  "text": "An XcodeGen project"
-                },
-                "bazel-project": {
-                  "text": "A Bazel project"
-                }
-              }
-            }
-          }
-        },
         "develop": {
           "text": "Develop",
           "items": {
             "projects": {
               "text": "Projects",
               "items": {
+                "adoption": {
+                  "text": "Adoption",
+                  "items": {
+                    "new-project": {
+                      "text": "Create a new project"
+                    },
+                    "swift-package": {
+                      "text": "Try with a Swift Package"
+                    },
+                    "migrate": {
+                      "text": "Migrate",
+                      "items": {
+                        "xcode-project": {
+                          "text": "An Xcode project"
+                        },
+                        "swift-package": {
+                          "text": "A Swift package"
+                        },
+                        "xcodegen-project": {
+                          "text": "An XcodeGen project"
+                        },
+                        "bazel-project": {
+                          "text": "A Bazel project"
+                        }
+                      }
+                    }
+                  }
+                },
                 "manifests": {
                   "text": "Manifests"
                 },

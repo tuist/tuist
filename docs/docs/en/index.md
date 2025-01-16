@@ -8,7 +8,7 @@ hero:
   tagline: Extend Apple's toolchain to build better apps faster
   image:
     src: /logo.png
-    alt: VitePress
+    alt: Tuist
   actions:
     - theme: brand
       text: What is Tuist?
