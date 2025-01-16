@@ -299,6 +299,9 @@ export default defineConfig({
 /:locale/guides/start/migrate/swift-package /:locale/guides/develop/projects/adoption/migrate/swift-package 301
 /:locale/guides/start/migrate/xcodegen-project /:locale/guides/develop/projects/adoption/migrate/xcodegen-project 301
 /:locale/guides/start/migrate/bazel-project /:locale/guides/develop/projects/adoption/migrate/bazel-project 301
+/:locale/guides/develop/build/cache /:locale/guides/develop/cache 301
+/:locale/guides/develop/build/registry /:locale/guides/develop/registry 301
+
 /documentation/tuist/* / 301
 /:locale/guides/develop/build/registry /:locale/guides/develop/registry 301
 ${await fs.readFile(path.join(import.meta.dirname, "locale-redirects.txt"), {
