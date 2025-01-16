@@ -513,13 +513,6 @@ export function guidesSidebar(locale) {
               ),
               link: `/${locale}/guides/develop/test/selective-testing`,
             },
-            {
-              text: localizedString(
-                locale,
-                "sidebars.guides.items.develop.items.test.items.flakiness.text",
-              ),
-              link: `/${locale}/guides/develop/test/flakiness`,
-            },
           ],
         },
         {
