@@ -302,6 +302,7 @@ export default defineConfig({
 /:locale/guides/develop/build/cache /:locale/guides/develop/cache 301
 /:locale/guides/develop/build/registry /:locale/guides/develop/registry 301
 /:locale/guides/develop/test/selective-testing /:locale/guides/develop/selective-testing 301
+/:locale/guides/develop/inspect/implicit-dependencies /:locale/guides/develop/projects/inspect/implicit-dependencies 301
 
 /documentation/tuist/* / 301
 /:locale/guides/develop/build/registry /:locale/guides/develop/registry 301

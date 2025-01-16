@@ -1,6 +1,6 @@
 ---
 title: Implicit imports
-titleTemplate: :title · Inspect · Develop · Guides · Tuist
+titleTemplate: :title · Inspect · Projecs · Develop · Guides · Tuist
 description: Learn how to use Tuist to find implicit imports.
 ---
 

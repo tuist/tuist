@@ -53,10 +53,6 @@
       }
     }
   },
-  "badges": {
-    "coming-soon": "Coming soon",
-    "xcodeproj-compatible": "XcodeProj-compatible"
-  },
   "navbar": {
     "guides": {
       "text": "Guides"
@@ -171,6 +167,14 @@
     "guides": {
       "text": "Guides",
       "items": {
+        "tuist": {
+          "text": "Tuist",
+          "items": {
+            "about": {
+              "text": "About Tuist"
+            }
+          }
+        },
         "quick-start": {
           "text": "Quick start",
           "items": {
@@ -249,6 +253,14 @@
                 "hashing": {
                   "text": "Hashing"
                 },
+                "inspect": {
+                  "text": "Inspect",
+                  "items": {
+                    "implicit-imports": {
+                      "text": "Implicit imports"
+                    }
+                  }
+                },
                 "the-cost-of-convenience": {
                   "text": "The cost of convenience"
                 },
@@ -260,66 +272,25 @@
                 }
               }
             },
-<<<<<<< HEAD
-            "build": {
-              "text": "Build",
-              "items": {
-                "cache": {
-                  "text": "Cache"
-                }
-              }
-=======
             "cache": {
               "text": "Cache"
             },
             "registry": {
               "text": "Registry"
->>>>>>> 862c81612 (Hoist the content under "Guides > Develop > Build" one level for visibility)
             },
             "selective-testing": {
               "text": "Selective testing"
+            }
+          }
+        },
+        "automate": {
+          "text": "Automate",
+          "items": {
+            "continuous-integration": {
+              "text": "Continuous integration"
             },
-            "registry": {
-              "text": "Registry",
-              "items": {
-                "registry": {
-                  "text": "Registry"
-                },
-                "xcode-project": {
-                  "text": "Xcode project"
-                },
-                "generated-project": {
-                  "text": "Generated project"
-                },
-                "xcodeproj-integration": {
-                  "text": "XcodeProj-based integration"
-                },
-                "swift-package": {
-                  "text": "Swift package"
-                },
-                "continuous-integration": {
-                  "text": "Continuous integration"
-                }
-              }
-            },
-            "inspect": {
-              "text": "Inspect",
-              "items": {
-                "implicit-imports": {
-                  "text": "Implicit imports"
-                }
-              }
-            },
-            "automate": {
-              "text": "Automate",
-              "items": {
-                "continuous-integration": {
-                  "text": "Continuous integration"
-                },
-                "workflows": {
-                  "text": "Workflows"
-                }
-              }
+            "workflows": {
+              "text": "Workflows"
             }
           }
         },
