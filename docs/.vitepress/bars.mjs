@@ -484,8 +484,9 @@ export function guidesSidebar(locale) {
         {
           text: localizedString(
             locale,
-            "sidebars.guides.items.develop.items.build.text",
+            "sidebars.guides.items.develop.items.cache.text",
           ),
+<<<<<<< HEAD
           link: `/${locale}/guides/develop/build`,
           collapsed: true,
           items: [
@@ -497,6 +498,16 @@ export function guidesSidebar(locale) {
               link: `/${locale}/guides/develop/build/cache`,
             },
           ],
+=======
+          link: `/${locale}/guides/develop/cache`,
+        },
+        {
+          text: localizedString(
+            locale,
+            "sidebars.guides.items.develop.items.registry.text",
+          ),
+          link: `/${locale}/guides/develop/registry`,
+>>>>>>> 862c81612 (Hoist the content under "Guides > Develop > Build" one level for visibility)
         },
         {
           text: localizedString(

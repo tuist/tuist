@@ -1,6 +1,6 @@
 ---
 title: Cache
-titleTemplate: :title · Build · Develop · Guides · Tuist
+titleTemplate: :title · Develop · Guides · Tuist
 description: Optimize your build times by caching compiled binaries and sharing them across different environments.
 ---
 
@@ -17,8 +17,7 @@ Tuist addresses these challenges effectively with its caching feature. This tool
 
 Tuist efficiently <LocalizedLink href="/guides/develop/projects/hashing">utilizes hashes</LocalizedLink> for each target in the dependency graph to detect changes. Utilizing this data, it builds and assigns unique identifiers to binaries derived from these targets. At the time of graph generation, Tuist then seamlessly substitutes the original targets with their corresponding binary versions.
 
-This operation, known as *"warming,"* produces binaries for local use or for sharing with teammates and CI environments via Tuist. The process of warming the cache is straightforward and can be initiated with a simple command:
-
+This operation, known as _"warming,"_ produces binaries for local use or for sharing with teammates and CI environments via Tuist. The process of warming the cache is straightforward and can be initiated with a simple command:
 
 ```bash
 tuist cache
@@ -31,6 +30,7 @@ The command re-uses binaries to speed up the process.
 By default, when Tuist commands necessitate project generation, they automatically substitute dependencies with their binary equivalents from the cache, if available. Additionally, if you specify a list of targets to focus on, Tuist will also replace any dependent targets with their cached binaries, provided they are available. For those who prefer a different approach, there is an option to opt out of this behavior entirely by using a specific flag:
 
 ::: code-group
+
 ```bash [Project generation]
 tuist generate # Only dependencies
 tuist generate Search # Dependencies + Search dependencies
@@ -41,6 +41,7 @@ tuist generate --no-binary-cache # No cache at all
 ```bash [Testing]
 tuist test
 ```
+
 :::
 
 > [!WARNING]

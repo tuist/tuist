@@ -260,6 +260,7 @@
                 }
               }
             },
+<<<<<<< HEAD
             "build": {
               "text": "Build",
               "items": {
@@ -267,6 +268,13 @@
                   "text": "Cache"
                 }
               }
+=======
+            "cache": {
+              "text": "Cache"
+            },
+            "registry": {
+              "text": "Registry"
+>>>>>>> 862c81612 (Hoist the content under "Guides > Develop > Build" one level for visibility)
             },
             "test": {
               "text": "Test",

@@ -1,6 +1,6 @@
 ---
 title: Registry
-titleTemplate: :title · Build · Develop · Guides · Tuist
+titleTemplate: :title · Develop · Guides · Tuist
 description: Optimize your Swift package resolution times by leveraging the Tuist Registry.
 ---
 
@@ -9,12 +9,12 @@ description: Optimize your Swift package resolution times by leveraging the Tuis
 > [!WARNING] BETA
 > This feature is currently in beta. If you encounter any issues, please report them at our <a href="https://community.tuist.dev/c/troubleshooting-how-to/6" target="_blank">community forum</a>.
 
-> [!IMPORTANT] REMOTE PROJECT REQUIRED
-> This feature requires a <LocalizedLink href="/server/introduction/accounts-and-projects">remote project</LocalizedLink>.
+> [!IMPORTANT] REMOTE PROJECT 필요
+> 이 기능은 <LocalizedLink href="/server/introduction/accounts-and-projects">remote project</LocalizedLink>가 필요합니다.
 
 As the number of dependencies grows, so does the time to resolve them. While other package managers like [CocoaPods](https://cocoapods.org/) or [npm](https://www.npmjs.com/) are centralized, Swift Package Manager is not. Because of that, SwiftPM needs to resolve dependencies by doing a deep clone of each repository, which can be time-consuming. To address this, Tuist provides an implementation of the [Package Registry](https://github.com/swiftlang/swift-package-manager/blob/main/Documentation/PackageRegistry/PackageRegistryUsage.md), so you can download only the commit you _actually need_. The packages in the registry are based on the [Swift Package Index](https://swiftpackageindex.com/) – if you can find a package there, the package is also available in the Tuist Registry. Additionally, the packages are distributed across the globe using an edge storage for minimum latency when resolving them.
 
-## Usage {#usage}
+## 사용법 {#usage}
 
 To set up and login to the registry, `cd` into your project's directory and run:
 
