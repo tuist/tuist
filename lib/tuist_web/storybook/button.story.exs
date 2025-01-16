@@ -3,7 +3,7 @@ defmodule TuistWeb.Storybook.Button do
   use PhoenixStorybook.Story, :component
 
   def function, do: &TuistWeb.Noora.Button.button/1
-  def imports, do: [{TuistWeb.Noora.Icon, arrow_left: 1, arrow_right: 1}]
+  def imports, do: [{TuistWeb.Noora.Icon, chevron_left: 1, chevron_right: 1}]
 
   def variations do
     [
@@ -103,7 +103,7 @@ defmodule TuistWeb.Storybook.Button do
             },
             slots: [
               """
-              <:icon_left><.arrow_left /></:icon_left>
+              <:icon_left><.chevron_left /></:icon_left>
               """
             ]
           },
@@ -115,7 +115,7 @@ defmodule TuistWeb.Storybook.Button do
             },
             slots: [
               """
-              <:icon_right><.arrow_right /></:icon_right>
+              <:icon_right><.chevron_right /></:icon_right>
               """
             ]
           },
@@ -127,8 +127,8 @@ defmodule TuistWeb.Storybook.Button do
             },
             slots: [
               """
-              <:icon_left><.arrow_left /></:icon_left>
-              <:icon_right><.arrow_right /></:icon_right>
+              <:icon_left><.chevron_left /></:icon_left>
+              <:icon_right><.chevron_right /></:icon_right>
               """
             ]
           },
@@ -138,7 +138,7 @@ defmodule TuistWeb.Storybook.Button do
               icon_only: true
             },
             slots: [
-              "<.arrow_left />"
+              "<.chevron_left />"
             ]
           }
         ]
