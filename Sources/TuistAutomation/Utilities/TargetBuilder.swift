@@ -1,7 +1,6 @@
 import FileSystem
 import Path
 import ServiceContextModule
-import TSCUtility
 import TuistCore
 import TuistSupport
 import XcodeGraph

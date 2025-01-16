@@ -1,5 +1,4 @@
 import Mockable
-import Path
 import struct ProjectDescription.Plugin
 import struct ProjectDescription.PluginLocation
 import TSCBasic
@@ -9,7 +8,6 @@ import TuistLoader
 import TuistScaffold
 import TuistSupport
 import TuistSupportTesting
-import XcodeGraph
 import XCTest
 @testable import TuistPlugin
 

@@ -370,7 +370,7 @@ final class TestService { // swiftlint:disable:this type_body_length
         let graphTraverser = GraphTraverser(graph: graph)
         let testSchemes = schemes
             .filter {
-                $0.testAction.map { !$0.targets.isEmpty } ?? false
+                !self.testActionTargetReferences(scheme: $0, testPlanConfiguration: testPlanConfiguration).isEmpty
             }
 
         guard shouldRunTest(
@@ -496,7 +496,7 @@ final class TestService { // swiftlint:disable:this type_body_length
 
         let testSchemes = schemes
             .filter {
-                $0.testAction.map { !$0.targets.isEmpty } ?? false
+                !self.testActionTargetReferences(scheme: $0, testPlanConfiguration: testPlanConfiguration).isEmpty
             }
 
         if testSchemes.isEmpty {
@@ -538,14 +538,7 @@ final class TestService { // swiftlint:disable:this type_body_length
     ) -> [GraphTarget] {
         return schemes
             .flatMap {
-                if let testPlanConfiguration {
-                    return $0.testAction?.testPlans?
-                        .first(
-                            where: { $0.name == testPlanConfiguration.testPlan }
-                        )?.testTargets.map(\.target) ?? []
-                } else {
-                    return $0.testAction?.targets.map(\.target) ?? []
-                }
+                testActionTargetReferences(scheme: $0, testPlanConfiguration: testPlanConfiguration)
             }
             .compactMap {
                 guard let project = graph.projects[$0.projectPath],
@@ -555,6 +548,23 @@ final class TestService { // swiftlint:disable:this type_body_length
                 }
                 return GraphTarget(path: project.path, target: target, project: project)
             }
+    }
+
+    private func testActionTargetReferences(
+        scheme: Scheme,
+        testPlanConfiguration: TestPlanConfiguration?
+    ) -> [TargetReference] {
+        let targets =
+            if let testPlanConfiguration {
+                scheme.testAction?.testPlans?
+                    .first(
+                        where: { $0.name == testPlanConfiguration.testPlan }
+                    )?.testTargets.map(\.target) ?? []
+            } else {
+                scheme.testAction?.targets.map(\.target) ?? []
+            }
+
+        return targets
     }
 
     private func storeSuccessfulTestHashes(

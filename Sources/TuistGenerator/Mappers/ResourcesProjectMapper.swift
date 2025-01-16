@@ -35,7 +35,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
 
     // swiftlint:disable:next function_body_length
     public func mapTarget(_ target: Target, project: Project) throws -> ([Target], [SideEffectDescriptor]) {
-        guard target.containsResources else { return ([target], []) }
+        if target.resources.resources.isEmpty, target.coreDataModels.isEmpty { return ([target], []) }
 
         var additionalTargets: [Target] = []
         var sideEffects: [SideEffectDescriptor] = []
@@ -174,12 +174,8 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
 
     // swiftlint:disable:next function_body_length
     static func fileContent(targetName _: String, bundleName: String, target: Target, in project: Project) -> String {
-        let isStaticFramework = target.product == .staticFramework
-
-        let bundleAccessor = if target.supportsResources, !isStaticFramework {
+        let bundleAccessor = if target.supportsResources {
             swiftFrameworkBundleAccessorString(for: target)
-        } else if isStaticFramework, target.containsResources {
-            swiftStaticFrameworkBundleAccessorString(for: target)
         } else {
             swiftSPMBundleAccessorString(for: target, and: bundleName)
         }
@@ -188,10 +184,12 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         let publicBundleAccessor = switch project.type {
         case .external:
             ""
-        case .local where target.sourcesContainsPublicResourceClassName:
-            ""
         case .local:
-            publicBundleAccessorString(for: target)
+            if target.sourcesContainsPublicResourceClassName {
+                ""
+            } else {
+                publicBundleAccessorString(for: target)
+            }
         }
 
         return """
@@ -286,11 +284,11 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
     private static func publicBundleAccessorString(for target: Target) -> String {
         """
         // MARK: - Objective-C Bundle Accessor
-        @objcMembers
-        public final class \(target.productName.toValidSwiftIdentifier())Resources: NSObject {
-            public static var bundle: Bundle {
-                .module
-            }
+        @objc
+        public class \(target.productName.toValidSwiftIdentifier())Resources: NSObject {
+        @objc public class var bundle: Bundle {
+            return .module
+        }
         }
         """
     }
@@ -298,41 +296,53 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
     private static func swiftSPMBundleAccessorString(for target: Target, and bundleName: String) -> String {
         """
         // MARK: - Swift Bundle Accessor - for SPM
-        private final class BundleFinder {}
+        private class BundleFinder {}
         extension Foundation.Bundle {
-        /// Since \(target.name) is a \(target.product), \
-        the bundle containing the resources is copied into the final product.
+        /// Since \(target.name) is a \(
+            target
+                .product
+        ), the bundle containing the resources is copied into the final product.
         static let module: Bundle = {
-        let bundleName = "\(bundleName)"
-        let bundleFinderResourceURL = Bundle(for: BundleFinder.self).resourceURL
-        var candidates = [
-            Bundle.main.resourceURL,
-            bundleFinderResourceURL,
-            Bundle.main.bundleURL,
-        ]
-        // This is a fix to make Previews work with bundled resources.
-        // Logic here is taken from SPM's generated `resource_bundle_accessors.swift` file,
-        // which is located under the derived data directory after building the project.
-        if let override = ProcessInfo.processInfo.environment["PACKAGE_RESOURCE_BUNDLE_PATH"] {
-            candidates.append(URL(fileURLWithPath: override))
-            // Deleting derived data and not rebuilding the frameworks containing resources may result in a state
-            // where the bundles are only available in the framework's directory that is actively being previewed.
-            // Since we don't know which framework this is, we also need to look in all the framework subpaths.
-            if let subpaths = try? FileManager.default.contentsOfDirectory(atPath: override) {
-                for subpath in subpaths {
-                    if subpath.hasSuffix(".framework") {
-                        candidates.append(URL(fileURLWithPath: override + "/" + subpath))
+            let bundleName = "\(bundleName)"
+            let bundleFinderResourceURL = Bundle(for: BundleFinder.self).resourceURL
+            var candidates = [
+                Bundle.main.resourceURL,
+                bundleFinderResourceURL,
+                Bundle.main.bundleURL,
+            ]
+            // This is a fix to make Previews work with bundled resources.
+            // Logic here is taken from SPM's generated `resource_bundle_accessors.swift` file,
+            // which is located under the derived data directory after building the project.
+            if let override = ProcessInfo.processInfo.environment["PACKAGE_RESOURCE_BUNDLE_PATH"] {
+                candidates.append(URL(fileURLWithPath: override))
+                // Deleting derived data and not rebuilding the frameworks containing resources may result in a state
+                // where the bundles are only available in the framework's directory that is actively being previewed.
+                // Since we don't know which framework this is, we also need to look in all the framework subpaths.
+                if let subpaths = try? FileManager.default.contentsOfDirectory(atPath: override) {
+                    for subpath in subpaths {
+                        if subpath.hasSuffix(".framework") {
+                            candidates.append(URL(fileURLWithPath: override + "/" + subpath))
+                        }
                     }
                 }
             }
-        }
 
-        \(iterateOverCandidatesString(appendingPath: "bundleName + \".bundle\""))
-        fatalError("unable to find bundle named \(bundleName)")
+            // This is a fix to make unit tests work with bundled resources.
+            // Making this change allows unit tests to search one directory up for a bundle.
+            // More context can be found in this PR: https://github.com/tuist/tuist/pull/6895
+            #if canImport(XCTest)
+            candidates.append(bundleFinderResourceURL?.appendingPathComponent(".."))
+            #endif
+
+            for candidate in candidates {
+                let bundlePath = candidate?.appendingPathComponent(bundleName + ".bundle")
+                if let bundle = bundlePath.flatMap(Bundle.init(url:)) {
+                    return bundle
+                }
+            }
+            fatalError("unable to find bundle named \(bundleName)")
         }()
         }
-
-        \(appendingPathToURLString())
         """
     }
 
@@ -341,60 +351,11 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         // MARK: - Swift Bundle Accessor for Frameworks
         private class BundleFinder {}
         extension Foundation.Bundle {
-        /// Since \(target.name) is a \(target.product), \
-        the bundle for classes within this module can be used directly.
+        /// Since \(target.name) is a \(
+            target
+                .product
+        ), the bundle for classes within this module can be used directly.
         static let module = Bundle(for: BundleFinder.self)
-        }
-        """
-    }
-
-    private static func swiftStaticFrameworkBundleAccessorString(for target: Target) -> String {
-        """
-        // MARK: - Swift Bundle Accessor for Frameworks
-        extension Foundation.Bundle {
-        /// Since \(target.name) is a \(target.product), \
-        a cut down framework is embedded, with all the resources but only a stub Mach-O image.
-        static let module: Bundle = {
-        var candidates = [Bundle.main.privateFrameworksURL]
-        \(iterateOverCandidatesString(appendingPath: "\"\(target.name).framework\""))
-        fatalError("unable to find \(target.product) \\"\(target.name).framework\\"")
-        }()
-        }
-
-        \(appendingPathToURLString())
-        """
-    }
-
-    private static func iterateOverCandidatesString(appendingPath: String) -> String {
-        """
-        // This is a fix to make unit tests work with bundled resources.
-        // Making this change allows unit tests to search one directory up for the framework.
-        // More context can be found in this PR: https://github.com/tuist/tuist/pull/6895
-        #if canImport(XCTest)
-        final class UnitTestBundleFinder {}
-        let bundleFinderResourceURL = Bundle(for: UnitTestBundleFinder.self).resourceURL?.appendingPath("..")
-        candidates.append(bundleFinderResourceURL)
-        #endif
-
-        for candidate in candidates {
-            let frameworkUrl = candidate?.appendingPath(\(appendingPath))
-            if let bundle = frameworkUrl.flatMap(Bundle.init(url:)) {
-                return bundle
-            }
-        }
-        """
-    }
-
-    private static func appendingPathToURLString() -> String {
-        """
-        private extension URL {
-            func appendingPath(_ path: String) -> URL {
-                if #available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *) {
-                    appending(path: path, directoryHint: .isDirectory)
-                } else {
-                    appendingPathComponent(path)
-                }
-            }
         }
         """
     }

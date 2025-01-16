@@ -354,7 +354,7 @@ public class GraphTraverser: GraphTraversing {
         /// Precompiled frameworks
         var precompiledFrameworks = filterDependencies(
             from: .target(name: name, path: path),
-            test: \.isPrecompiledAndLinkable,
+            test: \.isPrecompiledDynamicAndLinkable,
             skip: or(canDependencyEmbedBinaries, isDependencyPrecompiledMacro)
         )
         // Skip merged precompiled libraries from merging into the runnable binary
@@ -1582,7 +1582,7 @@ extension GraphDependency {
         if case let .xcframework(xcframework) = self { xcframework } else { nil }
     }
 
-    fileprivate var isPrecompiledAndLinkable: Bool {
+    private var isPrecompiledAndLinkable: Bool {
         if case .xcframework = self { true } else { isPrecompiledDynamicAndLinkable }
     }
 }

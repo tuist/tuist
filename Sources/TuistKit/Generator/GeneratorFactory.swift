@@ -1,13 +1,10 @@
 import Foundation
 import Mockable
-import Path
-import TuistAutomation
 import TuistCore
 import TuistGenerator
 import TuistLoader
 import TuistServer
 import TuistSupport
-import XcodeGraph
 
 /// The protocol describes the interface of a factory that instantiates
 /// generators for different commands

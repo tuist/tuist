@@ -1,8 +1,4 @@
-import Foundation
-import Path
 import TuistAsyncQueue
-import TuistLoader
-import XcodeGraph
 
 public enum TuistAnalytics {
     public static func bootstrap(dispatcher: TuistAnalyticsDispatcher) throws {

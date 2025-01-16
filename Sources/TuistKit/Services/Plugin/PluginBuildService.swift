@@ -1,4 +1,3 @@
-import Path
 import TuistSupport
 
 final class PluginBuildService {

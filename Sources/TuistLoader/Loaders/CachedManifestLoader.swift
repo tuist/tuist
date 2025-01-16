@@ -1,5 +1,6 @@
 import FileSystem
 import Foundation
+import NIOFileSystem
 import Path
 import ProjectDescription
 import ServiceContextModule
@@ -281,7 +282,18 @@ public class CachedManifestLoader: ManifestLoading {
         guard let cachedManifestContent = String(data: cachedManifestData, encoding: .utf8) else {
             throw ManifestLoaderError.manifestCachingFailed(manifest, cachedManifestPath)
         }
+        do {
+            try await write(cachedManifestContent: cachedManifestContent, to: cachedManifestPath)
+        } catch let error as NIOFileSystem.FileSystemError {
+            if error.code == .fileAlreadyExists {
+                ServiceContext.current?.logger?.debug("The manifest at \(cachedManifestPath) is already cached, skipping...")
+            } else {
+                throw error
+            }
+        }
+    }
 
+    private func write(cachedManifestContent: String, to cachedManifestPath: AbsolutePath) async throws {
         if try await !fileSystem.exists(cachedManifestPath.parentDirectory, isDirectory: true) {
             try await fileSystem.makeDirectory(at: cachedManifestPath)
         }

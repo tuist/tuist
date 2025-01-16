@@ -1,6 +1,5 @@
 import Foundation
 import Mockable
-import Path
 import ServiceContextModule
 import TuistSupport
 import XCTest
@@ -133,6 +132,45 @@ final class ServerSessionControllerTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(got, nil)
+    }
+
+    func test_get_authenticated_handle_when_logged_in() async throws {
+        // Given
+        given(serverAuthenticationController)
+            .authenticationToken(serverURL: .value(serverURL))
+            .willReturn(
+                .user(
+                    legacyToken: nil,
+                    accessToken: .test(
+                        email: "tuist@tuist.io",
+                        preferredUsername: "tuist"
+                    ),
+                    refreshToken: .test(
+                        email: "tuist@tuist.io",
+                        preferredUsername: "tuist"
+                    )
+                )
+            )
+
+        // When
+        let got = try await subject.whoami(serverURL: serverURL)
+
+        // Then
+        XCTAssertEqual(got, "tuist")
+    }
+
+    func test_get_authenticated_handle_when_logged_out() async throws {
+        given(serverAuthenticationController)
+            .authenticationToken(serverURL: .value(serverURL))
+            .willReturn(
+                .user(legacyToken: nil, accessToken: nil, refreshToken: nil)
+            )
+
+        // Then
+        await XCTAssertThrowsSpecific(
+            try await subject.authenticatedHandle(serverURL: serverURL),
+            ServerSessionControllerError.unauthenticated
+        )
     }
 
     func test_logout_deletesLegacyCredentials() async throws {

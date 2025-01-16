@@ -1,7 +1,6 @@
 import FileSystem
 import Foundation
 import Mockable
-import Path
 import ServiceContextModule
 import TuistSupport
 import XCTest

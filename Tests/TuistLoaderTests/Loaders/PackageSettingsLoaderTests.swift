@@ -1,6 +1,5 @@
 import Foundation
 import Mockable
-import Path
 import TSCUtility
 import TuistCore
 import TuistCoreTesting

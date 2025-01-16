@@ -6,7 +6,6 @@ import TuistGenerator
 import TuistLoader
 import TuistPlugin
 import TuistSupport
-import XcodeGraph
 
 enum EditServiceError: FatalError {
     case xcodeNotSelected

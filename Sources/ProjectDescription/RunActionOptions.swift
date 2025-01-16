@@ -1,5 +1,3 @@
-import Foundation
-
 /// Options for the `RunAction` action
 public struct RunActionOptions: Equatable, Codable, Sendable {
     /// Language to use when running the app.

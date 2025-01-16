@@ -495,7 +495,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
             .target(name: app.name, path: projectB.path): Set([.target(name: bundle.name, path: projectA.path)]),
-            .target(name: bundle.name, path: projectA.path): Set(),
+            .target(name: bundle.name, path: projectA.path): Set([]),
         ]
 
         // Given: Value Graph
@@ -510,7 +510,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let subject = GraphTraverser(graph: graph)
 
         // When
-        let got = subject.resourceBundleDependencies(path: projectB.path, name: app.name)
+        let got = subject.resourceBundleDependencies(path: projectB.path, name: app.name).sorted()
 
         // Then
         XCTAssertEqual(got, [
@@ -529,7 +529,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
             .target(name: staticFramework.name, path: projectA.path): Set([.target(name: bundle.name, path: projectA.path)]),
-            .target(name: bundle.name, path: projectA.path): Set(),
+            .target(name: bundle.name, path: projectA.path): Set([]),
             .target(name: app.name, path: projectB.path): Set([.target(name: staticFramework.name, path: projectA.path)]),
         ]
 
@@ -545,51 +545,12 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let subject = GraphTraverser(graph: graph)
 
         // When
-        let got = subject.resourceBundleDependencies(path: projectB.path, name: app.name)
+        let got = subject.resourceBundleDependencies(path: projectB.path, name: app.name).sorted()
 
         // Then
         XCTAssertEqual(got, [
             .product(target: bundle.name, productName: bundle.productNameWithExtension),
         ])
-    }
-
-    func test_resourceBundleDependencies_transitivelyViaSingleStaticFrameworkWithResources() throws {
-        // Given
-        let path = try temporaryPath().appending(component: "Image.png")
-
-        let bundle = Target.test(name: "ResourceBundle", product: .bundle)
-        let staticFramework = Target.test(
-            name: "StaticFramework",
-            product: .staticFramework,
-            resources: .init([.file(path: path)])
-        )
-        let projectA = Project.test(path: "/path/a", targets: [staticFramework, bundle])
-
-        let app = Target.test(name: "App", product: .app)
-        let projectB = Project.test(path: "/path/b", targets: [app])
-
-        let dependencies: [GraphDependency: Set<GraphDependency>] = [
-            .target(name: staticFramework.name, path: projectA.path): Set([.target(name: bundle.name, path: projectA.path)]),
-            .target(name: bundle.name, path: projectA.path): Set(),
-            .target(name: app.name, path: projectB.path): Set([.target(name: staticFramework.name, path: projectA.path)]),
-        ]
-
-        // Given: Value Graph
-        let graph = Graph.test(
-            path: .root,
-            projects: [
-                projectA.path: projectA,
-                projectB.path: projectB,
-            ],
-            dependencies: dependencies
-        )
-        let subject = GraphTraverser(graph: graph)
-
-        // When
-        let got = subject.resourceBundleDependencies(path: projectB.path, name: app.name)
-
-        // Then
-        XCTAssertEqual(got, [])
     }
 
     func test_resourceBundleDependencies_transitivelyViaMultipleStaticFrameworks() {
@@ -653,7 +614,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let projectB = Project.test(path: "/path/b", targets: [app])
 
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
-            .target(name: bundle.name, path: projectA.path): Set(),
+            .target(name: bundle.name, path: projectA.path): Set([]),
             .target(
                 name: staticFramework1.name,
                 path: projectA.path
@@ -856,33 +817,6 @@ final class GraphTraverserTests: TuistUnitTestCase {
                 .bundle(path: bundlePath),
             ]
         )
-    }
-
-    func test_resourceBundleDependencies_skip_mac_bundle() {
-        // Given
-        // App -> Mac Bundle
-        let app = Target.test(name: "App", destinations: [.iPhone, .macCatalyst], product: .app)
-        let bundle = Target.test(name: "MacBundle", platform: .macOS, product: .bundle)
-        let project = Project.test(targets: [app, bundle])
-
-        let dependencies: [GraphDependency: Set<GraphDependency>] = [
-            .target(name: app.name, path: project.path): Set([.target(name: bundle.name, path: project.path)]),
-            .target(name: bundle.name, path: project.path): Set([]),
-        ]
-
-        // Given: Value Graph
-        let graph = Graph.test(
-            path: project.path,
-            projects: [project.path: project],
-            dependencies: dependencies
-        )
-        let subject = GraphTraverser(graph: graph)
-
-        // When
-        let got = subject.resourceBundleDependencies(path: project.path, name: app.name)
-
-        // Then
-        XCTAssertEmpty(got)
     }
 
     func test_target_from_dependency() {
@@ -2001,7 +1935,6 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(embeddable, [
-            GraphDependencyReference(dependencyPrecompiledXCFramework),
             GraphDependencyReference(dependencyPrecompiledDynamicBinaryA),
             GraphDependencyReference(dependencyPrecompiledDynamicBinaryB),
         ])
@@ -2061,13 +1994,11 @@ final class GraphTraverserTests: TuistUnitTestCase {
         ])
 
         // When
-        let embeddable = subject.embeddableFrameworks(path: project.path, name: target.name).sorted()
+        let embeddable = subject.embeddableFrameworks(path: project.path, name: target.name)
 
         // Then
         XCTAssertBetterEqual(embeddable, [
             GraphDependencyReference(dependencyDynamicXCFramework),
-            GraphDependencyReference(dependencyStaticXCFrameworkA),
-            GraphDependencyReference(dependencyStaticXCFrameworkB),
         ])
     }
 
@@ -2168,12 +2099,11 @@ final class GraphTraverserTests: TuistUnitTestCase {
         ])
 
         // When
-        let embeddable = subject.embeddableFrameworks(path: project.path, name: target.name).sorted()
+        let embeddable = subject.embeddableFrameworks(path: project.path, name: target.name)
 
         // Then
         XCTAssertBetterEqual(embeddable, [
             GraphDependencyReference(dependencyDynamicXCFramework),
-            GraphDependencyReference(dependencyStaticXCFrameworkA),
         ])
     }
 

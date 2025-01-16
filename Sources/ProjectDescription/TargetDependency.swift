@@ -1,5 +1,3 @@
-import Foundation
-
 /// Dependency status used by dependencies
 public enum LinkingStatus: String, Codable, Hashable, Sendable {
     /// Required dependency

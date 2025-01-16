@@ -1,9 +1,6 @@
-import Foundation
-import Path
 import ServiceContextModule
 import TSCBasic
 import TuistKit
-import TuistLoader
 import TuistSupport
 
 @main

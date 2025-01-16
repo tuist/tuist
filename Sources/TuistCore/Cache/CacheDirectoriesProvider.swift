@@ -1,9 +1,7 @@
 import FileSystem
-import Foundation
 import Mockable
 import Path
 import TuistSupport
-import XcodeGraph
 
 @Mockable
 public protocol CacheDirectoriesProviding {
