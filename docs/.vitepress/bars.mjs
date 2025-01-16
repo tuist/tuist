@@ -1,6 +1,5 @@
-import { comingSoonBadge, xcodeProjCompatibleBadge } from "./badges.mjs";
+import { comingSoonBadge } from "./badges.mjs";
 import {
-  cubeOutlineIcon,
   cube02Icon,
   cube01Icon,
   tuistIcon,
@@ -613,10 +612,10 @@ export function guidesSidebar(locale) {
       )} ${cube01Icon()}</span>`,
       items: [
         {
-          text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${localizedString(
+          text: localizedString(
             locale,
             "sidebars.guides.items.share.items.previews.text",
-          )} ${xcodeProjCompatibleBadge(locale)}</span>`,
+          ),
           link: `/${locale}/guides/share/previews`,
         },
       ],
