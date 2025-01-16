@@ -33,9 +33,7 @@ public class EnvironmentLinter: EnvironmentLinting {
     /// - Returns: An array with a linting issue if the selected version is not compatible.
     /// - Throws: An error if there's an error obtaining the selected Xcode version.
     func lintXcodeVersion(config: Config) async throws -> [LintingIssue] {
-        guard let xcode = try await XcodeController.shared.selected() else {
-            return []
-        }
+        let xcode = try await XcodeController.shared.selected()
 
         let version = xcode.infoPlist.version
 
