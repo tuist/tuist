@@ -12,32 +12,40 @@ hero:
   actions:
     - theme: brand
       text: What is Tuist?
-      link: /guide/what-is-vitepress
+      link: /en/guides/tuist/about
     - theme: alt
       text: Quick start
-      link: https://github.com/vuejs/vitepress
+      link: /en/guides/quick-start/install-tuist
     - theme: alt
       text: View on GitHub
-      link: https://github.com/vuejs/vitepress
+      link: https://github.com/tuist/tuist
 features:
   - icon: 📝
     title: Projects
     details: A Swift-based DSL to make Xcode projects more managleabl and scalable.
     linkText: "Create or migrate project"
-    link: "/home/indie-crafters"
+    link: "/en/guides/develop/projects"
   - icon: 📦
     title: Cache
-    details: Your virtual platform team, guiding you to scale smartly when the time is right.
+    details: |
+      <div style="margin-bottom: 1rem; background: var(--vp-custom-block-tip-code-bg); color: var(--vp-c-tip-1); font-size: 11px; display: inline-block; padding-left: 5px; padding-right: 5px; border-radius: 10%;">Requires a Tuist project</div>
+      <p>
+      Get faster compilations by skipping compilation with cached binaries.
+      </p>
     linkText: "Speed up compilations"
-    link: "/home/startups"
+    link: "/en/guides/develop/cache"
   - icon: ✅
     title: Selective testing
-    details: Skip test targets when the dependent-upon code hasn't changed.
+    details: |
+      <div style="margin-bottom: 1rem; background: var(--vp-custom-block-tip-code-bg); color: var(--vp-c-tip-1); font-size: 11px; display: inline-block; padding-left: 5px; padding-right: 5px; border-radius: 10%;">Requires a Tuist project</div>
+      <p>
+      Skip test targets when the dependent-upon code hasn't changed.
+      </p>
     linkText: "Speed up test runs"
-    link: "/home/startups"
+    link: "/en/guides/develop/selective-testing"
   - icon: 📱
     title: Previews
     details: Share previews of your app with a URL that launches the app on a click.
-    linkText: "Create a preview"
-    link: "/home/scaling-businesses"
+    linkText: "Share your apps"
+    link: "/en/guides/share/previews"
 ---
