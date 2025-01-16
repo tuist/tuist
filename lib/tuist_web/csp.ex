@@ -150,7 +150,9 @@ defmodule TuistWeb.CSP do
         "#{acc}#{name} #{sources};"
       end)
 
-    put_resp_header(conn, "content-security-policy", csp)
+    conn
+    |> assign(:csp_nonce, get_csp_nonce())
+    |> put_resp_header("content-security-policy", csp)
   end
 
   @doc """

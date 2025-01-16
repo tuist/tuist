@@ -6,6 +6,7 @@ defmodule TuistWeb.Router do
   import TuistWeb.RateLimit
   import Phoenix.LiveDashboard.Router
   import PhoenixStorybook.Router
+  import Oban.Web.Router
   import Redirect
 
   use ErrorTracker.Web, :router
@@ -307,6 +308,8 @@ defmodule TuistWeb.Router do
 
   scope "/ops" do
     pipe_through [:browser_app, :ops]
+
+    oban_dashboard("/oban", csp_nonce_assign_key: :csp_nonce)
 
     live_dashboard "/dashboard",
       metrics: TuistWeb.Telemetry,
