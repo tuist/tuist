@@ -512,19 +512,9 @@ export function guidesSidebar(locale) {
         {
           text: localizedString(
             locale,
-            "sidebars.guides.items.develop.items.test.text",
+            "sidebars.guides.items.develop.items.selective-testing.text",
           ),
-          link: `/${locale}/guides/develop/test`,
-          collapsed: true,
-          items: [
-            {
-              text: localizedString(
-                locale,
-                "sidebars.guides.items.develop.items.test.items.selective-testing.text",
-              ),
-              link: `/${locale}/guides/develop/test/selective-testing`,
-            },
-          ],
+          link: `/${locale}/guides/develop/selective-testing`,
         },
         {
           text: localizedString(

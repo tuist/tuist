@@ -276,16 +276,8 @@
               "text": "Registry"
 >>>>>>> 862c81612 (Hoist the content under "Guides > Develop > Build" one level for visibility)
             },
-            "test": {
-              "text": "Test",
-              "items": {
-                "selective-testing": {
-                  "text": "Selective testing"
-                },
-                "flakiness": {
-                  "text": "Flakiness"
-                }
-              }
+            "selective-testing": {
+              "text": "Selective testing"
             },
             "registry": {
               "text": "Registry",
