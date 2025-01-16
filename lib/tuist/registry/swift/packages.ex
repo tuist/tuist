@@ -76,8 +76,8 @@ defmodule Tuist.Registry.Swift.Packages do
     |> Enum.map(& &1.name)
     |> Enum.filter(fn version ->
       # Matches semantic version as per: https://semver.org/
-      # Examples: 1.0.0, 1.0.0-alpha, 1.0.0-alpha.1
-      Regex.match?(~r/^v?\d+\.\d+\.\d+[0-9A-Za-z-]*(\.[0-9A-Za-z]*)?$/, version) and
+      # Examples: 1.0.0, 1.0.0-alpha, 1.0.0-alpha.1, 1.1
+      Regex.match?(~r/^v?\d+\.\d+(\.\d+)?[0-9A-Za-z-]*(\.[0-9A-Za-z]*)?$/, version) and
         not Enum.any?(package.package_releases, &(&1.version == semantic_version(version)))
     end)
     |> Enum.uniq_by(&semantic_version(&1))
@@ -101,10 +101,21 @@ defmodule Tuist.Registry.Swift.Packages do
         # Semantic version: 1.0.0-alpha.1
         # SwiftPM version: 1.0.0-alpha+1
         pre_release_with_replaced_dot = String.replace(pre_release, ".", "+")
+        version = version |> add_trailing_semantic_version_zeros()
         "#{version}-#{pre_release_with_replaced_dot}"
 
       _ ->
-        version
+        version |> add_trailing_semantic_version_zeros()
+    end
+  end
+
+  # Some versions might not have a minor or patch version, such as 1 or 1.1.
+  # In those cases, we can add trailing zeros to make it a valid semantic version.
+  defp add_trailing_semantic_version_zeros(version) do
+    case String.split(version, ".") do
+      [major] -> "#{major}.0.0"
+      [major, minor] -> "#{major}.#{minor}.0"
+      _ -> version
     end
   end
 

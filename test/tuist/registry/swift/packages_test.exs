@@ -77,6 +77,8 @@ defmodule Tuist.Registry.Swift.PackagesTest do
         "registry/swift/alamofire/alamofire/5.10.2/source_archive.zip", _ -> :ok
         "registry/swift/alamofire/alamofire/5.10.0/Package.swift", _ -> :ok
         "registry/swift/alamofire/alamofire/5.10.0/source_archive.zip", _ -> :ok
+        "registry/swift/alamofire/alamofire/5.11.0/Package.swift", _ -> :ok
+        "registry/swift/alamofire/alamofire/5.11.0/source_archive.zip", _ -> :ok
       end)
 
       VCS
@@ -85,6 +87,7 @@ defmodule Tuist.Registry.Swift.PackagesTest do
           %Tag{name: "5.10.2"},
           %Tag{name: "5.10.1"},
           %Tag{name: "5.10.0"},
+          %Tag{name: "5.11"},
           %Tag{name: "tag@5.0.0"}
         ]
       end)
@@ -112,12 +115,14 @@ defmodule Tuist.Registry.Swift.PackagesTest do
       # Then
       assert got |> Enum.map(& &1.version) == [
                "5.10.2",
-               "5.10.0"
+               "5.10.0",
+               "5.11.0"
              ]
 
       assert got
              |> Repo.preload(:manifests)
              |> Enum.map(&(&1.manifests |> Enum.count())) == [
+               1,
                1,
                1
              ]
