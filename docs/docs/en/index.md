@@ -22,7 +22,7 @@ hero:
 features:
   - icon: 📝
     title: Projects
-    details: A Swift-based DSL to make Xcode projects more managleabl and scalable.
+    details: A Swift-based DSL to make Xcode projects more managleable and scalable.
     linkText: "Create or migrate project"
     link: "/en/guides/develop/projects"
   - icon: 📦
@@ -49,3 +49,19 @@ features:
     linkText: "Share your apps"
     link: "/en/guides/share/previews"
 ---
+
+Install Tuist and run `tuist init` to get started:
+
+::: code-group
+
+```bash [Homebrew]
+brew tap tuist/tuist
+brew install --formula tuist
+
+tuist init
+```
+
+```bash [Mise]
+mise x tuist@latest -- tuist init
+```
+:::
