@@ -61,11 +61,49 @@ defmodule TuistWeb.Marketing.MarketingController do
     |> assign(:head_twitter_card, "summary_large_image")
     |> assign(
       :head_description,
-      gettext(
-        "A newsletter crafted by the Tuist team, featuring curated reads from the Swift ecosystem and beyond. Each edition highlights the most insightful articles, tutorials, and ideas shaping the Swift community, delivered straight to your inbox."
-      )
+      Tuist.Marketing.Newsletter.description()
     )
     |> render(:newsletter, layout: false)
+  end
+
+  def newsletter_issue(%{params: params} = conn, %{"issue_number" => issue_number}) do
+    email_version? = Map.has_key?(params, "email")
+
+    issue =
+      with {issue_number, _} <- Integer.parse(issue_number),
+           issue when not is_nil(issue) <-
+             Enum.find(Tuist.Marketing.Newsletter.issues(), &(&1.number == issue_number)) do
+        issue
+      else
+        :error ->
+          raise TuistWeb.Errors.NotFoundError,
+                gettext("The newsletter issue number %{issue_number} is not a valid number.",
+                  issue_number: issue_number
+                )
+
+        nil ->
+          raise TuistWeb.Errors.NotFoundError,
+                gettext("The newsletter issue %{issue_number} was not found.",
+                  issue_number: issue_number
+                )
+      end
+
+    conn =
+      conn
+      |> put_layout(false)
+      |> put_root_layout(false)
+
+    conn =
+      if email_version? do
+        conn
+        |> put_resp_header("Content-Type", "text/plain; charset=utf-8")
+        |> PlugMinifyHtml.call(PlugMinifyHtml.init([]))
+      else
+        conn |> put_resp_header("Content-Type", "text/html")
+      end
+
+    conn
+    |> render(String.to_atom("newsletter_issue"), issue: issue, email_version?: email_version?)
   end
 
   def blog_rss(conn, _params) do
@@ -108,6 +146,26 @@ defmodule TuistWeb.Marketing.MarketingController do
     |> render(:changelog_atom, layout: false)
   end
 
+  def newsletter_rss(conn, _params) do
+    issues = Tuist.Marketing.Newsletter.issues()
+    last_build_date = issues |> List.last() |> Map.get(:date)
+
+    conn
+    |> assign(:issues, issues)
+    |> assign(:last_build_date, last_build_date)
+    |> render(:newsletter_rss, layout: false)
+  end
+
+  def newsletter_atom(conn, _params) do
+    issues = Tuist.Marketing.Newsletter.issues()
+    last_build_date = issues |> List.last() |> Map.get(:date)
+
+    conn
+    |> assign(:issues, issues)
+    |> assign(:last_build_date, last_build_date)
+    |> render(:newsletter_atom, layout: false)
+  end
+
   def sitemap(conn, _params) do
     page_urls =
       Tuist.Marketing.Pages.get_pages()
@@ -117,13 +175,17 @@ defmodule TuistWeb.Marketing.MarketingController do
       Tuist.Marketing.Blog.get_posts()
       |> Enum.map(&Tuist.Environment.app_url(path: &1.slug))
 
+    newsletter_issue_urls =
+      Tuist.Marketing.Newsletter.issues()
+      |> Enum.map(&Tuist.Environment.app_url(path: ~p"/newsletter/issue/#{&1.number}"))
+
     entries =
       [
         Tuist.Environment.app_url(path: ~p"/"),
         Tuist.Environment.app_url(path: ~p"/pricing"),
         Tuist.Environment.app_url(path: ~p"/blog"),
         Tuist.Environment.app_url(path: ~p"/changelog")
-      ] ++ page_urls ++ post_urls
+      ] ++ page_urls ++ post_urls ++ newsletter_issue_urls
 
     conn
     |> assign(:entries, entries)
@@ -344,6 +406,7 @@ defmodule TuistWeb.Marketing.MarketingController do
     |> assign(:head_twitter_card, "summary_large_image")
     |> assign(:head_include_blog_rss_and_atom, true)
     |> assign(:head_include_changelog_rss_and_atom, true)
+    |> assign(:head_include_newsletter_rss_and_atom, true)
   end
 
   defp put_resp_header_cache_control(conn, _opts) do

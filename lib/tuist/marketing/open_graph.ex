@@ -11,6 +11,12 @@ defmodule Tuist.Marketing.OpenGraph do
   def generate_og_image(title, path) do
     {title_line_1, title_line_2, title_line_3} = og_image_title_lines(title)
 
+    parent_directory = Path.dirname(path)
+
+    if not File.exists?(parent_directory) do
+      File.mkdir_p!(parent_directory)
+    end
+
     {image, _} =
       template(%{
         title_line_1: title_line_1,

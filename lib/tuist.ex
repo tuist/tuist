@@ -17,6 +17,7 @@ defmodule Tuist do
       Marketing.Pages,
       Marketing.Changelog,
       Marketing.OpenGraph,
+      Marketing.Newsletter,
 
       # App
       # -----

@@ -9,8 +9,19 @@ defmodule Mix.Tasks.Marketing.Gen.OgImages do
     og_images_directory =
       Application.app_dir(:tuist, "priv") |> Path.join("static/marketing/images/og/generated")
 
+    generate_newsletter_og_images(og_images_directory)
     generate_posts_og_images(og_images_directory)
     generate_pages_og_images(og_images_directory)
+  end
+
+  defp generate_newsletter_og_images(og_images_directory) do
+    Tuist.Marketing.Newsletter.issues()
+    |> Enum.each(fn issue ->
+      Tuist.Marketing.OpenGraph.generate_og_image(
+        issue.full_title,
+        Path.join(og_images_directory, "newsletter/issues/#{issue.number}.jpg")
+      )
+    end)
   end
 
   defp generate_pages_og_images(og_images_directory) do

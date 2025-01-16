@@ -29,5 +29,8 @@
   "[phoenix-heex]": {
     "editor.defaultFormatter": "JakeBecker.elixir-ls",
     "editor.formatOnSave": true
+  },
+  "debug.javascript.defaultRuntimeExecutable": {
+    "pwa-node": "/Users/pepicrft/.local/share/mise/shims/node"
   }
 }

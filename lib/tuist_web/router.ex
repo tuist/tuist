@@ -56,6 +56,7 @@ defmodule TuistWeb.Router do
     plug :put_secure_browser_headers
     plug Ueberauth
     plug :fetch_current_user
+    plug :assign_current_path
     plug :content_security_policy
     plug TuistWeb.OnPremisePlug, :forward_marketing_to_dashboard
   end
@@ -118,6 +119,12 @@ defmodule TuistWeb.Router do
     get "/changelog/atom.xml", TuistWeb.Marketing.MarketingController, :changelog_atom,
       metadata: %{type: :marketing}
 
+    get "/newsletter/rss.xml", TuistWeb.Marketing.MarketingController, :newsletter_rss,
+      metadata: %{type: :marketing}
+
+    get "/newsletter/atom.xml", TuistWeb.Marketing.MarketingController, :newsletter_atom,
+      metadata: %{type: :marketing}
+
     get "/sitemap.xml", TuistWeb.Marketing.MarketingController, :sitemap,
       metadata: %{type: :marketing}
   end
@@ -125,8 +132,7 @@ defmodule TuistWeb.Router do
   scope "/" do
     pipe_through [
       :open_api,
-      :browser_marketing,
-      :assign_current_path
+      :browser_marketing
     ]
 
     live "/blog", TuistWeb.Marketing.MarketingBlogLive, metadata: %{type: :marketing}
@@ -149,6 +155,11 @@ defmodule TuistWeb.Router do
 
     get "/newsletter", TuistWeb.Marketing.MarketingController, :newsletter,
       metadata: %{type: :marketing}
+
+    get "/newsletter/issues/:issue_number",
+        TuistWeb.Marketing.MarketingController,
+        :newsletter_issue,
+        metadata: %{type: :marketing}
   end
 
   scope "/" do

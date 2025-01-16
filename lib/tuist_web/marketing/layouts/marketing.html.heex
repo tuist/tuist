@@ -64,7 +64,22 @@
         href={~p"/changelog/atom.xml"}
       />
     <% end %>
-    <!-- Fonts -->
+    <%= if assigns[:head_include_newsletter_rss_and_atom] do %>
+      <link
+        rel="alternate"
+        type="application/rss+xml"
+        title={gettext("Swift Stories Newsletter")}
+        href={~p"/newsletter/rss.xml"}
+      />
+      <link
+        rel="alternate"
+        type="application/atom+xml"
+        title={gettext("Swift Stories Newsletter")}
+        href={~p"/newsletter/atom.xml"}
+      />
+    <% end %>
+    
+<!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
