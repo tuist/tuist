@@ -133,7 +133,7 @@
                 <tr :for={tool <- @issue.tools}>
                   <td style="vertical-align: top; width: 50%; padding-right: 1rem; padding-bottom: 2rem;">
                     <a
-                      href="https://ghostty.dev"
+                      href={tool["link"]}
                       target="_blank"
                       style="text-decoration: none; color: #2c2250;"
                     >
