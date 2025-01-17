@@ -10,7 +10,7 @@ defmodule Tuist.Registry.Swift.Workers.UpdatePackageReleasesWorker do
       period: :infinity,
       states: [:available, :scheduled, :executing, :retryable]
     ],
-    max_attempts: 3
+    max_attempts: 10
 
   alias Tuist.Time
   alias Tuist.Registry.Swift.Packages
