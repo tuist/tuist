@@ -35,7 +35,7 @@ Xcode는 현재 소스 제어 패키지를 레지스트리로 자동으로 대�
 
 ### Xcode 기본 통합을 사용하는 Tuist 프로젝트 {#tuist-project-with-xcode-default-integration}
 
-If you are using the <LocalizedLink href="/guides/develop/projects/dependencies#xcodes-default-integration">Xcode's default integration</LocalizedLink> of packages with Tuist Projects, you need to use the registry identifier instead of a URL when adding a package:
+<LocalizedLink href="/guides/develop/projects/dependencies#xcodes-default-integration">Xcode의 기본 통합</LocalizedLink>을 사용하여 Tuist 프로젝트에 패키지를 추가하는 경우 URL 대신 레지스트리 식별자를 사용해야 합니다:
 
 ```swift
 import ProjectDescription
@@ -59,9 +59,9 @@ let project = Project(
 )
 ```
 
-### Tuist project with the XcodeProj-based integration {#tuist-project-with-xcodeproj-based-integration}
+### XcodeProj 기반의 통합을 사용하는 Tuist 프로젝트 {#tuist-project-with-xcodeproj-based-integration}
 
-If you are using the <LocalizedLink href="/guides/develop/projects/dependencies#tuists-xcodeprojbased-integration">XcodeProj-based integration</LocalizedLink>, you can use the `--replace-scm-with-registry` flag to resolve dependencies from the registry if they are available. Add it to the `installOptions` in your `Tuist.swift` file:
+<LocalizedLink href="/guides/develop/projects/dependencies#tuists-xcodeprojbased-integration">XcodeProj 기반의 통합</LocalizedLink>을 사용하는 경우, 레지스트리에서 의존성 해결을 위해 `--replace-scm-with-registry` 플래그를 사용할 수 있습니다. `Tuist.swift` 파일의 `installOptions`에 추가합니다:
 
 ```swift
 import ProjectDescription
