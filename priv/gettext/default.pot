@@ -2486,7 +2486,7 @@ msgstr ""
 msgid "The newsletter issue number %{issue_number} is not a valid number."
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/newsletter_issue.html.heex:68
+#: lib/tuist_web/marketing/controllers/marketing_html/newsletter_issue.html.heex:73
 #, elixir-autogen, elixir-format
 msgid "View in web browser"
 msgstr ""
