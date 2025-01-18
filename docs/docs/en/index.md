@@ -28,7 +28,7 @@ features:
   - icon: 📦
     title: Cache
     details: |
-      <div style="margin-bottom: 1rem; background: var(--vp-custom-block-tip-code-bg); color: var(--vp-c-tip-1); font-size: 11px; display: inline-block; padding-left: 5px; padding-right: 5px; border-radius: 10%;">Requires a Tuist project</div>
+      <div style="margin-bottom: 1rem; background: var(--vp-custom-block-tip-code-bg); color: var(--vp-c-tip-1); font-size: 11px; display: inline-block; padding-left: 5px; padding-right: 5px; border-radius: 10%;">Requires a generated project</div>
       <p>
       Get faster compilations by skipping compilation with cached binaries.
       </p>
@@ -37,7 +37,7 @@ features:
   - icon: ✅
     title: Selective testing
     details: |
-      <div style="margin-bottom: 1rem; background: var(--vp-custom-block-tip-code-bg); color: var(--vp-c-tip-1); font-size: 11px; display: inline-block; padding-left: 5px; padding-right: 5px; border-radius: 10%;">Requires a Tuist project</div>
+      <div style="margin-bottom: 1rem; background: var(--vp-custom-block-tip-code-bg); color: var(--vp-c-tip-1); font-size: 11px; display: inline-block; padding-left: 5px; padding-right: 5px; border-radius: 10%;">Requires a generated project</div>
       <p>
       Skip test targets when the dependent-upon code hasn't changed.
       </p>
@@ -49,6 +49,8 @@ features:
     linkText: "Share your apps"
     link: "/en/guides/share/previews"
 ---
+
+## Installation
 
 Install Tuist and run `tuist init` to get started:
 
@@ -65,3 +67,5 @@ tuist init
 mise x tuist@latest -- tuist init
 ```
 :::
+
+Check out our <LocalizedLink href="/guides/quick-start/install-tuist">installation guide</LocalizedLink> for more details.

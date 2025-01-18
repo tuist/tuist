@@ -50,6 +50,8 @@ features:
     link: "/es/guides/share/previews"
 ---
 
+## Installation
+
 Install Tuist and run `tuist init` to get started:
 
 ::: code-group
@@ -65,3 +67,5 @@ tuist init
 mise x tuist@latest -- tuist init
 ```
 :::
+
+Check out our <LocalizedLink href="/guides/quick-start/install-tuist">installation guide</LocalizedLink> for more details.

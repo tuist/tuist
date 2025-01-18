@@ -65,3 +65,5 @@ tuist init
 mise x tuist@latest -- tuist init
 ```
 :::
+
+Check out our <LocalizedLink href="/guides/quick-start/install-tuist">installation guide</LocalizedLink> for more details.
