@@ -1,12 +1,12 @@
 import Foundation
 import Mockable
+import ServiceContextModule
 import TuistCore
 import TuistLoader
 import TuistServer
 import TuistSupport
 import TuistSupportTesting
 import XCTest
-
 @testable import TuistKit
 
 final class ProjectShowServiceTests: TuistUnitTestCase {
@@ -91,149 +91,159 @@ final class ProjectShowServiceTests: TuistUnitTestCase {
     }
 
     func test_run_when_full_handle_is_provided() async throws {
-        // Given
-        given(configLoader)
-            .loadConfig(path: .any)
-            .willReturn(.test())
-        given(getProjectService)
-            .getProject(
-                fullHandle: .value("tuist/tuist"),
-                serverURL: .any
-            )
-            .willReturn(
-                .test(
-                    fullName: "tuist/tuist",
-                    defaultBranch: "main"
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            given(configLoader)
+                .loadConfig(path: .any)
+                .willReturn(.test())
+            given(getProjectService)
+                .getProject(
+                    fullHandle: .value("tuist/tuist"),
+                    serverURL: .any
                 )
+                .willReturn(
+                    .test(
+                        fullName: "tuist/tuist",
+                        defaultBranch: "main"
+                    )
+                )
+
+            // When
+            try await subject.run(fullHandle: "tuist/tuist", web: false, path: nil)
+
+            // Then
+            XCTAssertStandardOutput(
+                pattern: """
+                Full handle: tuist/tuist
+                Default branch: main
+                """
             )
-
-        // When
-        try await subject.run(fullHandle: "tuist/tuist", web: false, path: nil)
-
-        // Then
-        XCTAssertStandardOutput(
-            pattern: """
-            Full handle: tuist/tuist
-            Default branch: main
-            """
-        )
+        }
     }
 
     func test_run_when_project_is_public() async throws {
-        // Given
-        given(configLoader)
-            .loadConfig(path: .any)
-            .willReturn(.test())
-        given(getProjectService)
-            .getProject(
-                fullHandle: .value("tuist/tuist"),
-                serverURL: .any
-            )
-            .willReturn(
-                .test(
-                    visibility: .public
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            given(configLoader)
+                .loadConfig(path: .any)
+                .willReturn(.test())
+            given(getProjectService)
+                .getProject(
+                    fullHandle: .value("tuist/tuist"),
+                    serverURL: .any
                 )
+                .willReturn(
+                    .test(
+                        visibility: .public
+                    )
+                )
+
+            // When
+            try await subject.run(fullHandle: "tuist/tuist", web: false, path: nil)
+
+            // Then
+            XCTAssertStandardOutput(
+                pattern: """
+                Visibility: public
+                """
             )
-
-        // When
-        try await subject.run(fullHandle: "tuist/tuist", web: false, path: nil)
-
-        // Then
-        XCTAssertStandardOutput(
-            pattern: """
-            Visibility: public
-            """
-        )
+        }
     }
 
     func test_run_when_project_is_private() async throws {
-        // Given
-        given(configLoader)
-            .loadConfig(path: .any)
-            .willReturn(.test())
-        given(getProjectService)
-            .getProject(
-                fullHandle: .value("tuist/tuist"),
-                serverURL: .any
-            )
-            .willReturn(
-                .test(
-                    visibility: .private
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            given(configLoader)
+                .loadConfig(path: .any)
+                .willReturn(.test())
+            given(getProjectService)
+                .getProject(
+                    fullHandle: .value("tuist/tuist"),
+                    serverURL: .any
                 )
+                .willReturn(
+                    .test(
+                        visibility: .private
+                    )
+                )
+
+            // When
+            try await subject.run(fullHandle: "tuist/tuist", web: false, path: nil)
+
+            // Then
+            XCTAssertStandardOutput(
+                pattern: """
+                Visibility: private
+                """
             )
-
-        // When
-        try await subject.run(fullHandle: "tuist/tuist", web: false, path: nil)
-
-        // Then
-        XCTAssertStandardOutput(
-            pattern: """
-            Visibility: private
-            """
-        )
+        }
     }
 
     func test_run_when_repositoryURL_is_defined() async throws {
-        // Given
-        given(configLoader)
-            .loadConfig(path: .any)
-            .willReturn(.test())
-        given(getProjectService)
-            .getProject(
-                fullHandle: .value("tuist/tuist"),
-                serverURL: .any
-            )
-            .willReturn(
-                .test(
-                    fullName: "tuist/tuist",
-                    defaultBranch: "main",
-                    repositoryURL: "https://github.com/tuist/tuist"
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            given(configLoader)
+                .loadConfig(path: .any)
+                .willReturn(.test())
+            given(getProjectService)
+                .getProject(
+                    fullHandle: .value("tuist/tuist"),
+                    serverURL: .any
                 )
+                .willReturn(
+                    .test(
+                        fullName: "tuist/tuist",
+                        defaultBranch: "main",
+                        repositoryURL: "https://github.com/tuist/tuist"
+                    )
+                )
+
+            // When
+            try await subject.run(fullHandle: "tuist/tuist", web: false, path: nil)
+
+            // Then
+            XCTAssertStandardOutput(
+                pattern: """
+                Full handle: tuist/tuist
+                Repository: https://github.com/tuist/tuist
+                Default branch: main
+                """
             )
-
-        // When
-        try await subject.run(fullHandle: "tuist/tuist", web: false, path: nil)
-
-        // Then
-        XCTAssertStandardOutput(
-            pattern: """
-            Full handle: tuist/tuist
-            Repository: https://github.com/tuist/tuist
-            Default branch: main
-            """
-        )
+        }
     }
 
     func test_run_when_full_handle_is_not_provided() async throws {
-        // Given
-        given(configLoader)
-            .loadConfig(path: .any)
-            .willReturn(
-                .test(
-                    fullHandle: "tuist/tuist"
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            given(configLoader)
+                .loadConfig(path: .any)
+                .willReturn(
+                    .test(
+                        fullHandle: "tuist/tuist"
+                    )
                 )
-            )
-        given(getProjectService)
-            .getProject(
-                fullHandle: .value("tuist/tuist"),
-                serverURL: .any
-            )
-            .willReturn(
-                .test(
-                    fullName: "tuist/tuist",
-                    defaultBranch: "main"
+            given(getProjectService)
+                .getProject(
+                    fullHandle: .value("tuist/tuist"),
+                    serverURL: .any
                 )
+                .willReturn(
+                    .test(
+                        fullName: "tuist/tuist",
+                        defaultBranch: "main"
+                    )
+                )
+
+            // When
+            try await subject.run(fullHandle: nil, web: false, path: nil)
+
+            // Then
+            XCTAssertStandardOutput(
+                pattern: """
+                Full handle: tuist/tuist
+                Default branch: main
+                """
             )
-
-        // When
-        try await subject.run(fullHandle: nil, web: false, path: nil)
-
-        // Then
-        XCTAssertStandardOutput(
-            pattern: """
-            Full handle: tuist/tuist
-            Default branch: main
-            """
-        )
+        }
     }
 }

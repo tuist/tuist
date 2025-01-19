@@ -27,13 +27,36 @@ Now you can access the registry! To resolve dependencies from the registry inste
 
 ### Xcode projects {#xcode-projects}
 
-> [!IMPORTANT] Support for Xcode projects is coming soon.
-> Follow the latest development at [our community forum](https://community.tuist.dev/t/tuist-registry-initiative/262/2).
+To add packages using the registry, use the default Xcode UI. You can search for packages in the registry by clicking on the `+` button in the `Package Dependencies` tab in Xcode. If the package is available in the registry, you will see the `tuist.dev` registry in the top right:
+
+![Adding package dependencies](/images/guides/develop/build/registry/registry-add-package.png)
+
+Note that Xcode currently doesn't support automatically replacing source control packages with their registry equivalents. You will need to manually remove the source control package and add the registry package to speed up the resolution.
 
 ### Tuist project with the Xcode default integration {#tuist-project-with-xcode-default-integration}
 
-> [!IMPORTANT] Support for Tuist projects with the Xcode default integration of packages is coming soon.
-> Follow the latest development at [our community forum](https://community.tuist.dev/t/tuist-registry-initiative/262/2).
+If you are using the <LocalizedLink href="/guides/develop/projects/dependencies#xcodes-default-integration">Xcode's default integration</LocalizedLink> of packages with Tuist Projects, you need to use the registry identifier instead of a URL when adding a package:
+```swift
+import ProjectDescription
+
+let project = Project(
+    name: "MyProject",
+    packages: [
+        // Source control resolution
+        // .package(url: "https://github.com/pointfreeco/swift-composable-architecture", from: "0.1.0")
+        // Registry resolution
+        .package(id: "pointfreeco.swift-composable-architecture", from: "0.1.0")
+    ],
+    .target(
+        name: "App",
+        product: .app,
+        bundleId: "io.tuist.App",
+        dependencies: [
+            .package(product: "ComposableArchitecture"),
+        ]
+    )
+)
+```
 
 ### Tuist project with the XcodeProj-based integration {#tuist-project-with-xcodeproj-based-integration}
 

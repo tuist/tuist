@@ -2564,7 +2564,10 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     .test(
                         "Target1",
                         basePath: basePath,
-                        customSettings: ["OTHER_SWIFT_FLAGS": ["$(inherited)", "-swift-version 5"]]
+                        customSettings: [
+                            "OTHER_SWIFT_FLAGS": ["$(inherited)", "-swift-version 5"],
+                            "SWIFT_VERSION": "5",
+                        ]
                     ),
                 ]
             )

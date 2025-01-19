@@ -1,7 +1,5 @@
-import Foundation
 import Mockable
 import Path
-import TuistSupport
 
 public enum XcodeBuildDestination: Equatable {
     case device(String)

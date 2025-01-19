@@ -3,7 +3,6 @@ import Foundation
 import Path
 import ProjectDescription
 import TuistSupport
-import XcodeGraph
 
 extension FileListGlob {
     func unfold(

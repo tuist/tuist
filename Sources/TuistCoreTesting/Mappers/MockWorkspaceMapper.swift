@@ -1,6 +1,4 @@
 import Foundation
-import Path
-import XcodeGraph
 @testable import TuistCore
 
 public final class MockWorkspaceMapper: WorkspaceMapping {

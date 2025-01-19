@@ -5,7 +5,6 @@ import Path
 import struct ProjectDescription.Config
 import TuistCore
 import TuistSupport
-import XcodeGraph
 
 @Mockable
 public protocol ConfigLoading {

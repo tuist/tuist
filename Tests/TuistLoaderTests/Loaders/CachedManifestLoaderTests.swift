@@ -1,5 +1,7 @@
+import FileSystem
 import Foundation
 import Mockable
+import NIOFileSystem
 import Path
 import ProjectDescription
 import TuistCore
@@ -316,14 +318,66 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
         )
     }
 
+    func test_notThrowing_fileAlreadyExistsNIOError() async throws {
+        // Given
+        let fileSystem = MockFileSystem()
+        fileSystem.writeTextOverride = { _, _, _ in
+            throw NIOFileSystem.FileSystemError(
+                code: .fileAlreadyExists,
+                message: "",
+                cause: nil,
+                location: .init(function: "", file: "", line: 0)
+            )
+        }
+
+        subject = createSubject(fileSystem: fileSystem)
+
+        let path = try temporaryPath().appending(component: "App")
+        let project = Project.test(name: "App")
+        try await stubProject(project, at: path)
+
+        // When
+        let result = try await subject.loadProject(at: path)
+
+        // Then
+        XCTAssertEqual(result, project)
+        XCTAssertEqual(result.name, "App")
+    }
+
+    func test_throwing_otherNIOErrors() async throws {
+        // Given
+        let expectedError = NIOFileSystem.FileSystemError(
+            code: .invalidArgument,
+            message: "",
+            cause: nil,
+            location: .init(function: "", file: "", line: 0)
+        )
+        let fileSystem = MockFileSystem()
+        fileSystem.writeTextOverride = { _, _, _ in
+            throw expectedError
+        }
+
+        subject = createSubject(fileSystem: fileSystem)
+
+        let path = try temporaryPath().appending(component: "App")
+        let project = Project.test(name: "App")
+        try await stubProject(project, at: path)
+
+        // When/Then
+        await XCTAssertThrowsSpecific(
+            { try await self.subject.loadProject(at: path) },
+            expectedError
+        )
+    }
+
     // MARK: - Helpers
 
-    private func createSubject(tuistVersion: String = "1.0") -> CachedManifestLoader {
+    private func createSubject(tuistVersion: String = "1.0", fileSystem: FileSysteming? = nil) -> CachedManifestLoader {
         CachedManifestLoader(
             manifestLoader: manifestLoader,
             projectDescriptionHelpersHasher: projectDescriptionHelpersHasher,
             helpersDirectoryLocator: helpersDirectoryLocator,
-            fileSystem: fileSystem,
+            fileSystem: fileSystem ?? self.fileSystem,
             environment: environment,
             cacheDirectoriesProvider: cacheDirectoriesProvider,
             tuistVersion: tuistVersion
@@ -397,5 +451,11 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
         for filePath in try fileHandler.contentsOfDirectory(path) {
             try fileHandler.write("corruptedData", path: filePath, atomically: true)
         }
+    }
+}
+
+extension NIOFileSystem.FileSystemError: Equatable {
+    public static func == (lhs: _NIOFileSystem.FileSystemError, rhs: _NIOFileSystem.FileSystemError) -> Bool {
+        return lhs.code == rhs.code && lhs.message == rhs.message && lhs.location == rhs.location
     }
 }

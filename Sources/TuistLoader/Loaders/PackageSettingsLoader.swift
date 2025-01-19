@@ -1,11 +1,9 @@
-import FileSystem
 import Foundation
 import Path
 import ProjectDescription
 import TSCUtility
 import TuistCore
 import TuistSupport
-import XcodeGraph
 
 /// Entity responsible for providing `PackageSettings`.
 public protocol PackageSettingsLoading {

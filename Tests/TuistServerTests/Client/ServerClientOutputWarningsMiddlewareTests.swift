@@ -1,8 +1,10 @@
 import Foundation
 import HTTPTypes
 import OpenAPIRuntime
+import ServiceContextModule
 import TuistSupport
 import XCTest
+
 @testable import TuistServer
 @testable import TuistSupportTesting
 
@@ -34,28 +36,30 @@ final class ServerClientOutputWarningsMiddlewareTests: TuistUnitTestCase {
     }
 
     func test_outputsWarnings_whenTheHeaderIsPresent() async throws {
-        // Given
-        let url = URL(string: "https://test.tuist.io")!
-        let warnings = ["foo", "bar"]
-        let base64edJsonWarnings = (try JSONSerialization.data(withJSONObject: warnings)).base64EncodedString()
-        let request = HTTPRequest(method: .get, scheme: nil, authority: nil, path: "/")
-        let response = HTTPResponse(
-            status: 200,
-            headerFields: [
-                try XCTUnwrap(HTTPField.Name("x-tuist-cloud-warnings")): base64edJsonWarnings,
-            ]
-        )
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            let url = URL(string: "https://test.tuist.io")!
+            let warnings = ["foo", "bar"]
+            let base64edJsonWarnings = (try JSONSerialization.data(withJSONObject: warnings)).base64EncodedString()
+            let request = HTTPRequest(method: .get, scheme: nil, authority: nil, path: "/")
+            let response = HTTPResponse(
+                status: 200,
+                headerFields: [
+                    try XCTUnwrap(HTTPField.Name("x-tuist-cloud-warnings")): base64edJsonWarnings,
+                ]
+            )
 
-        // When
-        let (gotResponse, _) = try await subject
-            .intercept(request, body: nil, baseURL: url, operationID: "123") { _, _, _ in
-                (response, nil)
+            // When
+            let (gotResponse, _) = try await subject
+                .intercept(request, body: nil, baseURL: url, operationID: "123") { _, _, _ in
+                    (response, nil)
+                }
+
+            // Then
+            XCTAssertEqual(gotResponse, response)
+            for warning in warnings {
+                XCTAssertStandardOutput(pattern: warning)
             }
-
-        // Then
-        XCTAssertEqual(gotResponse, response)
-        for warning in warnings {
-            XCTAssertStandardOutput(pattern: warning)
         }
     }
 
@@ -73,6 +77,7 @@ final class ServerClientOutputWarningsMiddlewareTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(gotResponse, response)
-        XCTAssertEqual(TestingLogHandler.collected[.warning, <=], "")
+        let standardOutput = ServiceContext.current?.testingLogHandler?.collected[.warning, <=] ?? ""
+        XCTAssertEqual(standardOutput, "")
     }
 }

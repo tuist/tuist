@@ -1,6 +1,5 @@
 import FileSystem
 import Foundation
-import Path
 import XCTest
 
 @testable import TuistLoader

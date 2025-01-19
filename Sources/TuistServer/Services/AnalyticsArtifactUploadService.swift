@@ -3,7 +3,6 @@ import Mockable
 import Path
 import TuistCore
 import TuistSupport
-import XcodeGraph
 
 @Mockable
 public protocol AnalyticsArtifactUploadServicing {

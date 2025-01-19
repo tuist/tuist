@@ -1,0 +1,23 @@
+{
+  "originHash" : "0c4692cc0e1ce79e8f3d1284914bf0332c20288d19dd78d7cc05319c55245c00",
+  "pins" : [
+    {
+      "identity" : "gcdwebserver",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/Subito-it/GCDWebServer.git",
+      "state" : {
+        "revision" : "5b7f7a7d11f92a983ac5ec6c81d26c6c23376d98",
+        "version" : "4.0.0"
+      }
+    },
+    {
+      "identity" : "sbtuitesttunnel",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/Subito-it/SBTUITestTunnel",
+      "state" : {
+        "revision" : "81ec9c3c6e1df6b4e3d90d435e74a5e10825324e"
+      }
+    }
+  ],
+  "version" : 3
+}

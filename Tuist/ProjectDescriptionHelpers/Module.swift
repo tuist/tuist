@@ -115,6 +115,7 @@ public enum Module: String, CaseIterable {
     fileprivate var sharedDependencies: [TargetDependency] {
         return [
             .external(name: "Path"),
+            .external(name: "ServiceContextModule"),
             .external(name: "SystemPackage"),
         ]
     }
@@ -281,6 +282,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "ZIPFoundation"),
                     .external(name: "Difference"),
                     .external(name: "Command"),
+                    .external(name: "LoggingOSLog"),
                 ]
             case .kit:
                 [
@@ -351,6 +353,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "FileSystem"),
                     .external(name: "XcodeProj"),
                     .external(name: "SwiftToolsSupport"),
+                    .external(name: "_NIOFileSystem"),
                 ]
             case .asyncQueue:
                 [
@@ -532,6 +535,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "SwiftToolsSupport"),
                     .external(name: "FileSystem"),
                     .external(name: "XcodeGraph"),
+                    .external(name: "_NIOFileSystem"),
                 ]
             case .asyncQueue:
                 [
@@ -652,6 +656,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "SwiftToolsSupport"),
                     .external(name: "FileSystem"),
                     .external(name: "Command"),
+                    .external(name: "Logging"),
                 ]
             case .kit:
                 []
@@ -862,6 +867,22 @@ public enum Module: String, CaseIterable {
                 configurations: [
                     .debug(name: "Debug", settings: [:], xcconfig: nil),
                     .release(name: "Release", settings: [:], xcconfig: nil),
+                ]
+            )
+        case .projectDescription, .projectAutomation:
+            return .settings(
+                base: ["BUILD_LIBRARY_FOR_DISTRIBUTION": "YES"],
+                configurations: [
+                    .debug(
+                        name: "Debug",
+                        settings: [:],
+                        xcconfig: nil
+                    ),
+                    .release(
+                        name: "Release",
+                        settings: [:],
+                        xcconfig: nil
+                    ),
                 ]
             )
         default:

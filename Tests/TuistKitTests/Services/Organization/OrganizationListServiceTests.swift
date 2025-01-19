@@ -1,9 +1,9 @@
 import Foundation
 import Mockable
+import ServiceContextModule
 import TuistLoader
 import TuistServer
 import TuistSupportTesting
-import XcodeGraph
 import XCTest
 @testable import TuistKit
 
@@ -35,37 +35,41 @@ final class OrganizationListServiceTests: TuistUnitTestCase {
     }
 
     func test_organization_list() async throws {
-        // Given
-        given(listOrganizationsService).listOrganizations(serverURL: .any)
-            .willReturn(
-                [
-                    "test-one",
-                    "test-two",
-                ]
-            )
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            given(listOrganizationsService).listOrganizations(serverURL: .any)
+                .willReturn(
+                    [
+                        "test-one",
+                        "test-two",
+                    ]
+                )
 
-        // When
-        try await subject.run(json: false, directory: nil)
+            // When
+            try await subject.run(json: false, directory: nil)
 
-        // Then
-        XCTAssertPrinterOutputContains("""
-        Listing all your organizations:
-          • test-one
-          • test-two
-        """)
+            // Then
+            XCTAssertPrinterOutputContains("""
+            Listing all your organizations:
+              • test-one
+              • test-two
+            """)
+        }
     }
 
     func test_organization_list_when_none() async throws {
-        // Given
-        given(listOrganizationsService).listOrganizations(serverURL: .any)
-            .willReturn([])
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            given(listOrganizationsService).listOrganizations(serverURL: .any)
+                .willReturn([])
 
-        // When
-        try await subject.run(json: false, directory: nil)
+            // When
+            try await subject.run(json: false, directory: nil)
 
-        // Then
-        XCTAssertPrinterOutputContains(
-            "You currently have no Cloud organizations. Create one by running `tuist organization create`."
-        )
+            // Then
+            XCTAssertPrinterOutputContains(
+                "You currently have no Cloud organizations. Create one by running `tuist organization create`."
+            )
+        }
     }
 }

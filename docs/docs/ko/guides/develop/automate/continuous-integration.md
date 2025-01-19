@@ -23,8 +23,8 @@ CI 워크플로우에서 Tuist 명령어를 실행하려면, CI 환경에 Tuist�
 curl https://mise.jdx.dev/install.sh | sh
 mise install # Installs the version from .mise.toml
 
-.mise.toml 파일에 명시된 버전의 Tuist 실행 {#runs-the-version-of-tuist-indicated-in-the-misetoml-file}
-mise x tuist generate
+# Runs the version of Tuist indicated in the .mise.toml file {#runs-the-version-of-tuist-indicated-in-the-misetoml-file}
+mise exec -- tuist generate
 ```
 
 ```bash [Homebrew]
@@ -55,7 +55,7 @@ workflows:
           curl https://mise.jdx.dev/install.sh | sh
           mise install # Installs the version from .mise.toml
       - name: Build
-        script: mise x tuist build
+        script: mise exec -- tuist build
 ```
 
 ```yaml [Homebrew]

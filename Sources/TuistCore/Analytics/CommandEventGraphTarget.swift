@@ -1,4 +1,3 @@
-import Foundation
 import XcodeGraph
 
 /// A simplified `GraphTarget` to store in `CommandEvent`. As this model gets stored on disk, we want to minimize the information
