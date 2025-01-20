@@ -10,6 +10,7 @@ class ChartComponent extends HTMLElement {
   }
 
   render() {
+    this.shadowRoot.innerHTML = "";
     const chartDiv = document.createElement("div");
     this.shadowRoot.appendChild(chartDiv);
 

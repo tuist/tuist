@@ -34,6 +34,14 @@ let cspNonce = document
 let Hooks = {};
 Hooks.Chart = {
   mounted() {
+    this.render();
+  },
+
+  updated() {
+    this.render();
+  },
+
+  render() {
     this.el.formatter = this.el.dataset.formatter;
 
     const data = JSON.parse(this.el.dataset.series);
