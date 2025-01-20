@@ -50,40 +50,7 @@ class ProjectLinter: ProjectLinting {
         return try await project.targets.values
             .map { $0 }
             .concurrentFlatMap { target in
-                return switch project.type {
-                case .local:
-                    // only do source file lint for local target, or for some external target like systemLibrary, it always raise
-                    // warning
-                    try await self.targetLinter.lint(target: target, options: project.options)
-                        + self.lintHasSourceFiles(target: target)
-                case .external:
-                    try await self.targetLinter.lint(target: target, options: project.options)
-                }
+                try await self.targetLinter.lint(target: target, options: project.options)
             }
-    }
-
-    private func lintHasSourceFiles(target: Target) -> [LintingIssue] {
-        let supportsSources = target.supportsSources
-        let sources = target.sources
-
-        let hasNoSources = supportsSources && sources.isEmpty
-        let hasNoDependencies = target.dependencies.isEmpty
-        let hasNoScripts = target.scripts.isEmpty
-
-        // macOS bundle targets can have source code, but it's optional
-        if target.isExclusiveTo(.macOS), target.product == .bundle, hasNoSources {
-            return []
-        }
-
-        if hasNoSources, hasNoDependencies, hasNoScripts {
-            return [LintingIssue(reason: "The target \(target.name) doesn't contain source files.", severity: .warning)]
-        } else if !supportsSources, !sources.isEmpty {
-            return [LintingIssue(
-                reason: "Target \(target.name) cannot contain sources. \(target.product) targets in one of these destinations doesn't support source files: \(target.destinations.map(\.rawValue).sorted().joined(separator: ", "))",
-                severity: .error
-            )]
-        }
-
-        return []
     }
 }
