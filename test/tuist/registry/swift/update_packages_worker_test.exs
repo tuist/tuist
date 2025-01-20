@@ -54,6 +54,47 @@ defmodule Tuist.Registry.Swift.Workers.UpdatePackagesWorkerTest do
            }) != nil
   end
 
+  test "removes packages no longer present in packages.json" do
+    # Given
+    PackagesFixtures.package_fixture(scope: "Alamofire", name: "Alamofire")
+
+    Packages
+    |> expect(:create_missing_package_releases, fn
+      %{
+        package: %Package{
+          scope: "onevcat",
+          name: "Kingfisher",
+          repository_full_handle: "onevcat/Kingfisher"
+        },
+        token: "github_token"
+      } ->
+        :ok
+    end)
+
+    VCS
+    |> stub(:get_repository_content, fn _, _ ->
+      {:ok,
+       %Content{
+         path: "packages.json",
+         content: "[\n  \"https://github.com/onevcat/Kingfisher.git\"]"
+       }}
+    end)
+
+    # When
+    UpdatePackagesWorker.perform(%Oban.Job{})
+
+    # Then
+    assert Packages.get_package_by_scope_and_name(%{
+             scope: "Alamofire",
+             name: "Alamofire"
+           }) == nil
+
+    assert Packages.get_package_by_scope_and_name(%{
+             scope: "onevcat",
+             name: "Kingfisher"
+           }) != nil
+  end
+
   test "creates missing package with a dot in its name" do
     # Given
 

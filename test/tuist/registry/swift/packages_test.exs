@@ -29,6 +29,33 @@ defmodule Tuist.Registry.Swift.PackagesTest do
     end
   end
 
+  describe "delete_package/1" do
+    test "deletes a package" do
+      # Given
+      package = PackagesFixtures.package_fixture(scope: "Scope", name: "Name")
+
+      # When
+      Packages.delete_package(package)
+
+      # Then
+      assert Packages.get_package_by_scope_and_name(%{scope: "Scope", name: "Name"}) == nil
+    end
+  end
+
+  describe "all_packages/1" do
+    test "returns all packages" do
+      # Given
+      package_one = PackagesFixtures.package_fixture(scope: "ScopeOne", name: "NameOne")
+      package_two = PackagesFixtures.package_fixture(scope: "ScopeTwo", name: "NameTwo")
+
+      # When
+      got = Packages.all_packages()
+
+      # Then
+      assert got |> Enum.sort_by(& &1.scope) == [package_one, package_two]
+    end
+  end
+
   describe "get_package_by_scope_and_name/1" do
     test "returns a package by scope and name" do
       # Given

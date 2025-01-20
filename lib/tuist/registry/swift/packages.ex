@@ -42,6 +42,14 @@ defmodule Tuist.Registry.Swift.Packages do
     |> Repo.insert!()
   end
 
+  def delete_package(%Package{} = package) do
+    Repo.delete!(package)
+  end
+
+  def all_packages() do
+    Repo.all(Package)
+  end
+
   def get_package_by_scope_and_name(%{scope: scope, name: name}, opts \\ []) do
     preload = Keyword.get(opts, :preload, [])
 

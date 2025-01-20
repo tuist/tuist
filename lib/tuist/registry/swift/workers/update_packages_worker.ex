@@ -29,10 +29,34 @@ defmodule Tuist.Registry.Swift.Workers.UpdatePackagesWorker do
         path: "packages.json"
       )
 
-    content
-    |> Jason.decode!()
-    |> Enum.map(&VCS.get_repository_full_handle_from_url/1)
-    |> Enum.map(&Packages.get_package_scope_and_name_from_repository_full_handle/1)
+    packages =
+      content
+      |> Jason.decode!()
+      |> Enum.map(&VCS.get_repository_full_handle_from_url/1)
+      |> Enum.map(&Packages.get_package_scope_and_name_from_repository_full_handle/1)
+
+    remove_packages_no_longer_present(packages)
+
+    create_missing_packages(%{packages: packages, token: token})
+  end
+
+  defp remove_packages_no_longer_present(packages) do
+    packages =
+      packages |> Enum.map(&Map.take(&1, [:repository_full_handle])) |> MapSet.new()
+
+    Packages.all_packages()
+    |> Enum.filter(
+      &(!MapSet.member?(packages, %{
+          repository_full_handle: &1.repository_full_handle
+        }))
+    )
+    # This is only to ensure we don't accidentally delete all packages in case we introduce a bug in the filtering logic.
+    |> Enum.take(100)
+    |> Enum.each(&Packages.delete_package/1)
+  end
+
+  defp create_missing_packages(%{packages: packages, token: token}) do
+    packages
     |> Enum.filter(&is_nil(Packages.get_package_by_scope_and_name(&1)))
     # We don't want to exhaust the API limit of the token.
     |> Enum.take(100)
