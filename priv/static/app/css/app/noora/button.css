@@ -42,9 +42,14 @@
   color: var(--button-primary-label);
   box-shadow:
     0px 1px 0px 0px oklch(100% 0 0 / 0.2) inset,
-    0px 1px 1px 0px light-dark(oklch(31.8% 0.011 248.2 / 0.05), oklch(20.9% 0.009 264.4 / 0.2)),
+    0px 1px 1px 0px
+      light-dark(
+        oklch(31.8% 0.011 248.2 / 0.05),
+        oklch(20.9% 0.009 264.4 / 0.2)
+      ),
     0px 0px 0px 1px oklch(46.9% 0.27 286.9 / 0.9),
-    0px 1px 3px 0px light-dark(oklch(31.8% 0.011 248.2 / 0.16), oklch(0% 0 0 / 0.4));
+    0px 1px 3px 0px
+      light-dark(oklch(31.8% 0.011 248.2 / 0.16), oklch(0% 0 0 / 0.4));
 }
 
 .noora-button[data-variant="primary"]:hover {
@@ -112,10 +117,20 @@
     var(--button-secondary-background);
   color: var(--button-secondary-label);
   box-shadow:
-    0px 1px 0px 0px light-dark(oklch(100% 0 0 / 0.9), oklch(100% 0 0 / 0.12)) inset,
-    0px 1px 1px 0px light-dark(oklch(31.8% 0.011 248.2 / 0.05), oklch(20.9% 0.009 264.4 / 0.8)),
-    0px 0px 0px 1px light-dark(oklch(31.8% 0.011 248.2 / 0.08), oklch(31.6% 0.01 260.7 / 0.75)),
-    0px 2px 3px 0px light-dark(oklch(31.8% 0.011 248.2 / 0.06), oklch(0% 0 0 / 0.24));
+    0px 1px 0px 0px light-dark(oklch(100% 0 0 / 0.9), oklch(100% 0 0 / 0.12))
+      inset,
+    0px 1px 1px 0px
+      light-dark(
+        oklch(31.8% 0.011 248.2 / 0.05),
+        oklch(20.9% 0.009 264.4 / 0.8)
+      ),
+    0px 0px 0px 1px
+      light-dark(
+        oklch(31.8% 0.011 248.2 / 0.08),
+        oklch(31.6% 0.01 260.7 / 0.75)
+      ),
+    0px 2px 3px 0px
+      light-dark(oklch(31.8% 0.011 248.2 / 0.06), oklch(0% 0 0 / 0.24));
 }
 
 .noora-button[data-variant="secondary"]:hover {
@@ -151,7 +166,11 @@
     var(--button-secondary-background);
 
   box-shadow:
-    0px 0px 0px 1px light-dark(oklch(31.8% 0.011 248.2 / 0.08), oklch(31.6% 0.01 260.7 / 0.75)),
+    0px 0px 0px 1px
+      light-dark(
+        oklch(31.8% 0.011 248.2 / 0.08),
+        oklch(31.6% 0.01 260.7 / 0.75)
+      ),
     0px 1px 2px 0px light-dark(oklch(0% 0 0 / 0.05), oklch(0% 0 0 / 0.4)) inset;
 }
 
@@ -173,10 +192,17 @@
     var(--button-secondary-disabled-background);
   color: var(--button-secondary-disabled-label);
   box-shadow:
-    0px 1px 0px 0px light-dark(oklch(100% 0 0 / 0.7), oklch(100% 0 0 / 0.12)) inset,
-    0px 1px 1px 0px light-dark(oklch(31.8% 0.011 248.2 / 0.05), oklch(20.9% 0.009 264.4 / 0.8)),
-    0px 0px 0px 1px light-dark(oklch(31.8% 0.011 248.2 / 0.05), oklch(31.6% 0.01 260.7 / 0.5)),
-    0px 2px 3px 0px light-dark(oklch(31.8% 0.011 248.2 / 0.06), oklch(0% 0 0 / 0.24));
+    0px 1px 0px 0px light-dark(oklch(100% 0 0 / 0.7), oklch(100% 0 0 / 0.12))
+      inset,
+    0px 1px 1px 0px
+      light-dark(
+        oklch(31.8% 0.011 248.2 / 0.05),
+        oklch(20.9% 0.009 264.4 / 0.8)
+      ),
+    0px 0px 0px 1px
+      light-dark(oklch(31.8% 0.011 248.2 / 0.05), oklch(31.6% 0.01 260.7 / 0.5)),
+    0px 2px 3px 0px
+      light-dark(oklch(31.8% 0.011 248.2 / 0.06), oklch(0% 0 0 / 0.24));
 }
 
 /* Destructive */
@@ -190,9 +216,14 @@
   color: var(--button-destructive-label);
   box-shadow:
     0px 1px 0px 0px oklch(100% 0 0 / 0.2) inset,
-    0px 1px 1px 0px light-dark(oklch(31.8% 0.011 248.2 / 0.12), oklch(20.9% 0.009 264.4 / 0.2)),
+    0px 1px 1px 0px
+      light-dark(
+        oklch(31.8% 0.011 248.2 / 0.12),
+        oklch(20.9% 0.009 264.4 / 0.2)
+      ),
     0px 0px 0px 1px oklch(51.2% 0.201 30.7 / 0.8),
-    0px 2px 3px 0px light-dark(oklch(31.8% 0.011 248.2 / 0.16), oklch(0% 0 0 / 0.4));
+    0px 2px 3px 0px
+      light-dark(oklch(31.8% 0.011 248.2 / 0.16), oklch(0% 0 0 / 0.4));
 }
 
 .noora-button[data-variant="destructive"]:hover {
@@ -204,9 +235,14 @@
     var(--button-destructive-background);
   box-shadow:
     0px 1px 0px 0px oklch(100% 0 0 / 0.1) inset,
-    0px 1px 1px 0px light-dark(oklch(31.8% 0.011 248.2 / 0.12), oklch(20.9% 0.009 264.4 / 0.2)),
+    0px 1px 1px 0px
+      light-dark(
+        oklch(31.8% 0.011 248.2 / 0.12),
+        oklch(20.9% 0.009 264.4 / 0.2)
+      ),
     0px 0px 0px 1px oklch(51.2% 0.201 30.7 / 0.8),
-    0px 2px 3px 0px light-dark(oklch(31.8% 0.011 248.2 / 0.16), oklch(0% 0 0 / 0.4));
+    0px 2px 3px 0px
+      light-dark(oklch(31.8% 0.011 248.2 / 0.16), oklch(0% 0 0 / 0.4));
 }
 
 .noora-button[data-variant="destructive"]:active {
@@ -234,9 +270,14 @@
   color: var(--button-destructive-disabled-label);
   box-shadow:
     0px 1px 0px 0px oklch(100% 0 0 / 0.2) inset,
-    0px 1px 1px 0px light-dark(oklch(31.8% 0.011 248.2 / 0.12), oklch(20.9% 0.009 264.4 / 0.2)),
+    0px 1px 1px 0px
+      light-dark(
+        oklch(31.8% 0.011 248.2 / 0.12),
+        oklch(20.9% 0.009 264.4 / 0.2)
+      ),
     0px 0px 0px 1px oklch(51.2% 0.201 30.7 / 0.5),
-    0px 2px 3px 0px light-dark(oklch(31.8% 0.011 248.2 / 0.16), oklch(0% 0 0 / 0.4));
+    0px 2px 3px 0px
+      light-dark(oklch(31.8% 0.011 248.2 / 0.16), oklch(0% 0 0 / 0.4));
 }
 
 @media (prefers-color-scheme: dark) {

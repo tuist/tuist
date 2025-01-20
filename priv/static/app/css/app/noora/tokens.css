@@ -162,13 +162,34 @@
   --noora-font-weight-semibold: 600;
   --noora-font-weight-bold: 700;
 
-  --noora-font-color-primary: light-dark(var(--noora-neutral-light-1100), var(-noora-neutral-light-100));
-  --noora-font-color-secondary: light-dark(var(--noora-neutral-light-1000), var(--noora-neutral-light-400));
-  --noora-font-color-disabled: light-dark(var(--noora-neutral-light-800), var(--noora-neutral-light-900));
-  --noora-font-color-information: light-dark(var(--noora-neutral-azure-500), var(--noora-neutral-azure-300));
-  --noora-font-color-success: light-dark(var(--noora-green-600), var(--noora-green-400));
-  --noora-font-color-warning: light-dark(var(--noora-orange-600), var(--noora-orange-400));
-  --noora-font-color-error: light-dark(var(--noora-red-500), var(--noora-red-300));
+  --noora-font-color-primary: light-dark(
+    var(--noora-neutral-light-1100),
+    var(-noora-neutral-light-100)
+  );
+  --noora-font-color-secondary: light-dark(
+    var(--noora-neutral-light-1000),
+    var(--noora-neutral-light-400)
+  );
+  --noora-font-color-disabled: light-dark(
+    var(--noora-neutral-light-800),
+    var(--noora-neutral-light-900)
+  );
+  --noora-font-color-information: light-dark(
+    var(--noora-neutral-azure-500),
+    var(--noora-neutral-azure-300)
+  );
+  --noora-font-color-success: light-dark(
+    var(--noora-green-600),
+    var(--noora-green-400)
+  );
+  --noora-font-color-warning: light-dark(
+    var(--noora-orange-600),
+    var(--noora-orange-400)
+  );
+  --noora-font-color-error: light-dark(
+    var(--noora-red-500),
+    var(--noora-red-300)
+  );
 
   --noora-display-xlarge-font: 2.5rem/3rem var(--noora-font-heading);
   --noora-display-large-font: 2.375rem/2.875rem var(--noora-font-heading);

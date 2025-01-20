@@ -17,23 +17,23 @@ class Stack extends HTMLElement {
         this.recursive,
         this.splitAfter,
         this.axis,
-      ].join('')}`;
+      ].join("")}`;
       this.dataset.i = this.i;
 
       if (!document.getElementById(this.i)) {
-        let styleEl = document.createElement('style');
+        let styleEl = document.createElement("style");
         styleEl.id = this.i;
         styleEl.innerHTML = `
-            [data-i="${this.i}"]${this.recursive ? '' : ' >'} * + * {
+            [data-i="${this.i}"]${this.recursive ? "" : " >"} * + * {
               margin-block-start: ${this.space};
             }
 
             [data-i="${this.i}"] {
                 flex-direction: row;
                 ${
-                  this.axis === 'horizontal'
-                    ? 'flex-direction: row;'
-                    : 'flex-direction: column;'
+                  this.axis === "horizontal"
+                    ? "flex-direction: row;"
+                    : "flex-direction: column;"
                 }
             }
         
@@ -47,10 +47,10 @@ class Stack extends HTMLElement {
               [data-i="${this.i}"] > :nth-child(${this.splitAfter}) {
                 margin-block-end: auto;
               }`
-                : ''
+                : ""
             }
           `
-          .replace(/\s\s+/g, ' ')
+          .replace(/\s\s+/g, " ")
           .trim();
         document.head.appendChild(styleEl);
       }
@@ -58,39 +58,39 @@ class Stack extends HTMLElement {
   }
 
   get space() {
-    return this.getAttribute('space') || 'var(--spacing-2xl)';
+    return this.getAttribute("space") || "var(--spacing-2xl)";
   }
 
   set space(val) {
-    return this.setAttribute('space', val);
+    return this.setAttribute("space", val);
   }
 
   get recursive() {
-    return this.hasAttribute('recursive');
+    return this.hasAttribute("recursive");
   }
 
   set recursive(val) {
-    return this.setAttribute(val ? 'recursive' : '');
+    return this.setAttribute(val ? "recursive" : "");
   }
 
   get axis() {
-    return this.getAttribute('axis');
+    return this.getAttribute("axis");
   }
 
   set axis(val) {
-    return this.setAttribute(val ? 'axis' : '');
+    return this.setAttribute(val ? "axis" : "");
   }
 
   get splitAfter() {
-    return this.getAttribute('splitAfter') || null;
+    return this.getAttribute("splitAfter") || null;
   }
 
   set splitAfter(val) {
-    return this.setAttribute('splitAfter', val);
+    return this.setAttribute("splitAfter", val);
   }
 
   static get observedAttributes() {
-    return ['space', 'recursive', 'splitAfter', 'axis'];
+    return ["space", "recursive", "splitAfter", "axis"];
   }
 
   connectedCallback() {
@@ -102,6 +102,6 @@ class Stack extends HTMLElement {
   }
 }
 
-if ('customElements' in window) {
-  customElements.define('stack-l', Stack);
+if ("customElements" in window) {
+  customElements.define("stack-l", Stack);
 }

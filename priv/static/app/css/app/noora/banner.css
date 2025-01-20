@@ -9,22 +9,46 @@
 
   overflow-x: hidden;
 
-  --banner-label: light-dark(var(--noora-neutral-light-1200), var(--noora-neutral-light-50));
-  --banner-label-secondary: light-dark(var(--noora-neutral-light-800), var(--noora-neutral-light-500));
+  --banner-label: light-dark(
+    var(--noora-neutral-light-1200),
+    var(--noora-neutral-light-50)
+  );
+  --banner-label-secondary: light-dark(
+    var(--noora-neutral-light-800),
+    var(--noora-neutral-light-500)
+  );
 
-  --banner-primary-background: light-dark(var(--noora-neutral-light-100), var(--noora-neutral-dark-1100));
-  --banner-primary-border: light-dark(var(--noora-neutral-light-400), var(--noora-neutral-dark-700));
+  --banner-primary-background: light-dark(
+    var(--noora-neutral-light-100),
+    var(--noora-neutral-dark-1100)
+  );
+  --banner-primary-border: light-dark(
+    var(--noora-neutral-light-400),
+    var(--noora-neutral-dark-700)
+  );
 
-  --banner-error-background: light-dark(var(--noora-red-50), oklch(58.7% 0.23 30.7 / 0.16));
+  --banner-error-background: light-dark(
+    var(--noora-red-50),
+    oklch(58.7% 0.23 30.7 / 0.16)
+  );
   --banner-error-border: var(--noora-red-500);
 
-  --banner-success-background: light-dark(var(--noora-green-50), oklch(63.8% 0.19 143.8 / 0.16));
+  --banner-success-background: light-dark(
+    var(--noora-green-50),
+    oklch(63.8% 0.19 143.8 / 0.16)
+  );
   --banner-success-border: var(--noora-green-600);
 
-  --banner-warning-background: light-dark(var(--noora-orange-50), oklch(71.9% 0.185 48.7 / 0.16));
+  --banner-warning-background: light-dark(
+    var(--noora-orange-50),
+    oklch(71.9% 0.185 48.7 / 0.16)
+  );
   --banner-warning-border: var(--noora-orange-600);
 
-  --banner-information-background: light-dark(var(--noora-azure-50), oklch(57% 0.127 238.5 / 0.16));
+  --banner-information-background: light-dark(
+    var(--noora-azure-50),
+    oklch(57% 0.127 238.5 / 0.16)
+  );
   --banner-information-border: var(--noora-azure-500);
 
   --banner-grid-color: light-dark(oklch(21.54% 0.006 236.85), oklch(99.4% 0 0));

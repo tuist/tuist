@@ -158,6 +158,15 @@ jobs:
         run: mix deps.get
       - name: Check format
         run: mix format --check-formatted
+  assets-format:
+    name: Assets format
+    runs-on: "blacksmith-4vcpu-ubuntu-2204"
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4 # v4
+      - uses: jdx/mise-action@v2
+      - name: Check format
+        run: prettier -c priv/static/app
   security:
     name: Security
     runs-on: "blacksmith-4vcpu-ubuntu-2204"
