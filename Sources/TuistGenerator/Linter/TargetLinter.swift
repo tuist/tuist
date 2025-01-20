@@ -126,6 +126,9 @@ class TargetLinter: TargetLinting {
     }
 
     private func lintHasSourceFiles(target: Target) -> [LintingIssue] {
+        // skip external target source file lint or some target like `systemLibrary` will raise an warning
+        // but it is no source file by design
+        guard target.type == .local else { return [] }
         let supportsSources = target.supportsSources
         let sources = target.sources
 

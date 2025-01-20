@@ -128,6 +128,21 @@ final class TargetLinterTests: TuistUnitTestCase {
         )
     }
 
+    func test_lint_when_target_no_source_files_but_remote() async throws {
+        let target = Target(
+            name: "Target",
+            destinations: .iOS,
+            product: .framework,
+            productName: nil,
+            bundleId: "bundle.id",
+            filesGroup: .group(name: "Project"),
+            type: .remote
+        )
+        let got = try await subject.lint(target: target, options: .test())
+
+        XCTAssertEmpty(got)
+    }
+
     func test_lint_when_target_no_source_files_but_has_dependency() async throws {
         let target = Target.test(sources: [], dependencies: [
             TargetDependency.sdk(name: "libc++.tbd", status: .optional),
