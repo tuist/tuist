@@ -578,6 +578,7 @@ Thanks goes to these wonderful people:
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/devMinseok"><img src="https://avatars.githubusercontent.com/u/51021614?v=4" width="100px;" alt=""/><br /><sub><b>Minseok Kang</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/alpanyukov"><img src="https://avatars.githubusercontent.com/u/36258478?v=4" width="100px;" alt=""/><br /><sub><b>Alexander</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/sanghyeok-kim"><img src="https://avatars.githubusercontent.com/u/57667738?v=4" width="100px;" alt=""/><br /><sub><b>Loyle</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/vvisionnn"><img src="https://avatars.githubusercontent.com/u/24761186?v=4" width="100px;" alt=""/><br /><sub><b>Ydna</b></sub></a></td>
     </tr>
   </tbody>
 </table>
