@@ -13,7 +13,7 @@ As the number of dependencies grows, so does the time to resolve them. While oth
 
 ## Usage {#usage}
 
-To set up and login to the registry, `cd` into your project's directory and run:
+To set up and log in to the registry, run the following commands in your project's directory:
 
 ```bash
 tuist registry setup # Creates a `registries.json` file with the default registry configuration.
