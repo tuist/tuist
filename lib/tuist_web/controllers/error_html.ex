@@ -100,8 +100,8 @@ defmodule TuistWeb.ErrorHTML do
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="csrf-token" content={get_csrf_token()} />
         <.live_title>{"#{@head_title || gettext("Error")} · Tuist"}</.live_title>
-        <link phx-track-static rel="stylesheet" href={~p"/css/app.css"} />
-        <link phx-track-static rel="stylesheet" href={~p"/css/app/pages/error.css"} />
+        <link phx-track-static rel="stylesheet" href={~p"/app/css/app.css"} />
+        <link phx-track-static rel="stylesheet" href={~p"/app/css/app/pages/error.css"} />
       </head>
       <body>
         <div class="page error-page">
