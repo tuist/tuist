@@ -1,6 +1,6 @@
 ---
 title: Xcode project
-titleTemplate: :title · Build · Develop · Registry · Xcode project
+titleTemplate: :title · Registry · Develop · Guides · Tuist
 description: Learn how to use the Tuist Registry in an Xcode project.
 ---
 
