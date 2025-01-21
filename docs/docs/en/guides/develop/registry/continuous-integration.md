@@ -52,8 +52,7 @@ jobs:
 
 ### Caching dependencies {#caching-dependencies}
 
-To speed up the resolution of dependencies, we recommend caching them – and with the Tuist Registry, the time to restore and save the cache will be 80 % faster than without it. The absolute time savings depend on how many dependencies you have and how large they are.
-
+Clean/cold resolutions are slightly faster with our registry, and you can experience even greater improvements if you persist the resolved dependencies across CI builds. Note that thanks to the registry, the size of the directory that you need to store and retore is much smaller than without the registry, taking significantly less time.
 To cache dependencies when using the default Xcode package integration, the best way is to specify a custom `-clonedSourcePackagesDirPath` when resolving dependencies via `xcodebuild`, such as:
 ```sh
 xcodebuild -resolvePackageDependencies -clonedSourcePackagesDirPath .build
