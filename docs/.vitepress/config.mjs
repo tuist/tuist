@@ -18,6 +18,7 @@ async function themeConfig(locale) {
   sidebar[`/${locale}/server/`] = serverSidebar(locale);
   sidebar[`/${locale}/cli/`] = await loadCLIData(locale);
   sidebar[`/${locale}/references/`] = await referencesSidebar(locale);
+  sidebar[`/${locale}/`] = guidesSidebar(locale);
   return {
     nav: navBar(locale),
     sidebar,
