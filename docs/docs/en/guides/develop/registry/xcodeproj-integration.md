@@ -1,6 +1,6 @@
 ---
 title: Generated project with the XcodeProj-based package integration
-titleTemplate: :title · Build · Develop · Registry · XcodeProj-based integration
+titleTemplate: :title · Registry · Develop · Guides · Tuist
 description: Learn how to use the Tuist Registry in a generated Xcode project with the XcodeProj-based package integration.
 ---
 
