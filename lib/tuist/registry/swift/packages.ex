@@ -4,7 +4,6 @@ defmodule Tuist.Registry.Swift.Packages do
   """
 
   alias Tuist.Registry.Swift.Packages.PackageManifest
-  alias Tuist.Zip
   alias Tuist.Crypto
   alias Tuist.VCS.Repositories.Content
   alias Tuist.Registry.Swift.Packages.PackageRelease
@@ -138,7 +137,7 @@ defmodule Tuist.Registry.Swift.Packages do
         version: version,
         token: token
       }) do
-    {:ok, file_list} =
+    {:ok, source_archive_path} =
       VCS.get_source_archive_by_tag_and_repository_full_handle(%{
         provider: :github,
         repository_full_handle: repository_full_handle,
@@ -146,39 +145,49 @@ defmodule Tuist.Registry.Swift.Packages do
         token: token
       })
 
-    file_list =
-      file_list
-      |> Enum.filter(fn file_tuple ->
-        # Filter out directories to fix swift package resolve permission issues.
-        # See for more context: https://github.com/tuist/server/pull/1237
-        case file_tuple do
-          {_, ""} -> false
-          _ -> true
-        end
-      end)
-      |> Enum.map(fn {file_name, file_content} ->
-        cond do
-          # The Swift package manifest needs to be in the root of the repository.
-          List.to_string(file_name) |> String.split("/") |> Enum.count() > 2 ->
-            {file_name, file_content}
+    {:ok, source_archive_directory} = Briefly.create(type: :directory)
 
-          List.to_string(file_name) |> String.ends_with?("Package.swift") ->
-            {file_name,
-             replace_package_by_name_references_with_product_in_package_manifest(file_content)}
+    System.cmd(
+      "unzip",
+      [source_archive_path, "-d", source_archive_directory]
+    )
 
-          Regex.match?(
-            @alternate_package_manifest_regex,
-            List.to_string(file_name) |> String.split("/") |> List.last()
-          ) ->
-            {file_name,
-             replace_package_by_name_references_with_product_in_package_manifest(file_content)}
+    [source_directory] = File.ls!(source_archive_directory)
 
-          true ->
-            {file_name, file_content}
-        end
-      end)
+    new_source_archive_directory = "#{source_archive_directory}/source_archive.zip"
 
-    {:ok, {_, data}} = Zip.create("source_archive.zip", file_list, [:memory])
+    File.ls!(source_archive_directory <> "/" <> source_directory)
+    |> Enum.each(fn file_name ->
+      if String.ends_with?(file_name, "Package.swift") or
+           Regex.match?(
+             @alternate_package_manifest_regex,
+             file_name
+           ) do
+        file_path = source_archive_directory <> "/" <> source_directory <> "/" <> file_name
+
+        file_content =
+          File.read!(file_path)
+
+        File.write!(
+          file_path,
+          replace_package_by_name_references_with_product_in_package_manifest(file_content)
+        )
+      end
+    end)
+
+    {_, 0} =
+      System.cmd(
+        "zip",
+        [
+          "--symlinks",
+          "-r",
+          new_source_archive_directory,
+          source_directory
+        ],
+        cd: source_archive_directory
+      )
+
+    data = File.read!(new_source_archive_directory)
 
     object_key =
       package_object_key(%{scope: scope, name: name},

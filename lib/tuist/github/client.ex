@@ -113,13 +113,16 @@ defmodule Tuist.GitHub.Client do
         token: token
       }) do
     url = "https://api.github.com/repos/#{repository_full_handle}/zipball/refs/tags/#{tag}"
+    {:ok, path} = Briefly.create()
 
     case Req.get(
            url: url,
-           headers: default_headers(token)
+           headers: default_headers(token),
+           decode_body: false,
+           into: File.stream!(path, [:write])
          ) do
-      {:ok, %{status: 200, body: body}} ->
-        {:ok, body}
+      {:ok, %{status: 200}} ->
+        {:ok, path}
 
       {:ok, %{status: status}} ->
         {:error,

@@ -1,5 +1,4 @@
 defmodule Tuist.Registry.Swift.PackagesTest do
-  alias Tuist.Zip
   alias Tuist.VCS.Repositories.Content
   alias Tuist.Base64
   alias Tuist.VCS.Repositories.Tag
@@ -121,7 +120,21 @@ defmodule Tuist.Registry.Swift.PackagesTest do
 
       VCS
       |> stub(:get_source_archive_by_tag_and_repository_full_handle, fn _ ->
-        {:ok, [{~c"File.swift", "Contents"}]}
+        {:ok, "/tmp/source_archive.zip"}
+      end)
+
+      System
+      |> stub(:cmd, fn _, _ -> {"", 0} end)
+
+      System
+      |> stub(:cmd, fn _, _, _ -> {"", 0} end)
+
+      File
+      |> stub(:ls!, fn _ -> ["Alamofire"] end)
+
+      File
+      |> stub(:read!, fn _ ->
+        "content"
       end)
 
       VCS
@@ -203,7 +216,23 @@ defmodule Tuist.Registry.Swift.PackagesTest do
 
       VCS
       |> stub(:get_source_archive_by_tag_and_repository_full_handle, fn _ ->
-        {:ok, [{~c"File.swift", "File contents"}]}
+        {:ok, "/tmp/source_archive.zip"}
+      end)
+
+      System
+      |> stub(:cmd, fn _, _ -> {"", 0} end)
+
+      System
+      |> stub(:cmd, fn _, _, _ -> {"", 0} end)
+
+      File
+      |> stub(:ls!, fn _ ->
+        ["Alamofire"]
+      end)
+
+      File
+      |> stub(:read!, fn _ ->
+        "content"
       end)
 
       VCS
@@ -246,7 +275,23 @@ defmodule Tuist.Registry.Swift.PackagesTest do
 
       VCS
       |> stub(:get_source_archive_by_tag_and_repository_full_handle, fn _ ->
-        {:ok, [{~c"File.swift", "File contents"}]}
+        {:ok, "/tmp/source_archive.zip"}
+      end)
+
+      System
+      |> stub(:cmd, fn _, _ -> {"", 0} end)
+
+      System
+      |> stub(:cmd, fn _, _, _ -> {"", 0} end)
+
+      File
+      |> stub(:ls!, fn _ ->
+        ["Alamofire"]
+      end)
+
+      File
+      |> stub(:read!, fn _ ->
+        "content"
       end)
 
       VCS
@@ -299,6 +344,27 @@ defmodule Tuist.Registry.Swift.PackagesTest do
       VCS
       |> stub(:get_source_archive_by_tag_and_repository_full_handle, fn _ ->
         {:ok, [{~c"File.swift", "File contents"}]}
+      end)
+
+      VCS
+      |> stub(:get_source_archive_by_tag_and_repository_full_handle, fn _ ->
+        {:ok, "/tmp/source_archive.zip"}
+      end)
+
+      System
+      |> stub(:cmd, fn _, _ -> {"", 0} end)
+
+      System
+      |> stub(:cmd, fn _, _, _ -> {"", 0} end)
+
+      File
+      |> stub(:ls!, fn _ ->
+        ["Alamofire"]
+      end)
+
+      File
+      |> stub(:read!, fn _ ->
+        "content"
       end)
 
       VCS
@@ -362,21 +428,37 @@ defmodule Tuist.Registry.Swift.PackagesTest do
 
       VCS
       |> stub(:get_source_archive_by_tag_and_repository_full_handle, fn _ ->
-        {:ok,
-         [
-           {~c"root-directory", ""},
-           {~c"root-directory/Package.swift", package_manifest_content}
-         ]}
+        {:ok, "/tmp/source_archive.zip"}
       end)
 
-      expected_files = [
-        {~c"root-directory/Package.swift", package_manifest_content}
-      ]
+      System
+      |> stub(:cmd, fn _, _ -> {"", 0} end)
 
-      Zip
-      |> stub(:create, fn name, file_list, _ ->
-        assert file_list == expected_files
-        {:ok, {name, <<>>}}
+      System
+      |> stub(:cmd, fn _, _, _ -> {"", 0} end)
+
+      File
+      |> stub(:ls!, fn path ->
+        if String.ends_with?(path, ".zip") do
+          ["VideoEditorSDK"]
+        else
+          ["Package.swift"]
+        end
+      end)
+
+      File
+      |> expect(:write!, fn path, content ->
+        assert String.ends_with?(path, "Package.swift")
+        assert content == package_manifest_content
+      end)
+
+      File
+      |> stub(:read!, fn path ->
+        if String.ends_with?(path, "Package.swift") do
+          package_manifest_content
+        else
+          "content"
+        end
       end)
 
       VCS
@@ -456,21 +538,37 @@ defmodule Tuist.Registry.Swift.PackagesTest do
 
       VCS
       |> stub(:get_source_archive_by_tag_and_repository_full_handle, fn _ ->
-        {:ok,
-         [
-           {~c"root-directory", ""},
-           {~c"root-directory/Package.swift", package_manifest_content}
-         ]}
+        {:ok, "/tmp/source_archive.zip"}
       end)
 
-      expected_files = [
-        {~c"root-directory/Package.swift", package_manifest_content}
-      ]
+      System
+      |> stub(:cmd, fn _, _ -> {"", 0} end)
 
-      Zip
-      |> stub(:create, fn name, file_list, _ ->
-        assert file_list == expected_files
-        {:ok, {name, <<>>}}
+      System
+      |> stub(:cmd, fn _, _, _ -> {"", 0} end)
+
+      File
+      |> stub(:ls!, fn path ->
+        if String.ends_with?(path, ".zip") do
+          ["VideoEditorSDK"]
+        else
+          ["Package.swift"]
+        end
+      end)
+
+      File
+      |> expect(:write!, fn path, content ->
+        assert String.ends_with?(path, "Package.swift")
+        assert content == package_manifest_content
+      end)
+
+      File
+      |> stub(:read!, fn path ->
+        if String.ends_with?(path, "Package.swift") do
+          package_manifest_content
+        else
+          "content"
+        end
       end)
 
       VCS
@@ -641,27 +739,39 @@ defmodule Tuist.Registry.Swift.PackagesTest do
 
       VCS
       |> stub(:get_source_archive_by_tag_and_repository_full_handle, fn _ ->
-        {:ok,
-         [
-           {~c"root/File.swift", "File contents"},
-           {~c"root/Package.swift", initial_package_manifest_content},
-           {~c"root/Package@swift-5.9.swift", initial_package_manifest_content},
-           # Package.swift that's not in the root is not updated
-           {~c"root/Sources/Package.swift", initial_package_manifest_content}
-         ]}
+        {:ok, "/tmp/source_archive.zip"}
       end)
 
-      expected_files = [
-        {~c"root/File.swift", "File contents"},
-        {~c"root/Package.swift", expected_package_manifest_content},
-        {~c"root/Package@swift-5.9.swift", expected_package_manifest_content},
-        {~c"root/Sources/Package.swift", initial_package_manifest_content}
-      ]
+      System
+      |> stub(:cmd, fn _, _ -> {"", 0} end)
 
-      Zip
-      |> stub(:create, fn name, file_list, _ ->
-        assert file_list == expected_files
-        {:ok, {name, <<>>}}
+      System
+      |> stub(:cmd, fn _, _, _ -> {"", 0} end)
+
+      File
+      |> stub(:ls!, fn path ->
+        if String.ends_with?(path, "Alamofire") do
+          ["Package.swift", "Package@swift-5.9.swift", "File.swift"]
+        else
+          ["Alamofire"]
+        end
+      end)
+
+      File
+      |> expect(
+        :write!,
+        2,
+        fn path, content ->
+          assert String.ends_with?(path, "Package.swift") or
+                   String.ends_with?(path, "Package@swift-5.9.swift")
+
+          assert content == expected_package_manifest_content
+        end
+      )
+
+      File
+      |> stub(:read!, fn _ ->
+        initial_package_manifest_content
       end)
 
       VCS
@@ -764,20 +874,33 @@ defmodule Tuist.Registry.Swift.PackagesTest do
 
       VCS
       |> stub(:get_source_archive_by_tag_and_repository_full_handle, fn _ ->
-        {:ok,
-         [
-           {~c"Package.swift", initial_package_manifest_content}
-         ]}
+        {:ok, "/tmp/source_archive.zip"}
       end)
 
-      expected_files = [
-        {~c"Package.swift", expected_package_manifest_content}
-      ]
+      System
+      |> stub(:cmd, fn _, _ -> {"", 0} end)
 
-      Zip
-      |> stub(:create, fn name, file_list, _ ->
-        assert file_list == expected_files
-        {:ok, {name, <<>>}}
+      System
+      |> stub(:cmd, fn _, _, _ -> {"", 0} end)
+
+      File
+      |> stub(:ls!, fn path ->
+        if String.ends_with?(path, ".zip") do
+          ["Alamofire"]
+        else
+          ["Package.swift"]
+        end
+      end)
+
+      File
+      |> expect(:write!, fn path, content ->
+        assert String.ends_with?(path, "Package.swift")
+        assert content == expected_package_manifest_content
+      end)
+
+      File
+      |> stub(:read!, fn _ ->
+        initial_package_manifest_content
       end)
 
       VCS
@@ -866,20 +989,33 @@ defmodule Tuist.Registry.Swift.PackagesTest do
 
       VCS
       |> stub(:get_source_archive_by_tag_and_repository_full_handle, fn _ ->
-        {:ok,
-         [
-           {~c"Package.swift", initial_package_manifest_content}
-         ]}
+        {:ok, "/tmp/source_archive.zip"}
       end)
 
-      expected_files = [
-        {~c"Package.swift", expected_package_manifest_content}
-      ]
+      System
+      |> stub(:cmd, fn _, _ -> {"", 0} end)
 
-      Zip
-      |> stub(:create, fn name, file_list, _ ->
-        assert file_list == expected_files
-        {:ok, {name, <<>>}}
+      System
+      |> stub(:cmd, fn _, _, _ -> {"", 0} end)
+
+      File
+      |> stub(:ls!, fn path ->
+        if String.ends_with?(path, ".zip") do
+          ["Alamofire"]
+        else
+          ["Package.swift"]
+        end
+      end)
+
+      File
+      |> expect(:write!, fn path, content ->
+        assert String.ends_with?(path, "Package.swift")
+        assert content == expected_package_manifest_content
+      end)
+
+      File
+      |> stub(:read!, fn _ ->
+        initial_package_manifest_content
       end)
 
       VCS
@@ -926,7 +1062,23 @@ defmodule Tuist.Registry.Swift.PackagesTest do
 
       VCS
       |> stub(:get_source_archive_by_tag_and_repository_full_handle, fn _ ->
-        {:ok, [{~c"File.swift", "File contents"}]}
+        {:ok, "/tmp/source_archive.zip"}
+      end)
+
+      System
+      |> stub(:cmd, fn _, _ -> {"", 0} end)
+
+      System
+      |> stub(:cmd, fn _, _, _ -> {"", 0} end)
+
+      File
+      |> stub(:ls!, fn _ ->
+        ["Alamofire"]
+      end)
+
+      File
+      |> stub(:read!, fn _ ->
+        "content"
       end)
 
       VCS
@@ -1025,7 +1177,27 @@ defmodule Tuist.Registry.Swift.PackagesTest do
 
       VCS
       |> stub(:get_source_archive_by_tag_and_repository_full_handle, fn _ ->
-        {:ok, [{~c"File.swift", "File contents"}]}
+        {:ok, "/tmp/source_archive.zip"}
+      end)
+
+      System
+      |> stub(:cmd, fn _, _ -> {"", 0} end)
+
+      System
+      |> stub(:cmd, fn _, _, _ -> {"", 0} end)
+
+      File
+      |> stub(:ls!, fn path ->
+        if String.ends_with?(path, ".zip") do
+          ["Alamofire"]
+        else
+          ["File.swift"]
+        end
+      end)
+
+      File
+      |> stub(:read!, fn _ ->
+        "content"
       end)
 
       # When

@@ -119,7 +119,8 @@ defmodule Tuist.MixProject do
       {:phoenix_storybook, "~> 0.8.0"},
       {:sobelow, "~> 0.13", only: [:dev, :test], runtime: false},
       {:solid, "~> 0.17.1"},
-      {:plug_minify_html, "~> 0.1.0"}
+      {:plug_minify_html, "~> 0.1.0"},
+      {:briefly, "~> 0.5.0"}
     ]
   end
 
