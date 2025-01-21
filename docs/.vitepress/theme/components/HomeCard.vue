@@ -66,6 +66,7 @@ LocalyzedLink {
         background-color 0.25s;
 
     &:hover {
+        background-color: var(--vp-button-alt-hover-bg);
         & .title {
             color: var(--vp-c-brand-1);
         }
