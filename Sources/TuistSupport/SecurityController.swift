@@ -64,9 +64,9 @@ public struct SecurityController: SecurityControlling {
 
         arguments.append(contentsOf: applications.flatMap { ["-T", $0] })
 
-        _ = try await commandRunner.run(
+        try await commandRunner.run(
             arguments: arguments
         )
-        .concatenatedString()
+        .awaitCompletion()
     }
 }

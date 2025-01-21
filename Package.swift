@@ -500,7 +500,7 @@ let package = Package(
         .package(url: "https://github.com/tuist/XcodeProj", exact: "8.26.1"),
         .package(url: "https://github.com/cpisciotta/xcbeautify", .upToNextMajor(from: "2.13.0")),
         .package(url: "https://github.com/krzysztofzablocki/Difference.git", from: "1.0.2"),
-        .package(url: "https://github.com/Kolos65/Mockable.git", exact: "0.0.11"),
+        .package(url: "https://github.com/Kolos65/Mockable.git", .upToNextMajor(from: "0.0.11")),
         .package(
             url: "https://github.com/apple/swift-openapi-runtime", .upToNextMajor(from: "1.5.0")
         ),
@@ -515,7 +515,7 @@ let package = Package(
             url: "https://github.com/tuist/XcodeGraph.git", exact: "1.3.2"
         ),
         .package(url: "https://github.com/tuist/FileSystem.git", .upToNextMajor(from: "0.7.0")),
-        .package(url: "https://github.com/tuist/Command.git", exact: "0.8.0"),
+        .package(url: "https://github.com/tuist/Command.git", .upToNextMajor(from: "0.11.16")),
         .package(url: "https://github.com/sparkle-project/Sparkle.git", from: "2.6.4"),
         .package(url: "https://github.com/apple/swift-collections", .upToNextMajor(from: "1.1.4")),
         .package(url: "https://github.com/apple/swift-service-context", .upToNextMajor(from: "1.0.0")),
