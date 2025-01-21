@@ -68,7 +68,7 @@ tuist test
 2. 프로토콜/인터페이스 타겟으로 의존성을 정의하고, 최상위 타겟에서 의존성 주입을 구현합니다.
 3. 자주 수정되는 타겟은 변경 가능성이 적은 타겟으로 나눕니다.
 
-위의 제안은 바이너리 캐싱의 이점 뿐만 아니라 Xcode의 기능을 최대한 활용할 수 있게 프로젝트를 구조화 하는 방식을 제시하는 <0>The Modular Architecture</0>의 일부분입니다.
+위의 제안은 바이너리 캐싱의 이점 뿐만 아니라 Xcode의 기능을 최대한 활용할 수 있게 프로젝트를 구조화 하는 방식을 제시하는 [The Modular Architecture](https://docs.tuist.dev/ko/guides/develop/projects/tma-architecture)의 일부분입니다.
 
 ## 권장 설정 {#recommended-setup}
 
