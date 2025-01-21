@@ -521,6 +521,41 @@ export function guidesSidebar(locale) {
             "sidebars.guides.items.develop.items.registry.text",
           ),
           link: `/${locale}/guides/develop/registry`,
+          collapsed: true,
+          items: [
+            {
+              text: localizedString(
+                locale,
+                "sidebars.guides.items.develop.items.registry.items.xcode-project.text",
+              ),
+              link: `/${locale}/guides/develop/registry/xcode-project`,
+            },
+            {
+              text: localizedString(locale, "generated-project"),
+              link: `/${locale}/guides/develop/registry/generated-project`,
+            },
+            {
+              text: localizedString(
+                locale,
+                "sidebars.guides.items.develop.items.registry.items.xcodeproj-integration.text",
+              ),
+              link: `/${locale}/guides/develop/registry/xcodeproj-integration`,
+            },
+            {
+              text: localizedString(
+                locale,
+                "sidebars.guides.items.develop.items.registry.items.swift-package.text",
+              ),
+              link: `/${locale}/guides/develop/registry/swift-package`,
+            },
+            {
+              text: localizedString(
+                locale,
+                "sidebars.guides.items.develop.items.registry.items.continuous-integration.text",
+              ),
+              link: `/${locale}/guides/develop/registry/continuous-integration`,
+            },
+          ],
         },
       ],
     },

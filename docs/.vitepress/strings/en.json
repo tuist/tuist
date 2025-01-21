@@ -276,7 +276,27 @@
               "text": "Cache"
             },
             "registry": {
-              "text": "Registry"
+              "text": "Registry",
+              "items": {
+                "registry": {
+                  "text": "Registry"
+                },
+                "xcode-project": {
+                  "text": "Xcode project"
+                },
+                "generated-project": {
+                  "text": "Generated project"
+                },
+                "xcodeproj-integration": {
+                  "text": "XcodeProj-based integration"
+                },
+                "swift-package": {
+                  "text": "Swift package"
+                },
+                "continuous-integration": {
+                  "text": "Continuous integration"
+                }
+              }
             },
             "selective-testing": {
               "text": "Selective testing"

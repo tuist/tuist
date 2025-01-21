@@ -36,6 +36,12 @@ We are the only **integrated extension of Apple's native toolchain to build bett
         details="Share previews of your app with a URL that launches the app on a click."
         linkText="Share your apps"
         link="/guides/share/previews"/>
+    <HomeCard
+        icon="📦"
+        title="Registry"
+        details="Cut down the size of your resolved packages and the resolution time. From minutes to seconds."
+        linkText="Speed up package resolution"
+        link="/guides/share/previews"/>
 </HomeCards>
 
 ## Installation
