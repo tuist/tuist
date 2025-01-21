@@ -10,4 +10,5 @@ To add packages using the registry in your Xcode project, use the default Xcode 
 
 ![Adding package dependencies](/images/guides/develop/build/registry/registry-add-package.png)
 
-Note that Xcode currently doesn't support automatically replacing source control packages with their registry equivalents. You will need to manually remove the source control package and add the registry package to speed up the resolution.
+> [!NOTE]
+> Xcode currently doesn't support automatically replacing source control packages with their registry equivalents. You will need to manually remove the source control package and add the registry package to speed up the resolution.
