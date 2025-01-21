@@ -293,6 +293,7 @@ export default defineConfig({
 /:locale/references/project-description/structs/config /:locale/references/project-description/structs/tuist  301
 /:locale/guides/develop/test/smart-runner /:locale/guides/develop/test/selective-testing 301
 /documentation/tuist/* / 301
+/:locale/guides/develop/build/registry /:locale/guides/develop/registry 301
 ${await fs.readFile(path.join(import.meta.dirname, "locale-redirects.txt"), {
   encoding: "utf-8",
 })}

@@ -58,10 +58,7 @@ final class EditService {
             let cacheDirectory = try cacheDirectoriesProvider.cacheDirectory(for: .editProjects)
             let cachedManifestDirectory = cacheDirectory.appending(component: path.pathString.md5)
 
-            guard let selectedXcode = try await XcodeController.shared.selected() else {
-                throw EditServiceError.xcodeNotSelected
-            }
-
+            let selectedXcode = try await XcodeController.shared.selected()
             let workspacePath = try await projectEditor.edit(
                 at: path,
                 in: cachedManifestDirectory,
