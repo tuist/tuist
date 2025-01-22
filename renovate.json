@@ -3,6 +3,7 @@
   "dependencyDashboard": false,
   "extends": ["config:base"],
   "enabledManagers": ["dockerfile", "mix"],
+  "reviewers": ["team:company"],
   "packageRules": [
     {
       "matchUpdateTypes": ["minor", "patch", "pin", "digest"],
