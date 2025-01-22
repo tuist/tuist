@@ -60,10 +60,19 @@ extension Logger {
         let fileLogger = try FileLogging(to: logFilePath.url)
 
         let baseLoggers = { (label: String) -> [any LogHandler] in
-            return [
+            var loggers: [any LogHandler] = [
                 FileLogHandler(label: label, fileLogger: fileLogger),
-                LoggingOSLog(label: label),
             ]
+
+            // OSLog is not needed in development.
+            // If we include it, the Xcode console will show duplicated logs, making it harder for contributors to debug the
+            // execution
+            // within Xcode.
+            // When run directly from a terminal, logs are not duplicated.
+            #if RELEASE
+                loggers.append(LoggingOSLog(label: label))
+            #endif
+            return loggers
         }
         if config.verbose {
             return { label in
