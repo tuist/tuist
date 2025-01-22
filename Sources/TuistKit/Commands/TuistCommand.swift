@@ -121,33 +121,34 @@ public struct TuistCommand: AsyncParsableCommand {
             }
         }
 
-        do {
-            defer { WarningController.shared.flush() }
-            try await executeCommand()
-            outputLogfilePath(logFilePath)
-        } catch let error as FatalError {
+        let outputCompletion = {
             WarningController.shared.flush()
-            errorHandler.fatal(error: error)
             outputLogfilePath(logFilePath)
+        }
+
+        do {
+            try await executeCommand()
+            outputCompletion()
+        } catch let error as FatalError {
+            errorHandler.fatal(error: error)
+            outputCompletion()
             _exit(exitCode(for: error).rawValue)
         } catch let error as ClientError where error.underlyingError is ServerClientAuthenticationError {
-            WarningController.shared.flush()
             // swiftlint:disable:next force_cast
             ServiceContext.current?.logger?.error("\((error.underlyingError as! ServerClientAuthenticationError).description)")
-            outputLogfilePath(logFilePath)
+            outputCompletion()
             _exit(exitCode(for: error).rawValue)
         } catch {
-            WarningController.shared.flush()
             if let parsedError {
                 handleParseError(parsedError)
             }
-            outputLogfilePath(logFilePath)
 
             // Exit cleanly
             if exitCode(for: error).rawValue == 0 {
                 exit(withError: error)
             } else {
                 errorHandler.fatal(error: UnhandledError(error: error))
+                outputCompletion()
                 _exit(exitCode(for: error).rawValue)
             }
         }
@@ -157,7 +158,7 @@ public struct TuistCommand: AsyncParsableCommand {
         // TODO:
         // Once we introduce Noora, we should merge all the "completion" messages
         // using the Noora's completion component.
-        try? FileHandle.standardOutput.write(contentsOf: "Logs available at \(logFilePath.pathString)\n".data(using: .utf8)!)
+        print("\nLogs available at \(logFilePath.pathString)")
     }
 
     private static func executeTask(with processedArguments: [String]) async throws {
