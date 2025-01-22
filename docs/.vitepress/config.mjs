@@ -184,6 +184,20 @@ export default defineConfig({
   cleanUrls: true,
   head: [
     [
+      "meta",
+      {
+        "http-equiv": "Content-Security-Policy",
+        content: "frame-src 'self' https://*.tuist.dev",
+      },
+    ],
+    [
+      "meta",
+      {
+        "http-equiv": "Content-Security-Policy",
+        content: "frame-ancestors 'self' https://*.tuist.dev",
+      },
+    ],
+    [
       "style",
       {},
       `
