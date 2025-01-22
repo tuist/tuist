@@ -24,6 +24,9 @@ public protocol Environmenting: AnyObject, Sendable {
     /// Returns the path to the cache directory. Configurable via the `XDG_CACHE_HOME` environment variable
     var cacheDirectory: AbsolutePath { get }
 
+    /// Returns the path to the state directory. Configurable via the `XDG_STATE_HOME` environment variable
+    var stateDirectory: AbsolutePath { get }
+
     /// Returns the path to the directory where the async queue events are persisted.
     var queueDirectory: AbsolutePath { get }
 
@@ -127,6 +130,19 @@ public final class Environment: Environmenting {
         }
 
         return baseCacheDirectory.appending(component: "tuist")
+    }
+
+    public var stateDirectory: AbsolutePath {
+        let baseStateDirectory: AbsolutePath
+        if let stateDirectoryPathString = ProcessInfo.processInfo.environment["XDG_STATE_HOME"],
+           let stateDirectory = try? AbsolutePath(validating: stateDirectoryPathString)
+        {
+            baseStateDirectory = stateDirectory
+        } else {
+            baseStateDirectory = FileHandler.shared.homeDirectory.appending(components: [".local", "state"])
+        }
+
+        return baseStateDirectory.appending(component: "tuist")
     }
 
     public var automationPath: AbsolutePath? {
