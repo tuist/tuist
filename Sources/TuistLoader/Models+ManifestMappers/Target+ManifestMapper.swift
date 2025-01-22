@@ -34,7 +34,7 @@ extension XcodeGraph.Target {
         generatorPaths: GeneratorPaths,
         externalDependencies: [String: [XcodeGraph.TargetDependency]],
         fileSystem: FileSysteming,
-        type: TargetType = .local
+        type: TargetType
     ) async throws -> XcodeGraph.Target {
         let name = manifest.name
         let destinations = try XcodeGraph.Destination.from(destinations: manifest.destinations)
