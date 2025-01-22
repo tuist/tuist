@@ -6,11 +6,10 @@ description: 앱 미리보기를 생성하고 다른 사람과 공유하는 방�
 
 # Previews {#previews}
 
-> [!IMPORTANT] XCODEPROJ 호환가능
-> 이 기능은 순수 Xcode 프로젝트와 호환됩니다.
-
-> [!IMPORTANT] REMOTE PROJECT REQUIRED
-> This feature requires a <LocalizedLink href="/server/introduction/accounts-and-projects#projects">remote project</LocalizedLink>.
+> [!IMPORTANT] REQUIREMENTS
+>
+> - [!IMPORTANT] REMOTE PROJECT REQUIRED
+>   This feature requires a <LocalizedLink href="/server/introduction/accounts-and-projects#projects">remote project</LocalizedLink>.
 
 앱을 개발할 때 다른 사람들의 피드백을 받기 위해 앱을 공유하고 싶을 수 있습니다.
 전통적으로, 팀들은 앱을 빌드하고 서명한 후 Apple의 [TestFlight](https://developer.apple.com/testflight/)와 같은 플랫폼에 업로드하여 이 작업을 수행해왔습니다.
@@ -24,15 +23,15 @@ Tuist는 이러한 과정을 간소화하기 위해 앱 미리보기를 생성�
 :::code-group
 
 ```bash [Tuist Project]
-tuist build App # simulator용 앱 빌드
-tuist build App -- -destination 'generic/platform=iOS' # device용 앱 빌드
-tuist share App
-```
-
-```bash [Xcode Project]
 xcodebuild -scheme App -project App.xcodeproj -configuration Debug # simulator용 앱 빌드
 xcodebuild -scheme App -project App.xcodeproj -configuration Debug -destination 'generic/platform=iOS' # device용 앱 빌드
 tuist share App --configuration Debug --platforms iOS
+```
+
+```bash [Xcode Project]
+tuist build App # simulator용 앱 빌드
+tuist build App -- -destination 'generic/platform=iOS' # device용 앱 빌드
+tuist share App
 ```
 
 :::
@@ -63,8 +62,6 @@ tuist run App@00dde7f56b1b8795a26b8085a781fb3715e834be # 특정 Git 커밋 SHA�
 <div style="display: flex; flex-direction: column; align-items: center;">
     <img src="/logo.png" style="height: 100px;" />
     <h1>Tuist</h1>
-
-
     <a href="https://cloud.tuist.io/download" style="text-decoration: none;">Download</a>
     <img src="/images/guides/share/menu-bar-app.png" style="width: 300px;" />
 </div>
