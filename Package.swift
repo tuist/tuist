@@ -522,6 +522,10 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-service-context", .upToNextMajor(from: "1.0.0")),
         .package(url: "https://github.com/chrisaljoudi/swift-log-oslog.git", .upToNextMajor(from: "0.2.2")),
         .package(url: "https://github.com/crspybits/swift-log-file", .upToNextMajor(from: "0.1.0")),
+<<<<<<< HEAD
+=======
+        .package(url: "https://github.com/chrisaljoudi/swift-log-oslog.git", .upToNextMajor(from: "0.2.2")),
+>>>>>>> 3a3764037 (Show log file at the end)
     ],
     targets: targets
 )

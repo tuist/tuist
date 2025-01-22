@@ -1,9 +1,10 @@
 import FileLogging
-import class Foundation.ProcessInfo
 @_exported import Logging
 import LoggingOSLog
 import Path
 import ServiceContextModule
+
+import class Foundation.ProcessInfo
 
 private enum LoggerServiceContextKey: ServiceContextKey {
     typealias Value = Logger
@@ -13,7 +14,8 @@ extension ServiceContext {
     public var logger: Logger? {
         get {
             self[LoggerServiceContextKey.self]
-        } set {
+        }
+        set {
             self[LoggerServiceContextKey.self] = newValue
         }
     }
@@ -61,7 +63,7 @@ extension Logger {
 
         let baseLoggers = { (label: String) -> [any LogHandler] in
             var loggers: [any LogHandler] = [
-                FileLogHandler(label: label, fileLogger: fileLogger),
+                FileLogHandler(label: label, fileLogger: fileLogger)
             ]
 
             // OSLog is not needed in development.

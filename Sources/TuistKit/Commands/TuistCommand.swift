@@ -128,20 +128,36 @@ public struct TuistCommand: AsyncParsableCommand {
 
         do {
             try await executeCommand()
+<<<<<<< HEAD
             outputCompletion(logFilePath: logFilePath, shouldOutputLogFilePath: logFilePathDisplayStrategy == .always)
+=======
+            outputLogfilePath(logFilePath)
+>>>>>>> 3a3764037 (Show log file at the end)
         } catch let error as FatalError {
             errorHandler.fatal(error: error)
+<<<<<<< HEAD
             self.outputCompletion(logFilePath: logFilePath, shouldOutputLogFilePath: true)
+=======
+            outputLogfilePath(logFilePath)
+>>>>>>> 3a3764037 (Show log file at the end)
             _exit(exitCode(for: error).rawValue)
         } catch let error as ClientError where error.underlyingError is ServerClientAuthenticationError {
             // swiftlint:disable:next force_cast
             ServiceContext.current?.logger?.error("\((error.underlyingError as! ServerClientAuthenticationError).description)")
+<<<<<<< HEAD
             outputCompletion(logFilePath: logFilePath, shouldOutputLogFilePath: true)
+=======
+            outputLogfilePath(logFilePath)
+>>>>>>> 3a3764037 (Show log file at the end)
             _exit(exitCode(for: error).rawValue)
         } catch {
             if let parsedError {
                 handleParseError(parsedError)
             }
+<<<<<<< HEAD
+=======
+            outputLogfilePath(logFilePath)
+>>>>>>> 3a3764037 (Show log file at the end)
 
             // Exit cleanly
             if exitCode(for: error).rawValue == 0 {
@@ -154,6 +170,7 @@ public struct TuistCommand: AsyncParsableCommand {
         }
     }
 
+<<<<<<< HEAD
     private static func outputCompletion(logFilePath: AbsolutePath, shouldOutputLogFilePath: Bool) {
         WarningController.shared.flush()
         if shouldOutputLogFilePath {
@@ -163,6 +180,13 @@ public struct TuistCommand: AsyncParsableCommand {
 
     private static func outputLogFilePath(_ logFilePath: AbsolutePath) {
         ServiceContext.current?.logger?.info("\nLogs are available at \(logFilePath.pathString)")
+=======
+    private static func outputLogfilePath(_ logFilePath: AbsolutePath) {
+        // TODO:
+        // Once we introduce Noora, we should merge all the "completion" messages
+        // using the Noora's completion component.
+        try? FileHandle.standardOutput.write(contentsOf: "Logs available at \(logFilePath.pathString)\n".data(using: .utf8)!)
+>>>>>>> 3a3764037 (Show log file at the end)
     }
 
     private static func executeTask(with processedArguments: [String]) async throws {

@@ -10,7 +10,8 @@ import TuistSupport
 @_documentation(visibility: private)
 private enum TuistCLI {
     static func main() async throws {
-        if CommandLine.arguments.contains("--quiet") && CommandLine.arguments.contains("--verbose") {
+        if CommandLine.arguments.contains("--quiet") && CommandLine.arguments.contains("--verbose")
+        {
             throw TuistCLIError.exclusiveOptionError("quiet", "verbose")
         }
 
@@ -29,20 +30,25 @@ private enum TuistCLI {
         let machineReadableCommands = [DumpCommand.self]
 
         // swiftformat:disable all
-        let isCommandMachineReadable = CommandLine.arguments.count > 1 && machineReadableCommands.map { $0._commandName }.contains(CommandLine.arguments[1])
+        let isCommandMachineReadable =
+            CommandLine.arguments.count > 1
+            && machineReadableCommands.map { $0._commandName }.contains(CommandLine.arguments[1])
         // swiftformat:enable all
-        let loggingConfig = if isCommandMachineReadable || CommandLine.arguments.contains("--json") {
-            LoggingConfig(
-                loggerType: .json,
-                verbose: ProcessEnv.vars[Constants.EnvironmentVariables.verbose] != nil
-            )
-        } else {
-            LoggingConfig.default
-        }
+        let loggingConfig =
+            if isCommandMachineReadable || CommandLine.arguments.contains("--json") {
+                LoggingConfig(
+                    loggerType: .json,
+                    verbose: ProcessEnv.vars[Constants.EnvironmentVariables.verbose] != nil
+                )
+            } else {
+                LoggingConfig.default
+            }
 
         let logFilePath = try await touchLogFile()
         try await LogsCleaner().clean(logsDirectory: logFilePath.parentDirectory)
-        let loggerHandler = try Logger.defaultLoggerHandler(config: loggingConfig, logFilePath: logFilePath)
+
+        let loggerHandler = try Logger.defaultLoggerHandler(
+            config: loggingConfig, logFilePath: logFilePath)
 
         /// This is the old initialization method and will eventually go away.
         LoggingSystem.bootstrap(loggerHandler)
@@ -57,7 +63,9 @@ private enum TuistCLI {
 
     private static func touchLogFile() async throws -> Path.AbsolutePath {
         let fileSystem = FileSystem()
-        let logFilePath = Environment.shared.stateDirectory.appending(components: ["logs", "\(UUID().uuidString).log"])
+        let logFilePath = Environment.shared.stateDirectory.appending(components: [
+            "logs", "\(UUID().uuidString).log",
+        ])
         if !(try await fileSystem.exists(logFilePath.parentDirectory)) {
             try await fileSystem.makeDirectory(at: logFilePath.parentDirectory)
         }
