@@ -16,9 +16,9 @@ async function themeConfig(locale) {
   sidebar[`/${locale}/contributors`] = contributorsSidebar(locale);
   sidebar[`/${locale}/guides/`] = guidesSidebar(locale);
   sidebar[`/${locale}/server/`] = serverSidebar(locale);
-  sidebar[`/${locale}/`] = guidesSidebar(locale);
   sidebar[`/${locale}/cli/`] = await loadCLIData(locale);
   sidebar[`/${locale}/references/`] = await referencesSidebar(locale);
+  sidebar[`/${locale}/`] = guidesSidebar(locale);
   return {
     nav: navBar(locale),
     sidebar,
@@ -184,6 +184,20 @@ export default defineConfig({
   cleanUrls: true,
   head: [
     [
+      "style",
+      {},
+      `
+      @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap');
+      `,
+    ],
+    [
+      "style",
+      {},
+      `
+      @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&display=swap');
+      `,
+    ],
+    [
       "script",
       {},
       `
@@ -292,6 +306,18 @@ export default defineConfig({
 /guides/dashboard/on-premise/metrics /server/on-premise/metrics 301
 /:locale/references/project-description/structs/config /:locale/references/project-description/structs/tuist  301
 /:locale/guides/develop/test/smart-runner /:locale/guides/develop/test/selective-testing 301
+/:locale/guides/start/new-project /:locale/guides/develop/projects/adoption/new-project 301
+/:locale/guides/start/swift-package /:locale/guides/develop/projects/adoption/swift-package 301
+/:locale/guides/start/migrate/xcode-project /:locale/guides/develop/projects/adoption/migrate/xcode-project 301
+/:locale/guides/start/migrate/swift-package /:locale/guides/develop/projects/adoption/migrate/swift-package 301
+/:locale/guides/start/migrate/xcodegen-project /:locale/guides/develop/projects/adoption/migrate/xcodegen-project 301
+/:locale/guides/start/migrate/bazel-project /:locale/guides/develop/projects/adoption/migrate/bazel-project 301
+/:locale/guides/develop/build/cache /:locale/guides/develop/cache 301
+/:locale/guides/develop/build/registry /:locale/guides/develop/registry 301
+/:locale/guides/develop/test/selective-testing /:locale/guides/develop/selective-testing 301
+/:locale/guides/develop/inspect/implicit-dependencies /:locale/guides/develop/projects/inspect/implicit-dependencies 301
+/:locale/guides/develop/automate/continuous-integration /:locale/guides/automate/continuous-integration 301
+/:locale/guides/develop/automate/workflows /:locale/guides/automate/workflows 301
 /documentation/tuist/* / 301
 /:locale/guides/develop/build/registry /:locale/guides/develop/registry 301
 ${await fs.readFile(path.join(import.meta.dirname, "locale-redirects.txt"), {
