@@ -1,23 +1,24 @@
 ---
-title: Create a new project
+title: 新規プロジェクトの作成
 titleTemplate: :title · Adoption · Projects · Develop · Guides · Tuist
-description: Learn how to create a new project with Tuist.
+description: Tuist で新規プロジェクトを作成する方法を学びます。
 ---
 
-# Create a new project {#create-a-new-project}
+# 新規プロジェクトの作成 {#create-a-new-project}
 
-The most straightforward way to start a new project with Tuist is to use the `tuist init` command. This command generates a new project with a default structure and configuration.
+Tuist を使って新しいプロジェクトを開始する最も簡単な方法は、`tuist init` コマンドを使用することです。 このコマンドは、デフォルトの構造と設定を持つ新しいプロジェクトを生成します。
 
-## Initializing an application project {#initializing-an-application-project}
+## アプリケーションプロジェクトの初期化 {#initializing-an-application-project}
 
-To start, you'll need to create a directory where the project will be created:
+開始するには、プロジェクトを作成するディレクトリを作成する必要があります:
+>>>>>>> 685508345 (New translations new-project.md (Japanese))
 
 ```bash
 mkdir MyApp
 cd MyApp
 ```
 
-Once the directory is created and you're inside it, run the following command:
+ディレクトリが作成され、その中に入ったら、次のコマンドを実行します:
 
 ::: code-group
 
@@ -31,7 +32,7 @@ tuist init --platform macos
 
 :::
 
-The command will initialize the project in the current directory. One of the files that are generated is the `Project.swift`, which contains the definition of your project. If you are familiar with the Swift Package Manager, think of it as the `Package.swift` but with the lingo of Xcode projects. You can then <LocalizedLink href="/guides/develop/projects/editing">edit the project</LocalizedLink> running `tuist edit`, and Xcode will open a project where you can edit the project.
+コマンドは現在のディレクトリ内のプロジェクトを初期化します。 プロジェクトを編集するには、`tuist edit` を実行します。そうすると、Xcode がプロジェクトを開き、<0>編集できる</0>ようになります。 生成されるファイルの1つは `Project.swift` で、プロジェクトの定義が含まれています。 Swift Package Manager に馴染みがある方は、Xcode プロジェクト向けの `Package.swift` のようなものだと考えてください。
 
 ::: code-group
 
@@ -86,7 +87,7 @@ mkdir MyFramework
 cd MyFramework
 ```
 
-Then create a `Tuist.swift` file, which will configure Tuist and is used by Tuist to determine the root directory of the project, and a `Project.swift`, where your project will be declared:
+次に、Tuist の設定を行い、プロジェクトのルートディレクトリを判定するために Tuist が使用する `Tuist.swift` ファイルと、プロジェクトの内容を宣言する `Project.swift` ファイルを作成します。
 
 ::: code-group
 
@@ -117,4 +118,4 @@ let tuist = Tuist()
 :::
 
 > [!IMPORTANT]
-> Tuist uses the `Tuist/` directory to determine the root of your project, and from there it looks for other manifest files globbing the directories. We recommend creating those files with your editor of choice, and from that point on, you can use `tuist edit` to edit the project with Xcode.
+> Tuist は `Tuist/` ディレクトリを使ってプロジェクトのルートを判定し、そこからディレクトリを探索しながら他のマニフェストファイルを探します。 これらのファイルは、お好みのエディタで作成することをおすすめします。その後は `tuist edit` を使って、Xcode でプロジェクトを編集できます。
