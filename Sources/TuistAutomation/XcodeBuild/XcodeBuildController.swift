@@ -299,6 +299,8 @@ public final class XcodeBuildController: XcodeBuildControlling {
     }
 
     fileprivate func run(command: [String]) async throws {
+        let logger = ServiceContext.current?.logger
+        
         func format(_ bytes: [UInt8]) -> String {
             let string = String(decoding: bytes, as: Unicode.UTF8.self)
             if self.environment.isVerbose == true {
@@ -312,14 +314,14 @@ public final class XcodeBuildController: XcodeBuildControlling {
             let lines = format(bytes).split(separator: "\n")
             for line in lines where !line.isEmpty {
                 if isError {
-                    ServiceContext.current?.logger?.error("\(line)")
+                    logger?.error("\(line)")
                 } else {
-                    ServiceContext.current?.logger?.info("\(line)")
+                    logger?.info("\(line)")
                 }
             }
         }
         
-        ServiceContext.current?.logger?.debug("Running xcodebuild command: \(command.joined(separator: " "))")
+        logger?.debug("Running xcodebuild command: \(command.joined(separator: " "))")
         
         try system.run(command,
                        verbose: false,
