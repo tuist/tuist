@@ -189,6 +189,7 @@ export default defineConfig({
         "http-equiv": "Content-Security-Policy",
         content: "frame-src 'self' https://*.tuist.dev",
       },
+      ``,
     ],
     [
       "meta",
@@ -196,6 +197,7 @@ export default defineConfig({
         "http-equiv": "Content-Security-Policy",
         content: "frame-ancestors 'self' https://*.tuist.dev",
       },
+      ``,
     ],
     [
       "style",
