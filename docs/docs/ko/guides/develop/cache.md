@@ -6,8 +6,9 @@ description: 컴파일된 바이너리를 캐싱하고 다양한 환경 간에 �
 
 # Cache {#cache}
 
-> [!IMPORTANT] REMOTE PROJECT 필요
-> 이 기능은 <LocalizedLink href="/server/introduction/accounts-and-projects">remote project</LocalizedLink>가 필요합니다.
+> [!IMPORTANT] REQUIREMENTS
+> - A <LocalizedLink href="/guides/develop/projects">Tuist Project</LocalizedLink>
+> - A <LocalizedLink href="/server/introduction/accounts-and-projects">Tuist account and project</LocalizedLink>
 
 Xcode의 빌드 시스템은 [증분 빌드](https://en.wikipedia.org/wiki/Incremental_build_model)를 제공하여 일반적인 상황에서 효율을 높입니다. 하지만 이 기능은 증분 빌드에 필요한 데이터가 서로 다른 빌드에서 공유되지 않으므로, [Continuous Integration (CI) 환경](https://en.wikipedia.org/wiki/Continuous_integration)에서는 적절하지 않습니다. 게다가 **개발자는 복잡한 컴파일 문제를 해결하기 위해 로컬에서 이 데이터를 초기화 하므로**, 클린 빌드가 자주 발생하게 됩니다. 팀은 이것으로 인해 로컬 빌드가 완료되거나 Continuous Integration 파이프라인이 Pull Request에 대한 피드백을 제공할 때까지 과도한 시간을 기다려야 합니다. 더욱이 이러한 환경에서 빈번한 컨텍스트 전환은 생산성을 더욱 악화시킵니다.
 
