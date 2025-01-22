@@ -252,6 +252,11 @@ internal protocol APIProtocol: Sendable {
     /// - Remark: HTTP `PUT /api/projects/{account_handle}/{project_handle}`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/put(updateProject)`.
     func updateProject(_ input: Operations.updateProject.Input) async throws -> Operations.updateProject.Output
+    /// List runs associated with a given project.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/runs`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/runs/get(listRuns)`.
+    func listRuns(_ input: Operations.listRuns.Input) async throws -> Operations.listRuns.Output
     /// Updates a member in an organization
     ///
     /// Updates a member in a given organization
@@ -848,6 +853,21 @@ extension APIProtocol {
             path: path,
             headers: headers,
             body: body
+        ))
+    }
+    /// List runs associated with a given project.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/runs`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/runs/get(listRuns)`.
+    internal func listRuns(
+        path: Operations.listRuns.Input.Path,
+        query: Operations.listRuns.Input.Query = .init(),
+        headers: Operations.listRuns.Input.Headers = .init()
+    ) async throws -> Operations.listRuns.Output {
+        try await listRuns(Operations.listRuns.Input(
+            path: path,
+            query: query,
+            headers: headers
         ))
     }
     /// Updates a member in an organization
@@ -1820,6 +1840,10 @@ internal enum Components {
                 case url
             }
         }
+        /// The maximum number of runs to return in a single page.
+        ///
+        /// - Remark: Generated from `#/components/schemas/RunsIndexPageSize`.
+        internal typealias RunsIndexPageSize = Swift.Int
         /// A token to authenticate API requests as a project.
         ///
         /// - Remark: Generated from `#/components/schemas/ProjectToken`.
@@ -2032,6 +2056,183 @@ internal enum Components {
             }
             internal enum CodingKeys: String, CodingKey {
                 case token
+            }
+        }
+        /// The page number to return.
+        ///
+        /// - Remark: Generated from `#/components/schemas/RunsIndexPage`.
+        internal typealias RunsIndexPage = Swift.Int
+        /// The schema for a Tuist run.
+        ///
+        /// - Remark: Generated from `#/components/schemas/Run`.
+        internal struct Run: Codable, Hashable, Sendable {
+            /// Cacheable targets of the run
+            ///
+            /// - Remark: Generated from `#/components/schemas/Run/cacheable_targets`.
+            internal var cacheable_targets: [Swift.String]?
+            /// Arguments passed to the command
+            ///
+            /// - Remark: Generated from `#/components/schemas/Run/command_arguments`.
+            internal var command_arguments: [Swift.String]
+            /// Duration of the run
+            ///
+            /// - Remark: Generated from `#/components/schemas/Run/duration`.
+            internal var duration: Swift.Double
+            /// Git branch of the repository
+            ///
+            /// - Remark: Generated from `#/components/schemas/Run/git_branch`.
+            internal var git_branch: Swift.String
+            /// Git commit SHA of the repository
+            ///
+            /// - Remark: Generated from `#/components/schemas/Run/git_commit_sha`.
+            internal var git_commit_sha: Swift.String
+            /// Git reference of the repository. When run from CI in a pull request, this will be the remote reference to the pull request, such as `refs/pull/23958/merge`.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Run/git_ref`.
+            internal var git_ref: Swift.String
+            /// ID of the run
+            ///
+            /// - Remark: Generated from `#/components/schemas/Run/id`.
+            internal var id: Swift.Double
+            /// Local cache target hits of the run
+            ///
+            /// - Remark: Generated from `#/components/schemas/Run/local_cache_target_hits`.
+            internal var local_cache_target_hits: [Swift.String]?
+            /// Local test target hits of the run
+            ///
+            /// - Remark: Generated from `#/components/schemas/Run/local_test_target_hits`.
+            internal var local_test_target_hits: [Swift.String]?
+            /// Version of macOS used
+            ///
+            /// - Remark: Generated from `#/components/schemas/Run/macos_version`.
+            internal var macos_version: Swift.String
+            /// Command name of the run
+            ///
+            /// - Remark: Generated from `#/components/schemas/Run/name`.
+            internal var name: Swift.String
+            /// ID of the associated preview
+            ///
+            /// - Remark: Generated from `#/components/schemas/Run/preview_id`.
+            internal var preview_id: Swift.String?
+            /// Remote cache target hits of the run
+            ///
+            /// - Remark: Generated from `#/components/schemas/Run/remote_cache_target_hits`.
+            internal var remote_cache_target_hits: [Swift.String]?
+            /// Remote test target hits of the run
+            ///
+            /// - Remark: Generated from `#/components/schemas/Run/remote_test_target_hits`.
+            internal var remote_test_target_hits: [Swift.String]?
+            /// Status of the command event
+            ///
+            /// - Remark: Generated from `#/components/schemas/Run/status`.
+            internal var status: Swift.String
+            /// Subcommand of the run
+            ///
+            /// - Remark: Generated from `#/components/schemas/Run/subcommand`.
+            internal var subcommand: Swift.String
+            /// Version of Swift used
+            ///
+            /// - Remark: Generated from `#/components/schemas/Run/swift_version`.
+            internal var swift_version: Swift.String
+            /// Test targets of the run
+            ///
+            /// - Remark: Generated from `#/components/schemas/Run/test_targets`.
+            internal var test_targets: [Swift.String]?
+            /// Version of Tuist used
+            ///
+            /// - Remark: Generated from `#/components/schemas/Run/tuist_version`.
+            internal var tuist_version: Swift.String
+            /// URL to the run
+            ///
+            /// - Remark: Generated from `#/components/schemas/Run/url`.
+            internal var url: Swift.String
+            /// Creates a new `Run`.
+            ///
+            /// - Parameters:
+            ///   - cacheable_targets: Cacheable targets of the run
+            ///   - command_arguments: Arguments passed to the command
+            ///   - duration: Duration of the run
+            ///   - git_branch: Git branch of the repository
+            ///   - git_commit_sha: Git commit SHA of the repository
+            ///   - git_ref: Git reference of the repository. When run from CI in a pull request, this will be the remote reference to the pull request, such as `refs/pull/23958/merge`.
+            ///   - id: ID of the run
+            ///   - local_cache_target_hits: Local cache target hits of the run
+            ///   - local_test_target_hits: Local test target hits of the run
+            ///   - macos_version: Version of macOS used
+            ///   - name: Command name of the run
+            ///   - preview_id: ID of the associated preview
+            ///   - remote_cache_target_hits: Remote cache target hits of the run
+            ///   - remote_test_target_hits: Remote test target hits of the run
+            ///   - status: Status of the command event
+            ///   - subcommand: Subcommand of the run
+            ///   - swift_version: Version of Swift used
+            ///   - test_targets: Test targets of the run
+            ///   - tuist_version: Version of Tuist used
+            ///   - url: URL to the run
+            internal init(
+                cacheable_targets: [Swift.String]? = nil,
+                command_arguments: [Swift.String],
+                duration: Swift.Double,
+                git_branch: Swift.String,
+                git_commit_sha: Swift.String,
+                git_ref: Swift.String,
+                id: Swift.Double,
+                local_cache_target_hits: [Swift.String]? = nil,
+                local_test_target_hits: [Swift.String]? = nil,
+                macos_version: Swift.String,
+                name: Swift.String,
+                preview_id: Swift.String? = nil,
+                remote_cache_target_hits: [Swift.String]? = nil,
+                remote_test_target_hits: [Swift.String]? = nil,
+                status: Swift.String,
+                subcommand: Swift.String,
+                swift_version: Swift.String,
+                test_targets: [Swift.String]? = nil,
+                tuist_version: Swift.String,
+                url: Swift.String
+            ) {
+                self.cacheable_targets = cacheable_targets
+                self.command_arguments = command_arguments
+                self.duration = duration
+                self.git_branch = git_branch
+                self.git_commit_sha = git_commit_sha
+                self.git_ref = git_ref
+                self.id = id
+                self.local_cache_target_hits = local_cache_target_hits
+                self.local_test_target_hits = local_test_target_hits
+                self.macos_version = macos_version
+                self.name = name
+                self.preview_id = preview_id
+                self.remote_cache_target_hits = remote_cache_target_hits
+                self.remote_test_target_hits = remote_test_target_hits
+                self.status = status
+                self.subcommand = subcommand
+                self.swift_version = swift_version
+                self.test_targets = test_targets
+                self.tuist_version = tuist_version
+                self.url = url
+            }
+            internal enum CodingKeys: String, CodingKey {
+                case cacheable_targets
+                case command_arguments
+                case duration
+                case git_branch
+                case git_commit_sha
+                case git_ref
+                case id
+                case local_cache_target_hits
+                case local_test_target_hits
+                case macos_version
+                case name
+                case preview_id
+                case remote_cache_target_hits
+                case remote_test_target_hits
+                case status
+                case subcommand
+                case swift_version
+                case test_targets
+                case tuist_version
+                case url
             }
         }
         /// The artifact exists in the cache and can be downloaded
@@ -13854,6 +14055,266 @@ internal enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        internal enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            internal init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            internal var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            internal static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// List runs associated with a given project.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/runs`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/runs/get(listRuns)`.
+    internal enum listRuns {
+        internal static let id: Swift.String = "listRuns"
+        internal struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/GET/path`.
+            internal struct Path: Sendable, Hashable {
+                /// The handle of the account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/GET/path/account_handle`.
+                internal var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/GET/path/project_handle`.
+                internal var project_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the account.
+                ///   - project_handle: The handle of the project.
+                internal init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                }
+            }
+            internal var path: Operations.listRuns.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/GET/query`.
+            internal struct Query: Sendable, Hashable {
+                /// The name of the run.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/GET/query/name`.
+                internal var name: Swift.String?
+                /// The git ref of the run.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/GET/query/git_ref`.
+                internal var git_ref: Swift.String?
+                /// The git branch of the run.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/GET/query/git_branch`.
+                internal var git_branch: Swift.String?
+                /// The git commit SHA of the run.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/GET/query/git_commit_sha`.
+                internal var git_commit_sha: Swift.String?
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/GET/query/page_size`.
+                internal var page_size: Swift.Int?
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/GET/query/page`.
+                internal var page: Swift.Int?
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - name: The name of the run.
+                ///   - git_ref: The git ref of the run.
+                ///   - git_branch: The git branch of the run.
+                ///   - git_commit_sha: The git commit SHA of the run.
+                ///   - page_size:
+                ///   - page:
+                internal init(
+                    name: Swift.String? = nil,
+                    git_ref: Swift.String? = nil,
+                    git_branch: Swift.String? = nil,
+                    git_commit_sha: Swift.String? = nil,
+                    page_size: Swift.Int? = nil,
+                    page: Swift.Int? = nil
+                ) {
+                    self.name = name
+                    self.git_ref = git_ref
+                    self.git_branch = git_branch
+                    self.git_commit_sha = git_commit_sha
+                    self.page_size = page_size
+                    self.page = page
+                }
+            }
+            internal var query: Operations.listRuns.Input.Query
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/GET/header`.
+            internal struct Headers: Sendable, Hashable {
+                internal var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listRuns.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                internal init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listRuns.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            internal var headers: Operations.listRuns.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            internal init(
+                path: Operations.listRuns.Input.Path,
+                query: Operations.listRuns.Input.Query = .init(),
+                headers: Operations.listRuns.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+            }
+        }
+        internal enum Output: Sendable, Hashable {
+            internal struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/GET/responses/200/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/GET/responses/200/content/json`.
+                    internal struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/GET/responses/200/content/json/runs`.
+                        internal var runs: [Components.Schemas.Run]
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - runs:
+                        internal init(runs: [Components.Schemas.Run]) {
+                            self.runs = runs
+                        }
+                        internal enum CodingKeys: String, CodingKey {
+                            case runs
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/GET/responses/200/content/application\/json`.
+                    case json(Operations.listRuns.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Operations.listRuns.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.listRuns.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.listRuns.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// List of runs
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/runs/get(listRuns)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.listRuns.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            internal var ok: Operations.listRuns.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/GET/responses/403/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.listRuns.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.listRuns.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// You don't have permission to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/runs/get(listRuns)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.listRuns.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            internal var forbidden: Operations.listRuns.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
                             response: self
                         )
                     }
