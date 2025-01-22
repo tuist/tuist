@@ -20,20 +20,11 @@ tuist registry setup # Creates a `registries.json` file with the default registr
 tuist registry login # Logs you into the registry.
 ```
 
-<<<<<<< HEAD
 Now you can access the registry! To resolve dependencies from the registry instead of from source control, continue reading based on your project setup:
 - <LocalizedLink href="/guides/develop/registry/xcode-project">Xcode project</LocalizedLink>
 - <LocalizedLink href="/guides/develop/registry/generated-project">Generated project with the Xcode package integration</LocalizedLink>
 - <LocalizedLink href="/guides/develop/registry/xcodeproj-integration">Generated project with the XcodeProj-based package integration</LocalizedLink>
 - <LocalizedLink href="/guides/develop/registry/swift-package">Swift package</LocalizedLink>
-=======
-Now you can access the registry! To resolve dependencies from the registry instead of from source control, follow the section below based on your setup.
-
-- Xcode projects {#xcode-projects}
-- Tuist project with the Xcode default integration {#tuist-project-with-xcode-default-integration}
-- Tuist project with the XcodeProj-based integration {#tuist-project-with-xcodeproj-based-integration}
-- Swift package {#swift-package}
->>>>>>> ff114469c (New translations registry.md (Spanish))
 
 To set up the registry on the CI, follow this guide: <LocalizedLink href="/guides/develop/registry/ci">Continuous integration</LocalizedLink>.
 
