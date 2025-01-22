@@ -11,7 +11,8 @@
     "tempy": "^3.1.0",
     "vitepress": "^1.5.0",
     "vue": "^3.4.31",
-    "wrangler": "^3.64.0"
+    "wrangler": "^3.64.0",
+    "undici": ">=5.28.5"
   },
   "scripts": {
     "dev": "vitepress dev",
