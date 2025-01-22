@@ -53,10 +53,6 @@
       }
     }
   },
-  "badges": {
-    "coming-soon": "近日公開",
-    "xcodeproj-compatible": "XcodeProj互換"
-  },
   "navbar": {
     "guides": {
       "text": "ガイド"
@@ -171,6 +167,14 @@
     "guides": {
       "text": "ガイド",
       "items": {
+        "tuist": {
+          "text": "Tuist",
+          "items": {
+            "about": {
+              "text": "About Tuist"
+            }
+          }
+        },
         "quick-start": {
           "text": "クイックスタート",
           "items": {
@@ -185,40 +189,40 @@
             }
           }
         },
-        "start": {
-          "text": "はじめかた",
-          "items": {
-            "new-project": {
-              "text": "新規プロジェクトの作成"
-            },
-            "swift-package": {
-              "text": "Swift パッケージで試す"
-            },
-            "migrate": {
-              "text": "移行する",
-              "items": {
-                "xcode-project": {
-                  "text": "Xcode プロジェクト"
-                },
-                "swift-package": {
-                  "text": "Swift パッケージ"
-                },
-                "xcodegen-project": {
-                  "text": "XcodeGen プロジェクト"
-                },
-                "bazel-project": {
-                  "text": "Bazel プロジェクト"
-                }
-              }
-            }
-          }
-        },
         "develop": {
           "text": "開発",
           "items": {
             "generated-projects": {
               "text": "プロジェクト",
               "items": {
+                "adoption": {
+                  "text": "Adoption",
+                  "items": {
+                    "new-project": {
+                      "text": "新規プロジェクトの作成"
+                    },
+                    "swift-package": {
+                      "text": "Try with a Swift Package"
+                    },
+                    "migrate": {
+                      "text": "Migrate",
+                      "items": {
+                        "xcode-project": {
+                          "text": "An Xcode project"
+                        },
+                        "swift-package": {
+                          "text": "A Swift package"
+                        },
+                        "xcodegen-project": {
+                          "text": "An XcodeGen project"
+                        },
+                        "bazel-project": {
+                          "text": "A Bazel project"
+                        }
+                      }
+                    }
+                  }
+                },
                 "manifests": {
                   "text": "マニフェスト"
                 },
@@ -249,6 +253,14 @@
                 "hashing": {
                   "text": "ハッシュ"
                 },
+                "inspect": {
+                  "text": "Inspect",
+                  "items": {
+                    "implicit-imports": {
+                      "text": "Implicit imports"
+                    }
+                  }
+                },
                 "the-cost-of-convenience": {
                   "text": "利便性の代償"
                 },
@@ -260,24 +272,8 @@
                 }
               }
             },
-            "build": {
-              "text": "ビルド",
-              "items": {
-                "cache": {
-                  "text": "キャッシュ"
-                }
-              }
-            },
-            "test": {
-              "text": "テスト",
-              "items": {
-                "selective-testing": {
-                  "text": "Selective testing"
-                },
-                "flakiness": {
-                  "text": "Flaky なテスト"
-                }
-              }
+            "cache": {
+              "text": "Cache"
             },
             "registry": {
               "text": "Registry",
@@ -298,28 +294,23 @@
                   "text": "Swift package"
                 },
                 "continuous-integration": {
-                  "text": "継続的インテグレーション"
+                  "text": "Continuous integration"
                 }
               }
             },
-            "inspect": {
-              "text": "検査",
-              "items": {
-                "implicit-imports": {
-                  "text": "暗黙のインポート"
-                }
-              }
+            "selective-testing": {
+              "text": "Selective testing"
+            }
+          }
+        },
+        "automate": {
+          "text": "Automate",
+          "items": {
+            "continuous-integration": {
+              "text": "Continuous integration"
             },
-            "automate": {
-              "text": "自動化",
-              "items": {
-                "continuous-integration": {
-                  "text": "継続的インテグレーション"
-                },
-                "workflows": {
-                  "text": "ワークフロー"
-                }
-              }
+            "workflows": {
+              "text": "Workflows"
             }
           }
         },
