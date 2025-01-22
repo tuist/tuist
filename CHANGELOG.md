@@ -1,5 +1,25 @@
 # Changelog
 
+## 4.40.0 - 2025-01-22
+
+### CLI
+
+#### Changed
+
+- Rename .mise.toml to mise.toml in the project created by tuist init [#7237](https://github.com/tuist/tuist/pull/7237) by [@dxmvsh](https://github.com/dxmvsh)
+- Add registry keychain entry on the CI for projects using the Xcode default integration [#7249](https://github.com/tuist/tuist/pull/7249) by [@fortmarek](https://github.com/fortmarek)
+
+#### Fixed
+
+- Fix issue where schemes with testplans and no explicit targets did not run any tests [#7187](https://github.com/tuist/tuist/pull/7187) by [@cooksimo](https://github.com/cooksimo)
+- Fix backwards compatibility of tuist graph --format json output [#7238](https://github.com/tuist/tuist/pull/7238) by [@fortmarek](https://github.com/fortmarek)
+- Fix false positive warning for external targets without sources [#7241](https://github.com/tuist/tuist/pull/7241) by [@vvisionnn](https://github.com/vvisionnn)
+- Fix broken `xcodebuild` output [#7259](https://github.com/tuist/tuist/pull/7259) by [@pepicrft](https://github.com/pepicrft)
+
+### CLI (Server features)
+
+- no changes
+
 ## 4.39.0 - 2025-01-08
 
 ### CLI
