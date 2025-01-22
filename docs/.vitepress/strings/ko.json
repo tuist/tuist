@@ -2,7 +2,7 @@
   "aside": {
     "translate": {
       "title": {
-        "text": "번역"
+        "text": "Translation 🌍"
       },
       "description": {
         "text": "이 페이지를 번역하거나 기존 번역을 개선할 수 있습니다."
@@ -265,9 +265,6 @@
               "items": {
                 "cache": {
                   "text": "Cache"
-                },
-                "registry": {
-                  "text": "Registry"
                 }
               }
             },
@@ -279,6 +276,29 @@
                 },
                 "flakiness": {
                   "text": "Flakiness"
+                }
+              }
+            },
+            "registry": {
+              "text": "Registry",
+              "items": {
+                "registry": {
+                  "text": "Registry"
+                },
+                "xcode-project": {
+                  "text": "Xcode project"
+                },
+                "generated-project": {
+                  "text": "Generated project"
+                },
+                "xcodeproj-integration": {
+                  "text": "XcodeProj-based integration"
+                },
+                "swift-package": {
+                  "text": "Swift package"
+                },
+                "continuous-integration": {
+                  "text": "Continuous integration"
                 }
               }
             },
