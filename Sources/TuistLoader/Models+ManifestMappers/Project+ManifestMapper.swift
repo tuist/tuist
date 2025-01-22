@@ -31,13 +31,18 @@ extension XcodeGraph.Project {
         let developmentRegion = manifest.options.developmentRegion
         let options = XcodeGraph.Project.Options.from(manifest: manifest.options)
         let settings = try manifest.settings.map { try XcodeGraph.Settings.from(manifest: $0, generatorPaths: generatorPaths) }
+        let targetType = switch type {
+        case .local: TargetType.local
+        case .external: TargetType.remote
+        }
 
         let targets = try await manifest.targets.concurrentMap {
             try await XcodeGraph.Target.from(
                 manifest: $0,
                 generatorPaths: generatorPaths,
                 externalDependencies: externalDependencies,
-                fileSystem: fileSystem
+                fileSystem: fileSystem,
+                type: targetType
             )
         }
 
