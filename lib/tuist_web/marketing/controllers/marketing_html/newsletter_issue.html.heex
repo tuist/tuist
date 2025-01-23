@@ -76,11 +76,34 @@
       </tr>
     </table>
     <div style="background-color: #F3F2FD; padding-top: 1rem; padding-bottom: 2rem; max-width: 100%; box-sizing: border-box; text-align: center;">
-      <img
-        src={Tuist.Environment.app_url(path: @issue.hero["image"], route_type: :marketing)}
-        alt={@issue.hero["alt"]}
-        style="object-fit: cover; max-width: 150px; height: auto; border-radius: 2rem; display: block; margin-left: auto; margin-right: auto;"
-      />
+      <%= if not is_nil(@issue.hero["image"]) do %>
+        <% img_src =
+          if(String.starts_with?(@issue.hero["image"], "/"),
+            do: Tuist.Environment.app_url(path: @issue.hero["image"], route_type: :marketing),
+            else: @issue.hero["image"]
+          ) %>
+        <img
+          src={img_src}
+          alt={@issue.hero["alt"]}
+          style="object-fit: cover; max-width: 150px; height: auto; border-radius: 2rem; display: block; margin-left: auto; margin-right: auto;"
+        />
+      <% end %>
+      <%= if not is_nil(@issue.hero["video"]) do %>
+        <% video_src =
+          if(String.starts_with?(@issue.hero["video"], "/"),
+            do: Tuist.Environment.app_url(path: @issue.hero["video"], route_type: :marketing),
+            else: @issue.hero["video"]
+          ) %>
+        <video
+          src={video_src}
+          alt={@issue.hero["alt"]}
+          autoplay
+          loop
+          playsinline
+          muted
+          style="object-fit: cover; max-width: 150px; height: 300px; display: block; margin-left: auto; margin-right: auto;"
+        />
+      <% end %>
       <div style="font-size: 16px; line-height: 22px; color: #622ed4;">
         {raw(@issue.hero["subtitle"])}
       </div>
@@ -137,7 +160,7 @@
                       target="_blank"
                       style="text-decoration: none; color: #2c2250;"
                     >
-                      <h2 style="margin: 0; font-size: 18px; font-weight: bold; background: #d7f775; padding: 0.4rem; display: inline-block;">
+                      <h2 style="margin: 1rem 0 0 0; font-size: 18px; font-weight: bold; background: #d7f775; padding: 0.4rem; display: inline-block;">
                         <span>{tool["title"]}</span>
                       </h2>
                     </a>
@@ -211,7 +234,7 @@
                       target="_blank"
                       style="text-decoration: none; color: #2c2250;"
                     >
-                      <h2 style="margin: 0; font-size: 18px; font-weight: bold; background: #ffa8f6; padding: 0.4rem; display: inline-block;">
+                      <h2 style="margin: 1rem 0 0 0; font-size: 18px; font-weight: bold; background: #ffa8f6; padding: 0.4rem; display: inline-block;">
                         <span>{item["title"]}</span>
                       </h2>
                     </a>

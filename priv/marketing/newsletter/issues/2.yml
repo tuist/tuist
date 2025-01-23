@@ -1,0 +1,98 @@
+date: 2025-01-23
+hero:
+  video: https://files.mastodon.social/media_attachments/files/113/865/772/246/387/461/original/ac8d5a7ffedc320e.mp4
+  alt: "Marcel's 3D mockup presenting the new version of his app UNHINGED"
+  subtitle: "Featured work: [Marcel](https://mastodon.social/@marcel/113865774458432464)"
+title: "The power of extensibility in Swift apps"
+body: |
+  The software we build serves a diverse world with varying needs across people and organizations. Creating solutions that cater to everyone's requirements can introduce complexity into our products. This is where extensibility comes in – making common tasks straightforward while keeping everything else possible.
+
+  To tackle this challenge, we first need to identify what's core to our app's domain and where extensibility points lie. Take [GitHub Actions](https://github.com/features/actions) as an example: while build environments and standard automation formats are core elements, individual steps can be extended through first and third-party code. Similarly, in the Swift ecosystem, SPM handles package graph definition and interpretation at its core, while allowing developers to share and extend functionality through [build-tool plugins](https://github.com/swiftlang/swift-package-manager/blob/main/Documentation/Plugins.md).
+
+  Consider how the Swift compiler works within Xcode's build system – it freezes your app's static shape into a binary. While content might change, the app's capabilities reflect what's written in code or defined in a SwiftUI tree. But what if we could tell the compiler to resolve certain aspects at runtime? While not the default approach, it's entirely feasible.
+
+  **The simplest form of extensibility is declarative.** You define and parse a schema, then use it to adjust the app. This could be anything from themes (defined by you, users, or a community) to dropdown menu actions or UI directives – similar to backend-driven UI approaches some companies employ. For instance, [Alexander Weiß](https://github.com/alexanderwe) created [swiftui-theming](https://github.com/alexanderwe/swiftui-theming), enabling not just predefined theme selection but potentially supporting a community-driven theme ecosystem.
+
+  As needs evolve, you might want to offer more advanced customization options, similar to [Raycast](https://www.raycast.com) or [VSCode extensions](https://marketplace.visualstudio.com/vscode). This might include letting developers customize your app's business logic. The first step is identifying extension points – what exactly are people extending? Your business logic may need adaptation to interface with external code components. The nature of this contract depends on your app's specific needs. Swift build-tool plugins demonstrate this by running at specific points during compilation, such as executing [SwiftLint checks](https://github.com/realm/SwiftLint).
+
+  Technology choice comes next. The simplest approach uses spawned executables for communication – this is how Swift Macros work under the hood. While functional, debugging can be challenging. Raycast took an innovative approach, detailed in their [blog post](https://www.raycast.com/blog/how-raycast-api-extensions-work), by adopting [NodeJS](https://nodejs.org/en) as their extension runtime. This gives developers access to the vast [NPM](https://www.npmjs.com) package ecosystem, though it requires careful consideration of security through their review process.
+
+  For those seeking alternatives that leverage Swift, WebAssembly (WASM) and specifically [SwiftWasm](https://swiftwasm.org) offer promising solutions. The [PointFree team](https://www.pointfree.co) has explored this for frontend development, and discussions are ongoing about its potential use in Swift Macros. **WASM's built-in security model** provides natural boundaries for extension capabilities while maintaining the flexibility developers need.
+
+  Extensibility in Swift apps remains an exciting frontier with tremendous potential for customization and adaptation. We're eager to see more apps like Raycast drawing inspiration from web ecosystems while embracing native development. Imagine more applications like Obsidian, VSCode, or Slack – but built natively, supported by rich plugin ecosystems that enhance our daily experience.
+interview:
+  interviewee: "Natan Rolnik"
+  interviewee_role: "Apple platforms developer at Monday.com"
+  interviewee_avatar_url: /marketing/images/newsletter/issues/2/natan.jpeg
+  interviewee_intro: |
+    [Natan Rolnik](https://natanrolnik.me) is an Apple platforms developer at [Monday.com](https://monday.com), where he works on the iOS and macOS apps. He is also the author of the [Swift Toolkit](https://swifttoolkit.dev) – a blog and a podcast about using Swift to craft developer tools.
+  questions:
+    - question: "An app worth installing"
+      answer: |
+        [NYT Games](https://www.nytco.com/products/games/). In times where our attention is drained by infinite and useless social media content (which I like to call junk food for the brain), it's great to "exercise" the brain with different challenging word puzzles, especially if it's not your mother tongue. I don't miss a day of [Wordle](https://www.nytimes.com/games/wordle/index.html), [Connections](https://www.nytimes.com/games/connections), [Spelling Bee](https://www.nytimes.com/puzzles/spelling-bee), [Strands](https://www.nytimes.com/games/strands), and [Crosswords](https://www.nytimes.com/crosswords).
+    - question: "An open-source project worth checking out"
+      answer: |
+        I’ve been playing around with [SwiftCloud](https://swift.cloud), by [Andrew Barba](https://abarba.dev). It is a tool that allows you to define, using Swift,  your cloud infrastructure - servers, CDNs, functions, and more. It actually reminds me of Tuist in some ways! I definitely recommend checking it out.
+    - question: "A developer tool worth using"
+      answer: |
+        [Git Tower](https://www.git-tower.com/mac) has been my preferred way of using Git for almost a decade. Its design and functionality are top notch, and one relatively recent addition is my favorite: Undo (Cmd + Z) for any git operation.
+    - question: "A developer worth following"
+      answer: |
+        The folks at [PointFree](https://www.pointfree.co) push the limits of Swift in my opinion, and every time I watch an episode, it blows my mind. It doesn’t matter which area they touch, be it parsing, architecture, multi platform and Wasm, I always learn something new.
+    - question: "A book worth reading"
+      answer: |
+        [Bad Blood](https://en.wikipedia.org/wiki/Bad_Blood:_Secrets_and_Lies_in_a_Silicon_Valley_Startup). It's one of the best books I've read in the last few years. It tells the crazy story of a startup in the medical industry, [Theranos](https://en.wikipedia.org/wiki/Theranos), and its founder, [Elizabeth Holmes](https://en.wikipedia.org/wiki/Elizabeth_Holmes). It’s written by the journalist who investigated the story and revealed the “institutionalized scam” that Elizabeth and her partner were committing. The saying “The devil is in the details” made so much sense in this story!
+
+tools:
+  - title: CCL
+    subtitle: A Categorical Configuration Language
+    link: https://chshersh.com/blog/2025-01-06-the-most-elegant-configuration-language.html
+    description: |
+      If you thought [Pkl](https://github.com/apple/pkl) would be the definitive configuration language, let us tell you that there's still space to create something more minimalist, and that's what CCL is all about.
+  - title: Siprep
+    subtitle: A static analyzer for your Swift code
+    link: https://github.com/twostraws/Sitrep
+    description: |
+      Thanks to this tool by [Paul Hudson](https://github.com/twostraws), you can build your own tools based on static code analysis, like [explicitDependencyImportCheck](https://github.com/Nikoloutsos/explicitDependencyImportCheck) by [Konstantinos Nikoloutsos](https://github.com/Nikoloutsos) to catch implicit imports.
+  - title: Rotato
+    subtitle: "3D mockup images and movies in minutes"
+    link: "https://rotato.app"
+    description: |
+      Through [this stunning mockup](https://mastodon.social/@marcel/113865774458432464) by [Marcel](https://mastodon.social/@marcel), we discovered this swiss-knife tool for creating mockups. You might want to use it to make your app look even more professional.
+  - title: SRCL
+    subtitle: "Terminal UI across terminals, web, and desktop"
+    link: https://www.sacred.computer
+    description: |
+      SRCL is a React library that allows building UIs with the look & feel of terminals, not just for the web but also for desktop and mobile applications. Imagine porting that idea to Swift with [cross-platform Swift](https://www.pointfree.co/episodes/ep291-cross-platform-swift-webassembly).
+  - title: Zag
+    subtitle: "Powering UI components with finite state machines"
+    link: https://zagjs.com
+    description: |
+      Implementing accessible components that follow best practices can be a daunting task. Zag takes care of that for the web, so it can be useful when building your Swift on the Server apps. Or maybe you can take inspiration from it to build a similar solution for SwiftUI.
+
+food_for_thought:
+  - title: "Epoch Semantic Versioning"
+    subtitle: "Read"
+    link: "https://antfu.me/posts/epoch-semver"
+    description: |
+      What if we incremented the major component of semantic versioning to ship "minor" breaking changes? [Anthony Fu](https://antfu.me) shares his thoughts on why that could be a good idea.
+  - title: "Supply chain security with mise and asdf plugins"
+    subtitle: "Read"
+    link: "https://github.com/jdx/mise/discussions/4054"
+    description: |
+      Mise is making security a first-class citizen in the supply chain of development tools. They have officialized many of the existing plugins, and started recommending [aqua-registry](https://aquaproj.github.io/docs/reference/registry/), which supports advanced supply chain features.
+  - title: "Be aware of the Makefile effect"
+    subtitle: Read
+    link: https://blog.yossarian.net/2025/01/10/Be-aware-of-the-Makefile-effect
+    description: |
+      How many times did you define a new CI pipeline or Fastlane lane by copying over the content of an existing one? [William Woodruff](https://github.com/woodruffw) coined a new term for that cargo-culting, the Makefile effect, and shared why he thinks minimizing it is a good idea.
+  - title: "It's just verbose"
+    subtitle: Scroll through
+    link: https://mastodon.social/@airspeedswift/113810734118469774
+    description: |
+      [Ben Cohen](https://mastodon.social/@airspeedswift) came across a [post](https://bsky.app/profile/dimillian.app/post/3lfeuxp2nk22w) by [Thomas Ricouard](https://mastodon.social/@dimillian), and took the opportunity to share the many decisions that went into Swift to make it way less verbose than Objective-C. If you like Swift, you'll love this thread.
+  - title: "Announcing Tuist registry"
+    subtitle: Read
+    link: https://tuist.dev/blog/2025/01/22/announcing-tuist-registry
+    description: |
+      Cold and warm resolution of package dependencies might add up minutes to every CI build. In this blog post we share what it took us to solve that problem and the outcome of that work, a registry for the Swift community.

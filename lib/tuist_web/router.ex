@@ -19,6 +19,7 @@ defmodule TuistWeb.Router do
     plug :put_content_security_policy,
       img_src:
         "'self' data: https://github.com https://*.githubusercontent.com https://*.gravatar.com",
+      media_src: "'self' https://*.mastodon.social https://hachyderm.io https://fosstodon.org",
       style_src: "'self' 'unsafe-inline' https://fonts.googleapis.com https://*.chatwoot.com",
       # 'unsafe-inline' is needed for Chatwoot, which doesn't support nonce:
       # https://github.com/chatwoot/chatwoot/issues/8892
