@@ -5,8 +5,7 @@ description: Extend your Apple native tooling to better apps at scale.
 ---
 
 <script setup>
-import VPFeature from "vitepress/dist/client/theme-default/components/VPFeature.vue";
-</script>
+import VPFeature from "vitepress/dist/client/theme-default/components/VPFeature.vue";</script>
 
 # About Tuist {#about-tuist}
 
