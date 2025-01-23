@@ -6,10 +6,9 @@ description: 앱 미리보기를 생성하고 다른 사람과 공유하는 방�
 
 # Previews {#previews}
 
-> [!IMPORTANT] REQUIREMENTS
+> [!IMPORTANT] 요구사항
 >
-> - [!IMPORTANT] REMOTE PROJECT REQUIRED
->   This feature requires a <LocalizedLink href="/server/introduction/accounts-and-projects#projects">remote project</LocalizedLink>.
+> - <LocalizedLink href="/server/introduction/accounts-and-projects">Tuist 계정과 프로젝트</LocalizedLink>
 
 앱을 개발할 때 다른 사람들의 피드백을 받기 위해 앱을 공유하고 싶을 수 있습니다.
 전통적으로, 팀들은 앱을 빌드하고 서명한 후 Apple의 [TestFlight](https://developer.apple.com/testflight/)와 같은 플랫폼에 업로드하여 이 작업을 수행해왔습니다.
