@@ -30,7 +30,7 @@ defmodule TuistWeb.Router do
       script_src_elem:
         "'self' 'nonce' https://cdn.jsdelivr.net https://esm.sh https://*.chatwoot.com https://*.getkoala.com",
       font_src: "'self' https://fonts.gstatic.com data:",
-      frame_src: "'self' https://app.chatwoot.com",
+      frame_src: "'self' https://app.chatwoot.com https://*.tuist.dev",
       connect_src: "'self' wss://*.getkoala.com https://*.getkoala.com https://*.chatwoot.com"
   end
 
