@@ -4,6 +4,7 @@
   "extends": ["config:base"],
   "enabledManagers": ["dockerfile", "mix"],
   "reviewers": ["team:company"],
+  "schedule": "0 9 * * 1",
   "packageRules": [
     {
       "matchUpdateTypes": ["minor", "patch", "pin", "digest"],
