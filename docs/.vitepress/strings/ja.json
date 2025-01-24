@@ -171,7 +171,7 @@
           "text": "Tuist",
           "items": {
             "about": {
-              "text": "About Tuist"
+              "text": "Tuist について"
             }
           }
         },
@@ -202,22 +202,22 @@
                       "text": "新規プロジェクトの作成"
                     },
                     "swift-package": {
-                      "text": "Try with a Swift Package"
+                      "text": "Swift パッケージと使用する"
                     },
                     "migrate": {
-                      "text": "Migrate",
+                      "text": "移行する",
                       "items": {
                         "xcode-project": {
-                          "text": "An Xcode project"
+                          "text": "Xcode プロジェクト"
                         },
                         "swift-package": {
-                          "text": "A Swift package"
+                          "text": "Swift パッケージ"
                         },
                         "xcodegen-project": {
-                          "text": "An XcodeGen project"
+                          "text": "XcodeGen プロジェクト"
                         },
                         "bazel-project": {
-                          "text": "A Bazel project"
+                          "text": "Bazel プロジェクト"
                         }
                       }
                     }
