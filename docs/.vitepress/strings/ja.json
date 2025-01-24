@@ -196,7 +196,7 @@
               "text": "プロジェクト",
               "items": {
                 "adoption": {
-                  "text": "Adoption",
+                  "text": "導入",
                   "items": {
                     "new-project": {
                       "text": "新規プロジェクトの作成"
@@ -254,10 +254,10 @@
                   "text": "ハッシュ"
                 },
                 "inspect": {
-                  "text": "Inspect",
+                  "text": "検査",
                   "items": {
                     "implicit-imports": {
-                      "text": "Implicit imports"
+                      "text": "暗黙のインポート"
                     }
                   }
                 },
@@ -273,44 +273,44 @@
               }
             },
             "cache": {
-              "text": "Cache"
+              "text": "キャッシュ"
             },
             "registry": {
-              "text": "Registry",
+              "text": "レジストリ",
               "items": {
                 "registry": {
-                  "text": "Registry"
+                  "text": "レジストリ"
                 },
                 "xcode-project": {
-                  "text": "Xcode project"
+                  "text": "Xcode プロジェクト"
                 },
                 "generated-project": {
-                  "text": "Generated project"
+                  "text": "生成されたプロジェクト"
                 },
                 "xcodeproj-integration": {
-                  "text": "XcodeProj-based integration"
+                  "text": "XcodeProj ベースの統合"
                 },
                 "swift-package": {
-                  "text": "Swift package"
+                  "text": "Swift パッケージ"
                 },
                 "continuous-integration": {
-                  "text": "Continuous integration"
+                  "text": "継続的インテグレーション"
                 }
               }
             },
             "selective-testing": {
-              "text": "Selective testing"
+              "text": "選択的テスト"
             }
           }
         },
         "automate": {
-          "text": "Automate",
+          "text": "自動化",
           "items": {
             "continuous-integration": {
-              "text": "Continuous integration"
+              "text": "継続的インテグレーション"
             },
             "workflows": {
-              "text": "Workflows"
+              "text": "ワークフロー"
             }
           }
         },
