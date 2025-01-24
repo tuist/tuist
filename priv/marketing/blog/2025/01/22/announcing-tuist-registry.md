@@ -82,7 +82,7 @@ To learn more about the Tuist Registry, head over to our [documentation](https:/
 
 ## Building a low-latency registry for open source packages
 
-We implemented an API that complies with the specification to serve releases of all the packages listed at [Swift Package Index](https://swiftpackageindex.com/), the default directory of community packages. Unlike decentralized resolution, developers get just the source code of every package version and do so from a global storage network that serves them with as minimum latency as possible. At the time of writing, we serve around 8.4K packages and 130k and that number is growing every day.
+We implemented an API that complies with the specification to serve releases of all the packages listed at [Swift Package Index](https://swiftpackageindex.com/), the default directory of community packages. Unlike decentralized resolution, developers get just the source code of every package version and do so from a global storage network that serves them with as minimum latency as possible. At the time of writing, we serve around 8.4K packages and 130k releases – and that number is growing every day.
 
 When implementing the Tuist Registry, there were a couple of bugs that we found in the SwiftPM registry implementation. To fix these for anyone using the Swift Package Registry, we submitted the following PRs:
 - [Fix resolve failing when package from registry is referenced by name](https://github.com/swiftlang/swift-package-manager/pull/8166)
