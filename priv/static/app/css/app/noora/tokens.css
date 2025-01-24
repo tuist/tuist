@@ -198,6 +198,7 @@
   --noora-body-large-font: 1rem/1.5rem var(--noora-font-body);
   --noora-body-medium-font: 0.875rem/1.25rem var(--noora-font-body);
   --noora-body-small-font: 0.75rem/1rem var(--noora-font-body);
+  --noora-body-xsmall-font: 0.625rem/0.75rem var(--noora-font-body);
 }
 
 @media screen and (min-width: 768px) {
