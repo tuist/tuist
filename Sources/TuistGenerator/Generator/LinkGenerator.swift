@@ -435,7 +435,7 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
             case .bundle, .macro, .packageProduct:
                 break
             case let .product(dependencyTarget, _, status, condition):
-                guard status != .none else { return }
+                guard status != .none else { continue }
                 guard let fileRef = fileElements.product(target: dependencyTarget) else {
                     throw LinkGeneratorError.missingProduct(name: dependencyTarget)
                 }
@@ -445,7 +445,7 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
                 pbxproj.add(object: buildFile)
                 buildPhase.files?.append(buildFile)
             case let .sdk(sdkPath, sdkStatus, _, condition):
-                guard sdkStatus != .none else { return }
+                guard sdkStatus != .none else { continue }
                 guard let fileRef = fileElements.sdk(path: sdkPath) else {
                     throw LinkGeneratorError.missingReference(path: sdkPath)
                 }
