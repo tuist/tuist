@@ -15,7 +15,7 @@ import VPFeature from "vitepress/dist/client/theme-default/components/VPFeature.
 
 **Tuist는 앱 개발을 가속화하고 향상시키기 위해 설계된 툴체인입니다.** Tuist는 공식 도구 및 시스템과 원활하게 통합되어  개발자들이 익숙한 환경에서 작업할 수 있도록 돕습니다. 이를 통해 도구와 시스템 통합의 복잡함을 줄여주고, 팀이 기능 개발과 전반적인 개발자 경험 개선에 더 많은 에너지를 쏟을 수 있도록 지원합니다. 본질적으로 Tuist는 가상의 플랫폼 팀의 역할을 합니다. 앱 아이디어의 구상 단계부터 사용자에게 출시되는 전 과정에서 발생하는 문제를 해결해줍니다.
 
-Tuist is comprised of a [CLI](https://github.com/tuist/tuist), which is the main entry point for developers, and a <LocalizedLink href="/server/introduction/why-a-server">server</LocalizedLink> that the CLI integrates with to persist state and integrate with other publicly available services.
+Tuist는 개발자를 위한 [CLI](https://github.com/tuist/tuist)와 CLI가 상태를 저장하고 다른 외부 서비스와 통합하기 위해 연동되는 <LocalizedLink href="/server/introduction/why-a-server">서버</LocalizedLink>로 구성되어 있습니다.
 
 ## Why {#why}
 
@@ -23,27 +23,27 @@ Tuist is comprised of a [CLI](https://github.com/tuist/tuist), which is the main
 
 ### Simplify 🌱 {#simplify}
 
-As projects grow and span multiple platforms, modularization becomes crucial. Tuist는 이러한 복잡성을 간소화하여 프로젝트 구조를 최적화하고 더 잘 이해할 수 있는 도구를 제공합니다.
+프로젝트가 성장하고 여러 플랫폼에 걸쳐 확장됨에 따라 모듈화가 매우 중요해집니다. Tuist는 이러한 복잡성을 간소화하여 프로젝트 구조를 최적화하고 더 잘 이해할 수 있는 도구를 제공합니다.
 
-**Further reading:** <LocalizedLink href="/guides/develop/projects">Projects</LocalizedLink>
+**추가 읽을거리:** <LocalizedLink href="/guides/develop/projects"> Projects</LocalizedLink>
 
 ### Optimize workflows 🚀 {#optimize-workflows}
 
-Leveraging project information, Tuist enhances efficiency through selective test execution and deterministic binary reuse across builds.
+프로젝트 정보를 활용하여 Tuist는 선택적 테스트 수행과 빌드 간 바이너리 재사용을 통해 효율성을 향상시킵니다.
 
-**Further reading:** <LocalizedLink href="/guides/develop/cache">Cache</LocalizedLink>, <LocalizedLink href="/guides/develop/selective-testing">Selective testing</LocalizedLink>, <LocalizedLink href="/guides/develop/registry">Registry</LocalizedLink>, and <LocalizedLink href="/guides/share/previews">Previews</LocalizedLink>
+**추가 읽을거리:** <LocalizedLink href="/guides/develop/cache">Cache</LocalizedLink>, <LocalizedLink href="/guides/develop/selective-testing">Selective testing</LocalizedLink>, <LocalizedLink href="/guides/develop/registry">Registry</LocalizedLink>, <LocalizedLink href="/guides/share/previews">Previews</LocalizedLink>
 
 ### Foster healthy project evolution 📈 {#foster-healthy-project-evolution}
 
-We provide insights into your project's dynamics and expert guidance for informed decision-making. 이러한 접근 방식은 개발자의 이탈과 비즈니스 목표 누락으로 이어질 수 있는 건강하지 않은 프로젝트와 관련된 좌절감과 생산성 손실을 방지합니다.
+프로젝트의 동향을 파악하고, 정보에 근거한 의사 결정을 위한 전문적인 지침을 제공합니다. 이러한 접근 방식은 개발자의 이탈과 비즈니스 목표 누락으로 이어질 수 있는 건강하지 않은 프로젝트와 관련된 좌절감과 생산성 손실을 방지합니다.
 
-**Further reading:** <LocalizedLink href="/server/introduction/why-a-server">Server</LocalizedLink>
+**추가 읽을거리:** <LocalizedLink href="/server/introduction/why-a-server"> Server</LocalizedLink>
 
 ### Break down silos 💜 {#break-down-silos}
 
-Unlike platform-specific ecosystems (e.g., Xcode's contained environment), Tuist offers web-centric experiences and integrates seamlessly with popular tools like Slack, Prometheus, and GitHub, enhancing cross-tool collaboration.
+플랫폼별 에코시스템 (예: Xcode의 페쇄적인 환경) 과 다르게 Tuist는 웹 중심 환경을 제공하며 Slack, Prometheus, GitHub와 같은 도구와 원활하게 통합되어 협업을 강화합니다.
 
-**Further reading:** <LocalizedLink href="/guides/develop/projects">Projects</LocalizedLink>
+**추가 읽을거리:** <LocalizedLink href="/guides/develop/projects"> Projects</LocalizedLink>
 
 ---
 
