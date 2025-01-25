@@ -1,24 +1,69 @@
 ---
-title: Tuistとは？
-description: Apple のネイティブツールを拡張し、スケールするアプリをより良くする。
+title: What is Tuist?
+description: Extend your Apple native tooling to better apps at scale.
+layout: home
+hero:
+  name: Tuist
+  text: From idea to the store
+  tagline: Extend Apple's toolchain to build better apps faster
+  image:
+    src: /logo.png
+    alt: Tuist
+  actions:
+    - theme: brand
+      text: What is Tuist?
+      link: /ja/guides/tuist/about
+    - theme: alt
+      text: Quick start
+      link: /ja/guides/quick-start/install-tuist
+    - theme: alt
+      text: View on GitHub
+      link: https://github.com/tuist/tuist
+features:
+  - icon: 📝
+    title: Projects
+    details: A Swift-based DSL to make Xcode projects more managleable and scalable.
+    linkText: "Create or migrate project"
+    link: "/ja/guides/develop/projects"
+  - icon: 📦
+    title: Cache
+    details: |
+      <div style="margin-bottom: 1rem; background: var(--vp-custom-block-tip-code-bg); color: var(--vp-c-tip-1); font-size: 11px; display: inline-block; padding-left: 5px; padding-right: 5px; border-radius: 10%;">Requires a Tuist project</div>
+      <p>
+      Get faster compilations by skipping compilation with cached binaries.
+      </p>
+    linkText: "Speed up compilations"
+    link: "/ja/guides/develop/cache"
+  - icon: ✅
+    title: Selective testing
+    details: |
+      <div style="margin-bottom: 1rem; background: var(--vp-custom-block-tip-code-bg); color: var(--vp-c-tip-1); font-size: 11px; display: inline-block; padding-left: 5px; padding-right: 5px; border-radius: 10%;">Requires a Tuist project</div>
+      <p>
+      Skip test targets when the dependent-upon code hasn't changed.
+      </p>
+    linkText: "Speed up test runs"
+    link: "/ja/guides/develop/selective-testing"
+  - icon: 📱
+    title: Previews
+    details: Share previews of your app with a URL that launches the app on a click.
+    linkText: "Share your apps"
+    link: "/ja/guides/share/previews"
 ---
 
-# Tuistについて {#tuist}
+Install Tuist and run `tuist init` to get started:
 
-アプリ開発の世界、特に Apple のようなプラットフォームでは、組織はしばしば **生産性の問題** に直面します。これには、遅いコンパイル時間、不確実なテスト、リソースを消耗する複雑な自動化ワークフローが含まれます。 従来、企業は専任のプラットフォームチームを結成してこれらの問題に対処しています。 これらの専門家はコードベースの健全性と整合性を維持し、他の開発者が機能の開発に集中できるようにします。 しかし、このアプローチは高コストでリスクが伴う可能性があり、重要な役割を担うチームメンバーの退職が生産性に深刻な影響を及ぼすことがあります。
+::: code-group
 
-**Tuist は、アプリ開発を加速し、強化するために設計されたツールチェーンです。** 私たちは公式ツールやシステムとシームレスに統合し、開発者が馴染みのある環境で作業できるようサポートします。 ツールやシステムの統合の負担を軽減することで、チームが機能開発と全体的な開発者体験の向上にエネルギーを注げるようにします。 要するに、Tuistはあなたのプロジェクトを支えるチームのような役割を果たします。 アプリアイディアの閃きからユーザーへのリリースまで、私たちはあなたと共に歩み、発生する課題に取り組みます。
+```bash [Homebrew]
+brew tap tuist/tuist
+brew install --formula tuist
 
-Tuistは、開発者の主要な入り口である **[CLI](https://github.com/tuist/tuist)** と、CLIが状態を保持し、他の公開サービスと統合するためのサーバーで構成されています。 サーバーを必要とする機能は、サブスクリプションを必要とする場合がありますのでご注意ください。
+tuist init
+```
 
-## Tuist を使う理由は？ {#why-would-i-use-tuist}
+```bash [Mise]
+mise x tuist@latest -- tuist init
+```
+:::
 
-なぜTuistを選択するのか？ その理由は以下の通りです。
-
-- **モジュール化を容易にする：** プロジェクトが成長し、複数のプラットフォームにまたがると、モジュール化が重要になります。 Tuistはこの複雑さを簡素化し、プロジェクトの構造を最適化し、よりよく理解するためのツールを提供します。
-- **ワークフローの最適化：** プロジェクト情報を活用し、Tuistは選択的なテスト実行とビルド間の決定論的なバイナリ再利用を通じて効率を向上させます。
-- **プロジェクトの健全な成長を促進する：** プロジェクトのダイナミクスに関する洞察と、情報に基づいた意思決定のための専門的なガイダンスを提供します。 このアプローチにより、開発者の離職やビジネスゴールの達成に失敗することに繋がる健全でないプロジェクトによるフラストレーションや生産性の低下を防ぎます。 このアプローチにより、開発者の離職やビジネスゴールの達成に失敗することに繋がる健全でないプロジェクトによるフラストレーションや生産性の低下を防ぎます。
-- **高コストなプラットフォーム専任チームの代替：** 高コストでリスクのある社内の専任チームに投資するのではなく、Tuistをあなたのバーチャル専門家として利用してください。 私たちは、属人化に伴うリスクを避けながら、安定したサポートを提供します。 私たちは、属人化に伴うリスクを避けながら、安定したサポートを提供します。
-- **サイロの解消：** プラットフォーム特有のエコシステム (例：Xcodeの閉じられた環境) とは異なり、Tuistはウェブ中心の体験を提供し、Slack、Prometheus、GitHubなどの人気ツールとシームレスに統合され、クロスツールコラボレーションを強化します。
-
-Tuist やプロジェクト、会社情報について詳しく知りたい場合は、私たちの[ハンドブック](https://handbook.tuist.io/)をご覧ください。そこには、私たちのビジョンや価値、Tuist を支えるチームに関する詳細な情報が含まれています。
+Check out our <LocalizedLink href="/guides/quick-start/install-tuist">installation guide</LocalizedLink> for more details.

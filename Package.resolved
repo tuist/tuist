@@ -1,5 +1,5 @@
 {
-  "originHash" : "2bc099daeca143141ec9aa1fcbab8e2e50f7a09bd13b937dd0eea67ada717d4d",
+  "originHash" : "b0472b9536122cb752e6688cb17b4063f73451c1c52c46a6c61d7a40a6d51677",
   "pins" : [
     {
       "identity" : "aexml",
@@ -222,8 +222,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/pointfreeco/swift-issue-reporting",
       "state" : {
-        "revision" : "770f990d3e4eececb57ac04a6076e22f8c97daeb",
-        "version" : "1.4.2"
+        "revision" : "a3f634d1a409c7979cabc0a71b3f26ffa9fc8af1",
+        "version" : "1.4.3"
       }
     },
     {
@@ -321,8 +321,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/cpisciotta/xcbeautify",
       "state" : {
-        "revision" : "6ffe4cd38f6290496317b6740d796231dc0248d9",
-        "version" : "2.13.0"
+        "revision" : "d5a29fcc952f29ac70537a07d2a7181b052aa870",
+        "version" : "2.20.0"
       }
     },
     {

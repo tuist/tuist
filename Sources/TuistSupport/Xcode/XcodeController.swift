@@ -10,7 +10,7 @@ public protocol XcodeControlling: Sendable {
     ///
     /// - Returns: Selected Xcode.
     /// - Throws: An error if it can't be obtained.
-    func selected() async throws -> Xcode?
+    func selected() async throws -> Xcode
 
     /// Returns version of the selected Xcode. Uses `selected()` from `XcodeControlling`
     ///
@@ -38,42 +38,19 @@ public final class XcodeController: XcodeControlling, @unchecked Sendable {
     ///
     /// - Returns: Selected Xcode.
     /// - Throws: An error if it can't be obtained.
-    public func selected() async throws -> Xcode? {
+    public func selected() async throws -> Xcode {
         if let selectedXcode = selectedXcode.value {
             return selectedXcode
         } else {
-            guard let path = try? System.shared.capture(["xcode-select", "-p"]).spm_chomp() else { return nil }
+            let path = try System.shared.capture(["xcode-select", "-p"]).spm_chomp()
             let value = try await Xcode.read(path: try AbsolutePath(validating: path).parentDirectory.parentDirectory)
             selectedXcode.mutate { $0 = value }
-            return selectedXcode.value
-        }
-    }
-
-    enum XcodeVersionError: FatalError {
-        case noXcode
-        case noVersion
-
-        var type: ErrorType { .abort }
-
-        var description: String {
-            switch self {
-            case .noXcode:
-                return "Could not find Xcode"
-            case .noVersion:
-                return "Could not parse XcodeVersion"
-            }
+            return value
         }
     }
 
     public func selectedVersion() async throws -> Version {
-        guard let xcode = try await selected() else {
-            throw XcodeVersionError.noXcode
-        }
-
-        guard let version = Version(unformattedString: xcode.infoPlist.version) else {
-            throw XcodeVersionError.noXcode
-        }
-
-        return version
+        let xcode = try await selected()
+        return try Version(versionString: xcode.infoPlist.version, usesLenientParsing: true)
     }
 }
