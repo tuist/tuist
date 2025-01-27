@@ -312,6 +312,8 @@ defmodule TuistWeb.Router do
 
     oban_dashboard("/oban", csp_nonce_assign_key: :csp_nonce)
 
+    forward "/flags", FunWithFlags.UI.Router, namespace: "ops/flags"
+
     live_dashboard "/dashboard",
       metrics: TuistWeb.Telemetry,
       ecto_repos: [Tuist.Repo],

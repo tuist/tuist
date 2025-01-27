@@ -237,3 +237,17 @@ import_config "#{config_env()}.exs"
 # Money
 config :money,
   default_currency: :USD
+
+# Flags
+config :fun_with_flags, :cache, enabled: true, ttl: 600
+
+config :fun_with_flags, :persistence,
+  adapter: FunWithFlags.Store.Persistent.Ecto,
+  repo: Tuist.Repo,
+  ecto_table_name: "feature_flags",
+  ecto_primary_key_type: :binary_id
+
+config :fun_with_flags, :cache_bust_notifications,
+  enabled: true,
+  adapter: FunWithFlags.Notifications.PhoenixPubSub,
+  client: Tuist.PubSub
