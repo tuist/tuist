@@ -1,46 +1,32 @@
-import AnyCodable
 import ArgumentParser
 import Foundation
 import Path
+import ServiceContextModule
 import TuistAnalytics
 import TuistAsyncQueue
 import TuistCache
 import TuistCore
 import TuistSupport
-
-public struct SelectiveTestsAnalytics: Equatable {
-    let testTargets: [String]
-    let localTestTargetHits: [String]
-    let remoteTestTargetHits: [String]
-}
+import XcodeGraph
 
 /// `TrackableCommandInfo` contains the information to report the execution of a command
 public struct TrackableCommandInfo {
     let runId: String
     let name: String
     let subcommand: String?
-    let parameters: [String: AnyCodable]
     let commandArguments: [String]
     let durationInMs: Int
     let status: CommandEvent.Status
-    let targetHashes: [CommandEventGraphTarget: String]?
-    let graphPath: AbsolutePath?
-    let cacheableTargets: [String]
-    let cacheItems: [CacheItem]
+    let graph: Graph?
+    let binaryCacheAnalytics: BinaryCacheAnalytics?
     let selectiveTestsAnalytics: SelectiveTestsAnalytics?
+    let previewId: String?
 }
 
 /// A `TrackableCommand` wraps a `ParsableCommand` and reports its execution to an analytics provider
-public class TrackableCommand: TrackableParametersDelegate {
-    public var targetHashes: [CommandEventGraphTarget: String]?
-    public var graphPath: AbsolutePath?
-    public var cacheableTargets: [String] = []
-    public var cacheItems: [CacheItem] = []
-    public var selectiveTestsAnalytics: SelectiveTestsAnalytics?
-
+public class TrackableCommand {
     private var command: ParsableCommand
     private let clock: Clock
-    private var trackedParameters: [String: AnyCodable] = [:]
     private let commandArguments: [String]
     private let commandEventFactory: CommandEventFactory
     private let asyncQueue: AsyncQueuing
@@ -65,15 +51,7 @@ public class TrackableCommand: TrackableParametersDelegate {
     public func run(
         analyticsEnabled: Bool
     ) async throws {
-        let runId: String
         let timer = clock.startTimer()
-        if let command = command as? HasTrackableParameters & ParsableCommand {
-            type(of: command).analyticsDelegate = self
-            runId = command.runId
-            self.command = command
-        } else {
-            runId = UUID().uuidString
-        }
         let pathIndex = commandArguments.firstIndex(of: "--path")
         let path: AbsolutePath
         if let pathIndex, commandArguments.endIndex > pathIndex + 1 {
@@ -81,30 +59,37 @@ public class TrackableCommand: TrackableParametersDelegate {
         } else {
             path = fileHandler.currentPath
         }
-        do {
-            if var asyncCommand = command as? AsyncParsableCommand {
-                try await asyncCommand.run()
-            } else {
-                try command.run()
+        let analyticsStorage = AnalyticsStorage()
+        var context = ServiceContext.current ?? ServiceContext.topLevel
+        context.analyticsStorage = analyticsStorage
+        try await ServiceContext.withValue(context) {
+            do {
+                if var asyncCommand = command as? AsyncParsableCommand {
+                    try await asyncCommand.run()
+                } else {
+                    try command.run()
+                }
+                if analyticsEnabled {
+                    try dispatchCommandEvent(
+                        timer: timer,
+                        status: .success,
+                        runId: analyticsStorage.runId,
+                        path: path,
+                        analyticsStorage: analyticsStorage
+                    )
+                }
+            } catch {
+                if analyticsEnabled {
+                    try dispatchCommandEvent(
+                        timer: timer,
+                        status: .failure("\(error)"),
+                        runId: analyticsStorage.runId,
+                        path: path,
+                        analyticsStorage: analyticsStorage
+                    )
+                }
+                throw error
             }
-            if analyticsEnabled {
-                try dispatchCommandEvent(
-                    timer: timer,
-                    status: .success,
-                    runId: runId,
-                    path: path
-                )
-            }
-        } catch {
-            if analyticsEnabled {
-                try dispatchCommandEvent(
-                    timer: timer,
-                    status: .failure("\(error)"),
-                    runId: runId,
-                    path: path
-                )
-            }
-            throw error
         }
     }
 
@@ -112,7 +97,8 @@ public class TrackableCommand: TrackableParametersDelegate {
         timer: any ClockTimer,
         status: CommandEvent.Status,
         runId: String,
-        path: AbsolutePath
+        path: AbsolutePath,
+        analyticsStorage: AnalyticsStorage
     ) throws {
         let durationInSeconds = timer.stop()
         let durationInMs = Int(durationInSeconds * 1000)
@@ -122,15 +108,13 @@ public class TrackableCommand: TrackableParametersDelegate {
             runId: runId,
             name: name,
             subcommand: subcommand,
-            parameters: trackedParameters,
             commandArguments: commandArguments,
             durationInMs: durationInMs,
             status: status,
-            targetHashes: targetHashes,
-            graphPath: graphPath,
-            cacheableTargets: cacheableTargets,
-            cacheItems: cacheItems,
-            selectiveTestsAnalytics: selectiveTestsAnalytics
+            graph: analyticsStorage.graph,
+            binaryCacheAnalytics: analyticsStorage.binaryCacheAnalytics,
+            selectiveTestsAnalytics: analyticsStorage.selectiveTestAnalytics,
+            previewId: analyticsStorage.previewId
         )
         let commandEvent = try commandEventFactory.make(
             from: info,
@@ -142,13 +126,6 @@ public class TrackableCommand: TrackableParametersDelegate {
         } else {
             asyncQueue.waitIfCI()
         }
-    }
-
-    public func addParameters(_ parameters: [String: AnyCodable]) {
-        trackedParameters.merge(
-            parameters,
-            uniquingKeysWith: { _, newKey in newKey }
-        )
     }
 
     private func extractCommandName(from configuration: CommandConfiguration) -> (name: String, subcommand: String?) {

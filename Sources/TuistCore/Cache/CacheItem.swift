@@ -1,9 +1,8 @@
 import Path
-import TuistCore
 
-public struct CacheItem: Hashable, Equatable {
+public struct CacheItem: Hashable, Equatable, Codable {
     /// Cache items can either come from a local or a remote cache
-    public enum Source: Hashable, Equatable {
+    public enum Source: Hashable, Equatable, Codable {
         case remote, local
     }
 
@@ -47,15 +46,3 @@ public struct CacheItem: Hashable, Equatable {
         }
     }
 #endif
-
-private struct CacheItemsKey: MapperEnvironmentKey {
-    static var defaultValue: [AbsolutePath: [String: CacheItem]] = [:]
-}
-
-extension MapperEnvironment {
-    /// Cache items fetched from either a local or remote storage.
-    public var targetCacheItems: [AbsolutePath: [String: CacheItem]] {
-        get { self[CacheItemsKey.self] }
-        set { self[CacheItemsKey.self] = newValue }
-    }
-}

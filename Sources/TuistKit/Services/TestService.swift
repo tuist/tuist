@@ -181,8 +181,7 @@ final class TestService { // swiftlint:disable:this type_body_length
         ignoreBinaryCache: Bool,
         ignoreSelectiveTesting: Bool,
         generateOnly: Bool,
-        passthroughXcodeBuildArguments: [String],
-        analyticsDelegate: TrackableParametersDelegate?
+        passthroughXcodeBuildArguments: [String]
     ) async throws {
         if validateTestTargetsParameters {
             try Self.validateParameters(
@@ -210,11 +209,6 @@ final class TestService { // swiftlint:disable:this type_body_length
         let (_, graph, mapperEnvironment) = try await testGenerator.generateWithGraph(
             path: path
         )
-
-        analyticsDelegate?.targetHashes = mapperEnvironment.targetHashes
-        analyticsDelegate?.graphPath = graph.path
-        analyticsDelegate?.cacheableTargets = mapperEnvironment.cacheableTargets
-        analyticsDelegate?.cacheItems = mapperEnvironment.targetCacheItems.values.flatMap(\.values)
 
         if generateOnly {
             return
@@ -259,7 +253,6 @@ final class TestService { // swiftlint:disable:this type_body_length
                         "The scheme \(schemeName)'s test action has no tests to run, finishing early."
                     )
                     updateTestServiceAnalytics(
-                        analyticsDelegate: analyticsDelegate,
                         mapperEnvironment: mapperEnvironment,
                         schemes: [scheme],
                         testPlanConfiguration: testPlanConfiguration
@@ -274,7 +267,6 @@ final class TestService { // swiftlint:disable:this type_body_length
             }
 
             updateTestServiceAnalytics(
-                analyticsDelegate: analyticsDelegate,
                 mapperEnvironment: mapperEnvironment,
                 schemes: [scheme],
                 testPlanConfiguration: testPlanConfiguration
@@ -303,7 +295,6 @@ final class TestService { // swiftlint:disable:this type_body_length
         } else {
             schemes = buildGraphInspector.workspaceSchemes(graphTraverser: graphTraverser)
             updateTestServiceAnalytics(
-                analyticsDelegate: analyticsDelegate,
                 mapperEnvironment: mapperEnvironment,
                 schemes: schemes,
                 testPlanConfiguration: testPlanConfiguration
@@ -418,7 +409,6 @@ final class TestService { // swiftlint:disable:this type_body_length
     }
 
     private func updateTestServiceAnalytics(
-        analyticsDelegate: TrackableParametersDelegate?,
         mapperEnvironment: MapperEnvironment,
         schemes: [Scheme],
         testPlanConfiguration: TestPlanConfiguration?
@@ -431,26 +421,15 @@ final class TestService { // swiftlint:disable:this type_body_length
         let testTargets = initialTestTargets
             .map(\.target.name)
 
-        let localTestTargetHits = initialTestTargets
-            .filter {
-                guard let cacheItem = mapperEnvironment.targetCacheItems[$0.path]?[$0.target.name]
-                else { return false }
-                return cacheItem.cacheCategory == .selectiveTests && cacheItem.source == .local
+        ServiceContext.current?.analyticsStorage?.selectiveTestAnalytics = SelectiveTestsAnalytics(
+            hashes: initialTestTargets.reduce(into: [:]) { result, element in
+                result[element.path, default: [:]][element.target.name] = mapperEnvironment
+                    .targetTestHashes[element.path]?[element.target.name]
+            },
+            cacheItems: initialTestTargets.reduce(into: [:]) { result, element in
+                result[element.path, default: [:]][element.target.name] = mapperEnvironment
+                    .targetTestCacheItems[element.path]?[element.target.name]
             }
-            .map(\.target.name)
-
-        let remoteTestTargetHits = initialTestTargets
-            .filter {
-                guard let cacheItem = mapperEnvironment.targetCacheItems[$0.path]?[$0.target.name]
-                else { return false }
-                return cacheItem.cacheCategory == .selectiveTests && cacheItem.source == .remote
-            }
-            .map(\.target.name)
-
-        analyticsDelegate?.selectiveTestsAnalytics = SelectiveTestsAnalytics(
-            testTargets: testTargets,
-            localTestTargetHits: localTestTargetHits,
-            remoteTestTargetHits: remoteTestTargetHits
         )
     }
 
@@ -595,11 +574,7 @@ final class TestService { // swiftlint:disable:this type_body_length
 
             let hashes = allTestedTargets
                 .filter {
-                    if let cacheItem = mapperEnvironment.targetCacheItems[$0.path]?[$0.target.name] {
-                        return cacheItem.cacheCategory != .selectiveTests
-                    } else {
-                        return true
-                    }
+                    return mapperEnvironment.targetTestCacheItems[$0.path]?[$0.target.name] == nil
                 }
                 .compactMap { graphTarget -> (target: Target, hash: String)? in
                     guard let hash = mapperEnvironment.targetTestHashes[graphTarget.path]?[graphTarget.target.name]

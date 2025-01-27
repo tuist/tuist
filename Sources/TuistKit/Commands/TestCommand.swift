@@ -1,4 +1,3 @@
-import AnyCodable
 import ArgumentParser
 import Foundation
 import Path
@@ -8,13 +7,11 @@ import TuistServer
 import TuistSupport
 
 /// Command that tests a target from the project in the current directory.
-public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
+public struct TestCommand: AsyncParsableCommand {
     public init() {}
 
-    public static var analyticsDelegate: TrackableParametersDelegate?
     public static var generatorFactory: GeneratorFactorying = GeneratorFactory()
     public static var cacheStorageFactory: CacheStorageFactorying = EmptyCacheStorageFactory()
-    public var runId = UUID().uuidString
 
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
@@ -225,20 +222,11 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
             FileHandler.shared.currentPath
         }
 
-        defer {
-            TestCommand.analyticsDelegate?.addParameters(
-                [
-                    "no_binary_cache": AnyCodable(!binaryCache),
-                    "no_selective_testing": AnyCodable(!selectiveTesting),
-                ]
-            )
-        }
-
         try await TestService(
             generatorFactory: Self.generatorFactory,
             cacheStorageFactory: Self.cacheStorageFactory
         ).run(
-            runId: runId,
+            runId: ServiceContext.current?.analyticsStorage?.runId ?? UUID().uuidString,
             schemeName: scheme,
             clean: clean,
             noUpload: noUpload,
@@ -270,8 +258,7 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
             ignoreBinaryCache: !binaryCache,
             ignoreSelectiveTesting: !selectiveTesting,
             generateOnly: generateOnly,
-            passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
-            analyticsDelegate: TestCommand.analyticsDelegate
+            passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
         )
     }
 }
