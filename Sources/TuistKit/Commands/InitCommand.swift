@@ -24,7 +24,7 @@ public struct InitCommand: AsyncParsableCommand, HasTrackableParameters {
 
     @Option(
         help: "The platform (iOS, tvOS, visionOS, watchOS or macOS) the product will be for (Default: iOS)",
-        completion: .list(["ios", "tvos", "macos", "visionos", "watchos"]),
+        completion: .list(XcodeGraph.Platform.allValueStrings),
         envKey: .initPlatform
     )
     var platform: String?
