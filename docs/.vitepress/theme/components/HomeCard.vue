@@ -57,16 +57,16 @@ LocalyzedLink {
 .HomeCard {
     text-decoration: none;
     display: block;
-    border: 1px solid var(--vp-c-bg-soft);
+    border: 1px solid var(--vp-c-bg-elv);
     border-radius: 12px;
     height: 100%;
-    background-color: var(--vp-c-bg-soft);
+    background-color: var(--vp-c-bg-alt);
     transition:
         border-color 0.25s,
         background-color 0.25s;
 
     &:hover {
-        background-color: var(--vp-button-alt-hover-bg);
+        background-color: var(--vp-c-bg-alt);
         & .title {
             color: var(--vp-c-brand-1);
         }
