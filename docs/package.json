@@ -11,7 +11,9 @@
     "tempy": "^3.1.0",
     "vitepress": "^1.5.0",
     "vue": "^3.4.31",
-    "wrangler": "^3.64.0"
+    "wrangler": "^3.64.0",
+    "path-to-regexp": ">=6.3.0",
+    "cross-spawn": ">=7.0.5"
   },
   "scripts": {
     "dev": "vitepress dev",
