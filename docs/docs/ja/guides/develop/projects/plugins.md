@@ -21,9 +21,6 @@ Note that plugins are designed to be a simple way to extend Tuist's functionalit
 
 If you need more flexibility, consider suggesting a feature for the tool or building your own solution upon Tuist's generation framework, [`TuistGenerator`](https://github.com/tuist/tuist/tree/main/Sources/TuistGenerator).
 
-> [!WARNING] NON-ACTIVELY-MAINTAINED
-> Our plugin infrastructure is not actively maintained. We are looking for contributors to help us improve it. If you are interested, please reach out to us on [Slack](https://slack.tuist.io/).
-
 ## Plugin types {#plugin-types}
 
 ### Project description helper plugin {#project-description-helper-plugin}
@@ -94,6 +91,9 @@ let project = Project(resourceSynthesizers: [.strings(plugin: "MyPlugin")])
 ```
 
 ### Task plugin <Badge type="warning" text="deprecated" /> {#task-plugin-badge-typewarning-textdeprecated-}
+
+> [!WARNING] DEPRECATED
+> Task plugins are deprecated and we are working on a more flexible and powerful solution, <LocalizedLink href="/en/guides/develop/automate/workflows">workflows</LocalizedLink>. We recommend not developing new plugins until the new solution is available.
 
 Tasks are `$PATH`-exposed executables that are invocable through the `tuist` command if they follow the naming convention `tuist-<task-name>`. In earlier versions, Tuist provided some weak conventions and tools under `tuist plugin` to `build`, `run`, `test` and `archive` tasks represented by executables in Swift Packages, but we have deprecated this feature since it increases the maintenance burden and complexity of the tool.
 
