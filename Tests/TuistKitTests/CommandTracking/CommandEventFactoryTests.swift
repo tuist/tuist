@@ -130,7 +130,7 @@ final class CommandEventFactoryTests: TuistUnitTestCase {
             graph: CommandEventGraph(
                 name: "Graph",
                 projects: [
-                    CommandEventProject(
+                    .test(
                         name: "Project",
                         targets: [
                             CommandEventTarget(

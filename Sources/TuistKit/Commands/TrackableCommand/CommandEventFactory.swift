@@ -85,6 +85,7 @@ public final class CommandEventFactory {
             projects: graph.projects.map { project in
                 CommandEventProject(
                     name: project.value.name,
+                    path: project.value.path.relative(to: graph.path),
                     targets: project.value.targets.map { target in
                         let binaryCacheMetadata: CommandEventCacheTargetMetadata?
                         if let hash = binaryCacheAnalytics?.hashes[project.value.path]?[target.value.name] {
