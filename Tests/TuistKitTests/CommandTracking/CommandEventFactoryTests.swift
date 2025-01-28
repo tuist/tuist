@@ -4,6 +4,7 @@ import Mockable
 import TuistAnalytics
 import TuistCore
 import TuistSupport
+import Path
 import XCTest
 
 @testable import TuistKit
@@ -51,7 +52,6 @@ final class CommandEventFactoryTests: TuistUnitTestCase {
             status: .failure("Failed!"),
             graph: .test(
                 name: "Graph",
-                path: path,
                 projects: [
                     projectPath: .test(
                         path: projectPath,
@@ -132,6 +132,7 @@ final class CommandEventFactoryTests: TuistUnitTestCase {
                 projects: [
                     .test(
                         name: "Project",
+                        path: projectPath.relative(to: "/"),
                         targets: [
                             CommandEventTarget(
                                 name: "A",
