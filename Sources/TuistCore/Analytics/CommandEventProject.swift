@@ -22,6 +22,7 @@ public struct CommandEventProject: Codable, Hashable {
     extension CommandEventProject {
         public static func test(
             name: String = "Project",
+            // swiftlint:disable:next force_try
             path: RelativePath = try! RelativePath(validating: "App"),
             targets: [CommandEventTarget] = []
         ) -> Self {
