@@ -54,7 +54,7 @@ jobs:
 
 ### Incremental resolution across environments {#incremental-resolution-across-environments}
 
-Clean/cold resolutions are slightly faster with our registry, and you can experience even greater improvements if you persist the resolved dependencies across CI builds. Note that thanks to the registry, the size of the directory that you need to store and retore is much smaller than without the registry, taking significantly less time.
+Clean/cold resolutions are slightly faster with our registry, and you can experience even greater improvements if you persist the resolved dependencies across CI builds. Note that thanks to the registry, the size of the directory that you need to store and restore is much smaller than without the registry, taking significantly less time.
 To cache dependencies when using the default Xcode package integration, the best way is to specify a custom `-clonedSourcePackagesDirPath` when resolving dependencies via `xcodebuild`, such as:
 
 ```sh
