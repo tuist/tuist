@@ -317,6 +317,82 @@ defmodule TuistWeb.AnalyticsControllerTest do
 
       assert command_event.is_ci == true
     end
+
+    test "returns newly created command event with xcode_graph", %{
+      conn: conn,
+      user: user
+    } do
+      # Given
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+
+      account = Accounts.get_account_from_user(user)
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+      VCS
+      |> expect(:post_vcs_pull_request_comment, fn _ ->
+        :ok
+      end)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          "/api/analytics?project_id=#{account.name}/#{project.name}",
+          %{
+            name: "generate",
+            subcommand: "generate",
+            command_arguments: ["App"],
+            duration: 100,
+            tuist_version: "1.0.0",
+            swift_version: "5.0",
+            macos_version: "10.15",
+            params: %{},
+            is_ci: false,
+            client_id: "client-id",
+            xcode_graph: %{
+              name: "Graph",
+              projects: [
+                %{
+                  name: "ProjectA",
+                  targets: [
+                    %{name: "TargetA", binary_cache_metadata: %{hash: "hash-a", hit: "local"}},
+                    %{
+                      name: "TargetATests",
+                      selective_testing_metadata: %{hash: "hash-a-tests", hit: "miss"}
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+
+      command_event = CommandEvents.get_command_event_by_id(response["id"])
+
+      assert response == %{
+               "name" => "generate",
+               "id" => response["id"],
+               "project_id" => project.id,
+               "url" => url(~p"/#{account.name}/#{project.name}/runs/#{command_event.id}")
+             }
+
+      command_event = Repo.preload(command_event, xcode_graph: [xcode_projects: :xcode_targets])
+      assert command_event.xcode_graph.name == "Graph"
+      assert command_event.xcode_graph.xcode_projects |> Enum.map(& &1.name) == ["ProjectA"]
+      xcode_project = command_event.xcode_graph.xcode_projects |> hd()
+      xcode_targets = xcode_project.xcode_targets |> Enum.sort_by(& &1.name)
+      assert xcode_targets |> Enum.map(& &1.name) == ["TargetA", "TargetATests"]
+      assert xcode_targets |> Enum.map(& &1.binary_cache_hash) == ["hash-a", nil]
+      assert xcode_targets |> Enum.map(& &1.binary_cache_hit) == [:local, nil]
+      assert xcode_targets |> Enum.map(& &1.selective_testing_hash) == [nil, "hash-a-tests"]
+      assert xcode_targets |> Enum.map(& &1.selective_testing_hit) == [nil, :miss]
+    end
   end
 
   describe "POST /api/runs/:run_id/start" do

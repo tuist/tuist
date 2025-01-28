@@ -51,16 +51,17 @@
         badge_column_label={gettext("Cache hit")}
         targets={@test_targets}
         id="selective-tests"
+        hash_key={:selective_testing_hash}
         total_label={gettext("Tested targets")}
         data={[
-          length(@command_event.local_test_target_hits),
-          length(@command_event.remote_test_target_hits),
-          length(@test_misses)
+          @selective_testing_local_hits_count,
+          @selective_testing_remote_hits_count,
+          @selective_testing_misses_count
         ]}
         labels={[gettext("Local hits"), gettext("Remote hits"), gettext("Misses")]}
       >
         <:badge :let={cacheable_target}>
-          <.cache_hit_badge cache_hit={cacheable_target.cache_hit} />
+          <.cache_hit_badge cache_hit={cacheable_target.selective_testing_hit} />
         </:badge>
       </.target_breakdown_card>
     <% end %>
@@ -69,16 +70,17 @@
       badge_column_label={gettext("Cache hit")}
       targets={@cacheable_targets}
       id="binary-cache"
+      hash_key={:binary_cache_hash}
       total_label={gettext("Cacheable targets")}
       data={[
-        length(@command_event.local_cache_target_hits),
-        length(@command_event.remote_cache_target_hits),
-        length(@cache_misses)
+        @binary_cache_local_hits_count,
+        @binary_cache_remote_hits_count,
+        @binary_cache_misses_count
       ]}
       labels={[gettext("Local hits"), gettext("Remote hits"), gettext("Misses")]}
     >
       <:badge :let={cacheable_target}>
-        <.cache_hit_badge cache_hit={cacheable_target.cache_hit} />
+        <.cache_hit_badge cache_hit={cacheable_target.binary_cache_hit} />
       </:badge>
     </.target_breakdown_card>
     <.card>

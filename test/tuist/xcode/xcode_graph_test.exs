@@ -1,0 +1,57 @@
+defmodule Tuist.Xcode.XcodeGraphTest do
+  alias Tuist.Xcode.XcodeGraph
+  alias Tuist.Repo
+  use TuistTestSupport.Cases.DataCase
+
+  describe "create_changeset/1" do
+    test "is valid when contains all necessary attributes" do
+      # When
+      got =
+        XcodeGraph.create_changeset(%XcodeGraph{}, %{
+          name: "XcodeGraph",
+          command_event_id: 1
+        })
+
+      # Then
+      assert got.valid?
+    end
+
+    test "ensures a command_event_id is present" do
+      # When
+      got = XcodeGraph.create_changeset(%XcodeGraph{}, %{})
+
+      # Then
+      assert "can't be blank" in errors_on(got).command_event_id
+    end
+
+    test "ensures a name is present" do
+      # When
+      got = XcodeGraph.create_changeset(%XcodeGraph{}, %{})
+
+      # Then
+      assert "can't be blank" in errors_on(got).name
+    end
+
+    test "ensures that the command_event_id is unique" do
+      # Given
+      changeset =
+        XcodeGraph.create_changeset(%XcodeGraph{}, %{
+          name: "XcodeGraph",
+          command_event_id: 1
+        })
+
+      # When
+      {:ok, _} = Repo.insert(changeset)
+
+      {:error, got} =
+        XcodeGraph.create_changeset(%XcodeGraph{}, %{
+          name: "XcodeGraph",
+          command_event_id: 1
+        })
+        |> Repo.insert()
+
+      # Then
+      assert "has already been taken" in errors_on(got).command_event_id
+    end
+  end
+end

@@ -76,6 +76,8 @@ defmodule Tuist.CommandEvents.Event do
     belongs_to :project, Project
     belongs_to :user, User
 
+    has_one :xcode_graph, Tuist.Xcode.XcodeGraph, foreign_key: :command_event_id
+
     # Rails names the field "created_at"
     # credo:disable-for-next-line Credo.Checks.TimestampsType
     timestamps(inserted_at: :created_at)

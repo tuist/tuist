@@ -21,7 +21,7 @@ But there's more. `tuist lint` also needs to know which files it should lint. Fo
 
 ```swift
 import ProjectAutomation
-let allSources = Tuist.graph().projects.values.flatMap(\.targets).map(\.sources)
+let allSources = Tuist.XcodeGraph().projects.values.flatMap(\.targets).map(\.sources)
 ```
 
 Having an access to the graph is extremely powerful and can be used for _so many_ things - and we can't wait to learn what you will build.

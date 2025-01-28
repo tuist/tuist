@@ -6,6 +6,7 @@ defmodule TuistWeb.ProjectRunDetailLiveTest do
   setup :set_mimic_from_context
 
   import Phoenix.LiveViewTest
+  alias TuistTestSupport.Fixtures.XcodeFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias Tuist.Accounts
   alias Tuist.CommandEvents
@@ -198,6 +199,58 @@ defmodule TuistWeb.ProjectRunDetailLiveTest do
       CommandEventsFixtures.command_event_fixture(
         project_id: project.id,
         name: "generate",
+        status: :success
+      )
+
+    xcode_graph = XcodeFixtures.xcode_graph_fixture(command_event_id: command_event.id)
+    xcode_project_one = XcodeFixtures.xcode_project_fixture(xcode_graph_id: xcode_graph.id)
+
+    XcodeFixtures.xcode_target_fixture(
+      xcode_project_id: xcode_project_one.id,
+      name: "A",
+      binary_cache_hit: :local,
+      binary_cache_hash: "hash-a"
+    )
+
+    XcodeFixtures.xcode_target_fixture(
+      xcode_project_id: xcode_project_one.id,
+      name: "B",
+      binary_cache_hit: :remote,
+      binary_cache_hash: "hash-b"
+    )
+
+    xcode_project_two = XcodeFixtures.xcode_project_fixture(xcode_graph_id: xcode_graph.id)
+
+    XcodeFixtures.xcode_target_fixture(
+      xcode_project_id: xcode_project_two.id,
+      name: "C",
+      binary_cache_hit: :miss,
+      binary_cache_hash: "hash-c"
+    )
+
+    {:ok, lv, _html} =
+      conn
+      |> live(~p"/tuist-org/tuist/runs/#{command_event.id}")
+
+    assert has_element?(lv, "table tbody tr:nth-child(1)", "A")
+    assert has_element?(lv, "table tbody tr:nth-child(1)", "Local")
+
+    assert has_element?(lv, "table tbody tr:nth-child(2)", "B")
+    assert has_element?(lv, "table tbody tr:nth-child(2)", "Remote")
+
+    assert has_element?(lv, "table tbody tr:nth-child(3)", "C")
+    assert has_element?(lv, "table tbody tr:nth-child(3)", "Miss")
+  end
+
+  test "renders cacheable targets in the alphabetical order with their cache status using deprecated command_event columns",
+       %{
+         conn: conn,
+         project: project
+       } do
+    command_event =
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "generate",
         status: :success,
         cacheable_targets: ["C", "B", "A"],
         local_cache_target_hits: ["A"],
@@ -296,10 +349,63 @@ defmodule TuistWeb.ProjectRunDetailLiveTest do
     refute html =~ "Selective testing hits"
   end
 
-  test "renders test targets in the alphabetical order with their test result", %{
-    conn: conn,
-    project: project
-  } do
+  test "renders test targets in the alphabetical order with their selective test result",
+       %{
+         conn: conn,
+         project: project
+       } do
+    command_event =
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        status: :success
+      )
+
+    xcode_graph = XcodeFixtures.xcode_graph_fixture(command_event_id: command_event.id)
+    xcode_project_one = XcodeFixtures.xcode_project_fixture(xcode_graph_id: xcode_graph.id)
+
+    XcodeFixtures.xcode_target_fixture(
+      xcode_project_id: xcode_project_one.id,
+      name: "A",
+      selective_testing_hit: :local,
+      selective_testing_hash: "hash-a"
+    )
+
+    XcodeFixtures.xcode_target_fixture(
+      xcode_project_id: xcode_project_one.id,
+      name: "B",
+      selective_testing_hit: :remote,
+      selective_testing_hash: "hash-b"
+    )
+
+    xcode_project_two = XcodeFixtures.xcode_project_fixture(xcode_graph_id: xcode_graph.id)
+
+    XcodeFixtures.xcode_target_fixture(
+      xcode_project_id: xcode_project_two.id,
+      name: "C",
+      selective_testing_hit: :miss,
+      selective_testing_hash: "hash-c"
+    )
+
+    {:ok, lv, _html} =
+      conn
+      |> live(~p"/tuist-org/tuist/runs/#{command_event.id}")
+
+    assert has_element?(lv, "table tbody tr:nth-child(1)", "A")
+    assert has_element?(lv, "table tbody tr:nth-child(1)", "Local")
+
+    assert has_element?(lv, "table tbody tr:nth-child(2)", "B")
+    assert has_element?(lv, "table tbody tr:nth-child(2)", "Remote")
+
+    assert has_element?(lv, "table tbody tr:nth-child(3)", "C")
+    assert has_element?(lv, "table tbody tr:nth-child(3)", "Miss")
+  end
+
+  test "renders test targets in the alphabetical order with their selective test result using deprecated command_event columns",
+       %{
+         conn: conn,
+         project: project
+       } do
     command_event =
       CommandEventsFixtures.command_event_fixture(
         project_id: project.id,

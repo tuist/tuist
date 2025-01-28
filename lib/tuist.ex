@@ -47,6 +47,10 @@ defmodule Tuist do
       Previews.Preview,
       Projects,
       Projects.Project,
+      Xcode,
+      Xcode.XcodeGraph,
+      Xcode.XcodeProject,
+      Xcode.XcodeTarget,
       # Support
       # -----
       # These modules represent Tuist-agnostic utilities that are used by other features.

@@ -1,6 +1,7 @@
 defmodule TuistWeb.API.AnalyticsController do
   use OpenApiSpex.ControllerSpecs
   use TuistWeb, :controller
+  alias Tuist.Xcode
   alias Tuist.VCS
   alias TuistWeb.API.Schemas.Module
   alias TuistWeb.API.Schemas.ArtifactMultipartUploadUrl
@@ -78,6 +79,7 @@ defmodule TuistWeb.API.AnalyticsController do
              description: "The version of macOS that ran the command."
            },
            params: %Schema{
+             deprecated: true,
              type: :object,
              description: "Extra parameters.",
              properties: %{
@@ -158,6 +160,76 @@ defmodule TuistWeb.API.AnalyticsController do
            preview_id: %Schema{
              type: :string,
              description: "The preview identifier."
+           },
+           xcode_graph: %Schema{
+             type: :object,
+             description: "The schema for the Xcode graph.",
+             required: [:name, :projects],
+             properties: %{
+               name: %Schema{
+                 type: :string,
+                 description: "Name of the Xcode graph"
+               },
+               projects: %Schema{
+                 type: :array,
+                 description: "Projects present in an Xcode graph",
+                 items: %Schema{
+                   required: [:name, :targets],
+                   properties: %{
+                     name: %Schema{
+                       type: :string,
+                       description: "Name of the project"
+                     },
+                     targets: %Schema{
+                       type: :array,
+                       description: "Targets present in a project",
+                       items: %Schema{
+                         type: :object,
+                         required: [:name],
+                         properties: %{
+                           name: %Schema{
+                             type: :string,
+                             description: "Name of the target"
+                           },
+                           binary_cache_metadata: %Schema{
+                             type: :object,
+                             description: "Binary cache metadata",
+                             required: [:hash, :hit],
+                             properties: %{
+                               hash: %Schema{
+                                 type: :string,
+                                 description: "Hash of the target"
+                               },
+                               hit: %Schema{
+                                 type: :string,
+                                 description: "The binary cache hit status",
+                                 enum: Ecto.Enum.values(Xcode.XcodeTarget, :binary_cache_hit)
+                               }
+                             }
+                           },
+                           selective_testing_metadata: %Schema{
+                             type: :object,
+                             description: "Selective testing metadata",
+                             required: [:hash, :hit],
+                             properties: %{
+                               hash: %Schema{
+                                 type: :string,
+                                 description: "Hash of the target"
+                               },
+                               hit: %Schema{
+                                 type: :string,
+                                 description: "The selective testing hit status",
+                                 enum: Ecto.Enum.values(Xcode.XcodeTarget, :selective_testing_hit)
+                               }
+                             }
+                           }
+                         }
+                       }
+                     }
+                   }
+                 }
+               }
+             }
            }
          },
          required: [
@@ -204,6 +276,8 @@ defmodule TuistWeb.API.AnalyticsController do
     git_remote_url_origin = Map.get(body_params, :git_remote_url_origin)
     preview_id = Map.get(body_params, :preview_id)
 
+    params = Map.get(body_params, :params, %{})
+
     command_event =
       CommandEvents.create_command_event(%{
         name: body_params.name,
@@ -213,12 +287,12 @@ defmodule TuistWeb.API.AnalyticsController do
         tuist_version: body_params.tuist_version,
         swift_version: body_params.swift_version,
         macos_version: body_params.macos_version,
-        cacheable_targets: Map.get(body_params.params, :cacheable_targets, []),
-        local_cache_target_hits: Map.get(body_params.params, :local_cache_target_hits, []),
-        remote_cache_target_hits: Map.get(body_params.params, :remote_cache_target_hits, []),
-        test_targets: Map.get(body_params.params, :test_targets, []),
-        local_test_target_hits: Map.get(body_params.params, :local_test_target_hits, []),
-        remote_test_target_hits: Map.get(body_params.params, :remote_test_target_hits, []),
+        cacheable_targets: Map.get(params, :cacheable_targets, []),
+        local_cache_target_hits: Map.get(params, :local_cache_target_hits, []),
+        remote_cache_target_hits: Map.get(params, :remote_cache_target_hits, []),
+        test_targets: Map.get(params, :test_targets, []),
+        local_test_target_hits: Map.get(params, :local_test_target_hits, []),
+        remote_test_target_hits: Map.get(params, :remote_test_target_hits, []),
         is_ci: body_params.is_ci,
         user_id: user_id,
         client_id: body_params.client_id,
@@ -231,6 +305,12 @@ defmodule TuistWeb.API.AnalyticsController do
         git_remote_url_origin: git_remote_url_origin,
         git_branch: Map.get(body_params, :git_branch)
       })
+
+    xcode_graph = Map.get(body_params, :xcode_graph)
+
+    if not is_nil(xcode_graph) do
+      Xcode.create_xcode_graph(%{command_event: command_event, xcode_graph: xcode_graph})
+    end
 
     VCS.post_vcs_pull_request_comment(%{
       command_name: body_params.name,
@@ -460,6 +540,7 @@ defmodule TuistWeb.API.AnalyticsController do
     request_body:
       {"Extra metadata for the post-processing of a command event.", "application/json",
        %Schema{
+         deprecated: true,
          type: :object,
          properties: %{
            modules: %Schema{

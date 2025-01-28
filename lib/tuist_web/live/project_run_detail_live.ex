@@ -4,6 +4,7 @@ defmodule TuistWeb.ProjectRunDetailLive do
 
   alias Tuist.Projects
   alias Tuist.CommandEvents
+  alias Tuist.Repo
 
   on_mount {ProjectRunDetailLive, :assign_current_command_event}
   on_mount {TuistWeb.Authorization, [:current_user, :read, :command_event]}
@@ -36,28 +37,21 @@ defmodule TuistWeb.ProjectRunDetailLive do
         _session,
         %{assigns: %{selected_project: project, current_command_event: command_event}} = socket
       ) do
-    local_cache_target_hits = command_event.local_cache_target_hits || []
-    remote_cache_target_hits = command_event.remote_cache_target_hits || []
+    command_event = Repo.preload(command_event, xcode_graph: [xcode_projects: :xcode_targets])
 
-    cache_misses =
-      command_event.cacheable_targets --
-        (local_cache_target_hits ++ remote_cache_target_hits)
+    %{
+      cacheable_targets: cacheable_targets,
+      binary_cache_local_hits_count: binary_cache_local_hits_count,
+      binary_cache_remote_hits_count: binary_cache_remote_hits_count,
+      binary_cache_misses_count: binary_cache_misses_count
+    } = binary_cache_analytics(command_event)
 
-    cacheable_targets =
-      (Enum.map(local_cache_target_hits, &%{name: &1, cache_hit: :local}) ++
-         Enum.map(remote_cache_target_hits, &%{name: &1, cache_hit: :remote}) ++
-         Enum.map(cache_misses, &%{name: &1, cache_hit: :miss}))
-      |> Enum.sort_by(& &1.name)
-
-    test_misses =
-      command_event.test_targets --
-        (command_event.local_test_target_hits ++ command_event.remote_test_target_hits)
-
-    test_targets =
-      (Enum.map(command_event.local_test_target_hits, &%{name: &1, cache_hit: :local}) ++
-         Enum.map(command_event.remote_test_target_hits, &%{name: &1, cache_hit: :remote}) ++
-         Enum.map(test_misses, &%{name: &1, cache_hit: :miss}))
-      |> Enum.sort_by(& &1.name)
+    %{
+      test_targets: test_targets,
+      selective_testing_local_hits_count: selective_testing_local_hits_count,
+      selective_testing_remote_hits_count: selective_testing_remote_hits_count,
+      selective_testing_misses_count: selective_testing_misses_count
+    } = selective_testing_analytics(command_event)
 
     slug = Projects.get_project_slug_from_id(project.id)
 
@@ -66,9 +60,13 @@ defmodule TuistWeb.ProjectRunDetailLive do
       socket
       |> assign(:head_title, "#{gettext("Run")} · #{slug} · Tuist")
       |> assign(:command_event, command_event)
-      |> assign(:cache_misses, cache_misses)
       |> assign(:cacheable_targets, cacheable_targets)
-      |> assign(:test_misses, test_misses)
+      |> assign(:binary_cache_local_hits_count, binary_cache_local_hits_count)
+      |> assign(:binary_cache_remote_hits_count, binary_cache_remote_hits_count)
+      |> assign(:binary_cache_misses_count, binary_cache_misses_count)
+      |> assign(:selective_testing_local_hits_count, selective_testing_local_hits_count)
+      |> assign(:selective_testing_remote_hits_count, selective_testing_remote_hits_count)
+      |> assign(:selective_testing_misses_count, selective_testing_misses_count)
       |> assign(:test_targets, test_targets)
       |> assign(:has_result_bundle, false)
       |> assign_async(:has_result_bundle, fn ->
@@ -100,6 +98,120 @@ defmodule TuistWeb.ProjectRunDetailLive do
     }
   end
 
+  # Deprecated way of obtaining binary cache analytics
+  # Will be removed in the future
+  defp binary_cache_analytics(command_event)
+       when command_event.cacheable_targets != [] do
+    local_cache_target_hits = command_event.local_cache_target_hits || []
+    remote_cache_target_hits = command_event.remote_cache_target_hits || []
+
+    cache_misses =
+      command_event.cacheable_targets --
+        (local_cache_target_hits ++ remote_cache_target_hits)
+
+    cacheable_targets =
+      (Enum.map(
+         local_cache_target_hits,
+         &%{name: &1, binary_cache_hit: :local, binary_cache_hash: nil}
+       ) ++
+         Enum.map(
+           remote_cache_target_hits,
+           &%{name: &1, binary_cache_hit: :remote, binary_cache_hash: nil}
+         ) ++
+         Enum.map(cache_misses, &%{name: &1, binary_cache_hit: :miss, binary_cache_hash: nil}))
+      |> Enum.sort_by(& &1.name)
+
+    %{
+      cacheable_targets: cacheable_targets,
+      binary_cache_local_hits_count: Enum.count(local_cache_target_hits),
+      binary_cache_remote_hits_count: Enum.count(remote_cache_target_hits),
+      binary_cache_misses_count: Enum.count(cache_misses)
+    }
+  end
+
+  defp binary_cache_analytics(command_event) when not is_nil(command_event.xcode_graph) do
+    cacheable_targets =
+      command_event.xcode_graph.xcode_projects
+      |> Enum.flat_map(& &1.xcode_targets)
+      |> Enum.filter(&(not is_nil(&1.binary_cache_hash)))
+
+    %{
+      cacheable_targets: cacheable_targets,
+      binary_cache_local_hits_count:
+        cacheable_targets |> Enum.count(&(&1.binary_cache_hit == :local)),
+      binary_cache_remote_hits_count:
+        cacheable_targets |> Enum.count(&(&1.binary_cache_hit == :remote)),
+      binary_cache_misses_count: cacheable_targets |> Enum.count(&(&1.binary_cache_hit == :miss))
+    }
+  end
+
+  defp binary_cache_analytics(_command_event) do
+    %{
+      cacheable_targets: [],
+      binary_cache_local_hits_count: 0,
+      binary_cache_remote_hits_count: 0,
+      binary_cache_misses_count: 0
+    }
+  end
+
+  defp selective_testing_analytics(command_event) when not is_nil(command_event.xcode_graph) do
+    test_targets =
+      command_event.xcode_graph.xcode_projects
+      |> Enum.flat_map(& &1.xcode_targets)
+      |> Enum.filter(&(not is_nil(&1.selective_testing_hash)))
+
+    %{
+      test_targets: test_targets,
+      selective_testing_local_hits_count:
+        test_targets |> Enum.count(&(&1.selective_testing_hit == :local)),
+      selective_testing_remote_hits_count:
+        test_targets |> Enum.count(&(&1.selective_testing_hit == :remote)),
+      selective_testing_misses_count:
+        test_targets |> Enum.count(&(&1.selective_testing_hit == :miss))
+    }
+  end
+
+  # Using deprecated columns
+  defp selective_testing_analytics(command_event) when command_event.test_targets != [] do
+    local_test_target_hits = command_event.local_test_target_hits || []
+    remote_test_target_hits = command_event.remote_test_target_hits || []
+
+    test_misses =
+      command_event.test_targets --
+        (local_test_target_hits ++ remote_test_target_hits)
+
+    test_targets =
+      (Enum.map(
+         local_test_target_hits,
+         &%{name: &1, selective_testing_hit: :local, selective_testing_hash: nil}
+       ) ++
+         Enum.map(
+           remote_test_target_hits,
+           &%{name: &1, selective_testing_hit: :remote, selective_testing_hash: nil}
+         ) ++
+         Enum.map(
+           test_misses,
+           &%{name: &1, selective_testing_hit: :miss, selective_testing_hash: nil}
+         ))
+      |> Enum.sort_by(& &1.name)
+
+    %{
+      test_targets: test_targets,
+      selective_testing_local_hits_count: Enum.count(local_test_target_hits),
+      selective_testing_remote_hits_count: Enum.count(remote_test_target_hits),
+      selective_testing_misses_count: Enum.count(test_misses)
+    }
+  end
+
+  defp selective_testing_analytics(_command_event) do
+    %{
+      test_targets: [],
+      selective_testing_local_hits_count: 0,
+      selective_testing_remote_hits_count: 0,
+      selective_testing_misses_count: 0
+    }
+  end
+
   defp get_target_results(targets_map) do
     Enum.map(targets_map, fn {target, target_test_summary} ->
       %{
@@ -127,6 +239,7 @@ defmodule TuistWeb.ProjectRunDetailLive do
 
   attr(:title, :string, required: true)
   attr(:id, :string, required: true)
+  attr(:hash_key, :atom, required: false, default: nil)
   attr(:data, :list, required: true)
   attr(:labels, :list, required: true)
   attr(:colors, :list, default: [])
@@ -170,6 +283,13 @@ defmodule TuistWeb.ProjectRunDetailLive do
               <div class="run-detail__target-breakdown__table__badge-container">
                 {render_slot(@badge, target)}
               </div>
+            </:col>
+            <:col :let={target} :if={not is_nil(@hash_key)} label={gettext("Hash")}>
+              {if is_nil(Map.get(target, @hash_key)) do
+                gettext("Unknown")
+              else
+                Map.get(target, @hash_key)
+              end}
             </:col>
           </.table>
         </.stack>
