@@ -122,7 +122,7 @@ defmodule Tuist.MixProject do
       {:plug_minify_html, "~> 0.1.0"},
       {:briefly, "~> 0.5.0"},
       {:fun_with_flags, "~> 1.12.0"},
-      {:fun_with_flags_ui, "~> 0.8.0"}
+      {:fun_with_flags_ui, "~> 1.0.0"}
     ]
   end
 
