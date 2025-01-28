@@ -3089,6 +3089,10 @@ internal enum Operations {
                             ///
                             /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/name`.
                             internal var name: Swift.String
+                            /// Path of the project
+                            ///
+                            /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/path`.
+                            internal var path: Swift.String
                             /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload`.
                             internal struct targetsPayloadPayload: Codable, Hashable, Sendable {
                                 /// Binary cache metadata
@@ -3210,16 +3214,20 @@ internal enum Operations {
                             ///
                             /// - Parameters:
                             ///   - name: Name of the project
+                            ///   - path: Path of the project
                             ///   - targets: Targets present in a project
                             internal init(
                                 name: Swift.String,
+                                path: Swift.String,
                                 targets: Operations.createCommandEvent.Input.Body.jsonPayload.xcode_graphPayload.projectsPayloadPayload.targetsPayload
                             ) {
                                 self.name = name
+                                self.path = path
                                 self.targets = targets
                             }
                             internal enum CodingKeys: String, CodingKey {
                                 case name
+                                case path
                                 case targets
                             }
                         }

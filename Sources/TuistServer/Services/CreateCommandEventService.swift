@@ -112,6 +112,7 @@ public final class CreateCommandEventService: CreateCommandEventServicing {
             projects: graph.projects.map { project in
                 .init(
                     name: project.name,
+                    path: project.path.pathString,
                     targets: project.targets.map { target in
                         .init(
                             binary_cache_metadata: target.binaryCacheMetadata
