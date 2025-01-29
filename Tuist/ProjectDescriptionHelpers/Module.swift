@@ -238,6 +238,7 @@ public enum Module: String, CaseIterable {
             case .start:
                 [
                     .external(name: "ArgumentParser"),
+                    .external(name: "Path"),
                 ]
             case .acceptanceTesting:
                 [
@@ -319,6 +320,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "GraphViz"),
                     .external(name: "AnyCodable"),
                     .external(name: "OpenAPIRuntime"),
+                    .external(name: "Noora"),
                 ]
             case .core:
                 [

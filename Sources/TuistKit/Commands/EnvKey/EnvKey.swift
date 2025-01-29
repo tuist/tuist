@@ -61,6 +61,9 @@ public enum EnvKey: String, CaseIterable {
     case initTemplate = "TUIST_INIT_TEMPLATE"
     case initPath = "TUIST_INIT_PATH"
 
+    // INIT
+    case start = "TUIST_START_PATH"
+
     // MIGRATION
     case migrationSettingsToXcconfigXcodeprojPath = "TUIST_MIGRATION_SETTINGS_TO_XCCONFIG_XCODEPROJ_PATH"
     case migrationSettingsToXcconfigXcconfigPath = "TUIST_MIGRATION_SETTINGS_TO_XCCONFIG_XCCONFIG_PATH"

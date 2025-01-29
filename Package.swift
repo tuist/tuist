@@ -84,6 +84,7 @@ let targets: [Target] = [
             "FileSystem",
             "TuistCache",
             "TuistStart",
+            .product(name: "Noora", package: "Noora"),
             .product(name: "Command", package: "Command"),
             .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
             .product(name: "XcodeGraphMapper", package: "XcodeGraph"),
@@ -395,6 +396,7 @@ let targets: [Target] = [
     let packageSettings = PackageSettings(
         productTypes: [
             "FileSystem": .staticFramework,
+            "Noora": .staticFramework,
             "TSCBasic": .staticFramework,
             "TSCUtility": .staticFramework,
             "TSCclibc": .staticFramework,
@@ -543,7 +545,7 @@ let package = Package(
             .upToNextMajor(from: "0.2.2")
         ),
         .package(url: "https://github.com/crspybits/swift-log-file", .upToNextMajor(from: "0.1.0")),
-        .package(url: "https://github.com/tuist/Noora", .upToNextMajor(from: "0.21.3")),
+        .package(url: "https://github.com/tuist/Noora", .upToNextMajor(from: "0.21.3"))
     ],
     targets: targets
 )
