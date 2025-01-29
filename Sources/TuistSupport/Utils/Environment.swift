@@ -1,6 +1,7 @@
 import Darwin
 import Foundation
 import Path
+import FileSystem
 
 /// Protocol that defines the interface of a local environment controller.
 /// It manages the local directory where tuistenv stores the tuist versions and user settings.
@@ -126,7 +127,8 @@ public final class Environment: Environmenting {
         {
             baseCacheDirectory = cacheDirectory
         } else {
-            baseCacheDirectory = FileHandler.shared.homeDirectory.appending(components: ".cache")
+            let homeDirectory = try! AbsolutePath(validating: NSHomeDirectory())
+            baseCacheDirectory = homeDirectory.appending(components: ".cache")
         }
 
         return baseCacheDirectory.appending(component: "tuist")
@@ -139,7 +141,8 @@ public final class Environment: Environmenting {
         {
             baseStateDirectory = stateDirectory
         } else {
-            baseStateDirectory = FileHandler.shared.homeDirectory.appending(components: [".local", "state"])
+            let homeDirectory = try! AbsolutePath(validating: NSHomeDirectory())
+            baseStateDirectory = homeDirectory.appending(components: [".local", "state"])
         }
 
         return baseStateDirectory.appending(component: "tuist")
