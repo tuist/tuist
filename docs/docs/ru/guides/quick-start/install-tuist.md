@@ -66,7 +66,7 @@ curl -fsSL "https://docs.tuist.dev/verify.sh" | bash
 tuist --generate-completion-script > ~/.oh-my-zsh/completions/_tuist
 ```
 
-Without `oh-my-zsh`, you'll need to add a path for completion scripts to your function path, and turn on completion script autoloading. First, add these lines to `~/.zshrc`:
+Без `oh-my-zsh`, вам нужно добавить путь до скрипта автодополнений в ваш путь к функциям и включить автозагрузку. Сначала добавьте эти строки в `~/.zshrc`:
 
 ```bash
 fpath=(~/.zsh/completion $fpath)
@@ -74,7 +74,7 @@ autoload -U compinit
 compinit
 ```
 
-Next, create a directory at `~/.zsh/completion` and copy the completion script to the new directory, again into a file called `_tuist`.
+Затем создайте каталог в папке `~/.zsh/completion` и скопируйте скрипт автодополнений в эту новую директорию, в файл с именем `_tuist`.
 
 ```bash
 tuist --generate-completion-script > ~/.zsh/completion/_tuist
@@ -82,13 +82,13 @@ tuist --generate-completion-script > ~/.zsh/completion/_tuist
 
 #### Bash {#bash}
 
-If you have [bash-completion](https://github.com/scop/bash-completion) installed, you can just copy your new completion script to file `/usr/local/etc/bash_completion.d/_tuist`:
+Если у вас установлен [bash-completion](https://github.com/scop/bash-completion), вы можете просто скопировать скрипт автодополнений в файл `/usr/local/etc/bash_completion.d/_tuist`:
 
 ```bash
 tuist --generate-completion-script > /usr/local/etc/bash_completion.d/_tuist
 ```
 
-Without bash-completion, you'll need to source the completion script directly. Copy it to a directory such as `~/.bash_completions/`, and then add the following line to `~/.bash_profile` or `~/.bashrc`:
+Без bash-completion, вам нужно выполнить `source` для скрипта автодополнений напрямую. Скопируйте скрипт в директорию `~/.bash_completions/` и, затем, добавьте следующую строку в `~/.bash_profile` или `~/.bashrc`:
 
 ```bash
 source ~/.bash_completions/example.bash
@@ -96,7 +96,7 @@ source ~/.bash_completions/example.bash
 
 #### Fish {#fish}
 
-If you use [fish shell](https://fishshell.com), you can copy your new completion script to `~/.config/fish/completions/tuist.fish`:
+Если вы используете [fish оболочку](https://fishshell.com), вы можете скопировать ваш новый скрипт автодополнений в `~/.config/fish/completions/tuist.fish`:
 
 ```bash
 mkdir -p ~/.config/fish/completions
