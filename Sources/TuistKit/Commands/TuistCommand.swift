@@ -64,6 +64,7 @@ public struct TuistCommand: AsyncParsableCommand {
     }
 
     public static func main(
+        logFilePath: AbsolutePath,
         _ arguments: [String]? = nil,
         parseAsRoot: ((_ arguments: [String]?) throws -> ParsableCommand) = Self.parseAsRoot
     ) async throws {
@@ -119,31 +120,44 @@ public struct TuistCommand: AsyncParsableCommand {
             }
         }
 
-        do {
-            defer { WarningController.shared.flush() }
-            try await executeCommand()
-        } catch let error as FatalError {
+        let outputCompletion = {
             WarningController.shared.flush()
+            outputLogfilePath(logFilePath)
+        }
+
+        do {
+            try await executeCommand()
+            outputCompletion()
+        } catch let error as FatalError {
             errorHandler.fatal(error: error)
+            outputCompletion()
             _exit(exitCode(for: error).rawValue)
         } catch let error as ClientError where error.underlyingError is ServerClientAuthenticationError {
-            WarningController.shared.flush()
             // swiftlint:disable:next force_cast
             ServiceContext.current?.logger?.error("\((error.underlyingError as! ServerClientAuthenticationError).description)")
+            outputCompletion()
             _exit(exitCode(for: error).rawValue)
         } catch {
-            WarningController.shared.flush()
             if let parsedError {
                 handleParseError(parsedError)
             }
+
             // Exit cleanly
             if exitCode(for: error).rawValue == 0 {
                 exit(withError: error)
             } else {
                 errorHandler.fatal(error: UnhandledError(error: error))
+                outputCompletion()
                 _exit(exitCode(for: error).rawValue)
             }
         }
+    }
+
+    private static func outputLogfilePath(_ logFilePath: AbsolutePath) {
+        // TODO:
+        // Once we introduce Noora, we should merge all the "completion" messages
+        // using the Noora's completion component.
+        print("\nLogs available at \(logFilePath.pathString)")
     }
 
     private static func executeTask(with processedArguments: [String]) async throws {
