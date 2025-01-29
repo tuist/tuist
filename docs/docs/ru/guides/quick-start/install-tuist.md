@@ -11,29 +11,29 @@ Tuist CLI состоит из исполняемого файла, динами�
 ### <a href="https://github.com/jdx/mise">Mise</a> {#recommended-mise}
 
 :::info
-Mise is a recommended alternative to [Homebrew](https://brew.sh) if you are a team or organization that needs to ensure deterministic versions of tools across different environments.
+Mise является рекомендуемой альтернативой [Homebrew](https://brew.sh), если вы работаете в команде или организации, которая должна обеспечить детерминированные версии инструментов в различных средах.
 :::
 
-You can install Tuist through any of the following commands:
+Вы можете установить Tuist с помощью любой из следующих команд:
 
 ```bash
-mise install tuist            # Install the current version specified in .tool-versions/.mise.toml
-mise install tuist@x.y.z      # Install a specific version number
-mise install tuist@3          # Install a fuzzy version number
+mise install tuist            # Установить текущую версию, указанную в .tool-versions/.mise.toml
+mise install tuist@x.y.z      # Установить версию с указанным номером
+mise install tuist@3          # Установить версию с нестрогим номером
 ```
 
-Note that unlike tools like Homebrew, which install and activate a single version of the tool globally, **Mise requires the activation of a version** either globally or scoped to a project. This is done by running `mise use`:
+Обратите внимание, что в отличие от инструментов, таких как Homebrew, устанавливающих и активирующих одну версию инструмента глобально, **Mise требует активации версии** либо глобально, либо в рамках проекта. Это делается выполнением `mise use`:
 
 ```bash
-mise use tuist@x.y.z          # Use tuist-x.y.z in the current project
-mise use tuist@latest         # Use the latest tuist in the current directory
-mise use -g tuist@x.y.z       # Use tuist-x.y.z as the global default
-mise use -g tuist@system      # Use the system's tuist as the global default
+mise use tuist@x.y.z          # Использовать tuist версии x.y.z в текущей директории
+mise use tuist@latest         # Использовать tuist последней версии в текущей директории
+mise use -g tuist@x.y.z       # Использовать tuist версии x.y.z глобально
+mise use -g tuist@system      # Использовать системный tuist глобально
 ```
 
 ### <a href="https://brew.sh">Homebrew</a> {#recommended-homebrew}
 
-You can install Tuist using [Homebrew](https://brew.sh) and [our formulas](https://github.com/tuist/homebrew-tuist):
+Вы можете установить Tuist, используя [Homebrew](https://brew.sh) и [наши формулы](https://github.com/tuist/homebrew-tuist):
 
 ```bash
 brew tap tuist/tuist
@@ -41,7 +41,7 @@ brew install --formula tuist
 brew install --formula tuist@x.y.z
 ```
 
-:::tip VERIFYING THE AUTHENTICITY OF THE BINARIES
+:::tip ПОДТВЕРЖДЕНИЕ ПОДЛИННОСТИ БИНАРНЫХ ФАЙЛОВ
 
 ```bash
 curl -fsSL "https://docs.tuist.dev/verify.sh" | bash
@@ -49,18 +49,18 @@ curl -fsSL "https://docs.tuist.dev/verify.sh" | bash
 
 :::
 
-### Shell completions {#shell-completions}
+### Автодополнения в командной оболочки {#shell-completions}
 
-If you have Tuist **globally installed** (e.g., via Homebrew),
-you can install shell completions for Bash and Zsh to autocomplete commands and options.
+Если у вас Tuist **установлен глобально** (например, через Homebrew),
+вы можете установить автодополнения для Bash и Zsh для автоматического заполнения команд и опций.
 
-:::warning WHAT IS A GLOBAL INSTALLATION
-A global installation is an installation that's available in your shell's `$PATH` environment variable. This means you can run `tuist` from any directory in your terminal. This is the default installation method for Homebrew.
+:::warning ЧТО ЕСТЬ ГЛОБАЛЬНАЯ УСТАНОВКА
+Глобальная установка — это установка, которая доступна в переменной среды `$PATH` в вашей командной оболочке. Это означает, что вы можете выполнить `tuist` из любой директории в вашем терминале. This is the default installation method for Homebrew.
 :::
 
 #### Zsh {#zsh}
 
-If you have [oh-my-zsh](https://ohmyz.sh/) installed, you already have a directory of automatically loading completion scripts — `.oh-my-zsh/completions`. Copy your new completion script to a new file in that directory called `_tuist`:
+Если у вас установлен [oh-my-zsh](https://ohmyz.sh/), у вас уже есть директория для скриптов автодополнения — `.oh-my-zsh/completions`. Скопируйте ваш новый скрипт автодополнений в новый файл с именем `_tuist` в ту директорию:
 
 ```bash
 tuist --generate-completion-script > ~/.oh-my-zsh/completions/_tuist
