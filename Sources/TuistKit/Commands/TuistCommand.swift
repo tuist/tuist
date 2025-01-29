@@ -155,10 +155,7 @@ public struct TuistCommand: AsyncParsableCommand {
     }
 
     private static func outputLogfilePath(_ logFilePath: AbsolutePath) {
-        // TODO:
-        // Once we introduce Noora, we should merge all the "completion" messages
-        // using the Noora's completion component.
-        print("\nLogs available at \(logFilePath.pathString)")
+        ServiceContext.current?.logger?.info("\nLogs are available at \(logFilePath.pathString)")
     }
 
     private static func executeTask(with processedArguments: [String]) async throws {
