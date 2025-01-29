@@ -138,7 +138,6 @@ final class AnalyticsArtifactUploadServiceTests: TuistTestCase {
 
         given(completeAnalyticsArtifactsUploadsService)
             .completeAnalyticsArtifactsUploads(
-                modules: .any,
                 commandEventId: .any,
                 serverURL: .value(serverURL)
             )
@@ -167,13 +166,6 @@ final class AnalyticsArtifactUploadServiceTests: TuistTestCase {
         // When / Then
         try await subject.uploadResultBundle(
             resultBundle,
-            targetHashes: [
-                CommandEventGraphTarget(
-                    target: .test(),
-                    project: .test()
-                ): "target-hash",
-            ],
-            graphPath: try temporaryPath(),
             commandEventId: 1,
             serverURL: serverURL
         )

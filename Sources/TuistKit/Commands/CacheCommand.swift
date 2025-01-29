@@ -1,15 +1,12 @@
-import AnyCodable
 import ArgumentParser
 import Foundation
 import TuistSupport
 
 /// Command to cache targets as `.(xc)framework`s and speed up your and your peers' build times.
-public struct CacheCommand: AsyncParsableCommand, HasTrackableParameters {
+public struct CacheCommand: AsyncParsableCommand {
     public init() {}
 
-    public var runId = ""
     public static var generatorFactory: GeneratorFactorying = GeneratorFactory()
-    public static var analyticsDelegate: TrackableParametersDelegate?
     public static var cacheService: CacheServicing = EmptyCacheService()
 
     public static var configuration: CommandConfiguration {
@@ -80,13 +77,7 @@ public struct CacheCommand: AsyncParsableCommand, HasTrackableParameters {
             configuration: configuration,
             targetsToBinaryCache: Set(targets),
             externalOnly: externalOnly,
-            generateOnly: generateOnly,
-            analyticsDelegate: CacheCommand.analyticsDelegate
-        )
-        CacheCommand.analyticsDelegate?.addParameters(
-            [
-                "n_targets": AnyCodable(targets.count),
-            ]
+            generateOnly: generateOnly
         )
     }
 }

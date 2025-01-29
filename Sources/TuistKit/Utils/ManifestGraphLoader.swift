@@ -2,6 +2,7 @@ import Foundation
 import Mockable
 import Path
 import ProjectDescription
+import ServiceContextModule
 import TuistCore
 import TuistDependencies
 import TuistLoader
@@ -172,6 +173,10 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
             workspace: updatedModels.workspace,
             projects: updatedModels.projects
         )
+
+        if ServiceContext.current?.analyticsStorage?.graph == nil {
+            ServiceContext.current?.analyticsStorage?.graph = graph
+        }
 
         // Apply graph mappers
         let (mappedGraph, graphMapperSideEffects, environment) = try await graphMapper.map(

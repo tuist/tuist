@@ -140,8 +140,6 @@ final class TuistAnalyticsServerBackendTests: TuistUnitTestCase {
             given(analyticsArtifactUploadService)
                 .uploadResultBundle(
                     .value(resultBundle),
-                    targetHashes: .any,
-                    graphPath: .any,
                     commandEventId: .value(10),
                     serverURL: .value(Constants.URLs.production)
                 )

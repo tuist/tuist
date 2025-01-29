@@ -161,6 +161,7 @@ components:
         - part_number
         - upload_id
       title: ArtifactMultipartUploadPart
+      type: object
       x-struct: Elixir.TuistWeb.API.Schemas.ArtifactMultipartUploadPart
     ProjectFullToken:
       description: A new project token.
@@ -382,6 +383,7 @@ components:
       required:
         - type
       title: CommandEventArtifact
+      type: object
       x-struct: Elixir.TuistWeb.API.Schemas.CommandEventArtifact
     Module:
       properties:
@@ -435,6 +437,13 @@ components:
       title: Preview
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Preview
+    RunsIndexPageSize:
+      default: 20
+      description: The maximum number of runs to return in a single page.
+      maximum: 100
+      minimum: 1
+      title: RunsIndexPageSize
+      type: integer
     ProjectToken:
       description: A token to authenticate API requests as a project.
       properties:
@@ -543,6 +552,106 @@ components:
         - token
       title: AccountToken
       type: object
+    RunsIndexPage:
+      default: 1
+      description: The page number to return.
+      minimum: 1
+      title: RunsIndexPage
+      type: integer
+    Run:
+      description: The schema for a Tuist run.
+      properties:
+        cacheable_targets:
+          description: Cacheable targets of the run
+          items:
+            type: string
+          type: array
+        command_arguments:
+          description: Arguments passed to the command
+          items:
+            type: string
+          type: array
+        duration:
+          description: Duration of the run
+          type: number
+        git_branch:
+          description: Git branch of the repository
+          type: string
+        git_commit_sha:
+          description: Git commit SHA of the repository
+          type: string
+        git_ref:
+          description: Git reference of the repository. When run from CI in a pull request, this will be the remote reference to the pull request, such as `refs/pull/23958/merge`.
+          type: string
+        id:
+          description: ID of the run
+          type: number
+        local_cache_target_hits:
+          description: Local cache target hits of the run
+          items:
+            type: string
+          type: array
+        local_test_target_hits:
+          description: Local test target hits of the run
+          items:
+            type: string
+          type: array
+        macos_version:
+          description: Version of macOS used
+          type: string
+        name:
+          description: Command name of the run
+          type: string
+        preview_id:
+          description: ID of the associated preview
+          type: string
+        remote_cache_target_hits:
+          description: Remote cache target hits of the run
+          items:
+            type: string
+          type: array
+        remote_test_target_hits:
+          description: Remote test target hits of the run
+          items:
+            type: string
+          type: array
+        status:
+          description: Status of the command event
+          type: string
+        subcommand:
+          description: Subcommand of the run
+          type: string
+        swift_version:
+          description: Version of Swift used
+          type: string
+        test_targets:
+          description: Test targets of the run
+          items:
+            type: string
+          type: array
+        tuist_version:
+          description: Version of Tuist used
+          type: string
+        url:
+          description: URL to the run
+          type: string
+      required:
+        - id
+        - name
+        - duration
+        - subcommand
+        - command_arguments
+        - tuist_version
+        - swift_version
+        - macos_version
+        - status
+        - git_commit_sha
+        - git_ref
+        - git_branch
+        - url
+      title: Run
+      type: object
+      x-struct: Elixir.TuistWeb.API.Schemas.Run
     CacheArtifactExistence:
       description: The artifact exists in the cache and can be downloaded
       properties:
@@ -816,6 +925,7 @@ paths:
                   description: The name of the command.
                   type: string
                 params:
+                  deprecated: true
                   description: Extra parameters.
                   properties:
                     cacheable_targets:
@@ -867,6 +977,72 @@ paths:
                 tuist_version:
                   description: The version of Tuist that ran the command.
                   type: string
+                xcode_graph:
+                  description: The schema for the Xcode graph.
+                  properties:
+                    name:
+                      description: Name of the Xcode graph
+                      type: string
+                    projects:
+                      description: Projects present in an Xcode graph
+                      items:
+                        properties:
+                          name:
+                            description: Name of the project
+                            type: string
+                          targets:
+                            description: Targets present in a project
+                            items:
+                              properties:
+                                binary_cache_metadata:
+                                  description: Binary cache metadata
+                                  properties:
+                                    hash:
+                                      description: Hash of the target
+                                      type: string
+                                    hit:
+                                      description: The binary cache hit status
+                                      enum:
+                                        - miss
+                                        - local
+                                        - remote
+                                      type: string
+                                  required:
+                                    - hash
+                                    - hit
+                                  type: object
+                                name:
+                                  description: Name of the target
+                                  type: string
+                                selective_testing_metadata:
+                                  description: Selective testing metadata
+                                  properties:
+                                    hash:
+                                      description: Hash of the target
+                                      type: string
+                                    hit:
+                                      description: The selective testing hit status
+                                      enum:
+                                        - miss
+                                        - local
+                                        - remote
+                                      type: string
+                                  required:
+                                    - hash
+                                    - hit
+                                  type: object
+                              required:
+                                - name
+                              type: object
+                            type: array
+                        required:
+                          - name
+                          - targets
+                      type: array
+                  required:
+                    - name
+                    - projects
+                  type: object
               required:
                 - name
                 - duration
@@ -2811,6 +2987,90 @@ paths:
       summary: Updates a project
       tags:
         - Projects
+  /api/projects/{account_handle}/{project_handle}/runs:
+    get:
+      callbacks: {}
+      operationId: listRuns
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+        - description: The name of the run.
+          in: query
+          name: name
+          required: false
+          schema:
+            type: string
+        - description: The git ref of the run.
+          in: query
+          name: git_ref
+          required: false
+          schema:
+            type: string
+        - description: The git branch of the run.
+          in: query
+          name: git_branch
+          required: false
+          schema:
+            type: string
+        - description: The git commit SHA of the run.
+          in: query
+          name: git_commit_sha
+          required: false
+          schema:
+            type: string
+        - description: ''
+          in: query
+          name: page_size
+          required: false
+          schema:
+            default: 20
+            description: The maximum number of runs to return in a single page.
+            maximum: 100
+            minimum: 1
+            title: RunsIndexPageSize
+            type: integer
+        - description: ''
+          in: query
+          name: page
+          required: false
+          schema:
+            default: 1
+            description: The page number to return.
+            minimum: 1
+            title: RunsIndexPage
+            type: integer
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                properties:
+                  runs:
+                    items:
+                      $ref: '#/components/schemas/Run'
+                    type: array
+                required:
+                  - runs
+                type: object
+          description: List of runs
+        403:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to access this resource
+      summary: List runs associated with a given project.
+      tags: []
   /api/organizations/{organization_name}/members/{user_name}:
     delete:
       callbacks: {}
@@ -3151,6 +3411,7 @@ paths:
         content:
           application/json:
             schema:
+              deprecated: true
               properties:
                 modules:
                   description: A list of modules with their metadata.
@@ -3193,4 +3454,3 @@ servers:
   - url: http://localhost:8080
     variables: {}
 tags: []
-

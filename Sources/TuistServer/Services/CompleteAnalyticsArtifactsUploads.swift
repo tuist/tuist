@@ -6,7 +6,6 @@ import TuistSupport
 @Mockable
 public protocol CompleteAnalyticsArtifactsUploadsServicing {
     func completeAnalyticsArtifactsUploads(
-        modules: [ServerModule],
         commandEventId: Int,
         serverURL: URL
     ) async throws
@@ -41,17 +40,13 @@ public final class CompleteAnalyticsArtifactsUploadsService: CompleteAnalyticsAr
     public init() {}
 
     public func completeAnalyticsArtifactsUploads(
-        modules: [ServerModule],
         commandEventId: Int,
         serverURL: URL
     ) async throws {
         let client = Client.authenticated(serverURL: serverURL)
         let response = try await client.completeAnalyticsArtifactsUploads(
             .init(
-                path: .init(run_id: commandEventId),
-                body: .json(
-                    .init(modules: .init(modules.map(Components.Schemas.Module.init)))
-                )
+                path: .init(run_id: commandEventId)
             )
         )
         switch response {

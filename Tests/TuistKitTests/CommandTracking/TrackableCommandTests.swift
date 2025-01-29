@@ -1,4 +1,3 @@
-import AnyCodable
 import ArgumentParser
 import Foundation
 import Mockable
@@ -65,37 +64,6 @@ final class TrackableCommandTests: TuistTestCase {
     }
 
     // MARK: - Tests
-
-    func test_whenParamsHaveFlagTrue_dispatchesEventWithExpectedParameters() async throws {
-        // Given
-        makeSubject(flag: true)
-        let expectedParams: [String: AnyCodable] = ["flag": true]
-
-        // When
-        try await subject.run(analyticsEnabled: true)
-
-        // Then
-        verify(asyncQueue)
-            .dispatch(event: Parameter<CommandEvent>.matching { event in
-                event.name == "test" && event.params == expectedParams
-            })
-            .called(1)
-    }
-
-    func test_whenParamsHaveFlagFalse_dispatchesEventWithExpectedParameters() async throws {
-        // Given
-        makeSubject(flag: false)
-        let expectedParams: [String: AnyCodable] = ["flag": false]
-        // When
-        try await subject.run(analyticsEnabled: true)
-
-        // Then
-        verify(asyncQueue)
-            .dispatch(event: Parameter<CommandEvent>.matching { event in
-                event.name == "test" && event.params == expectedParams
-            })
-            .called(1)
-    }
 
     func test_whenCommandFails_dispatchesEventWithExpectedInfo() async throws {
         // Given
@@ -178,7 +146,7 @@ final class TrackableCommandTests: TuistTestCase {
     }
 }
 
-private struct TestCommand: ParsableCommand, HasTrackableParameters, TrackableParsableCommand {
+private struct TestCommand: TrackableParsableCommand, ParsableCommand {
     enum TestError: FatalError, Equatable {
         case commandFailed
 
@@ -202,13 +170,9 @@ private struct TestCommand: ParsableCommand, HasTrackableParameters, TrackablePa
     var shouldFail: Bool = false
     var analyticsRequired: Bool = false
 
-    static var analyticsDelegate: TrackableParametersDelegate?
-    var runId = ""
-
     func run() throws {
         if shouldFail {
             throw TestError.commandFailed
         }
-        TestCommand.analyticsDelegate?.addParameters(["flag": AnyCodable(flag)])
     }
 }

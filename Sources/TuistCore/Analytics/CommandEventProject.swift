@@ -3,29 +3,27 @@ import XcodeGraph
 
 /// A simplified `GraphTarget` to store in `CommandEvent`.
 public struct CommandEventProject: Codable, Hashable {
-    public init(
-        xcodeProjPath: AbsolutePath
-    ) {
-        self.xcodeProjPath = xcodeProjPath
-    }
+    public let name: String
+    public let targets: [CommandEventTarget]
 
     public init(
-        _ project: Project
+        name: String,
+        targets: [CommandEventTarget]
     ) {
-        xcodeProjPath = project.xcodeProjPath
+        self.name = name
+        self.targets = targets
     }
-
-    public let xcodeProjPath: AbsolutePath
 }
 
 #if DEBUG
     extension CommandEventProject {
         public static func test(
-            xcodeProjPath: AbsolutePath =
-                try! AbsolutePath(validating: "/test/text.xcodeproj") // swiftlint:disable:this force_try
+            name: String = "Project",
+            targets: [CommandEventTarget] = []
         ) -> Self {
             Self(
-                xcodeProjPath: xcodeProjPath
+                name: name,
+                targets: targets
             )
         }
     }

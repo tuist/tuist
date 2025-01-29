@@ -5,6 +5,7 @@ import TuistAnalytics
 import TuistAsyncQueue
 import TuistCore
 import TuistSupport
+import XcodeGraph
 
 /// `CommandEventTagger` builds a `CommandEvent` by grouping information
 /// from different sources and tells `analyticsTagger` to send the event to a provider
@@ -43,11 +44,18 @@ public final class CommandEventFactory {
 
             gitBranch = try gitController.currentBranch(workingDirectory: path)
         }
+        let graph = info.graph.map {
+            map(
+                $0,
+                binaryCacheAnalytics: info.binaryCacheAnalytics,
+                selectiveTestAnalytics: info.selectiveTestsAnalytics
+            )
+        }
+
         let commandEvent = CommandEvent(
             runId: info.runId,
             name: info.name,
             subcommand: info.subcommand,
-            params: info.parameters,
             commandArguments: info.commandArguments,
             durationInMs: Int(info.durationInMs),
             clientId: machineEnvironment.clientId,
@@ -61,19 +69,73 @@ public final class CommandEventFactory {
             gitRef: gitController.ref(environment: environment),
             gitRemoteURLOrigin: gitRemoteURLOrigin,
             gitBranch: gitBranch,
-            targetHashes: info.targetHashes,
-            graphPath: info.graphPath,
-            cacheableTargets: info.cacheableTargets,
-            localCacheTargetHits: info.cacheItems
-                .filter { $0.source == .local && $0.cacheCategory == .binaries }
-                .map(\.name),
-            remoteCacheTargetHits: info.cacheItems
-                .filter { $0.source == .remote && $0.cacheCategory == .binaries }
-                .map(\.name),
-            testTargets: info.selectiveTestsAnalytics?.testTargets ?? [],
-            localTestTargetHits: info.selectiveTestsAnalytics?.localTestTargetHits ?? [],
-            remoteTestTargetHits: info.selectiveTestsAnalytics?.remoteTestTargetHits ?? []
+            graph: graph,
+            previewId: info.previewId
         )
         return commandEvent
+    }
+
+    private func map(
+        _ graph: Graph,
+        binaryCacheAnalytics: BinaryCacheAnalytics?,
+        selectiveTestAnalytics: SelectiveTestsAnalytics?
+    ) -> CommandEventGraph {
+        CommandEventGraph(
+            name: graph.name,
+            projects: graph.projects.map { project in
+                CommandEventProject(
+                    name: project.value.name,
+                    targets: project.value.targets.map { target in
+                        let binaryCacheMetadata: CommandEventCacheTargetMetadata?
+                        if let hash = binaryCacheAnalytics?.hashes[project.value.path]?[target.value.name] {
+                            let hit: CommandEventCacheHit = switch binaryCacheAnalytics?
+                                .cacheItems[project.value.path]?[target.value.name]?.source
+                            {
+                            case .none:
+                                .miss
+                            case .local:
+                                .local
+                            case .remote:
+                                .remote
+                            }
+
+                            binaryCacheMetadata = CommandEventCacheTargetMetadata(
+                                hash: hash,
+                                hit: hit
+                            )
+                        } else {
+                            binaryCacheMetadata = nil
+                        }
+                        let selectiveTestingMetadata: CommandEventCacheTargetMetadata?
+                        if let hash = selectiveTestAnalytics?.hashes[project.value.path]?[target.value.name] {
+                            let hit: CommandEventCacheHit = switch selectiveTestAnalytics?
+                                .cacheItems[project.value.path]?[target.value.name]?.source
+                            {
+                            case .none:
+                                .miss
+                            case .local:
+                                .local
+                            case .remote:
+                                .remote
+                            }
+
+                            selectiveTestingMetadata = CommandEventCacheTargetMetadata(
+                                hash: hash,
+                                hit: hit
+                            )
+                        } else {
+                            selectiveTestingMetadata = nil
+                        }
+
+                        return CommandEventTarget(
+                            name: target.value.name,
+                            binaryCacheMetadata: binaryCacheMetadata,
+                            selectiveTestingMetadata: selectiveTestingMetadata
+                        )
+                    }
+                    .sorted(by: { $0.name < $1.name })
+                )
+            }
+        )
     }
 }
