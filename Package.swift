@@ -83,6 +83,7 @@ let targets: [Target] = [
             "TuistServer",
             "FileSystem",
             "TuistCache",
+            "TuistStart",
             .product(name: "Command", package: "Command"),
             .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
             .product(name: "XcodeGraphMapper", package: "XcodeGraph"),
@@ -377,6 +378,15 @@ let targets: [Target] = [
             .define("MOCKING", .when(configuration: .debug)),
         ]
     ),
+    .target(
+        name: "TuistStart",
+        dependencies: [
+            "FileSystem",
+        ],
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
 ]
 
 #if TUIST
@@ -473,6 +483,10 @@ let package = Package(
         .library(
             name: "TuistCache",
             targets: ["TuistCache"]
+        ),
+        .library(
+            name: "TuistStart",
+            targets: ["TuistStart"]
         ),
         /// TuistGenerator
         ///
