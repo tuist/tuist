@@ -7,6 +7,7 @@ import TuistAnalytics
 import TuistCore
 import TuistLoader
 import TuistServer
+import TuistStart
 import TuistSupport
 
 public struct TuistCommand: AsyncParsableCommand {
@@ -15,13 +16,14 @@ public struct TuistCommand: AsyncParsableCommand {
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "tuist",
-            abstract: "Generate, build and test your Xcode projects.",
+            abstract: "Build better apps faster.",
             subcommands: [],
             groupedSubcommands: [
                 CommandGroup(
                     name: "Start",
                     subcommands: [
                         InitCommand.self,
+                        StartCommand.self,
                     ]
                 ),
                 CommandGroup(
