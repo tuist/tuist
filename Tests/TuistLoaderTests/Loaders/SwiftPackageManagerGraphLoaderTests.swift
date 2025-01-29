@@ -60,6 +60,7 @@ final class SwiftPackageManagerGraphLoaderTests: TuistUnitTestCase {
 
             given(packageInfoMapper)
                 .resolveExternalDependencies(
+                    path: .any,
                     packageInfos: .any,
                     packageToFolder: .any,
                     packageToTargetsToArtifactPaths: .any,
@@ -107,6 +108,7 @@ final class SwiftPackageManagerGraphLoaderTests: TuistUnitTestCase {
 
             given(packageInfoMapper)
                 .resolveExternalDependencies(
+                    path: .any,
                     packageInfos: .any,
                     packageToFolder: .any,
                     packageToTargetsToArtifactPaths: .any,
