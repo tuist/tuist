@@ -19,6 +19,7 @@ defmodule Tuist.XcodeTest do
             projects: [
               %{
                 "name" => "ProjectA",
+                "path" => "App",
                 "targets" => [
                   %{
                     "name" => "TargetA",

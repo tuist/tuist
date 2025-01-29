@@ -174,11 +174,15 @@ defmodule TuistWeb.API.AnalyticsController do
                  type: :array,
                  description: "Projects present in an Xcode graph",
                  items: %Schema{
-                   required: [:name, :targets],
+                   required: [:name, :path, :targets],
                    properties: %{
                      name: %Schema{
                        type: :string,
                        description: "Name of the project"
+                     },
+                     path: %Schema{
+                       type: :string,
+                       description: "Path of the project"
                      },
                      targets: %Schema{
                        type: :array,

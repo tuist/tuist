@@ -13,6 +13,7 @@ defmodule Tuist.Xcode.XcodeProjectTest do
       got =
         XcodeProject.create_changeset(%XcodeProject{}, %{
           name: "XcodeProject",
+          path: "App",
           xcode_graph_id: xcode_graph.id
         })
 
@@ -43,6 +44,7 @@ defmodule Tuist.Xcode.XcodeProjectTest do
       changeset =
         XcodeProject.create_changeset(%XcodeProject{}, %{
           name: "XcodeProject",
+          path: ".",
           xcode_graph_id: xcode_graph.id
         })
 
@@ -52,6 +54,7 @@ defmodule Tuist.Xcode.XcodeProjectTest do
       {:error, got} =
         XcodeProject.create_changeset(%XcodeProject{}, %{
           name: "XcodeProject",
+          path: ".",
           xcode_graph_id: xcode_graph.id
         })
         |> Repo.insert()

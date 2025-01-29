@@ -357,6 +357,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
               projects: [
                 %{
                   name: "ProjectA",
+                  path: ".",
                   targets: [
                     %{name: "TargetA", binary_cache_metadata: %{hash: "hash-a", hit: "local"}},
                     %{

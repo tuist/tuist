@@ -44,6 +44,7 @@ defmodule Tuist.Xcode do
         id: UUIDv7.generate(),
         xcode_graph_id: xcode_graph_id,
         name: project["name"],
+        path: project["path"],
         inserted_at: DateTime.utc_now(:second),
         updated_at: DateTime.utc_now(:second)
       }

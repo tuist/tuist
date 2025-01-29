@@ -30,10 +30,12 @@ defmodule TuistTestSupport.Fixtures.XcodeFixtures do
       end)
 
     name = Keyword.get(opts, :name, "#{TuistTestSupport.Utilities.unique_integer()}")
+    path = Keyword.get(opts, :path, "#{TuistTestSupport.Utilities.unique_integer()}")
 
     %XcodeProject{}
     |> XcodeProject.create_changeset(%{
       name: name,
+      path: path,
       xcode_graph_id: xcode_graph_id
     })
     |> Repo.insert!()

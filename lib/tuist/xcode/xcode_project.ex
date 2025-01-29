@@ -8,6 +8,7 @@ defmodule Tuist.Xcode.XcodeProject do
   @primary_key {:id, UUIDv7, autogenerate: true}
   schema "xcode_projects" do
     field :name, :string
+    field :path, :string
 
     belongs_to :xcode_graph, Tuist.Xcode.XcodeGraph, type: UUIDv7
 
@@ -20,9 +21,10 @@ defmodule Tuist.Xcode.XcodeProject do
     token
     |> cast(attrs, [
       :name,
+      :path,
       :xcode_graph_id
     ])
-    |> validate_required([:name, :xcode_graph_id])
+    |> validate_required([:name, :path, :xcode_graph_id])
     |> unique_constraint([:xcode_graph_id, :name])
   end
 end
