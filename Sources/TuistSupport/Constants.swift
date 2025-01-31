@@ -57,6 +57,14 @@ public enum Constants {
         public static let directoryName: String = "Queue"
     }
 
+    public enum Async {
+        // It should be limited at least until solving:
+        // https://github.com/tuist/FileSystem/issues/54
+        // it could be equal NIOCore.System.coreCount
+        // but it's too messy to make additional dependency at this point
+        public static let filehandlingMaxTasksCount = 100
+    }
+
     /// Pass these variables to make custom configuration of tuist
     /// These variables are not supposed to be used by end users
     /// But only eg. for acceptance tests and other cases needed internally
