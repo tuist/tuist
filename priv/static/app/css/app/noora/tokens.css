@@ -135,6 +135,10 @@
     var(--noora-neutral-light-800),
     var(--noora-neutral-light-500)
   );
+  --noora-surface-label-destructive: light-dark(
+    var(--noora-red-500),
+    var(--noora-red-300)
+  );
   --noora-surface-label-disabled: light-dark(
     var(--noora-neutral-light-600),
     var(--noora-neutral-dark-300)
