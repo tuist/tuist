@@ -35,7 +35,7 @@ final class EditService {
     init(
         projectEditor: ProjectEditing = ProjectEditor(),
         opener: Opening = Opener(),
-        configLoader: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader(), warningController: WarningController.shared),
+        configLoader: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader()),
         pluginService: PluginServicing = PluginService(),
         cacheDirectoriesProvider: CacheDirectoriesProviding = CacheDirectoriesProvider()
     ) {
@@ -75,7 +75,7 @@ final class EditService {
                 onlyCurrentDirectory: onlyCurrentDirectory,
                 plugins: plugins
             )
-            ServiceContext.current?.logger?.notice("Xcode project generated at \(workspacePath.pathString)", metadata: .success)
+            ServiceContext.current?.alerts?.append(.success(.alert("Xcode project generated at \(workspacePath.pathString)")))
         }
     }
 

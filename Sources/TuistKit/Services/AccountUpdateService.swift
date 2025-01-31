@@ -26,7 +26,7 @@ struct AccountUpdateService: AccountUpdateServicing {
     // MARK: - Init
 
     init(
-        configLoader: ConfigLoading = ConfigLoader(warningController: WarningController.shared),
+        configLoader: ConfigLoading = ConfigLoader(),
         fileSystem: FileSysteming = FileSystem(),
         serverURLService: ServerURLServicing = ServerURLService(),
         updateAccountService: UpdateAccountServicing = UpdateAccountService(),
@@ -73,6 +73,6 @@ struct AccountUpdateService: AccountUpdateServicing {
         )
         try await authTokenRefreshService.refreshTokens(serverURL: serverURL)
 
-        ServiceContext.current?.logger?.notice("The account \(account.handle) was successfully updated.", metadata: .success)
+        ServiceContext.current?.alerts?.append(.success(.alert("The account \(account.handle) was successfully updated.")))
     }
 }

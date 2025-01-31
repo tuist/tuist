@@ -90,7 +90,7 @@ final class CleanService {
             rootDirectoryLocator: RootDirectoryLocator(),
             cacheDirectoriesProvider: CacheDirectoriesProvider(),
             manifestFilesLocator: ManifestFilesLocator(),
-            configLoader: ConfigLoader(warningController: WarningController.shared),
+            configLoader: ConfigLoader(),
             serverURLService: ServerURLService(),
             cleanCacheService: CleanCacheService(),
             fileSystem: FileSystem()
@@ -125,10 +125,8 @@ final class CleanService {
             {
                 try await fileSystem.remove(directory)
                 try await fileSystem.makeDirectory(at: directory)
-                ServiceContext.current?.logger?.notice(
-                    "Successfully cleaned artifacts at path \(directory.pathString)",
-                    metadata: .success
-                )
+                ServiceContext.current?.alerts?
+                    .append(.success(.alert("Successfully cleaned artifacts at path \(directory.pathString)")))
             } else {
                 ServiceContext.current?.logger?.notice("There's nothing to clean for \(category.defaultValueDescription)")
             }

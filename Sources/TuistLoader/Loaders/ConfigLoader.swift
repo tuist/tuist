@@ -3,6 +3,7 @@ import Foundation
 import Mockable
 import Path
 import struct ProjectDescription.Config
+import ServiceContextModule
 import TuistCore
 import TuistSupport
 
@@ -25,18 +26,14 @@ public final class ConfigLoader: ConfigLoading {
     private let rootDirectoryLocator: RootDirectoryLocating
     private let fileSystem: FileSysteming
     private var cachedConfigs: [AbsolutePath: TuistCore.Config] = [:]
-    private let warningController: WarningControlling
-
     public init(
         manifestLoader: ManifestLoading = ManifestLoader(),
-        warningController: WarningControlling,
         rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator(),
         fileSystem: FileSysteming = FileSystem()
     ) {
         self.manifestLoader = manifestLoader
         self.rootDirectoryLocator = rootDirectoryLocator
         self.fileSystem = fileSystem
-        self.warningController = warningController
     }
 
     public func loadConfig(path: AbsolutePath) async throws -> TuistCore.Config {
@@ -51,8 +48,10 @@ public final class ConfigLoader: ConfigLoading {
         }
 
         if configPath.pathString.contains("Config.swift") {
-            warningController
-                .append(warning: "Tuist/Config.swift is deprecated. Rename Tuist/Config.swift to Tuist.swift at the root.")
+            ServiceContext.current?.alerts?
+                .append(
+                    .warning(.alert("Tuist/Config.swift is deprecated. Rename Tuist/Config.swift to Tuist.swift at the root."))
+                )
         }
 
         let manifest = try await manifestLoader.loadConfig(at: configPath.parentDirectory)

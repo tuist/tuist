@@ -16,16 +16,13 @@ final class ConfigLoaderTests: TuistUnitTestCase {
     private var subject: ConfigLoader!
     private var registeredPaths: [AbsolutePath: Bool] = [:]
     private var registeredConfigs: [AbsolutePath: Result<ProjectDescription.Config, Error>] = [:]
-    private var warningController: MockWarningControlling!
 
     override func setUp() {
         super.setUp()
         rootDirectoryLocator = .init()
         manifestLoader = .init()
-        warningController = MockWarningControlling()
         subject = ConfigLoader(
             manifestLoader: manifestLoader,
-            warningController: warningController,
             rootDirectoryLocator: rootDirectoryLocator,
             fileSystem: fileSystem
         )
@@ -44,7 +41,6 @@ final class ConfigLoaderTests: TuistUnitTestCase {
     override func tearDown() {
         subject = nil
         manifestLoader = nil
-        warningController = nil
         super.tearDown()
     }
 
@@ -75,13 +71,14 @@ final class ConfigLoaderTests: TuistUnitTestCase {
             at: configPath.parentDirectory
         )
         stub(rootDirectory: projectPath)
-        given(warningController)
-            .append(
-                warning: .value(
-                    "Tuist/Config.swift is deprecated. Rename Tuist/Config.swift to \(Constants.tuistManifestFileName) at the root."
-                )
-            )
-            .willReturn()
+        // given(warningController)
+        //     .append(
+        //         warning: .value(
+        //             "Tuist/Config.swift is deprecated. Rename Tuist/Config.swift to \(Constants.tuistManifestFileName) at the
+        //             root."
+        //         )
+        //     )
+        //     .willReturn()
 
         // When
         let result = try await subject.loadConfig(path: configPath)

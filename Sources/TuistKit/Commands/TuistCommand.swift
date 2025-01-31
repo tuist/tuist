@@ -76,7 +76,7 @@ public struct TuistCommand: AsyncParsableCommand {
             path = .current
         }
 
-        let config = try await ConfigLoader(warningController: WarningController.shared).loadConfig(path: path)
+        let config = try await ConfigLoader().loadConfig(path: path)
         let url = try ServerURLService().url(configServerURL: config.url)
         let backend: TuistAnalyticsServerBackend?
         if let fullHandle = config.fullHandle {
@@ -135,7 +135,9 @@ public struct TuistCommand: AsyncParsableCommand {
             _exit(exitCode(for: error).rawValue)
         } catch let error as ClientError where error.underlyingError is ServerClientAuthenticationError {
             // swiftlint:disable:next force_cast
-            ServiceContext.current?.logger?.error("\((error.underlyingError as! ServerClientAuthenticationError).description)")
+            ServiceContext.current?.ui?
+                // swiftlint:disable:next force_cast
+                .error(.alert("\((error.underlyingError as! ServerClientAuthenticationError).description)"))
             outputCompletion(logFilePath: logFilePath, shouldOutputLogFilePath: true)
             _exit(exitCode(for: error).rawValue)
         } catch {
@@ -155,7 +157,7 @@ public struct TuistCommand: AsyncParsableCommand {
     }
 
     private static func outputCompletion(logFilePath: AbsolutePath, shouldOutputLogFilePath: Bool) {
-        WarningController.shared.flush()
+        ServiceContext.current?.alerts?.print()
         if shouldOutputLogFilePath {
             outputLogFilePath(logFilePath)
         }

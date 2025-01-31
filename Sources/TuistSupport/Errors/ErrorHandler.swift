@@ -1,5 +1,6 @@
 import Foundation
 import ServiceContextModule
+import Noora
 
 /// Objects that conform this protocol provide a way of handling fatal errors
 /// that are thrown during the execution of an app.
@@ -24,18 +25,17 @@ public final class ErrorHandler: ErrorHandling {
     public func fatal(error: FatalError) {
         let isSilent = error.type == .abortSilent || error.type == .bugSilent
         if !error.description.isEmpty, !isSilent {
-            ServiceContext.current?.logger?.error(
-                """
-                \(error.description)
-                Consider creating an issue using the following link: https://github.com/tuist/tuist/issues/new/choose
-                """
+            ServiceContext.current?.ui?.error(
+                .alert(
+                "\(error.description)",
+                nextSteps: ["Consider creating an issue using the following link: https://github.com/tuist/tuist/issues/new/choose"])
             )
         } else if error.type == .bugSilent {
             let message = """
             An unexpected error happened. We've opened an issue to fix it as soon as possible.
             We are sorry for any inconveniences it might have caused.
             """
-            ServiceContext.current?.logger?.error("\(message)")
+            ServiceContext.current?.ui?.error(.alert("\(message)"))
         }
     }
 }

@@ -78,7 +78,7 @@ final class TestService { // swiftlint:disable:this type_body_length
     ) {
         let manifestLoaderFactory = ManifestLoaderFactory()
         let manifestLoader = manifestLoaderFactory.createManifestLoader()
-        let configLoader = ConfigLoader(manifestLoader: manifestLoader, warningController: WarningController.shared)
+        let configLoader = ConfigLoader(manifestLoader: manifestLoader)
         self.init(
             generatorFactory: generatorFactory,
             cacheStorageFactory: cacheStorageFactory,
@@ -405,7 +405,7 @@ final class TestService { // swiftlint:disable:this type_body_length
             cacheStorage: uploadCacheStorage
         )
 
-        ServiceContext.current?.logger?.log(level: .notice, "The project tests ran successfully", metadata: .success)
+        ServiceContext.current?.alerts?.append(.success(.alert("The project tests ran successfully")))
     }
 
     private func updateTestServiceAnalytics(

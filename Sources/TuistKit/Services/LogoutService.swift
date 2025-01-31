@@ -21,7 +21,7 @@ final class LogoutService: LogoutServicing {
     init(
         serverSessionController: ServerSessionControlling = ServerSessionController(),
         serverURLService: ServerURLServicing = ServerURLService(),
-        configLoader: ConfigLoading = ConfigLoader(warningController: WarningController.shared)
+        configLoader: ConfigLoading = ConfigLoader()
     ) {
         self.serverSessionController = serverSessionController
         self.serverURLService = serverURLService

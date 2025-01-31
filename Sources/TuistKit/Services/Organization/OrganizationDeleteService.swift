@@ -20,7 +20,7 @@ final class OrganizationDeleteService: OrganizationDeleteServicing {
     init(
         deleteOrganizationService: DeleteOrganizationServicing = DeleteOrganizationService(),
         serverURLService: ServerURLServicing = ServerURLService(),
-        configLoader: ConfigLoading = ConfigLoader(warningController: WarningController.shared)
+        configLoader: ConfigLoading = ConfigLoader()
     ) {
         self.deleteOrganizationService = deleteOrganizationService
         self.serverURLService = serverURLService

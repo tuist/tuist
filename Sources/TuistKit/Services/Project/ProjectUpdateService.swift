@@ -31,7 +31,7 @@ struct ProjectUpdateService {
 
     init(
         opener: Opening = Opener(),
-        configLoader: ConfigLoading = ConfigLoader(warningController: WarningController.shared),
+        configLoader: ConfigLoading = ConfigLoader(),
         serverURLService: ServerURLServicing = ServerURLService(),
         updateProjectService: UpdateProjectServicing = UpdateProjectService()
     ) {
@@ -63,7 +63,7 @@ struct ProjectUpdateService {
             visibility: visibility
         )
 
-        ServiceContext.current?.logger?.notice("The project \(fullHandle) was successfully updated 🎉", metadata: .success)
+        ServiceContext.current?.alerts?.append(.success(.alert("The project \(fullHandle) was successfully updated 🎉")))
     }
 
     // MARK: - Helpers

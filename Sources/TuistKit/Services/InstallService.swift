@@ -19,8 +19,7 @@ final class InstallService {
     init(
         pluginService: PluginServicing = PluginService(),
         configLoader: ConfigLoading = ConfigLoader(
-            manifestLoader: CachedManifestLoader(),
-            warningController: WarningController.shared
+            manifestLoader: CachedManifestLoader()
         ),
         swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(),
         fileHandler: FileHandling = FileHandler.shared,
@@ -61,7 +60,7 @@ final class InstallService {
         let config = try await configLoader.loadConfig(path: path)
         _ = try await pluginService.loadPlugins(using: config)
 
-        ServiceContext.current?.logger?.notice("Plugins resolved and fetched successfully.", metadata: .success)
+        ServiceContext.current?.alerts?.append(.success(.alert("Plugins resolved and fetched successfully.")))
     }
 
     private func fetchDependencies(path: AbsolutePath, update: Bool) async throws {

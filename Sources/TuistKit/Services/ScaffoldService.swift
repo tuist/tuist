@@ -44,7 +44,7 @@ final class ScaffoldService {
         templateLoader: TemplateLoading = TemplateLoader(),
         templatesDirectoryLocator: TemplatesDirectoryLocating = TemplatesDirectoryLocator(),
         templateGenerator: TemplateGenerating = TemplateGenerator(),
-        configLoader: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader(), warningController: WarningController.shared),
+        configLoader: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader()),
         pluginService: PluginServicing = PluginService()
     ) {
         self.templateLoader = templateLoader
@@ -106,7 +106,7 @@ final class ScaffoldService {
             attributes: parsedAttributes
         )
 
-        ServiceContext.current?.logger?.notice("Template \(templateName) was successfully generated", metadata: .success)
+        ServiceContext.current?.alerts?.append(.success(.alert("Template \(templateName) was successfully generated")))
     }
 
     // MARK: - Helpers

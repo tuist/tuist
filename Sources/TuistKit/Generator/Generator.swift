@@ -39,7 +39,6 @@ public class Generator: Generating {
         sideEffectDescriptorExecutor = SideEffectDescriptorExecutor()
         configLoader = ConfigLoader(
             manifestLoader: manifestLoader,
-            warningController: WarningController.shared,
             rootDirectoryLocator: RootDirectoryLocator(),
             fileSystem: FileSystem()
         )
