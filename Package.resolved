@@ -1,5 +1,5 @@
 {
-  "originHash" : "de192ef4bf646168d39a91eff930139d6d13a8cfa1f9a7478a0e91bc23a99f9a",
+  "originHash" : "791eb4ef250bf42d60f30dc86c8bba0bd053e22f52365521897a314f065efa74",
   "pins" : [
     {
       "identity" : "aexml",
@@ -330,8 +330,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/sanghyeok-kim/XcodeGraph.git",
       "state" : {
-        "branch" : "add-infoPlist-extendingFile-case",
-        "revision" : "b4d6202e5350f2196b2620102c1d26084cb0f59a"
+        "branch" : "add-InfoPlist-case-extendingFile",
+        "revision" : "296d47a59c998c727ffe0a31c2c9d5a50e0a2f7a"
       }
     },
     {

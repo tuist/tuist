@@ -514,7 +514,7 @@ let package = Package(
         .package(
             /// I temporarily set it to my repository and submitted a PR with the extendingFile case
             /// added to XcodeGraph’s InfoPlist.
-            url: "https://github.com/sanghyeok-kim/XcodeGraph.git", branch: "add-infoPlist-extendingFile-case"
+            url: "https://github.com/sanghyeok-kim/XcodeGraph.git", branch: "add-InfoPlist-case-extendingFile"
         ),
         .package(url: "https://github.com/tuist/FileSystem.git", .upToNextMajor(from: "0.7.0")),
         .package(url: "https://github.com/tuist/Command.git", exact: "0.8.0"),
