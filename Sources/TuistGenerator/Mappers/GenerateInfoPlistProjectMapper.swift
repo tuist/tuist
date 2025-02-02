@@ -99,6 +99,16 @@ public final class GenerateInfoPlistProjectMapper: ProjectMapping {
                 return content
             }
             return nil
+        case let .extendingFile(path, extended):
+            guard let existingData = try? Data(contentsOf: path.url),
+                  let existingDictionary = try? PropertyListSerialization.propertyList(
+                      from: existingData,
+                      options: [],
+                      format: nil
+                  ) as? [String: Any] else { return nil }
+            
+            let extendedDictionary = extended.mapValues { $0.value }
+            return existingDictionary.merging(extendedDictionary) { _, new in new }
         default:
             return nil
         }

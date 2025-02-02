@@ -34,6 +34,17 @@ public final class PlistContentHasher: PlistContentHashing {
                     dictionaryString += "\(key)=\(value);"
                 }
                 return try contentHasher.hash(dictionaryString)
+            case let .extendingFile(path, dictionary):
+                let fileHash = try await contentHasher.hash(path: path)
+                
+                var dictionaryString = ""
+                for key in dictionary.keys.sorted() {
+                    let value = dictionary[key, default: "nil"]
+                    dictionaryString += "\(key)=\(value);"
+                }
+                let dictionaryHash = try contentHasher.hash(dictionaryString)
+                
+                return try contentHasher.hash("\(fileHash)-\(dictionaryHash)")
             case let .generatedFile(_, data):
                 return try contentHasher.hash(data)
             }

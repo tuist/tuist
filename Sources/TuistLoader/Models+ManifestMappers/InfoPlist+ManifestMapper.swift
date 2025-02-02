@@ -21,6 +21,10 @@ extension XcodeGraph.InfoPlist {
                 with:
                 dictionary.mapValues { XcodeGraph.Plist.Value.from(manifest: $0) }
             )
+        case let .extendingFile(infoplistPath, dictionary):
+            let resolvedPath = try generatorPaths.resolve(path: infoplistPath)
+            let resolvedDictionary = dictionary.mapValues { XcodeGraph.Plist.Value.from(manifest: $0) }
+            return .extendingFile(path: resolvedPath, with: resolvedDictionary)
         case .none:
             return .none
         }

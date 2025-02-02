@@ -11,6 +11,10 @@ public enum InfoPlist: Codable, Equatable, Sendable {
     /// Generate an Info.plist file with the default content for the target product extended with the values in the given
     /// dictionary.
     case extendingDefault(with: [String: Plist.Value])
+    
+    /// Extend an existing Info.plist file with the given values.
+    /// If duplicate keys exist, the values in the info.plist are overridden by the given dictionary.
+    case extendingFile(path: Path, with: [String: Plist.Value])
 
     /// Generate the default content for the target the InfoPlist belongs to.
     public static var `default`: InfoPlist {
