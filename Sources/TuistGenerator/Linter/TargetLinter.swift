@@ -202,13 +202,22 @@ class TargetLinter: TargetLinting {
 
     private func lintInfoplistExists(target: Target) async throws -> [LintingIssue] {
         var issues: [LintingIssue] = []
-        if let infoPlist = target.infoPlist,
-           case let InfoPlist.file(path: path) = infoPlist,
-           try await !fileSystem.exists(path)
-        {
-            issues
-                .append(LintingIssue(reason: "Info.plist file not found at path \(infoPlist.path!.pathString)", severity: .error))
+        guard let infoPlist = target.infoPlist else { return issues }
+
+        switch infoPlist {
+        case let .file(path), let .extendingFile(path, _):
+            if try await !fileSystem.exists(path) {
+                issues.append(
+                    LintingIssue(
+                        reason: "Info.plist file not found at path \(infoPlist.path!.pathString)",
+                        severity: .error
+                    )
+                )
+            }
+        default:
+            break
         }
+
         return issues
     }
 
