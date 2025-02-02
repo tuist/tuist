@@ -106,7 +106,7 @@ public final class GenerateInfoPlistProjectMapper: ProjectMapping {
                       options: [],
                       format: nil
                   ) as? [String: Any] else { return nil }
-            
+
             let extendedDictionary = extended.mapValues { $0.value }
             return existingDictionary.merging(extendedDictionary) { _, new in new }
         default:

@@ -70,20 +70,20 @@ public final class GenerateInfoPlistProjectMapperTests: TuistUnitTestCase {
         // Given
         let baseInfoPlistContent: [String: Plist.Value] = [
             "CFBundleIdentifier": .string("com.example.app"),
-            "CFBundleShortVersionString": .string("1.0")
+            "CFBundleShortVersionString": .string("1.0"),
         ]
         let extendingPlistContent: [String: Plist.Value] = [
             "CFBundleShortVersionString": .string("2.0"),
-            "NewCustomKey": .string("NewCustomValue")
+            "NewCustomKey": .string("NewCustomValue"),
         ]
         let expectedPlistContent: [String: Plist.Value] = [
             "CFBundleIdentifier": .string("com.example.app"),
             "CFBundleShortVersionString": .string("2.0"), // this must be overridden
-            "NewCustomKey": .string("NewCustomValue") // this must be added
+            "NewCustomKey": .string("NewCustomValue"), // this must be added
         ]
-        
+
         let tempPath = try temporaryPath()
-        
+
         let targetA = Target.test(
             name: "TargetA",
             infoPlist: .dictionary(baseInfoPlistContent)
@@ -92,15 +92,15 @@ public final class GenerateInfoPlistProjectMapperTests: TuistUnitTestCase {
             path: tempPath,
             targets: [targetA]
         )
-        
+
         // When
         let (_, sideEffectsA) = try subject.map(project: projectA)
         try await sideEffectExecutor.execute(sideEffects: sideEffectsA)
-        
+
         let generatedTargetAInfoPlistFilePath = sideEffectsA.compactMap {
             if case let .file(fileDescriptor) = $0 { fileDescriptor.path } else { nil }
         }.first!
-        
+
         let targetB = Target.test(
             name: "TargetB",
             infoPlist: .extendingFile(
@@ -112,10 +112,10 @@ public final class GenerateInfoPlistProjectMapperTests: TuistUnitTestCase {
             path: tempPath,
             targets: [targetB]
         )
-        
+
         let (mappedProjectB, sideEffectsB) = try subject.map(project: projectB)
         try await sideEffectExecutor.execute(sideEffects: sideEffectsB)
-        
+
         // Then
         try XCTAssertSideEffectsCreateDerivedInfoPlist(
             named: "TargetB-Info.plist",
@@ -123,7 +123,7 @@ public final class GenerateInfoPlistProjectMapperTests: TuistUnitTestCase {
             projectPath: projectB.path,
             sideEffects: sideEffectsB
         )
-        
+
         XCTAssertTargetExistsWithDerivedInfoPlist(
             named: "TargetB-Info.plist",
             project: mappedProjectB
