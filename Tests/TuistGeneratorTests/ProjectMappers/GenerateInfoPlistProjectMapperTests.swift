@@ -10,11 +10,13 @@ import XCTest
 
 public final class GenerateInfoPlistProjectMapperTests: TuistUnitTestCase {
     var infoPlistContentProvider: MockInfoPlistContentProvider!
+    var sideEffectExecutor: SideEffectDescriptorExecutor!
     var subject: GenerateInfoPlistProjectMapper!
 
     override public func setUp() {
         super.setUp()
         infoPlistContentProvider = MockInfoPlistContentProvider()
+        sideEffectExecutor = SideEffectDescriptorExecutor()
         subject = GenerateInfoPlistProjectMapper(
             infoPlistContentProvider: infoPlistContentProvider,
             derivedDirectoryName: Constants.DerivedDirectory.name,
@@ -24,6 +26,7 @@ public final class GenerateInfoPlistProjectMapperTests: TuistUnitTestCase {
 
     override public func tearDown() {
         infoPlistContentProvider = nil
+        sideEffectExecutor = nil
         subject = nil
         super.tearDown()
     }
@@ -60,6 +63,70 @@ public final class GenerateInfoPlistProjectMapperTests: TuistUnitTestCase {
         XCTAssertTargetExistsWithDerivedInfoPlist(
             named: "B-Info.plist",
             project: mappedProject
+        )
+    }
+
+    func test_map_when_extendingFile() async throws {
+        // Given
+        let baseInfoPlistContent: [String: Plist.Value] = [
+            "CFBundleIdentifier": .string("com.example.app"),
+            "CFBundleShortVersionString": .string("1.0")
+        ]
+        let extendingPlistContent: [String: Plist.Value] = [
+            "CFBundleShortVersionString": .string("2.0"),
+            "NewCustomKey": .string("NewCustomValue")
+        ]
+        let expectedPlistContent: [String: Plist.Value] = [
+            "CFBundleIdentifier": .string("com.example.app"),
+            "CFBundleShortVersionString": .string("2.0"), // this must be overridden
+            "NewCustomKey": .string("NewCustomValue") // this must be added
+        ]
+        
+        let tempPath = try temporaryPath()
+        
+        let targetA = Target.test(
+            name: "TargetA",
+            infoPlist: .dictionary(baseInfoPlistContent)
+        )
+        let projectA = Project.test(
+            path: tempPath,
+            targets: [targetA]
+        )
+        
+        // When
+        let (_, sideEffectsA) = try subject.map(project: projectA)
+        try await sideEffectExecutor.execute(sideEffects: sideEffectsA)
+        
+        let generatedTargetAInfoPlistFilePath = sideEffectsA.compactMap {
+            if case let .file(fileDescriptor) = $0 { fileDescriptor.path } else { nil }
+        }.first!
+        
+        let targetB = Target.test(
+            name: "TargetB",
+            infoPlist: .extendingFile(
+                path: generatedTargetAInfoPlistFilePath,
+                with: extendingPlistContent
+            )
+        )
+        let projectB = Project.test(
+            path: tempPath,
+            targets: [targetB]
+        )
+        
+        let (mappedProjectB, sideEffectsB) = try subject.map(project: projectB)
+        try await sideEffectExecutor.execute(sideEffects: sideEffectsB)
+        
+        // Then
+        try XCTAssertSideEffectsCreateDerivedInfoPlist(
+            named: "TargetB-Info.plist",
+            content: expectedPlistContent.mapValues { $0.value as! String },
+            projectPath: projectB.path,
+            sideEffects: sideEffectsB
+        )
+        
+        XCTAssertTargetExistsWithDerivedInfoPlist(
+            named: "TargetB-Info.plist",
+            project: mappedProjectB
         )
     }
 
