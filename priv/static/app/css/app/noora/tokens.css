@@ -1,3 +1,5 @@
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Geist+Mono:wght@400;700&family=Inter:wght@400;500;600&display=swap");
+
 :root {
   --color-scheme: light dark;
 
@@ -180,7 +182,7 @@
 
   /* Typography */
   --noora-font-heading: "DM Sans", sans-serif;
-  --noora-font-body: "Inter Variable", sans-serif;
+  --noora-font-body: "Inter", sans-serif;
   --noora-font-code: "Geist Mono", monospace;
 
   --noora-font-weight-regular: 400;
