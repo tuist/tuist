@@ -269,6 +269,9 @@
                 },
                 "best-practices": {
                   "text": "Best practices"
+                },
+                "cookbook": {
+                  "text": "Cookbook"
                 }
               }
             },

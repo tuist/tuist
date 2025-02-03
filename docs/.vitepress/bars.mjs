@@ -499,6 +499,13 @@ export function guidesSidebar(locale) {
               ),
               link: `/${locale}/guides/develop/projects/best-practices`,
             },
+            {
+              text: localizedString(
+                locale,
+                "sidebars.guides.items.develop.items.projects.items.cookbook.text",
+              ),
+              link: `/${locale}/guides/develop/projects/cookbook`,
+            },
           ],
         },
         {
