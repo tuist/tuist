@@ -1,5 +1,5 @@
 {
-  "originHash" : "b0472b9536122cb752e6688cb17b4063f73451c1c52c46a6c61d7a40a6d51677",
+  "originHash" : "f531603b1d8aac5473f83619bcc14e9b7e1890f8d4b49004c9e14405dadafbea",
   "pins" : [
     {
       "identity" : "aexml",
@@ -33,8 +33,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/Command.git",
       "state" : {
-        "revision" : "27270402bfb9cd65f6a8b83bdf59941a8c9ae368",
-        "version" : "0.8.0"
+        "revision" : "437e0c0ca18d1a16194c55b4690971b5bfb1f185",
+        "version" : "0.12.0"
       }
     },
     {
@@ -92,12 +92,21 @@
       }
     },
     {
+      "identity" : "machokit",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/p-x9/MachOKit",
+      "state" : {
+        "revision" : "518e8e1aca7ee64b87b08ecec5f7cad2a63b8efd",
+        "version" : "0.28.0"
+      }
+    },
+    {
       "identity" : "mockable",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/Kolos65/Mockable.git",
       "state" : {
-        "revision" : "a9e5e1d222035567069ed6fff8429c327229b5f6",
-        "version" : "0.0.11"
+        "revision" : "e1b311b01c11415099341eee49769185e965ac4c",
+        "version" : "0.2.0"
       }
     },
     {
@@ -218,15 +227,6 @@
       }
     },
     {
-      "identity" : "swift-issue-reporting",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/pointfreeco/swift-issue-reporting",
-      "state" : {
-        "revision" : "a3f634d1a409c7979cabc0a71b3f26ffa9fc8af1",
-        "version" : "1.4.3"
-      }
-    },
-    {
       "identity" : "swift-log",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-log.git",
@@ -330,8 +330,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/XcodeGraph.git",
       "state" : {
-        "revision" : "c533cf2543dc41428f0118d4f0df5c890307918a",
-        "version" : "1.3.2"
+        "revision" : "748916b9c82e4e7b811373de710941e65abc8600",
+        "version" : "1.5.7"
       }
     },
     {
@@ -339,8 +339,17 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/XcodeProj",
       "state" : {
-        "revision" : "6e971133653f069b7699d5fb081e5db1e5f81559",
-        "version" : "8.26.1"
+        "revision" : "6f90427e172da66336739801c84b9cef3e17367b",
+        "version" : "8.26.6"
+      }
+    },
+    {
+      "identity" : "xctest-dynamic-overlay",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/pointfreeco/xctest-dynamic-overlay",
+      "state" : {
+        "revision" : "a3f634d1a409c7979cabc0a71b3f26ffa9fc8af1",
+        "version" : "1.4.3"
       }
     },
     {

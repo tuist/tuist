@@ -418,8 +418,6 @@ final class TestService { // swiftlint:disable:this type_body_length
             schemes: schemes,
             testPlanConfiguration: testPlanConfiguration
         )
-        let testTargets = initialTestTargets
-            .map(\.target.name)
 
         await ServiceContext.current?.runMetadataStorage?.update(
             selectiveTestingCacheItems: initialTestTargets.reduce(into: [:]) { result, element in

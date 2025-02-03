@@ -42,6 +42,7 @@ public struct TuistCommand: AsyncParsableCommand {
                         ScaffoldCommand.self,
                         TestCommand.self,
                         InspectCommand.self,
+                        XcodeBuildCommand.self,
                     ]
                 ),
                 CommandGroup(
