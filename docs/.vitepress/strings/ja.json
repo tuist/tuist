@@ -216,7 +216,7 @@
         "develop": {
           "text": "開発",
           "items": {
-            "projects": {
+            "generated-projects": {
               "text": "プロジェクト",
               "items": {
                 "manifests": {

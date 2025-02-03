@@ -192,8 +192,8 @@
         "develop": {
           "text": "Develop",
           "items": {
-            "projects": {
-              "text": "Projects",
+            "generated-projects": {
+              "text": "Generated projects",
               "items": {
                 "adoption": {
                   "text": "Adoption",
