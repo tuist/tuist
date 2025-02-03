@@ -193,6 +193,14 @@
   display: inline-flex;
   flex-direction: column;
   align-items: center;
+
+  width: var(--noora-icon-size-large);
+  height: var(--noora-icon-size-large);
+
+  & svg {
+    width: 100%;
+    heihgt: 100%;
+  }
 }
 
 .noora-dropdown [data-part="trigger"]:disabled [data-part="indicator"] {
