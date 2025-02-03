@@ -14,7 +14,7 @@ First of all, you'll need to authenticate by running:
 tuist auth
 ```
 
-## Create a project {#create-a-project}
+## Создание проекта {#create-a-project}
 
 You can then create a project by running:
 
