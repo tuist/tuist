@@ -216,8 +216,8 @@
         "develop": {
           "text": "Desarrolla",
           "items": {
-            "projects": {
-              "text": "Proyectos",
+            "generated-projects": {
+              "text": "Proyectos generados",
               "items": {
                 "manifests": {
                   "text": "Ficheros manifest"

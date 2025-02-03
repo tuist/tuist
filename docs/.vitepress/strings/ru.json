@@ -216,8 +216,8 @@
         "develop": {
           "text": "Develop",
           "items": {
-            "projects": {
-              "text": "Projects",
+            "generated-projects": {
+              "text": "Generated projects",
               "items": {
                 "manifests": {
                   "text": "Manifests"
