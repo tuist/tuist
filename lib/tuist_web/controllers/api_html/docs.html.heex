@@ -52,7 +52,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference">
     </script>
     <script>
-      globalThis.analyticsEnabled = <%= Tuist.Environment.analytics_enabled?() %>;
+      globalThis.analyticsEnabled = true;
     </script>
     <%= if Tuist.Environment.analytics_enabled?() do %>
       <script>
