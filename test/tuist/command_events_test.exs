@@ -11,6 +11,7 @@ defmodule Tuist.CommandEventsTest do
   alias Tuist.Accounts
   alias Tuist.CommandEvents
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
+  alias TuistTestSupport.Fixtures.XcodeFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias Tuist.Time
   use TuistTestSupport.Cases.DataCase
@@ -1488,13 +1489,75 @@ defmodule Tuist.CommandEventsTest do
   end
 
   describe "create_test_case_runs/1" do
-    @tag :skip
     test "creates test case runs" do
       # Given
       command_event = CommandEventsFixtures.command_event_fixture()
 
+      test_summary =
+        CommandEventsFixtures.test_summary_fixture(
+          project_tests: %{
+            "App/MainApp.xcodeproj" => %{
+              "AppTests" => %Tuist.CommandEvents.TargetTestSummary{
+                tests: [
+                  %Tuist.CommandEvents.ResultBundle.ActionTestMetadata{
+                    test_status: :success,
+                    name: "testHello()",
+                    identifier_url:
+                      "test://com.apple.xcode/MainApp/AppTests/AppDelegateTests/testHello"
+                  }
+                ],
+                status: :success
+              }
+            },
+            "Framework2/Framework2.xcodeproj" => %{
+              "Framework2Tests" => %Tuist.CommandEvents.TargetTestSummary{
+                tests: [
+                  %Tuist.CommandEvents.ResultBundle.ActionTestMetadata{
+                    test_status: :failure,
+                    name: "testHello()",
+                    identifier_url:
+                      "test://com.apple.xcode/Framework2/Framework2Tests/Framework2Tests/testHello"
+                  },
+                  %Tuist.CommandEvents.ResultBundle.ActionTestMetadata{
+                    test_status: :success,
+                    name: "testHello()",
+                    identifier_url:
+                      "test://com.apple.xcode/Framework2/Framework2Tests/MyPublicClassTests/testHello"
+                  }
+                ],
+                status: :failure
+              }
+            }
+          }
+        )
+
+      xcode_graph = XcodeFixtures.xcode_graph_fixture(command_event_id: command_event.id)
+
+      xcode_project =
+        XcodeFixtures.xcode_project_fixture(
+          name: "MainApp",
+          path: "App",
+          xcode_graph_id: xcode_graph.id
+        )
+
+      xcode_target =
+        XcodeFixtures.xcode_target_fixture(name: "AppTests", xcode_project_id: xcode_project.id)
+
+      xcode_project_two =
+        XcodeFixtures.xcode_project_fixture(
+          name: "Framework2",
+          path: "Framework2",
+          xcode_graph_id: xcode_graph.id
+        )
+
+      xcode_target_two =
+        XcodeFixtures.xcode_target_fixture(
+          name: "Framework2Tests",
+          xcode_project_id: xcode_project_two.id
+        )
+
       CommandEvents.create_test_cases(%{
-        test_summary: CommandEventsFixtures.test_summary_fixture(),
+        test_summary: test_summary,
         command_event: command_event
       })
 
@@ -1507,86 +1570,33 @@ defmodule Tuist.CommandEventsTest do
         CommandEventsFixtures.test_case_run_fixture(
           test_case_id: test_case.id,
           status: :failure,
-          module_hash: "app-module_hash",
+          xcode_target_id: xcode_target.id,
           flaky: false
         )
 
       # When
       CommandEvents.create_test_case_runs(%{
-        test_summary: CommandEventsFixtures.test_summary_fixture(),
-        command_event: command_event,
-        modules: %{
-          "App/MainApp.xcodeproj" => %{"AppTests" => "app-module_hash"},
-          "Framework1/Framework1.xcodeproj" => %{
-            "Framework1Tests" => "framework1-module_hash"
-          },
-          "Framework2/Framework2.xcodeproj" => %{
-            "Framework2Tests" => "framework2-module_hash"
-          }
-        }
+        test_summary: test_summary,
+        command_event: command_event
       })
 
       # The
       test_case_runs =
-        from(t in TestCaseRun, where: t.command_event_id == ^command_event.id)
+        from(t in TestCaseRun,
+          where: t.command_event_id == ^command_event.id,
+          order_by: t.xcode_target_id
+        )
         |> Repo.all()
-        |> Enum.sort_by(& &1.module_hash)
 
-      assert test_case_runs |> Enum.map(& &1.module_hash) == [
-               "app-module_hash",
-               "framework1-module_hash",
-               "framework1-module_hash",
-               "framework2-module_hash",
-               "framework2-module_hash"
-             ]
-
-      assert test_case_runs |> Enum.map(& &1.flaky) == [
-               true,
+      assert test_case_runs |> Enum.map(& &1.flaky) |> Enum.sort() == [
                false,
                false,
-               false,
-               false
+               true
              ]
 
       assert Repo.get(TestCase, test_case.id).flaky == true
 
       assert Repo.get(TestCaseRun, test_case_run.id).flaky == true
-    end
-
-    @tag :skip
-    test "creates test case runs when module hashes are missing" do
-      # Given
-      command_event = CommandEventsFixtures.command_event_fixture()
-
-      CommandEvents.create_test_cases(%{
-        test_summary: CommandEventsFixtures.test_summary_fixture(),
-        command_event: command_event
-      })
-
-      test_case =
-        CommandEvents.get_test_case_by_identifier(
-          "test://com.apple.xcode/MainApp/AppTests/AppDelegateTests/testHello"
-        )
-
-      CommandEventsFixtures.test_case_run_fixture(
-        test_case_id: test_case.id,
-        status: :failure,
-        flaky: false
-      )
-
-      # When
-      CommandEvents.create_test_case_runs(%{
-        test_summary: CommandEventsFixtures.test_summary_fixture(),
-        command_event: command_event,
-        modules: %{}
-      })
-
-      # Then
-      test_case_runs =
-        from(t in TestCaseRun, where: t.command_event_id == ^command_event.id)
-        |> Repo.all()
-
-      assert length(test_case_runs) == 5
     end
   end
 

@@ -9,7 +9,7 @@ defmodule Tuist.FeatureFlags do
 
   defimpl FunWithFlags.Actor, for: Tuist.Accounts.Account do
     def id(%{id: id}) do
-    "account:#{id}"
+      "account:#{id}"
     end
   end
 

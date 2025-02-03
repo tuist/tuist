@@ -3,6 +3,7 @@ defmodule Tuist.CommandEvents do
   A module for operations related to command events.
   """
   alias Tuist.CommandEvents.TestCase
+  alias Tuist.Xcode.XcodeTarget
   alias Tuist.CommandEvents.TestCaseRun
   alias Tuist.CommandEvents.TargetTestSummary
   alias Tuist.CommandEvents.TestSummary
@@ -783,8 +784,8 @@ defmodule Tuist.CommandEvents do
   def create_test_case_run(
         %{
           command_event_id: command_event_id,
-          module_hash: module_hash,
           test_case_id: test_case_id,
+          xcode_target_id: xcode_target_id,
           status: status
         },
         attrs \\ []
@@ -794,14 +795,18 @@ defmodule Tuist.CommandEvents do
         t1 in TestCaseRun,
         join: t2 in TestCaseRun,
         on: t1.test_case_id == t2.test_case_id,
-        where: t1.status != t2.status and t1.module_hash == ^module_hash
+        join: x1 in XcodeTarget,
+        on: t1.xcode_target_id == x1.id,
+        join: x2 in XcodeTarget,
+        on: t2.xcode_target_id == x2.id,
+        where: t1.status != t2.status and x1.selective_testing_hash == x2.selective_testing_hash
       )
 
     %TestCaseRun{}
     |> TestCaseRun.create_changeset(%{
-      module_hash: module_hash,
       command_event_id: command_event_id,
       test_case_id: test_case_id,
+      xcode_target_id: xcode_target_id,
       status: status,
       flaky: Keyword.get(attrs, :flaky, Repo.exists?(query)),
       inserted_at: Keyword.get(attrs, :inserted_at, Time.utc_now())
@@ -914,89 +919,106 @@ defmodule Tuist.CommandEvents do
   end
 
   def create_test_case_runs(%{
-        test_summary: _test_summary,
-        modules: _modules,
-        command_event: _command_event
+        test_summary: test_summary,
+        command_event: command_event
       }) do
     # Note:
-    # This is currently disabled due to slow performance inserting thousands of test case runs.
+    # This is currently behind a feature flag due to slow performance inserting thousands of test case runs.
     # Here are some ideas that we could execute on incrementally to get performance gains.
     #
     # 1. Reduce the table size and have a window of two weeks for flakiness detection.
     # 2. Remove foreign keys and keep the indexes to the minimum.
     # 3. Make flakiness flagging a daily job so at API-hit time, it's only the insert time.
-    #
-    # test_case_identifier_urls =
-    #   Enum.flat_map(test_summary.project_tests, fn {_, module_tests} ->
-    #     Enum.flat_map(module_tests, fn {_, target_test_summary} ->
-    #       Enum.map(target_test_summary.tests, & &1.identifier_url)
-    #     end)
-    #   end)
+    command_event = Repo.preload(command_event, xcode_graph: [xcode_projects: :xcode_targets])
 
-    # test_case_ids =
-    #   from(t in TestCase,
-    #     where: t.identifier in ^test_case_identifier_urls,
-    #     select: {t.identifier, t.id}
-    #   )
-    #   |> Repo.all()
-    #   |> Map.new()
+    test_case_identifier_urls =
+      Enum.flat_map(test_summary.project_tests, fn {_, module_tests} ->
+        Enum.flat_map(module_tests, fn {_, target_test_summary} ->
+          Enum.map(target_test_summary.tests, & &1.identifier_url)
+        end)
+      end)
 
-    # test_case_runs =
-    #   Enum.flat_map(test_summary.project_tests, fn {project_identifier, module_tests} ->
-    #     Enum.flat_map(module_tests, fn {module_name, target_test_summary} ->
-    #       # credo:disable-for-next-line
-    #       Enum.map(target_test_summary.tests, fn test_case ->
-    #         %{
-    #           module_hash: modules[project_identifier][module_name],
-    #           status: test_case.test_status,
-    #           command_event_id: command_event.id,
-    #           test_case_id: test_case_ids[test_case.identifier_url],
-    #           inserted_at:
-    #             NaiveDateTime.truncate(DateTime.to_naive(Tuist.Time.utc_now()), :second)
-    #         }
-    #       end)
-    #     end)
-    #   end)
+    test_case_ids =
+      from(t in TestCase,
+        where: t.identifier in ^test_case_identifier_urls,
+        select: {t.identifier, t.id}
+      )
+      |> Repo.all()
+      |> Map.new()
 
-    # Repo.transaction(fn ->
-    #   case List.first(test_case_runs) do
-    #     nil ->
-    #       :ok
+    # credo:disable-for-lines:29
+    test_case_runs =
+      Enum.flat_map(test_summary.project_tests, fn {project_identifier, module_tests} ->
+        Enum.flat_map(module_tests, fn {module_name, target_test_summary} ->
+          Enum.map(target_test_summary.tests, fn test_case ->
+            {path, name} =
+              case project_identifier
+                   |> String.trim_trailing(".xcodeproj")
+                   |> String.split("/") do
+                [name] -> {".", name}
+                [path, name] -> {path, name}
+              end
 
-    #     first_test_case_run ->
-    #       # 65535 is the maxium that the postgresql protocol can handle
-    #       # so we divide it by the number of parameters per row, and use that size to determine
-    #       # the chunk size for the inserts
-    #       Enum.chunk_every(test_case_runs, div(65_535, map_size(first_test_case_run)))
-    #       # credo:disable-for-next-line
-    #       |> Enum.each(fn batch ->
-    #         Repo.insert_all(TestCaseRun, batch)
-    #       end)
-    #   end
+            project =
+              command_event.xcode_graph.xcode_projects
+              |> Enum.find(&(&1.name == name && &1.path == path))
 
-    #   module_hashes = Enum.map(test_case_runs, & &1.module_hash)
+            target = project.xcode_targets |> Enum.find(&(&1.name == module_name))
 
-    #   subquery =
-    #     from(
-    #       t in TestCaseRun,
-    #       where: t.module_hash in ^module_hashes,
-    #       group_by: [t.test_case_id, t.module_hash],
-    #       having: count(fragment("distinct ?", t.status)) > 1,
-    #       select: t.test_case_id
-    #     )
+            {target.id,
+             %{
+               status: test_case.test_status,
+               command_event_id: command_event.id,
+               test_case_id: test_case_ids[test_case.identifier_url],
+               xcode_target_id: target.id,
+               inserted_at:
+                 NaiveDateTime.truncate(DateTime.to_naive(Tuist.Time.utc_now()), :second)
+             }}
+          end)
+        end)
+      end)
 
-    #   flaky_test_case_ids = Repo.all(subquery)
+    Repo.transaction(fn ->
+      case List.first(test_case_runs) do
+        nil ->
+          :ok
 
-    #   from(t1 in TestCaseRun,
-    #     where: t1.test_case_id in ^flaky_test_case_ids
-    #   )
-    #   |> Repo.update_all(set: [flaky: true])
+        first_test_case_run ->
+          # 65535 is the maxium that the postgresql protocol can handle
+          # so we divide it by the number of parameters per row, and use that size to determine
+          # the chunk size for the inserts
+          Enum.chunk_every(test_case_runs, div(65_535, map_size(elem(first_test_case_run, 1))))
+          # credo:disable-for-next-line
+          |> Enum.each(fn batch ->
+            batch
+            |> Enum.map(&elem(&1, 1))
+            |> then(&Repo.insert_all(TestCaseRun, &1))
+          end)
+      end
 
-    #   from(t in TestCase,
-    #     where: t.id in ^flaky_test_case_ids
-    #   )
-    #   |> Repo.update_all(set: [flaky: true])
-    # end)
+      xcode_target_ids = Enum.map(test_case_runs, fn {xcode_target_id, _} -> xcode_target_id end)
+
+      subquery =
+        from(
+          t in TestCaseRun,
+          where: t.xcode_target_id in ^xcode_target_ids,
+          group_by: [t.test_case_id, t.xcode_target_id],
+          having: count(fragment("distinct ?", t.status)) > 1,
+          select: t.test_case_id
+        )
+
+      flaky_test_case_ids = Repo.all(subquery)
+
+      from(t1 in TestCaseRun,
+        where: t1.test_case_id in ^flaky_test_case_ids
+      )
+      |> Repo.update_all(set: [flaky: true])
+
+      from(t in TestCase,
+        where: t.id in ^flaky_test_case_ids
+      )
+      |> Repo.update_all(set: [flaky: true])
+    end)
   end
 
   defp map_project_tests(project_tests, map_f) do

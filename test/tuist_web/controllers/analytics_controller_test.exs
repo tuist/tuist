@@ -9,6 +9,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
   alias Tuist.CommandEvents
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.XcodeFixtures
   alias Tuist.Accounts
   alias TuistWeb.Authentication
   import Ecto.Query, only: [from: 2]
@@ -572,6 +573,44 @@ defmodule TuistWeb.AnalyticsControllerTest do
         CommandEventsFixtures.command_event_fixture(project_id: project.id)
         |> Repo.preload(project: :account)
 
+      xcode_graph = XcodeFixtures.xcode_graph_fixture(command_event_id: command_event.id)
+
+      xcode_project =
+        XcodeFixtures.xcode_project_fixture(
+          name: "MainApp",
+          path: "App",
+          xcode_graph_id: xcode_graph.id
+        )
+
+      xcode_target =
+        XcodeFixtures.xcode_target_fixture(name: "AppTests", xcode_project_id: xcode_project.id)
+
+      xcode_project_two =
+        XcodeFixtures.xcode_project_fixture(
+          name: "Framework1",
+          path: "Framework1",
+          xcode_graph_id: xcode_graph.id
+        )
+
+      xcode_target_two =
+        XcodeFixtures.xcode_target_fixture(
+          name: "Framework1Tests",
+          xcode_project_id: xcode_project_two.id
+        )
+
+      xcode_project_three =
+        XcodeFixtures.xcode_project_fixture(
+          name: "Framework2",
+          path: "Framework2",
+          xcode_graph_id: xcode_graph.id
+        )
+
+      xcode_target_three =
+        XcodeFixtures.xcode_target_fixture(
+          name: "Framework2Tests",
+          xcode_project_id: xcode_project_three.id
+        )
+
       base_path =
         "#{command_event.project.account.name}/#{command_event.project.name}/runs/#{command_event.id}"
 
@@ -607,12 +646,127 @@ defmodule TuistWeb.AnalyticsControllerTest do
         conn
         |> Authentication.put_current_project(project)
 
+      FunWithFlags.enable(:flaky_test_detection, for_actor: project)
+
       # When
       conn =
         conn
         |> put_req_header("content-type", "application/json")
-        |> put(
-          ~p"/api/runs/#{command_event.id}/complete_artifacts_uploads",
+        |> put(~p"/api/runs/#{command_event.id}/complete_artifacts_uploads")
+
+      # Then
+      response = json_response(conn, :no_content)
+      assert response == %{}
+
+      test_case_runs =
+        from(
+          t in TestCaseRun,
+          where: t.command_event_id == ^command_event.id
+        )
+        |> Repo.all()
+        |> Repo.preload(:test_case)
+        |> Enum.map(& &1.test_case.identifier)
+        |> Enum.sort()
+
+      assert length(test_case_runs) == 5
+
+      assert test_case_runs == [
+               "test://com.apple.xcode/Framework1/Framework1Tests/Framework1Tests/testHello",
+               "test://com.apple.xcode/Framework1/Framework1Tests/Framework1Tests/testHelloFromFramework2",
+               "test://com.apple.xcode/Framework2/Framework2Tests/Framework2Tests/testHello",
+               "test://com.apple.xcode/Framework2/Framework2Tests/MyPublicClassTests/testHello",
+               "test://com.apple.xcode/MainApp/AppTests/AppDelegateTests/testHello"
+             ]
+    end
+
+    test "runs with older CLI versions that send modules", %{conn: conn} do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      command_event =
+        CommandEventsFixtures.command_event_fixture(project_id: project.id)
+        |> Repo.preload(project: :account)
+
+      xcode_graph = XcodeFixtures.xcode_graph_fixture(command_event_id: command_event.id)
+
+      xcode_project =
+        XcodeFixtures.xcode_project_fixture(
+          name: "MainApp",
+          path: "App",
+          xcode_graph_id: xcode_graph.id
+        )
+
+      xcode_target =
+        XcodeFixtures.xcode_target_fixture(name: "AppTests", xcode_project_id: xcode_project.id)
+
+      xcode_project_two =
+        XcodeFixtures.xcode_project_fixture(
+          name: "Framework1",
+          path: "Framework1",
+          xcode_graph_id: xcode_graph.id
+        )
+
+      xcode_target_two =
+        XcodeFixtures.xcode_target_fixture(
+          name: "Framework1Tests",
+          xcode_project_id: xcode_project_two.id
+        )
+
+      xcode_project_three =
+        XcodeFixtures.xcode_project_fixture(
+          name: "Framework2",
+          path: "Framework2",
+          xcode_graph_id: xcode_graph.id
+        )
+
+      xcode_target_three =
+        XcodeFixtures.xcode_target_fixture(
+          name: "Framework2Tests",
+          xcode_project_id: xcode_project_three.id
+        )
+
+      base_path =
+        "#{command_event.project.account.name}/#{command_event.project.name}/runs/#{command_event.id}"
+
+      invocation_record_object_key =
+        "#{base_path}/invocation_record.json"
+
+      test_plan_object_key =
+        "#{base_path}/0~_nJcMfmYtL75ZA_SPkjI1RYzgbEkjbq_o2hffLy4RQuPOW81Uu0xIwZX0ntR4Tof5xv2Jwe8opnwD7IVBQ_VOQ==.json"
+
+      Storage
+      |> stub(:object_exists?, fn object_key ->
+        case object_key do
+          ^invocation_record_object_key ->
+            true
+
+          ^test_plan_object_key ->
+            true
+        end
+      end)
+
+      Storage
+      |> stub(:get_object_as_string, fn object_key ->
+        case object_key do
+          ^invocation_record_object_key ->
+            CommandEventsFixtures.invocation_record_fixture()
+
+          ^test_plan_object_key ->
+            CommandEventsFixtures.test_plan_object_fixture()
+        end
+      end)
+
+      conn =
+        conn
+        |> Authentication.put_current_project(project)
+
+      FunWithFlags.enable(:flaky_test_detection, for_actor: project)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> put(~p"/api/runs/#{command_event.id}/complete_artifacts_uploads",
           modules: [
             %{
               name: "AppTests",
@@ -636,27 +790,25 @@ defmodule TuistWeb.AnalyticsControllerTest do
       response = json_response(conn, :no_content)
       assert response == %{}
 
-      # The insertion of test case runs is disabled
+      test_case_runs =
+        from(
+          t in TestCaseRun,
+          where: t.command_event_id == ^command_event.id
+        )
+        |> Repo.all()
+        |> Repo.preload(:test_case)
+        |> Enum.map(& &1.test_case.identifier)
+        |> Enum.sort()
 
-      # test_case_runs =
-      #   from(
-      #     t in TestCaseRun,
-      #     where: t.command_event_id == ^command_event.id
-      #   )
-      #   |> Repo.all()
-      #   |> Repo.preload(:test_case)
-      #   |> Enum.map(& &1.test_case.identifier)
-      #   |> Enum.sort()
+      assert length(test_case_runs) == 5
 
-      # assert length(test_case_runs) == 5
-
-      # assert test_case_runs == [
-      #          "test://com.apple.xcode/Framework1/Framework1Tests/Framework1Tests/testHello",
-      #          "test://com.apple.xcode/Framework1/Framework1Tests/Framework1Tests/testHelloFromFramework2",
-      #          "test://com.apple.xcode/Framework2/Framework2Tests/Framework2Tests/testHello",
-      #          "test://com.apple.xcode/Framework2/Framework2Tests/MyPublicClassTests/testHello",
-      #          "test://com.apple.xcode/MainApp/AppTests/AppDelegateTests/testHello"
-      #        ]
+      assert test_case_runs == [
+               "test://com.apple.xcode/Framework1/Framework1Tests/Framework1Tests/testHello",
+               "test://com.apple.xcode/Framework1/Framework1Tests/Framework1Tests/testHelloFromFramework2",
+               "test://com.apple.xcode/Framework2/Framework2Tests/Framework2Tests/testHello",
+               "test://com.apple.xcode/Framework2/Framework2Tests/MyPublicClassTests/testHello",
+               "test://com.apple.xcode/MainApp/AppTests/AppDelegateTests/testHello"
+             ]
     end
 
     test "noops when test_summary is missing", %{conn: conn} do
@@ -678,16 +830,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       conn =
         conn
         |> put_req_header("content-type", "application/json")
-        |> put(
-          ~p"/api/runs/#{command_event.id}/complete_artifacts_uploads",
-          modules: [
-            %{
-              name: "AppTests",
-              project_identifier: "App/MainApp.xcodeproj",
-              hash: "app-module_hash"
-            }
-          ]
-        )
+        |> put(~p"/api/runs/#{command_event.id}/complete_artifacts_uploads")
 
       # Then
       response = json_response(conn, :no_content)

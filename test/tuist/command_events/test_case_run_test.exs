@@ -9,7 +9,7 @@ defmodule Tuist.CommandEvents.TestCaseRunTest do
       got = TestCaseRun.create_changeset(%TestCaseRun{}, test_case_run())
 
       # Then
-      assert got.valid? == true
+      assert got.valid?
     end
 
     test "changeset is not valid if test_case_id is not specified" do
@@ -17,16 +17,16 @@ defmodule Tuist.CommandEvents.TestCaseRunTest do
       got = TestCaseRun.create_changeset(%TestCaseRun{}, test_case_run(test_case_id: nil))
 
       # Then
-      assert got.valid? == false
+      refute got.valid?
       assert "can't be blank" in errors_on(got).test_case_id
     end
 
-    test "changeset is valid if module_hash is not specified" do
+    test "changeset is not valid if xcode_target_id is not specified" do
       # When
-      got = TestCaseRun.create_changeset(%TestCaseRun{}, test_case_run(module_hash: nil))
+      got = TestCaseRun.create_changeset(%TestCaseRun{}, test_case_run(xcode_target_id: nil))
 
       # Then
-      assert got.valid? == true
+      refute got.valid?
     end
 
     test "changeset is not valid if status is not specified" do
@@ -34,7 +34,7 @@ defmodule Tuist.CommandEvents.TestCaseRunTest do
       got = TestCaseRun.create_changeset(%TestCaseRun{}, test_case_run(status: nil))
 
       # Then
-      assert got.valid? == false
+      refute got.valid?
       assert "can't be blank" in errors_on(got).status
     end
 
@@ -43,7 +43,7 @@ defmodule Tuist.CommandEvents.TestCaseRunTest do
       got = TestCaseRun.create_changeset(%TestCaseRun{}, test_case_run(command_event_id: nil))
 
       # Then
-      assert got.valid? == false
+      refute got.valid?
       assert "can't be blank" in errors_on(got).command_event_id
     end
 
@@ -52,7 +52,7 @@ defmodule Tuist.CommandEvents.TestCaseRunTest do
       got = TestCaseRun.create_changeset(%TestCaseRun{}, test_case_run(status: :invalid))
 
       # Then
-      assert got.valid? == false
+      refute got.valid?
       assert "is invalid" in errors_on(got).status
     end
 
@@ -61,16 +61,16 @@ defmodule Tuist.CommandEvents.TestCaseRunTest do
       got = TestCaseRun.create_changeset(%TestCaseRun{}, test_case_run(status: :failure))
 
       # Then
-      assert got.valid? == true
+      assert got.valid?
     end
   end
 
   defp test_case_run(attrs \\ []) do
     %{
-      module_hash: attrs |> Keyword.get(:module_hash, "123"),
       status: attrs |> Keyword.get(:status, :success),
       command_event_id: attrs |> Keyword.get(:command_event_id, 1),
-      test_case_id: attrs |> Keyword.get(:test_case_id, 1)
+      test_case_id: attrs |> Keyword.get(:test_case_id, 1),
+      xcode_target_id: attrs |> Keyword.get(:xcode_target_id, UUIDv7.generate())
     }
   end
 end

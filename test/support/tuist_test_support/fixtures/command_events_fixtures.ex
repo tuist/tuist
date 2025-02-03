@@ -4,6 +4,7 @@ defmodule TuistTestSupport.Fixtures.CommandEventsFixtures do
   """
   alias Tuist.CommandEvents
   alias Tuist.Time
+  import TuistTestSupport.Fixtures.XcodeFixtures
 
   def command_event_fixture(attrs \\ []) do
     project_id =
@@ -74,21 +75,26 @@ defmodule TuistTestSupport.Fixtures.CommandEventsFixtures do
         test_case_fixture().id
       end)
 
+    xcode_target_id =
+      Keyword.get_lazy(attrs, :xcode_target_id, fn ->
+        xcode_target_fixture().id
+      end)
+
     CommandEvents.create_test_case_run(
       %{
-        module_hash: Keyword.get(attrs, :module_hash, "module-hash"),
         status: Keyword.get(attrs, :status, :success),
         command_event_id: command_event_id,
-        test_case_id: test_case_id
+        test_case_id: test_case_id,
+        xcode_target_id: xcode_target_id
       },
       flaky: Keyword.get(attrs, :flaky, false),
       inserted_at: Keyword.get(attrs, :inserted_at, Time.utc_now())
     )
   end
 
-  def test_summary_fixture() do
-    %Tuist.CommandEvents.TestSummary{
-      project_tests: %{
+  def test_summary_fixture(attrs \\ []) do
+    project_tests =
+      Keyword.get(attrs, :project_tests, %{
         "App/MainApp.xcodeproj" => %{
           "AppTests" => %Tuist.CommandEvents.TargetTestSummary{
             tests: [
@@ -140,7 +146,10 @@ defmodule TuistTestSupport.Fixtures.CommandEventsFixtures do
             status: :failure
           }
         }
-      },
+      })
+
+    %Tuist.CommandEvents.TestSummary{
+      project_tests: project_tests,
       failed_tests_count: 1,
       successful_tests_count: 4,
       total_tests_count: 5

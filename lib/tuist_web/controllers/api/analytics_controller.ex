@@ -546,14 +546,8 @@ defmodule TuistWeb.API.AnalyticsController do
        %Schema{
          deprecated: true,
          type: :object,
-         properties: %{
-           modules: %Schema{
-             type: :array,
-             description: "A list of modules with their metadata.",
-             items: Module
-           }
-         },
-         required: [:modules]
+         properties: %{},
+         required: []
        }},
     responses: %{
       no_content: "The command event artifact uploads were successfully finished",
@@ -570,45 +564,27 @@ defmodule TuistWeb.API.AnalyticsController do
         %{
           path_params: %{
             "run_id" => run_id
-          },
-          body_params: %{
-            modules: modules
           }
         } = conn,
         _params
       ) do
-    modules =
-      modules
-      |> Enum.reduce(%{}, fn module, acc ->
-        Map.update(
-          acc,
-          module.project_identifier,
-          %{
-            module.name => module.hash
-          },
-          fn project_map ->
-            Map.put(project_map, module.name, module.hash)
-          end
-        )
-      end)
-
     command_event =
       CommandEvents.get_command_event_by_id(run_id, preload: :project)
 
     test_summary =
       CommandEvents.get_test_summary(command_event)
 
-    if not is_nil(test_summary) do
-      # Note:
-      # This is currently disabled due to slow performance inserting thousands of test case runs.
-      # CommandEvents.create_test_cases(%{
-      #   test_summary: test_summary,
-      #   command_event: command_event
-      # })
+    current_project = Authentication.current_project(conn)
+
+    if not is_nil(test_summary) and not is_nil(current_project) and
+         FunWithFlags.enabled?(:flaky_test_detection, for: current_project) do
+      CommandEvents.create_test_cases(%{
+        test_summary: test_summary,
+        command_event: command_event
+      })
 
       CommandEvents.create_test_case_runs(%{
         test_summary: test_summary,
-        modules: modules,
         command_event: command_event
       })
     end

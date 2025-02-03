@@ -3,6 +3,7 @@ alias Tuist.Projects
 alias Tuist.Projects.Project
 alias Tuist.Billing.Subscription
 alias Tuist.CommandEvents
+alias Tuist.Xcode
 alias Tuist.Repo
 
 import Ecto.Query, only: [from: 2]
@@ -188,6 +189,8 @@ test_cases =
     identifier = "#{module_name}/#{name}"
     test_case = CommandEvents.get_test_case_by_identifier(identifier)
 
+    command_event = Enum.random(test_command_events) |> Repo.preload(:xcode_graph)
+
     test_case =
       if is_nil(test_case) do
         CommandEvents.create_test_case(
@@ -204,13 +207,51 @@ test_cases =
         test_case
       end
 
+    graph =
+      if is_nil(command_event.xcode_graph) do
+        {:ok, graph} =
+          Xcode.create_xcode_graph(%{
+            command_event: command_event,
+            xcode_graph: %{
+              name: "Graph",
+              projects: [
+                %{
+                  "name" => name,
+                  "path" => module_name,
+                  "targets" => [
+                    %{
+                      "name" => "target-#{System.unique_integer([:positive])}",
+                      "binary_cache_metadata" => %{
+                        "hash" => "binary-cache-hash-#{System.unique_integer([:positive])}",
+                        "hit" => "miss"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          })
+
+        graph
+      else
+        command_event.xcode_graph
+      end
+
+    graph =
+      graph
+      |> Repo.preload(xcode_projects: [:xcode_targets])
+
     for test_case_run_index <- 1..100 do
       CommandEvents.create_test_case_run(
         %{
-          module_hash: "module-hash-#{test_case_run_index}",
           status: Enum.random([:success, :failure]),
           test_case_id: test_case.id,
-          command_event_id: Enum.random(test_command_events).id
+          command_event_id: command_event.id,
+          xcode_target_id:
+            List.first(graph.xcode_projects)
+            |> Map.get(:xcode_targets)
+            |> Enum.random()
+            |> Map.get(:id)
         },
         flaky: Enum.random([test_case.flaky, false, false, false])
       )
