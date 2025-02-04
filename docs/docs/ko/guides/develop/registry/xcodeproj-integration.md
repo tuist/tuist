@@ -19,7 +19,7 @@ let tuist = Tuist(
 )
 ```
 
-If you want to ensure that the registry is used every time you resolve dependencies, you will need to update `dependencies` in your `Tuist/Package.swift` file to use the registry identifier instead of a URL. The registry identifier is always in the form of `{organization}.{repository}`. For example, to use the registry for the `swift-composable-architecture` package, do the following:
+If you want to ensure that the registry is used every time you resolve dependencies, you will need to update `dependencies` in your `Tuist/Package.swift` file to use the registry identifier instead of a URL. 레지스트리 식별자는 `{organization}.{repository}` 형식을 가집니다. For example, to use the registry for the `swift-composable-architecture` package, do the following:
 
 ```diff
 dependencies: [
