@@ -6,8 +6,10 @@ description: 컴파일된 바이너리를 캐싱하고 다양한 환경 간에 �
 
 # Cache {#cache}
 
-> [!IMPORTANT] REMOTE PROJECT 필요
-> 이 기능은 <LocalizedLink href="/server/introduction/accounts-and-projects">remote project</LocalizedLink>가 필요합니다.
+> [!IMPORTANT] 요구사항
+>
+> - <LocalizedLink href="/guides/develop/projects">Tuist Project</LocalizedLink>
+> - <LocalizedLink href="/server/introduction/accounts-and-projects">Tuist 계정과 프로젝트</LocalizedLink>
 
 Xcode의 빌드 시스템은 [증분 빌드](https://en.wikipedia.org/wiki/Incremental_build_model)를 제공하여 일반적인 상황에서 효율을 높입니다. 하지만 이 기능은 증분 빌드에 필요한 데이터가 서로 다른 빌드에서 공유되지 않으므로, [Continuous Integration (CI) 환경](https://en.wikipedia.org/wiki/Continuous_integration)에서는 적절하지 않습니다. 게다가 **개발자는 복잡한 컴파일 문제를 해결하기 위해 로컬에서 이 데이터를 초기화 하므로**, 클린 빌드가 자주 발생하게 됩니다. 팀은 이것으로 인해 로컬 빌드가 완료되거나 Continuous Integration 파이프라인이 Pull Request에 대한 피드백을 제공할 때까지 과도한 시간을 기다려야 합니다. 더욱이 이러한 환경에서 빈번한 컨텍스트 전환은 생산성을 더욱 악화시킵니다.
 
@@ -68,7 +70,7 @@ tuist test
 2. 프로토콜/인터페이스 타겟으로 의존성을 정의하고, 최상위 타겟에서 의존성 주입을 구현합니다.
 3. 자주 수정되는 타겟은 변경 가능성이 적은 타겟으로 나눕니다.
 
-위의 제안은 바이너리 캐싱의 이점 뿐만 아니라 Xcode의 기능을 최대한 활용할 수 있게 프로젝트를 구조화 하는 방식을 제시하는 <0>The Modular Architecture</0>의 일부분입니다.
+위의 제안은 바이너리 캐싱의 이점 뿐만 아니라 Xcode의 기능을 최대한 활용할 수 있게 프로젝트를 구조화 하는 방식을 제시하는 [The Modular Architecture](https://docs.tuist.dev/ko/guides/develop/projects/tma-architecture)의 일부분입니다.
 
 ## 권장 설정 {#recommended-setup}
 

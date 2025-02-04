@@ -19,7 +19,7 @@ The workflow creates an Xcode project that contains all manifest files and allow
 Thanks to using Xcode,
 you get all the benefits of **code completion, syntax highlighting, and error checking**.
 
-## Edit the project {#edit-the-project}
+## Редактирование проекта {#edit-the-project}
 
 To edit your project, you can run the following command in a Tuist project directory or a sub-directory:
 

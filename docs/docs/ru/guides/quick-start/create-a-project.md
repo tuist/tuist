@@ -1,12 +1,12 @@
 ---
-title: Create a project
+title: Создание проекта
 titleTemplate: :title · Начало · Руководства · Tuist
-description: Learn how to create your first project with Tuist.
+description: Узнайте, как создать свой первый проект с помощью Tuist.
 ---
 
-# Create a project {#create-a-project}
+# Создание проекта {#create-a-project}
 
-Once you've installed Tuist, you can create a new project by running the following command:
+После установки Tuist, вы можете создать новый проект, выполнив следующую команду:
 
 ```bash
 mkdir MyApp
@@ -14,38 +14,38 @@ cd MyApp
 tuist init --name MyApp
 ```
 
-By default it creates a project that represents an **iOS application.** The project directory will contain a `Project.swift`, which describes the project, a `Tuist.swift`, which contains project-scoped Tuist configuration, and a `MyApp/` directory, which contains the source code of the application.
+По умолчанию - это создает проект, представляющий собой **iOS приложение.** В директории проекта будет содержаться файл `Project.swift`, описывающий проект; файл `Tuist.swift`, содержащий конфигурацию Tuist для этого проекта; каталог `MyApp/`, содержащий исходный код приложения.
 
-To work on it in Xcode, you can generate an Xcode project by running:
+Для работы с ним в Xcode, вы можете сгенерировать Xcode проект, выполнив:
 
 ```bash
 tuist generate
 ```
 
-Note that unlike Xcode projects, which you can open and edit directly, Tuist projects are generated from a manifest file. This means that you should not edit the generated Xcode project directly.
+Обратите внимание, что в отличие от Xcode-проектов, которые могут быть открыты и отредактированы напрямую, Tuist-проекты генерируются из манифест-файлов. Это означает, что вы не должны напрямую редактировать сгенерированный Xcode-проект.
 
-> [!TIP] A CONFLICT-FREE AND USER-FRIENDLY EXPERIENCE
-> Xcode projects are prone to conflicts and expose a lot of intricacies to users. Tuist abstracts those away, specially in the area of managing the project's dependency graph.
+> [!TIP] УДОБНОЕ ИСПОЛЬЗОВАНИЕ БЕЗ КОНФЛИКТОВ
+> Xcode-проекты подвержены конфликтам и раскрывают пользователю значительное количество внутренних особенностей. Tuist упрощает и абстрагирует их, особенно в области управления графиком зависимостей проекта.
 
-## Build the app {#build-the-app}
+## Постройка приложения {#build-the-app}
 
-Tuist provides commands for the most common tasks you'll need to perform on your project. To build the app, run:
+Tuist предоставляет команды для наиболее распространенных задач, которые вам нужно выполнить в вашем проекте. Чтобы построить приложение, выполните:
 
 ```bash
 tuist build
 ```
 
-Under the hood, this command uses the platform's build system (e.g. `xcodebuild`), enriching it with Tuist's features.
+Внутри, эта команда использует платформенную систему сборки (например, `xcodebuild`), обогащая её функциями Tuist.
 
-## Test the app {#test-the-app}
+## Тестирование приложения {#test-the-app}
 
-Similarly, you can run tests with:
+Аналогично, вы можете запустить тесты:
 
 ```bash
 tuist test
 ```
 
-Like the `build` command, `test` uses the platform's test runner (e.g. `xcodebuild test`), but with the added benefits of Tuist's test features and optimizations.
+Как и команда `build`, `test` использует платформенные тесты (например, `xcodebuild test`), но с добавленными преимуществами возможностей и оптимизации Tuist.
 
-> [!TIP] PASSING ARGUMENTS TO THE UNDERLYING BUILD SYSTEM
-> Both `build` and `test` can take extra arguments after `--` which are forwarded to the underlying build system.
+> [!TIP] ПЕРЕДАЧА АРГУМЕНТОВ ВО ВНУТРЕННИЕ СИСТЕМЫ СБОРКИ
+> И `build` и `test` команды могут принимать дополнительные параметры после `--`, которые будут переданы в нижележащие системы сборки.
