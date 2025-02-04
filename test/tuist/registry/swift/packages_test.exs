@@ -639,6 +639,7 @@ defmodule Tuist.Registry.Swift.PackagesTest do
               .package(name: "libwebp",
                        url: "https://github.com/SDWebImage/libwebp-Xcode",
                        from: "1.1.0"),
+              .package(name: "MetricsReporter", url: "https://github.com/rudderlabs/metrics-reporter-ios", .exact("2.0.0")),
           ],
           targets: [
               .executableTarget(
@@ -650,6 +651,7 @@ defmodule Tuist.Registry.Swift.PackagesTest do
                       .product(name: "FBLPromises", package: "Promises"),
                       "OCMock",
                       "libwebp",
+                      .product(name: "MetricsReporter", package: "MetricsReporter"),
                   ]
               ),
               .target(
@@ -699,6 +701,7 @@ defmodule Tuist.Registry.Swift.PackagesTest do
               .package(name: "libwebp-Xcode",
                        url: "https://github.com/SDWebImage/libwebp-Xcode",
                        from: "1.1.0"),
+              .package(name: "metrics-reporter-ios", url: "https://github.com/rudderlabs/metrics-reporter-ios", .exact("2.0.0")),
           ],
           targets: [
               .executableTarget(
@@ -710,6 +713,7 @@ defmodule Tuist.Registry.Swift.PackagesTest do
                       .product(name: "FBLPromises", package: "promises"),
                       .product(name: "ocmock", package: "ocmock"),
                       .product(name: "libwebp-Xcode", package: "libwebp-Xcode"),
+                      .product(name: "MetricsReporter", package: "metrics-reporter-ios"),
                   ]
               ),
               .target(

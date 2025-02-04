@@ -352,7 +352,7 @@ defmodule Tuist.Registry.Swift.Packages do
     Enum.reduce(packages, package_manifest, fn package, package_manifest ->
       package_manifest
       |> String.replace(
-        ~r/"#{package.by_name_reference}"/is,
+        ~r/(?<!.product\(name: )"#{package.by_name_reference}"/is,
         "\"#{package.name}\""
       )
       |> String.replace(
