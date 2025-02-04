@@ -47,8 +47,8 @@ public final class CommandEventFactory {
         let graph = info.graph.map {
             map(
                 $0,
-                binaryCacheAnalytics: info.binaryCacheAnalytics,
-                selectiveTestAnalytics: info.selectiveTestsAnalytics
+                binaryCacheItems: info.binaryCacheItems,
+                selectiveTestingCacheItems: info.selectiveTestingCacheItems
             )
         }
 
@@ -77,21 +77,20 @@ public final class CommandEventFactory {
 
     private func map(
         _ graph: Graph,
-        binaryCacheAnalytics: BinaryCacheAnalytics?,
-        selectiveTestAnalytics: SelectiveTestsAnalytics?
-    ) -> CommandEventGraph {
-        CommandEventGraph(
+        binaryCacheItems: [AbsolutePath: [String: CacheItem]],
+        selectiveTestingCacheItems: [AbsolutePath: [String: CacheItem]]
+    ) -> RunGraph {
+        RunGraph(
             name: graph.name,
             projects: graph.projects.map { project in
-                CommandEventProject(
+                RunProject(
                     name: project.value.name,
+                    path: project.value.path.relative(to: graph.path),
                     targets: project.value.targets.map { target in
-                        let binaryCacheMetadata: CommandEventCacheTargetMetadata?
-                        if let hash = binaryCacheAnalytics?.hashes[project.value.path]?[target.value.name] {
-                            let hit: CommandEventCacheHit = switch binaryCacheAnalytics?
-                                .cacheItems[project.value.path]?[target.value.name]?.source
-                            {
-                            case .none:
+                        let binaryCacheMetadata: RunCacheTargetMetadata?
+                        if let cacheItem = binaryCacheItems[project.value.path]?[target.value.name] {
+                            let hit: RunCacheHit = switch cacheItem.source {
+                            case .miss:
                                 .miss
                             case .local:
                                 .local
@@ -99,19 +98,17 @@ public final class CommandEventFactory {
                                 .remote
                             }
 
-                            binaryCacheMetadata = CommandEventCacheTargetMetadata(
-                                hash: hash,
+                            binaryCacheMetadata = RunCacheTargetMetadata(
+                                hash: cacheItem.hash,
                                 hit: hit
                             )
                         } else {
                             binaryCacheMetadata = nil
                         }
-                        let selectiveTestingMetadata: CommandEventCacheTargetMetadata?
-                        if let hash = selectiveTestAnalytics?.hashes[project.value.path]?[target.value.name] {
-                            let hit: CommandEventCacheHit = switch selectiveTestAnalytics?
-                                .cacheItems[project.value.path]?[target.value.name]?.source
-                            {
-                            case .none:
+                        let selectiveTestingMetadata: RunCacheTargetMetadata?
+                        if let cacheItem = selectiveTestingCacheItems[project.value.path]?[target.value.name] {
+                            let hit: RunCacheHit = switch cacheItem.source {
+                            case .miss:
                                 .miss
                             case .local:
                                 .local
@@ -119,15 +116,15 @@ public final class CommandEventFactory {
                                 .remote
                             }
 
-                            selectiveTestingMetadata = CommandEventCacheTargetMetadata(
-                                hash: hash,
+                            selectiveTestingMetadata = RunCacheTargetMetadata(
+                                hash: cacheItem.hash,
                                 hit: hit
                             )
                         } else {
                             selectiveTestingMetadata = nil
                         }
 
-                        return CommandEventTarget(
+                        return RunTarget(
                             name: target.value.name,
                             binaryCacheMetadata: binaryCacheMetadata,
                             selectiveTestingMetadata: selectiveTestingMetadata

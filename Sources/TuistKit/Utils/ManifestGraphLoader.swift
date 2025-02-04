@@ -174,8 +174,8 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
             projects: updatedModels.projects
         )
 
-        if ServiceContext.current?.analyticsStorage?.graph == nil {
-            ServiceContext.current?.analyticsStorage?.graph = graph
+        if await ServiceContext.current?.runMetadataStorage?.graph == nil {
+            await ServiceContext.current?.runMetadataStorage?.update(graph: graph)
         }
 
         // Apply graph mappers

@@ -1,15 +1,15 @@
 import XcodeGraph
 
 /// A simplified version of `Target` to store in `CommandEvent`.
-public struct CommandEventTarget: Codable, Hashable {
+public struct RunTarget: Codable, Hashable {
     public let name: String
-    public let binaryCacheMetadata: CommandEventCacheTargetMetadata?
-    public let selectiveTestingMetadata: CommandEventCacheTargetMetadata?
+    public let binaryCacheMetadata: RunCacheTargetMetadata?
+    public let selectiveTestingMetadata: RunCacheTargetMetadata?
 
     public init(
         name: String,
-        binaryCacheMetadata: CommandEventCacheTargetMetadata?,
-        selectiveTestingMetadata: CommandEventCacheTargetMetadata?
+        binaryCacheMetadata: RunCacheTargetMetadata?,
+        selectiveTestingMetadata: RunCacheTargetMetadata?
     ) {
         self.name = name
         self.binaryCacheMetadata = binaryCacheMetadata
@@ -18,11 +18,11 @@ public struct CommandEventTarget: Codable, Hashable {
 }
 
 #if DEBUG
-    extension CommandEventTarget {
+    extension RunTarget {
         public static func test(
             name: String = "Target",
-            binaryCacheMetadata: CommandEventCacheTargetMetadata? = nil,
-            selectiveTestingMetdata: CommandEventCacheTargetMetadata? = nil
+            binaryCacheMetadata: RunCacheTargetMetadata? = nil,
+            selectiveTestingMetdata: RunCacheTargetMetadata? = nil
         ) -> Self {
             Self(
                 name: name,

@@ -19,7 +19,7 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
     public let gitRef: String?
     public let gitRemoteURLOrigin: String?
     public let gitBranch: String?
-    public let graph: CommandEventGraph?
+    public let graph: RunGraph?
     public let previewId: String?
 
     public enum Status: Codable, Equatable {
@@ -68,7 +68,7 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
         gitRef: String?,
         gitRemoteURLOrigin: String?,
         gitBranch: String?,
-        graph: CommandEventGraph?,
+        graph: RunGraph?,
         previewId: String?
     ) {
         self.runId = runId
@@ -110,7 +110,7 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
             gitRef: String? = "refs/heads/main",
             gitRemoteURLOrigin: String? = "https://github.com/tuist/tuist",
             gitBranch: String? = "main",
-            graph: CommandEventGraph = CommandEventGraph(name: "Graph", projects: []),
+            graph: RunGraph = RunGraph(name: "Graph", projects: []),
             previewId: String? = nil
         ) -> CommandEvent {
             CommandEvent(

@@ -1730,41 +1730,6 @@ internal enum Components {
                 case _type = "type"
             }
         }
-        /// - Remark: Generated from `#/components/schemas/Module`.
-        internal struct Module: Codable, Hashable, Sendable {
-            /// A hash that represents the module.
-            ///
-            /// - Remark: Generated from `#/components/schemas/Module/hash`.
-            internal var hash: Swift.String
-            /// A name of the module
-            ///
-            /// - Remark: Generated from `#/components/schemas/Module/name`.
-            internal var name: Swift.String
-            /// Project's relative path from the root of the repository
-            ///
-            /// - Remark: Generated from `#/components/schemas/Module/project_identifier`.
-            internal var project_identifier: Swift.String
-            /// Creates a new `Module`.
-            ///
-            /// - Parameters:
-            ///   - hash: A hash that represents the module.
-            ///   - name: A name of the module
-            ///   - project_identifier: Project's relative path from the root of the repository
-            internal init(
-                hash: Swift.String,
-                name: Swift.String,
-                project_identifier: Swift.String
-            ) {
-                self.hash = hash
-                self.name = name
-                self.project_identifier = project_identifier
-            }
-            internal enum CodingKeys: String, CodingKey {
-                case hash
-                case name
-                case project_identifier
-            }
-        }
         /// - Remark: Generated from `#/components/schemas/Preview`.
         internal struct Preview: Codable, Hashable, Sendable {
             /// The bundle identifier of the preview
@@ -3089,6 +3054,10 @@ internal enum Operations {
                             ///
                             /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/name`.
                             internal var name: Swift.String
+                            /// Path of the project
+                            ///
+                            /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/path`.
+                            internal var path: Swift.String
                             /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload`.
                             internal struct targetsPayloadPayload: Codable, Hashable, Sendable {
                                 /// Binary cache metadata
@@ -3210,16 +3179,20 @@ internal enum Operations {
                             ///
                             /// - Parameters:
                             ///   - name: Name of the project
+                            ///   - path: Path of the project
                             ///   - targets: Targets present in a project
                             internal init(
                                 name: Swift.String,
+                                path: Swift.String,
                                 targets: Operations.createCommandEvent.Input.Body.jsonPayload.xcode_graphPayload.projectsPayloadPayload.targetsPayload
                             ) {
                                 self.name = name
+                                self.path = path
                                 self.targets = targets
                             }
                             internal enum CodingKeys: String, CodingKey {
                                 case name
+                                case path
                                 case targets
                             }
                         }
@@ -16547,26 +16520,8 @@ internal enum Operations {
             internal var headers: Operations.completeAnalyticsArtifactsUploads.Input.Headers
             /// - Remark: Generated from `#/paths/api/runs/{run_id}/complete_artifacts_uploads/PUT/requestBody`.
             internal enum Body: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/runs/{run_id}/complete_artifacts_uploads/PUT/requestBody/json`.
-                @available(*, deprecated)
-                internal struct jsonPayload: Codable, Hashable, Sendable {
-                    /// A list of modules with their metadata.
-                    ///
-                    /// - Remark: Generated from `#/paths/api/runs/{run_id}/complete_artifacts_uploads/PUT/requestBody/json/modules`.
-                    internal var modules: [Components.Schemas.Module]
-                    /// Creates a new `jsonPayload`.
-                    ///
-                    /// - Parameters:
-                    ///   - modules: A list of modules with their metadata.
-                    internal init(modules: [Components.Schemas.Module]) {
-                        self.modules = modules
-                    }
-                    internal enum CodingKeys: String, CodingKey {
-                        case modules
-                    }
-                }
                 /// - Remark: Generated from `#/paths/api/runs/{run_id}/complete_artifacts_uploads/PUT/requestBody/content/application\/json`.
-                case json(Operations.completeAnalyticsArtifactsUploads.Input.Body.jsonPayload)
+                case json(OpenAPIRuntime.OpenAPIObjectContainer)
             }
             internal var body: Operations.completeAnalyticsArtifactsUploads.Input.Body?
             /// Creates a new `Input`.

@@ -252,7 +252,7 @@ final class TestService { // swiftlint:disable:this type_body_length
                         level: .info,
                         "The scheme \(schemeName)'s test action has no tests to run, finishing early."
                     )
-                    updateTestServiceAnalytics(
+                    await updateTestServiceAnalytics(
                         mapperEnvironment: mapperEnvironment,
                         schemes: [scheme],
                         testPlanConfiguration: testPlanConfiguration
@@ -266,7 +266,7 @@ final class TestService { // swiftlint:disable:this type_body_length
                 }
             }
 
-            updateTestServiceAnalytics(
+            await updateTestServiceAnalytics(
                 mapperEnvironment: mapperEnvironment,
                 schemes: [scheme],
                 testPlanConfiguration: testPlanConfiguration
@@ -294,7 +294,7 @@ final class TestService { // swiftlint:disable:this type_body_length
             schemes = [scheme]
         } else {
             schemes = buildGraphInspector.workspaceSchemes(graphTraverser: graphTraverser)
-            updateTestServiceAnalytics(
+            await updateTestServiceAnalytics(
                 mapperEnvironment: mapperEnvironment,
                 schemes: schemes,
                 testPlanConfiguration: testPlanConfiguration
@@ -412,7 +412,7 @@ final class TestService { // swiftlint:disable:this type_body_length
         mapperEnvironment: MapperEnvironment,
         schemes: [Scheme],
         testPlanConfiguration: TestPlanConfiguration?
-    ) {
+    ) async {
         let initialTestTargets = initialTestTargets(
             mapperEnvironment: mapperEnvironment,
             schemes: schemes,
@@ -421,14 +421,16 @@ final class TestService { // swiftlint:disable:this type_body_length
         let testTargets = initialTestTargets
             .map(\.target.name)
 
-        ServiceContext.current?.analyticsStorage?.selectiveTestAnalytics = SelectiveTestsAnalytics(
-            hashes: initialTestTargets.reduce(into: [:]) { result, element in
-                result[element.path, default: [:]][element.target.name] = mapperEnvironment
-                    .targetTestHashes[element.path]?[element.target.name]
-            },
-            cacheItems: initialTestTargets.reduce(into: [:]) { result, element in
-                result[element.path, default: [:]][element.target.name] = mapperEnvironment
-                    .targetTestCacheItems[element.path]?[element.target.name]
+        await ServiceContext.current?.runMetadataStorage?.update(
+            selectiveTestingCacheItems: initialTestTargets.reduce(into: [:]) { result, element in
+                guard let hash = mapperEnvironment.targetTestHashes[element.path]?[element.target.name] else { return }
+                let cacheItem = mapperEnvironment.targetTestCacheItems[element.path]?[element.target.name] ?? CacheItem(
+                    name: element.target.name,
+                    hash: hash,
+                    source: .miss,
+                    cacheCategory: .selectiveTests
+                )
+                result[element.path, default: [:]][element.target.name] = cacheItem
             }
         )
     }

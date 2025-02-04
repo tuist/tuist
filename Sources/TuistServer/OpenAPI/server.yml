@@ -385,24 +385,6 @@ components:
       title: CommandEventArtifact
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.CommandEventArtifact
-    Module:
-      properties:
-        hash:
-          description: A hash that represents the module.
-          type: string
-        name:
-          description: A name of the module
-          type: string
-        project_identifier:
-          description: Project's relative path from the root of the repository
-          type: string
-      required:
-        - name
-        - project_identifier
-        - hash
-      title: Module
-      type: object
-      x-struct: Elixir.TuistWeb.API.Schemas.Module
     Preview:
       properties:
         bundle_identifier:
@@ -990,6 +972,9 @@ paths:
                           name:
                             description: Name of the project
                             type: string
+                          path:
+                            description: Path of the project
+                            type: string
                           targets:
                             description: Targets present in a project
                             items:
@@ -1037,6 +1022,7 @@ paths:
                             type: array
                         required:
                           - name
+                          - path
                           - targets
                       type: array
                   required:
@@ -3412,14 +3398,7 @@ paths:
           application/json:
             schema:
               deprecated: true
-              properties:
-                modules:
-                  description: A list of modules with their metadata.
-                  items:
-                    $ref: '#/components/schemas/Module'
-                  type: array
-              required:
-                - modules
+              properties: {}
               type: object
         description: Extra metadata for the post-processing of a command event.
         required: false

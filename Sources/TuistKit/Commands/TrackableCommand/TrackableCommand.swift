@@ -18,8 +18,8 @@ public struct TrackableCommandInfo {
     let durationInMs: Int
     let status: CommandEvent.Status
     let graph: Graph?
-    let binaryCacheAnalytics: BinaryCacheAnalytics?
-    let selectiveTestsAnalytics: SelectiveTestsAnalytics?
+    let binaryCacheItems: [AbsolutePath: [String: CacheItem]]
+    let selectiveTestingCacheItems: [AbsolutePath: [String: CacheItem]]
     let previewId: String?
 }
 
@@ -59,9 +59,9 @@ public class TrackableCommand {
         } else {
             path = fileHandler.currentPath
         }
-        let analyticsStorage = AnalyticsStorage()
+        let runMetadataStorage = RunMetadataStorage()
         var context = ServiceContext.current ?? ServiceContext.topLevel
-        context.analyticsStorage = analyticsStorage
+        context.runMetadataStorage = runMetadataStorage
         try await ServiceContext.withValue(context) {
             do {
                 if var asyncCommand = command as? AsyncParsableCommand {
@@ -70,22 +70,22 @@ public class TrackableCommand {
                     try command.run()
                 }
                 if analyticsEnabled {
-                    try dispatchCommandEvent(
+                    try await dispatchCommandEvent(
                         timer: timer,
                         status: .success,
-                        runId: analyticsStorage.runId,
+                        runId: runMetadataStorage.runId,
                         path: path,
-                        analyticsStorage: analyticsStorage
+                        runMetadataStorage: runMetadataStorage
                     )
                 }
             } catch {
                 if analyticsEnabled {
-                    try dispatchCommandEvent(
+                    try await dispatchCommandEvent(
                         timer: timer,
                         status: .failure("\(error)"),
-                        runId: analyticsStorage.runId,
+                        runId: await runMetadataStorage.runId,
                         path: path,
-                        analyticsStorage: analyticsStorage
+                        runMetadataStorage: runMetadataStorage
                     )
                 }
                 throw error
@@ -98,23 +98,23 @@ public class TrackableCommand {
         status: CommandEvent.Status,
         runId: String,
         path: AbsolutePath,
-        analyticsStorage: AnalyticsStorage
-    ) throws {
+        runMetadataStorage: RunMetadataStorage
+    ) async throws {
         let durationInSeconds = timer.stop()
         let durationInMs = Int(durationInSeconds * 1000)
         let configuration = type(of: command).configuration
         let (name, subcommand) = extractCommandName(from: configuration)
-        let info = TrackableCommandInfo(
+        let info = await TrackableCommandInfo(
             runId: runId,
             name: name,
             subcommand: subcommand,
             commandArguments: commandArguments,
             durationInMs: durationInMs,
             status: status,
-            graph: analyticsStorage.graph,
-            binaryCacheAnalytics: analyticsStorage.binaryCacheAnalytics,
-            selectiveTestsAnalytics: analyticsStorage.selectiveTestAnalytics,
-            previewId: analyticsStorage.previewId
+            graph: runMetadataStorage.graph,
+            binaryCacheItems: runMetadataStorage.binaryCacheItems,
+            selectiveTestingCacheItems: runMetadataStorage.selectiveTestingCacheItems,
+            previewId: runMetadataStorage.previewId
         )
         let commandEvent = try commandEventFactory.make(
             from: info,

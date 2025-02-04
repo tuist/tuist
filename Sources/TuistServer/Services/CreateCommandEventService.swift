@@ -106,12 +106,13 @@ public final class CreateCommandEventService: CreateCommandEventServicing {
         }
     }
 
-    private func map(graph: CommandEventGraph) -> Operations.createCommandEvent.Input.Body.jsonPayload.xcode_graphPayload {
+    private func map(graph: RunGraph) -> Operations.createCommandEvent.Input.Body.jsonPayload.xcode_graphPayload {
         .init(
             name: graph.name,
             projects: graph.projects.map { project in
                 .init(
                     name: project.name,
+                    path: project.path.pathString,
                     targets: project.targets.map { target in
                         .init(
                             binary_cache_metadata: target.binaryCacheMetadata

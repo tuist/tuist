@@ -1,6 +1,7 @@
 import ArgumentParser
 import Foundation
 import Mockable
+import Path
 import TuistAnalytics
 import TuistCore
 import TuistSupport
@@ -78,36 +79,38 @@ final class CommandEventFactoryTests: TuistUnitTestCase {
                     ),
                 ]
             ),
-            binaryCacheAnalytics: BinaryCacheAnalytics(
-                hashes: [
-                    projectPath: [
-                        "A": "hash-a",
-                        "B": "hash-b",
-                        "C": "hash-c",
-                    ],
+            binaryCacheItems: [
+                projectPath: [
+                    "A": .test(
+                        hash: "hash-a",
+                        source: .local
+                    ),
+                    "B": .test(
+                        hash: "hash-b",
+                        source: .remote
+                    ),
+                    "C": .test(
+                        hash: "hash-c",
+                        source: .miss
+                    ),
                 ],
-                cacheItems: [
-                    projectPath: [
-                        "A": .test(source: .local),
-                        "B": .test(source: .remote),
-                    ],
-                ]
-            ),
-            selectiveTestsAnalytics: SelectiveTestsAnalytics(
-                hashes: [
-                    projectPath: [
-                        "ATests": "hash-a-tests",
-                        "BTests": "hash-b-tests",
-                        "CTests": "hash-c-tests",
-                    ],
+            ],
+            selectiveTestingCacheItems: [
+                projectPath: [
+                    "ATests": .test(
+                        hash: "hash-a-tests",
+                        source: .local
+                    ),
+                    "BTests": .test(
+                        hash: "hash-b-tests",
+                        source: .remote
+                    ),
+                    "CTests": .test(
+                        hash: "hash-c-tests",
+                        source: .miss
+                    ),
                 ],
-                cacheItems: [
-                    projectPath: [
-                        "ATests": .test(source: .local),
-                        "BTests": .test(source: .remote),
-                    ],
-                ]
-            ),
+            ],
             previewId: nil
         )
         let expectedEvent = CommandEvent(
@@ -127,56 +130,57 @@ final class CommandEventFactoryTests: TuistUnitTestCase {
             gitRef: "github-ref",
             gitRemoteURLOrigin: "https://github.com/tuist/tuist",
             gitBranch: "main",
-            graph: CommandEventGraph(
+            graph: RunGraph(
                 name: "Graph",
                 projects: [
-                    CommandEventProject(
+                    RunProject(
                         name: "Project",
+                        path: try RelativePath(validating: "Project"),
                         targets: [
-                            CommandEventTarget(
+                            RunTarget(
                                 name: "A",
-                                binaryCacheMetadata: CommandEventCacheTargetMetadata(
+                                binaryCacheMetadata: RunCacheTargetMetadata(
                                     hash: "hash-a",
                                     hit: .local
                                 ),
                                 selectiveTestingMetadata: nil
                             ),
-                            CommandEventTarget(
+                            RunTarget(
                                 name: "ATests",
                                 binaryCacheMetadata: nil,
-                                selectiveTestingMetadata: CommandEventCacheTargetMetadata(
+                                selectiveTestingMetadata: RunCacheTargetMetadata(
                                     hash: "hash-a-tests",
                                     hit: .local
                                 )
                             ),
-                            CommandEventTarget(
+                            RunTarget(
                                 name: "B",
-                                binaryCacheMetadata: CommandEventCacheTargetMetadata(
+                                binaryCacheMetadata: RunCacheTargetMetadata(
                                     hash: "hash-b",
                                     hit: .remote
                                 ),
                                 selectiveTestingMetadata: nil
                             ),
-                            CommandEventTarget(
+                            RunTarget(
                                 name: "BTests",
                                 binaryCacheMetadata: nil,
-                                selectiveTestingMetadata: CommandEventCacheTargetMetadata(
+                                selectiveTestingMetadata: RunCacheTargetMetadata(
                                     hash: "hash-b-tests",
                                     hit: .remote
                                 )
                             ),
-                            CommandEventTarget(
+                            RunTarget(
                                 name: "C",
-                                binaryCacheMetadata: CommandEventCacheTargetMetadata(
+                                binaryCacheMetadata: RunCacheTargetMetadata(
                                     hash: "hash-c",
                                     hit: .miss
                                 ),
                                 selectiveTestingMetadata: nil
                             ),
-                            CommandEventTarget(
+                            RunTarget(
                                 name: "CTests",
                                 binaryCacheMetadata: nil,
-                                selectiveTestingMetadata: CommandEventCacheTargetMetadata(
+                                selectiveTestingMetadata: RunCacheTargetMetadata(
                                     hash: "hash-c-tests",
                                     hit: .miss
                                 )
@@ -252,8 +256,8 @@ final class CommandEventFactoryTests: TuistUnitTestCase {
             durationInMs: 5000,
             status: .failure("Failed!"),
             graph: nil,
-            binaryCacheAnalytics: nil,
-            selectiveTestsAnalytics: nil,
+            binaryCacheItems: [:],
+            selectiveTestingCacheItems: [:],
             previewId: nil
         )
 
@@ -288,8 +292,8 @@ final class CommandEventFactoryTests: TuistUnitTestCase {
             durationInMs: 5000,
             status: .failure("Failed!"),
             graph: nil,
-            binaryCacheAnalytics: nil,
-            selectiveTestsAnalytics: nil,
+            binaryCacheItems: [:],
+            selectiveTestingCacheItems: [:],
             previewId: nil
         )
 
@@ -340,8 +344,8 @@ final class CommandEventFactoryTests: TuistUnitTestCase {
             durationInMs: 5000,
             status: .failure("Failed!"),
             graph: nil,
-            binaryCacheAnalytics: nil,
-            selectiveTestsAnalytics: nil,
+            binaryCacheItems: [:],
+            selectiveTestingCacheItems: [:],
             previewId: nil
         )
 

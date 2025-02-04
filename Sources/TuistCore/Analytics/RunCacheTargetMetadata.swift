@@ -1,12 +1,12 @@
 import Foundation
 
-public struct CommandEventCacheTargetMetadata: Codable, Hashable {
+public struct RunCacheTargetMetadata: Codable, Hashable {
     public let hash: String
-    public let hit: CommandEventCacheHit
+    public let hit: RunCacheHit
 
     public init(
         hash: String,
-        hit: CommandEventCacheHit
+        hit: RunCacheHit
     ) {
         self.hash = hash
         self.hit = hit

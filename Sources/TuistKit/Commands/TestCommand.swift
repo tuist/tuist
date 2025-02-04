@@ -226,7 +226,7 @@ public struct TestCommand: AsyncParsableCommand {
             generatorFactory: Self.generatorFactory,
             cacheStorageFactory: Self.cacheStorageFactory
         ).run(
-            runId: ServiceContext.current?.analyticsStorage?.runId ?? UUID().uuidString,
+            runId: ServiceContext.current?.runMetadataStorage?.runId ?? UUID().uuidString,
             schemeName: scheme,
             clean: clean,
             noUpload: noUpload,

@@ -29,7 +29,7 @@ final class TestServiceTests: TuistUnitTestCase {
     private var configLoader: MockConfigLoading!
     private var cacheStorageFactory: MockCacheStorageFactorying!
     private var cacheStorage: MockCacheStoring!
-    private var analyticsStorage: AnalyticsStorage!
+    private var runMetadataStorage: RunMetadataStorage!
     private var testedSchemes: [String] = []
 
     override func setUpWithError() throws {
@@ -42,7 +42,7 @@ final class TestServiceTests: TuistUnitTestCase {
         testsCacheTemporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
         generatorFactory = .init()
         cacheStorage = .init()
-        analyticsStorage = AnalyticsStorage()
+        runMetadataStorage = RunMetadataStorage()
 
         cacheStorageFactory = MockCacheStorageFactorying()
         given(cacheStorageFactory)
@@ -137,7 +137,7 @@ final class TestServiceTests: TuistUnitTestCase {
         cacheStorageFactory = nil
         cacheStorage = nil
         testedSchemes = []
-        analyticsStorage = nil
+        runMetadataStorage = nil
         subject = nil
         super.tearDown()
     }
@@ -892,23 +892,27 @@ final class TestServiceTests: TuistUnitTestCase {
             XCTAssertStandardOutput(
                 pattern: "The following targets have not changed since the last successful run and will be skipped: TargetB, TargetC"
             )
+            let selectiveTestingCacheItems = await runMetadataStorage.selectiveTestingCacheItems
             XCTAssertEqual(
-                analyticsStorage.selectiveTestAnalytics,
-                SelectiveTestsAnalytics(
-                    hashes: [
-                        projectPathOne: [
-                            "TargetA": "hash-a",
-                            "TargetB": "hash-b",
-                            "TargetC": "hash-c",
-                        ],
+                selectiveTestingCacheItems,
+                [
+                    projectPathOne: [
+                        "TargetA": .test(
+                            name: "TargetA",
+                            hash: "hash-a",
+                            source: .miss,
+                            cacheCategory: .selectiveTests
+                        ),
+                        "TargetB": .test(
+                            source: .local,
+                            cacheCategory: .selectiveTests
+                        ),
+                        "TargetC": .test(
+                            source: .remote,
+                            cacheCategory: .selectiveTests
+                        ),
                     ],
-                    cacheItems: [
-                        projectPathOne: [
-                            "TargetB": .test(source: .local),
-                            "TargetC": .test(source: .remote),
-                        ],
-                    ]
-                )
+                ]
             )
             verify(cacheStorage)
                 .store(
@@ -1648,18 +1652,19 @@ final class TestServiceTests: TuistUnitTestCase {
                 cacheCategory: .value(.selectiveTests)
             )
             .called(1)
+        let selectiveTestingCacheItems = await runMetadataStorage.selectiveTestingCacheItems
         XCTAssertEqual(
-            analyticsStorage.selectiveTestAnalytics,
-            SelectiveTestsAnalytics(
-                hashes: [
-                    projectPath: [
-                        "TargetA": "hash-a",
-                    ],
+            selectiveTestingCacheItems,
+            [
+                projectPath: [
+                    "TargetA": .test(
+                        name: "TargetA",
+                        hash: "hash-a",
+                        source: .miss,
+                        cacheCategory: .selectiveTests
+                    ),
                 ],
-                cacheItems: [
-                    projectPath: [:],
-                ]
-            )
+            ]
         )
     }
 
@@ -1775,18 +1780,18 @@ final class TestServiceTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(testedSchemes, ["TestScheme"])
+        let selectiveTestingCacheItems = await runMetadataStorage.selectiveTestingCacheItems
         XCTAssertEqual(
-            analyticsStorage.selectiveTestAnalytics,
-            SelectiveTestsAnalytics(
-                hashes: [
-                    projectPath: [
-                        "TargetA": "hash-a",
-                    ],
+            selectiveTestingCacheItems,
+            [
+                projectPath: [
+                    "TargetA": .test(
+                        name: "TargetA",
+                        hash: "hash-a",
+                        source: .miss
+                    ),
                 ],
-                cacheItems: [
-                    projectPath: [:],
-                ]
-            )
+            ]
         )
     }
 
@@ -1893,7 +1898,7 @@ final class TestServiceTests: TuistUnitTestCase {
         passthroughXcodeBuildArguments: [String] = []
     ) async throws {
         var context = ServiceContext.current ?? ServiceContext.topLevel
-        context.analyticsStorage = analyticsStorage
+        context.runMetadataStorage = runMetadataStorage
         try await ServiceContext.withValue(context) {
             try await subject.run(
                 runId: runId,

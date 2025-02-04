@@ -3,7 +3,7 @@ import Path
 public struct CacheItem: Hashable, Equatable, Codable {
     /// Cache items can either come from a local or a remote cache
     public enum Source: Hashable, Equatable, Codable {
-        case remote, local
+        case remote, local, miss
     }
 
     public let name: String
