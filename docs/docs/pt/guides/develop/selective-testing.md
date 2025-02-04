@@ -9,8 +9,7 @@ description: Use selective testing to run only the tests that have changed since
 > [!IMPORTANT] REQUIREMENTS
 >
 > - A <LocalizedLink href="/guides/develop/projects">Tuist Project</LocalizedLink>
-> - [!IMPORTANT] REMOTE PROJECT REQUIRED
->   This feature requires a <LocalizedLink href="/server/introduction/accounts-and-projects">remote project</LocalizedLink>.
+> - [!IMPORTANT] REMOTE PROJECT REQUIRED> This feature requires a <LocalizedLink href="/server/introduction/accounts-and-projects">remote project</LocalizedLink>.
 
 As your project grows, so does the amount of your tests. For a long time, running all tests on every PR or push to `main` takes tens of seconds. But this solution does not scale to thousands of tests your team might have.
 
