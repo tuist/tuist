@@ -327,7 +327,7 @@ export function guidesSidebar(locale) {
         {
           text: localizedString(
             locale,
-            "sidebars.guides.items.develop.items.projects.text",
+            "sidebars.guides.items.develop.items.generated-projects.text",
           ),
           collapsed: true,
           link: `/${locale}/guides/develop/projects`,
@@ -335,56 +335,56 @@ export function guidesSidebar(locale) {
             {
               text: localizedString(
                 locale,
-                "sidebars.guides.items.develop.items.projects.items.adoption.text",
+                "sidebars.guides.items.develop.items.generated-projects.items.adoption.text",
               ),
               collapsed: true,
               items: [
                 {
                   text: localizedString(
                     locale,
-                    "sidebars.guides.items.develop.items.projects.items.adoption.items.new-project.text",
+                    "sidebars.guides.items.develop.items.generated-projects.items.adoption.items.new-project.text",
                   ),
                   link: `/${locale}/guides/develop/projects/adoption/new-project`,
                 },
                 {
                   text: localizedString(
                     locale,
-                    "sidebars.guides.items.develop.items.projects.items.adoption.items.swift-package.text",
+                    "sidebars.guides.items.develop.items.generated-projects.items.adoption.items.swift-package.text",
                   ),
                   link: `/${locale}/guides/develop/projects/adoption/swift-package`,
                 },
                 {
                   text: localizedString(
                     locale,
-                    "sidebars.guides.items.develop.items.projects.items.adoption.items.migrate.text",
+                    "sidebars.guides.items.develop.items.generated-projects.items.adoption.items.migrate.text",
                   ),
                   collapsed: true,
                   items: [
                     {
                       text: localizedString(
                         locale,
-                        "sidebars.guides.items.develop.items.projects.items.adoption.items.migrate.items.xcode-project.text",
+                        "sidebars.guides.items.develop.items.generated-projects.items.adoption.items.migrate.items.xcode-project.text",
                       ),
                       link: `/${locale}/guides/develop/projects/adoption/migrate/xcode-project`,
                     },
                     {
                       text: localizedString(
                         locale,
-                        "sidebars.guides.items.develop.items.projects.items.adoption.items.migrate.items.swift-package.text",
+                        "sidebars.guides.items.develop.items.generated-projects.items.adoption.items.migrate.items.swift-package.text",
                       ),
                       link: `/${locale}/guides/develop/projects/adoption/migrate/swift-package`,
                     },
                     {
                       text: localizedString(
                         locale,
-                        "sidebars.guides.items.develop.items.projects.items.adoption.items.migrate.items.xcodegen-project.text",
+                        "sidebars.guides.items.develop.items.generated-projects.items.adoption.items.migrate.items.xcodegen-project.text",
                       ),
                       link: `/${locale}/guides/develop/projects/adoption/migrate/xcodegen-project`,
                     },
                     {
                       text: localizedString(
                         locale,
-                        "sidebars.guides.items.develop.items.projects.items.adoption.items.migrate.items.bazel-project.text",
+                        "sidebars.guides.items.develop.items.generated-projects.items.adoption.items.migrate.items.bazel-project.text",
                       ),
                       link: `/${locale}/guides/develop/projects/adoption/migrate/bazel-project`,
                     },
@@ -395,84 +395,84 @@ export function guidesSidebar(locale) {
             {
               text: localizedString(
                 locale,
-                "sidebars.guides.items.develop.items.projects.items.manifests.text",
+                "sidebars.guides.items.develop.items.generated-projects.items.manifests.text",
               ),
               link: `/${locale}/guides/develop/projects/manifests`,
             },
             {
               text: localizedString(
                 locale,
-                "sidebars.guides.items.develop.items.projects.items.directory-structure.text",
+                "sidebars.guides.items.develop.items.generated-projects.items.directory-structure.text",
               ),
               link: `/${locale}/guides/develop/projects/directory-structure`,
             },
             {
               text: localizedString(
                 locale,
-                "sidebars.guides.items.develop.items.projects.items.editing.text",
+                "sidebars.guides.items.develop.items.generated-projects.items.editing.text",
               ),
               link: `/${locale}/guides/develop/projects/editing`,
             },
             {
               text: localizedString(
                 locale,
-                "sidebars.guides.items.develop.items.projects.items.dependencies.text",
+                "sidebars.guides.items.develop.items.generated-projects.items.dependencies.text",
               ),
               link: `/${locale}/guides/develop/projects/dependencies`,
             },
             {
               text: localizedString(
                 locale,
-                "sidebars.guides.items.develop.items.projects.items.code-sharing.text",
+                "sidebars.guides.items.develop.items.generated-projects.items.code-sharing.text",
               ),
               link: `/${locale}/guides/develop/projects/code-sharing`,
             },
             {
               text: localizedString(
                 locale,
-                "sidebars.guides.items.develop.items.projects.items.synthesized-files.text",
+                "sidebars.guides.items.develop.items.generated-projects.items.synthesized-files.text",
               ),
               link: `/${locale}/guides/develop/projects/synthesized-files`,
             },
             {
               text: localizedString(
                 locale,
-                "sidebars.guides.items.develop.items.projects.items.dynamic-configuration.text",
+                "sidebars.guides.items.develop.items.generated-projects.items.dynamic-configuration.text",
               ),
               link: `/${locale}/guides/develop/projects/dynamic-configuration`,
             },
             {
               text: localizedString(
                 locale,
-                "sidebars.guides.items.develop.items.projects.items.templates.text",
+                "sidebars.guides.items.develop.items.generated-projects.items.templates.text",
               ),
               link: `/${locale}/guides/develop/projects/templates`,
             },
             {
               text: localizedString(
                 locale,
-                "sidebars.guides.items.develop.items.projects.items.plugins.text",
+                "sidebars.guides.items.develop.items.generated-projects.items.plugins.text",
               ),
               link: `/${locale}/guides/develop/projects/plugins`,
             },
             {
               text: localizedString(
                 locale,
-                "sidebars.guides.items.develop.items.projects.items.hashing.text",
+                "sidebars.guides.items.develop.items.generated-projects.items.hashing.text",
               ),
               link: `/${locale}/guides/develop/projects/hashing`,
             },
             {
               text: localizedString(
                 locale,
-                "sidebars.guides.items.develop.items.projects.items.inspect.text",
+                "sidebars.guides.items.develop.items.generated-projects.items.inspect.text",
               ),
               collapsed: true,
               items: [
                 {
                   text: localizedString(
                     locale,
-                    "sidebars.guides.items.develop.items.projects.items.inspect.items.implicit-imports.text",
+                    "sidebars.guides.items.develop.items.generated-projects.items.inspect.items.implicit-imports.text",
                   ),
                   link: `/${locale}/guides/develop/projects/inspect/implicit-dependencies`,
                 },
@@ -481,21 +481,21 @@ export function guidesSidebar(locale) {
             {
               text: localizedString(
                 locale,
-                "sidebars.guides.items.develop.items.projects.items.the-cost-of-convenience.text",
+                "sidebars.guides.items.develop.items.generated-projects.items.the-cost-of-convenience.text",
               ),
               link: `/${locale}/guides/develop/projects/cost-of-convenience`,
             },
             {
               text: localizedString(
                 locale,
-                "sidebars.guides.items.develop.items.projects.items.tma-architecture.text",
+                "sidebars.guides.items.develop.items.generated-projects.items.tma-architecture.text",
               ),
               link: `/${locale}/guides/develop/projects/tma-architecture`,
             },
             {
               text: localizedString(
                 locale,
-                "sidebars.guides.items.develop.items.projects.items.best-practices.text",
+                "sidebars.guides.items.develop.items.generated-projects.items.best-practices.text",
               ),
               link: `/${locale}/guides/develop/projects/best-practices`,
             },

@@ -1708,6 +1708,24 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "BruceMcRooster",
+      "name": "Evan",
+      "avatar_url": "https://avatars.githubusercontent.com/u/53529192?v=4",
+      "profile": "http://brucemcrooster.dev",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "FelixLisczyk",
+      "name": "Felix Lisczyk",
+      "avatar_url": "https://avatars.githubusercontent.com/u/5102728?v=4",
+      "profile": "https://www.snipnotes.de",
+      "contributions": [
+        "doc"
+      ]
     }
   ],
   "contributorsPerLine": 7,

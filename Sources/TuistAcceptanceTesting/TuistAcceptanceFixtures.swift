@@ -21,6 +21,8 @@ public enum TuistAcceptanceFixtures {
     case appWithSBTUITestTunnel
     case appWithSpmDependencies
     case appWithSpmModuleAliases
+
+    case appWithSpmXcframeworkDependency
     case appWithSwiftCMark
     case appWithLocalSPMModuleWithRemoteDependencies
     case appWithTestPlan
@@ -144,6 +146,8 @@ public enum TuistAcceptanceFixtures {
             return "app_with_spm_dependencies"
         case .appWithSpmModuleAliases:
             return "app_with_spm_module_aliases"
+        case .appWithSpmXcframeworkDependency:
+            return "app_with_spm_xcframework_dependency"
         case .appWithSwiftCMark:
             return "app_with_swift_cmark"
         case .appWithLocalSPMModuleWithRemoteDependencies:
