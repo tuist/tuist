@@ -8,8 +8,6 @@ import TuistSupport
 public protocol AnalyticsArtifactUploadServicing {
     func uploadResultBundle(
         _ resultBundle: AbsolutePath,
-        targetHashes: [CommandEventGraphTarget: String],
-        graphPath: AbsolutePath,
         commandEventId: Int,
         serverURL: URL
     ) async throws
@@ -66,8 +64,6 @@ public final class AnalyticsArtifactUploadService: AnalyticsArtifactUploadServic
 
     public func uploadResultBundle(
         _ resultBundle: AbsolutePath,
-        targetHashes: [CommandEventGraphTarget: String],
-        graphPath: AbsolutePath,
         commandEventId: Int,
         serverURL: URL
     ) async throws {
@@ -117,17 +113,7 @@ public final class AnalyticsArtifactUploadService: AnalyticsArtifactUploadServic
             serverURL: serverURL
         )
 
-        let modules = targetHashes.map { key, value in
-            ServerModule(
-                hash: value,
-                projectRelativePath:
-                key.project.xcodeProjPath.relative(to: graphPath),
-                name: key.target.name
-            )
-        }
-
         try await completeAnalyticsArtifactsUploadsService.completeAnalyticsArtifactsUploads(
-            modules: modules,
             commandEventId: commandEventId,
             serverURL: serverURL
         )
