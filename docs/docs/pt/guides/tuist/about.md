@@ -41,6 +41,7 @@ We provide insights into your project's dynamics and expert guidance for informe
 **Further reading:** <LocalizedLink href="/server/introduction/why-a-server">Server</LocalizedLink>
 
 ### Break down silos 💜 {#break-down-silos}
+
 Unlike platform-specific ecosystems (e.g., Xcode's contained environment), Tuist offers web-centric experiences and integrates seamlessly with popular tools like Slack, Prometheus, and GitHub, enhancing cross-tool collaboration.
 
 **Further reading:** <LocalizedLink href="/guides/develop/projects">Projects</LocalizedLink>
