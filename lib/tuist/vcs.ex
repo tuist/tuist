@@ -66,6 +66,7 @@ defmodule Tuist.VCS do
         client = get_client_for_provider(provider)
 
         get_repository_full_handle_from_url(repository_url)
+        |> elem(1)
         |> client.get_repository()
 
       {:error, reason} ->
@@ -126,12 +127,19 @@ defmodule Tuist.VCS do
   end
 
   def get_repository_full_handle_from_url(repository_url) do
-    Regex.replace(~r/^git@(.+):/, repository_url, "https://\\1/")
-    |> URI.parse()
-    |> Map.get(:path)
-    |> String.replace_leading("/", "")
-    |> String.replace_trailing("/", "")
-    |> String.replace_trailing(".git", "")
+    full_handle =
+      Regex.replace(~r/^git@(.+):/, repository_url, "https://\\1/")
+      |> URI.parse()
+      |> Map.get(:path)
+      |> String.replace_leading("/", "")
+      |> String.replace_trailing("/", "")
+      |> String.replace_trailing(".git", "")
+
+    if full_handle |> String.split("/") |> Enum.count() == 2 do
+      {:ok, full_handle}
+    else
+      {:error, :invalid_repository_url}
+    end
   end
 
   @doc """
@@ -157,7 +165,7 @@ defmodule Tuist.VCS do
       if is_nil(git_remote_url_origin) do
         nil
       else
-        get_repository_full_handle_from_url(git_remote_url_origin)
+        get_repository_full_handle_from_url(git_remote_url_origin) |> elem(1)
       end
 
     should_post_report =

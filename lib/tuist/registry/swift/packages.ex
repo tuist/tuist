@@ -374,8 +374,9 @@ defmodule Tuist.Registry.Swift.Packages do
   defp extract_url_only_packages(package_manifest) do
     Regex.scan(~r/\.package\(\s*url:\s*"([^"\\]+)"/, package_manifest)
     |> Enum.map(&List.last/1)
+    |> Enum.filter(&valid_repository_url?/1)
     |> Enum.map(&VCS.get_repository_full_handle_from_url/1)
-    |> Enum.filter(&(String.split(&1, "/") |> Enum.count() == 2))
+    |> Enum.map(&elem(&1, 1))
     |> Enum.map(&get_package_scope_and_name_from_repository_full_handle/1)
     |> Enum.map(&%{scope: &1.scope, name: &1.name, by_name_reference: &1.name})
   end
@@ -383,13 +384,22 @@ defmodule Tuist.Registry.Swift.Packages do
   defp extract_named_url_packages(package_manifest) do
     Regex.scan(~r/\.package\(\s*name:\s*"([^"\\]+)"\s*,\s*url:\s*"([^"\\]+)/, package_manifest)
     |> Enum.map(&Enum.slice(&1, -2, 2))
+    |> Enum.filter(&valid_repository_url?(List.last(&1)))
     |> Enum.map(fn [by_name_reference, package_url] ->
       [scope, package_name] =
         VCS.get_repository_full_handle_from_url(package_url)
+        |> elem(1)
         |> String.split("/")
 
       %{scope: scope, name: package_name, by_name_reference: by_name_reference}
     end)
+  end
+
+  defp valid_repository_url?(package_url) do
+    case VCS.get_repository_full_handle_from_url(package_url) do
+      {:ok, _} -> true
+      {:error, _} -> false
+    end
   end
 
   def package_manifest_as_string(%{scope: scope, name: name, version: version}) do
@@ -403,7 +413,9 @@ defmodule Tuist.Registry.Swift.Packages do
       packages =
         Regex.scan(~r/url:\s*"([^"]+)"/, package_manifest)
         |> Enum.map(&List.last/1)
+        |> Enum.filter(&valid_repository_url?/1)
         |> Enum.map(&VCS.get_repository_full_handle_from_url/1)
+        |> Enum.map(&elem(&1, 1))
         |> Enum.map(&get_package_scope_and_name_from_repository_full_handle/1)
 
       package_manifest =

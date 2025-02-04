@@ -1550,7 +1550,7 @@ defmodule Tuist.CommandEventsTest do
           xcode_graph_id: xcode_graph.id
         )
 
-      xcode_target_two =
+      _xcode_target_two =
         XcodeFixtures.xcode_target_fixture(
           name: "Framework2Tests",
           xcode_project_id: xcode_project_two.id

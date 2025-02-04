@@ -27,6 +27,7 @@ defmodule TuistWeb.API.Registry.SwiftController do
       {:ok, :github} ->
         %{scope: scope, name: name} =
           VCS.get_repository_full_handle_from_url(repository_url)
+          |> elem(1)
           |> Packages.get_package_scope_and_name_from_repository_full_handle()
 
         if is_nil(Packages.get_package_by_scope_and_name(%{scope: scope, name: name})) do

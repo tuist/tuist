@@ -582,7 +582,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
           xcode_graph_id: xcode_graph.id
         )
 
-      xcode_target =
+      _xcode_target =
         XcodeFixtures.xcode_target_fixture(name: "AppTests", xcode_project_id: xcode_project.id)
 
       xcode_project_two =
@@ -592,7 +592,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
           xcode_graph_id: xcode_graph.id
         )
 
-      xcode_target_two =
+      _xcode_target_two =
         XcodeFixtures.xcode_target_fixture(
           name: "Framework1Tests",
           xcode_project_id: xcode_project_two.id
@@ -605,7 +605,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
           xcode_graph_id: xcode_graph.id
         )
 
-      xcode_target_three =
+      _xcode_target_three =
         XcodeFixtures.xcode_target_fixture(
           name: "Framework2Tests",
           xcode_project_id: xcode_project_three.id
@@ -696,7 +696,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
           xcode_graph_id: xcode_graph.id
         )
 
-      xcode_target =
+      _xcode_target =
         XcodeFixtures.xcode_target_fixture(name: "AppTests", xcode_project_id: xcode_project.id)
 
       xcode_project_two =
@@ -706,7 +706,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
           xcode_graph_id: xcode_graph.id
         )
 
-      xcode_target_two =
+      _xcode_target_two =
         XcodeFixtures.xcode_target_fixture(
           name: "Framework1Tests",
           xcode_project_id: xcode_project_two.id
@@ -719,7 +719,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
           xcode_graph_id: xcode_graph.id
         )
 
-      xcode_target_three =
+      _xcode_target_three =
         XcodeFixtures.xcode_target_fixture(
           name: "Framework2Tests",
           xcode_project_id: xcode_project_three.id

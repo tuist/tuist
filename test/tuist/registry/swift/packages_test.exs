@@ -1307,6 +1307,8 @@ defmodule Tuist.Registry.Swift.PackagesTest do
                     url: "https://github.com/MaxDesiatov/XMLCoder.git",
                     .upToNextMinor(from: "0.17.1")
                 ),
+                // Invalid commented out package
+                //        .package(name: "ExportDeviceKit", url: "./Packages/ExportDeviceKit", branch: "master"),
             ],
             targets: [
                 .executableTarget(
@@ -1360,6 +1362,8 @@ defmodule Tuist.Registry.Swift.PackagesTest do
                             url: "https://github.com/MaxDesiatov/XMLCoder.git",
                             .upToNextMinor(from: "0.17.1")
                         ),
+                        // Invalid commented out package
+                        //        .package(name: "ExportDeviceKit", url: "./Packages/ExportDeviceKit", branch: "master"),
                     ],
                     targets: [
                         .executableTarget(

@@ -33,6 +33,7 @@ defmodule Tuist.Registry.Swift.Workers.UpdatePackagesWorker do
       content
       |> Jason.decode!()
       |> Enum.map(&VCS.get_repository_full_handle_from_url/1)
+      |> Enum.map(&elem(&1, 1))
       |> Enum.map(&Packages.get_package_scope_and_name_from_repository_full_handle/1)
 
     remove_packages_no_longer_present(packages)
