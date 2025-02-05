@@ -165,6 +165,18 @@
   --noora-spacing-15: 5rem;
   --noora-spacing-16: 6rem;
 
+  /* Borders */
+  --noora-border-medium: 0px 0px 0px 1px oklch(31.8% 0.011 248.2 / 0.08) inset,
+    0px -1px 0px 0px oklch(31.8% 0.011 248.2 / 0.16) inset,
+    0px 8px 6px 0px oklch(31.8% 0.011 248.2 / 0.02),
+    0px 2px 4px 0px oklch(31.8% 0.011 248.2 / 0.04);
+
+  @media (prefers-color-scheme: dark) {
+    --noora-border-medium: 0px 1px 0px 0px oklch(53.1% 0.01 264.5 / 0.3) inset,
+      0px 0px 0px 1px oklch(53.1% 0.01 264.5 / 0.2) inset,
+      0px 2px 4px 0px oklch(0% 0 0 / 0.12), 0px 4px 8px 0px oklch(0% 0 0 / 0.24);
+  }
+
   /* Radius */
   --noora-radius-none: 0rem;
   --noora-radius-xsmall: 0.125rem;
@@ -227,10 +239,8 @@
   --noora-body-medium-font: 0.875rem/1.25rem var(--noora-font-body);
   --noora-body-small-font: 0.75rem/1rem var(--noora-font-body);
   --noora-body-xsmall-font: 0.625rem/0.75rem var(--noora-font-body);
-}
 
-@media screen and (min-width: 768px) {
-  :root {
+  @media screen and (min-width: 768px) {
     --noora-display-xlarge-font: 4.5rem/4.875rem var(--noora-font-heading);
     --noora-display-large-font: 4rem/4.375rem var(--noora-font-heading);
     --noora-display-medium-font: 3.5rem/4rem var(--noora-font-heading);
@@ -238,7 +248,7 @@
   }
 }
 
-/* Dark mode for Storybook */
+/* Dark mode for Storybook only */
 .noora-dark {
   color-scheme: dark;
 }
