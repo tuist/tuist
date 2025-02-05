@@ -23,8 +23,6 @@ defmodule TuistWeb.Noora.Button do
     doc:
       "Determines the overall size of the elements, including padding, font size, and other items"
 
-  attr :disabled, :boolean, default: false, doc: "Determines if the button is disabled"
-
   attr :icon_only, :boolean, default: false, doc: "Determines if the button is icon only"
 
   slot :icon_left, doc: "Icon displayed on the left of an item"
@@ -40,7 +38,6 @@ defmodule TuistWeb.Noora.Button do
       data-variant={@variant}
       data-size={@size}
       data-icon-only={@icon_only}
-      disabled={@disabled}
       {@rest}
     >
       <%= if @icon_left  && !@icon_only do %>
@@ -51,6 +48,46 @@ defmodule TuistWeb.Noora.Button do
         {render_slot(@inner_block)}
       <% end %>
       <%= if @icon_right && !@icon_only do %>
+        {render_slot(@icon_right)}
+      <% end %>
+    </button>
+    """
+  end
+
+  attr :label, :string, required: true, doc: "The label of the button"
+
+  attr :variant, :string,
+    values: @button_variants,
+    default: "primary",
+    doc: "Determines the style"
+
+  attr :size, :string,
+    values: @button_sizes,
+    default: "large",
+    doc:
+      "Determines the overall size of the elements, including padding, font size, and other items"
+
+  attr :underline, :boolean, default: false, doc: "Determines if the button is underlined"
+
+  attr :rest, :global
+
+  slot :icon_left, doc: "Icon displayed on the left of an item"
+  slot :icon_right, doc: "Icon displayed on the right of an item"
+
+  def link_button(assigns) do
+    ~H"""
+    <button
+      class="noora-link-button"
+      data-variant={@variant}
+      data-size={@size}
+      data-underline={@underline}
+      {@rest}
+    >
+      <%= if @icon_left do %>
+        {render_slot(@icon_left)}
+      <% end %>
+      <span>{@label}</span>
+      <%= if @icon_right do %>
         {render_slot(@icon_right)}
       <% end %>
     </button>

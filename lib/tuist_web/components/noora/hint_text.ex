@@ -16,7 +16,7 @@ defmodule TuistWeb.Noora.HintText do
     <div class="noora-hint-text" data-variant={@variant}>
       <Icon.alert_circle />
       <span>
-        <%= @label %>
+        {@label}
       </span>
     </div>
     """
