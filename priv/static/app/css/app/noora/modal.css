@@ -1,0 +1,214 @@
+.noora-modal {
+  * {
+    box-sizing: border-box;
+  }
+
+  --noora-modal-icon-destructive-background: light-dark(
+    var(--noora-red-50),
+    var(--noora-alpha-red)
+  );
+  --noora-modal-icon-destructive-label: light-dark(
+    var(--noora-red-600),
+    var(--noora-red-500)
+  );
+  --noora-modal-icon-warning-background: light-dark(
+    var(--noora-orange-50),
+    var(--noora-alpha-orange)
+  );
+  --noora-modal-icon-warning-label: light-dark(
+    var(--noora-orange-600),
+    var(--noora-orange-500)
+  );
+  --noora-modal-icon-success-background: light-dark(
+    var(--noora-green-50),
+    var(--noora-alpha-green)
+  );
+  --noora-modal-icon-success-label: light-dark(
+    var(--noora-green-700),
+    var(--noora-green-500)
+  );
+  --noora-modal-icon-info-background: light-dark(
+    var(--noora-azure-50),
+    var(--noora-alpha-azure)
+  );
+  --noora-modal-icon-info-label: light-dark(
+    var(--noora-azure-700),
+    var(--noora-azure-400)
+  );
+}
+
+.noora-modal [data-part="backdrop"] {
+  position: fixed;
+  top: 0;
+  left: 0;
+  background: var(--noora-surface-overlay);
+  backdrop-filter: blur(2.5px);
+  width: 100%;
+  height: 100%;
+  /* This is needed because Storybook sets its own z-index */
+  z-index: 100;
+}
+
+.noora-modal [data-part="positioner"] {
+  position: fixed;
+  display: flex;
+  top: 50%;
+  left: 50%;
+  transform: translateY(-50%) translateX(-50%);
+  /* This is needed because Storybook sets its own z-index */
+  z-index: 101;
+}
+
+/* Content */
+.noora-modal [data-part="content"] {
+  border-radius: var(--noora-radius-2xlarge);
+  overflow: hidden;
+  background: var(--noora-surface-background-primary);
+}
+
+/* Header */
+.noora-modal__header {
+  display: flex;
+  width: 100%;
+  padding: var(--noora-spacing-6) var(--noora-spacing-6) var(--noora-spacing-6)
+    var(--noora-spacing-7);
+  align-items: center;
+}
+
+.noora-modal__header[data-size="small"] {
+  gap: var(--noora-spacing-5);
+}
+
+.noora-modal__header[data-size="large"] {
+  gap: var(--noora-spacing-6);
+}
+
+.noora-modal__header-content {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  flex-grow: 1;
+  gap: var(--noora-spacing-2);
+}
+
+.noora-modal__header-row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--noora-spacing-6);
+}
+
+.noora-modal__header-icon {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+
+  color: var(--noora-surface-label-primary);
+  & svg {
+    width: var(--noora-icon-size-large);
+    height: var(--noora-icon-size-large);
+  }
+}
+
+.noora-modal__header[data-size="large"] .noora-modal__header-icon {
+  border-radius: var(--noora-radius-large);
+  padding: 10px;
+}
+
+.noora-modal__header[data-type="icon"] .noora-modal__header-icon {
+  background: var(--noora-surface-background-primary);
+  box-shadow:
+    0px 1px 1px 0px
+      light-dark(
+        oklch(20.9% 0.009 264.4 / 0.05),
+        oklch(20.9% 0.009 264.4 / 0.3)
+      ),
+    0px 0px 0px 1px
+      light-dark(
+        oklch(31.8% 0.011 248.2 / 0.08),
+        oklch(53.1% 0.01 264.5 / 0.45)
+      ),
+    0px 1px 1px 0px
+      light-dark(oklch(31.8% 0.011 248.2 / 0.1), oklch(0% 0 0 / 0.3));
+}
+
+.noora-modal__header[data-type="error"] .noora-modal__header-icon {
+  color: var(--noora-modal-icon-destructive-label);
+}
+.noora-modal__header[data-size="large"][data-type="error"]
+  .noora-modal__header-icon {
+  background: var(--noora-modal-icon-destructive-background);
+}
+
+.noora-modal__header[data-type="success"] .noora-modal__header-icon {
+  color: var(--noora-modal-icon-success-label);
+}
+.noora-modal__header[data-size="large"][data-type="success"]
+  .noora-modal__header-icon {
+  background: var(--noora-modal-icon-success-background);
+}
+
+.noora-modal__header[data-type="warning"] .noora-modal__header-icon {
+  color: var(--noora-modal-icon-warning-label);
+}
+.noora-modal__header[data-size="large"][data-type="warning"]
+  .noora-modal__header-icon {
+  background: var(--noora-modal-icon-warning-background);
+}
+
+.noora-modal__header[data-type="info"] .noora-modal__header-icon {
+  color: var(--noora-modal-icon-info-label);
+}
+.noora-modal__header[data-size="large"][data-type="info"]
+  .noora-modal__header-icon {
+  background: var(--noora-modal-icon-info-background);
+}
+
+.noora-modal [data-part="title"] {
+  color: var(--noora-surface-label-primary);
+  font: var(--noora-body-medium-font);
+  font-weight: var(--noora-font-weight-medium);
+}
+
+.noora-modal [data-part="description"] {
+  color: var(--noora-surface-label-secondary);
+  font: var(--noora-body-small-font);
+}
+
+.noora-modal [data-part="close-trigger"] {
+  color: var(--noora-surface-label-secondary);
+  width: var(--noora-icon-size-large);
+  height: var(--noora-icon-size-large);
+  & svg {
+    width: 100%;
+    height: 100%;
+  }
+}
+
+/* Inner Content */
+.noora-modal__content {
+  padding: var(--noora-spacing-6) var(--noora-spacing-7) var(--noora-spacing-6)
+    var(--noora-spacing-7);
+  font: var(--noora-body-medium-font);
+}
+
+/* Footer */
+.noora-modal__footer {
+  display: flex;
+  justify-content: space-between;
+  padding: var(--noora-spacing-6) var(--noora-spacing-7) var(--noora-spacing-6)
+    var(--noora-spacing-7);
+}
+
+.noora-modal__footer__actions {
+  display: flex;
+  gap: var(--noora-spacing-5);
+}
+
+.noora-modal__footer[data-type="stretch"] {
+  & div {
+    flex-grow: 1;
+    & * {
+      width: 100%;
+    }
+  }
+}

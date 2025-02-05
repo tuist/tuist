@@ -120,6 +120,20 @@
   --noora-neutral-dark-1100: oklch(24.8% 0.01 268.3);
   --noora-neutral-dark-1200: oklch(20.8% 0.009 264.4);
 
+  --noora-neutral-gray-50: oklch(35.94% 0.0111 264.43 / 0.5);
+  --noora-neutral-gray-24: oklch(31.82% 0.0113 248.18 / 0.24);
+  --noora-neutral-gray-16: oklch(40.07% 0.0093 260.72 / 0.16);
+
+  --noora-alpha-red: oklch(58.7% 0.23 30.7 / 0.16);
+  --noora-alpha-orange: oklch(71.9% 0.185 48.7 / 0.16);
+  --noora-alpha-yellow: oklch(84.8% 0.174 86.1 / 0.16);
+  --noora-alpha-green: oklch(64% 0.175 146.7 / 0.16);
+  --noora-alpha-azure: oklch(57% 0.127 238.5 / 0.16);
+  --noora-alpha-blue: oklch(63% 0.182 259.5 / 0.16);
+  --noora-alpha-purple: oklch(53.2% 0.276 286.9 / 0.16);
+  --noora-alpha-pink: oklch(57.4% 0.218 7.8 / 0.16);
+  --noora-alpha-black: oklch(0% 0 0 / 0.5);
+
   /* Semantic colors */
   --noora-surface-background-primary: light-dark(
     var(--noora-neutral-light-50),
@@ -144,6 +158,14 @@
   --noora-surface-label-disabled: light-dark(
     var(--noora-neutral-light-600),
     var(--noora-neutral-dark-300)
+  );
+  --noora-surface-overlay: light-dark(
+    var(--noora-neutral-gray-24),
+    var(--noora-neutral-gray-16)
+  );
+  --noora-surface-border-primary: light-dark(
+    var(--noora-neutral-light-500),
+    var(--noora-neutral-dark-800)
   );
 
   /* Spacing */

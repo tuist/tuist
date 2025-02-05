@@ -4,6 +4,7 @@ defmodule TuistWeb.Noora.Banner do
 
   alias TuistWeb.Noora.Icon
   alias Phoenix.LiveView.JS
+  import TuistWeb.Noora.DismissIcon
 
   attr :id, :string, required: true
 
@@ -32,9 +33,9 @@ defmodule TuistWeb.Noora.Banner do
       <span class="noora-banner__title">{@title}</span>
       <span :if={@description} class="noora-banner__dot">•</span>
       <span :if={@description} class="noora_banner__description">{@description}</span>
-      <button :if={@dismissible} class="noora_banner__dismiss" phx-click={JS.hide(to: "##{@id}")}>
-        <Icon.close />
-      </button>
+      <div :if={@dismissible} class="noora_banner__dismiss">
+        <.dismiss_icon phx-click={JS.hide(to: "##{@id}")} />
+      </div>
     </div>
     """
   end

@@ -1,0 +1,19 @@
+.noora-label {
+  display: inline-flex;
+  gap: var(--noora-spacing-1);
+
+  & label {
+    font: var(--noora-body-medium-font);
+    font-weight: var(--noora-font-weight-medium);
+    color: var(--noora-surface-label-primary);
+  }
+
+  & .noora-label__required {
+    color: var(--noora-surface-label-destructive);
+  }
+
+  & .noora-label__sublabel {
+    font: var(--noora-body-medium-font);
+    color: var(--noora-surface-label-secondary);
+  }
+}

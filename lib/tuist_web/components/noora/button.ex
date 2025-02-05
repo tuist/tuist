@@ -29,7 +29,7 @@ defmodule TuistWeb.Noora.Button do
   slot :icon_right, doc: "Icon displayed on the right of an item"
   slot :inner_block, required: false, doc: "Inner block that renders HEEx content"
 
-  attr :rest, :global
+  attr :rest, :global, include: ~w(phx-click)
 
   def button(assigns) do
     ~H"""

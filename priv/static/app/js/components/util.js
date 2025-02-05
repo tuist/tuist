@@ -158,7 +158,12 @@ export const getOption = (el, name, validOptions) => {
  */
 export const getBooleanOption = (el, name) => {
   const kebabName = name.replace(/([a-z])([A-Z])/g, "$1-$2").toLowerCase();
-  return el.dataset[kebabName] === "true" || el.dataset[kebabName] === "";
+  return (
+    el.dataset[name] === "true" ||
+    el.dataset[name] === "" ||
+    el.dataset[kebabName] === "true" ||
+    el.dataset[kebabName] === ""
+  );
 };
 
 /**

@@ -142,12 +142,12 @@
 
 .noora-dropdown [data-part="trigger"]:disabled {
   --background-gradient-start: light-dark(
-    rgba(179, 186, 193, 0),
-    rgba(255, 255, 255, 0.08)
+    oklch(78.6% 0.013 248 / 0),
+    oklch(100% 0 0 / 0.08)
   );
   --background-gradient-end: light-dark(
-    rgba(179, 186, 193, 0.13),
-    rgba(255, 255, 255, 0)
+    oklch(78.6% 0.013 248 / 0.13),
+    oklch(100% 0 0 / 0)
   );
 
   background: linear-gradient(

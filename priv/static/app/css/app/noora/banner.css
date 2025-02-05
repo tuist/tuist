@@ -97,6 +97,7 @@
 
 .noora_banner__dismiss {
   position: absolute;
+  display: flex;
   right: var(--noora-spacing-5);
   top: 50%;
   transform: translateY(-50%);
@@ -104,6 +105,7 @@
   border: none;
   padding: 0;
   cursor: pointer;
+  justify-content: center;
   color: var(--banner-label-secondary);
   & svg {
     width: var(--noora-icon-size-medium);

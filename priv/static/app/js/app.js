@@ -24,6 +24,7 @@ import topbar from "./vendor/topbar.js";
 import "./components/Chart.js";
 import "./components/Stack.js";
 import NooraDropdown from "./components/Dropdown.js";
+import NooraModal from "./components/Modal.js";
 import NooraTooltip from "./components/Tooltip.js";
 
 let csrfToken = document
@@ -74,6 +75,7 @@ Hooks.Chart = {
   },
 };
 Hooks.NooraDropdown = NooraDropdown;
+Hooks.NooraModal = NooraModal;
 Hooks.NooraTooltip = NooraTooltip;
 
 let liveSocket = new LiveSocket("/live", Socket, {

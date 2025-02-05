@@ -16,14 +16,6 @@ defmodule TuistWeb.Noora.Dropdown do
 
   attr :disabled, :boolean, default: nil, doc: "Whether the dropdown is disabled"
 
-  attr :loop_focus, :boolean, default: nil, doc: "Whether to loop the keyboard navigation"
-
-  attr :close_on_select, :boolean,
-    default: nil,
-    doc: "Whether to close the menu when an option is selected"
-
-  attr :typeahead, :boolean, default: nil, doc: "Whether to enable typeahead search"
-
   attr :on_open_change, :string, default: nil, doc: "Event handler for when the dropdown opens"
 
   attr :on_highlight_change, :string,
@@ -57,9 +49,9 @@ defmodule TuistWeb.Noora.Dropdown do
       id={@id}
       class="noora-dropdown"
       phx-hook="NooraDropdown"
-      data-loop-focus={@loop_focus}
-      data-close-on-select={@close_on_select}
-      data-typeahead={@typeahead}
+      data-loop-focus
+      data-close-on-select
+      data-typeahead
       data-on-open-change={@on_open_change}
       data-on-highlight-change={@on_highlight_change}
       data-on-select={@on_select}

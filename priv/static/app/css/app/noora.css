@@ -3,6 +3,9 @@
 @import "./noora/badge.css";
 @import "./noora/banner.css";
 @import "./noora/button.css";
+@import "./noora/dismiss-icon.css";
 @import "./noora/dropdown.css";
 @import "./noora/hint-text.css";
+@import "./noora/label.css";
+@import "./noora/modal.css";
 @import "./noora/tooltip.css";
