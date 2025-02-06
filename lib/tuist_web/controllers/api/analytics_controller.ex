@@ -63,7 +63,7 @@ defmodule TuistWeb.API.AnalyticsController do
              description: "The client id of the command."
            },
            duration: %Schema{
-             type: :number,
+             type: :integer,
              description: "The duration of the command."
            },
            tuist_version: %Schema{
