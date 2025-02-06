@@ -113,7 +113,7 @@ defmodule Tuist.MixProject do
       {:let_me, "~> 1.2"},
       {:ua_parser, "~> 1.8"},
       {:money, "~> 1.12"},
-      {:image, "~> 0.55.0"},
+      {:image, "~> 0.56.0"},
       {:boundary, "~> 0.10", runtime: false},
       {:makeup, "~> 1.2", override: true},
       {:phoenix_storybook, "~> 0.8.1"},
