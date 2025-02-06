@@ -1,6 +1,6 @@
 ---
-title: Projects
-titleTemplate: :title · Develop · Guides · Tuist
+title: Проекты
+titleTemplate: :title · Разработка · Руководства · Tuist
 description: Learn about Tuist's DSL for defining Xcode projects.
 ---
 
