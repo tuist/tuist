@@ -253,6 +253,7 @@
     var(--noora-red-300)
   );
 
+  --noora-heading-large-font: 1.25rem/1.625rem var(--noora-font-heading);
   --noora-display-xlarge-font: 2.5rem/3rem var(--noora-font-heading);
   --noora-display-large-font: 2.375rem/2.875rem var(--noora-font-heading);
   --noora-display-medium-font: 2.25rem/2.625rem var(--noora-font-heading);
