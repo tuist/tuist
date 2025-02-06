@@ -1,6 +1,7 @@
 .noora-dismiss-icon {
   display: inline-flex;
-  box-sizing: border-box;
+  justify-content: center;
+  align-items: center;
   background: transparent;
   outline: 0;
   border: 0;
@@ -25,6 +26,10 @@
 
   &:hover {
     cursor: pointer;
+    color: var(--noora-surface-label-primary);
+  }
+
+  &:active {
     box-shadow: 0 0 0 1px var(--noora-surface-border-primary);
   }
 }
