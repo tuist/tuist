@@ -19,14 +19,7 @@ description: Узнайте о лучших практиках работы с T
 - **Несоответствия:** Если в графе сборки имеются конфигурационные несоответствия, система сборки может в итоге использовать неправильную конфигурацию для некоторых тергитов.
 - **Сложность:** Проекты могут иметь большой список локальных конфигураций и удаленных сред, которые сложно анализировать и поддерживать.
 
-Конфигурации сборки изначально предназначены для представления различных настроек сборки, и проектам редко требуется больше, чем просто `Debug` и `Release`. Необходимость моделировать различные среды может быть удовлетворена с помощью схем:
+Конфигурации сборки изначально предназначены для представления различных настроек сборки, и проектам редко требуется больше, чем просто `Debug` и `Release`. The need to model different environments can be achieved differently:
 
-- Установите переменную окружения схемы: `REMOTE_ENV=production`.
-- Добавьте новый ключ в `Info.plist` пакета, который будет использовать информацию о среде (например, пакет приложения): `REMOTE_ENV=${REMOTE_ENV}`.
-- Вы можете прочитать значение во время исполнения:
-
-  ```swift
-  let remoteEnvString = Bundle.main.object(forInfoDictionaryKey: "REMOTE_ENV") as? String
-  ```
-
-Благодаря вышеописанному, вы можете сохранить список конфигураций простым, избегая упомянутых недостатков, и предоставить разработчикам возможность настраивать такие вещи, как удалённая среда, с помощью схем.
+- **In Debug builds:** You can include all the configurations that should be accessible in development in the app (e.g. endpoints), and switch them at runtime. The switch can happen either using scheme launch environment variables, or with a UI within the app.
+- **In Release builds:** In case of release, you can only include the configuration that the release build is bound to, and not include the runtime logic for switching configurations by using compiler directives.
