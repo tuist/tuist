@@ -191,7 +191,12 @@
                 <tr>
                   <td style="vertical-align: top; width: 30%; padding-right: 1rem;">
                     <img
-                      src={Tuist.Environment.app_url(path: @issue.interview["interviewee_avatar_url"], route_type: :marketing)}
+                      src={
+                        Tuist.Environment.app_url(
+                          path: @issue.interview["interviewee_avatar_url"],
+                          route_type: :marketing
+                        )
+                      }
                       alt={@issue.interview["interviewee"]}
                       style="width: 100%; max-width: 100%; object-fit: cover; border-radius: 1rem;"
                     />

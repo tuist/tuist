@@ -78,7 +78,7 @@
         href={~p"/newsletter/atom.xml"}
       />
     <% end %>
-    
+
 <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -88,6 +88,9 @@
     />
 
     <TuistWeb.LayoutComponents.head_analytics_scripts {assigns} />
+    <!-- hCaptcha -->
+    <script nonce={get_csp_nonce()} src="https://js.hcaptcha.com/1/api.js" async defer>
+    </script>
     <!-- Chat box -->
     <script nonce={get_csp_nonce()}>
       (function(d,t) {

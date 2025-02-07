@@ -193,7 +193,7 @@ msgstr ""
 msgid "About us"
 msgstr ""
 
-#: lib/tuist_web/marketing/layouts/marketing.html.heex:139
+#: lib/tuist_web/marketing/layouts/marketing.html.heex:142
 #, elixir-autogen, elixir-format
 msgid "Accept"
 msgstr ""
@@ -1634,7 +1634,7 @@ msgstr ""
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:126
 #: lib/tuist_web/marketing/controllers/marketing_html/newsletter.html.heex:11
-#: lib/tuist_web/marketing/controllers/marketing_html/newsletter.html.heex:46
+#: lib/tuist_web/marketing/controllers/marketing_html/newsletter.html.heex:48
 #, elixir-autogen, elixir-format
 msgid "Subscribe"
 msgstr ""
@@ -1761,7 +1761,7 @@ msgstr ""
 msgid "The project you are looking for doesn't exist or has been moved."
 msgstr ""
 
-#: lib/tuist_web/marketing/layouts/marketing.html.heex:126
+#: lib/tuist_web/marketing/layouts/marketing.html.heex:129
 #, elixir-autogen, elixir-format
 msgid "This site uses cookies. By continuing to use our site, you agree to %{use_of_cookies}."
 msgstr ""
@@ -2087,7 +2087,7 @@ msgstr ""
 msgid "We prioritize developer happiness because we know it's closely tied to creating better apps."
 msgstr ""
 
-#: lib/tuist_web/marketing/layouts/marketing.html.heex:122
+#: lib/tuist_web/marketing/layouts/marketing.html.heex:125
 #, elixir-autogen, elixir-format
 msgid "We use cookies"
 msgstr ""
@@ -2285,7 +2285,7 @@ msgstr ""
 msgid "test runs"
 msgstr ""
 
-#: lib/tuist_web/marketing/layouts/marketing.html.heex:128
+#: lib/tuist_web/marketing/layouts/marketing.html.heex:131
 #, elixir-autogen, elixir-format
 msgid "use of cookies"
 msgstr ""
