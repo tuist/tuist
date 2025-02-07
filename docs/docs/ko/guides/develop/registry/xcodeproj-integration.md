@@ -1,7 +1,7 @@
 ---
 title: Generated project with the XcodeProj-based package integration
 titleTemplate: :title · Registry · Develop · Guides · Tuist
-description: Learn how to use the Tuist Registry in a generated Xcode project with the XcodeProj-based package integration.
+description: XcodeProj 기반의 패키지 통합을 사용하는 Xcode 프로젝트에서 Tuist Registry를 어떻게 사용하는지 배웁니다.
 ---
 
 # Generated project with the XcodeProj-based package integration {#generated-project-with-xcodeproj-based-integration}
