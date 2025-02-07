@@ -3,7 +3,7 @@ hero:
   image: /marketing/images/newsletter/issues/3/artwork.jpeg
   alt: "Fons Mans UI design of a keys widget"
   subtitle: "Featured work: [Fons Mans](https://www.linkedin.com/posts/fonsmans_keys-ios-widget-activity-7225456532883148801-1eGf/)"
-title: "The power of extensibility in Swift apps"
+title: "Optimizing for joy"
 body: |
   We, as software crafters, often like to quantify things: downloads, sign-ups, average response time, app bundle size. Metrics give us confidence in certain aspects of our work, but they come at a cost—we often overlook other equally important factors in crafting great apps.
 
