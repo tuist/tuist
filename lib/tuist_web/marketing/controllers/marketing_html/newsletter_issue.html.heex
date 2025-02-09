@@ -190,13 +190,17 @@
               <table style="width: 100%;">
                 <tr>
                   <td style="vertical-align: top; width: 30%; padding-right: 1rem;">
+                    <% interviewee_avatar_src =
+                      if(String.starts_with?(@issue.interview["interviewee_avatar_url"], "/"),
+                        do:
+                          Tuist.Environment.app_url(
+                            path: @issue.interview["interviewee_avatar_url"],
+                            route_type: :marketing
+                          ),
+                        else: @issue.interview["interviewee_avatar_url"]
+                      ) %>
                     <img
-                      src={
-                        Tuist.Environment.app_url(
-                          path: @issue.interview["interviewee_avatar_url"],
-                          route_type: :marketing
-                        )
-                      }
+                      src={interviewee_avatar_src}
                       alt={@issue.interview["interviewee"]}
                       style="width: 100%; max-width: 100%; object-fit: cover; border-radius: 1rem;"
                     />
