@@ -1,12 +1,12 @@
 ---
-title: Проекты
-titleTemplate: :title · Разработка · Руководства · Tuist
-description: Узнайте о Tuist DSL для описания Xcode проектов.
+title: Projects
+titleTemplate: :title · Develop · Guides · Tuist
+description: Learn about Tuist's DSL for defining Xcode projects.
 ---
 
-# Сгенерированные проекты {#generated-projects}
+# Projects {#projects}
 
-Tuist проекты являются жизнеспособной альтернативой, которые помогает преодолеть проблемы разработки при сохранении сложности и издержек на приемлемом уровне. It considers Xcode projects as a fundamental element, ensuring resilience against future Xcode updates, and leverages Xcode project generation to provide teams with a modularization-focused declarative API. Tuist uses the project declaration to simplify the complexities of modularization\*\*, optimize workflows like build or test across various environments, and facilitate and democratize the evolution of Xcode projects.
+Tuist Projects is a viable alternative that helps to overcome these challenges while keeping complexity and costs at an acceptable level. It considers Xcode projects as a fundamental element, ensuring resilience against future Xcode updates, and leverages Xcode project generation to provide teams with a modularization-focused declarative API. Tuist uses the project declaration to simplify the complexities of modularization\*\*, optimize workflows like build or test across various environments, and facilitate and democratize the evolution of Xcode projects.
 
 ## How does it work? {#how-does-it-work}
 
