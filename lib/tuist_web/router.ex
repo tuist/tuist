@@ -20,17 +20,18 @@ defmodule TuistWeb.Router do
       img_src:
         "'self' data: https://github.com https://*.githubusercontent.com https://*.gravatar.com",
       media_src: "'self' https://*.mastodon.social https://hachyderm.io https://fosstodon.org",
-      style_src: "'self' 'unsafe-inline' https://fonts.googleapis.com https://*.chatwoot.com",
+      style_src:
+        "'self' 'unsafe-inline' https://fonts.googleapis.com https://*.chatwoot.com https://cdn.jsdelivr.net",
       # 'unsafe-inline' is needed for Chatwoot, which doesn't support nonce:
       # https://github.com/chatwoot/chatwoot/issues/8892
       style_src_attr: "'unsafe-inline'",
       style_src_elem:
-        "'self' 'unsafe-inline' https://fonts.googleapis.com https://*.chatwoot.com",
+        "'self' 'unsafe-inline' https://fonts.googleapis.com https://*.chatwoot.com https://cdn.jsdelivr.net",
       # wasm-unsafe-eval is necssary for the Shiki code highlighting
       script_src: "'self' 'nonce' 'wasm-unsafe-eval'",
       script_src_elem:
         "'self' 'nonce' https://cdn.jsdelivr.net https://esm.sh https://*.chatwoot.com https://*.getkoala.com https://*.posthog.com",
-      font_src: "'self' https://fonts.gstatic.com data:",
+      font_src: "'self' https://fonts.gstatic.com data: https://fonts.scalar.com",
       frame_src:
         "'self' https://app.chatwoot.com https://*.tuist.dev https://newassets.hcaptcha.com",
       connect_src:

@@ -88,11 +88,17 @@
     />
 
     <TuistWeb.LayoutComponents.head_analytics_scripts {assigns} />
-    <!-- hCaptcha -->
+    <!-- CookieConsent -->
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/gh/orestbida/cookieconsent@3.1.0/dist/cookieconsent.css"
+    />
+    
+<!-- hCaptcha -->
     <script nonce={get_csp_nonce()} src="https://js.hcaptcha.com/1/api.js" async defer>
     </script>
     <!-- Chat box -->
-    <script nonce={get_csp_nonce()}>
+    <script nonce={get_csp_nonce()} type="text/plain" data-category="functionality">
       (function(d,t) {
         var BASE_URL="https://app.chatwoot.com";
         var g=d.createElement(t),s=d.getElementsByTagName(t)[0];
@@ -114,34 +120,5 @@
     <TuistWeb.Marketing.MarketingLayoutComponents.header current_path={@current_path} {assigns} />
     {@inner_content}
     <TuistWeb.Marketing.MarketingLayoutComponents.footer />
-
-    <div class="marketing__component__cookies" id="cookies-banner" phx-hook="CookiesBanner">
-      <div class="marketing__component__cookies__logo">
-        🍪
-      </div>
-      <div class="marketing__component__cookies__content">
-        <div class="marketing__component__cookies__content__body" src="">
-          <p class="marketing__component__cookies__content__body__title">
-            {gettext("We use cookies")}
-          </p>
-          <p class="marketing__component__cookies__content__body__description">
-            {raw(
-              gettext(
-                "This site uses cookies. By continuing to use our site, you agree to %{use_of_cookies}.",
-                use_of_cookies: "<a href=\"#{~p"/cookies"}\">#{gettext("use of cookies")}</a>"
-              )
-            )}
-          </p>
-        </div>
-
-        <TuistWeb.Marketing.MarketingLayoutComponents.primary_button
-          size="medium"
-          class="marketing__component__cookies__content__button"
-          phx-click={JS.dispatch("accept-cookies")}
-        >
-          {gettext("Accept")}
-        </TuistWeb.Marketing.MarketingLayoutComponents.primary_button>
-      </div>
-    </div>
   </body>
 </html>
