@@ -8,8 +8,7 @@ description: Optimize your Swift package resolution times by leveraging the Tuis
 
 > [!IMPORTANT] REQUIREMENTS
 >
-> - [!IMPORTANT] REMOTE PROJECT REQUIRED
->   This feature requires a <LocalizedLink href="/server/introduction/accounts-and-projects">remote project</LocalizedLink>.
+> - A <LocalizedLink href="/server/introduction/accounts-and-projects">Tuist account and project</LocalizedLink>
 
 As the number of dependencies grows, so does the time to resolve them. While other package managers like [CocoaPods](https://cocoapods.org/) or [npm](https://www.npmjs.com/) are centralized, Swift Package Manager is not. Because of that, SwiftPM needs to resolve dependencies by doing a deep clone of each repository, which can be time-consuming. To address this, Tuist provides an implementation of the [Package Registry](https://github.com/swiftlang/swift-package-manager/blob/main/Documentation/PackageRegistry/PackageRegistryUsage.md), so you can download only the commit you _actually need_. The packages in the registry are based on the [Swift Package Index](https://swiftpackageindex.com/) – if you can find a package there, the package is also available in the Tuist Registry. Additionally, the packages are distributed across the globe using an edge storage for minimum latency when resolving them.
 
@@ -22,12 +21,12 @@ tuist registry setup # Creates a `registries.json` file with the default registr
 tuist registry login # Logs you into the registry.
 ```
 
-Now you can access the registry! To resolve dependencies from the registry instead of from source control, follow the section below based on your setup.
+Now you can access the registry! To resolve dependencies from the registry instead of from source control, continue reading based on your project setup:
 
-- Xcode projects {#xcode-projects}
-- Tuist project with the Xcode default integration {#tuist-project-with-xcode-default-integration}
-- Tuist project with the XcodeProj-based integration {#tuist-project-with-xcodeproj-based-integration}
-- Swift package {#swift-package}
+- <LocalizedLink href="/guides/develop/registry/xcode-project">Xcode project</LocalizedLink>
+- <LocalizedLink href="/guides/develop/registry/generated-project">Generated project with the Xcode package integration</LocalizedLink>
+- <LocalizedLink href="/guides/develop/registry/xcodeproj-integration">Generated project with the XcodeProj-based package integration</LocalizedLink>
+- <LocalizedLink href="/guides/develop/registry/swift-package">Swift package</LocalizedLink>
 
 To set up the registry on the CI, follow this guide: <LocalizedLink href="/guides/develop/registry/ci">Continuous integration</LocalizedLink>.
 
