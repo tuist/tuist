@@ -1,7 +1,7 @@
 ---
 title: About Tuist
 titleTemplate: :title · Guides · Tuist
-description: Расширьте свои Apple инструменты для улучшения масштабирования приложений.
+description: Extend your Apple native tooling to better apps at scale.
 ---
 
 <script setup>
@@ -10,7 +10,7 @@ import VPFeature from "vitepress/dist/client/theme-default/components/VPFeature.
 
 # About Tuist {#about-tuist}
 
-В мире разработки приложений, особенно для платформ Apple, компании часто сталкиваются с **препятствиями к продуктивности**. Это может быть медленное время компиляции, ненадежные тесты и сложные рабочие процессы автоматизации, которые истощают ресурсы. Обычно компании решают эти проблемы, создавая платформенные команды. Эти специалисты поддерживают работоспособность и целостность кодовой базы проекта, позволяя другим разработчикам сосредоточиться на продуктовых задачах. Однако такой подход может быть дорогостоящим и рискованным, поскольку уход ключевых членов команды может серьезно повлиять на производительность.
+In the world of app development, particularly for platforms like Apple's, organizations often encounter **productivity roadblocks.** These can include sluggish compilation times, unreliable tests, and intricate automation workflows that drain resources. Traditionally, companies address these issues by forming dedicated platform teams. These specialists maintain codebase health and integrity, freeing other developers to focus on feature creation. However, this approach can be expensive and risky, as the departure of key team members can severely impact productivity.
 
 ## What {#what}
 
