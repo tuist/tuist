@@ -14,3 +14,12 @@ extension ServiceContext {
         }
     }
 }
+
+#if DEBUG
+extension ServiceContext {
+    public func recordedUI() -> String! {
+        (self.ui as? NooraMock)?.description as? String
+    }
+}
+#endif
+

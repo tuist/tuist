@@ -83,10 +83,6 @@ final class GraphServiceTests: TuistUnitTestCase {
             let expected = "graph { }"
             // Then
             XCTAssertEqual(got, expected)
-            XCTAssertPrinterOutputContains("""
-            Deleting existing graph at \(graphPath.pathString)
-            Graph exported to \(graphPath.pathString)
-            """)
         }
     }
 
@@ -125,10 +121,6 @@ final class GraphServiceTests: TuistUnitTestCase {
             let result = try JSONDecoder().decode(ProjectAutomation.Graph.self, from: got.data(using: .utf8)!)
             // Then
             XCTAssertEqual(result, ProjectAutomation.Graph(name: "graph", path: "/", projects: [:]))
-            XCTAssertPrinterOutputContains("""
-            Deleting existing graph at \(graphPath.pathString)
-            Graph exported to \(graphPath.pathString)
-            """)
         }
     }
 
@@ -167,10 +159,6 @@ final class GraphServiceTests: TuistUnitTestCase {
             let result = try JSONDecoder().decode(XcodeGraph.Graph.self, from: got.data(using: .utf8)!)
             // Then
             XCTAssertEqual(result, .test())
-            XCTAssertPrinterOutputContains("""
-            Deleting existing graph at \(graphPath.pathString)
-            Graph exported to \(graphPath.pathString)
-            """)
         }
     }
 

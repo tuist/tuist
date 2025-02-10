@@ -1,6 +1,7 @@
 import Foundation
 import ServiceContextModule
 import XCTest
+import Noora
 @testable import TuistSupport
 @testable import TuistSupportTesting
 
@@ -27,7 +28,17 @@ final class ErrorHandlerTests: TuistUnitTestCase {
         try await ServiceContext.withTestingDependencies {
             let error = TestError(type: .abort)
             subject.fatal(error: error)
-            XCTAssertPrinterErrorContains(error.description)
+            
+            let got = ServiceContext.current?.recordedUI()
+            
+            let expected = """
+            stderr: ▌ ✖ Error 
+            stderr: ▌ Error 
+            stderr: ▌
+            stderr: ▌ Sorry this didn’t work. Here’s what to try next: 
+            stderr: ▌  ▸ Consider creating an issue using the following link: https://github.com/tuist/tuist/issues/new/choose
+            """
+            XCTAssertEqual(got, expected)
         }
     }
 

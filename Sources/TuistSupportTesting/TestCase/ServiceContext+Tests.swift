@@ -1,5 +1,6 @@
 import Logging
 import ServiceContextModule
+import Noora
 
 private enum TestingLogHandlerServiceContextKey: ServiceContextKey {
     typealias Value = TestingLogHandler
@@ -30,6 +31,7 @@ extension ServiceContext {
         context.logger = Logger(label: label, factory: { _ in
             return testingLogHandler
         })
+        context.ui = NooraMock()
         try await ServiceContext.withValue(context) {
             try await closure()
         }
