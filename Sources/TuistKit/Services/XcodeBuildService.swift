@@ -92,7 +92,10 @@ struct XcodeBuildService {
             throw XcodeBuildServiceError.schemeNotPassed
         }
         let graph = try await xcodeGraphMapper.map(at: path)
+<<<<<<< HEAD
         try await ServiceContext.current?.runMetadataStorage?.update(graph: graph)
+=======
+>>>>>>> bc6fbbe38 (Add support for selective testing for Xcode non-generated projects (#7287))
         let graphTraverser = GraphTraverser(graph: graph)
         guard let scheme = graphTraverser.schemes().first(where: {
             $0.name == schemeName
