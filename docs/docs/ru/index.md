@@ -1,6 +1,6 @@
 ---
-title: Что такое Tuist?
-description: Расширьте свои Apple инструменты для улучшения масштабирования приложений.
+title: What is Tuist?
+description: Extend your Apple native tooling to better apps at scale.
 ---
 
 # Tuist
