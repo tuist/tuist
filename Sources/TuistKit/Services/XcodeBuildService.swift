@@ -161,6 +161,11 @@ struct XcodeBuildService {
             return
         }
 
+        ServiceContext.current?.logger?
+            .info(
+                "The following targets have not changed since the last successful run and will be skipped: \(Set(skipTestTargets.compactMap(\.class)).joined(separator: ", "))"
+            )
+
         let skipTestingArguments = skipTestTargets.map {
             "-skip-testing:\($0.target)"
         }
