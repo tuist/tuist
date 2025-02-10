@@ -1,6 +1,6 @@
 ---
-title: Tuistとは？
-description: Apple のネイティブツールを拡張し、スケールするアプリをより良くする。
+title: What is Tuist?
+description: Extend your Apple native tooling to better apps at scale.
 ---
 
 # Tuist
