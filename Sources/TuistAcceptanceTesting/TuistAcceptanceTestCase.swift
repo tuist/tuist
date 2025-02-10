@@ -198,6 +198,15 @@ open class TuistAcceptanceTestCase: XCTestCase {
             .first(where: { $0.extension == "xcworkspace" })
     }
 
+    public func run(_ command: XcodeBuildCommand.Type, _ arguments: String...) async throws {
+        try await run(command, arguments)
+    }
+
+    public func run(_ command: XcodeBuildCommand.Type, _ arguments: [String] = []) async throws {
+        let parsedCommand = try command.parse(arguments)
+        try await parsedCommand.run()
+    }
+
     public func run(_ command: (some AsyncParsableCommand).Type, _ arguments: String...) async throws {
         try await run(command, Array(arguments))
     }

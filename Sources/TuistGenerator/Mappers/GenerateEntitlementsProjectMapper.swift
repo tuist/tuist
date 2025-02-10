@@ -71,7 +71,7 @@ public final class GenerateEntitlementsProjectMapper: ProjectMapping {
         entitlements: Entitlements
     ) -> [String: Any]? {
         switch entitlements {
-        case let .dictionary(content):
+        case let .dictionary(content, _):
             return content.mapValues { $0.value }
         default:
             return nil

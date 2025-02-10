@@ -305,6 +305,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "FileSystem"),
                     .external(name: "SwiftToolsSupport"),
                     .external(name: "XcodeGraph"),
+                    .external(name: "XcodeGraphMapper"),
                     .external(name: "ArgumentParser"),
                     .external(name: "GraphViz"),
                     .external(name: "AnyCodable"),

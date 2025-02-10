@@ -96,4 +96,8 @@ public protocol XcodeBuildControlling {
         configuration: String,
         derivedDataPath: AbsolutePath?
     ) async throws -> [String: XcodeBuildSettings]
+
+    /// Runs `xcodebuild` with passed `arguments` and formats the output
+    /// - arguments: Arguments to pass to `xcodebuild`
+    func run(arguments: [String]) async throws
 }

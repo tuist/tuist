@@ -88,9 +88,9 @@ public final class GenerateInfoPlistProjectMapper: ProjectMapping {
         target: Target
     ) -> [String: Any]? {
         switch infoPlist {
-        case let .dictionary(content):
+        case let .dictionary(content, _):
             return content.mapValues { $0.value }
-        case let .extendingDefault(extended):
+        case let .extendingDefault(extended, _):
             if let content = infoPlistContentProvider.content(
                 project: project,
                 target: target,
