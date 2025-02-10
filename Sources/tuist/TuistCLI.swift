@@ -41,6 +41,7 @@ private enum TuistCLI {
         }
 
         let logFilePath = try await touchLogFile()
+        try await LogsCleaner().clean(logsDirectory: logFilePath.parentDirectory)
         let loggerHandler = try Logger.defaultLoggerHandler(config: loggingConfig, logFilePath: logFilePath)
 
         /// This is the old initialization method and will eventually go away.
