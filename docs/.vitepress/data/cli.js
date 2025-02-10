@@ -151,7 +151,20 @@ export async function loadData(locale) {
     text: localizedString(locale, "sidebars.cli.text"),
     items: [
       {
+        text: "CLI",
+        items: [
+          {
+            text: localizedString(
+              locale,
+              "sidebars.cli.items.cli.items.logging.text",
+            ),
+            link: `/${locale}/cli/logging`,
+          },
+        ],
+      },
+      {
         text: localizedString(locale, "sidebars.cli.items.commands.text"),
+        collapsed: true,
         items: subcommands
           .map((command) => {
             return {

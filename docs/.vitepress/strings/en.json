@@ -82,6 +82,13 @@
     "cli": {
       "text": "CLI",
       "items": {
+        "cli": {
+          "items": {
+            "logging": {
+              "text": "Logging"
+            }
+          }
+        },
         "commands": {
           "text": "Commands"
         }
