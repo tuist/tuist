@@ -74,11 +74,12 @@ let project = Project(
 
 :::
 
-> メンテナンスの負荷を最小限に抑えるため、利用可能なテンプレートのリストはあえて最小限にしています。 フレームワークなど、アプリケーションを表すものではないプロジェクトを作成する場合。 `tuist init` を出発点として使用し、生成されたプロジェクトを必要に応じて変更できます。
+> [!NOTE]
+> We intentionally keep the list of available templates short to minimize maintenance overhead. If you want to create a project that doesn't represent an application, for example a framework, you can use `tuist init` as a starting point and then modify the generated project to suit your needs.
 
-## プロジェクトを手動で作成する {#manually-creating-a-project}
+## Manually creating a project {#manually-creating-a-project}
 
-あるいは、手動でプロジェクトを作成することも可能です。 Tuist とその概念をすでに知っている場合にのみ、これを行うことをお勧めします。 最初に行う必要があるのは、プロジェクト構造に追加のディレクトリを作成することです。
+Alternatively, you can create the project manually. We recommend doing this only if you're already familiar with Tuist and its concepts. The first thing that you'll need to do is to create additional directories for the project structure:
 
 ```bash
 mkdir MyFramework
