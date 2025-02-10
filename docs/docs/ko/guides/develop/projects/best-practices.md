@@ -19,7 +19,7 @@ description: Tuist와 Xcode 프로젝트를 다룰 때의 모범 사례들을 �
 - **불일치:** 그래프 전반에 걸쳐 설정이 일관되지 않으면, 빌드 시스템이 일부 타겟에 대해 잘못된 설정을 사용할 수 있습니다.
 - **복잡성:** 프로젝트의 로컬 설정과 원격 환경 설정들이 많아질수록 이해하고 관리하기 어려워질 수 있습니다.
 
-다양한 환경을 모델링해야 할 때는 스킴(Scheme)을 사용하여 해결할 수 있습니다. The need to model different environments can be achieved differently:
+다양한 환경을 모델링해야 할 때는 스킴(Scheme)을 사용하여 해결할 수 있습니다. 다양한 환경을 모델링해야 할 때는 스킴(Scheme)을 사용하여 해결할 수 있습니다.
 
 - **In Debug builds:** You can include all the configurations that should be accessible in development in the app (e.g. endpoints), and switch them at runtime. The switch can happen either using scheme launch environment variables, or with a UI within the app.
 - **In Release builds:** In case of release, you can only include the configuration that the release build is bound to, and not include the runtime logic for switching configurations by using compiler directives.
