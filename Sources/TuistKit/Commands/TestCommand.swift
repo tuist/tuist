@@ -7,7 +7,7 @@ import TuistServer
 import TuistSupport
 
 /// Command that tests a target from the project in the current directory.
-public struct TestCommand: AsyncParsableCommand {
+public struct TestCommand: AsyncParsableCommand, LogDiagnosableCommand {
     public init() {}
 
     public static var generatorFactory: GeneratorFactorying = GeneratorFactory()
@@ -19,6 +19,8 @@ public struct TestCommand: AsyncParsableCommand {
             abstract: "Tests a project"
         )
     }
+
+    var logFilePathDisplayStrategy: LogFilePathDisplayStrategy = .always
 
     @Argument(
         help: "The scheme to be tested. By default it tests all the testable targets of the project in the current directory.",

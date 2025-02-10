@@ -54,7 +54,7 @@ private enum TuistCLI {
         }
     }
 
-    fileprivate static func touchLogFile() async throws -> Path.AbsolutePath {
+    private static func touchLogFile() async throws -> Path.AbsolutePath {
         let fileSystem = FileSystem()
         let logFilePath = Environment.shared.stateDirectory.appending(components: ["logs", "\(UUID().uuidString).log"])
         if !(try await fileSystem.exists(logFilePath.parentDirectory)) {

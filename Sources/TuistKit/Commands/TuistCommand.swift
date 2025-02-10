@@ -97,6 +97,8 @@ public struct TuistCommand: AsyncParsableCommand {
         let executeCommand: () async throws -> Void
         let processedArguments = Array(processArguments(arguments)?.dropFirst() ?? [])
         var parsedError: Error?
+        var logFilePathDisplayStrategy: LogFilePathDisplayStrategy = .onError
+
         do {
             if processedArguments.first == ScaffoldCommand.configuration.commandName {
                 try await ScaffoldCommand.preprocess(processedArguments)
@@ -106,6 +108,8 @@ public struct TuistCommand: AsyncParsableCommand {
             }
             let command = try parseAsRoot(processedArguments)
             executeCommand = {
+                logFilePathDisplayStrategy = (command as? LogDiagnosableCommand)?.logFilePathDisplayStrategy ?? .onError
+
                 let trackableCommand = TrackableCommand(
                     command: command,
                     commandArguments: processedArguments
@@ -121,22 +125,22 @@ public struct TuistCommand: AsyncParsableCommand {
             }
         }
 
-        let outputCompletion = {
+        let outputCompletion = { (_: Bool) in
             WarningController.shared.flush()
             outputLogfilePath(logFilePath)
         }
 
         do {
             try await executeCommand()
-            outputCompletion()
+            outputCompletion(logFilePathDisplayStrategy == .always)
         } catch let error as FatalError {
             errorHandler.fatal(error: error)
-            outputCompletion()
+            outputCompletion(true)
             _exit(exitCode(for: error).rawValue)
         } catch let error as ClientError where error.underlyingError is ServerClientAuthenticationError {
             // swiftlint:disable:next force_cast
             ServiceContext.current?.logger?.error("\((error.underlyingError as! ServerClientAuthenticationError).description)")
-            outputCompletion()
+            outputCompletion(true)
             _exit(exitCode(for: error).rawValue)
         } catch {
             if let parsedError {
@@ -148,7 +152,7 @@ public struct TuistCommand: AsyncParsableCommand {
                 exit(withError: error)
             } else {
                 errorHandler.fatal(error: UnhandledError(error: error))
-                outputCompletion()
+                outputCompletion(true)
                 _exit(exitCode(for: error).rawValue)
             }
         }
