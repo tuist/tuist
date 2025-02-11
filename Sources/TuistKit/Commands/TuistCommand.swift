@@ -108,7 +108,7 @@ public struct TuistCommand: AsyncParsableCommand {
             }
             let command = try parseAsRoot(processedArguments)
             executeCommand = {
-                logFilePathDisplayStrategy = (command as? LogDiagnosableCommand)?.logFilePathDisplayStrategy ?? .onError
+                logFilePathDisplayStrategy = (command as? LogDiagnosableCommand)?.logFilePathDisplayStrategy ?? logFilePathDisplayStrategy
 
                 let trackableCommand = TrackableCommand(
                     command: command,
