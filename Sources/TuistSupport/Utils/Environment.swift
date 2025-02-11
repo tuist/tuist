@@ -135,6 +135,7 @@ public final class Environment: Environmenting {
         {
             baseCacheDirectory = cacheDirectory
         } else {
+            // swiftlint:disable:next force_try
             let homeDirectory = try! Path.AbsolutePath(validating: NSHomeDirectory())
             baseCacheDirectory = homeDirectory.appending(components: ".cache")
         }
@@ -149,6 +150,7 @@ public final class Environment: Environmenting {
         {
             baseStateDirectory = stateDirectory
         } else {
+            // swiftlint:disable:next force_try
             let homeDirectory = try! Path.AbsolutePath(validating: NSHomeDirectory())
             baseStateDirectory = homeDirectory.appending(components: [".local", "state"])
         }
