@@ -57,7 +57,7 @@ struct XcodeBuildServiceTests {
             // Given
             let project: Project = .test(
                 schemes: [
-                    .test(name: "DifferentScheme")
+                    .test(name: "DifferentScheme"),
                 ]
             )
             given(xcodeGraphMapper)
@@ -65,7 +65,7 @@ struct XcodeBuildServiceTests {
                 .willReturn(
                     .test(
                         projects: [
-                            temporaryPath: project
+                            temporaryPath: project,
                         ]
                     )
                 )
@@ -123,7 +123,7 @@ struct XcodeBuildServiceTests {
                                     ),
                                 ]
                             )
-                        )
+                        ),
                     ]
                 )
 
@@ -132,7 +132,7 @@ struct XcodeBuildServiceTests {
                     .willReturn(
                         .test(
                             projects: [
-                                temporaryPath: project
+                                temporaryPath: project,
                             ]
                         )
                     )
@@ -224,7 +224,7 @@ struct XcodeBuildServiceTests {
                                 source: .remote,
                                 cacheCategory: .selectiveTests
                             ),
-                        ]
+                        ],
                     ]
                 )
             }
@@ -266,7 +266,7 @@ struct XcodeBuildServiceTests {
                                     ),
                                 ]
                             )
-                        )
+                        ),
                     ]
                 )
 
@@ -275,7 +275,7 @@ struct XcodeBuildServiceTests {
                     .willReturn(
                         .test(
                             projects: [
-                                temporaryPath: project
+                                temporaryPath: project,
                             ]
                         )
                     )
@@ -308,7 +308,7 @@ struct XcodeBuildServiceTests {
                     )
                     .willReturn(
                         [
-                            try TestIdentifier(string: "AUnitTests")
+                            try TestIdentifier(string: "AUnitTests"),
                         ]
                     )
 
@@ -321,7 +321,7 @@ struct XcodeBuildServiceTests {
                                 hash: "hash-a-unit-tests",
                                 source: .local,
                                 cacheCategory: .selectiveTests
-                            ): temporaryPath
+                            ): temporaryPath,
                         ]
                     )
 
@@ -351,7 +351,7 @@ struct XcodeBuildServiceTests {
                             [
                                 CacheStorableItem(name: "BUnitTests", hash: "hash-b-unit-tests"): [
                                     AbsolutePath
-                                ]()
+                                ](),
                             ]
                         ),
                         cacheCategory: .value(.selectiveTests)
@@ -372,7 +372,7 @@ struct XcodeBuildServiceTests {
                                 source: .miss,
                                 cacheCategory: .selectiveTests
                             ),
-                        ]
+                        ],
                     ]
                 )
             }
@@ -397,7 +397,8 @@ struct XcodeBuildServiceTests {
                             testPlans: [
                                 TestPlan(
                                     path: temporaryPath.appending(
-                                        component: "MyTestPlan.xctestplan"),
+                                        component: "MyTestPlan.xctestplan"
+                                    ),
                                     testTargets: [
                                         TestableTarget(
                                             target: TargetReference(
@@ -413,10 +414,10 @@ struct XcodeBuildServiceTests {
                                         ),
                                     ],
                                     isDefault: false
-                                )
+                                ),
                             ]
                         )
-                    )
+                    ),
                 ]
             )
 
@@ -425,7 +426,7 @@ struct XcodeBuildServiceTests {
                 .willReturn(
                     .test(
                         projects: [
-                            temporaryPath: project
+                            temporaryPath: project,
                         ]
                     )
                 )
@@ -458,7 +459,7 @@ struct XcodeBuildServiceTests {
                 )
                 .willReturn(
                     [
-                        try TestIdentifier(string: "AUnitTests")
+                        try TestIdentifier(string: "AUnitTests"),
                     ]
                 )
 
@@ -471,7 +472,7 @@ struct XcodeBuildServiceTests {
                             hash: "hash-a-unit-tests",
                             source: .local,
                             cacheCategory: .selectiveTests
-                        ): temporaryPath
+                        ): temporaryPath,
                     ]
                 )
 
