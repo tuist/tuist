@@ -1,6 +1,149 @@
 defmodule TuistWeb.Noora.TextInput do
   @moduledoc false
   use Phoenix.Component
+  import TuistWeb.Noora.Utils
+  import TuistWeb.Noora.Icon
+  import TuistWeb.Noora.ShortcutKey
+  import TuistWeb.Noora.Tooltip
+  import TuistWeb.Noora.Label
+  alias Phoenix.LiveView.JS
+
+  attr :id, :string, required: true
+
+  attr :type, :string,
+    values: ~w(basic email card_number search password),
+    default: "basic",
+    doc: "Type of the input"
+
+  attr :label, :string, default: nil, doc: "Label to be rendered in the input."
+  attr :sublabel, :string, default: nil, doc: "Sublabel to be rendered in the input."
+
+  attr :suffix_hint, :string,
+    default: nil,
+    doc:
+      "Hint text to show as tooltip at the end of the input. Takes precedence over the suffix set by `type`."
+
+  attr :placeholder, :string, default: nil, doc: "Placeholder text to be rendered in the input."
+  attr :required, :boolean, default: false, doc: "Whether the input is required."
+
+  attr :rest, :global
+
+  slot :prefix,
+    required: false,
+    doc: "Prefix to be rendered in the input. Only shown when type is `basic`."
+
+  slot :suffix,
+    required: false,
+    doc: "Suffix to be rendered in the input. Takes precedence over `suffix_hint`."
+
+  def text_input(assigns) do
+    ~H"""
+    <div class="noora-text-input-group">
+      <.label :if={@label} label={@label} sublabel={@sublabel} required={@required} />
+      <div class="noora-text-input" data-type={@type}>
+        <span
+          :if={@type != "basic" or has_slot_content?(@prefix, assigns)}
+          class="noora-text-input__prefix"
+        >
+          <.prefix type={@type} prefix={@prefix} />
+        </span>
+        <input
+          id={@id}
+          required={@required}
+          type={type(@type)}
+          placeholder={if @placeholder, do: @placeholder, else: placeholder(@type)}
+          {@rest}
+        />
+        {# Suffix hint tooltip #}
+        <div
+          :if={not is_nil(@suffix_hint) and !has_slot_content?(@suffix, assigns)}
+          class="noora-text-input__suffix noora-text-input__suffix-hint"
+        >
+          <.tooltip id={"#{@id}-hint"} title={@suffix_hint}>
+            <:trigger :let={attrs}>
+              <span {attrs}><.alert_circle /></span>
+            </:trigger>
+          </.tooltip>
+        </div>
+        {# Type-based suffix #}
+        <div
+          :if={
+            @type in ~w(card_number search password) and is_nil(@suffix_hint) and
+              !has_slot_content?(@suffix, assigns)
+          }
+          class="noora-text-input__suffix"
+          data-type={@type}
+        >
+          <.type_suffix type={@type} data-input-id={@id} />
+        </div>
+        {# Custom suffix #}
+        <span :if={has_slot_content?(@suffix, assigns)} class="noora-text-input__suffix">
+          {render_slot(@suffix)}
+        </span>
+      </div>
+    </div>
+    """
+  end
+
+  defp type("card_number"), do: "tel"
+  defp type("search"), do: "text"
+  defp type(type), do: type || "text"
+
+  defp placeholder("password"), do: "• • • • • • • • • •"
+  defp placeholder(_), do: nil
+
+  defp prefix(%{type: "basic", prefix: prefix} = assigns) do
+    ~H"""
+    {render_slot(prefix)}
+    """
+  end
+
+  defp prefix(%{type: "email", prefix: prefix} = assigns) do
+    ~H"""
+    <.mail />
+    """
+  end
+
+  defp prefix(%{type: "card_number", prefix: prefix} = assigns) do
+    ~H"""
+    <.credit_card />
+    """
+  end
+
+  defp prefix(%{type: "search", prefix: prefix} = assigns) do
+    ~H"""
+    <.search />
+    """
+  end
+
+  defp prefix(%{type: "password", prefix: prefix} = assigns) do
+    ~H"""
+    <.lock_password />
+    """
+  end
+
+  defp type_suffix(%{type: "card_number"} = assigns) do
+    ~H"""
+    <.custom_input_credit_card />
+    """
+  end
+
+  defp type_suffix(%{type: "password", "data-input-id": id} = assigns) do
+    ~H"""
+    <button phx-click={JS.toggle_attribute({"type", "password", "text"}, to: "##{id}")}>
+      <span class="noora-text-input__password-toggle-text"><.eye /></span>
+      <span class="noora-text-input__password-toggle-password"><.eye_off /></span>
+    </button>
+    """
+  end
+
+  defp type_suffix(assigns) do
+    ~H"""
+    <.shortcut_key size="small">
+      ⌘K
+    </.shortcut_key>
+    """
+  end
 
   attr :id, :string, required: true
 

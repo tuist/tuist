@@ -1,3 +1,136 @@
+.noora-text-input-group {
+  display: flex;
+  flex-direction: column;
+  align-self: stretch;
+  gap: var(--noora-spacing-2);
+}
+
+.noora-text-input {
+  display: flex;
+  align-items: center;
+  align-self: stretch;
+  padding: var(--noora-spacing-3) var(--noora-spacing-4);
+  gap: var(--noora-spacing-4);
+  box-shadow: var(--noora-light-border-default);
+  border-radius: var(--noora-radius-medium);
+  background: var(--noora-surface-background-primary);
+
+  &:has(> input:disabled) {
+    color: var(--noora-surface-label-disabled);
+  }
+
+  &:not(:has(> input:disabled)):hover {
+    background: var(--noora-surface-background-secondary);
+  }
+
+  &:has(> input:focus) {
+    box-shadow: var(--noora-light-border-focus);
+  }
+
+  & input {
+    border: none;
+    background: none;
+    outline: none;
+    flex-grow: 1;
+
+    font: var(--noora-body-medium-font);
+
+    &:not(:disabled) {
+      color: var(--noora-surface-label-primary);
+    }
+
+    &:not(:disabled)::placeholder {
+      color: var(--noora-surface-label-secondary);
+    }
+  }
+
+  & .noora-text-input__prefix,
+  & .noora-text-input__suffix {
+    display: flex;
+  }
+
+  & .noora-text-input__prefix {
+    width: var(--noora-icon-size-large);
+    height: var(--noora-icon-size-large);
+
+    & svg {
+      width: 100%;
+      height: 100%;
+    }
+  }
+
+  &:not(:has(> input:disabled)) .noora-text-input__prefix {
+    color: var(--noora-surface-label-primary);
+  }
+
+  & .noora-text-input__suffix {
+    color: var(--noora-surface-label-secondary);
+
+    & button {
+      outline: none;
+      background: none;
+      padding: 0;
+      border: none;
+      cursor: pointer;
+
+      color: var(--noora-surface-label-secondary);
+
+      &:hover {
+        color: var(--noora-surface-label-primary);
+      }
+    }
+  }
+
+  & .noora-text-input__suffix:not([data-type="card_number"]) {
+    height: var(--noora-icon-size-large);
+
+    & svg {
+      width: var(--noora-icon-size-large);
+      height: var(--noora-icon-size-large);
+    }
+  }
+
+  & .noora-text-input__suffix[data-type="card_number"] {
+    width: 24px;
+    height: 18px;
+    fill: var(--noora-neutral-light-600);
+    box-shadow: 0px -2px 0px 0px oklch(100% 0 0 / 0.16) inset;
+    filter: drop-shadow(0px 2px 2px oklch(20.9% 0.009 264.4 / 0.04));
+  }
+
+  &[data-type="password"]:has(> input[type="text"]) {
+    .noora-text-input__password-toggle-text {
+      display: none;
+    }
+
+    .noora-text-input__password-toggle-password {
+      display: block;
+    }
+  }
+
+  &[data-type="password"]:has(> input[type="password"]) {
+    .noora-text-input__password-toggle-text {
+      display: block;
+    }
+
+    .noora-text-input__password-toggle-password {
+      display: none;
+    }
+  }
+
+  & .noora-text-input__suffix-hint {
+    position: relative;
+
+    & [data-part="trigger"] {
+      cursor: help;
+    }
+
+    & [data-part="content"] {
+      position: absolute;
+    }
+  }
+}
+
 .noora-digit-input {
   padding: var(--noora-spacing-6);
 
