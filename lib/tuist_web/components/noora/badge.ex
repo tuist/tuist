@@ -2,6 +2,7 @@ defmodule TuistWeb.Noora.Badge do
   @moduledoc false
   use Phoenix.Component
 
+  import TuistWeb.Noora.Icon
   import TuistWeb.Noora.Utils
 
   attr :style, :string,
@@ -45,7 +46,8 @@ defmodule TuistWeb.Noora.Badge do
           <%= if has_slot_content?(@icon, assigns) do %>
             {render_slot(@icon)}
           <% else %>
-            <.dot />
+            <.small_dot :if={@size == "small"} />
+            <.large_dot :if={@size == "large"} />
           <% end %>
         </div>
       <% end %>
@@ -54,10 +56,67 @@ defmodule TuistWeb.Noora.Badge do
     """
   end
 
-  defp dot(assigns) do
+  attr :type, :string,
+    values: ~w(icon dot),
+    default: "icon",
+    doc: "Whether to render the prefix as a dot, or a status-specific icon"
+
+  attr :status, :string,
+    values: ~w(success error warning disabled),
+    required: true,
+    doc: "The status of the badge"
+
+  attr :label, :string, required: true, doc: "The label of the badge"
+  attr :rest, :global
+
+  def status_badge(assigns) do
     ~H"""
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 12" fill="currentColor">
-      <rect x="4" y="4" width="4" height="4" rx="1" />
+    <span class="noora-status-badge" data-status={@status} {@rest}>
+      <span data-part="icon">
+        <.status_icon :if={@type == "icon"} status={@status} />
+        <.large_dot :if={@type == "dot"} />
+      </span>
+      {@label}
+    </span>
+    """
+  end
+
+  def status_icon(%{status: "success"} = assigns) do
+    ~H"""
+    <.circle_check />
+    """
+  end
+
+  def status_icon(%{status: "error"} = assigns) do
+    ~H"""
+    <.alert_circle />
+    """
+  end
+
+  def status_icon(%{status: "warning"} = assigns) do
+    ~H"""
+    <.alert_triangle />
+    """
+  end
+
+  def status_icon(%{status: "disabled"} = assigns) do
+    ~H"""
+    <.cancel />
+    """
+  end
+
+  defp small_dot(assigns) do
+    ~H"""
+    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12" fill="none">
+      <rect x="4" y="4" width="4" height="4" rx="1" fill="#FDFDFD" />
+    </svg>
+    """
+  end
+
+  defp large_dot(assigns) do
+    ~H"""
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <rect x="5" y="5" width="6" height="6" rx="1.33333" fill="currentColor" />
     </svg>
     """
   end

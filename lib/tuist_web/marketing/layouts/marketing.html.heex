@@ -78,7 +78,7 @@
         href={~p"/newsletter/atom.xml"}
       />
     <% end %>
-
+    
 <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -86,16 +86,19 @@
       href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap"
       rel="stylesheet"
     />
-
-    <!-- Analytics -->
-    <TuistWeb.LayoutComponents.head_analytics_scripts {assigns} :if={Tuist.Environment.analytics_enabled?()}/>
-
-    <!-- CookieConsent -->
+    
+<!-- Analytics -->
+    <TuistWeb.LayoutComponents.head_analytics_scripts
+      :if={Tuist.Environment.analytics_enabled?()}
+      {assigns}
+    />
+    
+<!-- CookieConsent -->
     <link
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/gh/orestbida/cookieconsent@3.1.0/dist/cookieconsent.css"
     />
-
+    
 <!-- hCaptcha -->
     <script nonce={get_csp_nonce()} src="https://js.hcaptcha.com/1/api.js" async defer>
     </script>
