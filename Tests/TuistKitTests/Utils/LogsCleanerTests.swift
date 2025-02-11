@@ -27,8 +27,7 @@ struct LogCleanerTests {
 
             // Then
             let got = try await fileSystem.glob(directory: temporaryDirectory, include: ["*"]).collect()
-            #expect(got.count == 1)
-            #expect(got.first == recentLogPath)
+            #expect(got == [recentLogPath])
         }
     }
 }
