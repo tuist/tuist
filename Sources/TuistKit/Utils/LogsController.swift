@@ -4,7 +4,7 @@ import Path
 import TuistSupport
 
 public struct LogsController {
-    let fileSystem: FileSystem
+    private let fileSystem: FileSystem
 
     public init(fileSystem: FileSystem = FileSystem()) {
         self.fileSystem = fileSystem
