@@ -8,7 +8,7 @@ import {
   serverSidebar,
   navBar,
 } from "./bars.mjs";
-import { loadData as loadCLIData } from "./data/cli";
+import { cliSidebar } from "./data/cli";
 import { localizedString } from "./i18n.mjs";
 
 async function themeConfig(locale) {
@@ -16,7 +16,7 @@ async function themeConfig(locale) {
   sidebar[`/${locale}/contributors`] = contributorsSidebar(locale);
   sidebar[`/${locale}/guides/`] = guidesSidebar(locale);
   sidebar[`/${locale}/server/`] = serverSidebar(locale);
-  sidebar[`/${locale}/cli/`] = await loadCLIData(locale);
+  sidebar[`/${locale}/cli/`] = await cliSidebar(locale);
   sidebar[`/${locale}/references/`] = await referencesSidebar(locale);
   sidebar[`/${locale}/`] = guidesSidebar(locale);
   return {

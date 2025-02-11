@@ -65,6 +65,7 @@ public struct TuistCommand: AsyncParsableCommand {
     }
 
     public static func main(
+        logFilePath: AbsolutePath,
         _ arguments: [String]? = nil,
         parseAsRoot: ((_ arguments: [String]?) throws -> ParsableCommand) = Self.parseAsRoot
     ) async throws {
@@ -96,6 +97,8 @@ public struct TuistCommand: AsyncParsableCommand {
         let executeCommand: () async throws -> Void
         let processedArguments = Array(processArguments(arguments)?.dropFirst() ?? [])
         var parsedError: Error?
+        var logFilePathDisplayStrategy: LogFilePathDisplayStrategy = .onError
+
         do {
             if processedArguments.first == ScaffoldCommand.configuration.commandName {
                 try await ScaffoldCommand.preprocess(processedArguments)
@@ -105,6 +108,9 @@ public struct TuistCommand: AsyncParsableCommand {
             }
             let command = try parseAsRoot(processedArguments)
             executeCommand = {
+                logFilePathDisplayStrategy = (command as? LogConfigurableCommand)?
+                    .logFilePathDisplayStrategy ?? logFilePathDisplayStrategy
+
                 let trackableCommand = TrackableCommand(
                     command: command,
                     commandArguments: processedArguments
@@ -121,30 +127,42 @@ public struct TuistCommand: AsyncParsableCommand {
         }
 
         do {
-            defer { WarningController.shared.flush() }
             try await executeCommand()
+            outputCompletion(logFilePath: logFilePath, shouldOutputLogFilePath: logFilePathDisplayStrategy == .always)
         } catch let error as FatalError {
-            WarningController.shared.flush()
             errorHandler.fatal(error: error)
+            self.outputCompletion(logFilePath: logFilePath, shouldOutputLogFilePath: true)
             _exit(exitCode(for: error).rawValue)
         } catch let error as ClientError where error.underlyingError is ServerClientAuthenticationError {
-            WarningController.shared.flush()
             // swiftlint:disable:next force_cast
             ServiceContext.current?.logger?.error("\((error.underlyingError as! ServerClientAuthenticationError).description)")
+            outputCompletion(logFilePath: logFilePath, shouldOutputLogFilePath: true)
             _exit(exitCode(for: error).rawValue)
         } catch {
-            WarningController.shared.flush()
             if let parsedError {
                 handleParseError(parsedError)
             }
+
             // Exit cleanly
             if exitCode(for: error).rawValue == 0 {
                 exit(withError: error)
             } else {
                 errorHandler.fatal(error: UnhandledError(error: error))
+                outputCompletion(logFilePath: logFilePath, shouldOutputLogFilePath: true)
                 _exit(exitCode(for: error).rawValue)
             }
         }
+    }
+
+    private static func outputCompletion(logFilePath: AbsolutePath, shouldOutputLogFilePath: Bool) {
+        WarningController.shared.flush()
+        if shouldOutputLogFilePath {
+            outputLogFilePath(logFilePath)
+        }
+    }
+
+    private static func outputLogFilePath(_ logFilePath: AbsolutePath) {
+        ServiceContext.current?.logger?.info("\nLogs are available at \(logFilePath.pathString)")
     }
 
     private static func executeTask(with processedArguments: [String]) async throws {

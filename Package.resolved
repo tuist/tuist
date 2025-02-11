@@ -1,5 +1,5 @@
 {
-  "originHash" : "1e4d907dfd7f7c760087efd4410e7861f779556f8a1990ea6836b33ba13a4f54",
+  "originHash" : "6325b6a4a73e22fb29731011bc3458c5507f0ac03322e2261472256f61c2f448",
   "pins" : [
     {
       "identity" : "aexml",
@@ -236,6 +236,15 @@
       }
     },
     {
+      "identity" : "swift-log-file",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/crspybits/swift-log-file",
+      "state" : {
+        "revision" : "aa94b38bf88c7d9cbc87ceafcdffadaffbc2bffa",
+        "version" : "0.1.0"
+      }
+    },
+    {
       "identity" : "swift-log-oslog",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/chrisaljoudi/swift-log-oslog.git",
@@ -323,6 +332,15 @@
       "state" : {
         "revision" : "d5a29fcc952f29ac70537a07d2a7181b052aa870",
         "version" : "2.20.0"
+      }
+    },
+    {
+      "identity" : "xcglogger",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/DaveWoodCom/XCGLogger.git",
+      "state" : {
+        "revision" : "4def3c1c772ca90ad5e7bfc8ac437c3b0b4276cf",
+        "version" : "7.1.5"
       }
     },
     {

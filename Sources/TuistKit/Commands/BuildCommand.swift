@@ -120,7 +120,7 @@ public struct BuildOptions: ParsableArguments {
 }
 
 /// Command that builds a target from the project in the current directory.
-public struct BuildCommand: AsyncParsableCommand {
+public struct BuildCommand: AsyncParsableCommand, LogConfigurableCommand {
     public init() {}
     public static var generatorFactory: GeneratorFactorying = GeneratorFactory()
     public static var cacheStorageFactory: CacheStorageFactorying = EmptyCacheStorageFactory()
@@ -131,6 +131,8 @@ public struct BuildCommand: AsyncParsableCommand {
             abstract: "Builds a project"
         )
     }
+
+    var logFilePathDisplayStrategy: LogFilePathDisplayStrategy = .always
 
     @OptionGroup()
     var buildOptions: BuildOptions
