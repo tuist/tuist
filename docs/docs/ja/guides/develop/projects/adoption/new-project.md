@@ -116,5 +116,5 @@ let tuist = Tuist()
 
 :::
 
-> Tuist は `Tuist/` ディレクトリを使ってプロジェクトのルートを判定し、そこからディレクトリを探索しながら他のマニフェストファイルを探します。 [!IMPORTANT]
-> Tuist は `Tuist/` ディレクトリを使ってプロジェクトのルートを判定し、そこからディレクトリを探索しながら他のマニフェストファイルを探します。 これらのファイルは、お好みのエディタで作成することをおすすめします。その後は `tuist edit` を使って、Xcode でプロジェクトを編集できます。
+> [!IMPORTANT]
+> Tuist uses the `Tuist/` directory to determine the root of your project, and from there it looks for other manifest files globbing the directories. We recommend creating those files with your editor of choice, and from that point on, you can use `tuist edit` to edit the project with Xcode.
