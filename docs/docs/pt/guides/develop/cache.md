@@ -9,7 +9,7 @@ description: Optimize your build times by caching compiled binaries and sharing 
 > [!IMPORTANT] REQUIREMENTS
 >
 > - A <LocalizedLink href="/guides/develop/projects">Tuist Project</LocalizedLink>
-> - [!IMPORTANT] REMOTE PROJECT REQUIRED> This feature requires a <LocalizedLink href="/server/introduction/accounts-and-projects">remote project</LocalizedLink>.
+> - A <LocalizedLink href="/server/introduction/accounts-and-projects">Tuist account and project</LocalizedLink>
 
 Xcode's build system provides [incremental builds](https://en.wikipedia.org/wiki/Incremental_build_model), enhancing efficiency under normal circumstances. However, this feature falls short in [Continuous Integration (CI) environments](https://en.wikipedia.org/wiki/Continuous_integration), where data essential for incremental builds is not shared across different builds. Additionally, **developers often reset this data locally to troubleshoot complex compilation problems**, leading to more frequent clean builds. This results in teams spending excessive time waiting for local builds to finish or for Continuous Integration pipelines to provide feedback on pull requests. Furthermore, the frequent context switching in such an environment compounds this unproductiveness.
 
