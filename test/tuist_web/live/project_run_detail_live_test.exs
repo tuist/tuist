@@ -191,6 +191,23 @@ defmodule TuistWeb.ProjectRunDetailLiveTest do
     assert html =~ user_account.name
   end
 
+  test "doesn't render cacheable targets table if there are no cacheable targets", %{
+    conn: conn,
+    project: project
+  } do
+    command_event =
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "generate"
+      )
+
+    {:ok, _lv, html} =
+      conn
+      |> live(~p"/tuist-org/tuist/runs/#{command_event.id}")
+
+    refute html =~ "Cacheable targets"
+  end
+
   test "renders cacheable targets in the alphabetical order with their cache status", %{
     conn: conn,
     project: project
@@ -228,9 +245,11 @@ defmodule TuistWeb.ProjectRunDetailLiveTest do
       binary_cache_hash: "hash-c"
     )
 
-    {:ok, lv, _html} =
+    {:ok, lv, html} =
       conn
       |> live(~p"/tuist-org/tuist/runs/#{command_event.id}")
+
+    assert html =~ "Cacheable targets"
 
     assert has_element?(lv, "table tbody tr:nth-child(1)", "A")
     assert has_element?(lv, "table tbody tr:nth-child(1)", "Local")
@@ -315,24 +334,7 @@ defmodule TuistWeb.ProjectRunDetailLiveTest do
     refute has_element?(lv, "#tests")
   end
 
-  test "renders test targets table if the command name is test", %{
-    conn: conn,
-    project: project
-  } do
-    command_event =
-      CommandEventsFixtures.command_event_fixture(
-        project_id: project.id,
-        name: "test"
-      )
-
-    {:ok, _lv, html} =
-      conn
-      |> live(~p"/tuist-org/tuist/runs/#{command_event.id}")
-
-    assert html =~ "Tested targets"
-  end
-
-  test "doesn't render test targets table if the command name is not test", %{
+  test "doesn't render test targets table if there are no test targets", %{
     conn: conn,
     project: project
   } do
@@ -346,7 +348,7 @@ defmodule TuistWeb.ProjectRunDetailLiveTest do
       conn
       |> live(~p"/tuist-org/tuist/runs/#{command_event.id}")
 
-    refute html =~ "Selective testing hits"
+    refute html =~ "Tested targets"
   end
 
   test "renders test targets in the alphabetical order with their selective test result",
@@ -387,9 +389,11 @@ defmodule TuistWeb.ProjectRunDetailLiveTest do
       selective_testing_hash: "hash-c"
     )
 
-    {:ok, lv, _html} =
+    {:ok, lv, html} =
       conn
       |> live(~p"/tuist-org/tuist/runs/#{command_event.id}")
+
+    assert html =~ "Tested targets"
 
     assert has_element?(lv, "table tbody tr:nth-child(1)", "A")
     assert has_element?(lv, "table tbody tr:nth-child(1)", "Local")

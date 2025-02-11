@@ -76,7 +76,7 @@ defmodule TuistWeb.ProjectRunsLive do
     options = %{
       filters: [
         %{field: :project_id, op: :==, value: project_id},
-        %{field: :name, op: :in, value: ["generate", "test", "build", "cache"]}
+        %{field: :name, op: :in, value: ["generate", "test", "build", "cache", "xcodebuild"]}
       ],
       order_by: [:created_at],
       order_directions: [:desc]

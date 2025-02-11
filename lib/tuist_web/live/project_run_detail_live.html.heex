@@ -18,34 +18,34 @@
         </.link>
       <% end %>
     </.stack>
-    <%= if @command_event.name == "test" do %>
-      <%= if not is_nil(@test_summary) and @test_summary.ok? && @test_summary.result do %>
-        <.target_breakdown_card
-          title={gettext("Tests")}
-          targets={@test_target_results.result}
-          badge_column_label={gettext("Test status")}
-          id="tests"
-          data={[
-            @test_summary.result.successful_tests_count,
-            @test_summary.result.failed_tests_count
-          ]}
-          labels={[gettext("Passed"), gettext("Failed")]}
-          total_label={gettext("Tests")}
-          colors={["--utility-success-600", "--utility-error-600"]}
-        >
-          <:badge :let={test_target_result}>
-            <.badge
-              title={Atom.to_string(test_target_result.status) |> String.capitalize()}
-              kind={
-                case test_target_result.status do
-                  :failure -> :error
-                  :success -> :success
-                end
-              }
-            />
-          </:badge>
-        </.target_breakdown_card>
-      <% end %>
+    <%= if not is_nil(@test_summary) and @test_summary.ok? && @test_summary.result do %>
+      <.target_breakdown_card
+        title={gettext("Tests")}
+        targets={@test_target_results.result}
+        badge_column_label={gettext("Test status")}
+        id="tests"
+        data={[
+          @test_summary.result.successful_tests_count,
+          @test_summary.result.failed_tests_count
+        ]}
+        labels={[gettext("Passed"), gettext("Failed")]}
+        total_label={gettext("Tests")}
+        colors={["--utility-success-600", "--utility-error-600"]}
+      >
+        <:badge :let={test_target_result}>
+          <.badge
+            title={Atom.to_string(test_target_result.status) |> String.capitalize()}
+            kind={
+              case test_target_result.status do
+                :failure -> :error
+                :success -> :success
+              end
+            }
+          />
+        </:badge>
+      </.target_breakdown_card>
+    <% end %>
+    <%= if not Enum.empty?(@test_targets) do %>
       <.target_breakdown_card
         title={gettext("Selective testing hits")}
         badge_column_label={gettext("Cache hit")}
@@ -65,24 +65,26 @@
         </:badge>
       </.target_breakdown_card>
     <% end %>
-    <.target_breakdown_card
-      title={gettext("Binary cache hits")}
-      badge_column_label={gettext("Cache hit")}
-      targets={@cacheable_targets}
-      id="binary-cache"
-      hash_key={:binary_cache_hash}
-      total_label={gettext("Cacheable targets")}
-      data={[
-        @binary_cache_local_hits_count,
-        @binary_cache_remote_hits_count,
-        @binary_cache_misses_count
-      ]}
-      labels={[gettext("Local hits"), gettext("Remote hits"), gettext("Misses")]}
-    >
-      <:badge :let={cacheable_target}>
-        <.cache_hit_badge cache_hit={cacheable_target.binary_cache_hit} />
-      </:badge>
-    </.target_breakdown_card>
+    <%= if not Enum.empty?(@cacheable_targets) do %>
+      <.target_breakdown_card
+        title={gettext("Binary cache hits")}
+        badge_column_label={gettext("Cache hit")}
+        targets={@cacheable_targets}
+        id="binary-cache"
+        hash_key={:binary_cache_hash}
+        total_label={gettext("Cacheable targets")}
+        data={[
+          @binary_cache_local_hits_count,
+          @binary_cache_remote_hits_count,
+          @binary_cache_misses_count
+        ]}
+        labels={[gettext("Local hits"), gettext("Remote hits"), gettext("Misses")]}
+      >
+        <:badge :let={cacheable_target}>
+          <.cache_hit_badge cache_hit={cacheable_target.binary_cache_hit} />
+        </:badge>
+      </.target_breakdown_card>
+    <% end %>
     <.card>
       <.stack gap="2xl">
         <.section_header title={gettext("Run details")} />
