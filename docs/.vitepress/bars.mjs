@@ -514,6 +514,23 @@ export function guidesSidebar(locale) {
             "sidebars.guides.items.develop.items.selective-testing.text",
           ),
           link: `/${locale}/guides/develop/selective-testing`,
+          collapsed: true,
+          items: [
+            {
+              text: localizedString(
+                locale,
+                "sidebars.guides.items.develop.items.selective-testing.items.xcodebuild.text",
+              ),
+              link: `/${locale}/guides/develop/selective-testing/xcodebuild`,
+            },
+            {
+              text: localizedString(
+                locale,
+                "sidebars.guides.items.develop.items.selective-testing.items.generated-project.text",
+              ),
+              link: `/${locale}/guides/develop/selective-testing/generated-project`,
+            },
+          ],
         },
         {
           text: localizedString(
