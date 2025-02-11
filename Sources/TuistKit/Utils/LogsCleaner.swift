@@ -3,9 +3,11 @@ import Foundation
 import Path
 
 public struct LogsCleaner {
-    let fileSystem = FileSystem()
+    let fileSystem: FileSystem
 
-    public init() {}
+    public init(fileSystem: FileSystem = FileSystem()) {
+        self.fileSystem = fileSystem
+    }
 
     public func clean(logsDirectory: AbsolutePath) async throws {
         let fiveDaysAgo = Calendar.current.date(byAdding: .day, value: -5, to: Date())!

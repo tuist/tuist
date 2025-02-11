@@ -4,8 +4,8 @@ import Testing
 import TuistKit
 
 struct LogCleanerTests {
-    let fileSystem = FileSystem()
-    let subject = LogsCleaner()
+    private let fileSystem = FileSystem()
+    private let subject = LogsCleaner()
 
     @Test("deletes logs that are older than 5 days")
     func deleteOldLogs() async throws {

@@ -120,7 +120,7 @@ public final class Environment: Environmenting {
         return !userOptedOut
     }
 
-    public var cacheDirectory: Path.AbsolutePath {
+    public var cacheDirectory: AbsolutePath {
         let baseCacheDirectory: AbsolutePath
         if let cacheDirectoryPathString = ProcessInfo.processInfo.environment["XDG_CACHE_HOME"],
            let cacheDirectory = try? AbsolutePath(validating: cacheDirectoryPathString)

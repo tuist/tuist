@@ -1,4 +1,4 @@
-enum LogFilePathDisplayStrategy: Codable {
+enum LogFilePathDisplayStrategy: Decodable {
     /// Only shows the path to the log file on error
     case onError
 

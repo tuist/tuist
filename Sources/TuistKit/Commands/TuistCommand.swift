@@ -108,7 +108,8 @@ public struct TuistCommand: AsyncParsableCommand {
             }
             let command = try parseAsRoot(processedArguments)
             executeCommand = {
-                logFilePathDisplayStrategy = (command as? LogDiagnosableCommand)?.logFilePathDisplayStrategy ?? logFilePathDisplayStrategy
+                logFilePathDisplayStrategy = (command as? LogDiagnosableCommand)?
+                    .logFilePathDisplayStrategy ?? logFilePathDisplayStrategy
 
                 let trackableCommand = TrackableCommand(
                     command: command,
@@ -125,22 +126,17 @@ public struct TuistCommand: AsyncParsableCommand {
             }
         }
 
-        let outputCompletion = { (_: Bool) in
-            WarningController.shared.flush()
-            outputLogfilePath(logFilePath)
-        }
-
         do {
             try await executeCommand()
-            outputCompletion(logFilePathDisplayStrategy == .always)
+            outputCompletion(logFilePath: logFilePath, shouldOutputLogFilePath: logFilePathDisplayStrategy == .always)
         } catch let error as FatalError {
             errorHandler.fatal(error: error)
-            outputCompletion(true)
+            self.outputCompletion(logFilePath: logFilePath, shouldOutputLogFilePath: true)
             _exit(exitCode(for: error).rawValue)
         } catch let error as ClientError where error.underlyingError is ServerClientAuthenticationError {
             // swiftlint:disable:next force_cast
             ServiceContext.current?.logger?.error("\((error.underlyingError as! ServerClientAuthenticationError).description)")
-            outputCompletion(true)
+            outputCompletion(logFilePath: logFilePath, shouldOutputLogFilePath: true)
             _exit(exitCode(for: error).rawValue)
         } catch {
             if let parsedError {
@@ -152,13 +148,20 @@ public struct TuistCommand: AsyncParsableCommand {
                 exit(withError: error)
             } else {
                 errorHandler.fatal(error: UnhandledError(error: error))
-                outputCompletion(true)
+                outputCompletion(logFilePath: logFilePath, shouldOutputLogFilePath: true)
                 _exit(exitCode(for: error).rawValue)
             }
         }
     }
 
-    private static func outputLogfilePath(_ logFilePath: AbsolutePath) {
+    private static func outputCompletion(logFilePath: AbsolutePath, shouldOutputLogFilePath: Bool) {
+        WarningController.shared.flush()
+        if shouldOutputLogFilePath {
+            outputLogFilePath(logFilePath)
+        }
+    }
+
+    private static func outputLogFilePath(_ logFilePath: AbsolutePath) {
         ServiceContext.current?.logger?.info("\nLogs are available at \(logFilePath.pathString)")
     }
 
