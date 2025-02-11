@@ -118,6 +118,28 @@ export async function paths(locale) {
   return paths;
 }
 
+export async function cliSidebar(locale) {
+  const sidebar = await loadData(locale);
+  return {
+    ...sidebar,
+    items: [
+      {
+        text: "CLI",
+        items: [
+          {
+            text: localizedString(
+              locale,
+              "sidebars.cli.items.cli.items.logging.text",
+            ),
+            link: `/${locale}/cli/logging`,
+          },
+        ],
+      },
+      ...sidebar.items,
+    ],
+  };
+}
+
 export async function loadData(locale) {
   function parseCommand(
     command,
@@ -150,18 +172,6 @@ export async function loadData(locale) {
   return {
     text: localizedString(locale, "sidebars.cli.text"),
     items: [
-      {
-        text: "CLI",
-        items: [
-          {
-            text: localizedString(
-              locale,
-              "sidebars.cli.items.cli.items.logging.text",
-            ),
-            link: `/${locale}/cli/logging`,
-          },
-        ],
-      },
       {
         text: localizedString(locale, "sidebars.cli.items.commands.text"),
         collapsed: true,
