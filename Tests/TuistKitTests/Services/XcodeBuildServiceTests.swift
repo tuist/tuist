@@ -264,15 +264,15 @@ struct XcodeBuildServiceTests {
                     ]
                 )
 
+                let graph: Graph = .test(
+                    projects: [
+                        temporaryPath: project,
+                    ]
+                )
+
                 given(xcodeGraphMapper)
                     .map(at: .any)
-                    .willReturn(
-                        .test(
-                            projects: [
-                                temporaryPath: project,
-                            ]
-                        )
-                    )
+                    .willReturn(graph)
 
                 given(selectiveTestingGraphHasher)
                     .hash(
@@ -366,6 +366,9 @@ struct XcodeBuildServiceTests {
                             ),
                         ],
                     ]
+                )
+                await #expect(
+                    runMetadataStorage.graph == graph
                 )
             }
         }
