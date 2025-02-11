@@ -108,7 +108,7 @@ public enum Module: String, CaseIterable {
                 product: product,
                 dependencies: dependencies + (isStaticProduct ? [.external(name: "Mockable")] : []),
                 isTestingTarget: isTestingTarget
-            )
+            ),
         ]
     }
 
@@ -132,8 +132,8 @@ public enum Module: String, CaseIterable {
     public var testingTargetName: String? {
         switch self {
         case .tuist, .tuistBenchmark, .tuistFixtureGenerator, .kit, .projectAutomation,
-            .projectDescription, .analytics,
-            .dependencies, .acceptanceTesting, .server, .hasher, .cache, .scaffold:
+             .projectDescription, .analytics,
+             .dependencies, .acceptanceTesting, .server, .hasher, .cache, .scaffold:
             return nil
         default:
             return "\(rawValue)Testing"
@@ -143,8 +143,8 @@ public enum Module: String, CaseIterable {
     public var unitTestsTargetName: String? {
         switch self {
         case .analytics, .tuist, .tuistBenchmark, .tuistFixtureGenerator, .projectAutomation,
-            .projectDescription,
-            .acceptanceTesting:
+             .projectDescription,
+             .acceptanceTesting:
             return nil
         default:
             return "\(rawValue)Tests"
@@ -154,9 +154,9 @@ public enum Module: String, CaseIterable {
     public var integrationTestsTargetName: String? {
         switch self {
         case .tuist, .tuistBenchmark, .tuistFixtureGenerator, .projectAutomation,
-            .projectDescription,
-            .asyncQueue,
-            .plugin, .analytics, .dependencies, .acceptanceTesting, .server, .hasher:
+             .projectDescription,
+             .asyncQueue,
+             .plugin, .analytics, .dependencies, .acceptanceTesting, .server, .hasher:
             return nil
         default:
             return "\(rawValue)IntegrationTests"
@@ -451,7 +451,7 @@ public enum Module: String, CaseIterable {
                 []
             case .tuistFixtureGenerator:
                 [
-                    .target(name: Module.projectDescription.targetName)
+                    .target(name: Module.projectDescription.targetName),
                 ]
             case .support:
                 [
@@ -634,20 +634,20 @@ public enum Module: String, CaseIterable {
         let dependencies: [TargetDependency] =
             switch self {
             case .tuist, .projectAutomation, .projectDescription, .acceptanceTesting, .hasher,
-                .analytics,
-                .migration, .tuistFixtureGenerator, .cache, .scaffold:
+                 .analytics,
+                 .migration, .tuistFixtureGenerator, .cache, .scaffold:
                 []
             case .server:
                 [
-                    .external(name: "FileSystem")
+                    .external(name: "FileSystem"),
                 ]
             case .asyncQueue:
                 [
-                    .target(name: Module.core.targetName)
+                    .target(name: Module.core.targetName),
                 ]
             case .tuistBenchmark:
                 [
-                    .external(name: "ArgumentParser")
+                    .external(name: "ArgumentParser"),
                 ]
             case .support:
                 [
@@ -693,7 +693,7 @@ public enum Module: String, CaseIterable {
                 ]
             case .dependencies:
                 [
-                    .target(name: Module.projectDescription.targetName)
+                    .target(name: Module.projectDescription.targetName),
                 ]
             case .automation:
                 [
@@ -712,8 +712,8 @@ public enum Module: String, CaseIterable {
         var dependencies: [TargetDependency] =
             switch self {
             case .tuistBenchmark, .tuistFixtureGenerator, .support, .projectAutomation,
-                .projectDescription, .acceptanceTesting,
-                .asyncQueue, .plugin, .analytics, .dependencies, .server, .hasher:
+                 .projectDescription, .acceptanceTesting,
+                 .asyncQueue, .plugin, .analytics, .dependencies, .server, .hasher:
                 []
             case .cache:
                 [
@@ -809,7 +809,7 @@ public enum Module: String, CaseIterable {
         isTestingTarget: Bool
     ) -> Target {
         var debugSettings: ProjectDescription.SettingsDictionary = [
-            "SWIFT_ACTIVE_COMPILATION_CONDITIONS": "$(inherited) MOCKING"
+            "SWIFT_ACTIVE_COMPILATION_CONDITIONS": "$(inherited) MOCKING",
         ]
         var releaseSettings: ProjectDescription.SettingsDictionary = [:]
         if isTestingTarget {
@@ -864,7 +864,7 @@ public enum Module: String, CaseIterable {
         case .tuist:
             return .settings(
                 base: [
-                    "LD_RUNPATH_SEARCH_PATHS": "$(FRAMEWORK_SEARCH_PATHS)"
+                    "LD_RUNPATH_SEARCH_PATHS": "$(FRAMEWORK_SEARCH_PATHS)",
                 ],
                 configurations: [
                     .debug(name: "Debug", settings: [:], xcconfig: nil),
