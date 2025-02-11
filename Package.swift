@@ -122,6 +122,7 @@ let targets: [Target] = [
             "Mockable",
             "FileSystem",
             "Command",
+            .product(name: "LoggingOSLog", package: "swift-log-oslog"),
             .product(name: "FileLogging", package: "swift-log-file"),
             .product(name: "ServiceContextModule", package: "swift-service-context"),
         ],
