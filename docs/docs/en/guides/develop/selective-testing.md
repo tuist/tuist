@@ -16,3 +16,11 @@ Selective testing works with `xcodebuild`, which supports any Xcode project, or 
 
 > [!WARNING] MODULE VS FILE-LEVEL GRANULARITY
 > Due to the impossibility of detecting the in-code dependencies between tests and sources, the maximum granularity of selective testing is at the target level. Therefore, we recommend keeping your targets small and focused to maximize the benefits of selective testing.
+
+## Pull/merge request comments {#pullmerge-request-comments}
+
+> [!IMPORTANT] INTEGRATION WITH GIT PLATFORM REQUIRED
+> To get automatic pull/merge request comments, integrate your <LocalizedLink href="/server/introduction/accounts-and-projects">Tuist project</LocalizedLink> with a <LocalizedLink href="/server/introduction/integrations#git-platforms">Git platform</LocalizedLink>.
+
+Once your Tuist project is connected with your Git platform such as [GitHub](https://github.com), and you start using `tuist xcodebuild test` or `tuist test` as part of your CI wortkflow, Tuist will post a comment directly in your pull/merge requests, including which tests were run and which skipped:
+![GitHub app comment with a Tuist Preview link](/images/guides/develop/selective-testing/github-app-comment.png)
