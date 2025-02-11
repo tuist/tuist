@@ -127,6 +127,14 @@
         },
         "translate": {
           "text": "Translate"
+        },
+        "cli": {
+          "text": "CLI",
+          "items": {
+            "logging": {
+              "text": "Logging"
+            }
+          }
         }
       }
     },
