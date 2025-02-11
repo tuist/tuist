@@ -10,8 +10,7 @@ import TuistSupport
 @_documentation(visibility: private)
 private enum TuistCLI {
     static func main() async throws {
-        if CommandLine.arguments.contains("--quiet") && CommandLine.arguments.contains("--verbose")
-        {
+        if CommandLine.arguments.contains("--quiet") && CommandLine.arguments.contains("--verbose") {
             throw TuistCLIError.exclusiveOptionError("quiet", "verbose")
         }
 
@@ -48,7 +47,8 @@ private enum TuistCLI {
         try await LogsCleaner().clean(logsDirectory: logFilePath.parentDirectory)
 
         let loggerHandler = try Logger.defaultLoggerHandler(
-            config: loggingConfig, logFilePath: logFilePath)
+            config: loggingConfig, logFilePath: logFilePath
+        )
 
         /// This is the old initialization method and will eventually go away.
         LoggingSystem.bootstrap(loggerHandler)

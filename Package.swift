@@ -122,7 +122,6 @@ let targets: [Target] = [
             "Mockable",
             "FileSystem",
             "Command",
-            .product(name: "LoggingOSLog", package: "swift-log-oslog"),
             .product(name: "FileLogging", package: "swift-log-file"),
             .product(name: "ServiceContextModule", package: "swift-service-context"),
         ],
@@ -519,13 +518,14 @@ let package = Package(
         .package(url: "https://github.com/tuist/Command.git", .upToNextMajor(from: "0.8.0")),
         .package(url: "https://github.com/sparkle-project/Sparkle.git", from: "2.6.4"),
         .package(url: "https://github.com/apple/swift-collections", .upToNextMajor(from: "1.1.4")),
-        .package(url: "https://github.com/apple/swift-service-context", .upToNextMajor(from: "1.0.0")),
-        .package(url: "https://github.com/chrisaljoudi/swift-log-oslog.git", .upToNextMajor(from: "0.2.2")),
+        .package(
+            url: "https://github.com/apple/swift-service-context", .upToNextMajor(from: "1.0.0")
+        ),
+        .package(
+            url: "https://github.com/chrisaljoudi/swift-log-oslog.git",
+            .upToNextMajor(from: "0.2.2")
+        ),
         .package(url: "https://github.com/crspybits/swift-log-file", .upToNextMajor(from: "0.1.0")),
-<<<<<<< HEAD
-=======
-        .package(url: "https://github.com/chrisaljoudi/swift-log-oslog.git", .upToNextMajor(from: "0.2.2")),
->>>>>>> 3a3764037 (Show log file at the end)
     ],
     targets: targets
 )

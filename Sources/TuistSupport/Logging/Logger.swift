@@ -63,7 +63,7 @@ extension Logger {
 
         let baseLoggers = { (label: String) -> [any LogHandler] in
             var loggers: [any LogHandler] = [
-                FileLogHandler(label: label, fileLogger: fileLogger)
+                FileLogHandler(label: label, fileLogger: fileLogger),
             ]
 
             // OSLog is not needed in development.

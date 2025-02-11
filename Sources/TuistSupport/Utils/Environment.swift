@@ -112,17 +112,17 @@ public final class Environment: Environmenting {
     }
 
     public var isVerbose: Bool {
-        guard
-            let variable = ProcessInfo.processInfo.environment[
-                Constants.EnvironmentVariables.verbose]
+        guard let variable = ProcessInfo.processInfo.environment[
+            Constants.EnvironmentVariables.verbose
+        ]
         else { return false }
         return Constants.trueValues.contains(variable)
     }
 
     public var isStatsEnabled: Bool {
-        guard
-            let variable = ProcessInfo.processInfo.environment[
-                Constants.EnvironmentVariables.statsOptOut]
+        guard let variable = ProcessInfo.processInfo.environment[
+            Constants.EnvironmentVariables.statsOptOut
+        ]
         else { return true }
         let userOptedOut = Constants.trueValues.contains(variable)
         return !userOptedOut
@@ -131,7 +131,7 @@ public final class Environment: Environmenting {
     public var cacheDirectory: AbsolutePath {
         let baseCacheDirectory: AbsolutePath
         if let cacheDirectoryPathString = ProcessInfo.processInfo.environment["XDG_CACHE_HOME"],
-            let cacheDirectory = try? AbsolutePath(validating: cacheDirectoryPathString)
+           let cacheDirectory = try? AbsolutePath(validating: cacheDirectoryPathString)
         {
             baseCacheDirectory = cacheDirectory
         } else {
@@ -145,7 +145,7 @@ public final class Environment: Environmenting {
     public var stateDirectory: AbsolutePath {
         let baseStateDirectory: AbsolutePath
         if let stateDirectoryPathString = ProcessInfo.processInfo.environment["XDG_STATE_HOME"],
-            let stateDirectory = try? AbsolutePath(validating: stateDirectoryPathString)
+           let stateDirectory = try? AbsolutePath(validating: stateDirectoryPathString)
         {
             baseStateDirectory = stateDirectory
         } else {
@@ -158,14 +158,14 @@ public final class Environment: Environmenting {
 
     public var automationPath: AbsolutePath? {
         ProcessInfo.processInfo.environment[Constants.EnvironmentVariables.automationPath]
-            .map { try! AbsolutePath(validating: $0) }  // swiftlint:disable:this force_try
+            .map { try! AbsolutePath(validating: $0) } // swiftlint:disable:this force_try
     }
 
     public var queueDirectory: AbsolutePath {
         if let envVariable = ProcessInfo.processInfo.environment[
-            Constants.EnvironmentVariables.queueDirectory]
-        {
-            return try! AbsolutePath(validating: envVariable)  // swiftlint:disable:this force_try
+            Constants.EnvironmentVariables.queueDirectory
+        ] {
+            return try! AbsolutePath(validating: envVariable) // swiftlint:disable:this force_try
         } else {
             return cacheDirectory.appending(component: Constants.AsyncQueue.directoryName)
         }
@@ -178,7 +178,7 @@ public final class Environment: Environmenting {
 
     public var manifestLoadingVariables: [String: String] {
         let allowedVariableKeys = [
-            "DEVELOPER_DIR"
+            "DEVELOPER_DIR",
         ]
         let allowedVariables = ProcessInfo.processInfo.environment.filter {
             allowedVariableKeys.contains($0.key)
