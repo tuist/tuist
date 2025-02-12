@@ -217,7 +217,7 @@
     {gettext("The secret ingredients")}
   </h2>
   <TuistWeb.Marketing.MarketingHomeComponents.feature
-    name={gettext("Tuist Projects")}
+    name={gettext("Generated Projects")}
     id="features-projects"
     description={
       gettext(
@@ -231,7 +231,7 @@
     ]}
   >
     <:logo :let={%{class: class}}>
-      <TuistWeb.Marketing.MarketingLayoutComponents.app_lifecycle_start_artwork class={class} />
+      <TuistWeb.Marketing.MarketingComponents.app_lifecycle_start_artwork class={class} />
     </:logo>
     <div class="marketing__home__section__features__feature__projects">
       <TuistWeb.Marketing.MarketingHomeComponents.feature_projects_row_1 class="marketing__home__section__features__feature__projects__artwork" />
@@ -259,7 +259,7 @@
     ]}
   >
     <:logo :let={%{class: class}}>
-      <TuistWeb.Marketing.MarketingLayoutComponents.app_lifecycle_develop_artwork class={class} />
+      <TuistWeb.Marketing.MarketingComponents.app_lifecycle_develop_artwork class={class} />
     </:logo>
     <div class="marketing__home__section__features__feature__cache">
       <TuistWeb.Marketing.MarketingHomeComponents.feature_cache_row_1 class="marketing__home__section__features__feature__cache__artwork" />
@@ -287,7 +287,7 @@
     ]}
   >
     <:logo :let={%{class: class}}>
-      <TuistWeb.Marketing.MarketingLayoutComponents.app_lifecycle_measure_artwork class={class} />
+      <TuistWeb.Marketing.MarketingComponents.app_lifecycle_measure_artwork class={class} />
     </:logo>
     <div class="marketing__home__section__features__feature__selective_testing">
       <TuistWeb.Marketing.MarketingHomeComponents.feature_selective_testing_row_1 class="marketing__home__section__features__feature__selective_testing__artwork" />
@@ -317,7 +317,7 @@
     ]}
   >
     <:logo :let={%{class: class}}>
-      <TuistWeb.Marketing.MarketingLayoutComponents.app_lifecycle_share_artwork class={class} />
+      <TuistWeb.Marketing.MarketingComponents.app_lifecycle_share_artwork class={class} />
     </:logo>
 
     <div class="marketing__home__section__features__feature__previews">
@@ -432,9 +432,9 @@
       {gettext("Learn more")}
     </h2>
     <!-- TODO: Add link to all articles -->
-    <.marketing_link class="marketing__home__section__learn_more__header__link">
+    <.home_more_link class="marketing__home__section__learn_more__header__link">
       {gettext("View all")}
-    </.marketing_link>
+    </.home_more_link>
   </div>
   <div class="marketing__home__section__learn_more__body">
     <div class="marketing__home__section__learn_more__cards">
@@ -449,9 +449,9 @@
     </div>
   </div>
   <div class="marketing__home__section__learn_more__footer">
-    <.marketing_link class="marketing__home__section__learn_more__footer__link" href={~p"/blog"}>
+    <.home_more_link class="marketing__home__section__learn_more__footer__link" href={~p"/blog"}>
       {gettext("View all")}
-    </.marketing_link>
+    </.home_more_link>
   </div>
 </div>
 <!-- CTA section -->

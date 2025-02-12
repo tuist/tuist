@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" class="[scrollbar-gutter:stable]">
+<html lang={Gettext.get_locale()} class="[scrollbar-gutter:stable]">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -122,8 +122,8 @@
     <link rel="canonical" href={Tuist.Environment.app_url(path: @current_path)} />
   </head>
   <body data-scrollable="true">
-    <TuistWeb.Marketing.MarketingLayoutComponents.header current_path={@current_path} {assigns} />
+    <TuistWeb.Marketing.MarketingComponents.header current_path={@current_path} {assigns} />
     {@inner_content}
-    <TuistWeb.Marketing.MarketingLayoutComponents.footer />
+    <TuistWeb.Marketing.MarketingComponents.footer />
   </body>
 </html>

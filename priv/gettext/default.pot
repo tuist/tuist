@@ -1093,7 +1093,7 @@ msgstr ""
 msgid "Module: %{module_name}"
 msgstr ""
 
-#: lib/tuist_web/marketing/components/marketing_layout_components.ex:323
+#: lib/tuist_web/marketing/components/marketing_components.ex:354
 #, elixir-autogen, elixir-format
 msgid "Most popular"
 msgstr ""
@@ -1836,12 +1836,6 @@ msgstr ""
 msgid "Tuist Previews"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:220
-#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:38
-#, elixir-autogen, elixir-format
-msgid "Tuist Projects"
-msgstr ""
-
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:59
 #, elixir-autogen, elixir-format
 msgid "Tuist Tests"
@@ -2475,4 +2469,10 @@ msgstr ""
 #: lib/tuist_web/live/project_run_detail_live.ex:287
 #, elixir-autogen, elixir-format
 msgid "Hash"
+msgstr ""
+
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:220
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:38
+#, elixir-autogen, elixir-format
+msgid "Generated Projects"
 msgstr ""

@@ -65,6 +65,8 @@ defmodule TuistWeb.Router do
     plug :assign_current_path
     plug :content_security_policy
     plug TuistWeb.OnPremisePlug, :forward_marketing_to_dashboard
+    plug TuistWeb.Marketing.Localization, :redirect_to_localized_route
+    plug TuistWeb.Marketing.Localization, :put_locale
   end
 
   pipeline :browser_marketing_feed do
@@ -138,34 +140,69 @@ defmodule TuistWeb.Router do
   scope "/" do
     pipe_through [
       :open_api,
-      :browser_marketing
+      :browser_marketing,
+      :assign_current_path
     ]
 
-    live "/blog", TuistWeb.Marketing.MarketingBlogLive, metadata: %{type: :marketing}
-    live "/changelog", TuistWeb.Marketing.MarketingChangelogLive, metadata: %{type: :marketing}
-    get "/", TuistWeb.Marketing.MarketingController, :home, metadata: %{type: :marketing}
+    for locale <- ["en"] ++ TuistWeb.Marketing.Localization.additional_locales() do
+      locale_path_prefix = TuistWeb.Marketing.Localization.locale_path_prefix(locale)
 
-    get "/pricing", TuistWeb.Marketing.MarketingController, :pricing,
-      metadata: %{type: :marketing}
+      private = %{locale: locale}
 
-    for %{slug: blog_post_slug} <- Tuist.Marketing.Blog.get_posts() do
-      get blog_post_slug, TuistWeb.Marketing.MarketingController, :blog_post,
-        metadata: %{type: :marketing}
+      live_session String.to_atom("marketing_#{locale}"),
+        on_mount: TuistWeb.Marketing.Localization do
+        live Path.join(locale_path_prefix, "/blog"), TuistWeb.Marketing.MarketingBlogLive,
+          metadata: %{type: :marketing},
+          private: private
+
+        live Path.join(locale_path_prefix, "/changelog"),
+             TuistWeb.Marketing.MarketingChangelogLive,
+             metadata: %{type: :marketing},
+             private: private
+      end
+
+      get locale_path_prefix, TuistWeb.Marketing.MarketingController, :home,
+        metadata: %{type: :marketing},
+        private: private
+
+      get Path.join(locale_path_prefix, "/pricing"),
+          TuistWeb.Marketing.MarketingController,
+          :pricing,
+          metadata: %{type: :marketing},
+          private: private
+
+      for %{slug: blog_post_slug} <- Tuist.Marketing.Blog.get_posts() do
+        get Path.join(locale_path_prefix, blog_post_slug),
+            TuistWeb.Marketing.MarketingController,
+            :blog_post,
+            metadata: %{type: :marketing},
+            private: private
+      end
+
+      for %{slug: page_slug} <- Tuist.Marketing.Pages.get_pages() do
+        get Path.join(locale_path_prefix, page_slug),
+            TuistWeb.Marketing.MarketingController,
+            :page,
+            metadata: %{type: :marketing},
+            private: private
+      end
+
+      get Path.join(locale_path_prefix, "/about"), TuistWeb.Marketing.MarketingController, :about,
+        metadata: %{type: :marketing},
+        private: private
+
+      get Path.join(locale_path_prefix, "/newsletter"),
+          TuistWeb.Marketing.MarketingController,
+          :newsletter,
+          metadata: %{type: :marketing},
+          private: private
+
+      get Path.join(locale_path_prefix, "/newsletter/issues/:issue_number"),
+          TuistWeb.Marketing.MarketingController,
+          :newsletter_issue,
+          metadata: %{type: :marketing},
+          private: private
     end
-
-    for %{slug: page_slug} <- Tuist.Marketing.Pages.get_pages() do
-      get page_slug, TuistWeb.Marketing.MarketingController, :page, metadata: %{type: :marketing}
-    end
-
-    get "/about", TuistWeb.Marketing.MarketingController, :about, metadata: %{type: :marketing}
-
-    get "/newsletter", TuistWeb.Marketing.MarketingController, :newsletter,
-      metadata: %{type: :marketing}
-
-    get "/newsletter/issues/:issue_number",
-        TuistWeb.Marketing.MarketingController,
-        :newsletter_issue,
-        metadata: %{type: :marketing}
   end
 
   scope "/" do

@@ -1,4 +1,4 @@
-defmodule TuistWeb.Marketing.MarketingLayoutComponents do
+defmodule TuistWeb.Marketing.MarketingComponents do
   @moduledoc ~S"""
   A collection of components that are used from the layouts.
   """
@@ -7,6 +7,34 @@ defmodule TuistWeb.Marketing.MarketingLayoutComponents do
   import TuistWeb.CSP, only: [get_csp_nonce: 0]
 
   embed_templates "marketing_layout_components/*"
+
+  attr :href, :string, required: false
+  attr :rest, :global
+  slot :inner_block, required: true
+
+  def marketing_link(assigns) do
+    rest = Map.get(assigns, :rest, %{})
+    href = Map.get(rest, :href) || ""
+    local = href |> String.starts_with?("/")
+
+    href =
+      if local do
+        case Gettext.get_locale() do
+          "en" -> href
+          locale -> "/#{locale}#{href}"
+        end
+      else
+        href
+      end
+
+    assigns = assign(assigns, :rest, Map.merge(rest, %{href: href}))
+
+    ~H"""
+    <Phoenix.Component.link {@rest}>
+      {render_slot(@inner_block)}
+    </Phoenix.Component.link>
+    """
+  end
 
   attr :key, :string, required: true
   attr :title, :string, required: true
@@ -43,12 +71,12 @@ defmodule TuistWeb.Marketing.MarketingLayoutComponents do
             {@title}
           </div>
         <% else %>
-          <.link
+          <.marketing_link
             href={@href}
             class="marketing__header__bar__mobile__menu__main__dropdown__header__title font-xxl"
           >
             {@title}
-          </.link>
+          </.marketing_link>
         <% end %>
         <%= if length(@children) > 0 do %>
           <.plus_icon class="marketing__header__bar__mobile__menu__main__dropdown__header__icon" />
@@ -56,14 +84,14 @@ defmodule TuistWeb.Marketing.MarketingLayoutComponents do
       </div>
 
       <div class="marketing__header__bar__mobile__menu__main__dropdown__header__children">
-        <.link
+        <.marketing_link
           :for={child <- @children}
           href={child.href}
           data-current={"#{@current_path == child.href}"}
           class="font-xl marketing__header__bar__mobile__menu__main__dropdown__header__children__child"
         >
           {child.title}
-        </.link>
+        </.marketing_link>
       </div>
     </div>
     """
@@ -97,7 +125,7 @@ defmodule TuistWeb.Marketing.MarketingLayoutComponents do
   attr :href, :string, required: false
   attr :rest, :global
 
-  def marketing_link(assigns) do
+  def home_more_link(assigns) do
     assigns =
       assign(
         assigns,
@@ -109,14 +137,14 @@ defmodule TuistWeb.Marketing.MarketingLayoutComponents do
       )
 
     ~H"""
-    <.link
+    <.marketing_link
       class={"marketing__component__link #{@font_class} #{@class}"}
       data-flavor={@flavor}
       href={assigns[:href]}
       {@rest}
     >
       {render_slot(@inner_block)}
-    </.link>
+    </.marketing_link>
     """
   end
 
@@ -128,14 +156,14 @@ defmodule TuistWeb.Marketing.MarketingLayoutComponents do
   def primary_icon_button(assigns) do
     ~H"""
     <%= if assigns[:href] do %>
-      <.link
+      <.marketing_link
         class="marketing__component__primary__icon__button"
         href={@href}
         target={assigns[:target]}
         {@rest}
       >
         <.icon_arrow_narrow_right />
-      </.link>
+      </.marketing_link>
     <% else %>
       <button {@rest} class="marketing__component__primary__icon__button">
         <.icon_arrow_narrow_right />
@@ -238,14 +266,14 @@ defmodule TuistWeb.Marketing.MarketingLayoutComponents do
         {@title}
       </h4>
       <div class="marketing__footer__main__menus__menu_links">
-        <.link
+        <.marketing_link
           :for={item <- @items}
           href={item.href}
           class="marketing__footer__main__menus__menu_link font-xxs"
           target={Map.get(item, :target, nil)}
         >
           {item.text}
-        </.link>
+        </.marketing_link>
       </div>
     </div>
     """
@@ -290,9 +318,12 @@ defmodule TuistWeb.Marketing.MarketingLayoutComponents do
     <div class="font-xs-strong marketing__component__more_card__content__category">
       {@category}
     </div>
-    <.link class="font-xl-strong marketing__component__more_card__content__title" href={@href}>
+    <.marketing_link
+      class="font-xl-strong marketing__component__more_card__content__title"
+      href={@href}
+    >
       {@title}
-    </.link>
+    </.marketing_link>
     <div class="font-m marketing__component__more_card__content__description">
       {@description}
     </div>
