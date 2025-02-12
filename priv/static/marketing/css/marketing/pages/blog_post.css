@@ -41,6 +41,8 @@
 .marketing__blog_post__header__title {
   margin: 0;
   color: var(--dark-violet);
+  overflow-wrap: break-word;
+  hyphens: auto;
 }
 
 .marketing__blog_post__header__excerpt {
