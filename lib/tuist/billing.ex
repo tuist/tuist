@@ -80,8 +80,15 @@ defmodule Tuist.Billing do
   end
 
   def create_customer(%{name: name, email: email}) do
-    {:ok, customer} = Stripe.Customer.create(%{name: name, email: email})
-    customer.id
+    {:ok, %{data: searched_customers}} = Stripe.Customer.search(%{query: "email:\"#{email}\""})
+    existing_customer = searched_customers |> List.first()
+
+    if is_nil(existing_customer) do
+      {:ok, customer} = Stripe.Customer.create(%{name: name, email: email})
+      customer.id
+    else
+      existing_customer.id
+    end
   end
 
   def create_session(customer) do
@@ -175,6 +182,13 @@ defmodule Tuist.Billing do
       end
 
     cond do
+      is_nil(account) ->
+        # We had a race-condition that caused multiple customers to be created on Stripe
+        # for the same account. Because of that, we were getting webhooks for customers
+        # that we couldn't look up in our database. Until we sync the customers, we'll
+        # ignore the webhooks for those customers.
+        :ok
+
       is_nil(current_subscription) ->
         Subscription.create_changeset(%Subscription{}, %{
           plan: plan,

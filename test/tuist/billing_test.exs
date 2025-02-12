@@ -37,6 +37,37 @@ defmodule Tuist.BillingTest do
     :ok
   end
 
+  describe "create_customer" do
+    test "creates the customer if it doesn't exist" do
+      # Given
+      email = "#{UUIDv7.generate()}@tuist.dev"
+      name = UUIDv7.generate()
+      customer_id = UUIDv7.generate()
+      search_params = %{query: "email:\"#{email}\""}
+      create_params = %{name: name, email: email}
+      Stripe.Customer |> stub(:search, fn ^search_params -> {:ok, %{data: []}} end)
+      Stripe.Customer |> stub(:create, fn ^create_params -> {:ok, %{id: customer_id}} end)
+
+      # When/then
+      assert Billing.create_customer(%{name: name, email: email}) == customer_id
+    end
+
+    test "returns an existing customer if it exists" do
+      # Given
+      email = "#{UUIDv7.generate()}@tuist.dev"
+      name = UUIDv7.generate()
+      customer_id = UUIDv7.generate()
+      search_params = %{query: "email:\"#{email}\""}
+      create_params = %{name: name, email: email}
+
+      Stripe.Customer
+      |> stub(:search, fn ^search_params -> {:ok, %{data: [%{id: customer_id}]}} end)
+
+      # When/then
+      assert Billing.create_customer(%{name: name, email: email}) == customer_id
+    end
+  end
+
   describe "get_payment_method_id_from_subscription_id/1" do
     test "returns the default payment method from the subscription if it exists" do
       # Given
@@ -142,6 +173,24 @@ defmodule Tuist.BillingTest do
   end
 
   describe "on_subscription_change/1" do
+    test "when an account for the given customer doesn't exist" do
+      # Given
+      user = AccountsFixtures.user_fixture(customer_id: "customer_id")
+      account = Accounts.get_account_from_user(user)
+
+      # When
+      assert(
+        Billing.on_subscription_change(%{
+          id: "sub_some-id",
+          status: "trialing",
+          customer: "non_existing_customer_id",
+          default_payment_method: nil,
+          items: %{data: [%{price: %{id: "air.usage"}}, %{price: %{id: "air.flat.monthly"}}]},
+          trial_end: 1_722_433_329
+        }) == :ok
+      )
+    end
+
     test "when it's a new trial air subscription" do
       # Given
       user = AccountsFixtures.user_fixture(customer_id: "customer_id")
