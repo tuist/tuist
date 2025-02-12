@@ -101,6 +101,7 @@ public enum TuistAcceptanceFixtures {
     case xcodeApp
     case xcodeProjectWithRegistryAndAlamofire
     case xcodeProjectWithTests
+    case xcodeProjectWithPackagesAndTests
     case appWithExecutableNonLocalDependencies
     case appWithGeneratedSources
     case custom(String)
@@ -305,6 +306,8 @@ public enum TuistAcceptanceFixtures {
             return "xcode_project_with_registry_and_alamofire"
         case .xcodeProjectWithTests:
             return "xcode_project_with_tests"
+        case .xcodeProjectWithPackagesAndTests:
+            return "xcode_project_with_packages_and_tests"
         case .appWithExecutableNonLocalDependencies:
             return "app_with_executable_non_local_dependencies"
         case .appWithGeneratedSources:
