@@ -89,6 +89,12 @@ defmodule Tuist.Marketing.Blog do
         "x_handle" => "AtakanKarsli_",
         "github_handle" => "atakankarsli",
         "image_href" => "/marketing/images/authors/aatakankarsli.jpg"
+      },
+      "ajkolean" => %{
+        "role" => "Principal iOS Engineer at Fundrise",
+        "name" => "Andrew Kolean",
+        "github_handle" => "ajkolean",
+        "image_href" => "/marketing/images/authors/ajkolean.jpg"
       }
     }
   end
