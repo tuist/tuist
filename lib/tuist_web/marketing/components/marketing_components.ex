@@ -8,7 +8,6 @@ defmodule TuistWeb.Marketing.MarketingComponents do
 
   embed_templates "marketing_layout_components/*"
 
-  attr :href, :string, required: false
   attr :rest, :global
   slot :inner_block, required: true
 

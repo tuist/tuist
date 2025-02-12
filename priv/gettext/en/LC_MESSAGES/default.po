@@ -1093,7 +1093,7 @@ msgstr ""
 msgid "Module: %{module_name}"
 msgstr ""
 
-#: lib/tuist_web/marketing/components/marketing_components.ex:354
+#: lib/tuist_web/marketing/components/marketing_components.ex:353
 #, elixir-autogen, elixir-format
 msgid "Most popular"
 msgstr ""

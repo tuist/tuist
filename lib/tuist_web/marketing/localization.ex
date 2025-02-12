@@ -32,10 +32,14 @@ defmodule TuistWeb.Marketing.Localization do
   end
 
   def call(conn, :redirect_to_localized_route) do
-    assigns_locale = Map.get(conn.private, :locale, "en")
+    private_locale = Map.get(conn.private, :locale, "en")
     headers_locale = fetch_locale_from_headers(conn) || "en"
 
-    if Enum.member?(all_locales(), headers_locale) and assigns_locale != headers_locale do
+    disable_locale_redirect =
+      Map.get(conn.query_params, "disable_locale_redirect", "false") == "true"
+
+    if Enum.member?(all_locales(), headers_locale) and private_locale != headers_locale and
+         !disable_locale_redirect do
       redirect_to_path =
         Path.join(
           locale_path_prefix(headers_locale),
@@ -69,7 +73,7 @@ defmodule TuistWeb.Marketing.Localization do
   end
 
   def locale_path_prefix(locale) do
-    "/#{locale}/"
+    "/#{locale}"
   end
 
   def on_mount(:default, params, %{"locale" => locale} = _session, socket) do
