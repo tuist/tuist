@@ -10,7 +10,7 @@ msgstr ""
 "Project-Id-Version: tuist-website\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Language-Team: Korean\n"
-"PO-Revision-Date: 2025-02-12 10:44\n"
+"PO-Revision-Date: 2025-02-12 16:25\n"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:390
 #, elixir-autogen, elixir-format
@@ -398,7 +398,7 @@ msgstr "취소"
 #: lib/tuist_web/live/account_projects_live.html.heex:72
 #, elixir-autogen, elixir-format
 msgid "Can’t find what you’re looking for?."
-msgstr ""
+msgstr "원하는 것을 찾을 수 없으신가요?"
 
 #: lib/tuist_web/marketing/live/marketing_changelog_live.html.heex:4
 #, elixir-autogen, elixir-format
@@ -408,7 +408,7 @@ msgstr ""
 #: lib/tuist_web/live/account_billing_live.html.heex:136
 #, elixir-autogen, elixir-format
 msgid "Change how you pay for your plan"
-msgstr ""
+msgstr "요금제 결제 방법 변경하기"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:87
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:169
@@ -660,7 +660,7 @@ msgstr ""
 #: lib/tuist_web/live/user_login_live.ex:115
 #, elixir-autogen, elixir-format
 msgid "Don't have an account?"
-msgstr ""
+msgstr "계정이 없으신가요?"
 
 #: lib/tuist_web/live/preview_live.html.heex:50
 #, elixir-autogen, elixir-format
@@ -715,30 +715,30 @@ msgstr ""
 #: lib/tuist_web/live/user_registration_live.ex:146
 #, elixir-autogen, elixir-format
 msgid "Email is already taken"
-msgstr ""
+msgstr "이미 사용 중인 이메일입니다"
 
 #: lib/tuist_web/marketing/live/marketing_blog_live.html.heex:5
 #, elixir-autogen, elixir-format
 msgid "Engaging stories and expert insights"
-msgstr ""
+msgstr "흥미로운 스토리와 전문가 인사이트"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:286
 #, elixir-autogen, elixir-format
 msgid "Enhance your product and development with actionable insights."
-msgstr ""
+msgstr "실천 가능한 유용한 통찰로 여러분의 제품과 개발을 더욱 발전시키세요."
 
 #: lib/tuist_web/live/user_forgot_password_live.ex:26
 #: lib/tuist_web/live/user_login_live.ex:55
 #: lib/tuist_web/live/user_registration_live.ex:42
 #, elixir-autogen, elixir-format
 msgid "Enter your email"
-msgstr ""
+msgstr "이메일을 입력하세요"
 
 #: lib/tuist_web/live/user_login_live.ex:62
 #: lib/tuist_web/live/user_registration_live.ex:49
 #, elixir-autogen, elixir-format
 msgid "Enter your password"
-msgstr ""
+msgstr "비밀번호를 입력해주세요"
 
 #: lib/tuist/billing.ex:67
 #, elixir-autogen, elixir-format
@@ -974,7 +974,7 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:257
 #, elixir-autogen, elixir-format
 msgid "Is there a free trial on paid plans?"
-msgstr ""
+msgstr "유료 요금제에 무료 체험 기간이 있나요?"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:93
 #, elixir-autogen, elixir-format
@@ -984,22 +984,22 @@ msgstr ""
 #: lib/tuist_web/live/account_projects_live.html.heex:74
 #, elixir-autogen, elixir-format
 msgid "Join our Slack"
-msgstr ""
+msgstr "Slack에 참여하기"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:340
 #, elixir-autogen, elixir-format
 msgid "Join our Slack group for real-time conversations and to connect with the Tuist community"
-msgstr ""
+msgstr "Tuist 커뮤니티에서 실시간으로 소통하기 위해 Slack에 참여하세요"
 
 #: lib/tuist_web/live/user_login_live.ex:70
 #, elixir-autogen, elixir-format
 msgid "Keep me logged in"
-msgstr ""
+msgstr "로그인 상태 유지"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:313
 #, elixir-autogen, elixir-format
 msgid "Keep up with the latest and greatest changes in Tuist."
-msgstr ""
+msgstr "Tuist의 최신 업데이트와 주요 변경 사항을 확인합니다."
 
 #: lib/tuist_web/live/project_tests_live.html.heex:31
 #, elixir-autogen, elixir-format
@@ -1095,7 +1095,7 @@ msgstr ""
 msgid "Module: %{module_name}"
 msgstr ""
 
-#: lib/tuist_web/marketing/components/marketing_components.ex:354
+#: lib/tuist_web/marketing/components/marketing_components.ex:353
 #, elixir-autogen, elixir-format
 msgid "Most popular"
 msgstr ""
@@ -1610,7 +1610,7 @@ msgstr ""
 #: lib/tuist_web/live/project_test_case_detail_live.html.heex:27
 #, elixir-autogen, elixir-format
 msgid "Status"
-msgstr ""
+msgstr "상태"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:142
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:203
@@ -1634,7 +1634,7 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_html/newsletter.html.heex:48
 #, elixir-autogen, elixir-format
 msgid "Subscribe"
-msgstr ""
+msgstr "구독"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/cta.html.heex:3
 #, elixir-autogen, elixir-format
@@ -1771,12 +1771,12 @@ msgstr ""
 #: lib/tuist_web/controllers/error_html.ex:62
 #, elixir-autogen, elixir-format
 msgid "Too many requests"
-msgstr ""
+msgstr "요청이 너무 많습니다"
 
 #: lib/tuist_web/controllers/error_html.ex:63
 #, elixir-autogen, elixir-format
 msgid "Too many requests."
-msgstr ""
+msgstr "요청이 너무 많습니다."
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:121
 #, elixir-autogen, elixir-format
