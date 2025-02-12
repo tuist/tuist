@@ -10,7 +10,7 @@ msgstr ""
 "Project-Id-Version: tuist-website\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Language-Team: Korean\n"
-"PO-Revision-Date: 2025-02-10 16:08\n"
+"PO-Revision-Date: 2025-02-12 10:44\n"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:390
 #, elixir-autogen, elixir-format
@@ -64,7 +64,7 @@ msgstr "%{display_name} · Tuist"
 #: lib/tuist_web/live/project_dashboard_live.html.heex:131
 #: lib/tuist_web/live/project_dashboard_live.html.heex:157
 #: lib/tuist_web/live/project_dashboard_live.html.heex:183
-#: lib/tuist_web/live/project_run_detail_live.html.heex:97
+#: lib/tuist_web/live/project_run_detail_live.html.heex:99
 #, elixir-autogen, elixir-format
 msgid "%{duration} s"
 msgstr "%{duration}초"
@@ -302,7 +302,7 @@ msgstr ""
 msgid "Billing details"
 msgstr ""
 
-#: lib/tuist_web/live/project_run_detail_live.html.heex:69
+#: lib/tuist_web/live/project_run_detail_live.html.heex:70
 #, elixir-autogen, elixir-format
 msgid "Binary cache hits"
 msgstr ""
@@ -369,7 +369,7 @@ msgid "CI"
 msgstr ""
 
 #: lib/tuist_web/live/project_run_detail_live.html.heex:51
-#: lib/tuist_web/live/project_run_detail_live.html.heex:70
+#: lib/tuist_web/live/project_run_detail_live.html.heex:71
 #, elixir-autogen, elixir-format
 msgid "Cache hit"
 msgstr ""
@@ -384,7 +384,7 @@ msgstr "캐시 적중률"
 msgid "Cache runs"
 msgstr ""
 
-#: lib/tuist_web/live/project_run_detail_live.html.heex:74
+#: lib/tuist_web/live/project_run_detail_live.html.heex:75
 #, elixir-autogen, elixir-format
 msgid "Cacheable targets"
 msgstr ""
@@ -684,7 +684,7 @@ msgstr ""
 msgid "Download W-8BEN-E certificate"
 msgstr ""
 
-#: lib/tuist_web/live/project_run_detail_live.html.heex:96
+#: lib/tuist_web/live/project_run_detail_live.html.heex:98
 #: lib/tuist_web/live/project_runs_live.html.heex:22
 #, elixir-autogen, elixir-format
 msgid "Duration"
@@ -771,7 +771,7 @@ msgstr ""
 msgid "FAQ"
 msgstr ""
 
-#: lib/tuist_web/live/project_run_detail_live.html.heex:32
+#: lib/tuist_web/live/project_run_detail_live.html.heex:31
 #, elixir-autogen, elixir-format
 msgid "Failed"
 msgstr ""
@@ -796,7 +796,7 @@ msgstr ""
 msgid "Filter"
 msgstr ""
 
-#: lib/tuist_web/live/project_run_detail_live.html.heex:99
+#: lib/tuist_web/live/project_run_detail_live.html.heex:101
 #, elixir-autogen, elixir-format
 msgid "Finished at"
 msgstr ""
@@ -1022,7 +1022,7 @@ msgid "Like, totally free"
 msgstr ""
 
 #: lib/tuist_web/live/project_run_detail_live.html.heex:61
-#: lib/tuist_web/live/project_run_detail_live.html.heex:80
+#: lib/tuist_web/live/project_run_detail_live.html.heex:81
 #, elixir-autogen, elixir-format
 msgid "Local hits"
 msgstr ""
@@ -1070,7 +1070,7 @@ msgid "Millions"
 msgstr ""
 
 #: lib/tuist_web/live/project_run_detail_live.html.heex:61
-#: lib/tuist_web/live/project_run_detail_live.html.heex:80
+#: lib/tuist_web/live/project_run_detail_live.html.heex:81
 #, elixir-autogen, elixir-format
 msgid "Misses"
 msgstr ""
@@ -1095,7 +1095,7 @@ msgstr ""
 msgid "Module: %{module_name}"
 msgstr ""
 
-#: lib/tuist_web/marketing/components/marketing_layout_components.ex:323
+#: lib/tuist_web/marketing/components/marketing_components.ex:354
 #, elixir-autogen, elixir-format
 msgid "Most popular"
 msgstr ""
@@ -1204,7 +1204,7 @@ msgstr ""
 msgid "Our principles"
 msgstr ""
 
-#: lib/tuist_web/live/project_run_detail_live.html.heex:32
+#: lib/tuist_web/live/project_run_detail_live.html.heex:31
 #, elixir-autogen, elixir-format
 msgid "Passed"
 msgstr ""
@@ -1349,7 +1349,7 @@ msgstr ""
 
 #: lib/tuist_web/live/previews_live.html.heex:19
 #: lib/tuist_web/live/project_dashboard_live.html.heex:32
-#: lib/tuist_web/live/project_run_detail_live.html.heex:90
+#: lib/tuist_web/live/project_run_detail_live.html.heex:92
 #: lib/tuist_web/live/project_runs_live.html.heex:19
 #: lib/tuist_web/live/project_test_case_detail_live.html.heex:35
 #, elixir-autogen, elixir-format
@@ -1378,7 +1378,7 @@ msgid "Reading time"
 msgstr ""
 
 #: lib/tuist_web/live/project_run_detail_live.html.heex:61
-#: lib/tuist_web/live/project_run_detail_live.html.heex:80
+#: lib/tuist_web/live/project_run_detail_live.html.heex:81
 #, elixir-autogen, elixir-format
 msgid "Remote hits"
 msgstr ""
@@ -1415,7 +1415,7 @@ msgstr ""
 msgid "Run"
 msgstr ""
 
-#: lib/tuist_web/live/project_run_detail_live.html.heex:88
+#: lib/tuist_web/live/project_run_detail_live.html.heex:90
 #, elixir-autogen, elixir-format
 msgid "Run details"
 msgstr ""
@@ -1605,7 +1605,7 @@ msgstr ""
 msgid "Start your Tuist journey."
 msgstr ""
 
-#: lib/tuist_web/live/project_run_detail_live.html.heex:93
+#: lib/tuist_web/live/project_run_detail_live.html.heex:95
 #: lib/tuist_web/live/project_runs_live.html.heex:16
 #: lib/tuist_web/live/project_test_case_detail_live.html.heex:27
 #, elixir-autogen, elixir-format
@@ -1657,7 +1657,7 @@ msgstr ""
 msgid "Supported platforms"
 msgstr ""
 
-#: lib/tuist_web/live/project_run_detail_live.html.heex:105
+#: lib/tuist_web/live/project_run_detail_live.html.heex:107
 #, elixir-autogen, elixir-format
 msgid "Swift version"
 msgstr ""
@@ -1703,7 +1703,7 @@ msgstr ""
 msgid "Test runs"
 msgstr ""
 
-#: lib/tuist_web/live/project_run_detail_live.html.heex:26
+#: lib/tuist_web/live/project_run_detail_live.html.heex:25
 #, elixir-autogen, elixir-format
 msgid "Test status"
 msgstr ""
@@ -1713,8 +1713,8 @@ msgstr ""
 msgid "Tested targets"
 msgstr ""
 
-#: lib/tuist_web/live/project_run_detail_live.html.heex:24
-#: lib/tuist_web/live/project_run_detail_live.html.heex:33
+#: lib/tuist_web/live/project_run_detail_live.html.heex:23
+#: lib/tuist_web/live/project_run_detail_live.html.heex:32
 #: lib/tuist_web/live/project_tests_live.ex:20
 #, elixir-autogen, elixir-format
 msgid "Tests"
@@ -1838,12 +1838,6 @@ msgstr ""
 msgid "Tuist Previews"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:220
-#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:38
-#, elixir-autogen, elixir-format
-msgid "Tuist Projects"
-msgstr ""
-
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:59
 #, elixir-autogen, elixir-format
 msgid "Tuist Tests"
@@ -1874,7 +1868,7 @@ msgstr ""
 msgid "Tuist is designed to grow with you. Only add a card if you need more than the free tier limits or dedicated support."
 msgstr ""
 
-#: lib/tuist_web/live/project_run_detail_live.html.heex:102
+#: lib/tuist_web/live/project_run_detail_live.html.heex:104
 #, elixir-autogen, elixir-format
 msgid "Tuist version"
 msgstr ""
@@ -2252,7 +2246,7 @@ msgstr ""
 msgid "generate runs"
 msgstr ""
 
-#: lib/tuist_web/live/project_run_detail_live.html.heex:108
+#: lib/tuist_web/live/project_run_detail_live.html.heex:110
 #, elixir-autogen, elixir-format
 msgid "macOS version"
 msgstr ""
@@ -2479,5 +2473,11 @@ msgstr ""
 #: lib/tuist_web/live/project_run_detail_live.ex:287
 #, elixir-autogen, elixir-format
 msgid "Hash"
+msgstr ""
+
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:220
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:38
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Generated Projects"
 msgstr ""
 
