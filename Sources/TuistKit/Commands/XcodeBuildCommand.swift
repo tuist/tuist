@@ -6,7 +6,7 @@ import TuistHasher
 import TuistServer
 import XcodeGraph
 
-public struct XcodeBuildCommand: AsyncParsableCommand {
+public struct XcodeBuildCommand: AsyncParsableCommand, TrackableParsableCommand {
     public static var cacheStorageFactory: CacheStorageFactorying = EmptyCacheStorageFactory()
     public static var selectiveTestingGraphHasher: SelectiveTestingGraphHashing = EmptySelectiveTestingGraphHasher()
     public static var selectiveTestingService: SelectiveTestingServicing = EmptySelectiveTestingService()
@@ -17,6 +17,8 @@ public struct XcodeBuildCommand: AsyncParsableCommand {
             abstract: "tuist xcodebuild extends the xcodebuild CLI with server capabilities such as selective testing or analytics."
         )
     }
+
+    var analyticsRequired: Bool { true }
 
     public init() {}
 

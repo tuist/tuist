@@ -111,7 +111,8 @@ final class CommandEventFactoryTests: TuistUnitTestCase {
                     ),
                 ],
             ],
-            previewId: nil
+            previewId: nil,
+            resultBundlePath: nil
         )
         let expectedEvent = CommandEvent(
             runId: "run-id",
@@ -189,7 +190,8 @@ final class CommandEventFactoryTests: TuistUnitTestCase {
                     ),
                 ]
             ),
-            previewId: nil
+            previewId: nil,
+            resultBundlePath: nil
         )
 
         given(gitController)
@@ -258,7 +260,8 @@ final class CommandEventFactoryTests: TuistUnitTestCase {
             graph: nil,
             binaryCacheItems: [:],
             selectiveTestingCacheItems: [:],
-            previewId: nil
+            previewId: nil,
+            resultBundlePath: nil
         )
 
         given(gitController)
@@ -294,7 +297,8 @@ final class CommandEventFactoryTests: TuistUnitTestCase {
             graph: nil,
             binaryCacheItems: [:],
             selectiveTestingCacheItems: [:],
-            previewId: nil
+            previewId: nil,
+            resultBundlePath: nil
         )
 
         given(gitController)
@@ -346,7 +350,8 @@ final class CommandEventFactoryTests: TuistUnitTestCase {
             graph: nil,
             binaryCacheItems: [:],
             selectiveTestingCacheItems: [:],
-            previewId: nil
+            previewId: nil,
+            resultBundlePath: nil
         )
 
         given(gitController)

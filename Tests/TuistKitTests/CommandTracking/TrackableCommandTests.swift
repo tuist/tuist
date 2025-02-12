@@ -5,6 +5,7 @@ import Path
 import TuistAnalytics
 import TuistAsyncQueue
 import TuistCore
+import TuistServer
 import TuistSupport
 import XCTest
 
@@ -69,7 +70,10 @@ final class TrackableCommandTests: TuistTestCase {
         // Given
         makeSubject(flag: false, shouldFail: true)
         // When
-        await XCTAssertThrowsSpecific(try await subject.run(analyticsEnabled: true), TestCommand.TestError.commandFailed)
+        await XCTAssertThrowsSpecific(
+            try await subject.run(backend: TuistAnalyticsServerBackend(fullHandle: "", url: .test())),
+            TestCommand.TestError.commandFailed
+        )
 
         // Then
         verify(asyncQueue)
@@ -84,7 +88,7 @@ final class TrackableCommandTests: TuistTestCase {
         makeSubject(commandArguments: ["cache", "warm", "--path", "/my-path"])
 
         // When
-        try await subject.run(analyticsEnabled: true)
+        try await subject.run(backend: TuistAnalyticsServerBackend(fullHandle: "", url: .test()))
 
         // Then
         verify(asyncQueue)
@@ -95,12 +99,12 @@ final class TrackableCommandTests: TuistTestCase {
             .called(1)
     }
 
-    func test_whenPathIsInArguments_and_analytics_are_disabled() async throws {
+    func test_whenPathIsInArguments_and_no_backend_is_set() async throws {
         // Given
         makeSubject(commandArguments: ["cache", "warm", "--path", "/my-path"])
 
         // When
-        try await subject.run(analyticsEnabled: false)
+        try await subject.run(backend: nil)
 
         // Then
         verify(asyncQueue)
@@ -116,7 +120,7 @@ final class TrackableCommandTests: TuistTestCase {
         makeSubject(commandArguments: ["cache", "warm"])
 
         // When
-        try await subject.run(analyticsEnabled: true)
+        try await subject.run(backend: TuistAnalyticsServerBackend(fullHandle: "", url: .test()))
 
         // Then
         verify(asyncQueue)
@@ -137,12 +141,12 @@ final class TrackableCommandTests: TuistTestCase {
         )
 
         // When
-        try await subject.run(analyticsEnabled: true)
+        try await subject.run(backend: MockTuistServerAnalyticsBackend(fullHandle: "", url: .test()))
 
         // Then
         verify(asyncQueue)
             .wait()
-            .called(1)
+            .called(0)
     }
 }
 
@@ -174,5 +178,11 @@ private struct TestCommand: TrackableParsableCommand, ParsableCommand {
         if shouldFail {
             throw TestError.commandFailed
         }
+    }
+}
+
+final class MockTuistServerAnalyticsBackend: TuistAnalyticsServerBackend {
+    override func send(commandEvent _: CommandEvent) async throws -> ServerCommandEvent {
+        return .test()
     }
 }
