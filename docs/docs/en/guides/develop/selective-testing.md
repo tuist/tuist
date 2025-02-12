@@ -7,7 +7,7 @@ description: Use selective testing to run only the tests that have changed since
 # Selective testing {#selective-testing}
 
 > [!IMPORTANT] REQUIREMENTS
-> - A <LocalizedLink href="/guides/develop/projects">Generated project</LocalizedLink>
+> - A <LocalizedLink href="/guides/develop/projects">generated project</LocalizedLink>
 > - A <LocalizedLink href="/server/introduction/accounts-and-projects">server account and project</LocalizedLink>
 
 As your project grows, so does the amount of your tests. For a long time, running all tests on every PR or push to `main` takes tens of seconds. But this solution does not scale to thousands of tests your team might have.
