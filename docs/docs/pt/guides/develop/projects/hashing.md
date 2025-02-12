@@ -25,7 +25,7 @@ We hash the Swift version obtained from running the command `/usr/bin/xcrun swif
 
 #### Configuration {#configuration}
 
-The idea behind this flag was to ensure debug binaries were not used in release builds and viceversa. However, we are still missing a mechanism to remove the other configurations from the projects to prevent them from being used.
+The idea behind the flag `-configuration` was to ensure debug binaries were not used in release builds and viceversa. However, we are still missing a mechanism to remove the other configurations from the projects to prevent them from being used.
 
 ## Debugging {#debugging}
 

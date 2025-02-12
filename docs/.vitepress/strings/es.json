@@ -82,6 +82,13 @@
     "cli": {
       "text": "CLI",
       "items": {
+        "cli": {
+          "items": {
+            "logging": {
+              "text": "Logging"
+            }
+          }
+        },
         "commands": {
           "text": "Comandos"
         }
@@ -120,6 +127,14 @@
         },
         "translate": {
           "text": "Traduce"
+        },
+        "cli": {
+          "text": "CLI",
+          "items": {
+            "logging": {
+              "text": "Logging"
+            }
+          }
         }
       }
     },

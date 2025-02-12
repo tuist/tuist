@@ -7,6 +7,7 @@ description: Use selective testing to run only the tests that have changed since
 # Selective testing {#selective-testing}
 
 > [!IMPORTANT] REQUIREMENTS
+>
 > - A <LocalizedLink href="/guides/develop/projects">Tuist Project</LocalizedLink>
 > - A <LocalizedLink href="/server/introduction/accounts-and-projects">Tuist account and project</LocalizedLink>
 
