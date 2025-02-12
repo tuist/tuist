@@ -78,17 +78,17 @@ public struct TuistCommand: AsyncParsableCommand {
 
         let config = try await ConfigLoader(warningController: WarningController.shared).loadConfig(path: path)
         let url = try ServerURLService().url(configServerURL: config.url)
-        let analyticsEnabled: Bool
+        let backend: TuistAnalyticsServerBackend?
         if let fullHandle = config.fullHandle {
-            let backend = TuistAnalyticsServerBackend(
+            let tuistAnalyticsServerBackend = TuistAnalyticsServerBackend(
                 fullHandle: fullHandle,
                 url: url
             )
-            let dispatcher = TuistAnalyticsDispatcher(backend: backend)
+            let dispatcher = TuistAnalyticsDispatcher(backend: tuistAnalyticsServerBackend)
             try TuistAnalytics.bootstrap(dispatcher: dispatcher)
-            analyticsEnabled = true
+            backend = tuistAnalyticsServerBackend
         } else {
-            analyticsEnabled = false
+            backend = nil
         }
 
         try await CacheDirectoriesProvider.bootstrap()
@@ -116,7 +116,7 @@ public struct TuistCommand: AsyncParsableCommand {
                     commandArguments: processedArguments
                 )
                 try await trackableCommand.run(
-                    analyticsEnabled: analyticsEnabled
+                    backend: backend
                 )
             }
         } catch {

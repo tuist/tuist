@@ -21,6 +21,7 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
     public let gitBranch: String?
     public let graph: RunGraph?
     public let previewId: String?
+    public let resultBundlePath: AbsolutePath?
 
     public enum Status: Codable, Equatable {
         case success, failure(String)
@@ -49,6 +50,7 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
         case gitBranch
         case graph
         case previewId
+        case resultBundlePath
     }
 
     public init(
@@ -69,7 +71,8 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
         gitRemoteURLOrigin: String?,
         gitBranch: String?,
         graph: RunGraph?,
-        previewId: String?
+        previewId: String?,
+        resultBundlePath: AbsolutePath?
     ) {
         self.runId = runId
         self.name = name
@@ -89,6 +92,7 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
         self.gitBranch = gitBranch
         self.graph = graph
         self.previewId = previewId
+        self.resultBundlePath = resultBundlePath
     }
 }
 
@@ -111,7 +115,8 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
             gitRemoteURLOrigin: String? = "https://github.com/tuist/tuist",
             gitBranch: String? = "main",
             graph: RunGraph = RunGraph(name: "Graph", projects: []),
-            previewId: String? = nil
+            previewId: String? = nil,
+            resultBundlePath: AbsolutePath? = nil
         ) -> CommandEvent {
             CommandEvent(
                 runId: runId,
@@ -131,7 +136,8 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
                 gitRemoteURLOrigin: gitRemoteURLOrigin,
                 gitBranch: gitBranch,
                 graph: graph,
-                previewId: previewId
+                previewId: previewId,
+                resultBundlePath: resultBundlePath
             )
         }
     }

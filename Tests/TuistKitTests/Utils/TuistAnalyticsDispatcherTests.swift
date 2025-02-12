@@ -104,7 +104,8 @@ final class TuistAnalyticsDispatcherTests: TuistUnitTestCase {
             gitRemoteURLOrigin: "https://github.com/tuist/tuist",
             gitBranch: "main",
             graph: nil,
-            previewId: nil
+            previewId: nil,
+            resultBundlePath: nil
         )
     }
 

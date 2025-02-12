@@ -54,36 +54,37 @@ public class TuistAnalyticsServerBackend: TuistAnalyticsBackend {
     }
 
     public func send(commandEvent: CommandEvent) async throws {
+        let _: ServerCommandEvent = try await send(commandEvent: commandEvent)
+    }
+
+    public func send(commandEvent: CommandEvent) async throws -> ServerCommandEvent {
         let serverCommandEvent = try await createCommandEventService.createCommandEvent(
             commandEvent: commandEvent,
             projectId: fullHandle,
             serverURL: url
         )
-
-        let runDirectory = try cacheDirectoriesProvider
+        let runsDirectory = try cacheDirectoriesProvider
             .cacheDirectory(for: .runs)
-            .appending(component: commandEvent.runId)
 
-        let resultBundle = runDirectory
+        let runDirectory = runsDirectory.appending(component: commandEvent.runId)
+
+        let resultBundlePath = commandEvent.resultBundlePath ?? runDirectory
             .appending(component: "\(Constants.resultBundleName).xcresult")
 
-        if try await fileSystem.exists(resultBundle) {
+        if try await fileSystem.exists(resultBundlePath) {
             try await analyticsArtifactUploadService.uploadResultBundle(
-                resultBundle,
+                resultBundlePath,
                 commandEventId: serverCommandEvent.id,
                 serverURL: url
             )
         }
 
-        if try await fileSystem.exists(runDirectory) {
-            try await fileSystem.remove(runDirectory)
+        if resultBundlePath.parentDirectory.commonAncestor(with: runsDirectory) == runsDirectory,
+           try await fileSystem.exists(resultBundlePath)
+        {
+            try await fileSystem.remove(resultBundlePath)
         }
 
-        if #available(macOS 13.0, *), ciChecker.isCI() {
-            ServiceContext.current?.logger?
-                .info(
-                    "You can view a detailed report at: \(serverCommandEvent.url.absoluteString)"
-                )
-        }
+        return serverCommandEvent
     }
 }

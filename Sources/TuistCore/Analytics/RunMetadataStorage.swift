@@ -32,6 +32,12 @@ public actor RunMetadataStorage {
     public func update(previewId: String?) {
         self.previewId = previewId
     }
+
+    /// Path to the result bundle that should be uploaded when running commands like `tuist xcodebuild test`
+    public private(set) var resultBundlePath: AbsolutePath?
+    public func update(resultBundlePath: AbsolutePath?) {
+        self.resultBundlePath = resultBundlePath
+    }
 }
 
 private enum RunMetadataStorageContextKey: ServiceContextKey {

@@ -1,4 +1,5 @@
 import FileSystem
+import Foundation
 import Path
 import ServiceContextModule
 import TuistAutomation
@@ -43,6 +44,8 @@ struct XcodeBuildService {
     private let xcodeGraphMapper: XcodeGraphMapping
     private let xcodeBuildController: XcodeBuildControlling
     private let configLoader: ConfigLoading
+    private let cacheDirectoriesProvider: CacheDirectoriesProviding
+    private let uniqueIDGenerator: UniqueIDGenerating
     private let cacheStorageFactory: CacheStorageFactorying
     private let selectiveTestingGraphHasher: SelectiveTestingGraphHashing
     private let selectiveTestingService: SelectiveTestingServicing
@@ -52,6 +55,8 @@ struct XcodeBuildService {
         xcodeGraphMapper: XcodeGraphMapping = XcodeGraphMapper(),
         xcodeBuildController: XcodeBuildControlling = XcodeBuildController(),
         configLoader: ConfigLoading = ConfigLoader(warningController: WarningController.shared),
+        cacheDirectoriesProvider: CacheDirectoriesProviding = CacheDirectoriesProvider(),
+        uniqueIDGenerator: UniqueIDGenerating = UniqueIDGenerator(),
         cacheStorageFactory: CacheStorageFactorying,
         selectiveTestingGraphHasher: SelectiveTestingGraphHashing,
         selectiveTestingService: SelectiveTestingServicing
@@ -60,6 +65,8 @@ struct XcodeBuildService {
         self.xcodeGraphMapper = xcodeGraphMapper
         self.xcodeBuildController = xcodeBuildController
         self.configLoader = configLoader
+        self.cacheDirectoriesProvider = cacheDirectoriesProvider
+        self.uniqueIDGenerator = uniqueIDGenerator
         self.cacheStorageFactory = cacheStorageFactory
         self.selectiveTestingGraphHasher = selectiveTestingGraphHasher
         self.selectiveTestingService = selectiveTestingService
@@ -92,7 +99,7 @@ struct XcodeBuildService {
             throw XcodeBuildServiceError.schemeNotPassed
         }
         let graph = try await xcodeGraphMapper.map(at: path)
-        try await ServiceContext.current?.runMetadataStorage?.update(graph: graph)
+        await ServiceContext.current?.runMetadataStorage?.update(graph: graph)
         let graphTraverser = GraphTraverser(graph: graph)
         guard let scheme = graphTraverser.schemes().first(where: {
             $0.name == schemeName
@@ -174,7 +181,14 @@ struct XcodeBuildService {
         }
 
         try await xcodeBuildController
-            .run(arguments: passthroughXcodebuildArguments + skipTestingArguments)
+            .run(
+                arguments: [
+                    passthroughXcodebuildArguments,
+                    skipTestingArguments,
+                    resultBundlePathArguments(passthroughXcodebuildArguments: passthroughXcodebuildArguments),
+                ]
+                .flatMap { $0 }
+            )
 
         try await storeTestableGraphTargets(
             testableGraphTargets,
@@ -187,6 +201,30 @@ struct XcodeBuildService {
             selectiveTestingHashes: selectiveTestingHashes,
             targetTestCacheItems: targetTestCacheItems
         )
+    }
+
+    private func resultBundlePathArguments(
+        passthroughXcodebuildArguments: [String]
+    ) async throws -> [String] {
+        if let resultBundlePathString = passedValue(
+            for: "-resultBundlePath",
+            arguments: passthroughXcodebuildArguments
+        ) {
+            let currentWorkingDirectory = try await fileSystem.currentWorkingDirectory()
+            let resultBundlePath = try AbsolutePath(validating: resultBundlePathString, relativeTo: currentWorkingDirectory)
+            await ServiceContext.current?.runMetadataStorage?.update(
+                resultBundlePath: resultBundlePath
+            )
+            return []
+        } else {
+            let resultBundlePath = try cacheDirectoriesProvider
+                .cacheDirectory(for: .runs)
+                .appending(components: uniqueIDGenerator.uniqueID())
+            await ServiceContext.current?.runMetadataStorage?.update(
+                resultBundlePath: resultBundlePath
+            )
+            return ["-resultBundlePath", resultBundlePath.pathString]
+        }
     }
 
     private func updateRunMetadataStorage(
