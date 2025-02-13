@@ -10,7 +10,7 @@ msgstr ""
 "Project-Id-Version: tuist-website\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Language-Team: Korean\n"
-"PO-Revision-Date: 2025-02-12 16:25\n"
+"PO-Revision-Date: 2025-02-12 22:22\n"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:390
 #, elixir-autogen, elixir-format
@@ -152,17 +152,19 @@ msgstr "7일"
 msgid "<p>Tuist has been a game-changer for our large codebase, where multiple engineers collaborate simultaneously. It helps us avoid conflicts in project organization and provides full control over project configuration, allowing us to customize everything to our needs. For a modularized app, Tuist is the perfect ally—its ability to effortlessly reuse configurations across modules has significantly streamlined our development process.</p>\n"
 "<p>Additionally, the way Tuist manages package dependencies is outstanding. As soon as you open Xcode, you're ready to jump right into coding without waiting for 30+ packages to resolve every time. It's truly a productivity booster.</p>\n"
 "<p>I've been using it since version 1, and it's been incredible to see how the product has evolved and expanded with new features over time. Their effort in resolving underlying issues and evolving the product has made Tuist a mature, reliable tool that we can depend on.</p>\n"
-msgstr ""
+msgstr "<p>Tuist는 여러 엔지니어가 동시에 협업하는 우리의 대규모 코드베이스의 게임체인저입니다. Tuist는 프로젝트 조직에서 충돌을 방지하고 project configuration을 완벽하게 제어할 수 있어 커스터마이징해야 하는 모든 것을 우리의 니즈에 맞게 할 수 있게끔 해줍니다. 모듈화된 앱의 경우,모듈 간 설정을 손쉽게 재사용할 수 있어 개발 프로세스가 크게 간소화되었습니다.</p>\n"
+"<p>또한, Tuist는 패키지 종속성 관리에 매우 뛰어납니다. 매번 30개 이상의 패키지가 resolve될 때까지 기다릴 필요 없이 Xcode를 열자마자 바로 코딩을 시작할 수 있습니다. 정말 생산성을 향상시켜줍니다.</p>\n"
+"<p>버전 1부터 사용해왔는데, 시간이 지나면서 제품이 지속적으로 진화하고 새로운 기능이 추가되는 모습을 보며 놀라움을 느꼈습니다. 근본적인 문제를 해결하고 제품을 발전시키려는 노력 덕분에, Tuist는 우리가 의지할 수 있는 성숙하고 신뢰할 수 있는 도구가 되었습니다.</p>\n"
 
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:352
 #, elixir-autogen, elixir-format
 msgid "<p>Tuist has revolutionized our iOS development workflow at DraftKings. Its automation capabilities have streamlined project generation, build settings, and dependency management. With modularization, we maximize code sharing across apps, reducing duplication. Code generation allows us to quickly bootstrap new products that seamlessly integrate with existing ones through centralized dependency management. The build caching feature can significantly improve build times, both locally and in CI/CD environment. Tuist is an indispensable set of developer tools, greatly enhancing productivity and efficiency. Highly recommended for iOS teams seeking workflow optimization.</p>\n"
-msgstr ""
+msgstr "<p>Tuist는 DraftKings 사의 iOS 개발 워크플로우에 혁신을 가져왔습니다. 자동화 기능을 통해 프로젝트 생성, 빌드 설정, 종속성 관리가 간소화할 수 있었습니다. 모듈화 기능을 통해 앱 간 코드 공유를 극대화하여 중복 코드를 줄였습니다. 코드 생성 기능을 통해 중앙 집중식 종속성 관리를 통해 기존 제품과 원활하게 통합되는 새로운 제품을 신속하게 부트스트랩할 수 있었습니다. 빌드 캐싱 기능은 로컬과 CI/CD 환경 모두에서 빌드 시간을 크게 개선해주었습니다. Tuist는 생산성과 효율성을 크게 향상시켜주는 필수적인 개발자 도구입니다. 워크플로 최적화를 원하는 iOS 팀에게 적극 추천합니다. </p>\n"
 
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:340
 #, elixir-autogen, elixir-format
 msgid "<p>With macros, external SDKs, and many SPM modules (fully modularized app) Xcode was constantly slow or stuck on my M1 device. SPM kept resolving, code completion didn’t work, and <a href=\"https://github.com/swiftlang/swift-syntax\" target=\"_blank\">swift-syntax</a> compiled forever. All this changed with Tuist. It’s not just for big teams with big apps. Tuist gave me back my productivity as indie developer for my side projects.</p>\n"
-msgstr ""
+msgstr "<p> 매크로, 외부 SDK 및 많은 SPM 모듈(완전히 모듈화된 앱)을 사용할 때면, 제 M1 기기에서 Xcode가 계속 느려지거나 멈췄습니다. SPM은 계속 resolve되지 않았고, 코드 완성 기능은 동작하지 않았으며, <a href=\"https://github.com/swiftlang/swift-syntax\" target=\"_blank\">swift-syntax</a>는 컴파일 되는데 너무 오래 걸렸습니다. 이 모든 문제는 Tuist를 사용함으로써 해결되었습니다. Tuist는 인디 개발자인 제게 사이드 프로젝트의 생산성을 되찾아 주었습니다.</p>\n"
 
 #: lib/tuist_web/live/user_registration_live.ex:129
 #, elixir-autogen, elixir-format
