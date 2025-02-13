@@ -8,7 +8,7 @@ description: 마지막 성공한 테스트 수행 이후에 변경된 테스트�
 
 > [!IMPORTANT] 요구사항
 >
-> - A <LocalizedLink href="/guides/develop/projects">generated project</LocalizedLink>
+> - <LocalizedLink href="/guides/develop/projects">생성된 프로젝트</LocalizedLink>
 > - <LocalizedLink href="/server/introduction/accounts-and-projects">서버 계정과 프로젝트</LocalizedLink>
 
 프로젝트가 커질 수록 테스트 수도 증가합니다. 오랜 시간동안 모든 PR 또는 `main`에 푸시할 때마다 전체 테스트를 수행하면 수 초의 시간이 걸렸습니다. 하지만 이 방법은 팀이 가진 수천 개의 테스트에는 적합하지 않습니다.
