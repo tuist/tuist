@@ -1,5 +1,26 @@
 # Changelog
 
+## 4.42.0 - 2025-02-13
+
+### CLI
+
+#### Changed
+
+- Improve the debugging experience by persisting logs in the file system for every run [#7261](https://github.com/tuist/tuist/pull/7261) by [@pepicrft](https://github.com/pepicrft)
+
+#### Added
+
+- Add support for selective testing for Xcode non-generated projects [#7287](https://github.com/tuist/tuist/pull/7287) by [@fortmarek](https://github.com/fortmarek)
+- Upload and show run detail link for long-running commands like tuist xcodebuild [#7303](https://github.com/tuist/tuist/pull/7303) by [@fortmarek](https://github.com/fortmarek)
+
+#### Fixed
+
+- Gracefully handle suffix grouping when target has the same name as suffix [#7305](https://github.com/tuist/tuist/pull/7305) by [@fortmarek](https://github.com/fortmarek)
+
+### CLI (Server features)
+
+- no changes
+
 ## 4.41.0 - 2025-02-05
 
 ### CLI
