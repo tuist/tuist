@@ -80,15 +80,8 @@ defmodule Tuist.Billing do
   end
 
   def create_customer(%{name: name, email: email}) do
-    {:ok, %{data: searched_customers}} = Stripe.Customer.search(%{query: "email:\"#{email}\""})
-    existing_customer = searched_customers |> List.first()
-
-    if is_nil(existing_customer) do
-      {:ok, customer} = Stripe.Customer.create(%{name: name, email: email})
-      customer.id
-    else
-      existing_customer.id
-    end
+    {:ok, customer} = Stripe.Customer.create(%{name: name, email: email})
+    customer.id
   end
 
   def create_session(customer) do

@@ -51,21 +51,6 @@ defmodule Tuist.BillingTest do
       # When/then
       assert Billing.create_customer(%{name: name, email: email}) == customer_id
     end
-
-    test "returns an existing customer if it exists" do
-      # Given
-      email = "#{UUIDv7.generate()}@tuist.dev"
-      name = UUIDv7.generate()
-      customer_id = UUIDv7.generate()
-      search_params = %{query: "email:\"#{email}\""}
-      create_params = %{name: name, email: email}
-
-      Stripe.Customer
-      |> stub(:search, fn ^search_params -> {:ok, %{data: [%{id: customer_id}]}} end)
-
-      # When/then
-      assert Billing.create_customer(%{name: name, email: email}) == customer_id
-    end
   end
 
   describe "get_payment_method_id_from_subscription_id/1" do
