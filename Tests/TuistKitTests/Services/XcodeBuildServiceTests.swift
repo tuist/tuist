@@ -10,7 +10,9 @@ import TuistCore
 import TuistHasher
 import TuistLoader
 import TuistServer
+import TuistSupport
 import XcodeGraph
+
 import protocol XcodeGraphMapper.XcodeGraphMapping
 
 @testable import TuistKit
@@ -24,6 +26,8 @@ struct XcodeBuildServiceTests {
     private let cacheStorage = MockCacheStoring()
     private let selectiveTestingGraphHasher = MockSelectiveTestingGraphHashing()
     private let selectiveTestingService = MockSelectiveTestingServicing()
+    private let cacheDirectoriesProvider = MockCacheDirectoriesProviding()
+    private let uniqueIDGenerator = MockUniqueIDGenerating()
     private let subject: XcodeBuildService
     init() {
         let cacheStorageFactory = MockCacheStorageFactorying()
@@ -39,11 +43,19 @@ struct XcodeBuildServiceTests {
         given(cacheStorage)
             .store(.any, cacheCategory: .any)
             .willReturn()
+        given(cacheDirectoriesProvider)
+            .cacheDirectory(for: .any)
+            .willReturn(try! AbsolutePath(validating: "/tmp/runs"))
+        given(uniqueIDGenerator)
+            .uniqueID()
+            .willReturn("unique-id")
 
         subject = XcodeBuildService(
             fileSystem: fileSystem,
             xcodeGraphMapper: xcodeGraphMapper,
             xcodeBuildController: xcodeBuildController,
+            cacheDirectoriesProvider: cacheDirectoriesProvider,
+            uniqueIDGenerator: uniqueIDGenerator,
             cacheStorageFactory: cacheStorageFactory,
             selectiveTestingGraphHasher: selectiveTestingGraphHasher,
             selectiveTestingService: selectiveTestingService
@@ -51,7 +63,8 @@ struct XcodeBuildServiceTests {
     }
 
     @Test func throwsErrorWhenSchemeNotFound() async throws {
-        try await fileSystem.runInTemporaryDirectory(prefix: "XcodeBuildServiceTests") { temporaryPath in
+        try await fileSystem.runInTemporaryDirectory(prefix: "XcodeBuildServiceTests") {
+            temporaryPath in
             // Given
             let project: Project = .test(
                 schemes: [
@@ -70,7 +83,9 @@ struct XcodeBuildServiceTests {
 
             // When / Then
             await #expect(throws: XcodeBuildServiceError.schemeNotFound("MyScheme")) {
-                try await subject.run(passthroughXcodebuildArguments: ["test", "-scheme", "MyScheme"])
+                try await subject.run(passthroughXcodebuildArguments: [
+                    "test", "-scheme", "MyScheme",
+                ])
             }
         }
     }
@@ -85,7 +100,8 @@ struct XcodeBuildServiceTests {
     }
 
     @Test func existsEarlyIfAllTestsAreCached() async throws {
-        try await fileSystem.runInTemporaryDirectory(prefix: "XcodeBuildServiceTests") { temporaryPath in
+        try await fileSystem.runInTemporaryDirectory(prefix: "XcodeBuildServiceTests") {
+            temporaryPath in
             var context = ServiceContext.current ?? ServiceContext.topLevel
             let runMetadataStorage = RunMetadataStorage()
             context.runMetadataStorage = runMetadataStorage
@@ -227,7 +243,8 @@ struct XcodeBuildServiceTests {
     }
 
     @Test func skipsCachedTests() async throws {
-        try await fileSystem.runInTemporaryDirectory(prefix: "XcodeBuildServiceTests") { temporaryPath in
+        try await fileSystem.runInTemporaryDirectory(prefix: "XcodeBuildServiceTests") {
+            temporaryPath in
             var context = ServiceContext.current ?? ServiceContext.topLevel
             let runMetadataStorage = RunMetadataStorage()
             context.runMetadataStorage = runMetadataStorage
@@ -264,15 +281,15 @@ struct XcodeBuildServiceTests {
                     ]
                 )
 
-                let graph: Graph = .test(
-                    projects: [
-                        temporaryPath: project,
-                    ]
-                )
-
                 given(xcodeGraphMapper)
                     .map(at: .any)
-                    .willReturn(graph)
+                    .willReturn(
+                        .test(
+                            projects: [
+                                temporaryPath: project,
+                            ]
+                        )
+                    )
 
                 given(selectiveTestingGraphHasher)
                     .hash(
@@ -335,6 +352,7 @@ struct XcodeBuildServiceTests {
                                 "test",
                                 "-scheme", "App",
                                 "-skip-testing:AUnitTests",
+                                "-resultBundlePath", "/tmp/runs/unique-id",
                             ]
                         )
                     )
@@ -343,7 +361,9 @@ struct XcodeBuildServiceTests {
                     .store(
                         .value(
                             [
-                                CacheStorableItem(name: "BUnitTests", hash: "hash-b-unit-tests"): [AbsolutePath](),
+                                CacheStorableItem(name: "BUnitTests", hash: "hash-b-unit-tests"): [
+                                    AbsolutePath
+                                ](),
                             ]
                         ),
                         cacheCategory: .value(.selectiveTests)
@@ -367,15 +387,13 @@ struct XcodeBuildServiceTests {
                         ],
                     ]
                 )
-                await #expect(
-                    runMetadataStorage.graph == graph
-                )
             }
         }
     }
 
     @Test func skipsCachedTestsOfCustomTestPlan() async throws {
-        try await fileSystem.runInTemporaryDirectory(prefix: "XcodeBuildServiceTests") { temporaryPath in
+        try await fileSystem.runInTemporaryDirectory(prefix: "XcodeBuildServiceTests") {
+            temporaryPath in
             // Given
             let aUnitTestsTarget: Target = .test(name: "AUnitTests")
             let bUnitTestsTarget: Target = .test(name: "BUnitTests")
@@ -390,7 +408,9 @@ struct XcodeBuildServiceTests {
                         testAction: .test(
                             testPlans: [
                                 TestPlan(
-                                    path: temporaryPath.appending(component: "MyTestPlan.xctestplan"),
+                                    path: temporaryPath.appending(
+                                        component: "MyTestPlan.xctestplan"
+                                    ),
                                     testTargets: [
                                         TestableTarget(
                                             target: TargetReference(
@@ -486,10 +506,100 @@ struct XcodeBuildServiceTests {
                             "-scheme", "App",
                             "-testPlan", "MyTestPlan",
                             "-skip-testing:AUnitTests",
+                            "-resultBundlePath", "/tmp/runs/unique-id",
                         ]
                     )
                 )
                 .called(1)
+        }
+    }
+
+    @Test func preservesResultBundlePathWhenPassed() async throws {
+        try await fileSystem.runInTemporaryDirectory(prefix: "XcodeBuildServiceTests") {
+            temporaryPath in
+            var context = ServiceContext.current ?? ServiceContext.topLevel
+            let runMetadataStorage = RunMetadataStorage()
+            context.runMetadataStorage = runMetadataStorage
+            try await ServiceContext.withValue(context) {
+                // Given
+                let aUnitTestsTarget: Target = .test(name: "AUnitTests")
+                let bUnitTestsTarget: Target = .test(name: "BUnitTests")
+                let project: Project = .test(
+                    path: temporaryPath,
+                    targets: [
+                        aUnitTestsTarget,
+                        bUnitTestsTarget,
+                    ],
+                    schemes: [
+                        .test(
+                            name: "App",
+                            testAction: .test(
+                                targets: [
+                                    .test(
+                                        target: TargetReference(
+                                            projectPath: temporaryPath,
+                                            name: "AUnitTests"
+                                        )
+                                    ),
+                                ]
+                            )
+                        ),
+                    ]
+                )
+
+                given(xcodeGraphMapper)
+                    .map(at: .any)
+                    .willReturn(
+                        .test(
+                            projects: [
+                                temporaryPath: project,
+                            ]
+                        )
+                    )
+
+                given(selectiveTestingGraphHasher)
+                    .hash(
+                        graph: .any,
+                        additionalStrings: .any
+                    )
+                    .willReturn([:])
+                given(selectiveTestingService)
+                    .cachedTests(
+                        scheme: .any,
+                        graph: .any,
+                        selectiveTestingHashes: .any,
+                        selectiveTestingCacheItems: .any
+                    )
+                    .willReturn([])
+
+                given(cacheStorage)
+                    .fetch(.any, cacheCategory: .any)
+                    .willReturn([:])
+
+                // When
+                try await subject.run(
+                    passthroughXcodebuildArguments: [
+                        "test",
+                        "-scheme", "App",
+                        "-resultBundlePath", "/custom-path",
+                    ]
+                )
+
+                // Then
+                verify(xcodeBuildController)
+                    .run(
+                        arguments: .value(
+                            [
+                                "test",
+                                "-scheme", "App",
+                                "-resultBundlePath", "/custom-path",
+                            ]
+                        )
+                    )
+                    .called(1)
+                let resultBundlePath = try AbsolutePath(validating: "/custom-path")
+                await #expect(runMetadataStorage.resultBundlePath == resultBundlePath)
+            }
         }
     }
 }

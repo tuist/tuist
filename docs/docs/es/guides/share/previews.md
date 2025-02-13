@@ -8,8 +8,7 @@ description: Learn how to generate and share previews of your apps with anyone.
 
 > [!IMPORTANT] REQUIREMENTS
 >
-> - [!IMPORTANT] REMOTE PROJECT REQUIRED
->   This feature requires a <LocalizedLink href="/server/introduction/accounts-and-projects">remote project</LocalizedLink>.
+> - A <LocalizedLink href="/server/introduction/accounts-and-projects">Tuist account and project</LocalizedLink>
 
 When building an app, you may want to share it with others to get feedback.
 Traditionally, this is something that teams do by building, signing, and pushing their apps to platforms like Apple's [TestFlight](https://developer.apple.com/testflight/).
@@ -63,6 +62,8 @@ tuist run App@00dde7f56b1b8795a26b8085a781fb3715e834be # Runs latest App preview
 <div style="display: flex; flex-direction: column; align-items: center;">
     <img src="/logo.png" style="height: 100px;" />
     <h1>Tuist</h1>
+    
+    
     <a href="https://cloud.tuist.io/download" style="text-decoration: none;">Download</a>
     <img src="/images/guides/share/menu-bar-app.png" style="width: 300px;" />
 </div>

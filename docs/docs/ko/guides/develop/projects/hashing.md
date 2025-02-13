@@ -25,7 +25,7 @@ description: 바이너리 캐싱과 선택적 테스트 기능의 기반이 되�
 
 #### 구성 {#configuration}
 
-이 플래그의 목적은 디버그 바이너리가 릴리즈에서 사용되지 않고 그 반대도 방지하는 것 입니다. 하지만 여전히 프로젝트에서 다른 구성을 제거하여 사용되지 않게 하는 메커니즘은 부족합니다.
+The idea behind the flag `-configuration` was to ensure debug binaries were not used in release builds and viceversa. 하지만 여전히 프로젝트에서 다른 구성을 제거하여 사용되지 않게 하는 메커니즘은 부족합니다.
 
 ## 디버깅 {#debugging}
 

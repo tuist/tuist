@@ -61,6 +61,8 @@ tuist run App@00dde7f56b1b8795a26b8085a781fb3715e834be # 특정 Git 커밋 SHA�
 <div style="display: flex; flex-direction: column; align-items: center;">
     <img src="/logo.png" style="height: 100px;" />
     <h1>Tuist</h1>
+    
+    
     <a href="https://cloud.tuist.io/download" style="text-decoration: none;">Download</a>
     <img src="/images/guides/share/menu-bar-app.png" style="width: 300px;" />
 </div>

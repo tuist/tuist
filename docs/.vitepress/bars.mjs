@@ -173,6 +173,19 @@ export function contributorsSidebar(locale) {
           ),
           link: `/${locale}/contributors/translate`,
         },
+        {
+          text: localizedString(locale, "sidebars.contributors.items.cli.text"),
+          collapsed: true,
+          items: [
+            {
+              text: localizedString(
+                locale,
+                "sidebars.contributors.items.cli.items.logging.text",
+              ),
+              link: `/${locale}/contributors/cli/logging`,
+            },
+          ],
+        },
       ],
     },
   ];

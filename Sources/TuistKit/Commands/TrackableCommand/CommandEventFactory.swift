@@ -70,7 +70,8 @@ public final class CommandEventFactory {
             gitRemoteURLOrigin: gitRemoteURLOrigin,
             gitBranch: gitBranch,
             graph: graph,
-            previewId: info.previewId
+            previewId: info.previewId,
+            resultBundlePath: info.resultBundlePath
         )
         return commandEvent
     }
