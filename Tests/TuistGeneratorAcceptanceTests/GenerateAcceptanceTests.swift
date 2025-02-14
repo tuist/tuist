@@ -915,12 +915,18 @@ final class GenerateAcceptanceTestiOSAppWithNoneLinkingStatusFramework: TuistAcc
             pathString: xcodeprojPath.pathString
         )
         let target = try XCTUnwrapTarget("App", in: xcodeproj)
-        let frameworksBuildPhase = try target.frameworksBuildPhase()
-        guard let frameworkFiles = frameworksBuildPhase?.files else {
-            XCTFail("A linking dependencies phase should exist even though empty")
+        guard try target.frameworksBuildPhase()?.files?
+            .contains(where: { $0.file?.nameOrPath == "MyFramework.framework" }) == false
+        else {
+            XCTFail("App shouldn't link MyFramework.framework")
             return
         }
-        XCTAssertEmpty(frameworkFiles)
+        guard try target.frameworksBuildPhase()?.files?
+            .contains(where: { $0.file?.nameOrPath == "ThyFramework.framework" }) == true
+        else {
+            XCTFail("App doesn't link ThyFramework.framework")
+            return
+        }
     }
 }
 

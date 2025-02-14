@@ -58,7 +58,13 @@ Tuist에 기여하기 위해 최소 요구 사항은 다음과 같습니다:
 
 ### Terminal {#from-the-terminal}
 
-`tuist`는 `tuist run`을 제공하지만, 아직 CLI를 지원하지 않습니다. 따라서 이 툴을 실행하려면 Swift Package Manager를 사용해야 합니다. Swift Package Manager를 사용하면, 다음의 명령어를 실행할 수 있습니다:
+Tuist의 `run` 명령어를 통해 `tuist`를 수행할 수 있습니다:
+
+```bash
+tuist run tuist generate --path /path/to/project --no-open
+```
+
+또한 Swift Package Manager를 통해 직접 실행할 수도 있습니다:
 
 ```bash
 swift build --product ProjectDescription

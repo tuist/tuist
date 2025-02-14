@@ -1,4 +1,3 @@
-import AnyCodable
 import FileSystem
 import Foundation
 import Path
@@ -424,11 +423,7 @@ struct ShareService {
         ServiceContext.current?.logger?
             .notice("\(displayName) uploaded – share it with others using the following link: \(preview.url.absoluteString)")
 
-        ShareCommand.analyticsDelegate?.addParameters(
-            [
-                "preview_id": "\(preview.id)",
-            ]
-        )
+        await ServiceContext.current?.runMetadataStorage?.update(previewId: preview.id)
 
         if json {
             let previewJSON = try preview.toJSON()

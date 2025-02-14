@@ -11,7 +11,7 @@ Tuist 서버에서 수집한 메트릭을 [Prometheus](https://prometheus.io/)�
 
 ## Elixir 메트릭 {#elixir-metrics}
 
-기본적으로 Elixir 런타임, [BEAM](https://en.wikipedia.org/wiki/BEAM_\\\\\\\\\(Erlang_virtual_machine\\\\\\\\\)), Elixir, 그리고 사용하는 일부 라이브러리의 메트릭이 포함되어 있습니다. 다음은 확인할 수 있는 메트릭의 일부입니다:
+기본적으로 Elixir 런타임, BEAM, Elixir, 그리고 사용하는 일부 라이브러리의 메트릭이 포함되어 있습니다. 다음은 확인할 수 있는 메트릭의 일부입니다:
 
 - [Application](https://hexdocs.pm/prom_ex/PromEx.Plugins.Application.html)
 - [BEAM](https://hexdocs.pm/prom_ex/PromEx.Plugins.Beam.html)

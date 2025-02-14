@@ -18,6 +18,8 @@ struct RegistryLoginServiceTests {
     private let swiftPackageManagerController = MockSwiftPackageManagerControlling()
     private let ciChecker = MockCIChecking()
     private let serverAuthenticationController = MockServerAuthenticationControlling()
+    private let securityController = MockSecurityControlling()
+    private let manifestFilesLocator = MockManifestFilesLocating()
 
     init() {
         subject = RegistryLoginService(
@@ -28,7 +30,9 @@ struct RegistryLoginServiceTests {
             fullHandleService: fullHandleService,
             swiftPackageManagerController: swiftPackageManagerController,
             ciChecker: ciChecker,
-            serverAuthenticationController: serverAuthenticationController
+            serverAuthenticationController: serverAuthenticationController,
+            securityController: securityController,
+            manifestFilesLocator: manifestFilesLocator
         )
     }
 
@@ -63,6 +67,41 @@ struct RegistryLoginServiceTests {
     }
 
     @Test func test_login_when_ci() async throws {
+        try await fileSystem.runInTemporaryDirectory(prefix: "RegistryLoginService") { path in
+            // Given
+            given(configLoader)
+                .loadConfig(path: .any)
+                .willReturn(.test(fullHandle: "tuist/tuist"))
+            given(fullHandleService)
+                .parse(.any)
+                .willReturn((accountHandle: "tuist", projectHandle: "tuist"))
+            given(serverURLService)
+                .url(configServerURL: .any)
+                .willReturn(.test())
+            given(ciChecker)
+                .isCI()
+                .willReturn(true)
+            given(serverAuthenticationController)
+                .authenticationToken(serverURL: .any)
+                .willReturn(.project("project-token"))
+            given(swiftPackageManagerController)
+                .packageRegistryLogin(token: .value("project-token"), registryURL: .any)
+                .willReturn()
+            given(manifestFilesLocator)
+                .locatePackageManifest(at: .any)
+                .willReturn(path)
+
+            // When
+            try await subject.run(path: nil)
+
+            // Then
+            verify(swiftPackageManagerController)
+                .packageRegistryLogin(token: .value("project-token"), registryURL: .any)
+                .called(1)
+        }
+    }
+
+    @Test func test_login_when_ci_and_xcode_project() async throws {
         // Given
         given(configLoader)
             .loadConfig(path: .any)
@@ -79,16 +118,33 @@ struct RegistryLoginServiceTests {
         given(serverAuthenticationController)
             .authenticationToken(serverURL: .any)
             .willReturn(.project("project-token"))
-        given(swiftPackageManagerController)
-            .packageRegistryLogin(token: .value("project-token"), registryURL: .any)
+        given(securityController)
+            .addInternetPassword(
+                accountName: .any,
+                serverName: .any,
+                password: .any,
+                securityProtocol: .any,
+                update: .any,
+                applications: .any
+            )
             .willReturn()
+        given(manifestFilesLocator)
+            .locatePackageManifest(at: .any)
+            .willReturn(nil)
 
         // When
         try await subject.run(path: nil)
 
         // Then
-        verify(swiftPackageManagerController)
-            .packageRegistryLogin(token: .value("project-token"), registryURL: .any)
+        verify(securityController)
+            .addInternetPassword(
+                accountName: .any,
+                serverName: .any,
+                password: .any,
+                securityProtocol: .any,
+                update: .any,
+                applications: .any
+            )
             .called(1)
     }
 

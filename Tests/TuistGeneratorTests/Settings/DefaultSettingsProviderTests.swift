@@ -123,7 +123,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         "SWIFT_VERSION": "5.0",
     ]
 
-    private let multiplatformFrameworkTargetEssentialDebugSettings: [String: SettingValue] = ([
+    private let multiplatformFrameworkTargetEssentialDebugSettings: [String: SettingValue] = [
         "SWIFT_ACTIVE_COMPILATION_CONDITIONS": .array(["$(inherited)", "DEBUG"]),
         "SKIP_INSTALL": "YES",
         "VERSIONING_SYSTEM": "apple-generic",
@@ -131,9 +131,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         "DYLIB_INSTALL_NAME_BASE": "@rpath",
         "PRODUCT_NAME": "$(TARGET_NAME:c99extidentifier)",
         "SWIFT_OPTIMIZATION_LEVEL": "-Onone",
-        "LD_RUNPATH_SEARCH_PATHS[sdk=iphoneos*]": ["$(inherited)", "@executable_path/Frameworks", "@loader_path/Frameworks"],
-        "LD_RUNPATH_SEARCH_PATHS[sdk=iphonesimulator*]": ["$(inherited)", "@executable_path/Frameworks",
-                                                          "@loader_path/Frameworks"],
+        "LD_RUNPATH_SEARCH_PATHS": ["$(inherited)", "@executable_path/Frameworks", "@loader_path/Frameworks"],
         "LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]": ["$(inherited)", "@executable_path/../Frameworks", "@loader_path/../Frameworks"],
         "DEFINES_MODULE": "YES",
         "VERSION_INFO_PREFIX": "",
@@ -141,16 +139,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         "INSTALL_PATH": "$(LOCAL_LIBRARY_DIR)/Frameworks",
         "DYLIB_COMPATIBILITY_VERSION": "1",
         "SWIFT_VERSION": "5.0",
-    ] as [String: SettingValue])
-        .reduce(into: [String: SettingValue]()) { acc, element in
-            if element.key.contains("sdk") {
-                acc[element.key] = element.value
-            } else {
-                acc["\(element.key)[sdk=macosx*]"] = element.value
-                acc["\(element.key)[sdk=iphonesimulator*]"] = element.value
-                acc["\(element.key)[sdk=iphoneos*]"] = element.value
-            }
-        }
+    ]
 
     override func setUp() {
         super.setUp()

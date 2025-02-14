@@ -1,4 +1,3 @@
-import AnyCodable
 import ArgumentParser
 import Foundation
 import TuistCore
@@ -11,7 +10,7 @@ import XcodeGraph
 private typealias Platform = XcodeGraph.Platform
 private typealias Product = XcodeGraph.Product
 
-public struct InitCommand: AsyncParsableCommand, HasTrackableParameters {
+public struct InitCommand: AsyncParsableCommand {
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "init",
@@ -19,12 +18,9 @@ public struct InitCommand: AsyncParsableCommand, HasTrackableParameters {
         )
     }
 
-    public static var analyticsDelegate: TrackableParametersDelegate?
-    public var runId = UUID().uuidString
-
     @Option(
         help: "The platform (iOS, tvOS, visionOS, watchOS or macOS) the product will be for (Default: iOS)",
-        completion: .list(["iOS", "tvOS", "macOS", "visionOS", "watchOS"]),
+        completion: .list(XcodeGraph.Platform.allValueStrings),
         envKey: .initPlatform
     )
     var platform: String?
@@ -78,11 +74,6 @@ public struct InitCommand: AsyncParsableCommand, HasTrackableParameters {
     }
 
     public func run() async throws {
-        InitCommand.analyticsDelegate?.addParameters(
-            [
-                "platform": AnyCodable(platform ?? "unknown"),
-            ]
-        )
         try await InitService().run(
             name: name,
             platform: platform,

@@ -70,7 +70,7 @@ final class TuistAnalyticsServerBackendTests: TuistUnitTestCase {
                 )
 
             // When
-            try await subject.send(commandEvent: event)
+            let _: ServerCommandEvent = try await subject.send(commandEvent: event)
 
             // Then
             XCTAssertPrinterOutputNotContains("You can view a detailed report at: https://tuist.dev/tuist-org/tuist/runs/10")
@@ -87,24 +87,20 @@ final class TuistAnalyticsServerBackendTests: TuistUnitTestCase {
                 .isCI()
                 .willReturn(true)
             let event = CommandEvent.test()
+            let serverCommandEvent: ServerCommandEvent = .test(id: 10)
             given(createCommandEventService)
                 .createCommandEvent(
                     commandEvent: .value(event),
                     projectId: .value(fullHandle),
                     serverURL: .value(Constants.URLs.production)
                 )
-                .willReturn(
-                    .test(
-                        id: 10,
-                        url: URL(string: "https://tuist.dev/tuist-org/tuist/runs/10")!
-                    )
-                )
+                .willReturn(serverCommandEvent)
 
             // When
-            try await subject.send(commandEvent: event)
+            let got: ServerCommandEvent = try await subject.send(commandEvent: event)
 
             // Then
-            XCTAssertStandardOutput(pattern: "You can view a detailed report at: https://tuist.dev/tuist-org/tuist/runs/10")
+            XCTAssertEqual(got, serverCommandEvent)
         }
     }
 
@@ -115,18 +111,14 @@ final class TuistAnalyticsServerBackendTests: TuistUnitTestCase {
                 .isCI()
                 .willReturn(true)
             let event = CommandEvent.test()
+            let serverCommandEvent: ServerCommandEvent = .test(id: 11)
             given(createCommandEventService)
                 .createCommandEvent(
                     commandEvent: .value(event),
                     projectId: .value(fullHandle),
                     serverURL: .value(Constants.URLs.production)
                 )
-                .willReturn(
-                    .test(
-                        id: 10,
-                        url: URL(string: "https://tuist.dev/tuist-org/tuist/runs/10")!
-                    )
-                )
+                .willReturn(serverCommandEvent)
 
             given(cacheDirectoriesProvider)
                 .cacheDirectory(for: .value(.runs))
@@ -140,18 +132,16 @@ final class TuistAnalyticsServerBackendTests: TuistUnitTestCase {
             given(analyticsArtifactUploadService)
                 .uploadResultBundle(
                     .value(resultBundle),
-                    targetHashes: .any,
-                    graphPath: .any,
-                    commandEventId: .value(10),
+                    commandEventId: .value(11),
                     serverURL: .value(Constants.URLs.production)
                 )
                 .willReturn(())
 
             // When
-            try await subject.send(commandEvent: event)
+            let got: ServerCommandEvent = try await subject.send(commandEvent: event)
 
             // Then
-            XCTAssertStandardOutput(pattern: "You can view a detailed report at: https://tuist.dev/tuist-org/tuist/runs/10")
+            XCTAssertEqual(got, serverCommandEvent)
             let exists = try await fileSystem.exists(resultBundle)
             XCTAssertFalse(exists)
         }

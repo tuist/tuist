@@ -49,7 +49,6 @@ public struct GraphContentHasher: GraphContentHashing {
         let hashedPaths: ThreadSafe<[AbsolutePath: String]> = ThreadSafe([:])
 
         let sortedCacheableTargets = try graphTraverser.allTargetsTopologicalSorted()
-
         let hashableTargets = sortedCacheableTargets.compactMap { target -> GraphTarget? in
             if isHashable(
                 target,
