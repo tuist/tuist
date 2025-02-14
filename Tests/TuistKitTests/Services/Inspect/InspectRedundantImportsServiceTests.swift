@@ -2,6 +2,7 @@ import FileSystem
 import Foundation
 import Mockable
 import Path
+import ServiceContextModule
 import TuistCore
 import TuistLoader
 import TuistSupport
@@ -41,26 +42,29 @@ final class LintRedundantImportsServiceTests: TuistUnitTestCase {
     }
 
     func test_run_throwsAnError_when_thereAreIssues() async throws {
-        // Given
-        let path = try AbsolutePath(validating: "/project")
-        let config = Config.test()
-        let framework = Target.test(name: "Framework", product: .framework)
-        let app = Target.test(name: "App", product: .app, dependencies: [TargetDependency.target(name: "Framework")])
-        let project = Project.test(path: path, targets: [app, framework])
-        let graph = Graph.test(path: path, projects: [path: project], dependencies: [
-            .target(name: app.name, path: project.path): [
-                .target(name: framework.name, path: project.path),
-            ],
-        ])
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            let path = try AbsolutePath(validating: "/project")
+            let config = Config.test()
+            let framework = Target.test(name: "Framework", product: .framework)
+            let app = Target.test(name: "App", product: .app, dependencies: [TargetDependency.target(name: "Framework")])
+            let project = Project.test(path: path, targets: [app, framework])
+            let graph = Graph.test(path: path, projects: [path: project], dependencies: [
+                .target(name: app.name, path: project.path): [
+                    .target(name: framework.name, path: project.path),
+                ],
+            ])
 
-        given(configLoader).loadConfig(path: .value(path)).willReturn(config)
-        given(generatorFactory).defaultGenerator(config: .value(config), sources: .any).willReturn(generator)
-        given(generator).load(path: .value(path)).willReturn(graph)
-        given(targetScanner).imports(for: .value(app)).willReturn(Set([]))
-        given(targetScanner).imports(for: .value(framework)).willReturn(Set([]))
+            given(configLoader).loadConfig(path: .value(path)).willReturn(config)
+            given(generatorFactory).defaultGenerator(config: .value(config), sources: .any).willReturn(generator)
+            given(generator).load(path: .value(path)).willReturn(graph)
+            given(targetScanner).imports(for: .value(app)).willReturn(Set([]))
+            given(targetScanner).imports(for: .value(framework)).willReturn(Set([]))
 
-        // When
-        await XCTAssertThrowsSpecific(try await subject.run(path: path.pathString), LintingError())
+            // When
+            await XCTAssertThrowsSpecific(try await subject.run(path: path.pathString), LintingError())
+            XCTAssertStandardError(pattern: "App redundantly depends on: Framework")
+        }
     }
 
     func test_run_doesntThrowAnyErrors_when_thereAreNoIssues() async throws {

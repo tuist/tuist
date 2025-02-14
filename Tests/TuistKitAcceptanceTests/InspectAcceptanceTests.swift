@@ -15,21 +15,12 @@ final class LintAcceptanceTests: TuistAcceptanceTestCase {
     }
 
     func test_ios_app_with_implicit_dependencies() async throws {
-        try await setUpFixture(.iosAppWithImplicitDependencies)
-        await XCTAssertThrowsSpecific(try await run(InspectImplicitImportsCommand.self), LintingError())
-        XCTAssertStandardOutput(pattern: """
-        The following implicit dependencies were found:
-         - FrameworkA implicitly depends on: FrameworkB
-        """)
-
-//        catch let error as InspectImplicitImportsServiceError {
-//            XCTAssertEqual(
-//                error.description,
-//                """
-//                The following implicit dependencies were found:
-//                 - FrameworkA implicitly depends on: FrameworkB
-//                """
-//            )
-//        }
+        try await ServiceContext.withTestingDependencies {
+            try await setUpFixture(.iosAppWithImplicitDependencies)
+            await XCTAssertThrowsSpecific(try await run(InspectImplicitImportsCommand.self), LintingError())
+            XCTAssertStandardOutput(pattern: """
+             - FrameworkA implicitly depends on: FrameworkB
+            """)
+        }
     }
 }

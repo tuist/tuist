@@ -27,8 +27,7 @@ final class InspectRedundantImportsService {
         let graph = try await generator.load(path: path)
         let issues = try await graphImportsLinter.lint(graphTraverser: GraphTraverser(graph: graph), inspectType: .redundant)
         if !issues.isEmpty {
-            ServiceContext.current?.logger?.log(
-                level: .info,
+            ServiceContext.current?.logger?.info(
                 "The following redundant dependencies were found:"
             )
             try issues.printAndThrowErrorsIfNeeded()
