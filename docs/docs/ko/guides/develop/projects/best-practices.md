@@ -21,5 +21,5 @@ description: Tuist와 Xcode 프로젝트를 다룰 때의 모범 사례들을 �
 
 다양한 환경을 모델링해야 할 때는 스킴(Scheme)을 사용하여 해결할 수 있습니다. 다양한 환경을 모델링해야 할 때는 스킴(Scheme)을 사용하여 해결할 수 있습니다.
 
-- **In Debug builds:** You can include all the configurations that should be accessible in development in the app (e.g. endpoints), and switch them at runtime. The switch can happen either using scheme launch environment variables, or with a UI within the app.
-- **In Release builds:** In case of release, you can only include the configuration that the release build is bound to, and not include the runtime logic for switching configurations by using compiler directives.
+- **Debug 빌드:** 앱의 개발 환경에서 접근할 수 있어야 하는 모든 설정 (예: 엔드포인트) 을 포함할 수 있고, 이를 런타임에 전환할 수 있습니다. 전환 방식은 스킴 환경 변수를 사용하거나 앱 내의 UI를 통해 전환할 수 있습니다.
+- **Release 빌드:** 릴리즈 빌드에 필요한 설정만 포함되어야 하고 컴파일러 지시문을 사용하여 설정 전환을 위한 런타임 로직을 포함하지 않도록 해야 합니다.
