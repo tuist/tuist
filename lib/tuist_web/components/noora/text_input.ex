@@ -1,5 +1,7 @@
 defmodule TuistWeb.Noora.TextInput do
-  @moduledoc false
+  @moduledoc """
+  Renders text input and digit input components with customizable types, labels, placeholders, prefixes, suffixes, and event handling.
+  """
   use Phoenix.Component
   import TuistWeb.Noora.Utils
   import TuistWeb.Noora.Icon
@@ -38,13 +40,10 @@ defmodule TuistWeb.Noora.TextInput do
 
   def text_input(assigns) do
     ~H"""
-    <div class="noora-text-input-group">
-      <.label :if={@label} label={@label} sublabel={@sublabel} required={@required} />
-      <div class="noora-text-input" data-type={@type}>
-        <span
-          :if={@type != "basic" or has_slot_content?(@prefix, assigns)}
-          class="noora-text-input__prefix"
-        >
+    <div class="noora-text-input">
+      <.label :if={@label} label={@label} sublabel={@sublabel} required={@required} data-part="label" />
+      <div data-part="wrapper" data-type={@type}>
+        <span :if={@type != "basic" or has_slot_content?(@prefix, assigns)} data-part="prefix">
           <.prefix type={@type} prefix={@prefix} />
         </span>
         <input
@@ -57,7 +56,7 @@ defmodule TuistWeb.Noora.TextInput do
         {# Suffix hint tooltip #}
         <div
           :if={not is_nil(@suffix_hint) and !has_slot_content?(@suffix, assigns)}
-          class="noora-text-input__suffix noora-text-input__suffix-hint"
+          data-part="suffix-hint"
         >
           <.tooltip id={"#{@id}-hint"} title={@suffix_hint}>
             <:trigger :let={attrs}>
@@ -71,13 +70,13 @@ defmodule TuistWeb.Noora.TextInput do
             @type in ~w(card_number search password) and is_nil(@suffix_hint) and
               !has_slot_content?(@suffix, assigns)
           }
-          class="noora-text-input__suffix"
+          data-part="suffix"
           data-type={@type}
         >
           <.type_suffix type={@type} data-input-id={@id} />
         </div>
         {# Custom suffix #}
-        <span :if={has_slot_content?(@suffix, assigns)} class="noora-text-input__suffix">
+        <span :if={has_slot_content?(@suffix, assigns)} data-part="suffix">
           {render_slot(@suffix)}
         </span>
       </div>

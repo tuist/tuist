@@ -1,5 +1,7 @@
 defmodule TuistWeb.Noora.Dropdown do
-  @moduledoc false
+  @moduledoc """
+  Renders a customizable dropdown component with a trigger, menu, and item options, supporting icons, labels, and event handling.
+  """
   use Phoenix.Component
 
   import TuistWeb.Noora.Icon
@@ -61,18 +63,20 @@ defmodule TuistWeb.Noora.Dropdown do
       data-on-interact-outside={@on_interact_outside}
     >
       <button data-part="trigger" disabled={@disabled}>
-        <div class="noora-dropdown__label-wrapper">
-          <div :if={has_slot_content?(@icon, assigns)} class="noora-dropdown__icon">
+        <div data-part="label-wrapper">
+          <div :if={has_slot_content?(@icon, assigns)} data-part="icon">
             {render_slot(@icon)}
           </div>
-          <span :if={@secondary_text} class="noora-dropdown__secondary_text">{@secondary_text}</span>
-          <span class="noora-dropdown__label">{@label}</span>
+          <span :if={@secondary_text} data-part="secondary-text">
+            {@secondary_text}
+          </span>
+          <span data-part="label">{@label}</span>
         </div>
         <div data-part="indicator">
-          <div class="noora-dropdown__indicator noora-dropdown__indicator_down">
+          <div data-part="indicator-down">
             <.chevron_down />
           </div>
-          <div class="noora-dropdown__indicator noora-dropdown__indicator_up">
+          <div data-part="indicator-up">
             <.chevron_up />
           </div>
         </div>
@@ -82,7 +86,7 @@ defmodule TuistWeb.Noora.Dropdown do
           {render_slot(@inner_block)}
         </div>
       </div>
-      <span :if={@hint} class="noora-dropdown__hint">
+      <span :if={@hint} data-part="hint">
         <.info_circle />
         <span>{@hint}</span>
       </span>
@@ -125,24 +129,22 @@ defmodule TuistWeb.Noora.Dropdown do
       href={@href}
       data-size={@size}
     >
-      <div :if={has_slot_content?(@left_icon, assigns)} class="noora-dropdown__item__left_icon">
+      <div :if={has_slot_content?(@left_icon, assigns)} data-part="left-icon">
         {render_slot(@left_icon)}
       </div>
-      <div class="noora-dropdown__item__content">
-        <div>
-          <span class="noora-dropdown__item__label">{@label}</span>
-          <span :if={@secondary_text} class="noora-dropdown__item__secondary_text">
-            ({@secondary_text})
-          </span>
-        </div>
+      <div data-part="body">
+        <span data-part="label">{@label}</span>
+        <span :if={@secondary_text} data-part="secondary-text">
+          ({@secondary_text})
+        </span>
         <div :if={@size == "large"}>
-          <span class="noora-dropdown__item__description">
+          <span data-part="description">
             hallo {@description}
           </span>
         </div>
       </div>
 
-      <div :if={@right_icon} class="noora-dropdown__item__right_icon"><.chevron_right /></div>
+      <div :if={@right_icon} data-part="right-icon"><.chevron_right /></div>
     </.link>
     """
   end

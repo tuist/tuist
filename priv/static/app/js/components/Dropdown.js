@@ -1,10 +1,5 @@
 import * as menu from "https://cdn.jsdelivr.net/npm/@zag-js/menu@0.81.2/+esm";
-import {
-  normalizeProps,
-  spreadProps,
-  renderPart,
-  getBooleanOption,
-} from "./util.js";
+import { normalizeProps, spreadProps, renderPart, getBooleanOption } from "./util.js";
 import { Component } from "./component.js";
 
 class Menu extends Component {
@@ -26,9 +21,7 @@ class Menu extends Component {
   }
 
   renderItemGroupLabels() {
-    for (const itemGroupLabel of this.el.querySelectorAll(
-      "[data-part='item-group-label']",
-    )) {
+    for (const itemGroupLabel of this.el.querySelectorAll("[data-part='item-group-label']")) {
       const htmlFor = itemGroupLabel.getAttribute("for");
       if (!htmlFor) {
         console.error("Missing `for` attribute on item group label.");
@@ -39,9 +32,7 @@ class Menu extends Component {
   }
 
   renderItemGroups() {
-    for (const itemGroup of this.el.querySelectorAll(
-      "[data-part='item-group']",
-    )) {
+    for (const itemGroup of this.el.querySelectorAll("[data-part='item-group']")) {
       const value = itemGroup.dataset.value;
       if (!value) {
         console.error("Missing `data-value` attribute on item group.");
@@ -63,9 +54,7 @@ class Menu extends Component {
   }
 
   renderSeparators() {
-    for (const separator of this.el.querySelectorAll(
-      "[data-part='separator']",
-    )) {
+    for (const separator of this.el.querySelectorAll("[data-part='separator']")) {
       spreadProps(separator, this.api.getSeparatorProps());
     }
   }

@@ -21,9 +21,7 @@ const prevAttrsMap = new WeakMap();
 const toStyleString = (style) => {
   return Object.entries(style).reduce((styleString, [key, value]) => {
     if (value === null || value === undefined) return styleString;
-    const formattedKey = key.startsWith("--")
-      ? key
-      : key.replace(/[A-Z]/g, (match) => `-${match.toLowerCase()}`);
+    const formattedKey = key.startsWith("--") ? key : key.replace(/[A-Z]/g, (match) => `-${match.toLowerCase()}`);
     return `${styleString}${formattedKey}:${value};`;
   }, "");
 };
@@ -95,8 +93,7 @@ export const spreadProps = (node, attrs) => {
   }
 
   const oldEvents = Object.keys(oldAttrs).filter(onEvents);
-  for (const oldEvent of oldEvents)
-    removeEvent(oldEvent.substring(2), oldAttrs[oldEvent]);
+  for (const oldEvent of oldEvents) removeEvent(oldEvent.substring(2), oldAttrs[oldEvent]);
 
   attrKeys.filter(onEvents).forEach(setup);
   attrKeys.filter(others).forEach(apply);
@@ -115,10 +112,7 @@ export const spreadProps = (node, attrs) => {
  * @param {Object} api - Component API
  */
 export const renderPart = (root, name, api) => {
-  const camelizedName = name.replace(
-    /(^|-)([a-z])/g,
-    (_match, _prefix, letter) => letter.toUpperCase(),
-  );
+  const camelizedName = name.replace(/(^|-)([a-z])/g, (_match, _prefix, letter) => letter.toUpperCase());
   const part = root.querySelector(`[data-part='${name}']`);
   const getterName = `get${camelizedName}Props`;
 
@@ -136,14 +130,8 @@ export const getOption = (el, name, validOptions) => {
   const kebabName = name.replace(/([a-z])([A-Z])/g, "$1-$2").toLowerCase();
   let initial = el.dataset[kebabName];
 
-  if (
-    validOptions &&
-    initial !== undefined &&
-    !validOptions.includes(initial)
-  ) {
-    console.error(
-      `Invalid '${name}' specified: '${initial}'. Expected one of '${validOptions.join("', '")}'.`,
-    );
+  if (validOptions && initial !== undefined && !validOptions.includes(initial)) {
+    console.error(`Invalid '${name}' specified: '${initial}'. Expected one of '${validOptions.join("', '")}'.`);
     initial = undefined;
   }
 

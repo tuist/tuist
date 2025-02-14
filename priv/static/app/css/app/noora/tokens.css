@@ -135,57 +135,30 @@
   --noora-alpha-black: oklch(0% 0 0 / 0.5);
 
   /* Semantic colors */
-  --noora-surface-background-primary: light-dark(
-    var(--noora-neutral-light-50),
-    var(--noora-neutral-dark-1200)
-  );
-  --noora-surface-background-secondary: light-dark(
-    var(--noora-neutral-light-100),
-    var(--noora-neutral-dark-1100)
-  );
-  --noora-surface-label-primary: light-dark(
-    var(--noora-neutral-light-1200),
-    var(--noora-neutral-light-50)
-  );
-  --noora-surface-label-secondary: light-dark(
-    var(--noora-neutral-light-800),
-    var(--noora-neutral-light-500)
-  );
-  --noora-surface-label-destructive: light-dark(
-    var(--noora-red-500),
-    var(--noora-red-300)
-  );
-  --noora-surface-label-disabled: light-dark(
-    var(--noora-neutral-light-600),
-    var(--noora-neutral-dark-300)
-  );
-  --noora-surface-overlay: light-dark(
-    var(--noora-neutral-gray-24),
-    var(--noora-neutral-gray-16)
-  );
-  --noora-surface-border-primary: light-dark(
-    var(--noora-neutral-light-500),
-    var(--noora-neutral-dark-800)
-  );
-
+  /* Background */
+  --noora-surface-background-primary: light-dark(var(--noora-neutral-light-50), var(--noora-neutral-dark-1200));
+  --noora-surface-background-secondary: light-dark(var(--noora-neutral-light-100), var(--noora-neutral-dark-1100));
+  --noora-surface-overlay: light-dark(var(--noora-neutral-gray-24), var(--noora-neutral-gray-16));
+  /* Label */
+  --noora-surface-label-primary: light-dark(var(--noora-neutral-light-1200), var(--noora-neutral-light-50));
+  --noora-surface-label-secondary: light-dark(var(--noora-neutral-light-800), var(--noora-neutral-light-500));
+  --noora-surface-label-destructive: light-dark(var(--noora-red-500), var(--noora-red-300));
+  --noora-surface-label-disabled: light-dark(var(--noora-neutral-light-600), var(--noora-neutral-dark-300));
   /* Borders */
+  --noora-surface-border-primary: light-dark(var(--noora-neutral-light-500), var(--noora-neutral-dark-800));
   --noora-light-border-default: 0px 1px 1px 0px oklch(20.9% 0.009 264.4 / 0.05),
-    0px 0px 0px 1px oklch(31.8% 0.011 248.2 / 0.08),
-    0px 1px 1px 0px oklch(31.8% 0.011 248.2 / 0.1);
+    0px 0px 0px 1px oklch(31.8% 0.011 248.2 / 0.08), 0px 1px 1px 0px oklch(31.8% 0.011 248.2 / 0.1);
 
   --noora-light-border-focus: 0px 1px 1px 0px oklch(20.9% 0.009 264.4 / 0.05),
-    0px 0px 0px 1px oklch(31.8% 0.011 248.2 / 0.08),
-    0px 1px 3px 0px oklch(31.8% 0.011 248.2 / 0.1),
+    0px 0px 0px 1px oklch(31.8% 0.011 248.2 / 0.08), 0px 1px 3px 0px oklch(31.8% 0.011 248.2 / 0.1),
     0px 0px 0px 3px oklch(31.8% 0.011 248.2 / 0.12);
 
   @media (prefers-color-scheme: dark) {
     --noora-light-border-default: 0px 1px 1px 0px oklch(20.9% 0.009 264.4 / 0.3),
-      0px 0px 0px 1px oklch(53.1% 0.01 264.5 / 0.45),
-      0px 2px 3px 0px oklch(0% 0 0 / 0.3);
+      0px 0px 0px 1px oklch(53.1% 0.01 264.5 / 0.45), 0px 2px 3px 0px oklch(0% 0 0 / 0.3);
 
     --noora-light-border-focus: 0px 1px 1px 0px oklch(20.9% 0.009 264.4 / 0.2),
-      0px 0px 0px 1px oklch(53.1% 0.01 264.5 / 0.3),
-      0px 2px 3px 0px oklch(0% 0 0 / 0.3),
+      0px 0px 0px 1px oklch(53.1% 0.01 264.5 / 0.3), 0px 2px 3px 0px oklch(0% 0 0 / 0.3),
       0px 0px 0px 3px oklch(53.1% 0.01 264.5 / 0.4);
   }
 
@@ -210,22 +183,19 @@
 
   /* Borders */
   --noora-border-light-default: 0px 1px 1px 0px oklch(20.9% 0.009 264.4 / 0.05),
-    0px 0px 0px 1px oklch(31.8% 0.011 248.2 / 0.08),
-    0px 1px 1px 0px oklch(31.8% 0.011 248.2 / 0.1);
+    0px 0px 0px 1px oklch(31.8% 0.011 248.2 / 0.08), 0px 1px 1px 0px oklch(31.8% 0.011 248.2 / 0.1);
 
   --noora-border-medium: 0px 0px 0px 1px oklch(31.8% 0.011 248.2 / 0.08) inset,
-    0px -1px 0px 0px oklch(31.8% 0.011 248.2 / 0.16) inset,
-    0px 8px 6px 0px oklch(31.8% 0.011 248.2 / 0.02),
+    0px -1px 0px 0px oklch(31.8% 0.011 248.2 / 0.16) inset, 0px 8px 6px 0px oklch(31.8% 0.011 248.2 / 0.02),
     0px 2px 4px 0px oklch(31.8% 0.011 248.2 / 0.04);
 
   @media (prefers-color-scheme: dark) {
     --noora-border-light-default: 0px 1px 1px 0px oklch(20.9% 0.009 264.4 / 0.3),
-      0px 0px 0px 1px oklch(53.1% 0.01 264.5 / 0.45),
-      0px 2px 3px 0px oklch(0% 0 0 / 0.3);
+      0px 0px 0px 1px oklch(53.1% 0.01 264.5 / 0.45), 0px 2px 3px 0px oklch(0% 0 0 / 0.3);
 
     --noora-border-medium: 0px 1px 0px 0px oklch(53.1% 0.01 264.5 / 0.3) inset,
-      0px 0px 0px 1px oklch(53.1% 0.01 264.5 / 0.2) inset,
-      0px 2px 4px 0px oklch(0% 0 0 / 0.12), 0px 4px 8px 0px oklch(0% 0 0 / 0.24);
+      0px 0px 0px 1px oklch(53.1% 0.01 264.5 / 0.2) inset, 0px 2px 4px 0px oklch(0% 0 0 / 0.12),
+      0px 4px 8px 0px oklch(0% 0 0 / 0.24);
   }
 
   /* Radius */
@@ -253,51 +223,30 @@
   --noora-font-weight-semibold: 600;
   --noora-font-weight-bold: 700;
 
-  --noora-font-color-primary: light-dark(
-    var(--noora-neutral-light-1100),
-    var(-noora-neutral-light-100)
-  );
-  --noora-font-color-secondary: light-dark(
-    var(--noora-neutral-light-1000),
-    var(--noora-neutral-light-400)
-  );
-  --noora-font-color-disabled: light-dark(
-    var(--noora-neutral-light-800),
-    var(--noora-neutral-light-900)
-  );
-  --noora-font-color-information: light-dark(
-    var(--noora-neutral-azure-500),
-    var(--noora-neutral-azure-300)
-  );
-  --noora-font-color-success: light-dark(
-    var(--noora-green-600),
-    var(--noora-green-400)
-  );
-  --noora-font-color-warning: light-dark(
-    var(--noora-orange-600),
-    var(--noora-orange-400)
-  );
-  --noora-font-color-error: light-dark(
-    var(--noora-red-500),
-    var(--noora-red-300)
-  );
-
-  --noora-heading-large-font: 1.25rem/1.625rem var(--noora-font-heading);
-  --noora-display-xlarge-font: 2.5rem/3rem var(--noora-font-heading);
-  --noora-display-large-font: 2.375rem/2.875rem var(--noora-font-heading);
-  --noora-display-medium-font: 2.25rem/2.625rem var(--noora-font-heading);
-  --noora-display-small-font: 2.125rem/2.5rem var(--noora-font-heading);
-  --noora-body-large-font: 1rem/1.5rem var(--noora-font-body);
-  --noora-body-medium-font: 0.875rem/1.25rem var(--noora-font-body);
-  --noora-body-small-font: 0.75rem/1rem var(--noora-font-body);
-  --noora-body-xsmall-font: 0.625rem/0.75rem var(--noora-font-body);
+  --noora-font-heading-large: 1.25rem/1.625rem var(--noora-font-heading);
+  --noora-font-display-xlarge: 2.5rem/3rem var(--noora-font-heading);
+  --noora-font-display-large: 2.375rem/2.875rem var(--noora-font-heading);
+  --noora-font-display-medium: 2.25rem/2.625rem var(--noora-font-heading);
+  --noora-font-display-small: 2.125rem/2.5rem var(--noora-font-heading);
+  --noora-font-body-large: 1rem/1.5rem var(--noora-font-body);
+  --noora-font-body-medium: 0.875rem/1.25rem var(--noora-font-body);
+  --noora-font-body-small: 0.75rem/1rem var(--noora-font-body);
+  --noora-font-body-xsmall: 0.625rem/0.75rem var(--noora-font-body);
 
   @media screen and (min-width: 768px) {
-    --noora-display-xlarge-font: 4.5rem/4.875rem var(--noora-font-heading);
-    --noora-display-large-font: 4rem/4.375rem var(--noora-font-heading);
-    --noora-display-medium-font: 3.5rem/4rem var(--noora-font-heading);
-    --noora-display-small-font: 3rem/3.5rem var(--noora-font-heading);
+    --noora-font-display-xlarge: 4.5rem/4.875rem var(--noora-font-heading);
+    --noora-font-display-large: 4rem/4.375rem var(--noora-font-heading);
+    --noora-font-display-medium: 3.5rem/4rem var(--noora-font-heading);
+    --noora-font-display-small: 3rem/3.5rem var(--noora-font-heading);
   }
+
+  --noora-font-color-primary: light-dark(var(--noora-neutral-light-1100), var(-noora-neutral-light-100));
+  --noora-font-color-secondary: light-dark(var(--noora-neutral-light-1000), var(--noora-neutral-light-400));
+  --noora-font-color-disabled: light-dark(var(--noora-neutral-light-800), var(--noora-neutral-light-900));
+  --noora-font-color-information: light-dark(var(--noora-neutral-azure-500), var(--noora-neutral-azure-300));
+  --noora-font-color-success: light-dark(var(--noora-green-600), var(--noora-green-400));
+  --noora-font-color-warning: light-dark(var(--noora-orange-600), var(--noora-orange-400));
+  --noora-font-color-error: light-dark(var(--noora-red-500), var(--noora-red-300));
 }
 
 /* Dark mode for Storybook only */

@@ -1,11 +1,5 @@
 import * as menu from "https://cdn.jsdelivr.net/npm/@zag-js/pin-input@0.81.2/+esm";
-import {
-  normalizeProps,
-  spreadProps,
-  renderPart,
-  getOption,
-  getBooleanOption,
-} from "./util.js";
+import { normalizeProps, spreadProps, renderPart, getOption, getBooleanOption } from "./util.js";
 import { Component } from "./component.js";
 
 class PinInput extends Component {
@@ -27,15 +21,10 @@ class PinInput extends Component {
     for (const input of this.el.querySelectorAll("[data-part='input']")) {
       const index = input.dataset.index;
       if (!index || Number.isNaN(Number.parseInt(index))) {
-        console.error(
-          "Missing or non-integer `data-index` attribute on input.",
-        );
+        console.error("Missing or non-integer `data-index` attribute on input.");
         return;
       }
-      spreadProps(
-        input,
-        this.api.getInputProps({ index: Number.parseInt(index) }),
-      );
+      spreadProps(input, this.api.getInputProps({ index: Number.parseInt(index) }));
     }
   }
 }
@@ -49,11 +38,7 @@ export default {
       id: this.el.id,
       disabled: getBooleanOption(this.el, "disabled"),
       placeholder: this.el.dataset.placeholder,
-      type: getOption(this.el, "type", [
-        "alphanumeric",
-        "numeric",
-        "alphabetic",
-      ]),
+      type: getOption(this.el, "type", ["alphanumeric", "numeric", "alphabetic"]),
       otp: getBooleanOption(this.el, "otp"),
       mask: getBooleanOption(this.el, "mask"),
       blurOnComplete: getBooleanOption(this.el, "blurOnComplete"),

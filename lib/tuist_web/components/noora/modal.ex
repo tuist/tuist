@@ -1,10 +1,12 @@
 defmodule TuistWeb.Noora.Modal do
-  @moduledoc false
+  @moduledoc """
+  Renders a modal component with customizable headers, content, and footers, supporting various header types, sizes, and event handling.
+  """
 
   use Phoenix.Component
   import TuistWeb.Noora.Utils
   import TuistWeb.Noora.DismissIcon
-  alias TuistWeb.Noora.Icon
+  import TuistWeb.Noora.Icon
 
   attr :id, :string, required: true, doc: "The modal's unique identifier."
 
@@ -55,7 +57,7 @@ defmodule TuistWeb.Noora.Modal do
             size={@header_size}
             icon={@header_icon}
           />
-          <div class="noora-modal__content">{render_slot(@inner_block)}</div>
+          <div data-part="body">{render_slot(@inner_block)}</div>
           <div :if={has_slot_content?(@footer, assigns)}>{render_slot(@footer)}</div>
         </div>
       </div>
@@ -80,10 +82,10 @@ defmodule TuistWeb.Noora.Modal do
 
   defp modal_header(assigns) do
     ~H"""
-    <div class="noora-modal__header" data-type={@type} data-size={@size}>
+    <div data-part="header" data-type={@type} data-size={@size}>
       <.modal_header_icon :if={@type != "default"} type={@type} icon={@icon} />
-      <div class="noora-modal__header-content">
-        <div class="noora-modal__header-row">
+      <div data-part="header-content">
+        <div data-part="row">
           <span data-part="title">{@title}</span>
           <.dismiss_icon data-part="close-trigger" />
         </div>
@@ -98,7 +100,7 @@ defmodule TuistWeb.Noora.Modal do
 
   defp modal_header_icon(%{type: "icon"} = assigns) do
     ~H"""
-    <div class="noora-modal__header-icon">
+    <div data-part="icon">
       {render_slot(@icon)}
     </div>
     """
@@ -106,24 +108,24 @@ defmodule TuistWeb.Noora.Modal do
 
   defp modal_header_icon(%{type: type} = assigns) when type in ["error", "information"] do
     ~H"""
-    <div class="noora-modal__header-icon">
-      <Icon.alert_circle />
+    <div data-part="icon">
+      <.alert_circle />
     </div>
     """
   end
 
   defp modal_header_icon(%{type: "success"} = assigns) do
     ~H"""
-    <div class="noora-modal__header-icon">
-      <Icon.circle_check />
+    <div data-part="icon">
+      <.circle_check />
     </div>
     """
   end
 
   defp modal_header_icon(%{type: "warning"} = assigns) do
     ~H"""
-    <div class="noora-modal__header-icon">
-      <Icon.alert_triangle />
+    <div data-part="icon">
+      <.alert_triangle />
     </div>
     """
   end
@@ -134,11 +136,11 @@ defmodule TuistWeb.Noora.Modal do
 
   def modal_footer(assigns) do
     ~H"""
-    <div class="noora-modal__footer" data-type={@type}>
+    <div data-part="footer" data-type={@type}>
       <div :if={@type == "default"}>
         {render_slot(@inner_block)}
       </div>
-      <div class="noora-modal__footer__actions">
+      <div data-part="actions">
         <div :for={action <- @action}>
           {render_slot(action)}
         </div>

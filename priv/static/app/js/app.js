@@ -28,12 +28,8 @@ import NooraDigitInput from "./components/DigitInput.js";
 import NooraModal from "./components/Modal.js";
 import NooraTooltip from "./components/Tooltip.js";
 
-let csrfToken = document
-  .querySelector("meta[name='csrf-token']")
-  .getAttribute("content");
-let cspNonce = document
-  .querySelector("meta[name='csp-nonce']")
-  .getAttribute("content");
+let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content");
+let cspNonce = document.querySelector("meta[name='csp-nonce']").getAttribute("content");
 
 let Hooks = {};
 Hooks.Chart = {

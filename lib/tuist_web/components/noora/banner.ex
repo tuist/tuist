@@ -1,5 +1,7 @@
 defmodule TuistWeb.Noora.Banner do
-  @moduledoc false
+  @moduledoc """
+  Renders a customizable banner component for displaying messages with different statuses (primary, error, success, warning, information), optional descriptions, and dismissible functionality. Supports a custom icon when the status is primary.
+  """
   use Phoenix.Component
 
   alias TuistWeb.Noora.Icon
@@ -30,10 +32,10 @@ defmodule TuistWeb.Noora.Banner do
     <div id={@id} class="noora-banner" data-status={@status}>
       <.background_grid :if={@status == "primary"} />
       <.icon status={@status} icon={@icon} />
-      <span class="noora-banner__title">{@title}</span>
-      <span :if={@description} class="noora-banner__dot">•</span>
-      <span :if={@description} class="noora_banner__description">{@description}</span>
-      <div :if={@dismissible} class="noora_banner__dismiss">
+      <span data-part="title">{@title}</span>
+      <span :if={@description} data-part="dot">•</span>
+      <span :if={@description} data-part="description">{@description}</span>
+      <div :if={@dismissible} data-part="dismiss-icon">
         <.dismiss_icon phx-click={JS.hide(to: "##{@id}")} />
       </div>
     </div>
@@ -42,7 +44,7 @@ defmodule TuistWeb.Noora.Banner do
 
   defp icon(%{status: "primary"} = assigns) do
     ~H"""
-    <div :if={@icon} class="noora-banner__icon">
+    <div :if={@icon} data-part="icon">
       {render_slot(@icon)}
     </div>
     """
@@ -50,7 +52,7 @@ defmodule TuistWeb.Noora.Banner do
 
   defp icon(%{status: status} = assigns) when status in ["error", "information"] do
     ~H"""
-    <div class="noora-banner__icon">
+    <div data-part="icon">
       <Icon.alert_circle />
     </div>
     """
@@ -58,7 +60,7 @@ defmodule TuistWeb.Noora.Banner do
 
   defp icon(%{status: "success"} = assigns) do
     ~H"""
-    <div class="noora-banner__icon">
+    <div data-part="icon">
       <Icon.circle_check />
     </div>
     """
@@ -66,7 +68,7 @@ defmodule TuistWeb.Noora.Banner do
 
   defp icon(%{status: "warning"} = assigns) do
     ~H"""
-    <div class="noora-banner__icon">
+    <div data-part="icon">
       <Icon.alert_triangle />
     </div>
     """
@@ -75,7 +77,7 @@ defmodule TuistWeb.Noora.Banner do
   defp background_grid(assigns) do
     ~H"""
     <svg
-      class="noora-banner__background"
+      data-part="background"
       xmlns="http://www.w3.org/2000/svg"
       viewBox="0 0 1440 44"
       preserveAspectRatio="xMidYMid slice"

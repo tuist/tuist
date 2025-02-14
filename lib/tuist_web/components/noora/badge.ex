@@ -1,5 +1,7 @@
 defmodule TuistWeb.Noora.Badge do
-  @moduledoc false
+  @moduledoc """
+  Renders a customizable badge component with various styles, colors, sizes, and optional icons or status indicators.
+  """
   use Phoenix.Component
 
   import TuistWeb.Noora.Icon
@@ -42,7 +44,7 @@ defmodule TuistWeb.Noora.Badge do
       {@rest}
     >
       <%= if @dot || has_slot_content?(@icon, assigns) do %>
-        <div class="noora-badge__icon">
+        <div data-part="icon">
           <%= if has_slot_content?(@icon, assigns) do %>
             {render_slot(@icon)}
           <% else %>
@@ -76,7 +78,7 @@ defmodule TuistWeb.Noora.Badge do
         <.status_icon :if={@type == "icon"} status={@status} />
         <.large_dot :if={@type == "dot"} />
       </span>
-      {@label}
+      <span data-part="label">{@label}</span>
     </span>
     """
   end

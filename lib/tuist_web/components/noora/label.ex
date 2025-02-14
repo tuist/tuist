@@ -1,5 +1,7 @@
 defmodule TuistWeb.Noora.Label do
-  @moduledoc "A label"
+  @moduledoc """
+  Renders a label with an optional sublabel and a required indicator.
+  """
 
   use Phoenix.Component
 
@@ -15,8 +17,8 @@ defmodule TuistWeb.Noora.Label do
       <label {@rest}>
         {@label}
       </label>
-      <span :if={@required} class="noora-label__required">*</span>
-      <span :if={@sublabel} class="noora-label__sublabel">
+      <span :if={@required} data-part="required-indicator">*</span>
+      <span :if={@sublabel} data-part="sublabel">
         {@sublabel}
       </span>
     </div>

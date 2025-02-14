@@ -1,5 +1,7 @@
 defmodule TuistWeb.Noora.Tooltip do
-  @moduledoc false
+  @moduledoc """
+  Renders a tooltip component with a trigger, customizable size, title, description, and optional icon.
+  """
   use Phoenix.Component
   import TuistWeb.Noora.Utils
   alias TuistWeb.Noora.Icon
@@ -34,12 +36,12 @@ defmodule TuistWeb.Noora.Tooltip do
       <% end %>
       <%= if @size == "large" do %>
         <div data-part="content" data-size="large">
-          <div class="noora-tooltip__icon">
+          <div data-part="icon">
             {render_slot(@icon)}
           </div>
-          <div class="noora-tooltip__content">
-            <span class="noora-tooltip__title">{@title}</span>
-            <span class="noora-tooltip__description">{@description}</span>
+          <div data-part="body">
+            <span data-part="title">{@title}</span>
+            <span data-part="description">{@description}</span>
           </div>
         </div>
       <% end %>

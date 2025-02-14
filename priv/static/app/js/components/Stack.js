@@ -12,12 +12,7 @@ class Stack extends HTMLElement {
   constructor() {
     super();
     this.render = () => {
-      this.i = `Stack-${[
-        this.space,
-        this.recursive,
-        this.splitAfter,
-        this.axis,
-      ].join("")}`;
+      this.i = `Stack-${[this.space, this.recursive, this.splitAfter, this.axis].join("")}`;
       this.dataset.i = this.i;
 
       if (!document.getElementById(this.i)) {
@@ -30,11 +25,7 @@ class Stack extends HTMLElement {
 
             [data-i="${this.i}"] {
                 flex-direction: row;
-                ${
-                  this.axis === "horizontal"
-                    ? "flex-direction: row;"
-                    : "flex-direction: column;"
-                }
+                ${this.axis === "horizontal" ? "flex-direction: row;" : "flex-direction: column;"}
             }
         
             ${

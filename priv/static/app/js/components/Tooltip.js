@@ -8,11 +8,7 @@ class Tooltip extends Component {
   }
 
   initApi() {
-    return tooltip.connect(
-      this.service.state,
-      this.service.send,
-      normalizeProps,
-    );
+    return tooltip.connect(this.service.state, this.service.send, normalizeProps);
   }
 
   render() {
@@ -32,16 +28,10 @@ export default {
   mounted() {
     let openDelay;
     let closeDelay;
-    if (
-      this.el.dataset.openDelay &&
-      !Number.isNaN(Number.parseInt(this.el.dataset.openDelay))
-    ) {
+    if (this.el.dataset.openDelay && !Number.isNaN(Number.parseInt(this.el.dataset.openDelay))) {
       openDelay = Number.parseInt(this.el.dataset.openDelay);
     }
-    if (
-      this.el.dataset.closeDelay &&
-      !Number.isNaN(Number.parseInt(this.el.dataset.closeDelay))
-    ) {
+    if (this.el.dataset.closeDelay && !Number.isNaN(Number.parseInt(this.el.dataset.closeDelay))) {
       closeDelay = Number.parseInt(this.el.dataset.closeDelay);
     }
 

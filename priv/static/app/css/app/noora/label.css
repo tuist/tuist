@@ -3,17 +3,16 @@
   gap: var(--noora-spacing-1);
 
   & label {
-    font: var(--noora-body-medium-font);
-    font-weight: var(--noora-font-weight-medium);
     color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
   }
 
-  & .noora-label__required {
+  & [data-part="required-indicator"] {
     color: var(--noora-surface-label-destructive);
   }
 
-  & .noora-label__sublabel {
-    font: var(--noora-body-medium-font);
+  & [data-part="sublabel"] {
+    font: var(--noora-font-body-medium);
     color: var(--noora-surface-label-secondary);
   }
 }

@@ -84,9 +84,7 @@ class ChartComponent extends HTMLElement {
       xaxis: {
         categories: this.data.labels,
         tickAmount:
-          this.data.labels && this.data.labels.length > 12
-            ? this.data.labels.length / 2
-            : this.data.labels.length,
+          this.data.labels && this.data.labels.length > 12 ? this.data.labels.length / 2 : this.data.labels.length,
         axisTicks: {
           show: false,
         },
@@ -173,11 +171,7 @@ class ChartComponent extends HTMLElement {
   get colors() {
     const colors = JSON.parse(this.getAttribute("colors"));
     if (colors == null || colors.length === 0) {
-      return [
-        cssvar("--utility-brand-500"),
-        cssvar("--utility-brand-400"),
-        cssvar("--utility-warning-600"),
-      ];
+      return [cssvar("--utility-brand-500"), cssvar("--utility-brand-400"), cssvar("--utility-warning-600")];
     } else {
       return colors;
     }

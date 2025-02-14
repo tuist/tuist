@@ -15,18 +15,14 @@
   for (let x = 0; x < vendors.length && !window.requestAnimationFrame; ++x) {
     window.requestAnimationFrame = window[vendors[x] + "RequestAnimationFrame"];
     window.cancelAnimationFrame =
-      window[vendors[x] + "CancelAnimationFrame"] ||
-      window[vendors[x] + "CancelRequestAnimationFrame"];
+      window[vendors[x] + "CancelAnimationFrame"] || window[vendors[x] + "CancelRequestAnimationFrame"];
   }
 
   if (!window.requestAnimationFrame) {
     window.requestAnimationFrame = function (callback) {
       const currTime = new Date().getTime();
       const timeToCall = Math.max(0, 16 - (currTime - lastTime));
-      const id = window.setTimeout(
-        () => callback(currTime + timeToCall),
-        timeToCall,
-      );
+      const id = window.setTimeout(() => callback(currTime + timeToCall), timeToCall);
       lastTime = currTime + timeToCall;
       return id;
     };
@@ -86,10 +82,7 @@ const repaint = () => {
   ctx.lineWidth = options.barThickness;
   ctx.beginPath();
   ctx.moveTo(0, options.barThickness / 2);
-  ctx.lineTo(
-    Math.ceil(currentProgress * canvas.width),
-    options.barThickness / 2,
-  );
+  ctx.lineTo(Math.ceil(currentProgress * canvas.width), options.barThickness / 2);
   ctx.strokeStyle = lineGradient;
   ctx.stroke();
 };
@@ -128,9 +121,7 @@ const topbar = {
       if (options.autoRun) {
         (function loop() {
           progressTimerId = window.requestAnimationFrame(loop);
-          topbar.progress(
-            "+" + 0.05 * Math.pow(1 - Math.sqrt(currentProgress), 2),
-          );
+          topbar.progress("+" + 0.05 * Math.pow(1 - Math.sqrt(currentProgress), 2));
         })();
       }
     }
@@ -139,9 +130,7 @@ const topbar = {
   progress(to) {
     if (typeof to === "undefined") return currentProgress;
     if (typeof to === "string") {
-      to =
-        (to.indexOf("+") >= 0 || to.indexOf("-") >= 0 ? currentProgress : 0) +
-        parseFloat(to);
+      to = (to.indexOf("+") >= 0 || to.indexOf("-") >= 0 ? currentProgress : 0) + parseFloat(to);
     }
     currentProgress = to > 1 ? 1 : to;
     repaint();

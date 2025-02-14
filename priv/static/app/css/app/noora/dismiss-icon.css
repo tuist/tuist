@@ -1,35 +1,35 @@
 .noora-dismiss-icon {
-  display: inline-flex;
-  justify-content: center;
   align-items: center;
   background: transparent;
-  outline: 0;
-  border: 0;
-  padding: 0;
   border-radius: var(--noora-radius-small);
+  border: 0;
   color: var(--noora-surface-label-secondary);
+  display: inline-flex;
+  justify-content: center;
+  outline: 0;
+  padding: 0;
 
   & svg {
-    width: 100%;
     height: 100%;
-  }
-
-  &[data-size="small"] {
-    width: var(--noora-icon-size-medium);
-    height: var(--noora-icon-size-medium);
-  }
-
-  &[data-size="large"] {
-    width: var(--noora-icon-size-large);
-    height: var(--noora-icon-size-large);
-  }
-
-  &:hover {
-    cursor: pointer;
-    color: var(--noora-surface-label-primary);
+    width: 100%;
   }
 
   &:active {
     box-shadow: 0 0 0 1px var(--noora-surface-border-primary);
+  }
+
+  &:hover {
+    color: var(--noora-surface-label-primary);
+    cursor: pointer;
+  }
+
+  &[data-size="small"] {
+    height: var(--noora-icon-size-medium);
+    width: var(--noora-icon-size-medium);
+  }
+
+  &[data-size="large"] {
+    height: var(--noora-icon-size-large);
+    width: var(--noora-icon-size-large);
   }
 }

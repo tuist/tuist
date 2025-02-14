@@ -1,14 +1,12 @@
 defmodule TuistWeb.Noora.Button do
-  @moduledoc false
+  @moduledoc """
+  A component for rendering both standard buttons and link-style buttons, offering flexible styling options for variants, sizes, and icon placement.
+  """
 
   use Phoenix.Component
 
   @button_variants ~w(primary secondary destructive)
   @button_sizes ~w(small medium large)
-
-  @doc """
-  The `button` component is used to create customizable buttons with various styles, icons, and indicators.
-  """
 
   attr :label, :string, required: true, doc: "The label of the button"
 

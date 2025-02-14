@@ -1,54 +1,52 @@
 .noora-tooltip {
   & [data-part="content"] {
     align-items: top;
-    width: max-content;
-    max-width: 250px;
-
-    border-radius: var(--noora-radius-medium);
     background: var(--noora-surface-background-primary);
-    color: var(--noora-surface-label-primary);
+    border-radius: var(--noora-radius-medium);
     box-shadow: var(--noora-border-medium);
+    color: var(--noora-surface-label-primary);
+    max-width: 250px;
+    width: max-content;
+
+    & [data-part="icon"] {
+      display: inline-flex;
+      flex-shrink: 0;
+      height: var(--noora-icon-size-medium);
+      width: var(--noora-icon-size-medium);
+
+      & svg {
+        height: 100%;
+        width: 100%;
+      }
+    }
+
+    & [data-part="body"] {
+      display: flex;
+      flex-direction: column;
+    }
+
+    & [data-part="title"] {
+      font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+    }
+
+    & [data-part="description"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-body-xsmall);
+    }
 
     &[data-state="open"] {
       display: flex;
     }
 
     &[data-size="small"] {
-      padding: var(--noora-spacing-2) var(--noora-spacing-3);
+      font: var(--noora-font-body-small);
       gap: var(--noora-spacing-2);
-      font: var(--noora-body-small-font);
+      padding: var(--noora-spacing-2) var(--noora-spacing-3);
     }
 
     &[data-size="large"] {
-      padding: var(--noora-spacing-5);
       gap: var(--noora-spacing-4);
+      padding: var(--noora-spacing-5);
     }
   }
-}
-
-.noora-tooltip__icon {
-  display: inline-flex;
-  flex-shrink: 0;
-  width: var(--noora-icon-size-medium);
-  height: var(--noora-icon-size-medium);
-
-  & svg {
-    width: 100%;
-    height: 100%;
-  }
-}
-
-.noora-tooltip__content {
-  display: flex;
-  flex-direction: column;
-}
-
-.noora-tooltip__title {
-  font: var(--noora-body-small-font);
-  font-weight: var(--noora-font-weight-medium);
-}
-
-.noora-tooltip__description {
-  font: var(--noora-body-small-font);
-  color: var(--noora-surface-label-secondary);
 }

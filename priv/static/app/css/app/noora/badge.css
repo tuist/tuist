@@ -1,290 +1,237 @@
 .noora-badge,
 .noora-status-badge {
-  --badge-fill-label: light-dark(
-    var(--noora-neutral-light-50),
-    var(--noora-neutral-light-100)
-  );
+  --noora-badge-fill-label: light-dark(var(--noora-neutral-light-50), var(--noora-neutral-light-100));
+  --noora-badge-fill-neutral: light-dark(var(--noora-neutral-light-800), var(--noora-neutral-dark-600));
+  --noora-badge-fill-destructive: light-dark(var(--noora-red-500), var(--noora-red-700));
+  --noora-badge-fill-warning: light-dark(var(--noora-orange-500), var(--noora-orange-600));
+  --noora-badge-fill-attention: light-dark(var(--noora-yellow-500), var(--noora-yellow-600));
+  --noora-badge-fill-success: light-dark(var(--noora-green-500), var(--noora-green-600));
+  --noora-badge-fill-information: light-dark(var(--noora-azure-500), var(--noora-azure-700));
+  --noora-badge-fill-focus: light-dark(var(--noora-blue-500), var(--noora-blue-700));
+  --noora-badge-fill-primary: light-dark(var(--noora-purple-500), var(--noora-purple-700));
+  --noora-badge-fill-secondary: light-dark(var(--noora-pink-500), var(--noora-pink-700));
 
-  --badge-fill-neutral: light-dark(
-    var(--noora-neutral-light-800),
-    var(--noora-neutral-dark-600)
-  );
-  --badge-fill-destructive: light-dark(
-    var(--noora-red-500),
-    var(--noora-red-700)
-  );
-  --badge-fill-warning: light-dark(
-    var(--noora-orange-500),
-    var(--noora-orange-600)
-  );
-  --badge-fill-attention: light-dark(
-    var(--noora-yellow-500),
-    var(--noora-yellow-600)
-  );
-  --badge-fill-success: light-dark(
-    var(--noora-green-500),
-    var(--noora-green-600)
-  );
-  --badge-fill-information: light-dark(
-    var(--noora-azure-500),
-    var(--noora-azure-700)
-  );
-  --badge-fill-focus: light-dark(var(--noora-blue-500), var(--noora-blue-700));
-  --badge-fill-primary: light-dark(
-    var(--noora-purple-500),
-    var(--noora-purple-700)
-  );
-  --badge-fill-secondary: light-dark(
-    var(--noora-pink-500),
-    var(--noora-pink-700)
-  );
-
-  --badge-light-fill-neutral-background: light-dark(
+  --noora-badge-light-fill-neutral-background: light-dark(
     var(--noora-neutral-light-400),
     color-mix(in oklch, var(--noora-neutral-dark-900) 50%, transparent)
   );
-  --badge-light-fill-neutral-label: light-dark(
-    var(--noora-neutral-light-1100),
-    var(--noora-neutral-light-100)
-  );
-  --badge-light-fill-destructive-background: light-dark(
+  --noora-badge-light-fill-neutral-label: light-dark(var(--noora-neutral-light-1100), var(--noora-neutral-light-100));
+  --noora-badge-light-fill-destructive-background: light-dark(
     var(--noora-red-50),
     color-mix(in oklch, var(--noora-red-500) 16%, transparent)
   );
-  --badge-light-fill-destructive-label: light-dark(
-    var(--noora-red-600),
-    var(--noora-red-500)
-  );
-  --badge-light-fill-warning-background: light-dark(
+  --noora-badge-light-fill-destructive-label: light-dark(var(--noora-red-600), var(--noora-red-500));
+  --noora-badge-light-fill-warning-background: light-dark(
     var(--noora-orange-50),
     color-mix(in oklch, var(--noora-orange-500) 16%, transparent)
   );
-  --badge-light-fill-warning-label: light-dark(
-    var(--noora-orange-600),
-    var(--noora-orange-500)
-  );
-  --badge-light-fill-attention-background: light-dark(
+  --noora-badge-light-fill-warning-label: light-dark(var(--noora-orange-600), var(--noora-orange-500));
+  --noora-badge-light-fill-attention-background: light-dark(
     var(--noora-azure-50),
     color-mix(in oklch, var(--noora-azure-500) 16%, transparent)
   );
-  --badge-light-fill-attention-label: light-dark(
-    var(--noora-azure-700),
-    var(--noora-azure-500)
-  );
-  --badge-light-fill-success-background: light-dark(
+  --noora-badge-light-fill-attention-label: light-dark(var(--noora-azure-700), var(--noora-azure-500));
+  --noora-badge-light-fill-success-background: light-dark(
     var(--noora-green-50),
     color-mix(in oklch, var(--noora-green-500) 16%, transparent)
   );
-  --badge-light-fill-success-label: light-dark(
-    var(--noora-green-700),
-    var(--noora-green-500)
-  );
-  --badge-light-fill-information-background: light-dark(
+  --noora-badge-light-fill-success-label: light-dark(var(--noora-green-700), var(--noora-green-500));
+  --noora-badge-light-fill-information-background: light-dark(
     var(--noora-azure-50),
     color-mix(in oklch, var(--noora-azure-500) 16%, transparent)
   );
-  --badge-light-fill-information-label: light-dark(
-    var(--noora-azure-700),
-    var(--noora-azure-400)
-  );
-  --badge-light-fill-focus-background: light-dark(
+  --noora-badge-light-fill-information-label: light-dark(var(--noora-azure-700), var(--noora-azure-400));
+  --noora-badge-light-fill-focus-background: light-dark(
     var(--noora-blue-50),
     color-mix(in oklch, var(--noora-blue-700) 16%, transparent)
   );
-  --badge-light-fill-focus-label: light-dark(
-    var(--noora-blue-700),
-    var(--noora-blue-500)
-  );
-  --badge-light-fill-primary-background: light-dark(
+  --noora-badge-light-fill-focus-label: light-dark(var(--noora-blue-700), var(--noora-blue-500));
+  --noora-badge-light-fill-primary-background: light-dark(
     var(--noora-purple-50),
     color-mix(in oklch, var(--noora-purple-700) 16%, transparent)
   );
-  --badge-light-fill-primary-label: light-dark(
-    var(--noora-purple-700),
-    var(--noora-purple-400)
-  );
-  --badge-light-fill-secondary-background: light-dark(
+  --noora-badge-light-fill-primary-label: light-dark(var(--noora-purple-700), var(--noora-purple-400));
+  --noora-badge-light-fill-secondary-background: light-dark(
     var(--noora-pink-50),
     color-mix(in oklch, var(--noora-pink-700) 16%, transparent)
   );
-  --badge-light-fill-secondary-label: light-dark(
-    var(--noora-pink-600),
-    var(--noora-pink-500)
-  );
+  --noora-badge-light-fill-secondary-label: light-dark(var(--noora-pink-600), var(--noora-pink-500));
 
-  --badge-disabled-background: light-dark(
-    var(--noora-neutral-light-200),
-    var(--noora-neutral-light-1000)
-  );
-  --badge-disabled-label: light-dark(
-    var(--noora-neutral-light-600),
-    var(--noora-neutral-light-300)
-  );
+  --noora-badge-disabled-background: light-dark(var(--noora-neutral-light-200), var(--noora-neutral-light-1000));
+  --noora-badge-disabled-label: light-dark(var(--noora-neutral-light-600), var(--noora-neutral-light-300));
 
-  --badge-status-success: var(--noora-green-600);
-  --badge-status-warning: var(--noora-orange-600);
-  --badge-status-error: var(--noora-red-600);
+  --noora-badge-status-success: var(--noora-green-600);
+  --noora-badge-status-warning: var(--noora-orange-600);
+  --noora-badge-status-error: var(--noora-red-600);
 }
 
 .noora-badge {
-  display: inline-flex;
-  padding: var(--noora-spacing-1) var(--noora-spacing-4);
-  justify-content: center;
   align-items: center;
   border-radius: var(--noora-radius-small);
-}
+  display: inline-flex;
+  justify-content: center;
+  padding: var(--noora-spacing-1) var(--noora-spacing-4);
 
-.noora-badge[data-size="small"] {
-  font: var(--noora-body-xsmall-font);
-  font-weight: var(--noora-font-weight-medium);
-}
+  &[data-disabled] {
+    background: var(--noora-badge-disabled-background) !important;
+    color: var(--noora-badge-disabled-label) !important;
+  }
 
-.noora-badge[data-size="large"] {
-  font: var(--noora-body-small-font);
-  font-weight: var(--noora-font-weight-medium);
-}
+  &[data-icon] {
+    padding-left: var(--noora-spacing-2);
+  }
 
-.noora-badge[data-style="fill"] {
-  color: var(--badge-fill-label);
-}
+  &[data-dot] {
+    padding-left: var(--noora-spacing-0);
+  }
 
-.noora-badge[data-style="fill"][data-color="neutral"] {
-  background: var(--badge-fill-neutral);
-}
+  &[data-size="small"] {
+    font: var(--noora-font-weight-medium) var(--noora-font-body-xsmall);
 
-.noora-badge[data-style="fill"][data-color="destructive"] {
-  background: var(--badge-fill-destructive);
-}
+    &[data-icon] {
+      gap: var(--noora-spacing-1);
+    }
 
-.noora-badge[data-style="fill"][data-color="warning"] {
-  background: var(--badge-fill-warning);
-}
+    & [data-part="icon"] {
+      height: var(--noora-icon-size-small);
+      width: var(--noora-icon-size-small);
 
-.noora-badge[data-style="fill"][data-color="attention"] {
-  background: var(--badge-fill-attention);
-}
+      & svg {
+        height: 100%;
+        width: 100%;
+      }
+    }
+  }
 
-.noora-badge[data-style="fill"][data-color="success"] {
-  background: var(--badge-fill-success);
-}
+  &[data-size="large"] {
+    font: var(--noora-font-weight-medium) var(--noora-font-body-small);
 
-.noora-badge[data-style="fill"][data-color="information"] {
-  background: var(--badge-fill-information);
-}
+    &[data-icon] {
+      gap: var(--noora-spacing-2);
+    }
 
-.noora-badge[data-style="fill"][data-color="focus"] {
-  background: var(--badge-fill-focus);
-}
+    & [data-part="icon"] {
+      height: var(--noora-icon-size-medium);
+      width: var(--noora-icon-size-medium);
 
-.noora-badge[data-style="fill"][data-color="primary"] {
-  background: var(--badge-fill-primary);
-}
+      & svg {
+        height: 100%;
+        width: 100%;
+      }
+    }
+  }
 
-.noora-badge[data-style="fill"][data-color="secondary"] {
-  background: var(--badge-fill-secondary);
-}
+  &[data-style="fill"] {
+    color: var(--noora-badge-fill-label);
 
-.noora-badge[data-style="light-fill"][data-color="neutral"] {
-  background: var(--badge-light-fill-neutral-background);
-  color: var(--badge-light-fill-neutral-label);
-}
+    &[data-color="neutral"] {
+      background: var(--noora-badge-fill-neutral);
+    }
 
-.noora-badge[data-style="light-fill"][data-color="destructive"] {
-  background: var(--badge-light-fill-destructive-background);
-  color: var(--badge-light-fill-destructive-label);
-}
+    &[data-color="destructive"] {
+      background: var(--noora-badge-fill-destructive);
+    }
 
-.noora-badge[data-style="light-fill"][data-color="warning"] {
-  background: var(--badge-light-fill-warning-background);
-  color: var(--badge-light-fill-warning-label);
-}
+    &[data-color="warning"] {
+      background: var(--noora-badge-fill-warning);
+    }
 
-.noora-badge[data-style="light-fill"][data-color="attention"] {
-  background: var(--badge-light-fill-attention-background);
-  color: var(--badge-light-fill-attention-label);
-}
+    &[data-color="attention"] {
+      background: var(--noora-badge-fill-attention);
+    }
 
-.noora-badge[data-style="light-fill"][data-color="success"] {
-  background: var(--badge-light-fill-success-background);
-  color: var(--badge-light-fill-success-label);
-}
+    &[data-color="success"] {
+      background: var(--noora-badge-fill-success);
+    }
 
-.noora-badge[data-style="light-fill"][data-color="information"] {
-  background: var(--badge-light-fill-information-background);
-  color: var(--badge-light-fill-information-label);
-}
+    &[data-color="information"] {
+      background: var(--noora-badge-fill-information);
+    }
 
-.noora-badge[data-style="light-fill"][data-color="focus"] {
-  background: var(--badge-light-fill-focus-background);
-  color: var(--badge-light-fill-focus-label);
-}
+    &[data-color="focus"] {
+      background: var(--noora-badge-fill-focus);
+    }
 
-.noora-badge[data-style="light-fill"][data-color="primary"] {
-  background: var(--badge-light-fill-primary-background);
-  color: var(--badge-light-fill-primary-label);
-}
+    &[data-color="primary"] {
+      background: var(--noora-badge-fill-primary);
+    }
 
-.noora-badge[data-style="light-fill"][data-color="secondary"] {
-  background: var(--badge-light-fill-secondary-background);
-  color: var(--badge-light-fill-secondary-label);
-}
+    &[data-color="secondary"] {
+      background: var(--noora-badge-fill-secondary);
+    }
+  }
 
-.noora-badge[data-disabled] {
-  background: var(--badge-disabled-background) !important;
-  color: var(--badge-disabled-label) !important;
-}
+  &[data-style="light-fill"] {
+    &[data-color="neutral"] {
+      background: var(--noora-badge-light-fill-neutral-background);
+      color: var(--noora-badge-light-fill-neutral-label);
+    }
 
-.noora-badge[data-icon] {
-  padding-left: var(--noora-spacing-2);
-}
+    &[data-color="destructive"] {
+      background: var(--noora-badge-light-fill-destructive-background);
+      color: var(--noora-badge-light-fill-destructive-label);
+    }
 
-.noora-badge[data-size="small"][data-icon] {
-  gap: var(--noora-spacing-1);
-}
+    &[data-color="warning"] {
+      background: var(--noora-badge-light-fill-warning-background);
+      color: var(--noora-badge-light-fill-warning-label);
+    }
 
-.noora-badge[data-size="large"][data-icon] {
-  gap: var(--noora-spacing-2);
-}
+    &[data-color="attention"] {
+      background: var(--noora-badge-light-fill-attention-background);
+      color: var(--noora-badge-light-fill-attention-label);
+    }
 
-.noora-badge[data-size="small"] .noora-badge__icon {
-  height: var(--noora-icon-size-small);
-  width: var(--noora-icon-size-small);
-}
+    &[data-color="success"] {
+      background: var(--noora-badge-light-fill-success-background);
+      color: var(--noora-badge-light-fill-success-label);
+    }
 
-.noora-badge[data-size="large"] .noora-badge__icon {
-  height: var(--noora-icon-size-medium);
-  width: var(--noora-icon-size-medium);
-}
+    &[data-color="information"] {
+      background: var(--noora-badge-light-fill-information-background);
+      color: var(--noora-badge-light-fill-information-label);
+    }
 
-.noora-badge[data-size="small"] .noora-badge__icon svg {
-  width: var(--noora-icon-size-small);
-  height: var(--noora-icon-size-small);
-}
+    &[data-color="focus"] {
+      background: var(--noora-badge-light-fill-focus-background);
+      color: var(--noora-badge-light-fill-focus-label);
+    }
 
-.noora-badge[data-size="large"] .noora-badge__icon svg {
-  width: var(--noora-icon-size-medium);
-  height: var(--noora-icon-size-medium);
-}
+    &[data-color="primary"] {
+      background: var(--noora-badge-light-fill-primary-background);
+      color: var(--noora-badge-light-fill-primary-label);
+    }
 
-.noora-badge[data-dot] {
-  padding-left: var(--noora-spacing-0);
+    &[data-color="secondary"] {
+      background: var(--noora-badge-light-fill-secondary-background);
+      color: var(--noora-badge-light-fill-secondary-label);
+    }
+  }
 }
 
 .noora-status-badge {
-  display: inline-flex;
   align-items: center;
-  justify-content: center;
-
-  padding: var(--noora-spacing-2) var(--noora-spacing-4) var(--noora-spacing-2)
-    var(--noora-spacing-2);
-  gap: var(--noora-spacing-2);
-
   background: var(--noora-surface-background-primary);
-  box-shadow: var(--noora-border-light-default);
   border-radius: var(--noora-radius-medium);
+  box-shadow: var(--noora-border-light-default);
+  display: inline-flex;
+  gap: var(--noora-spacing-2);
+  justify-content: center;
+  padding: var(--noora-spacing-2) var(--noora-spacing-4) var(--noora-spacing-2) var(--noora-spacing-2);
 
-  font: var(--noora-body-small-font);
-  font-weight: var(--noora-font-weight-medium);
+  & [data-part="icon"] {
+    align-items: center;
+    display: inline-flex;
+    justify-content: center;
+    svg {
+      height: var(--noora-icon-size-medium);
+      width: var(--noora-icon-size-medium);
+    }
+  }
+
+  & [data-part="label"] {
+    font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+  }
 
   &:not([data-status="disabled"]) {
     color: var(--noora-surface-label-primary);
@@ -294,23 +241,13 @@
     color: var(--noora-surface-label-disabled);
   }
 
-  & [data-part="icon"] {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    svg {
-      width: var(--noora-icon-size-medium);
-      height: var(--noora-icon-size-medium);
-    }
-  }
-
   &[data-status="success"] [data-part="icon"] {
-    color: var(--badge-status-success);
+    color: var(--noora-badge-status-success);
   }
   &[data-status="error"] [data-part="icon"] {
-    color: var(--badge-status-error);
+    color: var(--noora-badge-status-error);
   }
   &[data-status="warning"] [data-part="icon"] {
-    color: var(--badge-status-warning);
+    color: var(--noora-badge-status-warning);
   }
 }

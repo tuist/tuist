@@ -1,5 +1,7 @@
 defmodule TuistWeb.Noora.ShortcutKey do
-  @moduledoc false
+  @moduledoc """
+  Renders a keyboard shortcut key element with customizable size.
+  """
   use Phoenix.Component
 
   attr :size, :string, values: ~w(small large), default: "large", doc: "Size of the shortcut key"

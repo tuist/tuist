@@ -1,5 +1,7 @@
 defmodule TuistWeb.Noora.HintText do
-  @moduledoc false
+  @moduledoc """
+  Renders hint text with an icon, providing contextual information or validation messages with different variants (default, error, disabled).
+  """
   use Phoenix.Component
 
   alias TuistWeb.Noora.Icon
