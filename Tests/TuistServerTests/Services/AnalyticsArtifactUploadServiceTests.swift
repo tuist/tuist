@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Mockable
 import TuistCore
@@ -20,6 +21,7 @@ final class AnalyticsArtifactUploadServiceTests: TuistTestCase {
     override func setUp() {
         super.setUp()
 
+        let fileSystem = FileSystem()
         xcresultToolController = .init()
         fileArchiverFactory = .init()
         multipartUploadStartAnalyticsService = .init()
@@ -29,7 +31,7 @@ final class AnalyticsArtifactUploadServiceTests: TuistTestCase {
         completeAnalyticsArtifactsUploadsService = .init()
 
         subject = AnalyticsArtifactUploadService(
-            fileHandler: fileHandler,
+            fileSystem: fileSystem,
             xcresultToolController: xcresultToolController,
             fileArchiver: fileArchiverFactory,
             retryProvider: RetryProvider(),
@@ -112,7 +114,7 @@ final class AnalyticsArtifactUploadServiceTests: TuistTestCase {
 
         given(multipartUploadArtifactService)
             .multipartUploadArtifact(
-                artifactPath: .value(resultBundle.parentDirectory.appending(component: "invocation_record.json")),
+                artifactPath: .matching { $0.basename == "invocation_record.json" },
                 generateUploadURL: .any
             )
             .willReturn([(etag: "etag", partNumber: 1)])
@@ -138,7 +140,6 @@ final class AnalyticsArtifactUploadServiceTests: TuistTestCase {
 
         given(completeAnalyticsArtifactsUploadsService)
             .completeAnalyticsArtifactsUploads(
-                modules: .any,
                 commandEventId: .any,
                 serverURL: .value(serverURL)
             )
@@ -146,7 +147,7 @@ final class AnalyticsArtifactUploadServiceTests: TuistTestCase {
 
         given(multipartUploadArtifactService)
             .multipartUploadArtifact(
-                artifactPath: .value(resultBundle.parentDirectory.appending(component: "\(testResultBundleObjectId).json")),
+                artifactPath: .matching { $0.basename == "\(testResultBundleObjectId).json" },
                 generateUploadURL: .any
             )
             .willReturn([(etag: "etag", partNumber: 1)])
@@ -167,13 +168,6 @@ final class AnalyticsArtifactUploadServiceTests: TuistTestCase {
         // When / Then
         try await subject.uploadResultBundle(
             resultBundle,
-            targetHashes: [
-                CommandEventGraphTarget(
-                    target: .test(),
-                    project: .test()
-                ): "target-hash",
-            ],
-            graphPath: try temporaryPath(),
             commandEventId: 1,
             serverURL: serverURL
         )

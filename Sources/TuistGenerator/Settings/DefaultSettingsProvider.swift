@@ -146,7 +146,18 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
                 let filteredSettings = platformSetting
                     .filter { !DefaultSettingsProvider.multiplatformExcludedSettingsKeys.contains($0.key) }
 
-                settings.overlay(with: filteredSettings, for: platform)
+                for (key, newValue) in filteredSettings {
+                    if settings[key] == nil {
+                        settings[key] = newValue
+                    } else if settings[key] != newValue {
+                        let newKey = "\(key)[sdk=\(platform.xcodeSdkRoot)*]"
+                        settings[newKey] = newValue
+                        if platform.hasSimulators, let simulatorSDK = platform.xcodeSimulatorSDK {
+                            let newKey = "\(key)[sdk=\(simulatorSDK)*]"
+                            settings[newKey] = newValue
+                        }
+                    }
+                }
             }
         } else if let platform = target.supportedPlatforms.first {
             settings = try await targetSettings(

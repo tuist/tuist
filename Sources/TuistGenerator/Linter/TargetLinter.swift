@@ -203,7 +203,7 @@ class TargetLinter: TargetLinting {
     private func lintInfoplistExists(target: Target) async throws -> [LintingIssue] {
         var issues: [LintingIssue] = []
         if let infoPlist = target.infoPlist,
-           case let InfoPlist.file(path: path) = infoPlist,
+           case let InfoPlist.file(path: path, configuration: _) = infoPlist,
            try await !fileSystem.exists(path)
         {
             issues
@@ -215,7 +215,7 @@ class TargetLinter: TargetLinting {
     private func lintEntitlementsExist(target: Target) async throws -> [LintingIssue] {
         var issues: [LintingIssue] = []
         if let entitlements = target.entitlements,
-           case let Entitlements.file(path: path) = entitlements,
+           case let Entitlements.file(path: path, configuration: _) = entitlements,
            try await !fileSystem.exists(path)
         {
             issues

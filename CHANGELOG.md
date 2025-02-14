@@ -1,5 +1,49 @@
 # Changelog
 
+## 4.42.0 - 2025-02-13
+
+### CLI
+
+#### Changed
+
+- Improve the debugging experience by persisting logs in the file system for every run [#7261](https://github.com/tuist/tuist/pull/7261) by [@pepicrft](https://github.com/pepicrft)
+
+#### Added
+
+- Add support for selective testing for Xcode non-generated projects [#7287](https://github.com/tuist/tuist/pull/7287) by [@fortmarek](https://github.com/fortmarek)
+- Upload and show run detail link for long-running commands like tuist xcodebuild [#7303](https://github.com/tuist/tuist/pull/7303) by [@fortmarek](https://github.com/fortmarek)
+
+#### Fixed
+
+- Gracefully handle suffix grouping when target has the same name as suffix [#7305](https://github.com/tuist/tuist/pull/7305) by [@fortmarek](https://github.com/fortmarek)
+
+### CLI (Server features)
+
+- no changes
+
+## 4.41.0 - 2025-02-05
+
+### CLI
+
+#### Changed
+
+- Change tuist graph --format json output to XcodeGraph. Use tuist graph --format legacyJSON for legacy output. [#7245](https://github.com/tuist/tuist/pull/7245) by [@fortmarek](https://github.com/fortmarek)
+- Mark plugins as deprecated in the docs [#7227](https://github.com/tuist/tuist/pull/7227) by [@pepicrft](https://github.com/pepicrft)
+
+#### Added
+
+- Add support for binary targets in Package.swift [#7028](https://github.com/tuist/tuist/pull/7028) by [@danieleformichelli](https://github.com/danieleformichelli)
+- Upload binary cache and selective testing hashes to the server [#7278](https://github.com/tuist/tuist/pull/7278) by [@fortmarek](https://github.com/fortmarek)
+
+#### Fixed
+
+- fix: link status .none shouldn't block other dependencies from linking [#7273](https://github.com/tuist/tuist/pull/7273) by [@rgnns](https://github.com/rgnns)
+- Fix default settings for multiplatform targets [#7295](https://github.com/tuist/tuist/pull/7295) by [@fortmarek](https://github.com/fortmarek)
+
+### CLI (Server features)
+
+- no changes
+
 ## 4.40.0 - 2025-01-22
 
 ### CLI

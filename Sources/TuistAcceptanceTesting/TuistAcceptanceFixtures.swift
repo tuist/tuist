@@ -100,6 +100,7 @@ public enum TuistAcceptanceFixtures {
     case workspaceWithInlineFileHeaderTemplate
     case xcodeApp
     case xcodeProjectWithRegistryAndAlamofire
+    case xcodeProjectWithTests
     case appWithExecutableNonLocalDependencies
     case appWithGeneratedSources
     case custom(String)
@@ -302,6 +303,8 @@ public enum TuistAcceptanceFixtures {
             return "xcode_app"
         case .xcodeProjectWithRegistryAndAlamofire:
             return "xcode_project_with_registry_and_alamofire"
+        case .xcodeProjectWithTests:
+            return "xcode_project_with_tests"
         case .appWithExecutableNonLocalDependencies:
             return "app_with_executable_non_local_dependencies"
         case .appWithGeneratedSources:

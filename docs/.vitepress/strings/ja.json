@@ -53,10 +53,6 @@
       }
     }
   },
-  "badges": {
-    "coming-soon": "近日公開",
-    "xcodeproj-compatible": "XcodeProj互換"
-  },
   "navbar": {
     "guides": {
       "text": "ガイド"
@@ -86,6 +82,13 @@
     "cli": {
       "text": "CLI",
       "items": {
+        "cli": {
+          "items": {
+            "logging": {
+              "text": "Logging"
+            }
+          }
+        },
         "commands": {
           "text": "コマンド"
         }
@@ -124,6 +127,14 @@
         },
         "translate": {
           "text": "翻訳する"
+        },
+        "cli": {
+          "text": "CLI",
+          "items": {
+            "logging": {
+              "text": "Logging"
+            }
+          }
         }
       }
     },
@@ -171,6 +182,14 @@
     "guides": {
       "text": "ガイド",
       "items": {
+        "tuist": {
+          "text": "Tuist",
+          "items": {
+            "about": {
+              "text": "Tuist について"
+            }
+          }
+        },
         "quick-start": {
           "text": "クイックスタート",
           "items": {
@@ -185,40 +204,40 @@
             }
           }
         },
-        "start": {
-          "text": "はじめかた",
-          "items": {
-            "new-project": {
-              "text": "新規プロジェクトの作成"
-            },
-            "swift-package": {
-              "text": "Swift パッケージで試す"
-            },
-            "migrate": {
-              "text": "移行する",
-              "items": {
-                "xcode-project": {
-                  "text": "Xcode プロジェクト"
-                },
-                "swift-package": {
-                  "text": "Swift パッケージ"
-                },
-                "xcodegen-project": {
-                  "text": "XcodeGen プロジェクト"
-                },
-                "bazel-project": {
-                  "text": "Bazel プロジェクト"
-                }
-              }
-            }
-          }
-        },
         "develop": {
           "text": "開発",
           "items": {
             "generated-projects": {
               "text": "プロジェクト",
               "items": {
+                "adoption": {
+                  "text": "導入",
+                  "items": {
+                    "new-project": {
+                      "text": "新規プロジェクトの作成"
+                    },
+                    "swift-package": {
+                      "text": "Swift パッケージと使用する"
+                    },
+                    "migrate": {
+                      "text": "移行する",
+                      "items": {
+                        "xcode-project": {
+                          "text": "Xcode プロジェクト"
+                        },
+                        "swift-package": {
+                          "text": "Swift パッケージ"
+                        },
+                        "xcodegen-project": {
+                          "text": "XcodeGen プロジェクト"
+                        },
+                        "bazel-project": {
+                          "text": "Bazel プロジェクト"
+                        }
+                      }
+                    }
+                  }
+                },
                 "manifests": {
                   "text": "マニフェスト"
                 },
@@ -249,6 +268,14 @@
                 "hashing": {
                   "text": "ハッシュ"
                 },
+                "inspect": {
+                  "text": "検査",
+                  "items": {
+                    "implicit-imports": {
+                      "text": "暗黙のインポート"
+                    }
+                  }
+                },
                 "the-cost-of-convenience": {
                   "text": "利便性の代償"
                 },
@@ -260,46 +287,45 @@
                 }
               }
             },
-            "build": {
-              "text": "ビルド",
+            "cache": {
+              "text": "キャッシュ"
+            },
+            "registry": {
+              "text": "レジストリ",
               "items": {
-                "cache": {
-                  "text": "キャッシュ"
-                },
                 "registry": {
-                  "text": "Registry"
-                }
-              }
-            },
-            "test": {
-              "text": "テスト",
-              "items": {
-                "selective-testing": {
-                  "text": "Selective testing"
+                  "text": "レジストリ"
                 },
-                "flakiness": {
-                  "text": "Flaky なテスト"
-                }
-              }
-            },
-            "inspect": {
-              "text": "検査",
-              "items": {
-                "implicit-imports": {
-                  "text": "暗黙のインポート"
-                }
-              }
-            },
-            "automate": {
-              "text": "自動化",
-              "items": {
+                "xcode-project": {
+                  "text": "Xcode プロジェクト"
+                },
+                "generated-project": {
+                  "text": "生成されたプロジェクト"
+                },
+                "xcodeproj-integration": {
+                  "text": "XcodeProj ベースの統合"
+                },
+                "swift-package": {
+                  "text": "Swift パッケージ"
+                },
                 "continuous-integration": {
                   "text": "継続的インテグレーション"
-                },
-                "workflows": {
-                  "text": "ワークフロー"
                 }
               }
+            },
+            "selective-testing": {
+              "text": "選択的テスト"
+            }
+          }
+        },
+        "automate": {
+          "text": "自動化",
+          "items": {
+            "continuous-integration": {
+              "text": "継続的インテグレーション"
+            },
+            "workflows": {
+              "text": "ワークフロー"
             }
           }
         },

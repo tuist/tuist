@@ -68,8 +68,6 @@ final class TuistAnalyticsDispatcherTests: TuistUnitTestCase {
         given(analyticsArtifactUploadService)
             .uploadResultBundle(
                 .any,
-                targetHashes: .any,
-                graphPath: .any,
                 commandEventId: .value(10),
                 serverURL: .value(url)
             )
@@ -92,7 +90,6 @@ final class TuistAnalyticsDispatcherTests: TuistUnitTestCase {
             runId: "run-id",
             name: "event",
             subcommand: nil,
-            params: [:],
             commandArguments: ["event"],
             durationInMs: 100,
             clientId: "client",
@@ -106,14 +103,9 @@ final class TuistAnalyticsDispatcherTests: TuistUnitTestCase {
             gitRef: nil,
             gitRemoteURLOrigin: "https://github.com/tuist/tuist",
             gitBranch: "main",
-            targetHashes: nil,
-            graphPath: nil,
-            cacheableTargets: [],
-            localCacheTargetHits: [],
-            remoteCacheTargetHits: [],
-            testTargets: [],
-            localTestTargetHits: [],
-            remoteTestTargetHits: []
+            graph: nil,
+            previewId: nil,
+            resultBundlePath: nil
         )
     }
 

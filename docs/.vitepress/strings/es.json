@@ -53,10 +53,6 @@
       }
     }
   },
-  "badges": {
-    "coming-soon": "Disponible próximamente",
-    "xcodeproj-compatible": "Compatible con XcodeProj"
-  },
   "navbar": {
     "guides": {
       "text": "Guías"
@@ -86,6 +82,13 @@
     "cli": {
       "text": "CLI",
       "items": {
+        "cli": {
+          "items": {
+            "logging": {
+              "text": "Logging"
+            }
+          }
+        },
         "commands": {
           "text": "Comandos"
         }
@@ -124,6 +127,14 @@
         },
         "translate": {
           "text": "Traduce"
+        },
+        "cli": {
+          "text": "CLI",
+          "items": {
+            "logging": {
+              "text": "Logging"
+            }
+          }
         }
       }
     },
@@ -171,6 +182,14 @@
     "guides": {
       "text": "Guías",
       "items": {
+        "tuist": {
+          "text": "Tuist",
+          "items": {
+            "about": {
+              "text": "About Tuist"
+            }
+          }
+        },
         "quick-start": {
           "text": "Quick Start",
           "items": {
@@ -185,40 +204,40 @@
             }
           }
         },
-        "start": {
-          "text": "Empieza",
-          "items": {
-            "new-project": {
-              "text": "Crea un nuevo proyecto"
-            },
-            "swift-package": {
-              "text": "Prueba con un paquete de Swift"
-            },
-            "migrate": {
-              "text": "Migra",
-              "items": {
-                "xcode-project": {
-                  "text": "Un proyecto de Xcode"
-                },
-                "swift-package": {
-                  "text": "Un paquete de Swift"
-                },
-                "xcodegen-project": {
-                  "text": "Un proyecto XcodeGen"
-                },
-                "bazel-project": {
-                  "text": "Un proyecto Bazel"
-                }
-              }
-            }
-          }
-        },
         "develop": {
           "text": "Desarrolla",
           "items": {
             "generated-projects": {
               "text": "Proyectos generados",
               "items": {
+                "adoption": {
+                  "text": "Adoption",
+                  "items": {
+                    "new-project": {
+                      "text": "Create a new project"
+                    },
+                    "swift-package": {
+                      "text": "Try with a Swift Package"
+                    },
+                    "migrate": {
+                      "text": "Migrate",
+                      "items": {
+                        "xcode-project": {
+                          "text": "An Xcode project"
+                        },
+                        "swift-package": {
+                          "text": "A Swift package"
+                        },
+                        "xcodegen-project": {
+                          "text": "An XcodeGen project"
+                        },
+                        "bazel-project": {
+                          "text": "A Bazel project"
+                        }
+                      }
+                    }
+                  }
+                },
                 "manifests": {
                   "text": "Ficheros manifest"
                 },
@@ -249,6 +268,14 @@
                 "hashing": {
                   "text": "Hasheado"
                 },
+                "inspect": {
+                  "text": "Inspect",
+                  "items": {
+                    "implicit-imports": {
+                      "text": "Implicit imports"
+                    }
+                  }
+                },
                 "the-cost-of-convenience": {
                   "text": "El coste de la conveniencia"
                 },
@@ -260,46 +287,45 @@
                 }
               }
             },
-            "build": {
-              "text": "Compila",
+            "cache": {
+              "text": "Cache"
+            },
+            "registry": {
+              "text": "Registry",
               "items": {
-                "cache": {
-                  "text": "Cachea"
-                },
                 "registry": {
                   "text": "Registry"
-                }
-              }
-            },
-            "test": {
-              "text": "Testea",
-              "items": {
-                "selective-testing": {
-                  "text": "Selective testing"
                 },
-                "flakiness": {
-                  "text": "Flakiness"
-                }
-              }
-            },
-            "inspect": {
-              "text": "Inspecciona",
-              "items": {
-                "implicit-imports": {
-                  "text": "Imports implícitos"
-                }
-              }
-            },
-            "automate": {
-              "text": "Automatiza",
-              "items": {
+                "xcode-project": {
+                  "text": "Xcode project"
+                },
+                "generated-project": {
+                  "text": "Generated project"
+                },
+                "xcodeproj-integration": {
+                  "text": "XcodeProj-based integration"
+                },
+                "swift-package": {
+                  "text": "Swift package"
+                },
                 "continuous-integration": {
-                  "text": "Integración continua"
-                },
-                "workflows": {
-                  "text": "Workflows"
+                  "text": "Continuous integration"
                 }
               }
+            },
+            "selective-testing": {
+              "text": "Selective testing"
+            }
+          }
+        },
+        "automate": {
+          "text": "Automate",
+          "items": {
+            "continuous-integration": {
+              "text": "Continuous integration"
+            },
+            "workflows": {
+              "text": "Workflows"
             }
           }
         },

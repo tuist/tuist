@@ -163,7 +163,6 @@ public class GraphTraverser: GraphTraversing {
         let target = GraphDependency.target(name: name, path: path)
         guard let dependencies = graph.dependencies[target]
         else { return [] }
-
         let targetDependencies =
             dependencies
                 .compactMap(\.targetDependency)

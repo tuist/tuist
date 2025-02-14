@@ -29,7 +29,7 @@ final class TestServiceTests: TuistUnitTestCase {
     private var configLoader: MockConfigLoading!
     private var cacheStorageFactory: MockCacheStorageFactorying!
     private var cacheStorage: MockCacheStoring!
-    private var analyticsDelegate: MockTrackableParametersDelegate!
+    private var runMetadataStorage: RunMetadataStorage!
     private var testedSchemes: [String] = []
 
     override func setUpWithError() throws {
@@ -41,8 +41,8 @@ final class TestServiceTests: TuistUnitTestCase {
         contentHasher = .init()
         testsCacheTemporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
         generatorFactory = .init()
-        analyticsDelegate = MockTrackableParametersDelegate()
         cacheStorage = .init()
+        runMetadataStorage = RunMetadataStorage()
 
         cacheStorageFactory = MockCacheStorageFactorying()
         given(cacheStorageFactory)
@@ -134,10 +134,10 @@ final class TestServiceTests: TuistUnitTestCase {
         testsCacheTemporaryDirectory = nil
         generatorFactory = nil
         contentHasher = nil
-        analyticsDelegate = nil
         cacheStorageFactory = nil
         cacheStorage = nil
         testedSchemes = []
+        runMetadataStorage = nil
         subject = nil
         super.tearDown()
     }
@@ -849,7 +849,7 @@ final class TestServiceTests: TuistUnitTestCase {
                     "TargetC": "hash-c",
                 ],
             ]
-            environment.targetCacheItems = [
+            environment.targetTestCacheItems = [
                 projectPathOne: [
                     "TargetB": .test(
                         source: .local,
@@ -892,17 +892,28 @@ final class TestServiceTests: TuistUnitTestCase {
             XCTAssertStandardOutput(
                 pattern: "The following targets have not changed since the last successful run and will be skipped: TargetB, TargetC"
             )
-            verify(analyticsDelegate)
-                .selectiveTestsAnalytics(
-                    newValue: .value(
-                        SelectiveTestsAnalytics(
-                            testTargets: ["TargetA", "TargetB", "TargetC"],
-                            localTestTargetHits: ["TargetB"],
-                            remoteTestTargetHits: ["TargetC"]
-                        )
-                    )
-                )
-                .setCalled(1)
+            let selectiveTestingCacheItems = await runMetadataStorage.selectiveTestingCacheItems
+            XCTAssertEqual(
+                selectiveTestingCacheItems,
+                [
+                    projectPathOne: [
+                        "TargetA": .test(
+                            name: "TargetA",
+                            hash: "hash-a",
+                            source: .miss,
+                            cacheCategory: .selectiveTests
+                        ),
+                        "TargetB": .test(
+                            source: .local,
+                            cacheCategory: .selectiveTests
+                        ),
+                        "TargetC": .test(
+                            source: .remote,
+                            cacheCategory: .selectiveTests
+                        ),
+                    ],
+                ]
+            )
             verify(cacheStorage)
                 .store(
                     .value(
@@ -1573,7 +1584,7 @@ final class TestServiceTests: TuistUnitTestCase {
         )
 
         var environment = MapperEnvironment()
-        environment.targetCacheItems = [
+        environment.targetTestCacheItems = [
             projectPath: [
                 "a": CacheItem.test(
                     name: "A"
@@ -1641,20 +1652,20 @@ final class TestServiceTests: TuistUnitTestCase {
                 cacheCategory: .value(.selectiveTests)
             )
             .called(1)
-        verify(analyticsDelegate)
-            .selectiveTestsAnalytics(
-                newValue: .value(
-                    SelectiveTestsAnalytics(
-                        testTargets: ["TargetA"],
-                        localTestTargetHits: [],
-                        remoteTestTargetHits: []
-                    )
-                )
-            )
-            .setCalled(1)
-        verify(analyticsDelegate)
-            .cacheItems()
-            .setCalled(1)
+        let selectiveTestingCacheItems = await runMetadataStorage.selectiveTestingCacheItems
+        XCTAssertEqual(
+            selectiveTestingCacheItems,
+            [
+                projectPath: [
+                    "TargetA": .test(
+                        name: "TargetA",
+                        hash: "hash-a",
+                        source: .miss,
+                        cacheCategory: .selectiveTests
+                    ),
+                ],
+            ]
+        )
     }
 
     func test_run_test_plan_with_no_explicit_targets() async throws {
@@ -1711,7 +1722,7 @@ final class TestServiceTests: TuistUnitTestCase {
         )
 
         var environment = MapperEnvironment()
-        environment.targetCacheItems = [
+        environment.targetTestCacheItems = [
             projectPath: [
                 "a": CacheItem.test(
                     name: "A"
@@ -1769,30 +1780,19 @@ final class TestServiceTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(testedSchemes, ["TestScheme"])
-        verify(cacheStorage)
-            .store(
-                .value(
-                    [
-                        CacheStorableItem(name: "TargetA", hash: "hash-a"): [],
-                    ]
-                ),
-                cacheCategory: .value(.selectiveTests)
-            )
-            .called(1)
-        verify(analyticsDelegate)
-            .selectiveTestsAnalytics(
-                newValue: .value(
-                    SelectiveTestsAnalytics(
-                        testTargets: ["TargetA"],
-                        localTestTargetHits: [],
-                        remoteTestTargetHits: []
-                    )
-                )
-            )
-            .setCalled(1)
-        verify(analyticsDelegate)
-            .cacheItems()
-            .setCalled(1)
+        let selectiveTestingCacheItems = await runMetadataStorage.selectiveTestingCacheItems
+        XCTAssertEqual(
+            selectiveTestingCacheItems,
+            [
+                projectPath: [
+                    "TargetA": .test(
+                        name: "TargetA",
+                        hash: "hash-a",
+                        source: .miss
+                    ),
+                ],
+            ]
+        )
     }
 
     func test_run_test_plan_failure() async throws {
@@ -1897,29 +1897,32 @@ final class TestServiceTests: TuistUnitTestCase {
         generateOnly: Bool = false,
         passthroughXcodeBuildArguments: [String] = []
     ) async throws {
-        try await subject.run(
-            runId: runId,
-            schemeName: schemeName,
-            clean: clean,
-            noUpload: noUpload,
-            configuration: configuration,
-            path: path,
-            deviceName: deviceName,
-            platform: platform,
-            osVersion: osVersion,
-            rosetta: rosetta,
-            skipUITests: skipUiTests,
-            resultBundlePath: resultBundlePath,
-            derivedDataPath: derivedDataPath,
-            retryCount: retryCount,
-            testTargets: testTargets,
-            skipTestTargets: skipTestTargets,
-            testPlanConfiguration: testPlanConfiguration,
-            ignoreBinaryCache: false,
-            ignoreSelectiveTesting: false,
-            generateOnly: generateOnly,
-            passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
-            analyticsDelegate: analyticsDelegate
-        )
+        var context = ServiceContext.current ?? ServiceContext.topLevel
+        context.runMetadataStorage = runMetadataStorage
+        try await ServiceContext.withValue(context) {
+            try await subject.run(
+                runId: runId,
+                schemeName: schemeName,
+                clean: clean,
+                noUpload: noUpload,
+                configuration: configuration,
+                path: path,
+                deviceName: deviceName,
+                platform: platform,
+                osVersion: osVersion,
+                rosetta: rosetta,
+                skipUITests: skipUiTests,
+                resultBundlePath: resultBundlePath,
+                derivedDataPath: derivedDataPath,
+                retryCount: retryCount,
+                testTargets: testTargets,
+                skipTestTargets: skipTestTargets,
+                testPlanConfiguration: testPlanConfiguration,
+                ignoreBinaryCache: false,
+                ignoreSelectiveTesting: false,
+                generateOnly: generateOnly,
+                passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
+            )
+        }
     }
 }
