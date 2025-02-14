@@ -4,6 +4,7 @@ import Path
 import ProjectDescription
 import TuistCore
 import TuistSupport
+import struct XcodeGraph.PackageInfo
 import XCTest
 
 @testable import TuistLoader

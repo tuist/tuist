@@ -48,8 +48,7 @@ struct EmptySelectiveTestingGraphHasher: SelectiveTestingGraphHashing {
 
 struct EmptySelectiveTestingService: SelectiveTestingServicing {
     func cachedTests(
-        scheme _: Scheme,
-        graph _: Graph,
+        testableGraphTargets _: [GraphTarget],
         selectiveTestingHashes _: [GraphTarget: String], selectiveTestingCacheItems _: [CacheItem]
     ) async throws -> [TestIdentifier] {
         []

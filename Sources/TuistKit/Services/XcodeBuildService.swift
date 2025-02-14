@@ -132,23 +132,24 @@ struct XcodeBuildService {
         .keys
         .map { $0 }
 
-        let skipTestTargets = try await selectiveTestingService.cachedTests(
-            scheme: scheme,
-            graph: graph,
-            selectiveTestingHashes: selectiveTestingHashes,
-            selectiveTestingCacheItems: selectiveTestingCacheItems
-        )
-
         let testableTargets: [TestableTarget]
         if let testPlanName = passedValue(for: "-testPlan", arguments: passthroughXcodebuildArguments) {
             guard let testPlan = scheme.testAction?.testPlans?.first(where: { $0.name == testPlanName }) else {
                 throw XcodeBuildServiceError.testPlanNotFound(testPlan: testPlanName, scheme: scheme.name)
             }
             testableTargets = testPlan.testTargets
+        } else if let defaultTestPlan = scheme.testAction?.testPlans?.first(where: { $0.isDefault }) {
+            testableTargets = defaultTestPlan.testTargets
         } else {
             testableTargets = scheme.testAction?.targets ?? []
         }
         let testableGraphTargets = testableGraphTargets(for: testableTargets, graphTraverser: graphTraverser)
+        let skipTestTargets = try await selectiveTestingService.cachedTests(
+            testableGraphTargets: testableGraphTargets,
+            selectiveTestingHashes: selectiveTestingHashes,
+            selectiveTestingCacheItems: selectiveTestingCacheItems
+        )
+
         let targetTestCacheItems: [AbsolutePath: [String: CacheItem]] = selectiveTestingHashes
             .reduce(into: [:]) { result, element in
                 if let cacheItem = selectiveTestingCacheItems.first(where: { $0.hash == element.value }) {

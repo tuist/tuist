@@ -6,6 +6,7 @@ import ProjectDescription
 import ServiceContextModule
 import TuistCore
 import TuistSupport
+import XcodeGraph
 
 /// Cached Manifest Loader
 ///
@@ -68,13 +69,13 @@ public class CachedManifestLoader: ManifestLoading {
         }
     }
 
-    public func loadProject(at path: AbsolutePath) async throws -> Project {
+    public func loadProject(at path: AbsolutePath) async throws -> ProjectDescription.Project {
         try await load(manifest: .project, at: path) {
             try await manifestLoader.loadProject(at: path)
         }
     }
 
-    public func loadWorkspace(at path: AbsolutePath) async throws -> Workspace {
+    public func loadWorkspace(at path: AbsolutePath) async throws -> ProjectDescription.Workspace {
         try await load(manifest: .workspace, at: path) {
             try await manifestLoader.loadWorkspace(at: path)
         }

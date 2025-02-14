@@ -169,8 +169,7 @@ struct XcodeBuildServiceTests {
                     )
                 given(selectiveTestingService)
                     .cachedTests(
-                        scheme: .any,
-                        graph: .any,
+                        testableGraphTargets: .any,
                         selectiveTestingHashes: .any,
                         selectiveTestingCacheItems: .any
                     )
@@ -312,8 +311,7 @@ struct XcodeBuildServiceTests {
                     )
                 given(selectiveTestingService)
                     .cachedTests(
-                        scheme: .any,
-                        graph: .any,
+                        testableGraphTargets: .any,
                         selectiveTestingHashes: .any,
                         selectiveTestingCacheItems: .any
                     )
@@ -391,6 +389,135 @@ struct XcodeBuildServiceTests {
         }
     }
 
+    @Test func skipsCachedTestsOfDefaultTestPlan() async throws {
+        try await fileSystem.runInTemporaryDirectory(prefix: "XcodeBuildServiceTests") {
+            temporaryPath in
+            // Given
+            let aUnitTestsTarget: Target = .test(name: "AUnitTests")
+            let bUnitTestsTarget: Target = .test(name: "BUnitTests")
+            let project: Project = .test(
+                targets: [
+                    aUnitTestsTarget,
+                    bUnitTestsTarget,
+                ],
+                schemes: [
+                    .test(
+                        name: "App",
+                        testAction: .test(
+                            targets: [
+                                TestableTarget(
+                                    target: TargetReference(
+                                        projectPath: temporaryPath,
+                                        name: "AUnitTests"
+                                    )
+                                ),
+                            ],
+                            testPlans: [
+                                TestPlan(
+                                    path: temporaryPath.appending(
+                                        component: "MyTestPlan.xctestplan"
+                                    ),
+                                    testTargets: [
+                                        TestableTarget(
+                                            target: TargetReference(
+                                                projectPath: temporaryPath,
+                                                name: "AUnitTests"
+                                            )
+                                        ),
+                                        TestableTarget(
+                                            target: TargetReference(
+                                                projectPath: temporaryPath,
+                                                name: "BUnitTests"
+                                            )
+                                        ),
+                                    ],
+                                    isDefault: true
+                                ),
+                            ]
+                        )
+                    ),
+                ]
+            )
+
+            given(xcodeGraphMapper)
+                .map(at: .any)
+                .willReturn(
+                    .test(
+                        projects: [
+                            temporaryPath: project,
+                        ]
+                    )
+                )
+
+            given(selectiveTestingGraphHasher)
+                .hash(
+                    graph: .any,
+                    additionalStrings: .any
+                )
+                .willReturn(
+                    [
+                        GraphTarget(
+                            path: project.path,
+                            target: aUnitTestsTarget,
+                            project: project
+                        ): "hash-a-unit-tests",
+                        GraphTarget(
+                            path: project.path,
+                            target: bUnitTestsTarget,
+                            project: project
+                        ): "hash-b-unit-tests",
+                    ]
+                )
+            given(selectiveTestingService)
+                .cachedTests(
+                    testableGraphTargets: .any,
+                    selectiveTestingHashes: .any,
+                    selectiveTestingCacheItems: .any
+                )
+                .willReturn(
+                    [
+                        try TestIdentifier(string: "AUnitTests"),
+                        try TestIdentifier(string: "BUnitTests"),
+                    ]
+                )
+
+            given(cacheStorage)
+                .fetch(.any, cacheCategory: .any)
+                .willReturn(
+                    [
+                        CacheItem(
+                            name: "AUnitTests",
+                            hash: "hash-a-unit-tests",
+                            source: .local,
+                            cacheCategory: .selectiveTests
+                        ): temporaryPath,
+                        CacheItem(
+                            name: "BUnitTests",
+                            hash: "hash-b-unit-tests",
+                            source: .local,
+                            cacheCategory: .selectiveTests
+                        ): temporaryPath,
+                    ]
+                )
+
+            // When
+            try await subject.run(
+                passthroughXcodebuildArguments: [
+                    "test",
+                    "-scheme", "App",
+                    "-testPlan", "MyTestPlan",
+                ]
+            )
+
+            // Then
+            verify(xcodeBuildController)
+                .run(
+                    arguments: .any
+                )
+                .called(0)
+        }
+    }
+
     @Test func skipsCachedTestsOfCustomTestPlan() async throws {
         try await fileSystem.runInTemporaryDirectory(prefix: "XcodeBuildServiceTests") {
             temporaryPath in
@@ -464,8 +591,7 @@ struct XcodeBuildServiceTests {
                 )
             given(selectiveTestingService)
                 .cachedTests(
-                    scheme: .any,
-                    graph: .any,
+                    testableGraphTargets: .any,
                     selectiveTestingHashes: .any,
                     selectiveTestingCacheItems: .any
                 )
@@ -565,8 +691,7 @@ struct XcodeBuildServiceTests {
                     .willReturn([:])
                 given(selectiveTestingService)
                     .cachedTests(
-                        scheme: .any,
-                        graph: .any,
+                        testableGraphTargets: .any,
                         selectiveTestingHashes: .any,
                         selectiveTestingCacheItems: .any
                     )

@@ -3,7 +3,7 @@
     import ProjectDescription
 
     extension Platform {
-        func testVersion() -> String {
+        public func testVersion() -> String {
             switch self {
             case .iOS: return "11.0"
             case .macOS: return "10.15"

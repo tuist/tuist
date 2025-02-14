@@ -370,7 +370,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
             settings: packageInfo.projectSettings(
                 packageFolder: path,
                 baseSettings: packageSettings.baseSettings,
-                swiftToolsVersion: .init(packageInfo.toolsVersion.description)
+                swiftToolsVersion: Version(stringLiteral: packageInfo.toolsVersion.description)
             ),
             targets: targets,
             resourceSynthesizers: .default
@@ -1298,7 +1298,7 @@ extension PackageInfo {
     fileprivate func projectSettings(
         packageFolder: AbsolutePath,
         baseSettings: XcodeGraph.Settings,
-        swiftToolsVersion: TSCUtility.Version?
+        swiftToolsVersion: XcodeGraph.Version?
     ) -> ProjectDescription.Settings? {
         var settingsDictionary: ProjectDescription.SettingsDictionary = [
             // Xcode settings configured by SPM by default
@@ -1362,7 +1362,7 @@ extension PackageInfo {
         }
     }
 
-    private func swiftVersion(for configuredSwiftVersion: TSCUtility.Version?) -> String? {
+    private func swiftVersion(for configuredSwiftVersion: XcodeGraph.Version?) -> String? {
         /// Take the latest swift version compatible with the configured one
         let maxAllowedSwiftLanguageVersion = swiftLanguageVersions?
             .filter {

@@ -7,8 +7,7 @@ import XcodeGraph
 public protocol SelectiveTestingServicing {
     /// - Returns: Tests that are cached.
     func cachedTests(
-        scheme: Scheme,
-        graph: Graph,
+        testableGraphTargets: [GraphTarget],
         selectiveTestingHashes: [GraphTarget: String],
         selectiveTestingCacheItems: [CacheItem]
     ) async throws -> [TestIdentifier]
