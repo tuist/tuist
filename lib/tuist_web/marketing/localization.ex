@@ -63,8 +63,8 @@ defmodule TuistWeb.Marketing.Localization do
 
   def path_without_locale(path) do
     Enum.reduce(all_locales(), path, fn locale, acc ->
-      prefix = "^" <> Regex.escape(locale_path_prefix(locale))
-      Regex.replace(~r/#{prefix}/, acc, "")
+      prefix = "^" <> Regex.escape(locale_path_prefix(locale)) <> "/"
+      Regex.replace(~r/#{prefix}/, acc, "/")
     end)
   end
 

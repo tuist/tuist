@@ -193,9 +193,17 @@ defmodule TuistWeb.Marketing.MarketingController do
   end
 
   def blog_post(%{request_path: request_path} = conn, _params) do
+    request_path = TuistWeb.Marketing.Localization.path_without_locale(request_path)
+
     post =
       Tuist.Marketing.Blog.get_posts()
-      |> Enum.find(&(&1.slug == String.trim_trailing(request_path, "/")))
+      |> Enum.find(
+        &(&1.slug ==
+            String.trim_trailing(
+              request_path,
+              "/"
+            ))
+      )
 
     if is_nil(post) do
       raise TuistWeb.Errors.NotFoundError
@@ -291,9 +299,11 @@ defmodule TuistWeb.Marketing.MarketingController do
   end
 
   def page(conn, _params) do
+    request_path = TuistWeb.Marketing.Localization.path_without_locale(conn.request_path)
+
     page =
       Tuist.Marketing.Pages.get_pages()
-      |> Enum.find(&(&1.slug == String.trim_trailing(conn.request_path, "/")))
+      |> Enum.find(&(&1.slug == String.trim_trailing(request_path, "/")))
 
     conn
     |> assign(:head_title, "#{page.title}")
