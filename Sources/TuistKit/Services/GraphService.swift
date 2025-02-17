@@ -12,11 +12,14 @@ import TuistLoader
 import TuistPlugin
 import TuistSupport
 import XcodeGraph
+import XcodeGraphMapper
 
 final class GraphService {
     private let graphVizMapper: GraphToGraphVizMapping
     private let manifestGraphLoader: ManifestGraphLoading
     private let fileSystem: FileSystem
+    private let manifestLoader: ManifestLoading
+    private let xcodeGraphMapper: XcodeGraphMapping
 
     convenience init() {
         let manifestLoader = ManifestLoaderFactory()
@@ -29,17 +32,22 @@ final class GraphService {
         let graphVizMapper = GraphToGraphVizMapper()
         self.init(
             graphVizGenerator: graphVizMapper,
-            manifestGraphLoader: manifestGraphLoader
+            manifestGraphLoader: manifestGraphLoader,
+            manifestLoader: manifestLoader
         )
     }
 
     init(
         graphVizGenerator: GraphToGraphVizMapping,
         manifestGraphLoader: ManifestGraphLoading,
+        manifestLoader: ManifestLoading,
+        xcodeGraphMapper: XcodeGraphMapping = XcodeGraphMapper(),
         fileSystem: FileSystem = FileSystem()
     ) {
         graphVizMapper = graphVizGenerator
         self.manifestGraphLoader = manifestGraphLoader
+        self.manifestLoader = manifestLoader
+        self.xcodeGraphMapper = xcodeGraphMapper
         self.fileSystem = fileSystem
     }
 
@@ -54,7 +62,12 @@ final class GraphService {
         path: AbsolutePath,
         outputPath: AbsolutePath
     ) async throws {
-        let (graph, _, _, _) = try await manifestGraphLoader.load(path: path)
+        let graph: XcodeGraph.Graph
+        if try await manifestLoader.hasRootManifest(at: path) {
+            (graph, _, _, _) = try await manifestGraphLoader.load(path: path)
+        } else {
+            graph = try await xcodeGraphMapper.map(at: path)
+        }
 
         let fileExtension = switch format {
         case .legacyJSON:
