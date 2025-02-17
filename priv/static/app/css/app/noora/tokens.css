@@ -162,6 +162,10 @@
       0px 0px 0px 3px oklch(53.1% 0.01 264.5 / 0.4);
   }
 
+  --noora-surface-table-header: light-dark(var(--noora-neutral-light-200), var(--noora-neutral-dark-1000));
+
+  --noora-content-divider-line: light-dark(var(--noora-neutral-light-500), var(--noora-alpha-black));
+
   /* Spacing */
   --noora-spacing-0: 0rem;
   --noora-spacing-1: 0.125rem;
