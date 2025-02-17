@@ -9,18 +9,22 @@
   outline: 0;
   padding: 0;
 
-  & svg {
-    height: 100%;
-    width: 100%;
+  &:not(:disabled):hover {
+    color: var(--noora-surface-label-primary);
+    cursor: pointer;
   }
 
-  &:active {
+  &:not(:disabled):active {
     box-shadow: 0 0 0 1px var(--noora-surface-border-primary);
   }
 
-  &:hover {
-    color: var(--noora-surface-label-primary);
-    cursor: pointer;
+  &:disabled {
+    cursor: not-allowed;
+  }
+
+  & svg {
+    height: 100%;
+    width: 100%;
   }
 
   &[data-size="small"] {
