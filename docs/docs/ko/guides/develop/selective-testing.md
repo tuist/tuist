@@ -8,9 +8,9 @@ description: 마지막 성공한 테스트 수행 이후에 변경된 테스트�
 
 프로젝트가 커질 수록 테스트 수도 증가합니다. 오랜 시간동안 모든 PR 또는 `main`에 푸시할 때마다 전체 테스트를 수행하면 수 초의 시간이 걸렸습니다. 하지만 이 방법은 팀이 가진 수천 개의 테스트에는 적합하지 않습니다.
 
-On every test run on the CI, you most likely re-run all the tests, regardless of the changes. Tuist's selective testing helps you to drastically speed up running the tests themselves by running only the tests that have changed since the last successful test run based on our <LocalizedLink href="/guides/develop/projects/hashing">hashing algorithm</LocalizedLink>.
+CI에서 테스트를 실행할 때마다 변경 사항에 관계없이 모든 테스트를 다시 실행할 가능성이 높습니다. Tuist의 선택적 테스트는 우리의 <LocalizedLink href="/guides/develop/projects/hashing">hashing algorithm</LocalizedLink>을 기반으로 마지막 성공적인 테스트 이후에 변경된 테스트만 실행하여 테스트 자체의 실행 속도를 크게 높일 수 있도록 도와줍니다.
 
-Selective testing works with `xcodebuild`, which supports any Xcode project, or if you generate your projects with Tuist, you can use the `tuist test` command instead that provides some extra convenience such as integration with the <LocalizedLink href="/guides/develop/build/cache">binary cache</LocalizedLink>. To get started with selective testing, follow the instructions based on your project setup:
+선택적 테스트는 모든 Xcode 프로젝트를 지원하는 `xcodebuild` 에서 작동합니다. 또한, Tuist를 사용하여 프로젝트를 만들었을 경우 <LocalizedLink href="/guides/develop/build/cache">binary cache</LocalizedLink>와 같은 추가 편의성을 제공하는 `tuist test` 명령어를 대신 사용할 수도 있습니다. 선택적 테스트를 시작하려면, 프로젝트 설정에 따른 지침을 따르세요:
 
 - <LocalizedLink href="/guides/develop/selective-testing/xcodebuild">xcodebuild</LocalizedLink>
 - <LocalizedLink href="/guides/develop/selective-testing/generated-project">Generated project</LocalizedLink>
