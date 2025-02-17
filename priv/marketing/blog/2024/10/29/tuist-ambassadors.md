@@ -1,6 +1,6 @@
 ---
 title: "Introducing Tuist Ambassadors"
-category: "announcements"
+category: "product"
 tags: ["Ambassadors"]
 excerpt: "We are introducing the Tuist Ambassadors program to recognize the people who have been going above and beyond to help others in the community."
 author: pepicrft

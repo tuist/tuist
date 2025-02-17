@@ -1,6 +1,6 @@
 ---
 title: "Our pricing philosophy"
-category: "announcements"
+category: "product"
 tags: ["Sales", "Pricing"]
 excerpt: "Learn about the philosophy and model that guide our pricing decisions."
 author: pepicrft

@@ -1,6 +1,6 @@
 ---
 title: Releasing Tuist 3.0
-category: "releases"
+category: "product"
 tags: ['Tuist', '3.0', 'Xcode', 'Swift', "Project generation", 'Cloud']
 excerpt: Highlighting updates from the 3.0 release and first Tuist Cloud preview.
 author: fortmarek

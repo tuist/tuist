@@ -1,6 +1,6 @@
 ---
 title: 1.18.0 Himalaya - Documentation generation, Swift interface for accessing resources, and code linting.
-category: "releases"
+category: "product"
 tags:
   [Tuist, release, swift, project generation, xcode, apple, '1.14.0', 'cache']
 excerpt: Tuist 1.18.0 is packed with interesting automatomation feature that will streamline developers' workflows further. This new version provides commands for auto-generating documentation and linting the Swift code, and integrates the generation of Swift interfaces for resources into the project generation.

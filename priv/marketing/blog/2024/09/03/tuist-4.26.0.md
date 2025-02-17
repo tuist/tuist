@@ -1,6 +1,6 @@
 ---
 title: "Tuist 4.26.0: GitHub integration and a new command to find implicit dependencies"
-category: "releases"
+category: "product"
 tags: ["Releases"]
 excerpt: "Learn more about the new features and improvements in Tuist 4.26.0."
 author: pepicrft

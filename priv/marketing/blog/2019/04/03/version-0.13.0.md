@@ -1,6 +1,6 @@
 ---
 title: Workspace improvements with Tuist 0.13.0
-category: "releases"
+category: "product"
 tags: [tuist, release, swift]
 excerpt: The just baked new version of Tuist, 0.13.0, is already with us. We added significant improvements to workspaces like being able to define additional files that are added to the project. We also aligned the structured of the generated workspaces to match the filesystem. This version also makes sure that for those test targets that depend on a host application are set up with the right settings.
 author: kwridan

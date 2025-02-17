@@ -1,6 +1,6 @@
 ---
 title: 'Introducing Tuist'
-category: "announcements"
+category: "product"
 tags: [introduction, tuist]
 excerpt: Tuist was oficially released. Read more on this blog post about what motivated us to build Tuist and how it can help you scale your Xcode projects.
 author: pepicrft

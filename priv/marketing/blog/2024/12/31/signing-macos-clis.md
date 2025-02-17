@@ -1,6 +1,6 @@
 ---
 title: "The ultimate guide to signing CLIs for macOS (Darwin)"
-category: "guides"
+category: "learn"
 tags: ["golang", "rust", "clis", "zig", "darwin", "signing", "macos"]
 excerpt: "In this blog post we'll go through the process of signing a CLI for macOS (Darwin)."
 author: pepicrft

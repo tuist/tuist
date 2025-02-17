@@ -1,6 +1,6 @@
 ---
 title: "Streamline previewing changes in your open source Swift apps – IcySky case study."
-category: "guides"
+category: "learn"
 tags: ["Guide", "Previews"]
 excerpt: "Use Tuist Previews in open source Swift apps to streamline testing latest changes for maintainers and contributors alike."
 author: fortmarek

@@ -1,6 +1,6 @@
 ---
 title: "Tuist 3.33.0 and XcodeProj-native support for Swift Macros"
-category: "releases"
+category: "product"
 tags: ["Swift", "XcodeProj", "Xcode"]
 excerpt: "We released a new version of Tuist, which includes XcodeProj-native support for Swift Macros"
 author: pepicrft

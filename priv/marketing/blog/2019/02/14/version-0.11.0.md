@@ -1,6 +1,6 @@
 ---
 title: Tuist 0.11.0 has been released
-category: "releases"
+category: "product"
 tags: [tuist, release, swift]
 excerpt: Tuist 0.11.0 is out and it includes features like "tuist up" that help users configure their environment before working with the projects, or support for generating target schemes. This version also adds support for defining environment variables for targets, as well as some minor improvements and fixes.
 author: pepicrft

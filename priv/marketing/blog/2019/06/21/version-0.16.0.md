@@ -1,6 +1,6 @@
 ---
 title: Tuist 0.16.0 allows users to link system libraries and frameworks
-category: "releases"
+category: "product"
 tags: [tuist, release, swift]
 excerpt: From the just released 0.16.0 version of Tuist, users will be able to define dependencies with system libraries and frameworks from their targets. Moreover, we added support for customizing the list of input and output files in their target action, and generation of targets with no build settings at all. This version also ships with minor improvements and bug fixes that had been reported by users.
 author: ollieatkinson

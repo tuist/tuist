@@ -1,6 +1,6 @@
 ---
 title: Bundling Javascript in Swift projects using ESBuild
-category: "announcements"
+category: "product"
 tags: ['Swift', 'ESBuild', 'JavaScript']
 excerpt: 'SwiftyESBuild: Streamlining Swift Web Bundling and JavaScript Integration for Effortless Development.'
 author: pepicrft

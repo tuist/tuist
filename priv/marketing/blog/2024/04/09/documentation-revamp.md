@@ -1,6 +1,6 @@
 ---
 title: "Revamping our documentation"
-category: "announcements"
+category: "product"
 tags: ["tuist", "documentation", "guidelines"]
 excerpt: "In this blog post, we share the journey we've been through to revamp the Tuist documentation and what we've learned."
 author: pepicrft

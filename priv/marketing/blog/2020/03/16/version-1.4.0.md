@@ -1,6 +1,6 @@
 ---
 title: Tuist 1.4.0 - Lint command, more verbose logs, and configuration of the project organization
-category: "releases"
+category: "product"
 tags: [tuist, release, swift, project generation, xcode, apple, '1.4.0']
 excerpt: The just released version of Tuist, 1.4.0, adds support for printing more verbose logs, and configuring the Xcode organization.
 author: pepicrft

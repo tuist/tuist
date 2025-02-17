@@ -1,6 +1,6 @@
 ---
 title: Tuist 1.5.0 - Scaffold command, performance, Mint
-category: "releases"
+category: "product"
 tags: [Tuist, release, swift, project generation, xcode, apple, '1.5.0']
 excerpt: Tuist's new version 1.5.0 brings scaffold command, performance improvements and Mint support
 author: fortmarek

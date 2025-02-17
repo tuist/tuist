@@ -1,6 +1,6 @@
 ---
 title: Dynamically generated Info.plist files with Tuist 0.15.0
-category: "releases"
+category: "product"
 tags: [tuist, release, swift]
 excerpt: Tuist 0.15.0 extend the beauty of generation to Info.plist. From this version on you'll be able to define the build settings as part of your manfest and let Tuist infer the default values for you. Furthermore, we extended the API to support customizing the generation of default build settings in your projects and targets, added the generation time to the 'tuist generate' command, and added support for defining custom schemes.
 author: pepicrft

@@ -1,6 +1,6 @@
 ---
 title: "Catching up with modern developer experiences through macOS virtualization"
-category: "guides"
+category: "learn"
 tags: ["oss", "virtualization"]
 excerpt: "We discuss the cost of running macOS-dependent workflows remotely and how we can catch up with modern developer experiences through macOS virtualization."
 author: pepicrft

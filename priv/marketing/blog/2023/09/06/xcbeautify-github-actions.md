@@ -1,6 +1,6 @@
 ---
 title: "XCBeautify: Supporting GitHub Actions Annotations"
-category: "announcements"
+category: "product"
 tags: ['xcbeautify', 'GitHub Actions', 'Developer tools', 'DevOps', 'Open Source']
 excerpt: "Learn about the latest xcbeautify renderer."
 author: cpisciotta

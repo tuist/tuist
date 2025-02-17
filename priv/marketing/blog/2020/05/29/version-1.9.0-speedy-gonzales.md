@@ -1,6 +1,6 @@
 ---
 title: Tuist 1.9.0 - Speedy Gonzales
-category: "releases"
+category: "product"
 tags: [Tuist, release, swift, project generation, xcode, apple, '1.9.0']
 excerpt: In this blog post we announce the latest version of Tuist, 1.9.0, which introduces significant improvements in the performance of the project generation.
 author: pepicrft

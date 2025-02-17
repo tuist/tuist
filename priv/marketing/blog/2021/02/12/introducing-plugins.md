@@ -1,6 +1,6 @@
 ---
 title: Introducing plugins
-category: "announcements"
+category: "product"
 tags: ['Tuist', 'Plugins', 'Xcode', 'Swift']
 excerpt: Plugins is a new feature that allows reusing Tuist building blocks across repositories. In this blog post we present the feature and how teams can leverage it to share project description helpers.
 author: pepicrft

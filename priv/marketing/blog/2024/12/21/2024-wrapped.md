@@ -1,6 +1,6 @@
 ---
 title: "2024 Wrapped"
-category: "company"
+category: "product"
 tags: ["product", "business", "roadmap"]
 excerpt: "In this blog post, we reflect on what we did in 2024 and what's in our roadmap for 2025."
 author: pepicrft

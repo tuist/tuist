@@ -1,6 +1,6 @@
 ---
 title: Tuist turns 1.0
-category: "releases"
+category: "product"
 tags: [tuist, release, swift, 1.0.0]
 excerpt: Today we are pleased the first major release of Tuist, 1.0. We have achieved an important milestone in helping teams scale up their projects, making defining projects easy, and for that reason we are releasing this one as major. This blog post describes what that has been for the project, and what are our ambitions for Tuist 2.0.
 author: pepicrft

@@ -1,6 +1,6 @@
 ---
 title: Tuist 1.7.1 - Edit all manifests, safer build settings API and SwiftUI projects
-category: "releases"
+category: "product"
 tags: [Tuist, release, swift, project generation, xcode, apple, '1.7.1']
 excerpt: Easier manifests editing and safer configurations with Tuist 1.7.1
 author: natanrolnik

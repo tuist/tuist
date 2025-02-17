@@ -1,6 +1,6 @@
 ---
 title: Building your projects with Tuist 1.10.0
-category: "releases"
+category: "product"
 tags:
   [
     Tuist,

@@ -1,6 +1,6 @@
 ---
 title: "A Mise guide for Swift developers"
-category: "guides"
+category: "learn"
 tags: ["tooling", "devtools"]
 excerpt: "In this blog post we share how to use Mise to install, activate, and share tools to enhance Swift development."
 author: pepicrft

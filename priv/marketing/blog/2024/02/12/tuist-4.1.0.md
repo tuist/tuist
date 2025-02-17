@@ -1,6 +1,6 @@
 ---
 title: "Tuist 4.1.0"
-category: "releases"
+category: "product"
 tags: ["tuist", "release", "cloud"]
 excerpt: "Tuist 4.1.0 is out with new features, improvements, and bug fixes. In this blog post, we'll cover the highlights of this release."
 author: pepicrft

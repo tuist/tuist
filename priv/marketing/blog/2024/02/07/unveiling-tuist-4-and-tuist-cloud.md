@@ -1,6 +1,6 @@
 ---
 title: "Unveiling Tuist 4 and Tuist Cloud"
-category: "releases"
+category: "product"
 tags: ["tuist", "release", "cloud"]
 excerpt: "In this blog post, we unveil Tuist 4 and Tuist Cloud, marking an inflection point in the project's sustainability. We also discuss the long-term sustainability of the project, the introduction of Tuist Cloud, and the new features in Tuist 4. We also talk about the new logo, our partnership with Codemagic, and our commitment to open-source."
 author: pepicrft

@@ -1,6 +1,6 @@
 ---
 title: Easily setup signing for your project with Tuist 1.11.0 Volare
-category: "releases"
+category: "product"
 tags:
   [
     Tuist,

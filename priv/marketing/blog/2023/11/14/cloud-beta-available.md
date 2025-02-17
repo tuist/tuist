@@ -1,6 +1,6 @@
 ---
 title: "Tuist Cloud public beta is here"
-category: "announcements"
+category: "product"
 tags: ["Swift", "Tuist Cloud", "Xcode"]
 excerpt: "Tuist Cloud's public beta is here, offering innovative solutions for Xcode projects. Free for open-source, with exciting plans post-beta in 2024."
 author: pepicrft

@@ -1,6 +1,6 @@
 ---
 title: API for excluding files with Tuist 1.1.0
-category: "releases"
+category: "product"
 tags: [tuist, release, swift, 1.1.0, project generation, xcode, swift]
 excerpt: The new version of Tuist ships with improvements in the API for defining files so that users can exclude files using glob patterns. Moreover, we made some changes in the architecture of the project and introduced two new targets to the family, TuistGalaxy and TuistAutomation.
 author: pepicrft

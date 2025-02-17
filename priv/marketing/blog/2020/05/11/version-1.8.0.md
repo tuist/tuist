@@ -1,6 +1,6 @@
 ---
 title: Tuist 1.8.0 - Adding support for localized sources
-category: "releases"
+category: "product"
 tags: [Tuist, release, swift, project generation, xcode, apple, '1.8.0']
 excerpt: In this blog post I talk about the Tuist verion 1.8.0 and the improvements that come with it. One of those is being able to define localized sources in the targets. Moreover, we changed the way we read the Swift version to always read it from the environment.
 author: pepicrft

@@ -1,6 +1,6 @@
 ---
 title: Visualize your projects graph from Tuist 0.17.0
-category: "releases"
+category: "product"
 tags: [tuist, release, swift]
 excerpt: One of the difficulties of scaling up Xcode projects comes from the fact that Xcode doesn't provide a high-level picture of the structure of the project. Tuist 0.17.0 fixes that by providing a new command, 'tuist graph', that exports a graph of the project to help users of the tool visualize their project dependencies. This version also adds support for configuring Tuist globally, and also indicate the version of Xcode that is required to run the project.
 author: pepicrft

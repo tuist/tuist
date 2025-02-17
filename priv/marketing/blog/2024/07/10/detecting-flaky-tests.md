@@ -1,6 +1,6 @@
 ---
 title: "Tuist now supports detecting flaky tests"
-category: "announcements"
+category: "product"
 tags: ["Tests"]
 excerpt: "Tuist now supports detecting flaky tests. Learn how it works and how it can help you ship more reliable software"
 author: pepicrft

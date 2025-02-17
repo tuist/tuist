@@ -1,6 +1,6 @@
 ---
 title: 1.14.0 Spezi, a release packed with improvements
-category: "releases"
+category: "product"
 tags: [Tuist, release, swift, project generation, xcode, apple, '1.14.0', 'cache']
 excerpt: In this blog post we present the improvements and bug fixes that we included in the version of Tuist 1.14.0
 author: pepicrft

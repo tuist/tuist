@@ -1,6 +1,6 @@
 ---
 title: 'Version 0.9.0 published'
-category: "releases"
+category: "product"
 tags: [tuist, release, swift]
 excerpt: In this blog post we talk about the changes that come with the recently published version 0.9.0.
 author: pepicrft

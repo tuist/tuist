@@ -1,6 +1,6 @@
 ---
 title: Issue and feature bounties
-category: "announcements"
+category: "product"
 tags: ['Tuist', 'Xcode', 'Swift', 'Project generation']
 excerpt: Announcing new bounty program for our Tuist contributors
 author: fortmarek

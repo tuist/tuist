@@ -1,6 +1,6 @@
 ---
 title: "Deploy DocC documentation to Cloudflare Pages"
-category: "guides"
+category: "learn"
 tags: ["tooling", "devtools"]
 excerpt: "Learn how to deploy your DocC documentation to Cloudflare Pages."
 author: fortmarek

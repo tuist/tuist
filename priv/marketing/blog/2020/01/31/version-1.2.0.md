@@ -1,6 +1,6 @@
 ---
 title: Tuist 1.2.0 - Bugfixes, improvements and future direction
-category: "releases"
+category: "product"
 tags: [tuist, release, swift, 1.2.0, project generation, xcode, swift]
 excerpt: The newest release brings you many bugfixes and improvements. However with the number of contributors steadily growing the team has also been busy thinking and writing about the direction of Tuist. We have a rough plan for Tuist 2.0 and work has started on compiling a manifesto to explain a bit more about the goals and values of the project.
 author: vytis

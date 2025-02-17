@@ -1,6 +1,6 @@
 ---
 title: "Introducing TuistGPT and XcodeGPT"
-category: "announcements"
+category: "product"
 tags: ["GPT", "Tuist", "Xcode"]
 excerpt: "Tuist, born in 2017, addresses challenges in scaling Xcode projects. Despite new tools like the Swift Package Manager, the need for Tuist persists."
 author: pepicrft

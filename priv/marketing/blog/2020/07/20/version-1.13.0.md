@@ -1,6 +1,6 @@
 ---
 title: Local caching of frameworks with Tuist 1.13.0 Bella Vita
-category: "releases"
+category: "product"
 tags:
   [
     Tuist,

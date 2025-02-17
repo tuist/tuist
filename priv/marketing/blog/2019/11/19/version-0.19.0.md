@@ -1,6 +1,6 @@
 ---
 title: Define your watchOS apps and extensions easily with Tuist 0.19.0
-category: "releases"
+category: "product"
 tags: [tuist, release, swift, 0.19.0]
 excerpt: Until today, defining watchOS apps and extensions in Tuist was not possible. The good news is that from Tuist 0.19.0 that's no longer true because it extends its beautifully simplified abstractions to watchOS. On top of that, we also shipped support for enabling test coverage in the schemes, and defining the deployment targets in targets. We also took the opportunity to iron out some bugs that had been reported by users.
 author: pepicrft

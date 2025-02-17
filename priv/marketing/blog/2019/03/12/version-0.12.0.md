@@ -1,6 +1,6 @@
 ---
 title: Tuist 0.12.0 supports defining multiple sources and resources
-category: "releases"
+category: "product"
 tags: [tuist, release, swift]
 excerpt: Following users's feedback, we have released a new version of Tuist, 0.12.0 that supports defining multiple sources and resources. Moreover, we added a new product type for those of you that would like to opt for static linking, and added generation of schemes with all the targets that are part of the project. This version also drops support for defining the manifests as a JSON file because Swift will pave our way to a better maintainability and reusability.
 author: ollieatkinson

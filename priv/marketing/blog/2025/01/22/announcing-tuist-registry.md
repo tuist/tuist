@@ -1,6 +1,6 @@
 ---
 title: "Announcing Tuist Registry."
-category: "announcements"
+category: "product"
 tags: ["Announcement", "Previews"]
 excerpt: "We're thrilled to announce the launch of the Tuist Registry – a new feature that optimizes the resolution of Swift packages in your projects."
 og_image_path: /marketing/images/blog/2025/01/22/announcing-tuist-registry/og.jpg

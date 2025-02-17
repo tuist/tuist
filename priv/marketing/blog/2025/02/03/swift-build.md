@@ -1,6 +1,6 @@
 ---
 title: "What Swift Build means for the Swift ecosystem"
-category: "ecosystem"
+category: "learn"
 tags: ["Swift", "Ecosystem"]
 excerpt: "In blog post we share our perspective on what Swift Build might mean for the Swift ecosystem, drawing from our extensive experience working with Xcode projects, and how it aligns with the plans we have for Tuist."
 author: pepicrft

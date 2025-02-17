@@ -1,6 +1,6 @@
 ---
 title: Welcome Swift Packages to the dependencies family in Tuist 0.18.0
-category: "releases"
+category: "product"
 tags: [tuist, release, swift]
 excerpt: Making the definition of dependencies very convenient was one of our aims when we embarked on building Tuist and today, we are extending that convenience to external dependencies that are distributed as Swift Packages. Targets can now define packages as dependencies and Tuist will take care of the rest. Moreover, this version ships with improvements in the API of dynamic Info.plist files.
 author: fortmarek

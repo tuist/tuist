@@ -1,6 +1,6 @@
 ---
 title: "Announcing our Tuist Cloud open source program"
-category: "announcements"
+category: "product"
 tags: ["Swift", "XcodeProj", "Xcode"]
 excerpt: "We are thrilled to announce that we are offering Tuist Cloud completely free for open source projects."
 author: pepicrft

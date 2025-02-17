@@ -1,6 +1,6 @@
 ---
 title: Releasing Tuist 2.0
-category: "releases"
+category: "product"
 tags: ['Tuist', '2.0', 'Xcode', 'Swift', "Project generation"]
 excerpt: In this post, we share more details about this new major version of the project, 2.0, and present the direction we are taking as we move towards 3.0.
 author: pepicrft

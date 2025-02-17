@@ -1,6 +1,6 @@
 ---
 title: "Announcing Tuist 0.10 and its new 'up' command"
-category: "releases"
+category: "product"
 tags: [tuist, release, swift]
 excerpt: Learn more about the newest version of Tuist which comes with a powerful and useful feature, a new 'tuist up' command.
 author: pepicrft
