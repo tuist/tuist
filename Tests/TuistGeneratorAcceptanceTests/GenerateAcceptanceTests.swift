@@ -14,6 +14,14 @@ final class GenerateAcceptanceTestAppWithFrameworkAndTests: TuistAcceptanceTestC
     }
 }
 
+final class GenerateAcceptanceTestAppWithExponeaSDK: TuistAcceptanceTestCase {
+    func test_app_with_exponea_sdk() async throws {
+        try await setUpFixture(.appWithExponeaSDK)
+        try await run(InstallCommand.self)
+        try await run(GenerateCommand.self)
+    }
+}
+
 final class GenerateAcceptanceTestiOSAppWithTests: TuistAcceptanceTestCase {
     func test_ios_app_with_tests() async throws {
         try await setUpFixture(.iosAppWithTests)

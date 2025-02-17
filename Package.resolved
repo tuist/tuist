@@ -1,5 +1,5 @@
 {
-  "originHash" : "6325b6a4a73e22fb29731011bc3458c5507f0ac03322e2261472256f61c2f448",
+  "originHash" : "3b64b5085713d8f3644a9ebc82ecc65d714f1b6d4795d7bf0fbde547038f8136",
   "pins" : [
     {
       "identity" : "aexml",
@@ -33,8 +33,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/Command.git",
       "state" : {
-        "revision" : "9d03a95faa94b961edc1cf2c5f4379b0108ee97a",
-        "version" : "0.12.1"
+        "revision" : "07846291097a593de29846c0083b758471071cdf",
+        "version" : "0.12.2"
       }
     },
     {
@@ -51,8 +51,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/FileSystem.git",
       "state" : {
-        "revision" : "f5f8b0be3bc2647f37f6aa176d8f0f7dd5cb4252",
-        "version" : "0.7.0"
+        "revision" : "1bff6d54e90a79706a4a9d77cd081104de430361",
+        "version" : "0.7.7"
       }
     },
     {
@@ -258,8 +258,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-nio",
       "state" : {
-        "revision" : "dca6594f65308c761a9c409e09fbf35f48d50d34",
-        "version" : "2.77.0"
+        "revision" : "c51907a839e63ebf0ba2076bba73dd96436bd1b9",
+        "version" : "2.81.0"
       }
     },
     {
@@ -348,8 +348,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/XcodeGraph.git",
       "state" : {
-        "revision" : "decf6cc311e8dd238c87501c369b05827bca6a48",
-        "version" : "1.5.14"
+        "branch" : "fix/model-extension",
+        "revision" : "f4061a85b992bfab4e678ed8b1de801648442495"
       }
     },
     {
@@ -357,8 +357,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/XcodeProj",
       "state" : {
-        "revision" : "6f90427e172da66336739801c84b9cef3e17367b",
-        "version" : "8.26.6"
+        "revision" : "0fc894272122db301e5db7805c108b66f5e81922",
+        "version" : "8.26.7"
       }
     },
     {
@@ -391,10 +391,10 @@
     {
       "identity" : "zipfoundation",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/weichsel/ZIPFoundation.git",
+      "location" : "https://github.com/tuist/ZIPFoundation",
       "state" : {
-        "revision" : "02b6abe5f6eef7e3cbd5f247c5cc24e246efcfe0",
-        "version" : "0.9.19"
+        "revision" : "e9b1917bd4d7d050e0ff4ec157b5d6e253c84385",
+        "version" : "0.9.20"
       }
     }
   ],

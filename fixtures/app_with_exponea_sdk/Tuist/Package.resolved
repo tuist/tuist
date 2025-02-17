@@ -1,0 +1,24 @@
+{
+  "originHash" : "d48cfbf5194e750330e1b033d322d81b99da0ffa72bb10f6336b56afdf058903",
+  "pins" : [
+    {
+      "identity" : "exponea-ios-sdk",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/exponea/exponea-ios-sdk",
+      "state" : {
+        "revision" : "ef43f76a65fb3e0887b24166f0a0a6918cbac45d",
+        "version" : "3.1.0"
+      }
+    },
+    {
+      "identity" : "swiftsoup",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/scinfu/SwiftSoup.git",
+      "state" : {
+        "revision" : "6b4930da67b462d3f200472c902dd016d37a554d",
+        "version" : "2.7.7"
+      }
+    }
+  ],
+  "version" : 3
+}
