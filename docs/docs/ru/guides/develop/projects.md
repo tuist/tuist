@@ -10,7 +10,7 @@ Generated is a viable alternative that helps to overcome these challenges while 
 
 ## How does it work? {#how-does-it-work}
 
-To get started with generated projects, all you need is to define your project using **Tuist's Domain Specific Language (DSL)**. This entails using manifest files such as `Workspace.swift` or `Project.swift`. If you've worked with the Swift Package Manager before, the approach is very similar.
+Чтобы начать работу со сгенерированными XCode-проектами, вам нужно определить свой проект с помощью \*\*Предметно-ориентированного языка(DSL) Tuist \*\*. This entails using manifest files such as `Workspace.swift` or `Project.swift`. If you've worked with the Swift Package Manager before, the approach is very similar.
 
 Once you've defined your project, Tuist offers various workflows to manage and interact with it:
 
