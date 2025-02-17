@@ -11,7 +11,7 @@ description: Learn how to leverage selective testing with a generated project.
 > - <LocalizedLink href="/guides/develop/projects">생성된 프로젝트</LocalizedLink>
 > - <LocalizedLink href="/server/introduction/accounts-and-projects">Tuist 계정과 프로젝트</LocalizedLink>
 
-To run tests selectively with your generated project, use the `tuist test` command. The command <LocalizedLink href="/guides/develop/projects/hashing">hashes</LocalizedLink> your Xcode project the same way it does for <LocalizedLink href="/guides/develop/build/cache#cache-warming">warming the cache</LocalizedLink>, and on success, it persists the hashes on to determine what has changed in future runs.
+생성된 프로젝트에서 선택적으로 테스트를 실행하려면 `tuist test` 명령어를 사용하세요. The command <LocalizedLink href="/guides/develop/projects/hashing">hashes</LocalizedLink> your Xcode project the same way it does for <LocalizedLink href="/guides/develop/build/cache#cache-warming">warming the cache</LocalizedLink>, and on success, it persists the hashes on to determine what has changed in future runs.
 
 다음에 실행하면 `tuist test`는 해시를 사용하여 마지막으로 성공적으로 실행된 테스트 이후 변경된 테스트만 선별합니다.
 
