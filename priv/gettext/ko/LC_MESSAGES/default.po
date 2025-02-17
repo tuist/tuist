@@ -10,7 +10,7 @@ msgstr ""
 "Project-Id-Version: tuist-website\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Language-Team: Korean\n"
-"PO-Revision-Date: 2025-02-12 22:22\n"
+"PO-Revision-Date: 2025-02-16 16:05\n"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:390
 #, elixir-autogen, elixir-format
@@ -147,21 +147,21 @@ msgstr "500 오류"
 msgid "7 days"
 msgstr "7일"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:328
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:338
 #, elixir-autogen, elixir-format
 msgid "<p>Tuist has been a game-changer for our large codebase, where multiple engineers collaborate simultaneously. It helps us avoid conflicts in project organization and provides full control over project configuration, allowing us to customize everything to our needs. For a modularized app, Tuist is the perfect ally—its ability to effortlessly reuse configurations across modules has significantly streamlined our development process.</p>\n"
 "<p>Additionally, the way Tuist manages package dependencies is outstanding. As soon as you open Xcode, you're ready to jump right into coding without waiting for 30+ packages to resolve every time. It's truly a productivity booster.</p>\n"
 "<p>I've been using it since version 1, and it's been incredible to see how the product has evolved and expanded with new features over time. Their effort in resolving underlying issues and evolving the product has made Tuist a mature, reliable tool that we can depend on.</p>\n"
-msgstr "<p>Tuist는 여러 엔지니어가 동시에 협업하는 우리의 대규모 코드베이스의 게임체인저입니다. Tuist는 프로젝트 조직에서 충돌을 방지하고 project configuration을 완벽하게 제어할 수 있어 커스터마이징해야 하는 모든 것을 우리의 니즈에 맞게 할 수 있게끔 해줍니다. 모듈화된 앱의 경우,모듈 간 설정을 손쉽게 재사용할 수 있어 개발 프로세스가 크게 간소화되었습니다.</p>\n"
+msgstr "<p>Tuist는 여러 엔지니어가 동시에 협업하는 우리의 대규모 코드베이스의 게임체인저였습니다. Tuist는 프로젝트 조직에서 충돌을 방지하고 project configuration을 완벽하게 제어할 수 있어 커스터마이징해야 하는 모든 것을 우리의 니즈에 맞게 할 수 있게끔 해줬습니다. 모듈화된 앱의 경우,모듈 간 설정을 손쉽게 재사용할 수 있어 개발 프로세스가 크게 간소화되었습니다.</p>\n"
 "<p>또한, Tuist는 패키지 종속성 관리에 매우 뛰어납니다. 매번 30개 이상의 패키지가 resolve될 때까지 기다릴 필요 없이 Xcode를 열자마자 바로 코딩을 시작할 수 있습니다. 정말 생산성을 향상시켜줍니다.</p>\n"
 "<p>버전 1부터 사용해왔는데, 시간이 지나면서 제품이 지속적으로 진화하고 새로운 기능이 추가되는 모습을 보며 놀라움을 느꼈습니다. 근본적인 문제를 해결하고 제품을 발전시키려는 노력 덕분에, Tuist는 우리가 의지할 수 있는 성숙하고 신뢰할 수 있는 도구가 되었습니다.</p>\n"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:352
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:362
 #, elixir-autogen, elixir-format
 msgid "<p>Tuist has revolutionized our iOS development workflow at DraftKings. Its automation capabilities have streamlined project generation, build settings, and dependency management. With modularization, we maximize code sharing across apps, reducing duplication. Code generation allows us to quickly bootstrap new products that seamlessly integrate with existing ones through centralized dependency management. The build caching feature can significantly improve build times, both locally and in CI/CD environment. Tuist is an indispensable set of developer tools, greatly enhancing productivity and efficiency. Highly recommended for iOS teams seeking workflow optimization.</p>\n"
 msgstr "<p>Tuist는 DraftKings 사의 iOS 개발 워크플로우에 혁신을 가져왔습니다. 자동화 기능을 통해 프로젝트 생성, 빌드 설정, 종속성 관리가 간소화할 수 있었습니다. 모듈화 기능을 통해 앱 간 코드 공유를 극대화하여 중복 코드를 줄였습니다. 코드 생성 기능을 통해 중앙 집중식 종속성 관리를 통해 기존 제품과 원활하게 통합되는 새로운 제품을 신속하게 부트스트랩할 수 있었습니다. 빌드 캐싱 기능은 로컬과 CI/CD 환경 모두에서 빌드 시간을 크게 개선해주었습니다. Tuist는 생산성과 효율성을 크게 향상시켜주는 필수적인 개발자 도구입니다. 워크플로 최적화를 원하는 iOS 팀에게 적극 추천합니다. </p>\n"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:340
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:350
 #, elixir-autogen, elixir-format
 msgid "<p>With macros, external SDKs, and many SPM modules (fully modularized app) Xcode was constantly slow or stuck on my M1 device. SPM kept resolving, code completion didn’t work, and <a href=\"https://github.com/swiftlang/swift-syntax\" target=\"_blank\">swift-syntax</a> compiled forever. All this changed with Tuist. It’s not just for big teams with big apps. Tuist gave me back my productivity as indie developer for my side projects.</p>\n"
 msgstr "<p> 매크로, 외부 SDK 및 많은 SPM 모듈(완전히 모듈화된 앱)을 사용할 때면, 제 M1 기기에서 Xcode가 계속 느려지거나 멈췄습니다. SPM은 계속 resolve되지 않았고, 코드 완성 기능은 동작하지 않았으며, <a href=\"https://github.com/swiftlang/swift-syntax\" target=\"_blank\">swift-syntax</a>는 컴파일 되는데 너무 오래 걸렸습니다. 이 모든 문제는 Tuist를 사용함으로써 해결되었습니다. Tuist는 인디 개발자인 제게 사이드 프로젝트의 생산성을 되찾아 주었습니다.</p>\n"
@@ -179,7 +179,7 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_html/about.html.heex:17
 #, elixir-autogen, elixir-format
 msgid "A selfie of Marek and Pedro in Seoul, South Korea"
-msgstr ""
+msgstr "Marek과 Pedro가 대한민국 서울에서 찍은 셀카"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:107
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:32
@@ -231,7 +231,7 @@ msgstr ""
 #: lib/tuist/billing.ex:41
 #, elixir-autogen, elixir-format
 msgid "All features, no credit card required"
-msgstr ""
+msgstr "신용카드 없이 모든 기능 이용 가능"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:51
 #, elixir-autogen, elixir-format
@@ -312,7 +312,7 @@ msgstr ""
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:106
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:87
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:193
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:229
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:237
 #, elixir-autogen, elixir-format
 msgid "Blog"
 msgstr ""
@@ -631,20 +631,20 @@ msgstr ""
 msgid "Did you request to reset your password?"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:286
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:294
 #, elixir-autogen, elixir-format
 msgid "Discover our flexible pricing plans at Tuist. Enjoy a free tier with no time limits, and pay only for what you use. Plus, it's free forever for open source projects."
-msgstr ""
+msgstr "Tuist의 다양한 요금제를 확인해보세요. 기간 제약 없이 무료 플랜을 이용하고, 사용한 만큼만 지불하세요. 또한, 오픈소스 프로젝트는 Tuist를 무료로 사용할 수 있습니다."
 
 #: lib/tuist_web/live/account_projects_live.html.heex:56
 #, elixir-autogen, elixir-format
 msgid "Dive in to learn more about Tuist."
-msgstr ""
+msgstr "Tuist에 대해 더 자세히 알아보세요."
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:261
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:269
 #, elixir-autogen, elixir-format
 msgid "Do you offer discounts for non-profits and open-source?"
-msgstr ""
+msgstr "비영리 단체와 오픈소스 프로젝트를 위한 할인 혜택이 있나요?"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:84
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:166
@@ -667,7 +667,7 @@ msgstr "계정이 없으신가요?"
 #: lib/tuist_web/live/preview_live.html.heex:50
 #, elixir-autogen, elixir-format
 msgid "Don't have the Tuist app installed? <a style=\"display: inline;\" href=\"%{app_download_url}\">Click here to download it.</a>"
-msgstr ""
+msgstr "아직 Tuist 앱을 설치하지 않으셨나요? <a style=\"display: inline;\" href=\"%{app_download_url}\">여기를 클릭하여 다운로드하세요.</a>"
 
 #: lib/tuist_web/live/account_billing_live.html.heex:239
 #: lib/tuist_web/live/account_billing_live.html.heex:241
@@ -766,7 +766,7 @@ msgstr ""
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:302
 #, elixir-autogen, elixir-format
 msgid "Explore our documentation—your go-to guide for mastering all things."
-msgstr ""
+msgstr "Tuist를 완벽하게 마스터할 수 있는 가이드인 documentation를 확인해 보세요."
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:218
 #, elixir-autogen, elixir-format
@@ -872,7 +872,7 @@ msgstr ""
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:326
 #, elixir-autogen, elixir-format
 msgid "Got ideas or questions? Join the conversation in our community forum."
-msgstr ""
+msgstr "아이디어나 질문이 있으신가요? 커뮤니티 포럼에 참여하여 함께 이야기 나눠보세요."
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:110
 #, elixir-autogen, elixir-format
@@ -899,7 +899,7 @@ msgstr ""
 msgid "Hola %{name}, you can reset your password by clicking the button below:"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:253
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:261
 #, elixir-autogen, elixir-format
 msgid "How can I estimate the cost of my project?"
 msgstr ""
@@ -973,7 +973,7 @@ msgstr ""
 msgid "Invitation to %{organization_name}"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:257
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:265
 #, elixir-autogen, elixir-format
 msgid "Is there a free trial on paid plans?"
 msgstr "유료 요금제에 무료 체험 기간이 있나요?"
@@ -1297,7 +1297,7 @@ msgstr ""
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:105
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:84
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:187
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:281
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:289
 #, elixir-autogen, elixir-format
 msgid "Pricing"
 msgstr ""
@@ -1524,10 +1524,10 @@ msgstr ""
 msgid "Sign up with Okta"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:384
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:394
 #, elixir-autogen, elixir-format
 msgid "Since adopting Tuist in our iOS project, we’ve seen major improvements in scalability and productivity. It simplifies module management, allowing us to apply consistent rules and configurations across the project, strengthening our modularization strategy. Its flexibility lets us easily customize the project to fit our needs. For instance, we can use dynamic frameworks during development and static frameworks in other environments, giving us better control. Tuist has also improved build times, boosted Xcode performance, and eliminated merge conflicts by not tracking Xcode project files in Git. Overall, it has made our development process faster and more efficient, allowing the team to focus on building features without being slowed down by tool limitations."
-msgstr ""
+msgstr "iOS 프로젝트에 Tuist를 도입한 이후 확장성과 생산성이 크게 향상되었습니다. Tuist는 모듈 관리를 간소화하여 프로젝트 전체에 일관된 규칙과 설정을 적용할 수 있도록 도와주었고, 우리의 모듈화 전략을 강화시켜주었습니다. Tuist의 유연성은 우리의 필요에 맞게 프로젝트를 간편하게 커스터마이징 할 수 있게 해주었습니다. 예를 들어 개발 중에는 동적 프레임워크를 사용하고 다른 환경에서는 정적 프레임워크를 사용할 수 있어 더 나은 제어가 가능합니다. 또한 Tuist는 빌드 시간을 개선하고 Xcode의 퍼포먼스를 향상시켰으며 Git에서 Xcode 프로젝트 파일을 추적하지 않아 merge할 때 충돌이 일어나지 않았습니다. 전반적으로, Tuist는 개발 프로세스를 더 빠르고 효율적으로 만들어주어서, 우리 팀이 툴의 한계로 인한 속도 저하를 겪지 않고 기능을 구축하는 데 집중할 수 있게 해주었습니다."
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:175
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:336
@@ -1793,9 +1793,9 @@ msgstr ""
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:10
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:31
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:53
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:228
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:280
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:311
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:236
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:288
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:321
 #, elixir-autogen, elixir-format
 msgid "Tuist"
 msgstr ""
@@ -1855,10 +1855,10 @@ msgstr ""
 msgid "Tuist extends Apple's tools, helping you ship apps that stand out."
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:362
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:372
 #, elixir-autogen, elixir-format
 msgid "Tuist has allowed us to migrate our existing monolythic codebase to a modular one. We extracted our different domains into specific modules. It allowed us to remove extra dependencies, ease testability and made our development cycles faster than ever. It even allowed us to bring up “Test Apps” for speeding up our development on each module. Tuist is a game changer in iOS project life."
-msgstr ""
+msgstr "Tuist를 통해 기존의 단일 코드베이스를 모듈형 코드베이스로 마이그레이션할 수 있었습니다. 우리는 우리 앱의 다양한 도메인을 모듈로 추출했습니다. 이를 통해 추가적인 종속성을 제거하고 테스트 가능성을 높였으며 개발 주기를 그 어느 때보다 빠르게 만들 수 있었습니다. 심지어 각 모듈에서 개발 속도를 높이기 위해 '테스트 앱'을 불러올 수도 있었습니다. Tuist는 iOS 프로젝트의 판도를 바꾸는 게임 체인저입니다."
 
 #: lib/tuist_web/live/device_codes_success_live.ex:23
 #, elixir-autogen, elixir-format
@@ -1974,10 +1974,10 @@ msgstr ""
 msgid "Users 💜 Tuist"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:372
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:382
 #, elixir-autogen, elixir-format
 msgid "Using Tuist in our current project has been a game-changer. It has significantly de-stressed our build times and reduced conflicts within the team, allowing us to focus more on development and less on configuration issues. Tuist has seamlessly integrated into our workflow and has proven to be an essential tool in our pipeline. We’re confident that it will continue to enhance our productivity and collaboration in future projects."
-msgstr ""
+msgstr "우리의 프로젝트에서 Tuist를 사용한 것은 획기적인 전환점이었습니다. 빌드 시간을 크게 단축되고 충돌이 줄어들어 configuration 이슈에 신경 쓰지 않고 개발에 더 집중할 수 있게 되었습니다. Tuist는 우리 워크플로에 아주 매끄럽게 통합되어 파이프라인에 필수적인 도구로 자리 잡았습니다. 향후 프로젝트에서도 생산성과 협업을 지속적으로 향상시킬 수 있을 것이라 확신합니다."
 
 #: lib/tuist/billing.ex:59
 #, elixir-autogen, elixir-format
@@ -2055,7 +2055,7 @@ msgstr ""
 msgid "We embrace standards to ensure long-term success while respecting everyone's freedom to choose their own paths and tools."
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:258
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:266
 #, elixir-autogen, elixir-format
 msgid "We have a generous free tier on every paid plan so you can try out the features before paying any money."
 msgstr ""
@@ -2090,7 +2090,7 @@ msgstr ""
 msgid "Welcome back! Please enter your details."
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:242
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:250
 #, elixir-autogen, elixir-format
 msgid "Why is your pricing model more accessible compared to traditional enterprise models?"
 msgstr ""
@@ -2105,7 +2105,7 @@ msgstr ""
 msgid "Years building an OSS foundation"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:262
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:270
 #, elixir-autogen, elixir-format
 msgid "Yes, we do. Please reach out to oss@tuist.io for more information."
 msgstr ""
@@ -2140,7 +2140,7 @@ msgstr ""
 msgid "You can close the tab and continue 🎉"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:254
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:262
 #, elixir-autogen, elixir-format
 msgid "You can set up the Air plan, and use the features for a few days to get a usage estimate. If you need a higher limit, let us know and we can help you set up a custom plan."
 msgstr ""
@@ -2299,13 +2299,13 @@ msgstr ""
 msgid "Mobile-first CI/CD with first class support for iOS team. Supporting the Tuist with fast and reliable CI environments."
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:245
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:253
 #, elixir-autogen, elixir-format, fuzzy
 msgid "<p>Our commitment to open-source and our core values shape our unique approach to pricing. Unlike many models that try to extract every dollar from you with \"contact sales\" calls, limited demos, and other sales tactics, we believe in fairness and transparency. We treat everyone equally and set prices that are fair for all. By choosing our services, you are not only getting a great product but also supporting the development of more open-source projects. We see building a thriving business as a long-term journey, not a short-term sprint filled with shady practices. You can %{read_more}  about our philosophy.</p>\n"
 "<p>By supporting Tuist, you are also supporting the development of more open-source software for the Swift ecosystem.</p>\n"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:251
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:259
 #, elixir-autogen, elixir-format, fuzzy
 msgid "read more"
 msgstr ""
@@ -2350,12 +2350,12 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:223
 #, elixir-autogen, elixir-format
 msgid "Conceptually compress the complexities of modular Xcode projects and make them more accessible to maintain and scale."
-msgstr ""
+msgstr "모듈화된 Xcode 프로젝트의 복잡성을 줄이고, 유지보수를 쉽게 하고 확장성을 높여줍니다."
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:309
 #, elixir-autogen, elixir-format
 msgid "Instantly share your app using a URL. Tuist lets you create and share previews of your apps with ease."
-msgstr ""
+msgstr "URL을 사용하여 앱을 즉시 공유하세요. Tuist를 사용하면 앱의미리보기를 쉽게 만들고 공유할 수 있습니다."
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:256
 #, elixir-autogen, elixir-format
@@ -2395,12 +2395,12 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:254
 #, elixir-autogen, elixir-format
 msgid "Speed up clean builds by reusing binaries across environments."
-msgstr ""
+msgstr "환경 간 바이너리를 재사용하여 클린 빌드를 더 빠르게 수행하세요."
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:282
 #, elixir-autogen, elixir-format
 msgid "Speed up test runs by running only the test targets impacted by the changes."
-msgstr ""
+msgstr "변경사항에 영향을 받는 테스트 타겟만 실행하여 테스트 실행 속도를 높입니다."
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:228
 #, elixir-autogen, elixir-format
