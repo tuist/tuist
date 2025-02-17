@@ -414,7 +414,7 @@ public class GraphLinter: GraphLinting {
         }
 
         if let entitlements = appClip.target.entitlements {
-            if case let .file(path: path) = entitlements, try await !fileSystem.exists(path) {
+            if case let .file(path: path, configuration: _) = entitlements, try await !fileSystem.exists(path) {
                 foundIssues
                     .append(LintingIssue(
                         reason: "The entitlements at path '\(path.pathString)' referenced by target does not exist",
@@ -559,6 +559,7 @@ public class GraphLinter: GraphLinting {
             LintableTarget(platform: .iOS, product: .dynamicLibrary),
             LintableTarget(platform: .iOS, product: .staticFramework),
             LintableTarget(platform: .iOS, product: .framework),
+            LintableTarget(platform: .macOS, product: .framework),
         ],
         LintableTarget(platform: .macOS, product: .staticLibrary): [
             LintableTarget(platform: .macOS, product: .staticLibrary),

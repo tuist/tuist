@@ -87,21 +87,6 @@ final class EnvironmentLinterTests: TuistUnitTestCase {
         XCTEmpty(got)
     }
 
-    func test_lintXcodeVersion_doesntReturnIssues_whenThereIsNoSelectedXcode() async throws {
-        // Given
-        let config = Config.test(compatibleXcodeVersions: .list(["3.2.1"]))
-
-        given(xcodeController)
-            .selected()
-            .willReturn(nil)
-
-        // When
-        let got = try await subject.lintXcodeVersion(config: config)
-
-        // Then
-        XCTEmpty(got)
-    }
-
     func test_lintXcodeVersion_throws_when_theSelectedXcodeCantBeObtained() async throws {
         // Given
         let config = Config.test(compatibleXcodeVersions: .list(["3.2.1"]))

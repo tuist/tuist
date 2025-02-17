@@ -280,13 +280,13 @@ public final class SimulatorController: SimulatorControlling {
         ServiceContext.current?.logger?
             .debug("Launching app with bundle id \(bundleId) on simulator device with id \(device.udid)")
         let device = try device.booted(using: system)
-        let simulator = try await xcodeController.selected()?.path.appending(
+        let simulator = try await xcodeController.selected().path.appending(
             components: "Contents",
             "Developer",
             "Applications",
             "Simulator.app"
         )
-        try system.run(["/usr/bin/open", "-a", simulator?.pathString ?? "Simulator"])
+        try system.run(["/usr/bin/open", "-a", simulator.pathString])
         try system.run(["/usr/bin/xcrun", "simctl", "launch", device.udid, bundleId] + arguments)
     }
 

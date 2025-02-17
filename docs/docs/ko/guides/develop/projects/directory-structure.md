@@ -25,7 +25,7 @@ Projects/
 Workspace.swift
 ```
 
-- **Tuist 디렉토리:** 이 디렉토리에는 두 가지 목적이 있습니다: 먼저, **프로젝트의 루트**를 나타냅니다. 먼저, **프로젝트의 루트**를 나타냅니다. 이를 통해 프로젝트의 루트를 기준으로 경로를 구성할 수 있고 프로젝트 내에서 Tuist 명령어를 수행할 수 있습니다. 두 번째로, 다음 파일을 포함하는 컨테이너 입니다:
+- **Tuist 디렉토리:** 이 디렉토리에는 두 가지 목적이 있습니다. 먼저, **프로젝트의 루트**를 나타냅니다. This allows constructing paths relative to the root of the project, and also running Tuist commands from any directory within the project. 두 번째로, 다음 파일을 포함하는 컨테이너 입니다:
   - **ProjectDescriptionHelpers:** 이 디렉토리는 모든 매니페스트 파일에서 공유되는 Swift 코드를 포함합니다. 매니페스트 파일은 이 디렉토리에 정의된 코드를 사용하기 위해 `import ProjectDescriptionHelpers`을 사용할 수 있습니다. 코드 공유는 프로젝트 전체의 중복을 피하고 일관성을 유지하는데 유용합니다.
   - **Package.swift:** 이 파일은 Tuist가 구성 가능하고 최적화할 수 있는 Xcode 프로젝트와 타겟 (예: [CocoaPods](https://cococapods)) 을 사용하여 통합하기 위한 Swift Package 의존성을 포함합니다. <LocalizedLink href="/guides/develop/projects/dependencies">여기</LocalizedLink>서 더 알아봅니다.
 

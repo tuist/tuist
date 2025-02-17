@@ -7,8 +7,7 @@ public protocol CacheServicing {
         configuration: String?,
         targetsToBinaryCache: Set<String>,
         externalOnly: Bool,
-        generateOnly: Bool,
-        analyticsDelegate: TrackableParametersDelegate?
+        generateOnly: Bool
     ) async throws
 }
 
@@ -18,8 +17,7 @@ final class EmptyCacheService: CacheServicing {
         configuration _: String?,
         targetsToBinaryCache _: Set<String>,
         externalOnly _: Bool,
-        generateOnly _: Bool,
-        analyticsDelegate _: TrackableParametersDelegate?
+        generateOnly _: Bool
     ) async throws {
         ServiceContext.current?.logger?
             .notice(

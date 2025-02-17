@@ -1690,6 +1690,51 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "sanghyeok-kim",
+      "name": "Loyle",
+      "avatar_url": "https://avatars.githubusercontent.com/u/57667738?v=4",
+      "profile": "https://github.com/sanghyeok-kim",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "vvisionnn",
+      "name": "Ydna",
+      "avatar_url": "https://avatars.githubusercontent.com/u/24761186?v=4",
+      "profile": "https://github.com/vvisionnn",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "BruceMcRooster",
+      "name": "Evan",
+      "avatar_url": "https://avatars.githubusercontent.com/u/53529192?v=4",
+      "profile": "http://brucemcrooster.dev",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "FelixLisczyk",
+      "name": "Felix Lisczyk",
+      "avatar_url": "https://avatars.githubusercontent.com/u/5102728?v=4",
+      "profile": "https://www.snipnotes.de",
+      "contributions": [
+        "doc"
+      ]
+    },
+    {
+      "login": "lukaswuerzburger",
+      "name": "Lukas Würzburger",
+      "avatar_url": "https://avatars.githubusercontent.com/u/10812458?v=4",
+      "profile": "https://github.com/lukaswuerzburger",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,

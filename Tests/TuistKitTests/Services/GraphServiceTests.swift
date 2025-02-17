@@ -7,6 +7,7 @@ import ServiceContextModule
 import TuistCore
 import TuistPlugin
 import TuistSupport
+import XcodeGraph
 import XcodeProj
 import XCTest
 
@@ -76,7 +77,7 @@ final class GraphServiceTests: TuistUnitTestCase {
         }
     }
 
-    func test_run_whenJson() async throws {
+    func test_run_when_legacyJSON() async throws {
         try await ServiceContext.withTestingDependencies {
             // Given
             let temporaryPath = try temporaryPath()
@@ -85,6 +86,44 @@ final class GraphServiceTests: TuistUnitTestCase {
 
             try FileHandler.shared.touch(graphPath)
             try FileHandler.shared.touch(projectManifestPath)
+
+            given(manifestGraphLoader)
+                .load(path: .any)
+                .willReturn((.test(), [], MapperEnvironment(), []))
+
+            // When
+            try await subject.run(
+                format: .legacyJSON,
+                layoutAlgorithm: .dot,
+                skipTestTargets: false,
+                skipExternalDependencies: false,
+                open: false,
+                platformToFilter: nil,
+                targetsToFilter: [],
+                path: temporaryPath,
+                outputPath: temporaryPath
+            )
+            let got = try FileHandler.shared.readTextFile(graphPath)
+
+            let result = try JSONDecoder().decode(ProjectAutomation.Graph.self, from: got.data(using: .utf8)!)
+            // Then
+            XCTAssertEqual(result, ProjectAutomation.Graph(name: "graph", path: "/", projects: [:]))
+            XCTAssertPrinterOutputContains("""
+            Deleting existing graph at \(graphPath.pathString)
+            Graph exported to \(graphPath.pathString)
+            """)
+        }
+    }
+
+    func test_run_when_json() async throws {
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            let temporaryPath = try temporaryPath()
+            let graphPath = temporaryPath.appending(component: "graph.json")
+            let projectManifestPath = temporaryPath.appending(component: "Project.swift")
+
+            try await fileSystem.touch(graphPath)
+            try await fileSystem.touch(projectManifestPath)
 
             given(manifestGraphLoader)
                 .load(path: .any)
@@ -102,11 +141,11 @@ final class GraphServiceTests: TuistUnitTestCase {
                 path: temporaryPath,
                 outputPath: temporaryPath
             )
-            let got = try FileHandler.shared.readTextFile(graphPath)
+            let got = try await fileSystem.readTextFile(at: graphPath)
 
-            let result = try JSONDecoder().decode(ProjectAutomation.Graph.self, from: got.data(using: .utf8)!)
+            let result = try JSONDecoder().decode(XcodeGraph.Graph.self, from: got.data(using: .utf8)!)
             // Then
-            XCTAssertEqual(result, ProjectAutomation.Graph(name: "graph", path: "/", projects: [:]))
+            XCTAssertEqual(result, .test())
             XCTAssertPrinterOutputContains("""
             Deleting existing graph at \(graphPath.pathString)
             Graph exported to \(graphPath.pathString)

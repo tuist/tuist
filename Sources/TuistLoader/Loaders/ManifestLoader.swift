@@ -405,7 +405,7 @@ public class ManifestLoader: ManifestLoading {
 
         let packageDescriptionArguments: [String] = try await {
             if case .packageSettings = manifest {
-                guard let xcode = try await xcodeController.selected() else { return [] }
+                let xcode = try await xcodeController.selected()
                 let packageVersion = try swiftPackageManagerController.getToolsVersion(
                     at: path.parentDirectory
                 )

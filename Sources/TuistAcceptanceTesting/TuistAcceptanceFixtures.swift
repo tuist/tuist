@@ -21,6 +21,8 @@ public enum TuistAcceptanceFixtures {
     case appWithSBTUITestTunnel
     case appWithSpmDependencies
     case appWithSpmModuleAliases
+
+    case appWithSpmXcframeworkDependency
     case appWithSwiftCMark
     case appWithLocalSPMModuleWithRemoteDependencies
     case appWithTestPlan
@@ -98,6 +100,7 @@ public enum TuistAcceptanceFixtures {
     case workspaceWithInlineFileHeaderTemplate
     case xcodeApp
     case xcodeProjectWithRegistryAndAlamofire
+    case xcodeProjectWithTests
     case appWithExecutableNonLocalDependencies
     case appWithGeneratedSources
     case custom(String)
@@ -144,6 +147,8 @@ public enum TuistAcceptanceFixtures {
             return "app_with_spm_dependencies"
         case .appWithSpmModuleAliases:
             return "app_with_spm_module_aliases"
+        case .appWithSpmXcframeworkDependency:
+            return "app_with_spm_xcframework_dependency"
         case .appWithSwiftCMark:
             return "app_with_swift_cmark"
         case .appWithLocalSPMModuleWithRemoteDependencies:
@@ -298,6 +303,8 @@ public enum TuistAcceptanceFixtures {
             return "xcode_app"
         case .xcodeProjectWithRegistryAndAlamofire:
             return "xcode_project_with_registry_and_alamofire"
+        case .xcodeProjectWithTests:
+            return "xcode_project_with_tests"
         case .appWithExecutableNonLocalDependencies:
             return "app_with_executable_non_local_dependencies"
         case .appWithGeneratedSources:

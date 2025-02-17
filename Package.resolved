@@ -1,5 +1,5 @@
 {
-  "originHash" : "2bc099daeca143141ec9aa1fcbab8e2e50f7a09bd13b937dd0eea67ada717d4d",
+  "originHash" : "6325b6a4a73e22fb29731011bc3458c5507f0ac03322e2261472256f61c2f448",
   "pins" : [
     {
       "identity" : "aexml",
@@ -33,8 +33,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/Command.git",
       "state" : {
-        "revision" : "27270402bfb9cd65f6a8b83bdf59941a8c9ae368",
-        "version" : "0.8.0"
+        "revision" : "9d03a95faa94b961edc1cf2c5f4379b0108ee97a",
+        "version" : "0.12.1"
       }
     },
     {
@@ -92,12 +92,21 @@
       }
     },
     {
+      "identity" : "machokit",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/p-x9/MachOKit",
+      "state" : {
+        "revision" : "518e8e1aca7ee64b87b08ecec5f7cad2a63b8efd",
+        "version" : "0.28.0"
+      }
+    },
+    {
       "identity" : "mockable",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/Kolos65/Mockable.git",
       "state" : {
-        "revision" : "a9e5e1d222035567069ed6fff8429c327229b5f6",
-        "version" : "0.0.11"
+        "revision" : "203336d0ccb7ff03a8a03db54a4fa18fc2b0c771",
+        "version" : "0.3.0"
       }
     },
     {
@@ -218,21 +227,21 @@
       }
     },
     {
-      "identity" : "swift-issue-reporting",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/pointfreeco/swift-issue-reporting",
-      "state" : {
-        "revision" : "770f990d3e4eececb57ac04a6076e22f8c97daeb",
-        "version" : "1.4.2"
-      }
-    },
-    {
       "identity" : "swift-log",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-log.git",
       "state" : {
         "revision" : "96a2f8a0fa41e9e09af4585e2724c4e825410b91",
         "version" : "1.6.2"
+      }
+    },
+    {
+      "identity" : "swift-log-file",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/crspybits/swift-log-file",
+      "state" : {
+        "revision" : "aa94b38bf88c7d9cbc87ceafcdffadaffbc2bffa",
+        "version" : "0.1.0"
       }
     },
     {
@@ -276,8 +285,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-service-context",
       "state" : {
-        "revision" : "0c62c5b4601d6c125050b5c3a97f20cce881d32b",
-        "version" : "1.1.0"
+        "revision" : "8946c930cae601452149e45d31d8ddfac973c3c7",
+        "version" : "1.2.0"
       }
     },
     {
@@ -321,8 +330,17 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/cpisciotta/xcbeautify",
       "state" : {
-        "revision" : "6ffe4cd38f6290496317b6740d796231dc0248d9",
-        "version" : "2.13.0"
+        "revision" : "d5a29fcc952f29ac70537a07d2a7181b052aa870",
+        "version" : "2.20.0"
+      }
+    },
+    {
+      "identity" : "xcglogger",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/DaveWoodCom/XCGLogger.git",
+      "state" : {
+        "revision" : "4def3c1c772ca90ad5e7bfc8ac437c3b0b4276cf",
+        "version" : "7.1.5"
       }
     },
     {
@@ -330,8 +348,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/XcodeGraph.git",
       "state" : {
-        "revision" : "c533cf2543dc41428f0118d4f0df5c890307918a",
-        "version" : "1.3.2"
+        "revision" : "decf6cc311e8dd238c87501c369b05827bca6a48",
+        "version" : "1.5.14"
       }
     },
     {
@@ -339,8 +357,17 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/XcodeProj",
       "state" : {
-        "revision" : "6e971133653f069b7699d5fb081e5db1e5f81559",
-        "version" : "8.26.1"
+        "revision" : "6f90427e172da66336739801c84b9cef3e17367b",
+        "version" : "8.26.6"
+      }
+    },
+    {
+      "identity" : "xctest-dynamic-overlay",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/pointfreeco/xctest-dynamic-overlay",
+      "state" : {
+        "revision" : "b444594f79844b0d6d76d70fbfb3f7f71728f938",
+        "version" : "1.5.1"
       }
     },
     {
