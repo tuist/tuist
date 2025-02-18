@@ -61,7 +61,6 @@
 		F854AF232D5D0DAC007DAE31 = {
 			isa = PBXGroup;
 			children = (
-				F854B0402D5E015C007DAE31 /* Packages */,
 				F854AF692D5D10D5007DAE31 /* App.xctestplan */,
 				F854AF2E2D5D0DAC007DAE31 /* App */,
 				F854AF3F2D5D0DAD007DAE31 /* AppTests */,
@@ -77,13 +76,6 @@
 				F854AF3C2D5D0DAD007DAE31 /* AppTests.xctest */,
 			);
 			name = Products;
-			sourceTree = "<group>";
-		};
-		F854B0402D5E015C007DAE31 /* Packages */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			path = Packages;
 			sourceTree = "<group>";
 		};
 		F854B0422D5E08FE007DAE31 /* Frameworks */ = {
