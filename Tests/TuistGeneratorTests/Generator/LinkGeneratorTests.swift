@@ -421,13 +421,25 @@ final class LinkGeneratorTests: XCTestCase {
         // Given
         var dependencies: Set<GraphDependencyReference> = []
         dependencies.insert(GraphDependencyReference.testPackageProduct())
+        dependencies.insert(
+            GraphDependencyReference.testPackageProduct(
+                product: "ProductWithPlatformCondition",
+                condition: .when([.catalyst])
+            )
+        )
+
         let pbxproj = PBXProj()
         let (pbxTarget, target) = createTargets(product: .framework)
         let sourceRootPath = try AbsolutePath(validating: "/")
 
         let productDependency = XCSwiftPackageProductDependency(productName: "Product", isPlugin: false)
-        let buildFile = PBXBuildFile(product: productDependency)
-        pbxproj.add(object: buildFile)
+        pbxproj.add(object: PBXBuildFile(product: productDependency))
+
+        let productDependencyWithPlatformCondition = XCSwiftPackageProductDependency(
+            productName: "ProductWithPlatformCondition",
+            isPlugin: false
+        )
+        pbxproj.add(object: PBXBuildFile(product: productDependencyWithPlatformCondition))
 
         let fileElements = ProjectFileElements()
         let path = try AbsolutePath(validating: "/path/")
@@ -451,10 +463,14 @@ final class LinkGeneratorTests: XCTestCase {
         let copyBuildPhase = try XCTUnwrap(pbxTarget.embedFrameworksBuildPhases().first)
         XCTAssertEqual(copyBuildPhase.name, "Embed Frameworks")
         let buildFiles = try XCTUnwrap(copyBuildPhase.files)
-        XCTAssertEqual(buildFiles.map { $0.product?.productName }, ["Product"])
-        XCTAssertEqual(buildFiles.map { $0.settings as? [String: [String]] }, [
+        XCTAssertEqual(Set(buildFiles.map { $0.product?.productName }), ["Product", "ProductWithPlatformCondition"])
+        XCTAssertEqual(Set(buildFiles.map { $0.settings as? [String: [String]] }), [
             ["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]],
         ])
+        XCTAssertEqual(
+            buildFiles.reduce(into: [String: String]()) { $0[$1.product?.productName] = $1.platformFilter },
+            ["ProductWithPlatformCondition": "maccatalyst"]
+        )
     }
 
     func test_setupRunPathSearchPath() throws {
