@@ -1,7 +1,7 @@
 ---
-title: Logging
+title: 로깅
 titleTemplate: :title · CLI · Tuist
-description: Learn how to enable and configure logging in Tuist.
+description: Tuist의 로깅 활성화와 설정 방법 배우기.
 ---
 
 # Logging {#logging}
