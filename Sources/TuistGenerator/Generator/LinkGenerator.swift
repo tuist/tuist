@@ -239,7 +239,7 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
                 buildFile.applyCondition(condition, applicableTo: target)
                 pbxproj.add(object: buildFile)
                 embedPhase.files?.append(buildFile)
-            case let .packageProduct(product, _):
+            case let .packageProduct(product, condition):
                 guard let productRef = productRefs.first(where: { $0.productName == product }) else {
                     break
                 }
@@ -248,6 +248,7 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
                     product: productRef,
                     settings: ["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]]
                 )
+                buildFile.applyCondition(condition, applicableTo: target)
                 pbxproj.add(object: buildFile)
                 embedPhase.files?.append(buildFile)
             case .library, .bundle, .sdk, .macro:
