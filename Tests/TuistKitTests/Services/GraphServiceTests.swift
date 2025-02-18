@@ -5,36 +5,45 @@ import Mockable
 import ProjectAutomation
 import ServiceContextModule
 import TuistCore
+import TuistCoreTesting
+import TuistLoader
+import TuistLoaderTesting
 import TuistPlugin
 import TuistSupport
+import TuistSupportTesting
 import XcodeGraph
 import XcodeProj
 import XCTest
 
-@testable import TuistCoreTesting
 @testable import TuistKit
-@testable import TuistLoaderTesting
-@testable import TuistSupportTesting
 
 final class GraphServiceTests: TuistUnitTestCase {
-    var manifestGraphLoader: MockManifestGraphLoading!
-    var graphVizMapper: MockGraphToGraphVizMapper!
-    var subject: GraphService!
+    private var manifestGraphLoader: MockManifestGraphLoading!
+    private var manifestLoader: MockManifestLoading!
+    private var graphVizMapper: MockGraphToGraphVizMapper!
+    private var xcodeGraphMapper: MockXcodeGraphMapping!
+    private var subject: GraphService!
 
     override func setUp() {
         super.setUp()
         graphVizMapper = MockGraphToGraphVizMapper()
-        manifestGraphLoader = .init()
+        manifestGraphLoader = MockManifestGraphLoading()
+        manifestLoader = MockManifestLoading()
+        xcodeGraphMapper = MockXcodeGraphMapping()
 
         subject = GraphService(
             graphVizGenerator: graphVizMapper,
-            manifestGraphLoader: manifestGraphLoader
+            manifestGraphLoader: manifestGraphLoader,
+            manifestLoader: manifestLoader,
+            xcodeGraphMapper: xcodeGraphMapper
         )
     }
 
     override func tearDown() {
         graphVizMapper = nil
         manifestGraphLoader = nil
+        manifestLoader = nil
+        xcodeGraphMapper = nil
         subject = nil
         super.tearDown()
     }
@@ -46,8 +55,12 @@ final class GraphServiceTests: TuistUnitTestCase {
             let graphPath = temporaryPath.appending(component: "graph.dot")
             let projectManifestPath = temporaryPath.appending(component: "Project.swift")
 
-            try FileHandler.shared.touch(graphPath)
-            try FileHandler.shared.touch(projectManifestPath)
+            given(manifestLoader)
+                .hasRootManifest(at: .any)
+                .willReturn(true)
+
+            try await fileSystem.touch(graphPath)
+            try await fileSystem.touch(projectManifestPath)
             graphVizMapper.stubMap = Graph()
 
             given(manifestGraphLoader)
@@ -66,7 +79,7 @@ final class GraphServiceTests: TuistUnitTestCase {
                 path: temporaryPath,
                 outputPath: temporaryPath
             )
-            let got = try FileHandler.shared.readTextFile(graphPath)
+            let got = try await fileSystem.readTextFile(at: graphPath)
             let expected = "graph { }"
             // Then
             XCTAssertEqual(got, expected)
@@ -84,8 +97,12 @@ final class GraphServiceTests: TuistUnitTestCase {
             let graphPath = temporaryPath.appending(component: "graph.json")
             let projectManifestPath = temporaryPath.appending(component: "Project.swift")
 
-            try FileHandler.shared.touch(graphPath)
-            try FileHandler.shared.touch(projectManifestPath)
+            given(manifestLoader)
+                .hasRootManifest(at: .any)
+                .willReturn(true)
+
+            try await fileSystem.touch(graphPath)
+            try await fileSystem.touch(projectManifestPath)
 
             given(manifestGraphLoader)
                 .load(path: .any)
@@ -103,7 +120,7 @@ final class GraphServiceTests: TuistUnitTestCase {
                 path: temporaryPath,
                 outputPath: temporaryPath
             )
-            let got = try FileHandler.shared.readTextFile(graphPath)
+            let got = try await fileSystem.readTextFile(at: graphPath)
 
             let result = try JSONDecoder().decode(ProjectAutomation.Graph.self, from: got.data(using: .utf8)!)
             // Then
@@ -125,9 +142,53 @@ final class GraphServiceTests: TuistUnitTestCase {
             try await fileSystem.touch(graphPath)
             try await fileSystem.touch(projectManifestPath)
 
+            given(manifestLoader)
+                .hasRootManifest(at: .any)
+                .willReturn(true)
+
             given(manifestGraphLoader)
                 .load(path: .any)
                 .willReturn((.test(), [], MapperEnvironment(), []))
+
+            // When
+            try await subject.run(
+                format: .json,
+                layoutAlgorithm: .dot,
+                skipTestTargets: false,
+                skipExternalDependencies: false,
+                open: false,
+                platformToFilter: nil,
+                targetsToFilter: [],
+                path: temporaryPath,
+                outputPath: temporaryPath
+            )
+            let got = try await fileSystem.readTextFile(at: graphPath)
+
+            let result = try JSONDecoder().decode(XcodeGraph.Graph.self, from: got.data(using: .utf8)!)
+            // Then
+            XCTAssertEqual(result, .test())
+            XCTAssertPrinterOutputContains("""
+            Deleting existing graph at \(graphPath.pathString)
+            Graph exported to \(graphPath.pathString)
+            """)
+        }
+    }
+
+    func test_run_when_json_and_has_no_root_manifest() async throws {
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            let temporaryPath = try temporaryPath()
+            let graphPath = temporaryPath.appending(component: "graph.json")
+
+            try await fileSystem.touch(graphPath)
+
+            given(manifestLoader)
+                .hasRootManifest(at: .any)
+                .willReturn(false)
+
+            given(xcodeGraphMapper)
+                .map(at: .any)
+                .willReturn(.test())
 
             // When
             try await subject.run(
