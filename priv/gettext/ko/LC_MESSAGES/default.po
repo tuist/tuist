@@ -10,7 +10,7 @@ msgstr ""
 "Project-Id-Version: tuist-website\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Language-Team: Korean\n"
-"PO-Revision-Date: 2025-02-16 16:05\n"
+"PO-Revision-Date: 2025-02-18 15:20\n"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:390
 #, elixir-autogen, elixir-format
@@ -185,37 +185,37 @@ msgstr "Marek과 Pedro가 대한민국 서울에서 찍은 셀카"
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:32
 #, elixir-autogen, elixir-format
 msgid "About"
-msgstr ""
+msgstr "소개"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/about.html.heex:1
 #, elixir-autogen, elixir-format
 msgid "About Tuist"
-msgstr ""
+msgstr "Tuist 소개"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/about.html.heex:5
 #, elixir-autogen, elixir-format
 msgid "About us"
-msgstr ""
+msgstr "회사 소개"
 
 #: lib/tuist/accounts/user_notifier.ex:180
 #, elixir-autogen, elixir-format
 msgid "Accept invitation"
-msgstr ""
+msgstr "초대 수락하기"
 
 #: lib/tuist_web/live/user_registration_live.ex:138
 #, elixir-autogen, elixir-format
 msgid "Account name is already taken"
-msgstr ""
+msgstr "이미 사용 중인 계정 이름 입니다"
 
 #: lib/tuist_web/live/account_billing_live.html.heex:216
 #, elixir-autogen, elixir-format
 msgid "Account plans"
-msgstr ""
+msgstr "계정 플랜"
 
 #: lib/tuist_web/live/account_billing_live.html.heex:179
 #, elixir-autogen, elixir-format
 msgid "Add a payment method to continue using Tuist"
-msgstr ""
+msgstr "Tuist를 사용하시려면 지불 방식을 등록 해주세요"
 
 #: lib/tuist/billing.ex:34
 #, elixir-autogen, elixir-format
@@ -273,7 +273,7 @@ msgstr ""
 #: lib/tuist_web/live/project_dashboard_live.html.heex:129
 #, elixir-autogen, elixir-format
 msgid "Average cache"
-msgstr ""
+msgstr "평균 캐시"
 
 #: lib/tuist_web/live/project_dashboard_live.html.heex:155
 #, elixir-autogen, elixir-format
@@ -290,7 +290,7 @@ msgstr ""
 #: lib/tuist_web/live/user_reset_password_live.ex:38
 #, elixir-autogen, elixir-format
 msgid "Back to log in"
-msgstr ""
+msgstr "로그인으로 돌아가기"
 
 #: lib/tuist_web/components/app_layout_components.ex:50
 #: lib/tuist_web/live/account_billing_live.ex:64
@@ -352,7 +352,7 @@ msgstr ""
 #: lib/tuist_web/live/previews_live.html.heex:22
 #, elixir-autogen, elixir-format
 msgid "Branch"
-msgstr ""
+msgstr "브랜치"
 
 #: lib/tuist_web/live/project_dashboard_live.html.heex:197
 #, elixir-autogen, elixir-format
@@ -450,7 +450,7 @@ msgstr ""
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:127
 #, elixir-autogen, elixir-format
 msgid "Close menu"
-msgstr ""
+msgstr "메뉴 닫기"
 
 #: lib/tuist_web/live/project_runs_live.html.heex:13
 #: lib/tuist_web/live/project_test_case_detail_live.html.heex:24
@@ -484,42 +484,42 @@ msgstr ""
 #: lib/tuist_web/live/account_billing_live.ex:205
 #, elixir-autogen, elixir-format
 msgid "Confirm"
-msgstr ""
+msgstr "확인"
 
 #: lib/tuist_web/live/user_confirmation_live.ex:10
 #, elixir-autogen, elixir-format
 msgid "Confirm account"
-msgstr ""
+msgstr "계정 확인"
 
 #: lib/tuist_web/live/account_billing_live.ex:176
 #, elixir-autogen, elixir-format
 msgid "Confirm downgrade to the Air plan"
-msgstr ""
+msgstr "에어 플랜으로 다운그래이드 확인"
 
 #: lib/tuist_web/live/user_confirmation_live.ex:23
 #, elixir-autogen, elixir-format
 msgid "Confirm my account"
-msgstr ""
+msgstr "계정 확인"
 
 #: lib/tuist_web/live/user_reset_password_live.ex:26
 #, elixir-autogen, elixir-format
 msgid "Confirm new password"
-msgstr ""
+msgstr "새로운 비밀번호 확인"
 
 #: lib/tuist_web/live/account_billing_live.ex:178
 #, elixir-autogen, elixir-format
 msgid "Confirm upgrade to the Pro plan"
-msgstr ""
+msgstr "프로 플랜으로 업그레이드 확인"
 
 #: lib/tuist_web/live/user_confirmation_live.ex:11
 #, elixir-autogen, elixir-format
 msgid "Confirm your account to access Tuist."
-msgstr ""
+msgstr "Tuist에 접근하시려면 계정을 확인해주세요."
 
 #: lib/tuist/accounts/user_notifier.ex:113
 #, elixir-autogen, elixir-format
 msgid "Confirm your email"
-msgstr ""
+msgstr "이메일 확인"
 
 #: lib/tuist/accounts/user_notifier.ex:104
 #, elixir-autogen, elixir-format
@@ -529,7 +529,7 @@ msgstr ""
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:97
 #, elixir-autogen, elixir-format
 msgid "Contact"
-msgstr ""
+msgstr "연락처"
 
 #: lib/tuist/billing.ex:71
 #: lib/tuist_web/live/account_billing_live.html.heex:270
@@ -679,7 +679,7 @@ msgstr ""
 #: lib/tuist_web/live/preview_live.html.heex:21
 #, elixir-autogen, elixir-format
 msgid "Download"
-msgstr ""
+msgstr "다운로드"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/about.html.heex:249
 #, elixir-autogen, elixir-format
@@ -712,7 +712,7 @@ msgstr ""
 #: lib/tuist_web/live/user_registration_live.ex:41
 #, elixir-autogen, elixir-format
 msgid "Email"
-msgstr ""
+msgstr "이메일"
 
 #: lib/tuist_web/live/user_registration_live.ex:146
 #, elixir-autogen, elixir-format
@@ -745,13 +745,13 @@ msgstr "비밀번호를 입력해주세요"
 #: lib/tuist/billing.ex:67
 #, elixir-autogen, elixir-format
 msgid "Enterprise"
-msgstr ""
+msgstr "기업"
 
 #: lib/tuist_web/components/app_components.ex:368
 #: lib/tuist_web/controllers/error_html.ex:102
 #, elixir-autogen, elixir-format
 msgid "Error"
-msgstr ""
+msgstr "에러"
 
 #: lib/tuist_web/marketing/live/marketing_blog_live.html.heex:42
 #, elixir-autogen, elixir-format
@@ -771,12 +771,12 @@ msgstr "Tuist를 완벽하게 마스터할 수 있는 가이드인 documentation
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:218
 #, elixir-autogen, elixir-format
 msgid "FAQ"
-msgstr ""
+msgstr "자주하는 질문"
 
 #: lib/tuist_web/live/project_run_detail_live.html.heex:31
 #, elixir-autogen, elixir-format
 msgid "Failed"
-msgstr ""
+msgstr "실패"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:398
 #, elixir-autogen, elixir-format
@@ -786,7 +786,7 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:29
 #, elixir-autogen, elixir-format
 msgid "Feature"
-msgstr ""
+msgstr "기능"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:173
 #, elixir-autogen, elixir-format
@@ -796,7 +796,7 @@ msgstr ""
 #: lib/tuist_web/live/project_dashboard_live.html.heex:19
 #, elixir-autogen, elixir-format
 msgid "Filter"
-msgstr ""
+msgstr "필터"
 
 #: lib/tuist_web/live/project_run_detail_live.html.heex:101
 #, elixir-autogen, elixir-format
@@ -867,7 +867,7 @@ msgstr "신용 카드 없이 시작하기 - 약정 없이 무료로 사용해 �
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:352
 #, elixir-autogen, elixir-format
 msgid "GitHub"
-msgstr ""
+msgstr "깃허브"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:326
 #, elixir-autogen, elixir-format
@@ -930,12 +930,12 @@ msgstr ""
 #: lib/tuist_web/components/app_components.ex:367
 #, elixir-autogen, elixir-format
 msgid "Info"
-msgstr ""
+msgstr "정보"
 
 #: lib/tuist_web/live/preview_live.html.heex:32
 #, elixir-autogen, elixir-format
 msgid "Install"
-msgstr ""
+msgstr "설치"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/blog_post.html.heex:53
 #, elixir-autogen, elixir-format
