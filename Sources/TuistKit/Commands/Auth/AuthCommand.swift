@@ -10,8 +10,7 @@ struct AuthCommand: ParsableCommand {
                 LoginCommand.self,
                 LogoutCommand.self,
                 WhoamiCommand.self,
-            ],
-            defaultSubcommand: LoginCommand.self
+            ]
         )
     }
 }

@@ -42,7 +42,7 @@ If you push your changes upstream to a remote repository, other developers can c
 
 ```bash
 tuist install
-tuist auth
+tuist auth login
 tuist generate
 ```
 
