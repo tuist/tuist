@@ -1735,6 +1735,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "GetToSet",
+      "name": "Ethan Wong",
+      "avatar_url": "https://avatars.githubusercontent.com/u/8158163?v=4",
+      "profile": "https://github.com/GetToSet",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,
