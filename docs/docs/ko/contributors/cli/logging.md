@@ -1,5 +1,5 @@
 ---
-title: Logging
+title: 로깅
 titleTemplate: :title · CLI · Contributors · Tuist
 description: 코드 리뷰를 통해 Tuist에 어떻게 기여하는지 알아봅니다.
 ---
