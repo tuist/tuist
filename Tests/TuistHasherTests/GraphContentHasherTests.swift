@@ -11,6 +11,7 @@ import XcodeGraph
 
 struct GraphContentHasherTests {
     private let fileSystem = FileSystem()
+    private let rootDirectoryLocator = MockRootDirectoryLocating()
     private var subject: GraphContentHasher!
 
     init() {
@@ -103,8 +104,64 @@ struct GraphContentHasherTests {
     }
 
     @Test
+    func test_contentHashes_with_lock_file_in_root() async throws {
+        try await fileSystem.runInTemporaryDirectory(prefix: "GraphContentHasherTests") { temporaryDirectory in
+            // Given
+            let contentHasher = MockContentHashing()
+            given(contentHasher)
+                .hash(path: .any)
+                .willProduce { $0.pathString }
+            given(rootDirectoryLocator)
+                .locate(from: .any)
+                .willReturn(temporaryDirectory)
+            let lockFilePath = temporaryDirectory.appending(component: ".package.resolved")
+            try await fileSystem.touch(lockFilePath)
+            let targetContentHasher = MockTargetContentHashing()
+            given(targetContentHasher)
+                .contentHash(
+                    for: .any,
+                    hashedTargets: .any,
+                    hashedPaths: .any,
+                    additionalStrings: .any
+                )
+                .willProduce { graphTarget, _, _, additionalStrings in
+                    TargetContentHash(
+                        hash: graphTarget.target.name + "-" + additionalStrings.joined(separator: "-"),
+                        hashedPaths: [:]
+                    )
+                }
+            let subject = GraphContentHasher(
+                contentHasher: contentHasher,
+                targetContentHasher: targetContentHasher,
+                rootDirectoryLocator: rootDirectoryLocator
+            )
+
+            // When
+            let got = try await subject.contentHashes(
+                for: .test(
+                    path: temporaryDirectory,
+                    projects: [
+                        temporaryDirectory: .test(
+                            targets: [
+                                .test(
+                                    name: "TargetA"
+                                ),
+                            ]
+                        ),
+                    ]
+                ),
+                include: { _ in true },
+                additionalStrings: []
+            )
+
+            // Then
+            #expect(Array(got.values) == ["TargetA-\(lockFilePath)"])
+        }
+    }
+
+    @Test
     func test_contentHashes_with_lock_file_in_xcode_project() async throws {
-        try await fileSystem.runInTemporaryDirectory(prefix: "GraphContentHasherTests") { path in
+        try await fileSystem.runInTemporaryDirectory(prefix: "GraphContentHasherTests") { temporaryDirectory in
             // Given
             let contentHasher = MockContentHashing()
             given(contentHasher)
@@ -124,11 +181,15 @@ struct GraphContentHasherTests {
                         hashedPaths: [:]
                     )
                 }
+            given(rootDirectoryLocator)
+                .locate(from: .any)
+                .willReturn(nil)
             let subject = GraphContentHasher(
                 contentHasher: contentHasher,
-                targetContentHasher: targetContentHasher
+                targetContentHasher: targetContentHasher,
+                rootDirectoryLocator: rootDirectoryLocator
             )
-            let lockFilePath = path.appending(
+            let lockFilePath = temporaryDirectory.appending(
                 components: "App.xcodeproj",
                 "project.xcworkspace",
                 "xcshareddata",
@@ -141,9 +202,9 @@ struct GraphContentHasherTests {
             // When
             let got = try await subject.contentHashes(
                 for: .test(
-                    path: path,
+                    path: temporaryDirectory,
                     projects: [
-                        path: .test(
+                        temporaryDirectory: .test(
                             targets: [
                                 .test(
                                     name: "TargetA"
@@ -163,7 +224,7 @@ struct GraphContentHasherTests {
 
     @Test
     func test_contentHashes_with_lock_file_in_xcode_workspace() async throws {
-        try await fileSystem.runInTemporaryDirectory(prefix: "GraphContentHasherTests") { path in
+        try await fileSystem.runInTemporaryDirectory(prefix: "GraphContentHasherTests") { temporaryDirectory in
             // Given
             let contentHasher = MockContentHashing()
             given(contentHasher)
@@ -183,20 +244,29 @@ struct GraphContentHasherTests {
                         hashedPaths: [:]
                     )
                 }
+            given(rootDirectoryLocator)
+                .locate(from: .any)
+                .willReturn(nil)
             let subject = GraphContentHasher(
                 contentHasher: contentHasher,
-                targetContentHasher: targetContentHasher
+                targetContentHasher: targetContentHasher,
+                rootDirectoryLocator: rootDirectoryLocator
             )
-            let lockFilePath = path.appending(components: "App.xcworkspace", "xcshareddata", "swiftpm", "Package.resolved")
+            let lockFilePath = temporaryDirectory.appending(
+                components: "App.xcworkspace",
+                "xcshareddata",
+                "swiftpm",
+                "Package.resolved"
+            )
             try await fileSystem.makeDirectory(at: lockFilePath.parentDirectory)
             try await fileSystem.touch(lockFilePath)
 
             // When
             let got = try await subject.contentHashes(
                 for: .test(
-                    path: path,
+                    path: temporaryDirectory,
                     projects: [
-                        path: .test(
+                        temporaryDirectory: .test(
                             targets: [
                                 .test(
                                     name: "TargetA"
