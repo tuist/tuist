@@ -85,7 +85,7 @@
         "cli": {
           "items": {
             "logging": {
-              "text": "Logging"
+              "text": "로깅"
             }
           }
         },
@@ -132,7 +132,7 @@
           "text": "CLI",
           "items": {
             "logging": {
-              "text": "Logging"
+              "text": "로깅"
             }
           }
         }
