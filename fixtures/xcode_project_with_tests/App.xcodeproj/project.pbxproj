@@ -62,7 +62,7 @@
 		F806E0D42D54DD3C0058A673 /* AppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AppTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		F806E1012D54DD7B0058A673 /* AppFramework.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = AppFramework.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		F806E10A2D54DD7B0058A673 /* AppFrameworkTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AppFrameworkTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		F806E1A82D563A0E0058A673 /* AppFramework.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; name = AppFramework.xctestplan; path = ../AppFramework.xctestplan; sourceTree = "<group>"; };
+		F87572822D650055001FF956 /* xcode_project_with_tests */ = {isa = PBXFileReference; lastKnownFileType = folder; name = xcode_project_with_tests; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -125,7 +125,7 @@
 		F806E0BB2D54DD3B0058A673 = {
 			isa = PBXGroup;
 			children = (
-				F806E1A82D563A0E0058A673 /* AppFramework.xctestplan */,
+				F87572822D650055001FF956 /* xcode_project_with_tests */,
 				F806E0C62D54DD3B0058A673 /* App */,
 				F806E0D72D54DD3C0058A673 /* AppTests */,
 				F806E1022D54DD7B0058A673 /* AppFramework */,
