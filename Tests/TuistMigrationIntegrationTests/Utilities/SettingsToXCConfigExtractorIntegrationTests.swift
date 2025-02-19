@@ -53,7 +53,13 @@ final class SettingsToXCConfigExtractorIntegrationTests: TuistTestCase {
             """
             let content = try FileHandler.shared.readTextFile(xcconfigPath)
             XCTAssertTrue(content.contains(expected))
-            XCTAssertPrinterOutputContains("Build settings successfully extracted into \(xcconfigPath.pathString)")
+            
+            let output = ServiceContext.current?.recordedUI()
+            let expectedOutput = """
+            stdout: ▌ ✔ Success
+            stdout: ▌ Build settings successfully extracted into \(xcconfigPath.pathString)
+            """
+            XCTAssertEqual(output, expectedOutput)
         }
     }
 
@@ -137,7 +143,13 @@ final class SettingsToXCConfigExtractorIntegrationTests: TuistTestCase {
             """
             let content = try FileHandler.shared.readTextFile(xcconfigPath)
             XCTAssertTrue(content.contains(expected))
-            XCTAssertPrinterOutputContains("Build settings successfully extracted into \(xcconfigPath.pathString)")
+            
+            let output = ServiceContext.current?.recordedUI()
+            let expectedOutput = """
+            stdout: ▌ ✔ Success
+            stdout: ▌ Build settings successfully extracted into \(xcconfigPath.pathString)
+            """
+            XCTAssertEqual(output, expectedOutput)
         }
     }
 
