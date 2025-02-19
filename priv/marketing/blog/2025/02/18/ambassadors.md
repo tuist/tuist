@@ -34,6 +34,10 @@ By bridging these domains, Andy’s work not only advances our mission to meet d
 
 Tuist has gained significant popularity in South Korea, in large part thanks to dedicated contributors like [Loyle](https://github.com/sanghyeok-kim). He not only delivers exceptional contributions but also plays a crucial advocacy role, spreading the word about Tuist within the Korean developer community.
 
+### Anıl Taşkıran
+
+[Anıl](https://www.linkedin.com/in/aniltaskiran/) has been a long-time supporter of Tuist, especially in the Turkish community. He works at Trendyol, one of the largest e-commerce companies in Turkey, where he has been instrumental in introducing Tuist to his colleagues. Trendyol has been using Tuist for multiple years now and has been [vocal about its benefits](https://tuist.dev/blog/2024/12/16/trendyol).
+
 ## Closing Words
 
 I couldn't be more proud of our ambassadors and the impact they have on the Tuist community. Over the coming months, we will continue working on new community initiatives to foster collaboration and innovation—key elements in building the most useful productivity tool for app developers.
