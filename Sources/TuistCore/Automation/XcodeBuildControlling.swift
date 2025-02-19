@@ -1,5 +1,6 @@
 import Mockable
 import Path
+import XcodeGraph
 
 public enum XcodeBuildDestination: Equatable {
     case device(String)
@@ -100,4 +101,7 @@ public protocol XcodeBuildControlling {
     /// Runs `xcodebuild` with passed `arguments` and formats the output
     /// - arguments: Arguments to pass to `xcodebuild`
     func run(arguments: [String]) async throws
+
+    /// - Returns: `xcodebuild` version. This version is aligned with the Xcode version.
+    func version() async throws -> Version?
 }

@@ -42,6 +42,12 @@ We are the only **integrated extension of Apple's native toolchain to build bett
         details="Cut down the size of your resolved packages and the resolution time. From minutes to seconds."
         linkText="Speed up package resolution"
         link="/guides/share/previews"/>
+    <HomeCard
+        icon="📊"
+        title="Insights"
+        details="Get project insights to maintain a productive developer environment."
+        linkText="Track project health"
+        link="/guides/develop/insights"/>
 </HomeCards>
 
 ## Installation

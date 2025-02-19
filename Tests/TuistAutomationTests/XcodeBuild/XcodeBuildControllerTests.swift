@@ -1,3 +1,4 @@
+import Command
 import Foundation
 import TSCBasic
 import TuistCore
@@ -16,16 +17,23 @@ final class MockFormatter: Formatting {
 final class XcodeBuildControllerTests: TuistUnitTestCase {
     var subject: XcodeBuildController!
     var formatter: Formatting!
+    var commandRunner: MockCommandRunning!
 
     override func setUp() {
         super.setUp()
         formatter = MockFormatter()
-        subject = XcodeBuildController(formatter: formatter, environment: environment)
+        commandRunner = MockCommandRunning()
+        subject = XcodeBuildController(
+            formatter: formatter,
+            environment: environment,
+            commandRunner: commandRunner
+        )
     }
 
     override func tearDown() {
         subject = nil
         formatter = nil
+        commandRunner = nil
         super.tearDown()
     }
 
