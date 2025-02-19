@@ -120,7 +120,11 @@ final class LoginServiceTests: TuistUnitTestCase {
             )
 
             // Then
-            XCTAssertStandardOutput(pattern: "Successfully logged in.")
+            let output = ServiceContext.current?.recordedUI()
+            debugPrint("output", output)
+            let expected = """
+            """
+            XCTAssertEqual(output, expected)
         }
     }
 

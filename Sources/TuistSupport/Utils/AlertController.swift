@@ -1,6 +1,7 @@
 import Foundation
 import Mockable
 import Noora
+import ServiceContextModule
 
 public enum Alert {
     case success(SuccessAlert)
@@ -25,5 +26,16 @@ public final class AlertController: @unchecked Sendable {
         var alerts = alerts
         alerts.insert(alert, at: alerts.endIndex)
         self.alerts = alerts
+    }
+
+    public func print() {
+        for alert in alerts {
+            switch alert {
+            case let .success(successAlert):
+                ServiceContext.current?.ui?.success(successAlert)
+            case let .warning(warningAlert):
+                ServiceContext.current?.ui?.warning(warningAlert)
+            }
+        }
     }
 }

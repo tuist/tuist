@@ -130,11 +130,9 @@ public struct TuistCommand: AsyncParsableCommand {
             try await executeCommand()
             outputCompletion(logFilePath: logFilePath, shouldOutputLogFilePath: logFilePathDisplayStrategy == .always)
         } catch let error as FatalError {
-            errorHandler.fatal(error: error)
             self.outputCompletion(logFilePath: logFilePath, shouldOutputLogFilePath: true)
             _exit(exitCode(for: error).rawValue)
         } catch let error as ClientError where error.underlyingError is ServerClientAuthenticationError {
-            // swiftlint:disable:next force_cast
             ServiceContext.current?.ui?
                 // swiftlint:disable:next force_cast
                 .error(.alert("\((error.underlyingError as! ServerClientAuthenticationError).description)"))

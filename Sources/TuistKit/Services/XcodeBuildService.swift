@@ -54,7 +54,7 @@ struct XcodeBuildService {
         fileSystem: FileSysteming = FileSystem(),
         xcodeGraphMapper: XcodeGraphMapping = XcodeGraphMapper(),
         xcodeBuildController: XcodeBuildControlling = XcodeBuildController(),
-        configLoader: ConfigLoading = ConfigLoader(warningController: WarningController.shared),
+        configLoader: ConfigLoading = ConfigLoader(),
         cacheDirectoriesProvider: CacheDirectoriesProviding = CacheDirectoriesProvider(),
         uniqueIDGenerator: UniqueIDGenerating = UniqueIDGenerator(),
         cacheStorageFactory: CacheStorageFactorying,

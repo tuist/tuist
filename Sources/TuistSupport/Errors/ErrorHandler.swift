@@ -1,6 +1,6 @@
 import Foundation
-import ServiceContextModule
 import Noora
+import ServiceContextModule
 
 /// Objects that conform this protocol provide a way of handling fatal errors
 /// that are thrown during the execution of an app.
@@ -27,8 +27,11 @@ public final class ErrorHandler: ErrorHandling {
         if !error.description.isEmpty, !isSilent {
             ServiceContext.current?.ui?.error(
                 .alert(
-                "\(error.description)",
-                nextSteps: ["Consider creating an issue using the following link: https://github.com/tuist/tuist/issues/new/choose"])
+                    "\(error.description)",
+                    nextSteps: [
+                        "Consider creating an issue using the following link: https://github.com/tuist/tuist/issues/new/choose",
+                    ]
+                )
             )
         } else if error.type == .bugSilent {
             let message = """

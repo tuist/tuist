@@ -1,7 +1,7 @@
 import Foundation
+import Noora
 import ServiceContextModule
 import XCTest
-import Noora
 @testable import TuistSupport
 @testable import TuistSupportTesting
 
@@ -28,9 +28,9 @@ final class ErrorHandlerTests: TuistUnitTestCase {
         try await ServiceContext.withTestingDependencies {
             let error = TestError(type: .abort)
             subject.fatal(error: error)
-            
+
             let got = ServiceContext.current?.recordedUI()
-            
+
             let expected = """
             stderr: ▌ ✖ Error 
             stderr: ▌ Error 
