@@ -220,6 +220,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
                     "SWIFT_INCLUDE_PATHS": .array([
                         "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/pm/ManifestAPI",
                     ]),
+                    "SWIFT_VERSION": "5.0.0",
                 ],
                 uniquingKeysWith: {
                     switch ($0, $1) {
