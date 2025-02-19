@@ -66,7 +66,7 @@ public final class CreateCommandEventService: CreateCommandEventServicing {
                     .init(
                         client_id: commandEvent.clientId,
                         command_arguments: commandEvent.commandArguments,
-                        duration: Double(commandEvent.durationInMs),
+                        duration: commandEvent.durationInMs,
                         error_message: errorMessage,
                         git_branch: commandEvent.gitBranch,
                         git_commit_sha: commandEvent.gitCommitSHA,

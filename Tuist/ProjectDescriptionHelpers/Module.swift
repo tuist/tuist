@@ -286,6 +286,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "FileLogging"),
                     .external(name: "LoggingOSLog"),
                     .external(name: "Noora"),
+                    .external(name: "XCLogParser"),
                 ]
             case .kit:
                 [

@@ -393,4 +393,7 @@ private final class MockMachineEnvironment: MachineEnvironmentRetrieving {
     var swiftVersion: String { "5.1" }
     var hardwareName: String { "arm64" }
     var isCI: Bool { false }
+    func modelIdentifier() -> String? {
+        nil
+    }
 }
