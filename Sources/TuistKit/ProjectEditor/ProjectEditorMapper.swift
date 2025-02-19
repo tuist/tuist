@@ -251,7 +251,9 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             var packagesSettings = targetBaseSettings(
                 projectFrameworkPath: projectDescriptionPath,
                 pluginHelperLibraryPaths: pluginProjectDescriptionHelpersModule.map(\.path),
-                swiftVersion: swiftVersion
+                // We have no use of strict concurrency in the Packages targets, so we're opting into the Swift 5 language mode.
+                // Otherwise, `PackageDescription` must be imported with the `@preconcurrency` modifier
+                swiftVersion: Version(5, 0, 0).description
             )
             packagesSettings.merge(
                 [
