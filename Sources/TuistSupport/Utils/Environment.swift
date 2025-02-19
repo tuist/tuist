@@ -36,6 +36,10 @@ public protocol Environmenting: AnyObject, Sendable {
 
     /// Returns true if the environment is a GitHub Actions environment
     var isGitHubActions: Bool { get }
+    
+    var workspacePath: AbsolutePath? { get }
+    
+    var schemeName: String? { get }
 }
 
 /// Local environment controller.
@@ -186,5 +190,17 @@ public final class Environment: Environmenting {
             allowedVariableKeys.contains($0.key)
         }
         return tuistVariables.merging(allowedVariables, uniquingKeysWith: { $1 })
+    }
+    
+    public var workspacePath: AbsolutePath? {
+        if let pathString = ProcessInfo.processInfo.environment["WORKSPACE_PATH"] {
+            return try? AbsolutePath(validating: pathString)
+        } else {
+           return nil
+        }
+    }
+    
+    public var schemeName: String? {
+        ProcessInfo.processInfo.environment["SCHEME_Name"]
     }
 }
