@@ -21,8 +21,8 @@
       },
       "modal": {
         "search-box": {
-          "reset-button-title": "검색어 초기화",
-          "reset-button-aria-label": "검색어 초기화",
+          "reset-button-title": "쿼리 초기화",
+          "reset-button-aria-label": "쿼리 초기화",
           "cancel-button-text": "취소",
           "cancel-button-aria-label": "취소"
         },
@@ -320,7 +320,7 @@
                   "text": "Selective testing"
                 },
                 "xcodebuild": {
-                  "text": "xcodebuild"
+                  "text": "xcode 빌드"
                 },
                 "generated-project": {
                   "text": "Generated project"
