@@ -1,6 +1,6 @@
 ---
 title: "Trendyol and Tuist: Engineering Apps at Scale"
-category: "interviews"
+category: "community"
 tags: ["Trendyol", "Apps at Scale", "VIPER", "Tuist", "Open Source", "GitLab", "Swift", "SwiftUI"]
 type: interview
 excerpt: "Dive into our exclusive chat with Trendyol, Turkey's e-commerce giant. Explore how they leverage Tuist for expansive iOS development, unravel their tools, team dynamics, and the secrets to managing tech at scale. A must-read for all developers"

@@ -1,6 +1,6 @@
 ---
 title: "Glovo’s Large-Scale App Development: An In-Depth Look"
-category: "interviews"
+category: "community"
 tags: ['Glovo', 'Development Tools', 'Modular Architecture', 'Team structure', 'Dependency Injection']
 type: interview
 excerpt: "Glovo's app development focuses on modular architecture, efficient processes, and a robust team to ensure a top-tier digital experience."

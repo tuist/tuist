@@ -1,6 +1,6 @@
 ---
 title: "Interview with George Tsifrikas - What led us to modularize Workable's project was high build times"
-category: "interviews"
+category: "community"
 tags: [Tuist, Workable]
 excerpt: 'In this interview of apps at scale we interview George Tsifrikas, iOS team lead at Workable. He shares his experience growing their Xcode project into a modular app, how they use reactive programming extensively throughout the app, and the testing strategies that they follow to ship new features with confidence.'
 interviewee_name: 'George Tsifrikas'

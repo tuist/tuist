@@ -1,6 +1,6 @@
 ---
 title: 'Interview with Angry Nerds - Project description helpers are a game changer for modular apps'
-category: "interviews"
+category: "community"
 tags: [Tuist, Angry Nerds, Swift, XcodeProj]
 excerpt: 'In this blog post we interview Marcel from Angry Nerds, a custom software development company based in Wrocław, Poland. Marcel talks about a wide range of topics which includes their workflows, preferred code patterns and architecture, and their testing strategy.'
 interviewee_name: 'Angry Nerds'

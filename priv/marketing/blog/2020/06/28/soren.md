@@ -1,6 +1,6 @@
 ---
 title: 'Interview with Søren Gregersen - Anyone in the team can create and maintain Xcode projects easily'
-category: "interviews"
+category: "community"
 tags:
   [
     Tuist,

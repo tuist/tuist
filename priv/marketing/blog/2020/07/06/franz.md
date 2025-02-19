@@ -1,6 +1,6 @@
 ---
 title: 'Interview with Franz Busch - We are now using Combine as our Reactive framework and it makes development so much better'
-category: "interviews"
+category: "community"
 tags:
   [
     Tuist,

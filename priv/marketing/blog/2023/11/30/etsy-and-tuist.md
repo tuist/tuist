@@ -1,6 +1,6 @@
 ---
 title: "Etsy's Journey with Tuist: A Deep Dive into Modularity and Rapid Iteration"
-category: "interviews"
+category: "community"
 tags: ["Etsy", "SwiftUI", "UIKit", "Modularity", "VIPER"]
 type: interview
 excerpt: "Etsy evolves its decade-long monolithic iOS app with Tuist, paving the way for modular development. With nearly 50 iOS engineers, they leverage Tuist for streamlined module creation and emphasize a unified approach to architecture. Transitioning to SwiftUI and adopting Preview Driven Development, Etsy champions rapid iteration, testability, and consistent quality. Their tech journey reflects innovation at its best. "

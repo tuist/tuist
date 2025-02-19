@@ -168,8 +168,8 @@ reset_dopdowns_state_js =
           },
           %{title: gettext("Changelog"), href: ~p"/changelog"},
           %{
-            title: gettext("Community"),
-            href: Tuist.Environment.get_url(:community)
+            title: gettext("Forum"),
+            href: Tuist.Environment.get_url(:forum)
           },
           %{
             title: gettext("Slack"),
@@ -316,7 +316,7 @@ reset_dopdowns_state_js =
 
     <.link
       class="marketing__header__bar__developers__phase"
-      href={Tuist.Environment.get_url(:community)}
+      href={Tuist.Environment.get_url(:forum)}
       target="_blank"
     >
       <h2 class="marketing__header__bar__developers__phase__title">

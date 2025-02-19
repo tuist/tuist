@@ -1,6 +1,6 @@
 ---
 title: "Interview with Donal O'Brien - We measure developer build times so that we can measure improvements and regressions"
-category: "interviews"
+category: "community"
 tags:
   [Tuist, donal, soundcloud, app development at scale, xcodeproj, xcode, swift]
 type: interview

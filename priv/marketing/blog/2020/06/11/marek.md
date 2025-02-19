@@ -1,7 +1,7 @@
 ---
 title: 'Interview with Marek Fořt - The feature that I enjoy the most about Tuist is the clarity of manifest files'
 type: interview
-category: "interviews"
+category: "community"
 tags: [Tuist, marek, app development at scale, xcodeproj, xcode, swift]
 excerpt: In this interview, Marek shares his experience at AckeeCZ adopting the Microfeatures architecture and how they use Tuist to codify the structure of their projects. He also talks about his stance regarding the usage of third-party dependencies, as how they approach testing to deliver code fast and with confidence.
 interviewee_name: Marek Fořt

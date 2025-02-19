@@ -47,9 +47,9 @@ defmodule Tuist.Marketing.Newsletter.IssueParser do
                        <footer>
                        <h2>Enjoyed it? Share it</h2>
 
-                       <p>Swift Stories is a newsletter brought to you by the people behind Tuist. We love cross-polinating ideas from and to the Swift ecosystem and building tools that make developers' lives easier. If you want to share ideas for future issues, you can do so in our <a href="#{Tuist.Environment.get_url(:community)}">community forum</a>. If you like this newsletter, you can support us by sharing it with your friends and colleagues.</p>
+                       <p>Swift Stories is a newsletter brought to you by the people behind Tuist. We love cross-polinating ideas from and to the Swift ecosystem and building tools that make developers' lives easier. If you want to share ideas for future issues, you can do so in our <a href="#{Tuist.Environment.get_url(:forum)}">community forum</a>. If you like this newsletter, you can support us by sharing it with your friends and colleagues.</p>
 
-                       <p>Stay in touch: <a href="#{Tuist.Environment.get_url(:community)}">Community</a>, <a href="#{Tuist.Environment.get_url(:mastodon)}">Mastodon</a>, <a href="#{Tuist.Environment.get_url(:github)}">GitHub</a>, and <a href="#{Tuist.Environment.get_url(:slack)}">Slack</a></p>
+                       <p>Stay in touch: <a href="#{Tuist.Environment.get_url(:forum)}">Community</a>, <a href="#{Tuist.Environment.get_url(:mastodon)}">Mastodon</a>, <a href="#{Tuist.Environment.get_url(:github)}">GitHub</a>, and <a href="#{Tuist.Environment.get_url(:slack)}">Slack</a></p>
 
                        <p><a href="#{Tuist.Environment.app_url(path: "/newsletter")}">Subscribe to newsletter</a></p>
 

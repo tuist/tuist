@@ -1,6 +1,6 @@
 ---
 title: 'Interview with Kamil Pyć - With Bazel we were able to reduce build times by 70% on clean builds'
-category: "interviews"
+category: "community"
 tags:
   [
     Tuist,
