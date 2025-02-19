@@ -72,7 +72,7 @@ To make running Tuist Previews even easier, we developed a Tuist macOS menu bar 
 When you now click on "Run" in the Preview page, the macOS app will automatically launch it on your currently selected device.
 
 > [!IMPORTANT] REQUIREMENTS
-> To download Previews, you need to first authenticate with the `tuist auth` command.
+> To download Previews, you need to first authenticate with the `tuist auth login` command.
 > In the future, you will be able to authenticate directly in the app.
 >
 > Additionally, you need to have Xcode locally installed.
