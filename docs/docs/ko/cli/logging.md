@@ -4,13 +4,13 @@ titleTemplate: :title · CLI · Tuist
 description: Tuist의 로깅 활성화와 설정 방법 배우기.
 ---
 
-# Logging {#logging}
+# 로깅 {#logging}
 
-The CLI logs messages internally to help you diagnose issues.
+CLI는 내부적으로 메세지를 기록하여 문제 확인에 도움을 줍니다.
 
-## Diagnose issues using logs {#diagnose-issues-using-logs}
+## 로깅 사용하여 문제 진단하기 {#diagnose-issues-using-logs}
 
-If a command invocation doesn't yield the intended results, you can diagnose the issue by inspecting the logs. The CLI forwards the logs to [OSLog](https://developer.apple.com/documentation/os/oslog) and the file-system.
+명령어 수행이 원하는 결과를 가져오지 못한다면, 로그를 살펴보면서 문제의 원인을 파악해 볼 수 있습니다. The CLI forwards the logs to [OSLog](https://developer.apple.com/documentation/os/oslog) and the file-system.
 
 In every run, it creates a log file at `$XDG_STATE_HOME/tuist/logs/{uuid}.log` where `$XDG_STATE_HOME` takes the value `~/.local/state` if the environment variable is not set.
 
@@ -19,7 +19,7 @@ By default, the CLI outputs the logs path when the execution exits unexpectedly.
 > [!IMPORTANT]
 > Sensitive information is not redacted, so be cautious when sharing logs.
 
-### Continuous integration {#diagnose-issues-using-logs-ci}
+### 지속적인 통합 {#diagnose-issues-using-logs-ci}
 
 In CI, where environments are disposable, you might want to configure your CI pipeline to export Tuist logs.
 Exporting artifacts is a common capability across CI services, and the configuration depends on the service you use.
