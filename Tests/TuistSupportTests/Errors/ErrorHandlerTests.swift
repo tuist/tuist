@@ -37,7 +37,7 @@ final class ErrorHandlerTests: TuistUnitTestCase {
             stderr: ▌ Sorry this didn’t work. Here’s what to try next:
             stderr: ▌  ▸ Consider creating an issue using the following link: https://github.com/tuist/tuist/issues/new/choose
             """
-            
+
             XCTAssertEqual(got, expectedOutput)
         }
     }
@@ -53,7 +53,7 @@ final class ErrorHandlerTests: TuistUnitTestCase {
             stderr: ▌ An unexpected error happened. We've opened an issue to fix it as soon as possible.
             stderr: We are sorry for any inconveniences it might have caused.
             """
-            
+
             XCTAssertEqual(got, expectedOutput)
         }
     }

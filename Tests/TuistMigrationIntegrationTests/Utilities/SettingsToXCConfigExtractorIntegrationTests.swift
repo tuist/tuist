@@ -53,7 +53,7 @@ final class SettingsToXCConfigExtractorIntegrationTests: TuistTestCase {
             """
             let content = try FileHandler.shared.readTextFile(xcconfigPath)
             XCTAssertTrue(content.contains(expected))
-            
+
             let output = ServiceContext.current?.recordedUI()
             let expectedOutput = """
             stdout: ▌ ✔ Success
@@ -143,7 +143,7 @@ final class SettingsToXCConfigExtractorIntegrationTests: TuistTestCase {
             """
             let content = try FileHandler.shared.readTextFile(xcconfigPath)
             XCTAssertTrue(content.contains(expected))
-            
+
             let output = ServiceContext.current?.recordedUI()
             let expectedOutput = """
             stdout: ▌ ✔ Success
