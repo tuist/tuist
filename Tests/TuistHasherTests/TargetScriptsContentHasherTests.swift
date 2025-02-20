@@ -55,9 +55,9 @@ final class TargetScriptsContentHasherTests: TuistUnitTestCase {
             order: order,
             script: .tool(path: tool, args: arguments),
             inputPaths: inputPaths.map(\.pathString),
-            inputFileListPaths: inputFileListPaths,
+            inputFileListPaths: inputFileListPaths.map(\.pathString),
             outputPaths: outputPaths.map(\.pathString),
-            outputFileListPaths: outputFileListPaths,
+            outputFileListPaths: outputFileListPaths.map(\.pathString),
             dependencyFile: dependencyFile
         )
     }
