@@ -94,7 +94,7 @@ final class TargetScriptManifestMapperTests: TuistUnitTestCase {
         XCTAssertEqual(model.order, .pre)
         XCTAssertEqual(
             model.inputFileListPaths,
-            [temporaryPath.appending(try RelativePath(validating: "$(SRCROOT)/foo/bar/**/*.swift"))]
+            [temporaryPath.appending(try RelativePath(validating: "$(SRCROOT)/foo/bar/**/*.swift")).pathString]
         )
         XCTAssertEqual(
             model.outputPaths,
@@ -102,7 +102,7 @@ final class TargetScriptManifestMapperTests: TuistUnitTestCase {
         )
         XCTAssertEqual(
             model.outputFileListPaths,
-            [temporaryPath.appending(try RelativePath(validating: "$(SRCROOT)/foo/bar/**/*.swift"))]
+            [temporaryPath.appending(try RelativePath(validating: "$(SRCROOT)/foo/bar/**/*.swift")).pathString]
         )
     }
 
@@ -163,7 +163,7 @@ final class TargetScriptManifestMapperTests: TuistUnitTestCase {
         XCTAssertEqual(model.order, .pre)
         XCTAssertEqual(
             model.inputFileListPaths,
-            [temporaryPath.appending(try RelativePath(validating: "$(SRCROOT)/foo/bar/**/*.swift"))]
+            [temporaryPath.appending(try RelativePath(validating: "$(SRCROOT)/foo/bar/**/*.swift")).pathString]
         )
         XCTAssertEqual(
             model.outputPaths,
@@ -171,7 +171,7 @@ final class TargetScriptManifestMapperTests: TuistUnitTestCase {
         )
         XCTAssertEqual(
             model.outputFileListPaths,
-            [temporaryPath.appending(try RelativePath(validating: "$(SRCROOT)/foo/bar/**/*.swift"))]
+            [temporaryPath.appending(try RelativePath(validating: "$(SRCROOT)/foo/bar/**/*.swift")).pathString]
         )
     }
 }

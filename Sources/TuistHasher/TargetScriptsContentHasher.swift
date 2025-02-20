@@ -32,7 +32,8 @@ public struct TargetScriptsContentHasher: TargetScriptsContentHashing {
             var pathsToHash: [AbsolutePath] = []
             script.path.map { pathsToHash.append($0) }
 
-            var dynamicPaths = script.inputPaths.compactMap { try? AbsolutePath(validating: $0) } + script.inputFileListPaths
+            var dynamicPaths = (script.inputPaths + script.inputFileListPaths)
+                .compactMap { try? AbsolutePath(validating: $0) }
             if let dependencyFile = script.dependencyFile {
                 dynamicPaths += [dependencyFile]
             }
@@ -49,7 +50,8 @@ public struct TargetScriptsContentHasher: TargetScriptsContentHashing {
             }
             stringsToHash.append(contentsOf: try await pathsToHash.concurrentMap { try await contentHasher.hash(path: $0) })
             stringsToHash.append(
-                contentsOf: (script.outputPaths.compactMap { try? AbsolutePath(validating: $0) } + script.outputFileListPaths)
+                contentsOf: (script.outputPaths + script.outputFileListPaths)
+                    .compactMap { try? AbsolutePath(validating: $0) }
                     .map { $0.relative(to: sourceRootPath).pathString }
             )
 
