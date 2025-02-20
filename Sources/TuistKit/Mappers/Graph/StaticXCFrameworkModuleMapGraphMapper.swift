@@ -200,7 +200,9 @@ public final class StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
             let targetDependency: GraphDependency = .target(name: target.target.name, path: target.path)
             settings[targetDependency] = try await targetSettings(target)
             for dependency in dependencies {
-                settings[targetDependency] = (settings[targetDependency] ?? [:]).combine(with: settings[dependency] ?? [:])
+                settings[targetDependency] = (settings[targetDependency] ?? [:])
+                    .combine(with: settings[dependency] ?? [:])
+                    .removeDuplicates(for: "FRAMEWORK_SEARCH_PATHS")
             }
         }
         graph.projects = graph.projects.mapValues { project in
@@ -215,12 +217,33 @@ public final class StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
                 target.settings = targetSettings.with(
                     base: targetSettings.base
                         .combine(with: settings[.target(name: target.name, path: project.path)] ?? SettingsDictionary())
+                        .removeDuplicates(for: "FRAMEWORK_SEARCH_PATHS")
                 )
                 return target
             }
             return project
         }
         return graph
+    }
+}
+
+extension SettingsDictionary {
+    fileprivate func removeDuplicates(for key: String) -> SettingsDictionary {
+        var settings = self
+        guard let value = settings[key] else { return settings }
+        switch value {
+        case let .string(value):
+            settings[key] = .string(value)
+        case let .array(value):
+            settings[key] = .array(
+                Array(
+                    Set(
+                        value
+                    )
+                )
+            )
+        }
+        return settings
     }
 }
 
