@@ -318,7 +318,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
                 // Deleting derived data and not rebuilding the frameworks containing resources may result in a state
                 // where the bundles are only available in the framework's directory that is actively being previewed.
                 // Since we don't know which framework this is, we also need to look in all the framework subpaths.
-                if let subpaths = try? FileManager.default.contentsOfDirectory(atPath: override) {
+                if let subpaths = try? Foundation.FileManager.default.contentsOfDirectory(atPath: override) {
                     for subpath in subpaths {
                         if subpath.hasSuffix(".framework") {
                             candidates.append(URL(fileURLWithPath: override + "/" + subpath))
