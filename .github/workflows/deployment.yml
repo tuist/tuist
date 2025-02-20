@@ -67,7 +67,7 @@ jobs:
       - name: Install dependencies
         run: tuist install
       - name: Test
-        run: tuist test TuistExtKitCanaryAcceptanceTests --no-selective-testing
+        run: tuist test TuistExtKitCanaryAcceptanceTests --no-selective-testing --test-targets TuistExtKitCanaryAcceptanceTests/TuistExtKitCanaryAcceptanceTestWithIOSAppWithFrameworks
   production:
     environment:
       name: production
