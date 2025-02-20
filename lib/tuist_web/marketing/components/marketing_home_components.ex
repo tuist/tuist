@@ -63,7 +63,7 @@ defmodule TuistWeb.Marketing.MarketingHomeComponents do
           <span>{@name}</span>
           <%= if @requires_projects do %>
             <span class="marketing__home__section__features__feature__title__badge">
-              {gettext("Requires a Tuist Project")}
+              {gettext("Requires a generated project")}
             </span>
           <% end %>
         </h3>
