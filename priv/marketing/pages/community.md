@@ -52,6 +52,7 @@ We view languages as powerful tools for fostering deeper connections with the co
 - [Koji Kanao](https://github.com/koji)
 - [Takashi Ushikoshi](https://github.com/Uhucream)
 - Harry Ho
+- [Seoyeon (Sadie) Choo](https://www.linkedin.com/in/seoyeon-choo24/)
 
 ## Alumni
 
