@@ -3,8 +3,6 @@ defmodule TuistWeb.Noora.Tooltip do
   Renders a tooltip component with a trigger, customizable size, title, description, and optional icon.
   """
   use Phoenix.Component
-  import TuistWeb.Noora.Utils
-  alias TuistWeb.Noora.Icon
 
   attr :id, :string, required: true
   attr :disabled, :boolean, default: false

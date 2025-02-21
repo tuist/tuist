@@ -55,8 +55,9 @@ defmodule TuistWeb.Noora.Modal do
             description={@description}
             type={@header_type}
             size={@header_size}
-            icon={@header_icon}
-          />
+          >
+            {render_slot(@header_icon)}
+          </.modal_header>
           <div data-part="body">{render_slot(@inner_block)}</div>
           <div :if={has_slot_content?(@footer, assigns)}>{render_slot(@footer)}</div>
         </div>
@@ -78,12 +79,14 @@ defmodule TuistWeb.Noora.Modal do
 
   attr :size, :string, values: ~w(small large), default: "large", doc: "Size of the header"
 
-  slot :icon, doc: "Icon to be rendered in the header when type is 'icon'"
+  slot :inner_block, doc: "Icon to be rendered in the header when type is 'icon'"
 
   defp modal_header(assigns) do
     ~H"""
     <div data-part="header" data-type={@type} data-size={@size}>
-      <.modal_header_icon :if={@type != "default"} type={@type} icon={@icon} />
+      <.modal_header_icon :if={@type != "default"} type={@type}>
+        {render_slot(@inner_block)}
+      </.modal_header_icon>
       <div data-part="header-content">
         <div data-part="row">
           <span data-part="title">{@title}</span>
@@ -101,7 +104,7 @@ defmodule TuistWeb.Noora.Modal do
   defp modal_header_icon(%{type: "icon"} = assigns) do
     ~H"""
     <div data-part="icon">
-      {render_slot(@icon)}
+      {render_slot(@inner_block)}
     </div>
     """
   end

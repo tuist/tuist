@@ -73,7 +73,7 @@ defmodule TuistWeb.Noora.TextInput do
           data-part="suffix"
           data-type={@type}
         >
-          <.type_suffix type={@type} data-input-id={@id} />
+          <.type_suffix type={@type} input_id={@id} />
         </div>
         {# Custom suffix #}
         <span :if={has_slot_content?(@suffix, assigns)} data-part="suffix">
@@ -91,31 +91,31 @@ defmodule TuistWeb.Noora.TextInput do
   defp placeholder("password"), do: "• • • • • • • • • •"
   defp placeholder(_), do: nil
 
-  defp prefix(%{type: "basic", prefix: prefix} = assigns) do
+  defp prefix(%{type: "basic"} = assigns) do
     ~H"""
-    {render_slot(prefix)}
+    {render_slot(@prefix)}
     """
   end
 
-  defp prefix(%{type: "email", prefix: prefix} = assigns) do
+  defp prefix(%{type: "email"} = assigns) do
     ~H"""
     <.mail />
     """
   end
 
-  defp prefix(%{type: "card_number", prefix: prefix} = assigns) do
+  defp prefix(%{type: "card_number"} = assigns) do
     ~H"""
     <.credit_card />
     """
   end
 
-  defp prefix(%{type: "search", prefix: prefix} = assigns) do
+  defp prefix(%{type: "search"} = assigns) do
     ~H"""
     <.search />
     """
   end
 
-  defp prefix(%{type: "password", prefix: prefix} = assigns) do
+  defp prefix(%{type: "password"} = assigns) do
     ~H"""
     <.lock_password />
     """
@@ -127,9 +127,9 @@ defmodule TuistWeb.Noora.TextInput do
     """
   end
 
-  defp type_suffix(%{type: "password", "data-input-id": id} = assigns) do
+  defp type_suffix(%{type: "password"} = assigns) do
     ~H"""
-    <button phx-click={JS.toggle_attribute({"type", "password", "text"}, to: "##{id}")}>
+    <button phx-click={JS.toggle_attribute({"type", "password", "text"}, to: "##{@input_id}")}>
       <span class="noora-text-input__password-toggle-text"><.eye /></span>
       <span class="noora-text-input__password-toggle-password"><.eye_off /></span>
     </button>

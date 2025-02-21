@@ -29,9 +29,7 @@ defmodule TuistWeb.Noora.Table do
 
   use Phoenix.Component
   import TuistWeb.Noora.Icon
-  import TuistWeb.Noora.Label
   import TuistWeb.Noora.Badge
-  import TuistWeb.Noora.Button
   import TuistWeb.Noora.Utils
 
   attr :id, :string, required: true, doc: "A uniqie identifier for the table"
