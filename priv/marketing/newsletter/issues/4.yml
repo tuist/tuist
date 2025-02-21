@@ -1,0 +1,100 @@
+date: 2025-02-21
+hero:
+  image: /marketing/images/newsletter/issues/4/artwork.jpeg
+  alt: "UI design by Himanshu"
+  subtitle: "Featured work: [Himanshu](https://www.quick14studio.com)"
+title: "You can't rebuild Apple's ecosystem"
+body: |
+  A few days ago, I came across [this write-up](https://newsletter.squishy.computer/p/dont-fork-the-ecosystem) by [Gordon Brander](https://newsletter.squishy.com.computer/p/dont-fork-the-ecosystem), which sparked some thoughts about Apple's app development environment and the broader challenges of ecosystem evolution.
+
+  When Apple laid the foundation for Xcode, they couldn't have anticipated its future needs—supporting multiple platforms or accommodating Swift, their own programming language. Like any growing system, these early decisions created inefficiencies and required workarounds. As Brander astutely notes:
+
+  > Software can be rebuilt because software is a machine. But a software ecosystem is not a machine. It is a living system. When we attempt to rebuild the ecosystem, we're making a category error. We're confusing the software for the ecological process unfolding around it.
+
+  These inefficiencies often tempt developers to create alternative solutions—to fork the ecosystem. We've seen this pattern repeatedly with [CocoaPods](https://cocoapods.org/) emerging to handle dependency management, [Fastlane](https://fastlane.tools/) introducing new automation approaches, and Tuist proposing generated projects as a new abstraction. Even Apple itself created forks with [SwiftPM](https://www.swift.org/documentation/package-manager/), introducing another build graph and system, and with structured concurrency where they forked the concurrency paradigm by building a technical layer upon existing frameworks.
+
+  These forks serve a vital purpose: they push ecosystems to explore new ideas and challenge established assumptions. However, they must respect the ecosystem's natural flow and work toward integration rather than isolation. CocoaPods exemplified this by demonstrating that dependency management was a widespread need, while maintaining an exceptional level of [engineering excellence](https://blog.cocoapods.org/CocoaPods-Support-Plans) in guiding their innovation back into the ecosystem.
+
+  Forking an ecosystem means fighting against its natural flow. As Brander references from Lewis Carroll's Through the Looking-Glass:
+
+  > Now, here, you see, it takes all the running you can do, to keep in the same place. If you want to get somewhere else, you must run at least twice as fast as that!
+
+  This reality is evident in Xcode's current challenges with AI-driven development. While tools like [Cursor](https://www.cursor.com) and [GitHub Copilot](https://github.com/features/copilot) for VSCode embrace these new paradigms, Apple's slower adaptation demonstrates the difficulty of keeping pace with evolving ecosystem demands.
+
+  At Tuist, we learned this lesson the hard way. Our initial approach of generating project structures created features that served only a subset of developers, making our solution seem impractical for the broader ecosystem.
+
+  For those building apps or developer tools, the path forward is clear: work with the ecosystem, not against it; embrace the platform's imperfections; build upon existing foundations rather than replacing them; shape through influence instead of intervention; and be patient—ecosystem evolution takes time.
+
+  As Brander concludes:
+
+  > So, when a living ecosystem does emerge, we have to cherish it, foster it, despite shortcomings, inelegance, ugliness. All living systems are ugly and a little bit eldritch… squishy. That's how it is.
+interview:
+  interviewee: "Vera Dias"
+  interviewee_role: "Senior iOS Developer at Qonto"
+  interviewee_avatar_url: /marketing/images/newsletter/issues/4/vera.jpeg
+  interviewee_intro: |
+    Vera Dias is the creator of [Coding With Vera](https://codingwithvera.com/), a blog and podcast dedicated to iOS development and Swift. Her articles break down complex technical topics into fun and accessible content anyone can understand.
+  questions:
+    - question: "An app worth installing"
+      answer: |
+        I struggle with managing my time on my phone. Even after cutting out social media, my brain still seeks a dopamine hit in other ways. That’s why [AppBlock](https://appblock.app) has been a game-changer for me. It enforces screen limits effectively—without the temptation of a "snooze" button to override them.
+    - question: "An open-source project worth checking out"
+      answer: |
+        An open-source project worth exploring is [Bruno](https://github.com/usebruno/bruno), an alternative to [Postman](https://www.postman.com). Beyond its excellent usability, the project itself is fascinating—its unique approach to building an API client is worth checking out. If you have time, consider contributing!
+    - question: "A developer tool worth using"
+      answer: |
+        If you're a mobile developer, you're probably already using [Proxyman](https://proxyman.com/)  and for a good reason. Its intuitive interface makes it an essential tool for mocking requests, analyzing network traffic, and much more. Maybe I’ve just gotten too used to it, but I can’t imagine working without it!
+    - question: "A developer worth following"
+      answer: |
+        If you're not following [Natalia Panferova](https://www.linkedin.com/in/nataliapanferova/) yet, you’re missing out! She shares tons of valuable insights on SwiftUI and iOS development. Lately, she’s been making big strides in the community, so if you’re into iOS development, make sure to check out her content!
+    - question: "A book worth reading"
+      answer: |
+        Not tech-related, but blew my mind: [Dark Matter](https://www.goodreads.com/book/show/27833670-dark-matter) by  Blake Crouch. This sci-fi novel explores the concept of the multiverse, diving into the possibilities of traveling between different realities and the *what ifs* of life—a theme I personally love. If you’re into mind-bending thrillers, this one’s a must-read!
+
+tools:
+  - title: Sushitrain
+    subtitle: Securely synchronize files on-demand
+    link: https://github.com/pixelspark/sushitrain
+    description: |
+      If you're a mobile developer, you're probably already using [Proxyman](https://proxyman.com/)  and for a good reason. Its intuitive interface makes it an essential tool for mocking requests, analyzing network traffic, and much more. Maybe I’ve just gotten too used to it, but I can’t imagine working without it!
+  - title: hk
+    subtitle: A tool for running hooks on files in a git repository
+    link: https://hk.jdx.dev
+    description: |
+      The creator of Mise surprised us again with a new CLI to run hooks on files in a git repository. With a single command, `hk install`, you can install hooks for various events such as pre-commit, post-commit, pre-push, and more.
+  - title: Nominate
+    subtitle: macOS app for renaming PDFs based on their contents
+    link: https://github.com/NSHipster/Nominate
+    description: |
+      Another inspiring developer who's back with great craft is [@matt](https://github.com/mattt) (creator of Alamofire). He open sourced an app to rename PDFs based on the content using AI, and wrote about it in a [blog post](https://nshipster.com/ollama/).
+  - title: MachOKit
+    subtitle: A Swift library for parsing mach-o files to obtain various information.
+    link: https://github.com/p-x9/MachOKit
+    description: |
+      If you ever need to parse a Mach-O file, even on Linux (e.g. in a server environment), MachOKit is a great library to use. It provides a simple API to read and write Mach-O files, and it's easy to use.
+  - title: Lume
+    subtitle: Virtualize macOS environments
+    link: https://github.com/trycua/lume
+    description: |
+      If you need to virtualize macOS environments, Lume is a great tool to use. It's a Docker-like CLI tool that allows you to pull images and create containers that you can connect to via VNC or SSH.
+food_for_thought:
+  - title: "A Brief History of Code Signing at Mozilla"
+    subtitle: "Read"
+    link: "https://hearsum.ca/posts/history-of-code-signing-at-mozilla/"
+    description: |
+      If you think signing of Apple bundles is painful, imagine having to sign all the binaries that every Firefox release comes with. In this blog post Mozilla shares the history of code signing at the company, and how signing of Apple bundles forced them to have signing servers running on macOS.
+  - title: "Obsidian is now free for work"
+    subtitle: "Check out"
+    link: "https://obsidian.md/blog/free-for-work/"
+    description: |
+      Obsidian stands out in today's tech landscape by putting users first. Their recent enterprise license changes demonstrate a refreshing commitment to preserving individual freedom and privacy in an era when most companies prioritize lock-in and data collection.
+  - title: "Resigning as Asahi Linux project lead"
+    subtitle: "Read"
+    link: "https://marcan.st/2025/02/resigning-as-asahi-linux-project-lead/"
+    description: |
+      Leading a successful open-source project is no small feat—it demands immense effort and, at times, exposes maintainers to the worst sides of the community. Hector Martin knows this all too well. After years of dedication to Asahi Linux, the groundbreaking Linux distribution for Apple Silicon Macs, he made the difficult decision to step down as its lead, prioritizing his well-being over the relentless pressures of the role.
+  - title: "Trot"
+    subtitle: "Read"
+    link: "https://robinrendle.com/notes/trot/"
+    description: |
+      Ever wondered what it’s like to transition from web development to building apps for Apple’s ecosystem? Robin Rendle shares his candid insights, detailing the challenges, surprises, and lessons learned along the way.
