@@ -1,5 +1,17 @@
 # Changelog
 
+## 4.43.1 - 2025-02-21
+
+### CLI
+
+#### Fixed
+
+- Fix duplicated framework search paths [#7341](https://github.com/tuist/tuist/pull/7341) by [@fortmarek](https://github.com/fortmarek)
+
+### CLI (Server features)
+
+- no changes
+
 ## 4.43.0 - 2025-02-19
 
 ### CLI
