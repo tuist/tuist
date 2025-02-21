@@ -81,11 +81,11 @@ open class TuistAcceptanceTestCase: XCTestCase {
         try await parsedCommand.run()
     }
 
-    public func run(_ command: InitCommand.Type, _ arguments: String...) async throws {
+    public func run(_ command: StartCommand.Type, _ arguments: String...) async throws {
         try await run(command, arguments)
     }
 
-    public func run(_ command: InitCommand.Type, _ arguments: [String] = []) async throws {
+    public func run(_ command: StartCommand.Type, _ arguments: [String] = []) async throws {
         fixturePath = fixtureTemporaryDirectory.path.appending(
             component: arguments[arguments.firstIndex(where: { $0 == "--name" })! + 1]
         )

@@ -10,8 +10,8 @@ import XCTest
 
 @testable import TuistKit
 
-final class InitServiceTests: TuistUnitTestCase {
-    private var subject: InitService!
+final class StartGeneratedProjectServiceTests: TuistUnitTestCase {
+    private var subject: StartGeneratedProjectService!
     private var templatesDirectoryLocator: MockTemplatesDirectoryLocating!
     private var templateGenerator: MockTemplateGenerating!
     private var templateLoader: MockTemplateLoading!
@@ -23,7 +23,7 @@ final class InitServiceTests: TuistUnitTestCase {
         templateGenerator = MockTemplateGenerating()
         templateLoader = MockTemplateLoading()
         templateGitLoader = MockTemplateGitLoader()
-        subject = InitService(
+        subject = StartGeneratedProjectService(
             templateLoader: templateLoader,
             templatesDirectoryLocator: templatesDirectoryLocator,
             templateGenerator: templateGenerator,
@@ -62,7 +62,7 @@ final class InitServiceTests: TuistUnitTestCase {
             // Then
             await XCTAssertThrowsSpecific(
                 { try await subject.testRun(path: path.pathString) },
-                InitServiceError.nonEmptyDirectory(path)
+                StartGeneratedProjectServiceError.nonEmptyDirectory(path)
             )
         }
     }
@@ -86,7 +86,7 @@ final class InitServiceTests: TuistUnitTestCase {
             .willReturn([])
         await XCTAssertThrowsSpecific(
             { try await self.subject.testRun(templateName: templateName) },
-            InitServiceError.templateNotFound(templateName)
+            StartGeneratedProjectServiceError.templateNotFound(templateName)
         )
     }
 
@@ -355,7 +355,7 @@ final class InitServiceTests: TuistUnitTestCase {
     }
 }
 
-extension InitService {
+extension StartGeneratedProjectService {
     func testRun(
         name: String? = nil,
         platform: String? = nil,

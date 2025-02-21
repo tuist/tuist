@@ -1,4 +1,5 @@
 import FileSystem
+import Foundation
 import Path
 import ServiceContextModule
 import TuistCore
@@ -7,7 +8,7 @@ import TuistScaffold
 import TuistSupport
 import XcodeGraph
 
-enum InitServiceError: FatalError, Equatable {
+enum StartGeneratedProjectServiceError: LocalizedError, Equatable {
     case ungettableProjectName(AbsolutePath)
     case nonEmptyDirectory(AbsolutePath)
     case templateNotFound(String)
@@ -41,7 +42,7 @@ enum InitServiceError: FatalError, Equatable {
     }
 }
 
-class InitService {
+class StartGeneratedProjectService {
     private let templateLoader: TemplateLoading
     private let templatesDirectoryLocator: TemplatesDirectoryLocating
     private let templateGenerator: TemplateGenerating
@@ -137,7 +138,7 @@ class InitService {
         } else {
             let directories = try await templatesDirectoryLocator.templateDirectories(at: path)
             guard let templateDirectory = directories.first(where: { $0.basename == templateName })
-            else { throw InitServiceError.templateNotFound(templateName) }
+            else { throw StartGeneratedProjectServiceError.templateNotFound(templateName) }
 
             let template = try await templateLoader.loadTemplate(at: templateDirectory, plugins: .none)
             let parsedAttributes = try parseAttributes(
@@ -155,18 +156,6 @@ class InitService {
                 attributes: parsedAttributes
             )
         }
-
-        ServiceContext.current?.alerts?
-            .success(
-                .alert(
-                    "Project generated at path \(path.pathString). Run `tuist generate` to generate the project and open it in Xcode. Use `tuist edit` to easily update the Tuist project definition."
-                )
-            )
-
-        ServiceContext.current?.logger?
-            .info(
-                "To learn more about tuist features, such as how to add external dependencies or how to use our ProjectDescription helpers, head to our tutorials page: https://docs.tuist.io/tutorials/tuist-tutorials"
-            )
     }
 
     // MARK: - Helpers
@@ -180,7 +169,7 @@ class InitService {
         let disallowedFiles = try await fileSystem.glob(directory: path, include: ["*"]).collect()
             .filter { !allowedFiles.contains($0.basename) }
         if !disallowedFiles.isEmpty {
-            throw InitServiceError.nonEmptyDirectory(path)
+            throw StartGeneratedProjectServiceError.nonEmptyDirectory(path)
         }
     }
 
@@ -229,7 +218,7 @@ class InitService {
     /// - Returns: `AbsolutePath` of template directory
     private func templateDirectory(templateDirectories: [AbsolutePath], template: String) throws -> AbsolutePath {
         guard let templateDirectory = templateDirectories.first(where: { $0.basename == template })
-        else { throw InitServiceError.templateNotFound(template) }
+        else { throw StartGeneratedProjectServiceError.templateNotFound(template) }
         return templateDirectory
     }
 
@@ -240,7 +229,7 @@ class InitService {
         } else if let directoryName = path.components.last {
             return directoryName
         } else {
-            throw InitServiceError.ungettableProjectName(AbsolutePath.current)
+            throw StartGeneratedProjectServiceError.ungettableProjectName(AbsolutePath.current)
         }
     }
 
@@ -257,7 +246,10 @@ class InitService {
             if let platform = Platform(rawValue: platformString) {
                 return platform
             } else {
-                throw InitServiceError.invalidValue(argument: "platform", error: "Platform should be either ios, tvos, or macos")
+                throw StartGeneratedProjectServiceError.invalidValue(
+                    argument: "platform",
+                    error: "Platform should be either ios, tvos, or macos"
+                )
             }
         } else {
             return .iOS

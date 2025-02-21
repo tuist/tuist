@@ -7,7 +7,6 @@ import TuistAnalytics
 import TuistCore
 import TuistLoader
 import TuistServer
-import TuistStart
 import TuistSupport
 
 public struct TuistCommand: AsyncParsableCommand {
@@ -22,7 +21,6 @@ public struct TuistCommand: AsyncParsableCommand {
                 CommandGroup(
                     name: "Start",
                     subcommands: [
-                        InitCommand.self,
                         StartCommand.self,
                     ]
                 ),
@@ -104,9 +102,6 @@ public struct TuistCommand: AsyncParsableCommand {
         do {
             if processedArguments.first == ScaffoldCommand.configuration.commandName {
                 try await ScaffoldCommand.preprocess(processedArguments)
-            }
-            if processedArguments.first == InitCommand.configuration.commandName {
-                try await InitCommand.preprocess(processedArguments)
             }
             let command = try parseAsRoot(processedArguments)
             executeCommand = {
