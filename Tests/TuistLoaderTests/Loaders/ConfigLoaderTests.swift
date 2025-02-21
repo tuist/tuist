@@ -71,14 +71,6 @@ final class ConfigLoaderTests: TuistUnitTestCase {
             at: configPath.parentDirectory
         )
         stub(rootDirectory: projectPath)
-        // given(warningController)
-        //     .append(
-        //         warning: .value(
-        //             "Tuist/Config.swift is deprecated. Rename Tuist/Config.swift to \(Constants.tuistManifestFileName) at the
-        //             root."
-        //         )
-        //     )
-        //     .willReturn()
 
         // When
         let result = try await subject.loadConfig(path: configPath)
