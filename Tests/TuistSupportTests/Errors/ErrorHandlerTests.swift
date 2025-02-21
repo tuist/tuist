@@ -1,4 +1,5 @@
 import Foundation
+import Noora
 import ServiceContextModule
 import XCTest
 @testable import TuistSupport
@@ -27,7 +28,17 @@ final class ErrorHandlerTests: TuistUnitTestCase {
         try await ServiceContext.withTestingDependencies {
             let error = TestError(type: .abort)
             subject.fatal(error: error)
-            XCTAssertPrinterErrorContains(error.description)
+
+            let got = ServiceContext.current?.recordedUI()
+            let expectedOutput = """
+            stderr: ▌ ✖ Error
+            stderr: ▌ Error
+            stderr: ▌
+            stderr: ▌ Sorry this didn’t work. Here’s what to try next:
+            stderr: ▌  ▸ Consider creating an issue using the following link: https://github.com/tuist/tuist/issues/new/choose
+            """
+
+            XCTAssertEqual(got, expectedOutput)
         }
     }
 
@@ -35,11 +46,15 @@ final class ErrorHandlerTests: TuistUnitTestCase {
         try await ServiceContext.withTestingDependencies {
             let error = TestError(type: .bugSilent)
             subject.fatal(error: error)
-            let expected = """
-            An unexpected error happened. We've opened an issue to fix it as soon as possible.
-            We are sorry for any inconveniences it might have caused.
+
+            let got = ServiceContext.current?.recordedUI()
+            let expectedOutput = """
+            stderr: ▌ ✖ Error
+            stderr: ▌ An unexpected error happened. We've opened an issue to fix it as soon as possible.
+            stderr: We are sorry for any inconveniences it might have caused.
             """
-            XCTAssertPrinterErrorContains(expected)
+
+            XCTAssertEqual(got, expectedOutput)
         }
     }
 }

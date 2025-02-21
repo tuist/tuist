@@ -21,7 +21,7 @@ class ListService {
     private let templateLoader: TemplateLoading
 
     init(
-        configLoader: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader(), warningController: WarningController.shared),
+        configLoader: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader()),
         pluginService: PluginServicing = PluginService(),
         templatesDirectoryLocator: TemplatesDirectoryLocating = TemplatesDirectoryLocator(),
         templateLoader: TemplateLoading = TemplateLoader()

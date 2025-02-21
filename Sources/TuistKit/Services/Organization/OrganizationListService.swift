@@ -20,7 +20,7 @@ final class OrganizationListService: OrganizationListServicing {
     init(
         listOrganizationsService: ListOrganizationsServicing = ListOrganizationsService(),
         serverURLService: ServerURLServicing = ServerURLService(),
-        configLoader: ConfigLoading = ConfigLoader(warningController: WarningController.shared)
+        configLoader: ConfigLoading = ConfigLoader()
     ) {
         self.listOrganizationsService = listOrganizationsService
         self.serverURLService = serverURLService

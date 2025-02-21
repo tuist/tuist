@@ -99,7 +99,7 @@ final class GraphService {
             try outputGraph.export(to: filePath)
         }
 
-        ServiceContext.current?.logger?.notice("Graph exported to \(filePath.pathString)", metadata: .success)
+        ServiceContext.current?.alerts?.append(.success(.alert("Graph exported to \(filePath.pathString)")))
     }
 
     private func export(

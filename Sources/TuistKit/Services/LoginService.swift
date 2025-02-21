@@ -27,7 +27,7 @@ final class LoginService: LoginServicing {
     init(
         serverSessionController: ServerSessionControlling = ServerSessionController(),
         serverURLService: ServerURLServicing = ServerURLService(),
-        configLoader: ConfigLoading = ConfigLoader(warningController: WarningController.shared),
+        configLoader: ConfigLoading = ConfigLoader(),
         userInputReader: UserInputReading = UserInputReader(),
         authenticateService: AuthenticateServicing = AuthenticateService(),
         serverCredentialsStore: ServerCredentialsStoring = ServerCredentialsStore()
@@ -89,7 +89,7 @@ final class LoginService: LoginServicing {
             ),
             serverURL: serverURL
         )
-        ServiceContext.current?.logger?.notice("Successfully logged in.", metadata: .success)
+        ServiceContext.current?.alerts?.append(.success(.alert("Successfully logged in.")))
     }
 
     private func authenticateWithBrowserLogin(
@@ -112,6 +112,6 @@ final class LoginService: LoginServicing {
                 }
             }
         )
-        ServiceContext.current?.logger?.notice("Successfully logged in.", metadata: .success)
+        ServiceContext.current?.alerts?.append(.success(.alert("Successfully logged in.")))
     }
 }

@@ -100,10 +100,9 @@ public final class SettingsToXCConfigExtractor: SettingsToXCConfigExtracting {
             buildSettingsLines.sorted().joined(separator: "\n"),
         ].joined(separator: "\n\n")
         try FileHandler.shared.write(buildSettingsContent, path: xcconfigPath, atomically: true)
-        ServiceContext.current?.logger?.notice(
-            "Build settings successfully extracted into \(xcconfigPath.pathString)",
-            metadata: .success
-        )
+
+        ServiceContext.current?.alerts?
+            .append(.success(.alert("Build settings successfully extracted into \(xcconfigPath.pathString)")))
     }
 
     private func buildConfigurations(pbxproj: PBXProj, targetName: String?) throws -> [XCBuildConfiguration] {

@@ -20,7 +20,7 @@ final class OrganizationRemoveSSOService: OrganizationRemoveSSOServicing {
     init(
         updateOrganizationService: UpdateOrganizationServicing = UpdateOrganizationService(),
         serverURLService: ServerURLServicing = ServerURLService(),
-        configLoader: ConfigLoading = ConfigLoader(warningController: WarningController.shared)
+        configLoader: ConfigLoading = ConfigLoader()
     ) {
         self.updateOrganizationService = updateOrganizationService
         self.serverURLService = serverURLService

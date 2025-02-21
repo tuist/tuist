@@ -14,7 +14,7 @@ final class RegistryLogoutService {
 
     init(
         serverURLService: ServerURLServicing = ServerURLService(),
-        configLoader: ConfigLoading = ConfigLoader(warningController: WarningController.shared),
+        configLoader: ConfigLoading = ConfigLoader(),
         swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(),
         fileSystem: FileSysteming = FileSystem()
     ) {

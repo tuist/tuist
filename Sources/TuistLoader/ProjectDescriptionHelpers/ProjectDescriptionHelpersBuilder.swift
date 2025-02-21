@@ -194,7 +194,7 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
                 try System.shared.runAndPrint(command, verbose: false, environment: Environment.shared.manifestLoadingVariables)
                 let duration = timer.stop()
                 let time = String(format: "%.3f", duration)
-                ServiceContext.current?.logger?.debug("Built \(name) in (\(time)s)", metadata: .success)
+                ServiceContext.current?.alerts?.append(.success(.alert("Built \(name) in (\(time)s)")))
 
                 return module
             }

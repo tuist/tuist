@@ -25,7 +25,7 @@ final class GenerateService {
         timeTakenLoggerFormatter: TimeTakenLoggerFormatting = TimeTakenLoggerFormatter(),
         opener: Opening = Opener(),
         pluginService: PluginServicing = PluginService(),
-        configLoader: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader(), warningController: WarningController.shared)
+        configLoader: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader())
     ) {
         self.generatorFactory = generatorFactory
         self.cacheStorageFactory = cacheStorageFactory
@@ -58,7 +58,7 @@ final class GenerateService {
         if !noOpen {
             try await opener.open(path: workspacePath)
         }
-        ServiceContext.current?.logger?.notice("Project generated.", metadata: .success)
+        ServiceContext.current?.alerts?.append(.success(.alert("Project generated.")))
         ServiceContext.current?.logger?.notice(timeTakenLoggerFormatter.timeTakenMessage(for: timer))
     }
 

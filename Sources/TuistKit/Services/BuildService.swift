@@ -47,7 +47,7 @@ public final class BuildService {
         cacheStorageFactory: CacheStorageFactorying,
         buildGraphInspector: BuildGraphInspecting = BuildGraphInspector(),
         targetBuilder: TargetBuilding = TargetBuilder(),
-        configLoader: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader(), warningController: WarningController.shared)
+        configLoader: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader())
     ) {
         self.generatorFactory = generatorFactory
         self.cacheStorageFactory = cacheStorageFactory
@@ -181,6 +181,6 @@ public final class BuildService {
             }
         }
 
-        ServiceContext.current?.logger?.log(level: .notice, "The project built successfully", metadata: .success)
+        ServiceContext.current?.alerts?.append(.success(.alert("The project built successfully")))
     }
 }

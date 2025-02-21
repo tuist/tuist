@@ -21,7 +21,7 @@ final class ProjectTokensRevokeService: ProjectTokensRevokeServicing {
     init(
         revokeProjectTokenService: RevokeProjectTokenServicing = RevokeProjectTokenService(),
         serverURLService: ServerURLServicing = ServerURLService(),
-        configLoader: ConfigLoading = ConfigLoader(warningController: WarningController.shared)
+        configLoader: ConfigLoading = ConfigLoader()
     ) {
         self.revokeProjectTokenService = revokeProjectTokenService
         self.serverURLService = serverURLService

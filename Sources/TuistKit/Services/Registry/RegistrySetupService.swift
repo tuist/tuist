@@ -35,7 +35,7 @@ final class RegistrySetupService {
 
     init(
         serverURLService: ServerURLServicing = ServerURLService(),
-        configLoader: ConfigLoading = ConfigLoader(warningController: WarningController.shared),
+        configLoader: ConfigLoading = ConfigLoader(),
         fileSystem: FileSysteming = FileSystem(),
         fullHandleService: FullHandleServicing = FullHandleService(),
         manifestFilesLocator: ManifestFilesLocating = ManifestFilesLocator()

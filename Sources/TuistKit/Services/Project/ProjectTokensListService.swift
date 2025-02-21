@@ -20,7 +20,7 @@ final class ProjectTokensListService: ProjectTokensListServicing {
     init(
         listProjectTokensService: ListProjectTokensServicing = ListProjectTokensService(),
         serverURLService: ServerURLServicing = ServerURLService(),
-        configLoader: ConfigLoading = ConfigLoader(warningController: WarningController.shared)
+        configLoader: ConfigLoading = ConfigLoader()
     ) {
         self.listProjectTokensService = listProjectTokensService
         self.serverURLService = serverURLService
