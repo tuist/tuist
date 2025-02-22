@@ -29,7 +29,7 @@ description: Начните вносить свой вклад в Tuist c пом
 - [Установите](https://mise.jdx.dev/getting-started.html) Mise, чтобы подготовить среду разработки
 - Выполните `mise install` для установки системных зависимостей, необходимых Tuist
 - Выполните `tuist install` для установки внешних зависимостей, необходимых Tuist
-- (Необязательно) Выполните `tuist auth`, чтобы получить доступ к <LocalizedLink href="/guides/develop/build/cache">Tuist Cache</LocalizedLink>
+- (Optional) Run `tuist auth login` to get access to the <LocalizedLink href="/guides/develop/build/cache">Tuist Cache</LocalizedLink>
 - Выполните `tuist generate`, чтобы сгенерировать Xcode-проект Tuist с помощью самого Tuist
 
 **После генерации проект откроется автоматически**. Если вам нужно открыть проект снова, без генерации - выполните `open Tuist.xcworkspace` (или используйте Finder).

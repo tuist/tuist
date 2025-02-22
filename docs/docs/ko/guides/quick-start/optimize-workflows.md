@@ -42,7 +42,7 @@ tuist generate
 
 ```bash
 tuist install
-tuist auth
+tuist auth login
 tuist generate
 ```
 

@@ -10,11 +10,11 @@ Over the years working with different teams and projects, we've identified a set
 
 ## Xcode {#xcode}
 
-### Discouraged patterns {#discouraged-patterns}
+### 避けるべきパターン {#discouraged-patterns}
 
-#### Configurations to model remote environments {#configurations-to-model-remote-environments}
+#### リモート環境をモデル化するための設定 {#configurations-to-model-remote-environments}
 
-Many organizations use build configurations to model different remote environments (e.g., `Debug-Production` or `Release-Canary`), but this approach has some downsides:
+多くの組織は、異なるリモート環境（例: Debug-Production や Release-Canary）をモデル化するためにビルド設定を使用しますが、このアプローチにはいくつかの欠点があります：
 
 - **Inconsistencies:** If there are configuration inconsistencies throughout the graph, the build system might end up using the wrong configuration for some targets.
 - **Complexity:** Projects can end up with a long list of local configurations and remote environments that are hard to reason about and maintain.

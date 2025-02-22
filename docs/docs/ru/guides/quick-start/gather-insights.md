@@ -11,7 +11,7 @@ Tuist can integrate with a server to extend its capabilities. One of those capab
 First of all, you'll need to authenticate by running:
 
 ```bash
-tuist auth
+tuist auth login
 ```
 
 ## Создание проекта {#create-a-project}

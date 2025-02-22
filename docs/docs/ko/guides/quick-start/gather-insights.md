@@ -11,7 +11,7 @@ Tuist는 기능을 확장하기 위해 서버와 통합할 수 있습니다. 프
 먼저, 다음을 수행하여 인증을 해야 합니다:
 
 ```bash
-tuist auth
+tuist auth login
 ```
 
 ## Create a project {#create-a-project}
