@@ -1,5 +1,5 @@
 ---
-title: Migrate an Xcode project
+title: 기존 Xcode 프로젝트를 Tuist로 전환하기
 titleTemplate: :title · Migrate · Adoption · Projects · Develop · Guides · Tuist
 description: Xcode 프로젝트에서 Tuist 프로젝트로 변환하는 방법을 알아봅니다.
 ---
@@ -12,11 +12,11 @@ description: Xcode 프로젝트에서 Tuist 프로젝트로 변환하는 방법�
 
 게다가 수동 마이그레이션은 프로젝트를 정리하고 단순화하는데 매우 좋은 연습입니다. 개발자들 뿐만 아니라 Xcode도 프로젝트의 처리와 인덱싱하는 속도가 빨라져서 감사할 것입니다. Tuist를 완전히 도입하면, 프로젝트가 일관되게 정의되고 단순하게 유지되도록 보장합니다.
 
-해당 작업을 수월하게 하기 위해 우리는 사용자에게 받은 피드백을 통해 몇 가지 지침을 제공합니다.
+해당 작업을 수월하게 하기 위해 우리는 사용자에게 받은 피드백을 기반으로 한 몇 가지 지침을 제공합니다.
 
 ## 프로젝트 생성 {#create-project-scaffold}
 
-먼저, 다음의 Tuist 파일로 프로젝트를 생성합니다:
+먼저, 다음의 Tuist 파일들을 생성해서 프로젝트의 구조를 잡아줍니다:
 
 ::: code-group
 
@@ -64,7 +64,7 @@ let package = Package(
 
 :::
 
-`Project.swift`는 프로젝트를 정의하는 매니페스트 파일이며, `Package.swift`는 의존성을 정의하는 매니페스트 파일입니다. `Tuist.swift` 파일은 프로젝트의 Tuist 설정을 정의할 수 있습니다.
+`Project.swift`는 프로젝트를 정의하는 매니페스트 파일이며, `Package.swift`는 의존성을 정의하는 매니페스트 파일입니다. `Tuist.swift` 파일은 현재 프로젝트의 Tuist 설정을 정의할 수 있습니다.
 
 > [!TIP] -TUIST 접미사가 붙은 프로젝트 이름\
 > 기존에 Xcode 프로젝트의 충돌을 방지하기 위해 프로젝트 이름에 `-Tuist` 접미사를 추가하는 것이 좋습니다. 프로젝트를 Tuist로 완전히 마이그레이션 하면 삭제할 수 있습니다.
