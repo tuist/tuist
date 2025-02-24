@@ -12,7 +12,13 @@ defmodule TuistWeb.Noora.DismissIcon do
 
   def dismiss_icon(assigns) do
     ~H"""
-    <button class="noora-dismiss-icon" phx-click={@on_dismiss} data-size={@size} aria-label="Dismiss" {@rest}>
+    <button
+      class="noora-dismiss-icon"
+      phx-click={@on_dismiss}
+      data-size={@size}
+      aria-label="Dismiss"
+      {@rest}
+    >
       <.close />
     </button>
     """

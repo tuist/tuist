@@ -60,7 +60,10 @@ defmodule TuistWeb.OnPremisePlugTest do
       Tuist.Environment
       |> stub(:on_premise?, fn -> true end)
 
-      expiration_date = Tuist.Time.utc_now() |> DateTime.shift(day: 15)
+      now = DateTime.utc_now() |> Timex.set(hour: 12, minute: 0, second: 0, microsecond: {0, 0})
+      Tuist.Time |> stub(:utc_now, fn -> now end)
+
+      expiration_date = now |> DateTime.shift(day: 15)
 
       Tuist.License
       |> stub(:get_license, fn -> {:ok, %{valid: true, expiration_date: expiration_date}} end)

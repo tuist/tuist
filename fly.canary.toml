@@ -20,7 +20,7 @@ console_command = "/app/bin/rails console"
   # The DB connection limit is 15 so:
   # 13 connection for the instance
   # 1 connection for the release script
-  TUIST_DATABASE_POOL_SIZE="5"
+  TUIST_DATABASE_POOL_SIZE="790"
 
 [[vm]]
   cpu_kind = 'shared'
