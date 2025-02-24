@@ -12,7 +12,7 @@ CLI는 내부적으로 메세지를 기록하여 문제 확인에 도움을 줍�
 
 명령어 수행이 원하는 결과를 가져오지 못한다면, 로그를 살펴보면서 문제의 원인을 파악해 볼 수 있습니다. The CLI forwards the logs to [OSLog](https://developer.apple.com/documentation/os/oslog) and the file-system.
 
-In every run, it creates a log file at `$XDG_STATE_HOME/tuist/logs/{uuid}.log` where `$XDG_STATE_HOME` takes the value `~/.local/state` if the environment variable is not set.
+실행할 때 마다, `$XDG_STATE_HOME/tuist/logs/{uuid}.log`경로에 로그 파일을 생성합니다. 환경 변수가 설정되어 있지 않다면, `$XDG_STATE_HOME` 는 `~/.local/state` 로 되어 있습니다.
 
 By default, the CLI outputs the logs path when the execution exits unexpectedly. If it doesn't, you can find the logs in the path mentioned above (i.e., the most recent log file).
 
