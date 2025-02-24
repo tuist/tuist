@@ -17,10 +17,7 @@ console_command = "/app/bin/rails console"
   TUIST_APP_URL="https://staging.tuist.dev"
   TUIST_HOSTED="1"
   TUIST_USE_SSL_FOR_DATABASE="1"
-  # The DB connection limit is 15 so:
-  # 13 connection for the instance
-  # 1 connection for the release script
-  TUIST_DATABASE_POOL_SIZE="97" # (200 - 6 (buffer for migrations)) / 2
+  TUIST_DATABASE_POOL_SIZE="50" # (200 - 100 (buffer)) / 2 (max simultaneous machines)
 
 [[vm]]
   cpu_kind = 'shared'
