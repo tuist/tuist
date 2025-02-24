@@ -230,7 +230,7 @@ public final class StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
 extension SettingsDictionary {
     /// There are scenarios when the combined settings introduce duplicates for these setting keys.
     /// We don't know how to reproduce – either in a reproducible sample or via unit tests.
-    /// This is also why the `removeOtherSwiftFlagsDuplicates` is `internal` instead of `fileprivate`, so we can at least the
+    /// This is also why the `removeOtherSwiftFlagsDuplicates` is `internal` instead of `fileprivate`, so we can at least test the
     /// method itself in isolation.
     fileprivate func removeDuplicates() -> SettingsDictionary {
         removeDuplicates(for: "FRAMEWORK_SEARCH_PATHS")
