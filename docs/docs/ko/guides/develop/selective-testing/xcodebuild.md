@@ -6,7 +6,7 @@ description: Learn how to leverage selective testing with `xcodebuild`.
 
 # xcodebuild {#xcodebuild}
 
-> [!IMPORTANT] 요구사항
+> [!IMPORTANT] 요구 사항
 >
 > - <LocalizedLink href="/server/introduction/accounts-and-projects">Tuist 계정과 프로젝트</LocalizedLink>
 
