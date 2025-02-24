@@ -202,7 +202,7 @@ public final class StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
             for dependency in dependencies {
                 settings[targetDependency] = (settings[targetDependency] ?? [:])
                     .combine(with: settings[dependency] ?? [:])
-                    .removeDuplicates(for: "FRAMEWORK_SEARCH_PATHS")
+                    .removeDuplicates()
             }
         }
         graph.projects = graph.projects.mapValues { project in
@@ -217,7 +217,7 @@ public final class StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
                 target.settings = targetSettings.with(
                     base: targetSettings.base
                         .combine(with: settings[.target(name: target.name, path: project.path)] ?? SettingsDictionary())
-                        .removeDuplicates(for: "FRAMEWORK_SEARCH_PATHS")
+                        .removeDuplicates()
                 )
                 return target
             }
@@ -228,6 +228,44 @@ public final class StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
 }
 
 extension SettingsDictionary {
+    /// There are scenarios when the combined settings introduce duplicates for these setting keys.
+    /// We don't know how to reproduce – either in a reproducible sample or via unit tests.
+    /// This is also why the `removeOtherSwiftFlagsDuplicates` is `internal` instead of `fileprivate`, so we can at least the
+    /// method itself in isolation.
+    fileprivate func removeDuplicates() -> SettingsDictionary {
+        removeDuplicates(for: "FRAMEWORK_SEARCH_PATHS")
+            .removeDuplicates(for: "HEADER_SEARCH_PATHS")
+            .removeDuplicates(for: "OTHER_C_FLAGS")
+            .removeOtherSwiftFlagsDuplicates()
+    }
+
+    func removeOtherSwiftFlagsDuplicates() -> SettingsDictionary {
+        let key = "OTHER_SWIFT_FLAGS"
+        var settings = self
+        guard let value = settings[key] else { return settings }
+        switch value {
+        case let .string(value):
+            settings[key] = .string(value)
+        case let .array(value):
+            var seen = Set<String>()
+            let value = value.enumerated().filter {
+                if $0.element == "-Xcc" {
+                    if value.endIndex > $0.offset + 1 {
+                        return !seen.contains(value[$0.offset + 1])
+                    } else {
+                        return true
+                    }
+                } else {
+                    return seen.insert($0.element).inserted
+                }
+            }
+            settings[key] = .array(
+                value.map(\.element)
+            )
+        }
+        return settings
+    }
+
     fileprivate func removeDuplicates(for key: String) -> SettingsDictionary {
         var settings = self
         guard let value = settings[key] else { return settings }
@@ -236,11 +274,7 @@ extension SettingsDictionary {
             settings[key] = .string(value)
         case let .array(value):
             settings[key] = .array(
-                Array(
-                    Set(
-                        value
-                    )
-                )
+                value.uniqued()
             )
         }
         return settings
