@@ -8,6 +8,10 @@ defmodule Tuist.Release do
   require Logger
 
   def migrate do
+    Logger.info(
+      "Migrating with a pool of size of #{Application.get_env(:tuist, Tuist.Repo) |> Keyword.get(:pool_size)}"
+    )
+
     load_app()
 
     for repo <- repos() do
