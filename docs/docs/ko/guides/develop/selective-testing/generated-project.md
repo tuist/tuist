@@ -6,7 +6,7 @@ description: Learn how to leverage selective testing with a generated project.
 
 # Generated project {#generated-project}
 
-> [!IMPORTANT] 요구사항
+> [!IMPORTANT] 요구 사항
 >
 > - <LocalizedLink href="/guides/develop/projects">생성된 프로젝트</LocalizedLink>
 > - <LocalizedLink href="/server/introduction/accounts-and-projects">Tuist 계정과 프로젝트</LocalizedLink>
