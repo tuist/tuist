@@ -2994,6 +2994,54 @@ internal struct Client: APIProtocol {
             }
         )
     }
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/builds`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/builds/post(createBuild)`.
+    internal func createBuild(_ input: Operations.createBuild.Input) async throws -> Operations.createBuild.Output {
+        try await client.send(
+            input: input,
+            forOperation: Operations.createBuild.id,
+            serializer: { input in
+                let path = try converter.renderedPath(
+                    template: "/api/projects/{}/{}/builds",
+                    parameters: [
+                        input.path.account_handle,
+                        input.path.project_handle
+                    ]
+                )
+                var request: HTTPTypes.HTTPRequest = .init(
+                    soar_path: path,
+                    method: .post
+                )
+                suppressMutabilityWarning(&request)
+                let body: OpenAPIRuntime.HTTPBody?
+                switch input.body {
+                case .none:
+                    body = nil
+                case let .json(value):
+                    body = try converter.setOptionalRequestBodyAsJSON(
+                        value,
+                        headerFields: &request.headerFields,
+                        contentType: "application/json; charset=utf-8"
+                    )
+                }
+                return (request, body)
+            },
+            deserializer: { response, responseBody in
+                switch response.status.code {
+                case 204:
+                    return .noContent(.init())
+                default:
+                    return .undocumented(
+                        statusCode: response.status.code,
+                        .init(
+                            headerFields: response.headerFields,
+                            body: responseBody
+                        )
+                    )
+                }
+            }
+        )
+    }
     /// Create a new account token.
     ///
     /// This endpoint returns a new account token.

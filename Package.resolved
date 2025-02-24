@@ -1,5 +1,5 @@
 {
-  "originHash" : "70a9b17a498ab3a65583ee9d95ec81d86227a0ccab244ad705a55beaf7f57430",
+  "originHash" : "0b0a1055c1c506c1d13cc9989df69ff6be84c7aedb773b405c22c4b4576d7a04",
   "pins" : [
     {
       "identity" : "aexml",
@@ -38,6 +38,15 @@
       }
     },
     {
+      "identity" : "cryptoswift",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/krzyzanowskim/CryptoSwift.git",
+      "state" : {
+        "revision" : "e2bc81be54d71d566a52ca17c3983d141c30aa70",
+        "version" : "1.3.3"
+      }
+    },
+    {
       "identity" : "difference",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/krzysztofzablocki/Difference.git",
@@ -62,6 +71,15 @@
       "state" : {
         "revision" : "e4e0796a8fa74b000aba54b0256601abf75d0307",
         "version" : "0.4.2"
+      }
+    },
+    {
+      "identity" : "gzipswift",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/1024jp/GzipSwift",
+      "state" : {
+        "revision" : "7a7f17761c76a932662ab77028a4329f67d645a4",
+        "version" : "5.2.0"
       }
     },
     {
@@ -341,6 +359,15 @@
       "state" : {
         "revision" : "4def3c1c772ca90ad5e7bfc8ac437c3b0b4276cf",
         "version" : "7.1.5"
+      }
+    },
+    {
+      "identity" : "xclogparser",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/tuist/XCLogParser",
+      "state" : {
+        "revision" : "7cf8c50e1b84effcda573bbf8b26bdd0a6b4614f",
+        "version" : "0.2.41"
       }
     },
     {

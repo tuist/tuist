@@ -152,6 +152,9 @@ internal protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/previews/generate-url`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/generate-url/post(generatePreviewsMultipartUploadURL)`.
     func generatePreviewsMultipartUploadURL(_ input: Operations.generatePreviewsMultipartUploadURL.Input) async throws -> Operations.generatePreviewsMultipartUploadURL.Output
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/builds`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/builds/post(createBuild)`.
+    func createBuild(_ input: Operations.createBuild.Input) async throws -> Operations.createBuild.Output
     /// Create a new account token.
     ///
     /// This endpoint returns a new account token.
@@ -624,6 +627,17 @@ extension APIProtocol {
         try await generatePreviewsMultipartUploadURL(Operations.generatePreviewsMultipartUploadURL.Input(
             path: path,
             headers: headers,
+            body: body
+        ))
+    }
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/builds`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/builds/post(createBuild)`.
+    internal func createBuild(
+        path: Operations.createBuild.Input.Path,
+        body: Operations.createBuild.Input.Body? = nil
+    ) async throws -> Operations.createBuild.Output {
+        try await createBuild(Operations.createBuild.Input(
+            path: path,
             body: body
         ))
     }
@@ -2913,7 +2927,7 @@ internal enum Operations {
                     /// The duration of the command.
                     ///
                     /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/duration`.
-                    internal var duration: Swift.Double
+                    internal var duration: Swift.Int
                     /// The error message of the command.
                     ///
                     /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/error_message`.
@@ -3249,7 +3263,7 @@ internal enum Operations {
                     internal init(
                         client_id: Swift.String,
                         command_arguments: [Swift.String]? = nil,
-                        duration: Swift.Double,
+                        duration: Swift.Int,
                         error_message: Swift.String? = nil,
                         git_branch: Swift.String? = nil,
                         git_commit_sha: Swift.String? = nil,
@@ -9482,6 +9496,103 @@ internal enum Operations {
                     .json
                 ]
             }
+        }
+    }
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/builds`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/builds/post(createBuild)`.
+    internal enum createBuild {
+        internal static let id: Swift.String = "createBuild"
+        internal struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/POST/path`.
+            internal struct Path: Sendable, Hashable {
+                /// The handle of the project's account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/POST/path/account_handle`.
+                internal var account_handle: Swift.String
+                /// The handle of the project to update.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/POST/path/project_handle`.
+                internal var project_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the project's account.
+                ///   - project_handle: The handle of the project to update.
+                internal init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                }
+            }
+            internal var path: Operations.createBuild.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/POST/requestBody`.
+            internal enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/POST/requestBody/json`.
+                internal struct jsonPayload: Codable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/POST/requestBody/json/duration`.
+                    internal var duration: Swift.Int
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - duration:
+                    internal init(duration: Swift.Int) {
+                        self.duration = duration
+                    }
+                    internal enum CodingKeys: String, CodingKey {
+                        case duration
+                    }
+                }
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/POST/requestBody/content/application\/json`.
+                case json(Operations.createBuild.Input.Body.jsonPayload)
+            }
+            internal var body: Operations.createBuild.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - body:
+            internal init(
+                path: Operations.createBuild.Input.Path,
+                body: Operations.createBuild.Input.Body? = nil
+            ) {
+                self.path = path
+                self.body = body
+            }
+        }
+        internal enum Output: Sendable, Hashable {
+            internal struct NoContent: Sendable, Hashable {
+                /// Creates a new `NoContent`.
+                internal init() {}
+            }
+            /// The project was successfully deleted.
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/builds/post(createBuild)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            case noContent(Operations.createBuild.Output.NoContent)
+            /// The associated value of the enum case if `self` is `.noContent`.
+            ///
+            /// - Throws: An error if `self` is not `.noContent`.
+            /// - SeeAlso: `.noContent`.
+            internal var noContent: Operations.createBuild.Output.NoContent {
+                get throws {
+                    switch self {
+                    case let .noContent(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "noContent",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
         }
     }
     /// Create a new account token.

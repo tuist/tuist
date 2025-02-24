@@ -8,11 +8,14 @@ components:
         hash:
           description: The hash that uniquely identifies the artifact in the cache.
           type: string
+          x-struct:
+          x-validate:
       required:
         - hash
       title: CacheActionItem
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.CacheActionItem
+      x-validate:
     OrganizationList:
       description: The list of organizations the authenticated subject is part of.
       properties:
@@ -20,10 +23,14 @@ components:
           items:
             $ref: '#/components/schemas/Organization'
           type: array
+          x-struct:
+          x-validate:
       required:
         - organizations
       title: OrganizationList
       type: object
+      x-struct:
+      x-validate:
     ArtifactUploadID:
       description: The upload has been initiated and a ID is returned to upload the various parts using multi-part uploads
       properties:
@@ -33,20 +40,27 @@ components:
             upload_id:
               description: The upload ID
               type: string
+              x-struct:
+              x-validate:
           required:
             - upload_id
           type: object
+          x-struct:
+          x-validate:
         status:
           default: success
           enum:
             - success
           type: string
+          x-struct:
+          x-validate:
       required:
         - status
         - data
       title: ArtifactUploadID
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.ArtifactUploadId
+      x-validate:
     CacheCategory:
       default: builds
       description: The category of the cache.
@@ -56,6 +70,7 @@ components:
       title: CacheCategory
       type: string
       x-struct: Elixir.TuistWeb.API.Schemas.CacheCategory
+      x-validate:
     CacheArtifactDownloadURL:
       description: The URL to download the artifact from the cache.
       properties:
@@ -64,24 +79,33 @@ components:
             expires_at:
               description: The UNIX timestamp when the URL expires.
               type: integer
+              x-struct:
+              x-validate:
             url:
               description: The URL to download the artifact from the cache.
               type: string
+              x-struct:
+              x-validate:
           required:
             - url
             - expires_at
           type: object
+          x-struct:
+          x-validate:
         status:
           default: success
           enum:
             - success
           type: string
+          x-struct:
+          x-validate:
       required:
         - status
         - data
       title: CacheArtifactDownloadURL
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.CacheArtifactDownloadURL
+      x-validate:
     Tokens:
       description: A list of project tokens.
       properties:
@@ -89,10 +113,14 @@ components:
           items:
             $ref: '#/components/schemas/ProjectToken'
           type: array
+          x-struct:
+          x-validate:
       required:
         - tokens
       title: Tokens
       type: object
+      x-struct:
+      x-validate:
     ArtifactMultipartUploadParts:
       description: It represents a part that has been uploaded using multipart uploads. The part is identified by its number and the etag
       properties:
@@ -102,35 +130,52 @@ components:
               etag:
                 description: The ETag of the part
                 type: string
+                x-struct:
+                x-validate:
               part_number:
                 description: The part number
                 type: integer
+                x-struct:
+                x-validate:
             required:
               - part_number
               - etag
             type: object
+            x-struct:
+            x-validate:
           type: array
+          x-struct:
+          x-validate:
         upload_id:
           description: The upload ID
           type: string
+          x-struct:
+          x-validate:
       required:
         - upload_id
         - parts
       title: ArtifactMultipartUploadParts
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.ArtifactMultipartUploadParts
+      x-validate:
     CommandEvent:
       description: The schema for the command analytics event.
       properties:
         id:
           description: ID of the command event
           type: number
+          x-struct:
+          x-validate:
         name:
           description: Name of the command
           type: string
+          x-struct:
+          x-validate:
         url:
           description: URL to the command event
           type: string
+          x-struct:
+          x-validate:
       required:
         - id
         - name
@@ -138,41 +183,57 @@ components:
       title: CommandEvent
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.CommandEvent
+      x-validate:
     CacheActionItemUploadParams:
       properties:
         hash:
           description: The hash of the cache action item.
           type: string
+          x-struct:
+          x-validate:
       title: CacheActionItemUploadParams
       type: object
+      x-struct:
+      x-validate:
     ArtifactMultipartUploadPart:
       description: Represents an multipart upload's part identified by the upload id and the part number
       properties:
         content_length:
           description: The content length of the part.
           type: integer
+          x-struct:
+          x-validate:
         part_number:
           description: The part number of the multipart upload.
           type: integer
+          x-struct:
+          x-validate:
         upload_id:
           description: The upload ID.
           type: string
+          x-struct:
+          x-validate:
       required:
         - part_number
         - upload_id
       title: ArtifactMultipartUploadPart
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.ArtifactMultipartUploadPart
+      x-validate:
     ProjectFullToken:
       description: A new project token.
       properties:
         token:
           description: The generated project token.
           type: string
+          x-struct:
+          x-validate:
       required:
         - token
       title: ProjectFullToken
       type: object
+      x-struct:
+      x-validate:
     PreviewArtifactUpload:
       description: The upload has been initiated and preview and upload unique identifier are returned to upload the various parts using multi-part uploads
       properties:
@@ -182,48 +243,70 @@ components:
             preview_id:
               description: The id of the preview.
               type: string
+              x-struct:
+              x-validate:
             upload_id:
               description: The upload ID
               type: string
+              x-struct:
+              x-validate:
           required:
             - upload_id
             - preview_id
           type: object
+          x-struct:
+          x-validate:
         status:
           default: success
           enum:
             - success
           type: string
+          x-struct:
+          x-validate:
       required:
         - status
         - data
       title: PreviewArtifactUpload
       type: object
+      x-struct:
+      x-validate:
     Project:
       properties:
         default_branch:
           description: The default branch of the project.
           example: main
           type: string
+          x-struct:
+          x-validate:
         full_name:
           description: The full name of the project (e.g. tuist/tuist)
           type: string
+          x-struct:
+          x-validate:
         id:
           description: ID of the project
           type: number
+          x-struct:
+          x-validate:
         repository_url:
           description: The URL of the connected git repository, such as https://github.com/tuist/tuist or https://github.com/tuist/tuist.git
           type: string
+          x-struct:
+          x-validate:
         token:
           deprecated: true
           description: The token that should be used to authenticate the project. For CI only.
           type: string
+          x-struct:
+          x-validate:
         visibility:
           description: The visibility of the project
           enum:
             - private
             - public
           type: string
+          x-struct:
+          x-validate:
       required:
         - id
         - full_name
@@ -233,22 +316,31 @@ components:
       title: Project
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Project
+      x-validate:
     Invitation:
       properties:
         id:
           description: The invitation's unique identifier
           type: number
+          x-struct:
+          x-validate:
         invitee_email:
           description: The email of the invitee
           type: string
+          x-struct:
+          x-validate:
         inviter:
           $ref: '#/components/schemas/User'
         organization_id:
           description: The id of the organization the invitee is invited to
           type: number
+          x-struct:
+          x-validate:
         token:
           description: The token to accept the invitation
           type: string
+          x-struct:
+          x-validate:
       required:
         - id
         - invitee_email
@@ -258,44 +350,60 @@ components:
       title: Invitation
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Invitation
+      x-validate:
     PreviewIndexPage:
       default: 1
       description: The page number to return.
       minimum: 1
       title: PreviewIndexPage
       type: integer
+      x-struct:
+      x-validate:
     Account:
       properties:
         handle:
           description: The handle of the account
           type: string
+          x-struct:
+          x-validate:
         id:
           description: ID of the account
           type: number
+          x-struct:
+          x-validate:
       required:
         - id
         - handle
       title: Account
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Account
+      x-validate:
     OrganizationMember:
       description: An organization member
       properties:
         email:
           description: The organization member's email
           type: string
+          x-struct:
+          x-validate:
         id:
           description: The organization member's unique identifier
           type: number
+          x-struct:
+          x-validate:
         name:
           description: The organization member's name
           type: string
+          x-struct:
+          x-validate:
         role:
           description: The organization member's role
           enum:
             - admin
             - user
           type: string
+          x-struct:
+          x-validate:
       required:
         - id
         - email
@@ -304,25 +412,34 @@ components:
       title: OrganizationMember
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.OrganizationMember
+      x-validate:
     Organization:
       description: An organization
       properties:
         id:
           description: The organization's unique identifier
           type: number
+          x-struct:
+          x-validate:
         invitations:
           description: A list of organization invitations
           items:
             $ref: '#/components/schemas/Invitation'
           type: array
+          x-struct:
+          x-validate:
         members:
           description: A list of organization members
           items:
             $ref: '#/components/schemas/OrganizationMember'
           type: array
+          x-struct:
+          x-validate:
         name:
           description: The organization's name
           type: string
+          x-struct:
+          x-validate:
         plan:
           description: The plan associated with the organization
           enum:
@@ -331,15 +448,21 @@ components:
             - enterprise
             - none
           type: string
+          x-struct:
+          x-validate:
         sso_organization_id:
           description: The organization ID associated with the SSO provider
           type: string
+          x-struct:
+          x-validate:
         sso_provider:
           description: The SSO provider set up for the organization
           enum:
             - google
             - okta
           type: string
+          x-struct:
+          x-validate:
       required:
         - id
         - name
@@ -349,6 +472,7 @@ components:
       title: Organization
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Organization
+      x-validate:
     PreviewSupportedPlatform:
       enum:
         - ios
@@ -363,12 +487,15 @@ components:
       title: PreviewSupportedPlatform
       type: string
       x-struct: Elixir.TuistWeb.API.Schemas.PreviewSupportedPlatform
+      x-validate:
     CommandEventArtifact:
       description: It represents an artifact that's associated with a command event (e.g. result bundles)
       properties:
         name:
           description: The name of the file. It's used only for certain types such as result_bundle_object
           type: string
+          x-struct:
+          x-validate:
         type:
           description: |
             The command event artifact type. It can be:
@@ -380,37 +507,56 @@ components:
             - invocation_record
             - result_bundle_object
           type: string
+          x-struct:
+          x-validate:
       required:
         - type
       title: CommandEventArtifact
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.CommandEventArtifact
+      x-validate:
     Preview:
       properties:
         bundle_identifier:
           description: The bundle identifier of the preview
           type: string
+          x-struct:
+          x-validate:
         display_name:
           description: The display name of the preview
           type: string
+          x-struct:
+          x-validate:
         git_branch:
           description: The git branch associated with the preview
           type: string
+          x-struct:
+          x-validate:
         git_commit_sha:
           description: The git commit SHA associated with the preview
           type: string
+          x-struct:
+          x-validate:
         icon_url:
           description: The URL for the icon image of the preview
           type: string
+          x-struct:
+          x-validate:
         id:
           description: Unique identifier of the preview.
           type: string
+          x-struct:
+          x-validate:
         qr_code_url:
           description: The URL for the QR code image to dowload the preview
           type: string
+          x-struct:
+          x-validate:
         url:
           description: The URL to download the preview
           type: string
+          x-struct:
+          x-validate:
       required:
         - id
         - url
@@ -419,6 +565,7 @@ components:
       title: Preview
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Preview
+      x-validate:
     RunsIndexPageSize:
       default: 20
       description: The maximum number of runs to return in a single page.
@@ -426,39 +573,51 @@ components:
       minimum: 1
       title: RunsIndexPageSize
       type: integer
+      x-struct:
+      x-validate:
     ProjectToken:
       description: A token to authenticate API requests as a project.
       properties:
         id:
           description: The token unique identifier.
           type: string
+          x-struct:
+          x-validate:
         inserted_at:
           description: The timestamp of when the token was created.
           format: date-time
           type: string
+          x-struct:
+          x-validate:
       required:
         - id
         - inserted_at
       title: ProjectToken
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.ProjectToken
+      x-validate:
     AccountTokenScope:
       description: The scope of the token.
       enum:
         - account_registry_read
       title: AccountTokenScope
       type: string
+      x-struct:
+      x-validate:
     OrganizationUsage:
       description: The usage of an organization.
       properties:
         current_month_remote_cache_hits:
           description: The number of remote cache hits in the current month
           type: number
+          x-struct:
+          x-validate:
       required:
         - current_month_remote_cache_hits
       title: OrganizationUsage
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.OrganizationUsage
+      x-validate:
     PreviewsIndex:
       properties:
         previews:
@@ -466,40 +625,57 @@ components:
           items:
             $ref: '#/components/schemas/Preview'
           type: array
+          x-struct:
+          x-validate:
       required:
         - previews
       title: PreviewsIndex
       type: object
+      x-struct:
+      x-validate:
     ArtifactUploadURL:
       description: The URL to upload an artifact.
       properties:
         expires_at:
           description: The UNIX timestamp when the URL expires.
           type: integer
+          x-struct:
+          x-validate:
         url:
           description: The URL to upload the artifact.
           type: string
+          x-struct:
+          x-validate:
       required:
         - url
         - expires_at
       title: ArtifactUploadURL
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.ArtifactUploadURL
+      x-validate:
     DeviceCodeAuthenticationTokens:
       description: Token to authenticate the user with.
       properties:
         access_token:
           description: A short-lived token to authenticate API requests as user.
           type: string
+          x-struct:
+          x-validate:
         refresh_token:
           description: A token to generate new access tokens when they expire.
           type: string
+          x-struct:
+          x-validate:
         token:
           deprecated: true
           description: User authentication token
           type: string
+          x-struct:
+          x-validate:
       title: DeviceCodeAuthenticationTokens
       type: object
+      x-struct:
+      x-validate:
     AbsentCacheArtifact:
       properties:
         error:
@@ -508,38 +684,57 @@ components:
               code:
                 default: not_found
                 type: string
+                x-struct:
+                x-validate:
               message:
                 type: string
+                x-struct:
+                x-validate:
             type: object
+            x-struct:
+            x-validate:
           type: array
+          x-struct:
+          x-validate:
       title: AbsentCacheArtifact
       type: object
+      x-struct:
+      x-validate:
     Error:
       properties:
         message:
           description: The error message
           type: string
+          x-struct:
+          x-validate:
       required:
         - message
       title: Error
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Error
+      x-validate:
     AccountToken:
       description: A new account token.
       properties:
         token:
           description: The generated account token.
           type: string
+          x-struct:
+          x-validate:
       required:
         - token
       title: AccountToken
       type: object
+      x-struct:
+      x-validate:
     RunsIndexPage:
       default: 1
       description: The page number to return.
       minimum: 1
       title: RunsIndexPage
       type: integer
+      x-struct:
+      x-validate:
     Run:
       description: The schema for a Tuist run.
       properties:
@@ -547,76 +742,130 @@ components:
           description: Cacheable targets of the run
           items:
             type: string
+            x-struct:
+            x-validate:
           type: array
+          x-struct:
+          x-validate:
         command_arguments:
           description: Arguments passed to the command
           items:
             type: string
+            x-struct:
+            x-validate:
           type: array
+          x-struct:
+          x-validate:
         duration:
           description: Duration of the run
           type: number
+          x-struct:
+          x-validate:
         git_branch:
           description: Git branch of the repository
           type: string
+          x-struct:
+          x-validate:
         git_commit_sha:
           description: Git commit SHA of the repository
           type: string
+          x-struct:
+          x-validate:
         git_ref:
           description: Git reference of the repository. When run from CI in a pull request, this will be the remote reference to the pull request, such as `refs/pull/23958/merge`.
           type: string
+          x-struct:
+          x-validate:
         id:
           description: ID of the run
           type: number
+          x-struct:
+          x-validate:
         local_cache_target_hits:
           description: Local cache target hits of the run
           items:
             type: string
+            x-struct:
+            x-validate:
           type: array
+          x-struct:
+          x-validate:
         local_test_target_hits:
           description: Local test target hits of the run
           items:
             type: string
+            x-struct:
+            x-validate:
           type: array
+          x-struct:
+          x-validate:
         macos_version:
           description: Version of macOS used
           type: string
+          x-struct:
+          x-validate:
         name:
           description: Command name of the run
           type: string
+          x-struct:
+          x-validate:
         preview_id:
           description: ID of the associated preview
           type: string
+          x-struct:
+          x-validate:
         remote_cache_target_hits:
           description: Remote cache target hits of the run
           items:
             type: string
+            x-struct:
+            x-validate:
           type: array
+          x-struct:
+          x-validate:
         remote_test_target_hits:
           description: Remote test target hits of the run
           items:
             type: string
+            x-struct:
+            x-validate:
           type: array
+          x-struct:
+          x-validate:
         status:
           description: Status of the command event
           type: string
+          x-struct:
+          x-validate:
         subcommand:
           description: Subcommand of the run
           type: string
+          x-struct:
+          x-validate:
         swift_version:
           description: Version of Swift used
           type: string
+          x-struct:
+          x-validate:
         test_targets:
           description: Test targets of the run
           items:
             type: string
+            x-struct:
+            x-validate:
           type: array
+          x-struct:
+          x-validate:
         tuist_version:
           description: Version of Tuist used
           type: string
+          x-struct:
+          x-validate:
         url:
           description: URL to the run
           type: string
+          x-struct:
+          x-validate:
       required:
         - id
         - name
@@ -634,19 +883,26 @@ components:
       title: Run
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Run
+      x-validate:
     CacheArtifactExistence:
       description: The artifact exists in the cache and can be downloaded
       properties:
         data:
           properties: {}
           type: object
+          x-struct:
+          x-validate:
         status:
           default: success
           enum:
             - success
           type: string
+          x-struct:
+          x-validate:
       title: CacheArtifactExistence
       type: object
+      x-struct:
+      x-validate:
     ArtifactMultipartUploadURL:
       description: The URL to upload a multipart part
       properties:
@@ -655,48 +911,66 @@ components:
             url:
               description: The URL to upload the part
               type: string
+              x-struct:
+              x-validate:
           required:
             - url
           type: object
+          x-struct:
+          x-validate:
         status:
           default: success
           enum:
             - success
           type: string
+          x-struct:
+          x-validate:
       required:
         - status
         - data
       title: ArtifactMultipartUploadURL
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.ArtifactMultipartUploadUrl
+      x-validate:
     CacheArtifactMultipartUploadCompletion:
       description: This response confirms that the upload has been completed successfully. The cache will now be able to serve the artifact.
       properties:
         data:
           properties: {}
           type: object
+          x-struct:
+          x-validate:
         status:
           default: success
           enum:
             - success
           type: string
+          x-struct:
+          x-validate:
       title: CacheArtifactMultipartUploadCompletion
       type: object
+      x-struct:
+      x-validate:
     AuthenticationTokens:
       description: A pair of access token to authenticate requests and refresh token to generate new access tokens when they expire.
       properties:
         access_token:
           description: API access token.
           type: string
+          x-struct:
+          x-validate:
         refresh_token:
           description: A token to generate new API access tokens when they expire.
           type: string
+          x-struct:
+          x-validate:
       required:
         - access_token
         - refresh_token
       title: AuthenticationTokens
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.AuthenticationTokens
+      x-validate:
     CreateAccountToken:
       description: The request to create a new account token.
       properties:
@@ -708,11 +982,17 @@ components:
               - account_registry_read
             title: AccountTokenScope
             type: string
+            x-struct:
+            x-validate:
           type: array
+          x-struct:
+          x-validate:
       required:
         - scopes
       title: CreateAccountToken
       type: object
+      x-struct:
+      x-validate:
     PreviewIndexPageSize:
       default: 10
       description: The maximum number of preview to return in a single page.
@@ -720,18 +1000,26 @@ components:
       minimum: 1
       title: PreviewIndexPageSize
       type: integer
+      x-struct:
+      x-validate:
     User:
       description: A user.
       properties:
         email:
           description: The user's email
           type: string
+          x-struct:
+          x-validate:
         id:
           description: The user's unique identifier
           type: number
+          x-struct:
+          x-validate:
         name:
           description: The user's name
           type: string
+          x-struct:
+          x-validate:
       required:
         - id
         - email
@@ -739,6 +1027,7 @@ components:
       title: User
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.User
+      x-validate:
   securitySchemes:
     authorization:
       scheme: bearer
@@ -773,24 +1062,32 @@ paths:
           required: true
           schema:
             type: string
+            x-struct:
+            x-validate:
         - description: The hash that uniquely identifies the artifact in the cache.
           in: query
           name: hash
           required: true
           schema:
             type: string
+            x-struct:
+            x-validate:
         - description: The upload ID.
           in: query
           name: upload_id
           required: true
           schema:
             type: string
+            x-struct:
+            x-validate:
         - description: The name of the artifact.
           in: query
           name: name
           required: true
           schema:
             type: string
+            x-struct:
+            x-validate:
       requestBody:
         content:
           application/json:
@@ -802,12 +1099,22 @@ paths:
                       etag:
                         description: The ETag of the part
                         type: string
+                        x-struct:
+                        x-validate:
                       part_number:
                         description: The part number
                         type: integer
+                        x-struct:
+                        x-validate:
                     type: object
+                    x-struct:
+                    x-validate:
                   type: array
+                  x-struct:
+                  x-validate:
               type: object
+              x-struct:
+              x-validate:
         description: Multi-part upload parts
         required: false
       responses:
@@ -820,13 +1127,19 @@ paths:
                   data:
                     properties: {}
                     type: object
+                    x-struct:
+                    x-validate:
                   status:
                     default: success
                     enum:
                       - success
                     type: string
+                    x-struct:
+                    x-validate:
                 title: CacheArtifactMultipartUploadCompletion
                 type: object
+                x-struct:
+                x-validate:
           description: The upload has been completed
         401:
           content:
@@ -866,6 +1179,8 @@ paths:
           required: true
           schema:
             type: string
+            x-struct:
+            x-validate:
       requestBody:
         content:
           application/json:
@@ -874,38 +1189,62 @@ paths:
                 client_id:
                   description: The client id of the command.
                   type: string
+                  x-struct:
+                  x-validate:
                 command_arguments:
                   description: The arguments of the command.
                   items:
                     type: string
+                    x-struct:
+                    x-validate:
                   type: array
+                  x-struct:
+                  x-validate:
                 duration:
                   description: The duration of the command.
-                  type: number
+                  type: integer
+                  x-struct:
+                  x-validate:
                 error_message:
                   description: The error message of the command.
                   type: string
+                  x-struct:
+                  x-validate:
                 git_branch:
                   description: The git branch.
                   type: string
+                  x-struct:
+                  x-validate:
                 git_commit_sha:
                   description: The commit SHA.
                   type: string
+                  x-struct:
+                  x-validate:
                 git_ref:
                   description: The git ref. When on CI, the value can be equal to remote reference such as `refs/pull/1234/merge`.
                   type: string
+                  x-struct:
+                  x-validate:
                 git_remote_url_origin:
                   description: The git remote URL origin.
                   type: string
+                  x-struct:
+                  x-validate:
                 is_ci:
                   description: Whether the command was run in a CI environment.
                   type: boolean
+                  x-struct:
+                  x-validate:
                 macos_version:
                   description: The version of macOS that ran the command.
                   type: string
+                  x-struct:
+                  x-validate:
                 name:
                   description: The name of the command.
                   type: string
+                  x-struct:
+                  x-validate:
                 params:
                   deprecated: true
                   description: Extra parameters.
@@ -914,57 +1253,95 @@ paths:
                       description: A list of cacheable targets.
                       items:
                         type: string
+                        x-struct:
+                        x-validate:
                       type: array
+                      x-struct:
+                      x-validate:
                     local_cache_target_hits:
                       description: A list of local cache target hits.
                       items:
                         type: string
+                        x-struct:
+                        x-validate:
                       type: array
+                      x-struct:
+                      x-validate:
                     local_test_target_hits:
                       description: A list of local targets whose tests were skipped.
                       items:
                         type: string
+                        x-struct:
+                        x-validate:
                       type: array
+                      x-struct:
+                      x-validate:
                     remote_cache_target_hits:
                       description: A list of remote cache target hits.
                       items:
                         type: string
+                        x-struct:
+                        x-validate:
                       type: array
+                      x-struct:
+                      x-validate:
                     remote_test_target_hits:
                       description: A list of remote targets whose tests were skipped.
                       items:
                         type: string
+                        x-struct:
+                        x-validate:
                       type: array
+                      x-struct:
+                      x-validate:
                     test_targets:
                       description: The list of targets that were tested.
                       items:
                         type: string
+                        x-struct:
+                        x-validate:
                       type: array
+                      x-struct:
+                      x-validate:
                   type: object
+                  x-struct:
+                  x-validate:
                 preview_id:
                   description: The preview identifier.
                   type: string
+                  x-struct:
+                  x-validate:
                 status:
                   description: The status of the command.
                   enum:
                     - success
                     - failure
                   type: string
+                  x-struct:
+                  x-validate:
                 subcommand:
                   description: The subcommand of the command.
                   type: string
+                  x-struct:
+                  x-validate:
                 swift_version:
                   description: The version of Swift that ran the command.
                   type: string
+                  x-struct:
+                  x-validate:
                 tuist_version:
                   description: The version of Tuist that ran the command.
                   type: string
+                  x-struct:
+                  x-validate:
                 xcode_graph:
                   description: The schema for the Xcode graph.
                   properties:
                     name:
                       description: Name of the Xcode graph
                       type: string
+                      x-struct:
+                      x-validate:
                     projects:
                       description: Projects present in an Xcode graph
                       items:
@@ -972,9 +1349,13 @@ paths:
                           name:
                             description: Name of the project
                             type: string
+                            x-struct:
+                            x-validate:
                           path:
                             description: Path of the project
                             type: string
+                            x-struct:
+                            x-validate:
                           targets:
                             description: Targets present in a project
                             items:
@@ -985,6 +1366,8 @@ paths:
                                     hash:
                                       description: Hash of the target
                                       type: string
+                                      x-struct:
+                                      x-validate:
                                     hit:
                                       description: The binary cache hit status
                                       enum:
@@ -992,19 +1375,27 @@ paths:
                                         - local
                                         - remote
                                       type: string
+                                      x-struct:
+                                      x-validate:
                                   required:
                                     - hash
                                     - hit
                                   type: object
+                                  x-struct:
+                                  x-validate:
                                 name:
                                   description: Name of the target
                                   type: string
+                                  x-struct:
+                                  x-validate:
                                 selective_testing_metadata:
                                   description: Selective testing metadata
                                   properties:
                                     hash:
                                       description: Hash of the target
                                       type: string
+                                      x-struct:
+                                      x-validate:
                                     hit:
                                       description: The selective testing hit status
                                       enum:
@@ -1012,23 +1403,37 @@ paths:
                                         - local
                                         - remote
                                       type: string
+                                      x-struct:
+                                      x-validate:
                                   required:
                                     - hash
                                     - hit
                                   type: object
+                                  x-struct:
+                                  x-validate:
                               required:
                                 - name
                               type: object
+                              x-struct:
+                              x-validate:
                             type: array
+                            x-struct:
+                            x-validate:
                         required:
                           - name
                           - path
                           - targets
+                        x-struct:
+                        x-validate:
                       type: array
+                      x-struct:
+                      x-validate:
                   required:
                     - name
                     - projects
                   type: object
+                  x-struct:
+                  x-validate:
               required:
                 - name
                 - duration
@@ -1038,6 +1443,8 @@ paths:
                 - is_ci
                 - client_id
               type: object
+              x-struct:
+              x-validate:
         description: Command event params
         required: false
       responses:
@@ -1074,12 +1481,16 @@ paths:
           required: true
           schema:
             type: string
+            x-struct:
+            x-validate:
         - description: The handle of the project.
           in: path
           name: project_handle
           required: true
           schema:
             type: string
+            x-struct:
+            x-validate:
       requestBody:
         content:
           application/json:
@@ -1088,14 +1499,20 @@ paths:
                 bundle_identifier:
                   description: The bundle identifier of the preview.
                   type: string
+                  x-struct:
+                  x-validate:
                 display_name:
                   description: The display name of the preview.
                   type: string
+                  x-struct:
+                  x-validate:
                 supported_platforms:
                   description: The supported platforms of the preview.
                   items:
                     $ref: '#/components/schemas/PreviewSupportedPlatform'
                   type: array
+                  x-struct:
+                  x-validate:
                 type:
                   default: app_bundle
                   description: The type of the preview to upload.
@@ -1103,10 +1520,16 @@ paths:
                     - app_bundle
                     - ipa
                   type: string
+                  x-struct:
+                  x-validate:
                 version:
                   description: The version of the preview.
                   type: string
+                  x-struct:
+                  x-validate:
               type: object
+              x-struct:
+              x-validate:
         description: Preview upload request params
         required: false
       responses:
@@ -1122,23 +1545,33 @@ paths:
                       preview_id:
                         description: The id of the preview.
                         type: string
+                        x-struct:
+                        x-validate:
                       upload_id:
                         description: The upload ID
                         type: string
+                        x-struct:
+                        x-validate:
                     required:
                       - upload_id
                       - preview_id
                     type: object
+                    x-struct:
+                    x-validate:
                   status:
                     default: success
                     enum:
                       - success
                     type: string
+                    x-struct:
+                    x-validate:
                 required:
                   - status
                   - data
                 title: PreviewArtifactUpload
                 type: object
+                x-struct:
+                x-validate:
           description: The upload has been started
         401:
           content:
@@ -1175,13 +1608,19 @@ paths:
                 email:
                   description: The email to authenticate with.
                   type: string
+                  x-struct:
+                  x-validate:
                 password:
                   description: The password to authenticate with.
                   type: string
+                  x-struct:
+                  x-validate:
               required:
                 - email
                 - password
               type: object
+              x-struct:
+              x-validate:
         description: Authentication params.
         required: false
       responses:
@@ -1214,9 +1653,13 @@ paths:
                 refresh_token:
                   description: User refresh token
                   type: string
+                  x-struct:
+                  x-validate:
               required:
                 - refresh_token
               type: object
+              x-struct:
+              x-validate:
         description: Token params
         required: false
       responses:
@@ -1247,6 +1690,8 @@ paths:
           required: true
           schema:
             type: string
+            x-struct:
+            x-validate:
       responses:
         200:
           content:
@@ -1257,21 +1702,31 @@ paths:
                   access_token:
                     description: A short-lived token to authenticate API requests as user.
                     type: string
+                    x-struct:
+                    x-validate:
                   refresh_token:
                     description: A token to generate new access tokens when they expire.
                     type: string
+                    x-struct:
+                    x-validate:
                   token:
                     deprecated: true
                     description: User authentication token
                     type: string
+                    x-struct:
+                    x-validate:
                 title: DeviceCodeAuthenticationTokens
                 type: object
+                x-struct:
+                x-validate:
           description: The device code is authenticated
         202:
           content:
             application/json:
               schema:
                 type: object
+                x-struct:
+                x-validate:
           description: The device code is not authenticated
         400:
           content:
@@ -1294,6 +1749,8 @@ paths:
           required: true
           schema:
             type: integer
+            x-struct:
+            x-validate:
       requestBody:
         content:
           application/json:
@@ -1344,9 +1801,13 @@ paths:
                     items:
                       $ref: '#/components/schemas/Project'
                     type: array
+                    x-struct:
+                    x-validate:
                 required:
                   - projects
                 type: object
+                x-struct:
+                x-validate:
           description: List of projects
         401:
           content:
@@ -1370,15 +1831,23 @@ paths:
                   description: The full handle of the project that should be created.
                   example: tuist/tuist
                   type: string
+                  x-struct:
+                  x-validate:
                 name:
                   deprecated: true
                   description: The name of the project that should be created.
                   type: string
+                  x-struct:
+                  x-validate:
                 organization:
                   deprecated: true
                   description: Organization to create the project with. If not specified, the project will be created with the current user's personal account.
                   type: string
+                  x-struct:
+                  x-validate:
               type: object
+              x-struct:
+              x-validate:
         description: Projects params
         required: false
       responses:
@@ -1421,12 +1890,16 @@ paths:
           required: true
           schema:
             type: string
+            x-struct:
+            x-validate:
         - description: The project handle.
           in: path
           name: project_handle
           required: true
           schema:
             type: string
+            x-struct:
+            x-validate:
       responses:
         200:
           content:
@@ -1438,10 +1911,14 @@ paths:
                     items:
                       $ref: '#/components/schemas/ProjectToken'
                     type: array
+                    x-struct:
+                    x-validate:
                 required:
                   - tokens
                 title: Tokens
                 type: object
+                x-struct:
+                x-validate:
           description: A list of project tokens.
         401:
           content:
@@ -1475,12 +1952,16 @@ paths:
           required: true
           schema:
             type: string
+            x-struct:
+            x-validate:
         - description: The project handle.
           in: path
           name: project_handle
           required: true
           schema:
             type: string
+            x-struct:
+            x-validate:
       responses:
         200:
           content:
@@ -1491,10 +1972,14 @@ paths:
                   token:
                     description: The generated project token.
                     type: string
+                    x-struct:
+                    x-validate:
                 required:
                   - token
                 title: ProjectFullToken
                 type: object
+                x-struct:
+                x-validate:
           description: A project token was generated
         401:
           content:
@@ -1529,6 +2014,8 @@ paths:
           required: true
           schema:
             type: string
+            x-struct:
+            x-validate:
       responses:
         200:
           content:
@@ -1575,18 +2062,24 @@ paths:
           required: true
           schema:
             type: string
+            x-struct:
+            x-validate:
         - description: The hash that uniquely identifies the artifact in the cache.
           in: query
           name: hash
           required: true
           schema:
             type: string
+            x-struct:
+            x-validate:
         - description: The name of the artifact.
           in: query
           name: name
           required: true
           schema:
             type: string
+            x-struct:
+            x-validate:
       responses:
         200:
           content:
@@ -1633,18 +2126,24 @@ paths:
           required: true
           schema:
             type: string
+            x-struct:
+            x-validate:
         - description: The name of the project the cache action item belongs to.
           in: path
           name: project_handle
           required: true
           schema:
             type: string
+            x-struct:
+            x-validate:
         - description: The hash that uniquely identifies an item in the action cache.
           in: path
           name: hash
           required: true
           schema:
             type: string
+            x-struct:
+            x-validate:
       responses:
         200:
           content:
@@ -1697,36 +2196,48 @@ paths:
           required: false
           schema:
             type: integer
+            x-struct:
+            x-validate:
         - description: The project identifier '{account_name}/{project_name}'.
           in: query
           name: project_id
           required: true
           schema:
             type: string
+            x-struct:
+            x-validate:
         - description: The hash that uniquely identifies the artifact in the cache.
           in: query
           name: hash
           required: true
           schema:
             type: string
+            x-struct:
+            x-validate:
         - description: The part number of the multipart upload.
           in: query
           name: part_number
           required: true
           schema:
             type: integer
+            x-struct:
+            x-validate:
         - description: The upload ID.
           in: query
           name: upload_id
           required: true
           schema:
             type: string
+            x-struct:
+            x-validate:
         - description: The name of the artifact.
           in: query
           name: name
           required: true
           schema:
             type: string
+            x-struct:
+            x-validate:
       responses:
         200:
           content:
@@ -1773,12 +2284,16 @@ paths:
           required: true
           schema:
             type: string
+            x-struct:
+            x-validate:
         - description: The name of the project to clean cache for
           in: path
           name: project_handle
           required: true
           schema:
             type: string
+            x-struct:
+            x-validate:
       requestBody:
         content:
           application/json:
@@ -1787,8 +2302,12 @@ paths:
                 hash:
                   description: The hash of the cache action item.
                   type: string
+                  x-struct:
+                  x-validate:
               title: CacheActionItemUploadParams
               type: object
+              x-struct:
+              x-validate:
         description: Cache action item upload params
         required: false
       responses:
@@ -1849,6 +2368,8 @@ paths:
           required: true
           schema:
             type: string
+            x-struct:
+            x-validate:
       responses:
         204:
           description: The organization was deleted
@@ -1884,6 +2405,8 @@ paths:
           required: true
           schema:
             type: string
+            x-struct:
+            x-validate:
       responses:
         200:
           content:
@@ -1923,6 +2446,8 @@ paths:
           required: true
           schema:
             type: string
+            x-struct:
+            x-validate:
       requestBody:
         content:
           application/json:
@@ -1932,6 +2457,8 @@ paths:
                   description: The SSO organization ID to be associated with the SSO provider
                   nullable: true
                   type: string
+                  x-struct:
+                  x-validate:
                 sso_provider:
                   description: The SSO provider to set up for the organization
                   enum:
@@ -1939,7 +2466,11 @@ paths:
                     - okta
                     - none
                   type: string
+                  x-struct:
+                  x-validate:
               type: object
+              x-struct:
+              x-validate:
         description: Organization update params
         required: false
       responses:
@@ -1987,6 +2518,8 @@ paths:
           required: true
           schema:
             type: string
+            x-struct:
+            x-validate:
       requestBody:
         content:
           application/json:
@@ -1996,6 +2529,8 @@ paths:
                   description: The SSO organization ID to be associated with the SSO provider
                   nullable: true
                   type: string
+                  x-struct:
+                  x-validate:
                 sso_provider:
                   description: The SSO provider to set up for the organization
                   enum:
@@ -2003,7 +2538,11 @@ paths:
                     - okta
                     - none
                   type: string
+                  x-struct:
+                  x-validate:
               type: object
+              x-struct:
+              x-validate:
         description: Organization update params
         required: false
       responses:
@@ -2052,12 +2591,16 @@ paths:
           required: true
           schema:
             type: string
+            x-struct:
+            x-validate:
         - description: The handle of the project.
           in: path
           name: project_handle
           required: true
           schema:
             type: string
+            x-struct:
+            x-validate:
       requestBody:
         content:
           application/json:
@@ -2068,10 +2611,14 @@ paths:
                 preview_id:
                   description: The id of the preview.
                   type: string
+                  x-struct:
+                  x-validate:
               required:
                 - multipart_upload_part
                 - preview_id
               type: object
+              x-struct:
+              x-validate:
         description: Artifact to generate a signed URL for
         required: false
       responses:
@@ -2102,6 +2649,46 @@ paths:
       summary: It generates a signed URL for uploading a part.
       tags:
         - Previews
+  /api/projects/{account_handle}/{project_handle}/builds:
+    post:
+      callbacks: {}
+      operationId: createBuild
+      parameters:
+        - description: The handle of the project's account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project to update.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                duration:
+                  type: integer
+                  x-struct:
+                  x-validate:
+              required:
+                - duration
+              x-struct:
+              x-validate:
+        description: Build params
+        required: false
+      responses:
+        204:
+          description: The project was successfully deleted.
+      tags: []
   /api/accounts/{account_handle}/tokens:
     post:
       callbacks: {}
@@ -2114,6 +2701,8 @@ paths:
           required: true
           schema:
             type: string
+            x-struct:
+            x-validate:
       requestBody:
         content:
           application/json:
@@ -2128,11 +2717,17 @@ paths:
                       - account_registry_read
                     title: AccountTokenScope
                     type: string
+                    x-struct:
+                    x-validate:
                   type: array
+                  x-struct:
+                  x-validate:
               required:
                 - scopes
               title: CreateAccountToken
               type: object
+              x-struct:
+              x-validate:
         description: Create account token params
         required: false
       responses:
@@ -2145,10 +2740,14 @@ paths:
                   token:
                     description: The generated account token.
                     type: string
+                    x-struct:
+                    x-validate:
                 required:
                   - token
                 title: AccountToken
                 type: object
+                x-struct:
+                x-validate:
           description: An account token was generated
         401:
           content:
@@ -2182,6 +2781,8 @@ paths:
           required: true
           schema:
             type: integer
+            x-struct:
+            x-validate:
       requestBody:
         content:
           application/json:
@@ -2195,6 +2796,8 @@ paths:
                 - command_event_artifact
                 - multipart_upload_part
               type: object
+              x-struct:
+              x-validate:
         description: Artifact to generate a signed URL for
         required: false
       responses:
@@ -2236,12 +2839,16 @@ paths:
           required: true
           schema:
             type: string
+            x-struct:
+            x-validate:
         - description: The name of the project to clean cache for
           in: path
           name: project_handle
           required: true
           schema:
             type: string
+            x-struct:
+            x-validate:
       responses:
         204:
           description: The cache has been successfully cleaned
@@ -2278,6 +2885,8 @@ paths:
           required: true
           schema:
             type: string
+            x-struct:
+            x-validate:
       requestBody:
         content:
           application/json:
@@ -2286,9 +2895,13 @@ paths:
                 invitee_email:
                   description: The email of the invitee.
                   type: string
+                  x-struct:
+                  x-validate:
               required:
                 - invitee_email
               type: object
+              x-struct:
+              x-validate:
         description: Invitation params
         required: false
       responses:
@@ -2326,6 +2939,8 @@ paths:
           required: true
           schema:
             type: string
+            x-struct:
+            x-validate:
       requestBody:
         content:
           application/json:
@@ -2334,9 +2949,13 @@ paths:
                 invitee_email:
                   description: The email of the invitee.
                   type: string
+                  x-struct:
+                  x-validate:
               required:
                 - invitee_email
               type: object
+              x-struct:
+              x-validate:
         description: Invitation params
         required: false
       responses:
@@ -2385,24 +3004,32 @@ paths:
           required: true
           schema:
             type: string
+            x-struct:
+            x-validate:
         - description: The handle of the project.
           in: path
           name: project_handle
           required: true
           schema:
             type: string
+            x-struct:
+            x-validate:
         - description: The display name of previews.
           in: query
           name: display_name
           required: false
           schema:
             type: string
+            x-struct:
+            x-validate:
         - description: The preview version specifier. Currently, accepts a commit SHA, branch name, or latest.
           in: query
           name: specifier
           required: false
           schema:
             type: string
+            x-struct:
+            x-validate:
         - description: ''
           in: query
           name: supported_platforms
@@ -2412,6 +3039,8 @@ paths:
             items:
               $ref: '#/components/schemas/PreviewSupportedPlatform'
             type: array
+            x-struct:
+            x-validate:
         - description: ''
           in: query
           name: page_size
@@ -2423,6 +3052,8 @@ paths:
             minimum: 1
             title: PreviewIndexPageSize
             type: integer
+            x-struct:
+            x-validate:
         - description: ''
           in: query
           name: page
@@ -2433,6 +3064,8 @@ paths:
             minimum: 1
             title: PreviewIndexPage
             type: integer
+            x-struct:
+            x-validate:
         - description: Distinct fields – no two previews will be returned with this field having the same value.
           in: query
           name: distinct_field
@@ -2441,6 +3074,8 @@ paths:
             enum:
               - bundle_identifier
             type: string
+            x-struct:
+            x-validate:
       responses:
         200:
           content:
@@ -2452,10 +3087,14 @@ paths:
                     items:
                       $ref: '#/components/schemas/Preview'
                     type: array
+                    x-struct:
+                    x-validate:
                 required:
                   - previews
                 title: PreviewsIndex
                 type: object
+                x-struct:
+                x-validate:
           description: Successful response for listing previews.
         401:
           content:
@@ -2490,18 +3129,24 @@ paths:
           required: true
           schema:
             type: string
+            x-struct:
+            x-validate:
         - description: The hash that uniquely identifies the artifact in the cache.
           in: query
           name: hash
           required: true
           schema:
             type: string
+            x-struct:
+            x-validate:
         - description: The name of the artifact.
           in: query
           name: name
           required: true
           schema:
             type: string
+            x-struct:
+            x-validate:
       responses:
         200:
           content:
@@ -2548,6 +3193,8 @@ paths:
           required: true
           schema:
             type: integer
+            x-struct:
+            x-validate:
       requestBody:
         content:
           application/json:
@@ -2561,6 +3208,8 @@ paths:
                 - command_event_artifact
                 - multipart_upload_parts
               type: object
+              x-struct:
+              x-validate:
         description: Command event artifact multipart upload completion
         required: false
       responses:
@@ -2610,10 +3259,14 @@ paths:
                     items:
                       $ref: '#/components/schemas/Organization'
                     type: array
+                    x-struct:
+                    x-validate:
                 required:
                   - organizations
                 title: OrganizationList
                 type: object
+                x-struct:
+                x-validate:
           description: The list of organizations
         401:
           content:
@@ -2643,9 +3296,13 @@ paths:
                 name:
                   description: The name of the organization that should be created.
                   type: string
+                  x-struct:
+                  x-validate:
               required:
                 - name
               type: object
+              x-struct:
+              x-validate:
         description: Organization params
         required: false
       responses:
@@ -2676,18 +3333,24 @@ paths:
           required: true
           schema:
             type: string
+            x-struct:
+            x-validate:
         - description: The handle of the project.
           in: path
           name: project_handle
           required: true
           schema:
             type: string
+            x-struct:
+            x-validate:
         - description: The id of the preview.
           in: path
           name: preview_id
           required: true
           schema:
             type: string
+            x-struct:
+            x-validate:
       responses:
         200:
           content:
@@ -2735,18 +3398,24 @@ paths:
           required: true
           schema:
             type: string
+            x-struct:
+            x-validate:
         - description: The hash that uniquely identifies the artifact in the cache.
           in: query
           name: hash
           required: true
           schema:
             type: string
+            x-struct:
+            x-validate:
         - description: The name of the artifact.
           in: query
           name: name
           required: true
           schema:
             type: string
+            x-struct:
+            x-validate:
       responses:
         200:
           content:
@@ -2757,13 +3426,19 @@ paths:
                   data:
                     properties: {}
                     type: object
+                    x-struct:
+                    x-validate:
                   status:
                     default: success
                     enum:
                       - success
                     type: string
+                    x-struct:
+                    x-validate:
                 title: CacheArtifactExistence
                 type: object
+                x-struct:
+                x-validate:
           description: The artifact exists
         401:
           content:
@@ -2794,12 +3469,22 @@ paths:
                         code:
                           default: not_found
                           type: string
+                          x-struct:
+                          x-validate:
                         message:
                           type: string
+                          x-struct:
+                          x-validate:
                       type: object
+                      x-struct:
+                      x-validate:
                     type: array
+                    x-struct:
+                    x-validate:
                 title: AbsentCacheArtifact
                 type: object
+                x-struct:
+                x-validate:
           description: The artifact doesn't exist
       summary: It checks if an artifact exists in the cache.
       tags:
@@ -2815,18 +3500,24 @@ paths:
           required: true
           schema:
             type: string
+            x-struct:
+            x-validate:
         - description: The project handle.
           in: path
           name: project_handle
           required: true
           schema:
             type: string
+            x-struct:
+            x-validate:
         - description: The ID of the project token
           in: path
           name: id
           required: true
           schema:
             type: string
+            x-struct:
+            x-validate:
       responses:
         204:
           description: The project token was revoked
@@ -2868,12 +3559,16 @@ paths:
           required: true
           schema:
             type: string
+            x-struct:
+            x-validate:
         - description: The name of the project to show
           in: path
           name: project_handle
           required: true
           schema:
             type: string
+            x-struct:
+            x-validate:
       responses:
         200:
           content:
@@ -2913,12 +3608,16 @@ paths:
           required: true
           schema:
             type: string
+            x-struct:
+            x-validate:
         - description: The handle of the project to update.
           in: path
           name: project_handle
           required: true
           schema:
             type: string
+            x-struct:
+            x-validate:
       requestBody:
         content:
           application/json:
@@ -2927,16 +3626,24 @@ paths:
                 default_branch:
                   description: The default branch for the project.
                   type: string
+                  x-struct:
+                  x-validate:
                 repository_url:
                   description: The repository URL for the project.
                   type: string
+                  x-struct:
+                  x-validate:
                 visibility:
                   description: The visibility of the project. Public projects are visible to everyone, private projects are only visible to the project's members.
                   enum:
                     - public
                     - private
                   type: string
+                  x-struct:
+                  x-validate:
               type: object
+              x-struct:
+              x-validate:
         description: Project update params
         required: false
       responses:
@@ -2984,36 +3691,48 @@ paths:
           required: true
           schema:
             type: string
+            x-struct:
+            x-validate:
         - description: The handle of the project.
           in: path
           name: project_handle
           required: true
           schema:
             type: string
+            x-struct:
+            x-validate:
         - description: The name of the run.
           in: query
           name: name
           required: false
           schema:
             type: string
+            x-struct:
+            x-validate:
         - description: The git ref of the run.
           in: query
           name: git_ref
           required: false
           schema:
             type: string
+            x-struct:
+            x-validate:
         - description: The git branch of the run.
           in: query
           name: git_branch
           required: false
           schema:
             type: string
+            x-struct:
+            x-validate:
         - description: The git commit SHA of the run.
           in: query
           name: git_commit_sha
           required: false
           schema:
             type: string
+            x-struct:
+            x-validate:
         - description: ''
           in: query
           name: page_size
@@ -3025,6 +3744,8 @@ paths:
             minimum: 1
             title: RunsIndexPageSize
             type: integer
+            x-struct:
+            x-validate:
         - description: ''
           in: query
           name: page
@@ -3035,6 +3756,8 @@ paths:
             minimum: 1
             title: RunsIndexPage
             type: integer
+            x-struct:
+            x-validate:
       responses:
         200:
           content:
@@ -3045,9 +3768,13 @@ paths:
                     items:
                       $ref: '#/components/schemas/Run'
                     type: array
+                    x-struct:
+                    x-validate:
                 required:
                   - runs
                 type: object
+                x-struct:
+                x-validate:
           description: List of runs
         403:
           content:
@@ -3069,12 +3796,16 @@ paths:
           required: true
           schema:
             type: string
+            x-struct:
+            x-validate:
         - description: The name of the user to remove from the organization.
           in: path
           name: user_name
           required: true
           schema:
             type: string
+            x-struct:
+            x-validate:
       responses:
         204:
           content:
@@ -3118,12 +3849,16 @@ paths:
           required: true
           schema:
             type: string
+            x-struct:
+            x-validate:
         - description: The name of the user to update in the organization.
           in: path
           name: user_name
           required: true
           schema:
             type: string
+            x-struct:
+            x-validate:
       requestBody:
         content:
           application/json:
@@ -3135,9 +3870,13 @@ paths:
                     - admin
                     - user
                   type: string
+                  x-struct:
+                  x-validate:
               required:
                 - role
               type: object
+              x-struct:
+              x-validate:
         description: Member update params
         required: false
       responses:
@@ -3186,18 +3925,24 @@ paths:
           required: true
           schema:
             type: string
+            x-struct:
+            x-validate:
         - description: The handle of the project.
           in: path
           name: project_handle
           required: true
           schema:
             type: string
+            x-struct:
+            x-validate:
         - description: The preview identifier.
           in: path
           name: preview_id
           required: true
           schema:
             type: string
+            x-struct:
+            x-validate:
       responses:
         200:
           content:
@@ -3238,12 +3983,16 @@ paths:
           required: true
           schema:
             type: string
+            x-struct:
+            x-validate:
         - description: The handle of the project.
           in: path
           name: project_handle
           required: true
           schema:
             type: string
+            x-struct:
+            x-validate:
       requestBody:
         content:
           application/json:
@@ -3255,10 +4004,14 @@ paths:
                 preview_id:
                   description: The id of the preview.
                   type: string
+                  x-struct:
+                  x-validate:
               required:
                 - multipart_upload_parts
                 - preview_id
               type: object
+              x-struct:
+              x-validate:
         description: preview multipart upload completion
         required: false
       responses:
@@ -3300,6 +4053,8 @@ paths:
           required: true
           schema:
             type: integer
+            x-struct:
+            x-validate:
       responses:
         204:
           description: The project was successfully deleted.
@@ -3336,6 +4091,8 @@ paths:
           required: true
           schema:
             type: string
+            x-struct:
+            x-validate:
       requestBody:
         content:
           application/json:
@@ -3344,7 +4101,11 @@ paths:
                 handle:
                   description: The new account handle.
                   type: string
+                  x-struct:
+                  x-validate:
               type: object
+              x-struct:
+              x-validate:
         description: Change account
         required: false
       responses:
@@ -3393,6 +4154,8 @@ paths:
           required: true
           schema:
             type: integer
+            x-struct:
+            x-validate:
       requestBody:
         content:
           application/json:
@@ -3400,6 +4163,8 @@ paths:
               deprecated: true
               properties: {}
               type: object
+              x-struct:
+              x-validate:
         description: Extra metadata for the post-processing of a command event.
         required: false
       responses:
