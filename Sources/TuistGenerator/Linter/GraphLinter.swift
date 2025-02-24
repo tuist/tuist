@@ -595,6 +595,7 @@ public class GraphLinter: GraphLinting {
             LintableTarget(platform: .macOS, product: .framework),
             LintableTarget(platform: .macOS, product: .staticFramework),
             LintableTarget(platform: .macOS, product: .macro),
+            LintableTarget(platform: .macOS, product: .commandLineTool),
         ],
         LintableTarget(platform: .macOS, product: .uiTests): [
             LintableTarget(platform: .macOS, product: .app),
