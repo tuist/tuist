@@ -10,7 +10,7 @@ msgstr ""
 "Project-Id-Version: tuist-website\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Language-Team: Korean\n"
-"PO-Revision-Date: 2025-02-23 13:35\n"
+"PO-Revision-Date: 2025-02-24 15:34\n"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:390
 #, elixir-autogen, elixir-format
@@ -841,7 +841,7 @@ msgstr ""
 #: lib/tuist/billing.ex:40
 #, elixir-autogen, elixir-format
 msgid "Generous free monthly tier"
-msgstr ""
+msgstr "넉넉한 월간 무료 티어"
 
 #: lib/tuist/billing.ex:38
 #: lib/tuist/billing.ex:55
@@ -1589,7 +1589,7 @@ msgstr ""
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:245
 #, elixir-autogen, elixir-format
 msgid "Start a new project or add Tuist to an existing one."
-msgstr ""
+msgstr "Tuist로 새 프로젝트를 시작하거나 기존 프로젝트에 적용하세요."
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:6
 #, elixir-autogen, elixir-format
