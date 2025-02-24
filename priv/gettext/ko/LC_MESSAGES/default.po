@@ -10,7 +10,7 @@ msgstr ""
 "Project-Id-Version: tuist-website\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Language-Team: Korean\n"
-"PO-Revision-Date: 2025-02-21 05:58\n"
+"PO-Revision-Date: 2025-02-23 13:35\n"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:390
 #, elixir-autogen, elixir-format
@@ -231,7 +231,7 @@ msgstr ""
 #: lib/tuist/billing.ex:41
 #, elixir-autogen, elixir-format
 msgid "All features, no credit card required"
-msgstr "신용카드 없이 모든 기능 이용 가능"
+msgstr "결제 없이 모든 기능 이용 가능"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:51
 #, elixir-autogen, elixir-format
@@ -559,7 +559,7 @@ msgstr ""
 #: lib/tuist/billing.ex:69
 #, elixir-autogen, elixir-format
 msgid "Create your plan or self-host your instance."
-msgstr ""
+msgstr "맞춤형 플랜을 구성하거나 인스턴스를 직접 호스팅하세요."
 
 #: lib/tuist_web/live/preview_live.html.heex:65
 #: lib/tuist_web/live/previews_live.html.heex:28
@@ -1291,7 +1291,7 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:32
 #, elixir-autogen, elixir-format
 msgid "Price per unit above free tier"
-msgstr ""
+msgstr "무료 티어 한도 이상 사용 시 단위당 요금"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:105
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:84
@@ -2057,7 +2057,7 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:266
 #, elixir-autogen, elixir-format
 msgid "We have a generous free tier on every paid plan so you can try out the features before paying any money."
-msgstr ""
+msgstr "모든 유료 플랜에는 넉넉한 무료 사용량이 포함되어 있어 요금을 지불하기 전에 기능들을 체험해볼 수 있습니다."
 
 #: lib/tuist_web/live/project_tests_live.html.heex:19
 #, elixir-autogen, elixir-format
