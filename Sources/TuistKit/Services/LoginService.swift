@@ -89,7 +89,7 @@ final class LoginService: LoginServicing {
             ),
             serverURL: serverURL
         )
-        ServiceContext.current?.alerts?.append(.success(.alert("Successfully logged in.")))
+        ServiceContext.current?.alerts?.success(.alert("Successfully logged in."))
     }
 
     private func authenticateWithBrowserLogin(
@@ -112,6 +112,6 @@ final class LoginService: LoginServicing {
                 }
             }
         )
-        ServiceContext.current?.alerts?.append(.success(.alert("Successfully logged in.")))
+        ServiceContext.current?.alerts?.success(.alert("Successfully logged in."))
     }
 }

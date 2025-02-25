@@ -44,7 +44,7 @@ public struct StandardLogHandler: LogHandler {
                 case .error:
                     string = message.description.red()
                 case .warning:
-                    ServiceContext.current?.alerts?.append(.warning(.alert("\(message.description)")))
+                    ServiceContext.current?.alerts?.warning(.alert("\(message.description)"))
                     return
                 case .notice, .info, .debug, .trace:
                     string = message.description

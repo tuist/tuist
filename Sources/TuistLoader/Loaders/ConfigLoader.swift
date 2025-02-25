@@ -49,9 +49,7 @@ public final class ConfigLoader: ConfigLoading {
 
         if configPath.pathString.contains("Config.swift") {
             ServiceContext.current?.alerts?
-                .append(
-                    .warning(.alert("Tuist/Config.swift is deprecated. Rename Tuist/Config.swift to Tuist.swift at the root."))
-                )
+                .warning(.alert("Tuist/Config.swift is deprecated. Rename Tuist/Config.swift to Tuist.swift at the root."))
         }
 
         let manifest = try await manifestLoader.loadConfig(at: configPath.parentDirectory)

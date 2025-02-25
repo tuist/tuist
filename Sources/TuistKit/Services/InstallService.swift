@@ -60,7 +60,7 @@ final class InstallService {
         let config = try await configLoader.loadConfig(path: path)
         _ = try await pluginService.loadPlugins(using: config)
 
-        ServiceContext.current?.alerts?.append(.success(.alert("Plugins resolved and fetched successfully.")))
+        ServiceContext.current?.alerts?.success(.alert("Plugins resolved and fetched successfully."))
     }
 
     private func fetchDependencies(path: AbsolutePath, update: Bool) async throws {

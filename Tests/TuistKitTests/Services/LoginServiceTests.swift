@@ -122,8 +122,8 @@ final class LoginServiceTests: TuistUnitTestCase {
             // Then
             let output = ServiceContext.current?.recordedUI()
             let expectedOutput = """
-            stdout: ▌ ✔ Success
-            stdout: ▌ Successfully logged in.
+            ▌ ✔ Success
+            ▌ Successfully logged in.
             """
             XCTAssertEqual(output, expectedOutput)
         }
@@ -172,8 +172,8 @@ final class LoginServiceTests: TuistUnitTestCase {
             // Then
             let output = ServiceContext.current?.recordedUI()
             let expectedOutput = """
-            stdout: ▌ ✔ Success
-            stdout: ▌ Successfully logged in.
+            ▌ ✔ Success
+            ▌ Successfully logged in.
             """
             XCTAssertEqual(output, expectedOutput)
         }
@@ -218,8 +218,8 @@ final class LoginServiceTests: TuistUnitTestCase {
             // Then
             let output = ServiceContext.current?.recordedUI()
             let expectedOutput = """
-            stdout: ▌ ✔ Success
-            stdout: ▌ Successfully logged in.
+            ▌ ✔ Success
+            ▌ Successfully logged in.
             """
             XCTAssertEqual(output, expectedOutput)
             verify(userInputReader)

@@ -126,7 +126,7 @@ final class CleanService {
                 try await fileSystem.remove(directory)
                 try await fileSystem.makeDirectory(at: directory)
                 ServiceContext.current?.alerts?
-                    .append(.success(.alert("Successfully cleaned artifacts at path \(directory.pathString)")))
+                    .success(.alert("Successfully cleaned artifacts at path \(directory.pathString)"))
             } else {
                 ServiceContext.current?.logger?.notice("There's nothing to clean for \(category.defaultValueDescription)")
             }

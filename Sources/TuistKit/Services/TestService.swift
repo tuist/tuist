@@ -405,7 +405,7 @@ final class TestService { // swiftlint:disable:this type_body_length
             cacheStorage: uploadCacheStorage
         )
 
-        ServiceContext.current?.alerts?.append(.success(.alert("The project tests ran successfully")))
+        ServiceContext.current?.alerts?.success(.alert("The project tests ran successfully"))
     }
 
     private func updateTestServiceAnalytics(

@@ -105,11 +105,9 @@ final class PluginArchiveService {
         try await archiver.delete()
 
         ServiceContext.current?.alerts?
-            .append(
-                .success(
-                    .alert(
-                        "Plugin was successfully archived. Create a new Github release and attach the file \(zipPath.pathString) as an artifact."
-                    )
+            .success(
+                .alert(
+                    "Plugin was successfully archived. Create a new Github release and attach the file \(zipPath.pathString) as an artifact."
                 )
             )
     }

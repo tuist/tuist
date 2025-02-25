@@ -3,7 +3,7 @@ import Mockable
 import Noora
 import ServiceContextModule
 
-public enum Alert {
+enum Alert {
     case success(SuccessAlert)
     case warning(WarningAlert)
 }
@@ -11,7 +11,7 @@ public enum Alert {
 public final class AlertController: @unchecked Sendable {
     private let alertQueue = DispatchQueue(label: "io.tuist.TuistSupport.AlertController")
     private var _alerts: [Alert] = []
-    public var alerts: [Alert] {
+    private var alerts: [Alert] {
         get {
             alertQueue.sync { _alerts }
         }
@@ -22,9 +22,15 @@ public final class AlertController: @unchecked Sendable {
 
     public init() {}
 
-    public func append(_ alert: Alert) {
+    public func success(_ alert: SuccessAlert) {
         var alerts = alerts
-        alerts.insert(alert, at: alerts.endIndex)
+        alerts.insert(.success(alert), at: alerts.endIndex)
+        self.alerts = alerts
+    }
+
+    public func warning(_ alert: WarningAlert) {
+        var alerts = alerts
+        alerts.insert(.warning(alert), at: alerts.endIndex)
         self.alerts = alerts
     }
 

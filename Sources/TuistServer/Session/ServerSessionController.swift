@@ -133,7 +133,6 @@ public final class ServerSessionController: ServerSessionControlling {
             refreshToken: tokens.refreshToken
         )
         try await credentialsStore.store(credentials: credentials, serverURL: serverURL)
-        ServiceContext.current?.logger?.debug("Credentials stored successfully")
     }
 
     public func whoami(serverURL: URL) async throws -> String? {
@@ -163,7 +162,7 @@ public final class ServerSessionController: ServerSessionControlling {
 
     public func logout(serverURL: URL) async throws {
         try await credentialsStore.delete(serverURL: serverURL)
-        ServiceContext.current?.alerts?.append(.success(.alert("Successfully logged out.")))
+        ServiceContext.current?.alerts?.success(.alert("Successfully logged out."))
     }
 
     private func getAuthTokens(

@@ -56,8 +56,8 @@ final class SettingsToXCConfigExtractorIntegrationTests: TuistTestCase {
 
             let output = ServiceContext.current?.recordedUI()
             let expectedOutput = """
-            stdout: ▌ ✔ Success
-            stdout: ▌ Build settings successfully extracted into \(xcconfigPath.pathString)
+            ▌ ✔ Success
+            ▌ Build settings successfully extracted into \(xcconfigPath.pathString)
             """
             XCTAssertEqual(output, expectedOutput)
         }
@@ -146,8 +146,8 @@ final class SettingsToXCConfigExtractorIntegrationTests: TuistTestCase {
 
             let output = ServiceContext.current?.recordedUI()
             let expectedOutput = """
-            stdout: ▌ ✔ Success
-            stdout: ▌ Build settings successfully extracted into \(xcconfigPath.pathString)
+            ▌ ✔ Success
+            ▌ Build settings successfully extracted into \(xcconfigPath.pathString)
             """
             XCTAssertEqual(output, expectedOutput)
         }

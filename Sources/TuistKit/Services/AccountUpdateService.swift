@@ -73,6 +73,6 @@ struct AccountUpdateService: AccountUpdateServicing {
         )
         try await authTokenRefreshService.refreshTokens(serverURL: serverURL)
 
-        ServiceContext.current?.alerts?.append(.success(.alert("The account \(account.handle) was successfully updated.")))
+        ServiceContext.current?.alerts?.success(.alert("The account \(account.handle) was successfully updated."))
     }
 }

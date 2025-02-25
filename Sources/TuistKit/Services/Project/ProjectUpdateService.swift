@@ -63,7 +63,7 @@ struct ProjectUpdateService {
             visibility: visibility
         )
 
-        ServiceContext.current?.alerts?.append(.success(.alert("The project \(fullHandle) was successfully updated 🎉")))
+        ServiceContext.current?.alerts?.success(.alert("The project \(fullHandle) was successfully updated 🎉"))
     }
 
     // MARK: - Helpers
