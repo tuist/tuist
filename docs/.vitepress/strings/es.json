@@ -314,7 +314,18 @@
               }
             },
             "selective-testing": {
-              "text": "Selective testing"
+              "text": "Selective testing",
+              "items": {
+                "selective-testing": {
+                  "text": "Selective testing"
+                },
+                "xcodebuild": {
+                  "text": "xcodebuild"
+                },
+                "generated-project": {
+                  "text": "Generated project"
+                }
+              }
             }
           }
         },

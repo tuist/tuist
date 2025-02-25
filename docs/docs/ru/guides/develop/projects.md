@@ -1,16 +1,16 @@
 ---
-title: Projects
-titleTemplate: :title · Develop · Guides · Tuist
-description: Learn about Tuist's DSL for defining Xcode projects.
+title: Проекты
+titleTemplate: :title · Разработка · Руководства · Tuist
+description: Узнайте о Tuist DSL для описания Xcode проектов.
 ---
 
-# Projects {#projects}
+# Сгенерированные проекты {#generated-projects}
 
-Tuist Projects is a viable alternative that helps to overcome these challenges while keeping complexity and costs at an acceptable level. It considers Xcode projects as a fundamental element, ensuring resilience against future Xcode updates, and leverages Xcode project generation to provide teams with a modularization-focused declarative API. Tuist uses the project declaration to simplify the complexities of modularization\*\*, optimize workflows like build or test across various environments, and facilitate and democratize the evolution of Xcode projects.
+Сгенерированные проекты - жизнеспособная альтернатива, которая помогает преодолевать проблемы при сохранении сложности и издержек на приемлемом уровне. Xcode-проекты рассматриваются в качестве основополагающего элемента, для обеспечения устойчивости к будущим обновлениям Xcode, и используемые механизмы генерации проектов Xcode предоставляют модуле-ориентированное декларативное API. Tuist uses the project declaration to simplify the complexities of modularization\*\*, optimize workflows like build or test across various environments, and facilitate and democratize the evolution of Xcode projects.
 
 ## How does it work? {#how-does-it-work}
 
-To get started with Tuist Projects, all you need is to define your project using **Tuist's Domain Specific Language (DSL)**. This entails using manifest files such as `Workspace.swift` or `Project.swift`. If you've worked with the Swift Package Manager before, the approach is very similar.
+Чтобы начать работу со сгенерированными XCode-проектами, вам нужно определить свой проект с помощью \*\*Предметно-ориентированного языка(DSL) Tuist \*\*. This entails using manifest files such as `Workspace.swift` or `Project.swift`. If you've worked with the Swift Package Manager before, the approach is very similar.
 
 Once you've defined your project, Tuist offers various workflows to manage and interact with it:
 

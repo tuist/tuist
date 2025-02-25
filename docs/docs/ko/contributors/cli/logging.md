@@ -1,10 +1,10 @@
 ---
-title: Logging
+title: 로깅
 titleTemplate: :title · CLI · Contributors · Tuist
 description: 코드 리뷰를 통해 Tuist에 어떻게 기여하는지 알아봅니다.
 ---
 
-# Logging {#logging}
+# 로깅 {#logging}
 
 The CLI embraces the [swift-log](https://github.com/apple/swift-log) interface for logging. The package abstracts away the implementation details of logging, allowing the CLI to be agnostic to the logging backend. The logger is dependency-injected using [swift-service-context](https://github.com/apple/swift-service-context) and can be accessed anywhere using:
 
