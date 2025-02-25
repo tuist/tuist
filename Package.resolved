@@ -1,5 +1,5 @@
 {
-  "originHash" : "3c8250af4ee0bb57ec3c93901902a6a1c37a578d2454fcb749014dc452d20ae5",
+  "originHash" : "2d237bb9ef3be955e6ee42b059aa7c4eb1d922d567e3ad11994f4393905bb576",
   "pins" : [
     {
       "identity" : "aexml",
@@ -110,6 +110,15 @@
       }
     },
     {
+      "identity" : "noora",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/tuist/Noora",
+      "state" : {
+        "revision" : "95d3491dc5dfe22a8084bccf7aa0a44dbc2a6e0d",
+        "version" : "0.21.3"
+      }
+    },
+    {
       "identity" : "packageconfig",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/shibapm/PackageConfig.git",
@@ -143,6 +152,15 @@
       "state" : {
         "revision" : "52515108d0ac4616d9e15ffcc7ad986e300d31ff",
         "version" : "2.1.1"
+      }
+    },
+    {
+      "identity" : "rainbow",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/onevcat/Rainbow",
+      "state" : {
+        "revision" : "0c627a4f8a39ef37eadec1ceec02e4a7f55561ac",
+        "version" : "4.1.0"
       }
     },
     {

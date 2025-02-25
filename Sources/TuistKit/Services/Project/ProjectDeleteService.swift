@@ -22,7 +22,7 @@ final class ProjectDeleteService: ProjectDeleteServicing {
         deleteProjectService: DeleteProjectServicing = DeleteProjectService(),
         getProjectService: GetProjectServicing = GetProjectService(),
         serverURLService: ServerURLServicing = ServerURLService(),
-        configLoader: ConfigLoading = ConfigLoader(warningController: WarningController.shared)
+        configLoader: ConfigLoading = ConfigLoader()
     ) {
         self.deleteProjectService = deleteProjectService
         self.getProjectService = getProjectService

@@ -11,8 +11,19 @@ protocol AccountUpdateServicing {
     func run(
         accountHandle: String?,
         handle: String?,
-        directory: String?
+        directory: String?,
+        onEvent: (AccountUpdateServiceEvent) -> Void
     ) async throws
+}
+
+enum AccountUpdateServiceEvent: CustomStringConvertible {
+    case completed(handle: String)
+
+    var description: String {
+        switch self {
+        case let .completed(handle): "The account \(handle) was successfully updated."
+        }
+    }
 }
 
 struct AccountUpdateService: AccountUpdateServicing {
@@ -26,7 +37,7 @@ struct AccountUpdateService: AccountUpdateServicing {
     // MARK: - Init
 
     init(
-        configLoader: ConfigLoading = ConfigLoader(warningController: WarningController.shared),
+        configLoader: ConfigLoading = ConfigLoader(),
         fileSystem: FileSysteming = FileSystem(),
         serverURLService: ServerURLServicing = ServerURLService(),
         updateAccountService: UpdateAccountServicing = UpdateAccountService(),
@@ -44,7 +55,8 @@ struct AccountUpdateService: AccountUpdateServicing {
     func run(
         accountHandle: String?,
         handle: String?,
-        directory: String?
+        directory: String?,
+        onEvent: (AccountUpdateServiceEvent) -> Void
     ) async throws {
         let directoryPath: AbsolutePath
         if let directory {
@@ -73,6 +85,22 @@ struct AccountUpdateService: AccountUpdateServicing {
         )
         try await authTokenRefreshService.refreshTokens(serverURL: serverURL)
 
-        ServiceContext.current?.logger?.notice("The account \(account.handle) was successfully updated.", metadata: .success)
+        onEvent(.completed(handle: account.handle))
+    }
+}
+
+extension AccountUpdateServicing {
+    func run(
+        accountHandle: String?,
+        handle: String?,
+        directory: String?,
+        onEvent: ((AccountUpdateServiceEvent) -> Void) = { ServiceContext.current?.alerts?.success(.alert("\($0.description)")) }
+    ) async throws {
+        try await run(
+            accountHandle: accountHandle,
+            handle: handle,
+            directory: directory,
+            onEvent: onEvent
+        )
     }
 }

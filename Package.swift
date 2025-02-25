@@ -100,6 +100,7 @@ let targets: [Target] = [
             "TuistLoader",
             "ProjectDescription",
             "ProjectAutomation",
+            .product(name: "Noora", package: "Noora"),
             pathDependency,
             swiftToolsSupportDependency,
         ]
@@ -122,6 +123,7 @@ let targets: [Target] = [
             "Mockable",
             "FileSystem",
             "Command",
+            .product(name: "Noora", package: "Noora"),
             .product(name: "LoggingOSLog", package: "swift-log-oslog"),
             .product(name: "FileLogging", package: "swift-log-file"),
             .product(name: "ServiceContextModule", package: "swift-service-context"),
@@ -527,6 +529,7 @@ let package = Package(
             .upToNextMajor(from: "0.2.2")
         ),
         .package(url: "https://github.com/crspybits/swift-log-file", .upToNextMajor(from: "0.1.0")),
+        .package(url: "https://github.com/tuist/Noora", .upToNextMajor(from: "0.21.3")),
     ],
     targets: targets
 )

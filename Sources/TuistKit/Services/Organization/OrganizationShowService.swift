@@ -23,7 +23,7 @@ final class OrganizationShowService: OrganizationShowServicing {
         getOrganizationService: GetOrganizationServicing = GetOrganizationService(),
         getOrganizationUsageService: GetOrganizationUsageServicing = GetOrganizationUsageService(),
         serverURLService: ServerURLServicing = ServerURLService(),
-        configLoader: ConfigLoading = ConfigLoader(warningController: WarningController.shared)
+        configLoader: ConfigLoading = ConfigLoader()
     ) {
         self.getOrganizationService = getOrganizationService
         self.getOrganizationUsageService = getOrganizationUsageService
