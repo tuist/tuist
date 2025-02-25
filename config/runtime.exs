@@ -156,7 +156,7 @@ if Tuist.Environment.error_tracking_enabled?() do
     name: appsignal_name,
     push_api_key: Tuist.Environment.app_signal_push_api_key(secrets),
     env: env,
-    active: [:prod, :stag, :can] |> Enum.member?(env),
+    active: true,
     ignore_errors: [
       "TuistWeb.Errors.NotFoundError",
       "TuistWeb.Errors.TooManyRequestsError",

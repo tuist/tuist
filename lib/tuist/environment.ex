@@ -100,7 +100,8 @@ defmodule Tuist.Environment do
   end
 
   def error_tracking_enabled?() do
-    not on_premise?() and Enum.member?([:prod, :stag, :can], env())
+    truthy?(System.get_env("TUIST_FORCE_ERROR_TRACKING")) ||
+      (not on_premise?() and Enum.member?([:prod, :stag, :can], env()))
   end
 
   def version() do
