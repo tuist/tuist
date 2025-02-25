@@ -26,4 +26,25 @@ CIでは、環境が使い捨てであるため、CIパイプラインを設定�
 たとえば、GitHub Actionsでは、`actions/upload-artifact` アクションを使用してログを成果物としてアップロードできます：
 
 ```yaml
+name: Node CI
+
+on: [push]
+
+env:
+  $XDG_STATE_HOME: /tmp/tuist
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      # ... other steps
+      - run: tuist generate
+      # ... do something with the project
+      - name: Export Tuist logs
+        uses: actions/upload-artifact@v4
+        with:
+          name: tuist-logs
+          path: /tmp/tuist/logs/*.log
 ```
