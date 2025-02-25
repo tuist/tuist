@@ -100,6 +100,7 @@ let targets: [Target] = [
             "TuistLoader",
             "ProjectDescription",
             "ProjectAutomation",
+            .product(name: "Noora", package: "Noora"),
             pathDependency,
             swiftToolsSupportDependency,
         ]
@@ -122,6 +123,7 @@ let targets: [Target] = [
             "Mockable",
             "FileSystem",
             "Command",
+            .product(name: "Noora", package: "Noora"),
             .product(name: "LoggingOSLog", package: "swift-log-oslog"),
             .product(name: "FileLogging", package: "swift-log-file"),
             .product(name: "ServiceContextModule", package: "swift-service-context"),
