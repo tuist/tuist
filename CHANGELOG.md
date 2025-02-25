@@ -1,5 +1,27 @@
 # Changelog
 
+## 4.43.2 - 2025-02-25
+
+### CLI
+
+#### Changed
+
+- Improve error message on unhandled errors [#7344](https://github.com/tuist/tuist/pull/7344) by [@fortmarek](https://github.com/fortmarek)
+
+#### Added
+
+- #7345 Add command lint tool as valid target for unit tests on macOS. [#7347](https://github.com/tuist/tuist/pull/7347) by [@connor-ricks](https://github.com/connor-ricks)
+
+#### Fixed
+
+- Explicitly use `Foundation.FileManager` to negotiate conflicting `FileManager` symbol in module itself in synthesized resource accessors [#7338](https://github.com/tuist/tuist/pull/7338) by [@Scvairy](https://github.com/Scvairy)
+- Remove duplicates for some settings when using binary cache [#7346](https://github.com/tuist/tuist/pull/7346) by [@fortmarek](https://github.com/fortmarek)
+- Fix selective testing of projects with aggregate targets [#7352](https://github.com/tuist/tuist/pull/7352) by [@fortmarek](https://github.com/fortmarek)
+
+### CLI (Server features)
+
+- no changes
+
 ## 4.43.1 - 2025-02-21
 
 ### CLI
