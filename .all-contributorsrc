@@ -1753,6 +1753,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "connor-ricks",
+      "name": "Connor Ricks",
+      "avatar_url": "https://avatars.githubusercontent.com/u/13373737?v=4",
+      "profile": "http://connorricks.com",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,
