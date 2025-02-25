@@ -10,7 +10,7 @@ msgstr ""
 "Project-Id-Version: tuist-website\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Language-Team: Korean\n"
-"PO-Revision-Date: 2025-02-24 15:34\n"
+"PO-Revision-Date: 2025-02-25 03:32\n"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:390
 #, elixir-autogen, elixir-format
@@ -1046,7 +1046,7 @@ msgstr ""
 #: lib/tuist_web/live/account_billing_live.html.heex:11
 #, elixir-autogen, elixir-format
 msgid "Manage your billing and payment details"
-msgstr ""
+msgstr "청구 및 결제 세부 정보 관리"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/about.html.heex:191
 #, elixir-autogen, elixir-format
