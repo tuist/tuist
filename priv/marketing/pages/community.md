@@ -53,6 +53,7 @@ We view languages as powerful tools for fostering deeper connections with the co
 - [Takashi Ushikoshi](https://github.com/Uhucream)
 - Harry Ho
 - [Seoyeon (Sadie) Choo](https://www.linkedin.com/in/seoyeon-choo24/)
+- [Lee JiHoon](https://github.com/hooni0918)
 
 ## Alumni
 
