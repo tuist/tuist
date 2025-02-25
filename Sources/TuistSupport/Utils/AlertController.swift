@@ -10,32 +10,30 @@ enum Alert {
 
 public final class AlertController: @unchecked Sendable {
     private let alertQueue = DispatchQueue(label: "io.tuist.TuistSupport.AlertController")
-    private var _alerts: [Alert] = []
-    private var alerts: [Alert] {
-        get {
-            alertQueue.sync { _alerts }
-        }
-        set {
-            alertQueue.sync { _alerts = newValue }
-        }
-    }
+    private var alerts: ThreadSafe<[Alert]> = ThreadSafe([])
 
     public init() {}
 
     public func success(_ alert: SuccessAlert) {
-        var alerts = alerts
-        alerts.insert(.success(alert), at: alerts.endIndex)
-        self.alerts = alerts
+        alerts.mutate { alerts in
+            alerts.insert(.success(alert), at: alerts.endIndex)
+        }
     }
 
     public func warning(_ alert: WarningAlert) {
-        var alerts = alerts
-        alerts.insert(.warning(alert), at: alerts.endIndex)
-        self.alerts = alerts
+        alerts.mutate { alerts in
+            alerts.insert(.warning(alert), at: alerts.endIndex)
+        }
+    }
+
+    public func flush() {
+        alerts.mutate { alerts in
+            alerts.removeAll()
+        }
     }
 
     public func print() {
-        for alert in alerts {
+        for alert in alerts.value {
             switch alert {
             case let .success(successAlert):
                 ServiceContext.current?.ui?.success(successAlert)

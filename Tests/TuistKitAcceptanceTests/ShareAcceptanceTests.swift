@@ -17,7 +17,14 @@ final class ShareAcceptanceTests: ServerAcceptanceTestCase {
             let shareLink = try previewLink()
             try await run(RunCommand.self, shareLink, "-destination", "iPhone 16 Pro")
             XCTAssertStandardOutput(pattern: "Installing and launching App on iPhone 16 Pro")
-            XCTAssertStandardOutput(pattern: "App was successfully launched 📲")
+            XCTAssertEqual(ServiceContext.current?.recordedUI(), """
+            ▌ ✔ Success
+            ▌ Successfully logged in.
+            ▌ ✔ Success
+            ▌ The project built successfully
+            ▌ ✔ Success
+            ▌ App was successfully launched 📲
+            """)
         }
     }
 
@@ -29,13 +36,30 @@ final class ShareAcceptanceTests: ServerAcceptanceTestCase {
             let shareLink = try previewLink("App")
             try await run(RunCommand.self, shareLink, "-destination", "iPhone 16")
             XCTAssertStandardOutput(pattern: "Installing and launching App on iPhone 16")
-            XCTAssertStandardOutput(pattern: "App was successfully launched 📲")
+            XCTAssertEqual(ServiceContext.current?.recordedUI(), """
+            ▌ ✔ Success
+            ▌ Successfully logged in.
+            ▌ ✔ Success
+            ▌ The project built successfully
+            ▌ ✔ Success
+            ▌ App was successfully launched 📲
+            """)
+            ServiceContext.current?.flushRecordedUI()
 
             try await run(ShareCommand.self, "AppClip1")
             let appClipShareLink = try previewLink("AppClip1")
             try await run(RunCommand.self, appClipShareLink, "-destination", "iPhone 16")
             XCTAssertStandardOutput(pattern: "Installing and launching AppClip1 on iPhone 16")
-            XCTAssertStandardOutput(pattern: "AppClip1 was successfully launched 📲")
+            XCTAssertEqual(ServiceContext.current?.recordedUI(), """
+            ▌ ✔ Success
+            ▌ Successfully logged in.
+            ▌ ✔ Success
+            ▌ The project built successfully
+            ▌ ✔ Success
+            ▌ App was successfully launched 📲
+            ▌ ✔ Success
+            ▌ AppClip1 was successfully launched 📲
+            """)
         }
     }
 
@@ -61,7 +85,12 @@ final class ShareAcceptanceTests: ServerAcceptanceTestCase {
             try await run(ShareCommand.self, "App", "--platforms", "ios")
             try await run(RunCommand.self, try previewLink(), "-destination", "iPhone 16 Plus")
             XCTAssertStandardOutput(pattern: "Installing and launching App on iPhone 16 Plus")
-            XCTAssertStandardOutput(pattern: "App was successfully launched 📲")
+            XCTAssertEqual(ServiceContext.current?.recordedUI(), """
+            ▌ ✔ Success
+            ▌ Successfully logged in.
+            ▌ ✔ Success
+            ▌ App was successfully launched 📲
+            """)
         }
     }
 
@@ -95,7 +124,12 @@ final class ShareAcceptanceTests: ServerAcceptanceTestCase {
             )
             try await run(RunCommand.self, try previewLink(), "-destination", "iPhone 15 Pro Max")
             XCTAssertStandardOutput(pattern: "Installing and launching App on iPhone 15 Pro Max")
-            XCTAssertStandardOutput(pattern: "App was successfully launched 📲")
+            XCTAssertEqual(ServiceContext.current?.recordedUI(), """
+            ▌ ✔ Success
+            ▌ Successfully logged in.
+            ▌ ✔ Success
+            ▌ App was successfully launched 📲
+            """)
         }
     }
 }
