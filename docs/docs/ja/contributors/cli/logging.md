@@ -6,7 +6,7 @@ description: Tuistへの貢献を、コードレビューを通じて学ぶ
 
 # ロギング {#logging}
 
-CLI はロギングのために [swift-log](https://github.com/apple/swift-log) インターフェースを採用しています。 パッケージはロギングの実装の詳細を抽象化し、CLIがロギングバックエンドに依存しないようにします。 ロガーは [swift-service-context](https://github.com/apple/swift-service-context) を使用して依存性を注入されており、どこからでもアクセスできます： パッケージはロギングの実装の詳細を抽象化し、CLIがロギングバックエンドに依存しないようにします。 ロガーは [swift-service-context](https://github.com/apple/swift-service-context) を使用して依存性を注入されており、どこからでもアクセスできます： パッケージはロギングの実装の詳細を抽象化し、CLIがロギングバックエンドに依存しないようにします。 ロガーは [swift-service-context](https://github.com/apple/swift-service-context) を使用して依存性を注入されており、どこからでもアクセスできます： パッケージはロギングの実装の詳細を抽象化し、CLIがロギングバックエンドに依存しないようにします。 ロガーは [swift-service-context](https://github.com/apple/swift-service-context) を使用して依存性を注入されており、どこからでもアクセスできます：
+CLI はロギングのために [swift-log](https://github.com/apple/swift-log) インターフェースを採用しています。 パッケージはロギングの実装の詳細を抽象化し、CLIがロギングバックエンドに依存しないようにします。 ロガーは [swift-service-context](https://github.com/apple/swift-service-context) を使用して依存性を注入されており、どこからでもアクセスできます： パッケージはロギングの実装の詳細を抽象化し、CLIがロギングバックエンドに依存しないようにします。 ロガーは [swift-service-context](https://github.com/apple/swift-service-context) を使用して依存性を注入されており、どこからでもアクセスできます： パッケージはロギングの実装の詳細を抽象化し、CLIがロギングバックエンドに依存しないようにします。 ロガーは [swift-service-context](https://github.com/apple/swift-service-context) を使用して依存性を注入されており、どこからでもアクセスできます： パッケージはロギングの実装の詳細を抽象化し、CLIがロギングバックエンドに依存しないようにします。 ロガーは [swift-service-context](https://github.com/apple/swift-service-context) を使用して依存性を注入されており、どこからでもアクセスできます： パッケージはロギングの実装の詳細を抽象化し、CLIがロギングバックエンドに依存しないようにします。 ロガーは [swift-service-context](https://github.com/apple/swift-service-context) を使用して依存性を注入されており、どこからでもアクセスできます：
 
 ```bash
 ServiceContext.current?.logger
