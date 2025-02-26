@@ -25,7 +25,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          token: ${{ secrets.TUIST_APP_RELEASE_TOKEN }}
           fetch-depth: 0
       - uses: jdx/mise-action@v2
         with:
