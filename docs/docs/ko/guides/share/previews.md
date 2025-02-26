@@ -71,7 +71,7 @@ Tuist Previews를 더욱 쉽게 실행할 수 있도록, 우리는 Tuist macOS m
 
 Preview 페이지에서 "Run"을 클릭하면, macOS 앱이 현재 선택된 디바이스에서 자동으로 실행됩니다
 
-> [!IMPORTANT] 요구사항\
+> [!IMPORTANT] 요구 사항\
 > Preview를 다운로드하려면, `tuist auth login` 명령어를 사용해 인증해야 합니다.
 > 앞으로는 앱에서 직접 인증할 수 있게 될 예정입니다.
 >
