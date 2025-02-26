@@ -19,5 +19,5 @@ ServiceContext.current?.logger
 
 로그는 CLI의 UI가 아닙니다. 로그는 이슈가 발생하였을 때 진단을 도와주는 도구입니다.
 그렇기 때문에, 많은 정보를 제공할 수록 더 좋은 결과를 얻을 수 있습니다.
-When building new features, put yourself in the shoes of a developer coming across unexpected behavior, and think about what information would be helpful to them.
+새로운 기능을 만들 때 자신을 예상하지 못한 동작을 발견한 개발자라고 생각하고, 어떠한 정보들을 그 개발자들에게 제공해준다면 도움이 될지 생각해보면 좋습니다.
 Ensure you you use the right [log level](https://www.swift.org/documentation/server/guides/libraries/log-levels.html). Otherwise developers won't be able to filter out the noise.
