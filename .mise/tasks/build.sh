@@ -13,7 +13,7 @@ dependencies=("AEXML")
 # Not all the grah modules compile for Linux, so let's
 # figure out one by one until we can ensure the whole graph compiles.
 
-if [ "$usage_linux_vm" = "false" ]; then
+if [ "$usage_linux_vm" != "true" ]; then
     swift package resolve
 fi
 
