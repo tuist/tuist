@@ -13,8 +13,11 @@ concurrency:
 
 jobs:
   linux_build:
-    name: Linux Build
+    name: Build for ${{ matrix.os }}
     runs-on: "ubuntu-latest"
+    strategy:
+      matrix:
+        os: ["ubuntu-latest", "windows-latest"]
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
