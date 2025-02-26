@@ -79,8 +79,7 @@ final class LoginService: LoginServicing {
             try await authenticateWithEmailAndPassword(
                 email: email,
                 password: password,
-                serverURL: serverURL,
-                onEvent: onEvent
+                serverURL: serverURL
             )
         } else {
             try await authenticateWithBrowserLogin(serverURL: serverURL, onEvent: onEvent)
@@ -91,8 +90,7 @@ final class LoginService: LoginServicing {
     private func authenticateWithEmailAndPassword(
         email: String?,
         password: String?,
-        serverURL: URL,
-        onEvent _: @escaping (LoginServiceEvent) -> Void
+        serverURL: URL
     ) async throws {
         let email = email ?? userInputReader.readString(asking: "Email:")
         let password = password ?? userInputReader.readString(asking: "Password:")
