@@ -1,3 +1,4 @@
+import Mockable
 import ServiceContextModule
 
 enum StartPromptingWorkflowType: Equatable, CustomStringConvertible {
@@ -12,26 +13,27 @@ enum StartPromptingWorkflowType: Equatable, CustomStringConvertible {
     }
 }
 
+@Mockable
 protocol StartPrompting {
-    func promptWorkflowType(xcodeProjectOrWorkspace: InitService.XcodeProjectOrWorkspace?) -> StartPromptingWorkflowType!
+    func promptWorkflowType(xcodeProjectOrWorkspace: InitService.XcodeProjectOrWorkspace?) -> StartPromptingWorkflowType
     func promptIntegrateWithServer() -> Bool
-    func promptGeneratedProjectPlatform() -> String!
-    func promptGeneratedProjectName() -> String!
+    func promptGeneratedProjectPlatform() -> String
+    func promptGeneratedProjectName() -> String
 }
 
 struct StartPrompter: StartPrompting {
-    func promptWorkflowType(xcodeProjectOrWorkspace: InitService.XcodeProjectOrWorkspace?) -> StartPromptingWorkflowType! {
+    func promptWorkflowType(xcodeProjectOrWorkspace: InitService.XcodeProjectOrWorkspace?) -> StartPromptingWorkflowType {
         var promptOptions = [
             StartPromptingWorkflowType.createGeneratedProject,
         ]
         if let xcodeProjectOrWorkspace {
             promptOptions.append(.integrateWithProjectOrWorkspace(xcodeProjectOrWorkspace.name))
         }
-        return ServiceContext.current?.ui?.singleChoicePrompt(
+        return (ServiceContext.current?.ui?.singleChoicePrompt(
             title: "Start",
             question: "How would you like to start with Tuist?",
             options: promptOptions
-        )
+        ))!
     }
 
     func promptIntegrateWithServer() -> Bool {
@@ -44,8 +46,8 @@ struct StartPrompter: StartPrompting {
         ) ?? false
     }
 
-    func promptGeneratedProjectPlatform() -> String! {
-        ServiceContext.current?.ui?.singleChoicePrompt(
+    func promptGeneratedProjectPlatform() -> String {
+        (ServiceContext.current?.ui?.singleChoicePrompt(
             title: "Platform",
             question: "Which platform would you like to generate code for?",
             options: [
@@ -56,15 +58,15 @@ struct StartPrompter: StartPrompting {
             ],
             description: "The generated project's main target platform",
             collapseOnSelection: true
-        ).lowercased()
+        ).lowercased())!
     }
 
-    func promptGeneratedProjectName() -> String! {
-        ServiceContext.current?.ui?.textPrompt(
+    func promptGeneratedProjectName() -> String {
+        (ServiceContext.current?.ui?.textPrompt(
             title: "Name",
             prompt: "How would you like to name the project?",
             description: "The name of the project and its main target",
             collapseOnAnswer: true
-        )
+        ))!
     }
 }

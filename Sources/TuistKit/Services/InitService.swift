@@ -11,7 +11,8 @@ public struct InitService {
     let loginService: LoginServicing
     let createProjectService: CreateProjectServicing
     let serverSessionController: ServerSessionControlling
-    let startGeneratedProjectService: InitGeneratedProjectService
+    let startGeneratedProjectService: InitGeneratedProjectServicing
+    let keystrokeListener: KeyStrokeListening
 
     enum XcodeProjectOrWorkspace: Hashable, Equatable {
         case workspace(AbsolutePath)
@@ -45,7 +46,8 @@ public struct InitService {
         loginService: LoginServicing = LoginService(),
         createProjectService: CreateProjectServicing = CreateProjectService(),
         serverSessionController: ServerSessionControlling = ServerSessionController(),
-        startGeneratedProjectService: InitGeneratedProjectService = InitGeneratedProjectService()
+        startGeneratedProjectService: InitGeneratedProjectServicing = InitGeneratedProjectService(),
+        keystrokeListener: KeyStrokeListening = KeyStrokeListener()
     ) {
         self.fileSystem = fileSystem
         self.prompter = prompter
@@ -53,6 +55,7 @@ public struct InitService {
         self.createProjectService = createProjectService
         self.serverSessionController = serverSessionController
         self.startGeneratedProjectService = startGeneratedProjectService
+        self.keystrokeListener = keystrokeListener
     }
 
     public func run(from directory: AbsolutePath) async throws {
@@ -61,8 +64,8 @@ public struct InitService {
 
         switch try await nameOfXcodeProjectOrWorkspace(in: directory) {
         case .createGeneratedProject:
-            let name = prompter.promptGeneratedProjectName()!
-            let platform = prompter.promptGeneratedProjectPlatform()!
+            let name = prompter.promptGeneratedProjectName()
+            let platform = prompter.promptGeneratedProjectPlatform()
             projectDirectory = try await createGeneratedProject(at: directory, name: name, platform: platform)
             if let fullHandle = try await integrateWithXcodeProjectOrWorkspace(named: name, in: directory) {
                 tuistSwiftLine = "let tuist = Tuist(fullHandle: \"\(fullHandle)\", project: .tuist())"
@@ -72,9 +75,9 @@ public struct InitService {
         case let .integrateWithProjectOrWorkspace(name):
             projectDirectory = directory
             if let fullHandle = try await integrateWithXcodeProjectOrWorkspace(named: name, in: directory) {
-                tuistSwiftLine = "let tuist = Tuist(fullHandle: \"\(fullHandle)\", project: .xcode)"
+                tuistSwiftLine = "let tuist = Tuist(fullHandle: \"\(fullHandle)\", project: .xcode())"
             } else {
-                tuistSwiftLine = "let tuist = Tuist(project: .xcode)"
+                tuistSwiftLine = "let tuist = Tuist(project: .xcode())"
             }
         }
 
@@ -134,9 +137,24 @@ public struct InitService {
                 errorMessage: "Authentication failed",
                 visibleLines: 3,
                 task: { progress in
-
                     try await loginService.run(email: nil, password: nil, directory: nil) { event in
-                        progress("\(event.description)")
+                        switch event {
+                        case let .openingBrowser(url):
+                            await withCheckedContinuation { continuation in
+                                progress("Press ENTER to open \(url) in your browser to authenticate...")
+                                keystrokeListener.listen { key in
+                                    switch key {
+                                    case .returnKey:
+                                        continuation.resume()
+                                        return .abort
+                                    default:
+                                        return .continue
+                                    }
+                                }
+                            }
+                        default:
+                            progress("\(event.description)")
+                        }
                     }
                 }
             )

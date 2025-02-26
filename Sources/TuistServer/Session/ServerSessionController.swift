@@ -47,7 +47,7 @@ public protocol ServerSessionControlling: AnyObject {
         serverURL: URL,
         deviceCodeType: DeviceCodeType,
         onOpeningBrowser: @escaping (URL) async -> Void,
-        onAuthWaitBegin: @escaping () -> Void
+        onAuthWaitBegin: @escaping () async -> Void
     ) async throws
 
     /// - Returns: Account handle for the signed-in user for the server with the given URL. Returns nil if no user is logged in.
@@ -105,7 +105,7 @@ public final class ServerSessionController: ServerSessionControlling {
         serverURL: URL,
         deviceCodeType: DeviceCodeType,
         onOpeningBrowser: @escaping (URL) async -> Void,
-        onAuthWaitBegin: () -> Void
+        onAuthWaitBegin: () async -> Void
     ) async throws {
         var components = URLComponents(url: serverURL, resolvingAgainstBaseURL: false)!
         let deviceCode = uniqueIDGenerator.uniqueID()
@@ -122,7 +122,8 @@ public final class ServerSessionController: ServerSessionControlling {
 
         try opener.open(url: authURL)
 
-        onAuthWaitBegin()
+        await onAuthWaitBegin()
+
         let tokens = try await getAuthTokens(
             serverURL: serverURL,
             deviceCode: deviceCode

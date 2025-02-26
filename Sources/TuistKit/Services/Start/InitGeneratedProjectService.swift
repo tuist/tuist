@@ -1,5 +1,6 @@
 import FileSystem
 import Foundation
+import Mockable
 import Path
 import ServiceContextModule
 import TuistCore
@@ -42,7 +43,19 @@ enum StartGeneratedProjectServiceError: LocalizedError, Equatable {
     }
 }
 
-class InitGeneratedProjectService {
+@Mockable
+protocol InitGeneratedProjectServicing {
+    func run(
+        name: String?,
+        platform: String?,
+        path: String?,
+        templateName: String?,
+        requiredTemplateOptions: [String: String],
+        optionalTemplateOptions: [String: String?]
+    ) async throws
+}
+
+class InitGeneratedProjectService: InitGeneratedProjectServicing {
     private let templateLoader: TemplateLoading
     private let templatesDirectoryLocator: TemplatesDirectoryLocating
     private let templateGenerator: TemplateGenerating
