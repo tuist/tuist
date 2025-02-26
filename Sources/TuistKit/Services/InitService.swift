@@ -90,10 +90,10 @@ public struct InitService {
         try await fileSystem.writeText(tuistSwiftFileContent, at: tuistSwiftFilePath)
         
         ServiceContext.current?.alerts?.success(.alert("You are all set to explore the Tuist universe", nextSteps: [
-            "Accelerate your builds with caching (https://docs.tuist.dev/en/guides/develop/cache)",
-            "Accelerate your test runs with selective testing (https://docs.tuist.dev/en/guides/develop/selective-testing)",
-            "Accelerate your Swift package resolution (https://docs.tuist.dev/en/guides/develop/registry)",
-            "Share your app with the team (https://docs.tuist.dev/en/guides/share/previews)"
+            "Accelerate your builds with the \(.link(title: "cache", href: "https://docs.tuist.dev/en/guides/develop/cache"))",
+            "Accelerate your test runs with \(.link(title: "selective testing", href: "https://docs.tuist.dev/en/guides/develop/selective-testing"))",
+            "Accelerate your Swift package resolution with \(.link(title: "the registry", href: "https://docs.tuist.dev/en/guides/develop/registry"))",
+            "Share your app easily with \(.link(title: "previews", href: "https://docs.tuist.dev/en/guides/share/previews"))"
         ]))
     }
 
@@ -146,8 +146,8 @@ public struct InitService {
 
             try await ServiceContext.current?.ui?.progressStep(
                 message: "Creating Tuist project",
-                successMessage: "Project created",
-                errorMessage: "Project creation failed",
+                successMessage: "Project connected",
+                errorMessage: "Project connection failed",
                 showSpinner: true,
                 task: { _ in
                     _ = try await createProjectService.createProject(fullHandle: fullHandle, serverURL: Constants.URLs.production)

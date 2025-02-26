@@ -1,5 +1,5 @@
 {
-  "originHash" : "2d237bb9ef3be955e6ee42b059aa7c4eb1d922d567e3ad11994f4393905bb576",
+  "originHash" : "ce1d8cb33bce8a5762b8c2919fd9e9fb2e1a2727e159f1a46af3d19039066434",
   "pins" : [
     {
       "identity" : "aexml",
@@ -114,8 +114,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/Noora",
       "state" : {
-        "revision" : "95d3491dc5dfe22a8084bccf7aa0a44dbc2a6e0d",
-        "version" : "0.21.3"
+        "revision" : "a4616fd7ea2c7b5b2ad4fca619217896cd6c4cc4",
+        "version" : "0.25.0"
       }
     },
     {

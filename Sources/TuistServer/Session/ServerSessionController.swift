@@ -46,7 +46,7 @@ public protocol ServerSessionControlling: AnyObject {
     func authenticate(
         serverURL: URL,
         deviceCodeType: DeviceCodeType,
-        onOpeningBrowser: @escaping (URL) -> Void,
+        onOpeningBrowser: @escaping (URL) async -> Void,
         onAuthWaitBegin: @escaping () -> Void
     ) async throws
 
@@ -104,7 +104,7 @@ public final class ServerSessionController: ServerSessionControlling {
     public func authenticate(
         serverURL: URL,
         deviceCodeType: DeviceCodeType,
-        onOpeningBrowser: @escaping (URL) -> Void,
+        onOpeningBrowser: @escaping (URL) async -> Void,
         onAuthWaitBegin: () -> Void
     ) async throws {
         var components = URLComponents(url: serverURL, resolvingAgainstBaseURL: false)!
@@ -118,7 +118,7 @@ public final class ServerSessionController: ServerSessionControlling {
         ]
         let authURL = components.url!
 
-        onOpeningBrowser(authURL)
+        await onOpeningBrowser(authURL)
 
         try opener.open(url: authURL)
 
