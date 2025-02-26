@@ -11,7 +11,7 @@ import XCTest
 @testable import TuistKit
 
 final class StartGeneratedProjectServiceTests: TuistUnitTestCase {
-    private var subject: StartGeneratedProjectService!
+    private var subject: InitGeneratedProjectService!
     private var templatesDirectoryLocator: MockTemplatesDirectoryLocating!
     private var templateGenerator: MockTemplateGenerating!
     private var templateLoader: MockTemplateLoading!
@@ -23,7 +23,7 @@ final class StartGeneratedProjectServiceTests: TuistUnitTestCase {
         templateGenerator = MockTemplateGenerating()
         templateLoader = MockTemplateLoading()
         templateGitLoader = MockTemplateGitLoader()
-        subject = StartGeneratedProjectService(
+        subject = InitGeneratedProjectService(
             templateLoader: templateLoader,
             templatesDirectoryLocator: templatesDirectoryLocator,
             templateGenerator: templateGenerator,
@@ -355,7 +355,7 @@ final class StartGeneratedProjectServiceTests: TuistUnitTestCase {
     }
 }
 
-extension StartGeneratedProjectService {
+extension InitGeneratedProjectService {
     func testRun(
         name: String? = nil,
         platform: String? = nil,

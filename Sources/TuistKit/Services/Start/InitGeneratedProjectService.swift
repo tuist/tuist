@@ -42,7 +42,7 @@ enum StartGeneratedProjectServiceError: LocalizedError, Equatable {
     }
 }
 
-class StartGeneratedProjectService {
+class InitGeneratedProjectService {
     private let templateLoader: TemplateLoading
     private let templatesDirectoryLocator: TemplatesDirectoryLocating
     private let templateGenerator: TemplateGenerating

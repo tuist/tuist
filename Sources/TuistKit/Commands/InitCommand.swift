@@ -4,10 +4,10 @@ import Foundation
 import Path
 import ServiceContextModule
 
-public struct StartCommand: AsyncParsableCommand {
+public struct InitCommand: AsyncParsableCommand {
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
-            commandName: "start",
+            commandName: "init",
             abstract: "Get started with Tuist in your Xcode project or create a generated project.",
             shouldDisplay: true
         )
@@ -24,7 +24,7 @@ public struct StartCommand: AsyncParsableCommand {
     public init() {}
 
     public func run() async throws {
-        try await StartService().run(from: try await directory())
+        try await InitService().run(from: try await directory())
     }
 
     private func directory() async throws -> AbsolutePath {

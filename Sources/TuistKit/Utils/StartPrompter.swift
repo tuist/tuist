@@ -13,7 +13,7 @@ enum StartPromptingWorkflowType: Equatable, CustomStringConvertible {
 }
 
 protocol StartPrompting {
-    func promptWorkflowType(xcodeProjectOrWorkspace: StartService.XcodeProjectOrWorkspace?) -> StartPromptingWorkflowType!
+    func promptWorkflowType(xcodeProjectOrWorkspace: InitService.XcodeProjectOrWorkspace?) -> StartPromptingWorkflowType!
     func promptIntegrateWithServer() -> Bool
     func promptGeneratedProjectPlatform() -> String!
     func promptGeneratedProjectName() -> String!
@@ -21,7 +21,7 @@ protocol StartPrompting {
 
 struct StartPrompter: StartPrompting {
 
-    func promptWorkflowType(xcodeProjectOrWorkspace: StartService.XcodeProjectOrWorkspace?) -> StartPromptingWorkflowType! {
+    func promptWorkflowType(xcodeProjectOrWorkspace: InitService.XcodeProjectOrWorkspace?) -> StartPromptingWorkflowType! {
         var promptOptions = [
             StartPromptingWorkflowType.createGeneratedProject,
         ]

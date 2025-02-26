@@ -5,13 +5,13 @@ import ServiceContextModule
 import TuistServer
 import TuistSupport
 
-public struct StartService {
+public struct InitService {
     let fileSystem: FileSystem
     let prompter: StartPrompting
     let loginService: LoginServicing
     let createProjectService: CreateProjectServicing
     let serverSessionController: ServerSessionControlling
-    let startGeneratedProjectService: StartGeneratedProjectService
+    let startGeneratedProjectService: InitGeneratedProjectService
 
     enum XcodeProjectOrWorkspace: Hashable, Equatable {
         case workspace(AbsolutePath)
@@ -45,7 +45,7 @@ public struct StartService {
         loginService: LoginServicing = LoginService(),
         createProjectService: CreateProjectServicing = CreateProjectService(),
         serverSessionController: ServerSessionControlling = ServerSessionController(),
-        startGeneratedProjectService: StartGeneratedProjectService = StartGeneratedProjectService()
+        startGeneratedProjectService: InitGeneratedProjectService = InitGeneratedProjectService()
     ) {
         self.fileSystem = fileSystem
         self.prompter = prompter
@@ -83,11 +83,18 @@ public struct StartService {
 
         \(tuistSwiftLine)
         """
-        let tuistSwiftFilePath = directory.appending(component: "Tuist.swift")
+        let tuistSwiftFilePath = projectDirectory.appending(component: "Tuist.swift")
         if try await fileSystem.exists(tuistSwiftFilePath) {
             try await fileSystem.remove(tuistSwiftFilePath)
         }
         try await fileSystem.writeText(tuistSwiftFileContent, at: tuistSwiftFilePath)
+        
+        ServiceContext.current?.alerts?.success(.alert("You are all set to explore the Tuist universe", nextSteps: [
+            "Accelerate your builds with caching (https://docs.tuist.dev/en/guides/develop/cache)",
+            "Accelerate your test runs with selective testing (https://docs.tuist.dev/en/guides/develop/selective-testing)",
+            "Accelerate your Swift package resolution (https://docs.tuist.dev/en/guides/develop/registry)",
+            "Share your app with the team (https://docs.tuist.dev/en/guides/share/previews)"
+        ]))
     }
 
     private func createGeneratedProject(at directory: AbsolutePath, name: String, platform: String) async throws -> AbsolutePath {
@@ -121,20 +128,18 @@ public struct StartService {
     ) async throws -> String? {
         let integrateWithServer = prompter.promptIntegrateWithServer()
         if integrateWithServer {
-            if try await serverSessionController.whoami(serverURL: Constants.URLs.production) == nil {
-                try await ServiceContext.current?.ui?.collapsibleStep(
-                    title: "Authentication",
-                    successMessage: "Authenticated",
-                    errorMessage: "Authentication failed",
-                    visibleLines: 3,
-                    task: { progress in
+            try await ServiceContext.current?.ui?.collapsibleStep(
+                title: "Authentication",
+                successMessage: "Authenticated",
+                errorMessage: "Authentication failed",
+                visibleLines: 3,
+                task: { progress in
 
-                        try await loginService.run(email: nil, password: nil, directory: nil) { event in
-                            progress("\(event.description)")
-                        }
+                    try await loginService.run(email: nil, password: nil, directory: nil) { event in
+                        progress("\(event.description)")
                     }
-                )
-            }
+                }
+            )
 
             let accountHandle = try await serverSessionController.whoami(serverURL: Constants.URLs.production)!
             let fullHandle = "\(accountHandle)/\(projectHandle)"

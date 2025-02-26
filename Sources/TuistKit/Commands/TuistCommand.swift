@@ -19,9 +19,9 @@ public struct TuistCommand: AsyncParsableCommand {
             subcommands: [],
             groupedSubcommands: [
                 CommandGroup(
-                    name: "Start",
+                    name: "Get started",
                     subcommands: [
-                        StartCommand.self,
+                        InitCommand.self,
                     ]
                 ),
                 CommandGroup(
