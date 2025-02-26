@@ -18,7 +18,7 @@ console_command = "/app/bin/rails console"
   TUIST_HOSTED="1"
   TUIST_USE_IPV6="1"
   TUIST_USE_SSL_FOR_DATABASE="1"
-  TUIST_DATABASE_POOL_SIZE="5"
+  TUIST_DATABASE_POOL_SIZE="15"
 
 [[vm]]
   cpu_kind = 'shared'

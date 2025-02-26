@@ -41,6 +41,9 @@ defmodule Tuist.Release do
   end
 
   defp load_app do
+    # We don't need more than a connection to run migrations
+    System.put_env("TUIST_DATABASE_POOL_SIZE", "1")
+
     Application.load(@app)
   end
 
