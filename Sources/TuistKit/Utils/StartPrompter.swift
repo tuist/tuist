@@ -20,7 +20,6 @@ protocol StartPrompting {
 }
 
 struct StartPrompter: StartPrompting {
-
     func promptWorkflowType(xcodeProjectOrWorkspace: InitService.XcodeProjectOrWorkspace?) -> StartPromptingWorkflowType! {
         var promptOptions = [
             StartPromptingWorkflowType.createGeneratedProject,

@@ -48,8 +48,7 @@ final class LoginService: LoginServicing {
         configLoader: ConfigLoading = ConfigLoader(),
         userInputReader: UserInputReading = UserInputReader(),
         authenticateService: AuthenticateServicing = AuthenticateService(),
-        serverCredentialsStore: ServerCredentialsStoring = ServerCredentialsStore(),
-        onEvent _: @escaping (LoginServiceEvent) -> Void = { ServiceContext.current?.logger?.notice("\($0.description)") }
+        serverCredentialsStore: ServerCredentialsStoring = ServerCredentialsStore()
     ) {
         self.serverSessionController = serverSessionController
         self.serverURLService = serverURLService
@@ -93,7 +92,7 @@ final class LoginService: LoginServicing {
         email: String?,
         password: String?,
         serverURL: URL,
-        onEvent: @escaping (LoginServiceEvent) -> Void
+        onEvent _: @escaping (LoginServiceEvent) -> Void
     ) async throws {
         let email = email ?? userInputReader.readString(asking: "Email:")
         let password = password ?? userInputReader.readString(asking: "Password:")
@@ -112,7 +111,6 @@ final class LoginService: LoginServicing {
             ),
             serverURL: serverURL
         )
-        onEvent(.completed)
     }
 
     private func authenticateWithBrowserLogin(
@@ -137,8 +135,17 @@ extension LoginServicing {
         email: String? = nil,
         password: String? = nil,
         directory: String? = nil,
-        onEvent: @escaping (LoginServiceEvent) -> Void = { ServiceContext.current?.logger?.notice("\($0.description)") }
+        onEvent: @escaping (LoginServiceEvent) -> Void = Self.defaultOnEvent(event:)
     ) async throws {
         try await run(email: email, password: password, directory: directory, onEvent: onEvent)
+    }
+
+    private static func defaultOnEvent(event: LoginServiceEvent) {
+        switch event {
+        case .completed:
+            ServiceContext.current?.alerts?.success(.alert("\(event.description)"))
+        default:
+            ServiceContext.current?.logger?.notice("\(event.description)")
+        }
     }
 }

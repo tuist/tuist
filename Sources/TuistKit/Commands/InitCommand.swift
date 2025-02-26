@@ -17,7 +17,7 @@ public struct InitCommand: AsyncParsableCommand {
         name: .shortAndLong,
         help: "The path to the directory from where to start.",
         completion: .directory,
-        envKey: .start
+        envKey: .initPath
     )
     var path: String?
 

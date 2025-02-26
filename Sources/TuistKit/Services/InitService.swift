@@ -88,12 +88,12 @@ public struct InitService {
             try await fileSystem.remove(tuistSwiftFilePath)
         }
         try await fileSystem.writeText(tuistSwiftFileContent, at: tuistSwiftFilePath)
-        
+
         ServiceContext.current?.alerts?.success(.alert("You are all set to explore the Tuist universe", nextSteps: [
             "Accelerate your builds with the \(.link(title: "cache", href: "https://docs.tuist.dev/en/guides/develop/cache"))",
             "Accelerate your test runs with \(.link(title: "selective testing", href: "https://docs.tuist.dev/en/guides/develop/selective-testing"))",
             "Accelerate your Swift package resolution with \(.link(title: "the registry", href: "https://docs.tuist.dev/en/guides/develop/registry"))",
-            "Share your app easily with \(.link(title: "previews", href: "https://docs.tuist.dev/en/guides/share/previews"))"
+            "Share your app easily with \(.link(title: "previews", href: "https://docs.tuist.dev/en/guides/share/previews"))",
         ]))
     }
 
