@@ -8,8 +8,17 @@ struct RepeatToolInput {
     let text: String
 }
 
+// Server references: https://github.com/modelcontextprotocol/servers/tree/main/src
 public struct MCPCommandService {
-    public init() {}
+    private let resourceFactory: MCPResourceFactorying
+
+    public init() {
+        self.init(resourceFactory: MCPResourceFactory())
+    }
+
+    init(resourceFactory: MCPResourceFactorying) {
+        self.resourceFactory = resourceFactory
+    }
 
     public func run() async throws {
         try await initServer().waitForDisconnection()
@@ -30,17 +39,19 @@ public struct MCPCommandService {
 
     private func initTools() -> [any CallableTool] {
         [
-            Tool(name: "repeat") { (_: RepeatToolInput) in
-                [.text(.init(text: "Repeat"))]
-            },
+            //            Tool(name: "repeat") { (_: RepeatToolInput) in
+//                [.text(.init(text: "Repeat"))]
+//            },
         ]
     }
 
     private func initResources() -> ResourcesCapabilityHandler {
-        ResourcesCapabilityHandler(readResource: { _ -> ReadResourceRequest.Result in
-            return .init(contents: [])
+        ResourcesCapabilityHandler(readResource: { params -> ReadResourceRequest.Result in
+            return .init(contents: [
+                .text(.init(uri: params.uri, text: "graph")),
+            ])
         }, listResource: { _ -> ListResourcesRequest.Result in
-            return .init(resources: [])
+            return .init(resources: try await resourceFactory.fetch())
         }, listResourceTemplates: { _ -> ListResourceTemplatesRequest.Result in
             return .init(resourceTemplates: [])
         })
