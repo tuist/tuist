@@ -12,8 +12,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  linux_build:
-    name: Build for ${{ matrix.os }}
+  cross-platform:
+    name: Cross-platform build for ${{ matrix.os }}
     runs-on: "ubuntu-latest"
     strategy:
       matrix:
@@ -25,4 +25,4 @@ jobs:
       - uses: swift-actions/setup-swift@v2
         with:
           swift-version: "6.0"
-      - run: mise run build
+      - run: mise run build-cross-platform
