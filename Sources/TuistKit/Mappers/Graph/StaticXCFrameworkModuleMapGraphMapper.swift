@@ -249,14 +249,23 @@ extension SettingsDictionary {
         case let .array(value):
             var seen = Set<String>()
             let value = value.enumerated().filter {
-                if $0.element == "-Xcc" {
+                if $0.element.starts(with: "-X") {
                     if value.endIndex > $0.offset + 1 {
-                        return !seen.contains(value[$0.offset + 1])
+                        return !seen.contains($0.element + value[$0.offset + 1])
                     } else {
                         return true
                     }
                 } else {
-                    return seen.insert($0.element).inserted
+                    if $0.offset == 0 {
+                        return seen.insert($0.element).inserted
+                    } else {
+                        let previousElement = value[$0.offset - 1]
+                        if previousElement.starts(with: "-X") {
+                            return seen.insert(previousElement + $0.element).inserted
+                        } else {
+                            return seen.insert($0.element).inserted
+                        }
+                    }
                 }
             }
             settings[key] = .array(

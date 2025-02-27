@@ -568,6 +568,9 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
                     "-Xcc", "value-two",
                     "-Xcc", "value-three",
                     "-Xcc", "value-two",
+                    "-Xfrontend", "value-five",
+                    "-Xfrontend", "value-five",
+                    "-Xfrontend", "value-two",
                     "value-four",
                     "value-one",
                 ]
@@ -586,6 +589,8 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
                         "value-one",
                         "-Xcc", "value-two",
                         "-Xcc", "value-three",
+                        "-Xfrontend", "value-five",
+                        "-Xfrontend", "value-two",
                         "value-four",
                     ]
                 ),
