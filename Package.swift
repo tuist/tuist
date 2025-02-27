@@ -83,6 +83,7 @@ let targets: [Target] = [
             "TuistServer",
             "FileSystem",
             "TuistCache",
+            "TuistMCP",
             .product(name: "Noora", package: "Noora"),
             .product(name: "Command", package: "Command"),
             .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
@@ -381,6 +382,14 @@ let targets: [Target] = [
             .define("MOCKING", .when(configuration: .debug)),
         ]
     ),
+    .target(
+        name: "TuistMCP",
+        dependencies: [
+        ],
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    )
 ]
 
 #if TUIST
@@ -544,6 +553,7 @@ let package = Package(
             url: "https://github.com/pointfreeco/swift-snapshot-testing",
             .upToNextMajor(from: "1.18.1")
         ),
+        .package(url: "https://github.com/gsabran/mcp-swift-sdk", branch: "main")
     ],
     targets: targets
 )
