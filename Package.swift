@@ -83,6 +83,7 @@ let targets: [Target] = [
             "TuistServer",
             "FileSystem",
             "TuistCache",
+            "TuistMCP",
             .product(name: "Command", package: "Command"),
             .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
             .product(name: "XcodeGraphMapper", package: "XcodeGraph"),
@@ -377,6 +378,14 @@ let targets: [Target] = [
             .define("MOCKING", .when(configuration: .debug)),
         ]
     ),
+    .target(
+        name: "TuistMCP",
+        dependencies: [
+        ],
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    )
 ]
 
 #if TUIST
@@ -530,6 +539,7 @@ let package = Package(
         ),
         .package(url: "https://github.com/crspybits/swift-log-file", .upToNextMajor(from: "0.1.0")),
         .package(url: "https://github.com/tuist/Noora", .upToNextMajor(from: "0.21.3")),
+        .package(url: "https://github.com/gsabran/mcp-swift-sdk", branch: "main")
     ],
     targets: targets
 )
