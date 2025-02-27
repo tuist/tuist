@@ -241,7 +241,7 @@ public enum Module: String, CaseIterable {
             switch self {
             case .mcp:
                 [
-                    .external(name: "MCPServer")
+                    .external(name: "MCPServer"),
                 ]
             case .acceptanceTesting:
                 [
