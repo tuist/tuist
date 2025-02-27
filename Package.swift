@@ -389,7 +389,7 @@ let targets: [Target] = [
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
         ]
-    )
+    ),
 ]
 
 #if TUIST
@@ -553,7 +553,9 @@ let package = Package(
             url: "https://github.com/pointfreeco/swift-snapshot-testing",
             .upToNextMajor(from: "1.18.1")
         ),
-        .package(url: "https://github.com/gsabran/mcp-swift-sdk", branch: "main")
+        .package(url: "https://github.com/gsabran/mcp-swift-sdk", branch: "main"),
+        .package(url: "https://github.com/gsabran/mcp-swift-sdk", revision: "a436420c8807a54ef10c0e035bdfbcb2733996ec"),
+        .package(url: "https://github.com/ajevans99/swift-json-schema", exact: "0.3.1")
     ],
     targets: targets
 )
