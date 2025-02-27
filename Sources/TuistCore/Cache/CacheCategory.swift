@@ -46,7 +46,7 @@ public enum CacheCategory: String, CaseIterable, RawRepresentable {
     }
 }
 
-public enum RemoteCacheCategory {
+public enum RemoteCacheCategory: Codable {
     case binaries
     case selectiveTests
 }

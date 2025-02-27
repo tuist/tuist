@@ -1,5 +1,7 @@
+import FileSystem
 import Foundation
 import Path
+import ServiceContextModule
 import struct TSCUtility.Version
 import TuistAutomation
 import TuistCore
@@ -65,10 +67,10 @@ final class TestService { // swiftlint:disable:this type_body_length
     private let buildGraphInspector: BuildGraphInspecting
     private let simulatorController: SimulatorControlling
     private let contentHasher: ContentHashing
-    private let automationStorage: AutomationStoring
 
-    private let cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring
+    private let cacheDirectoriesProvider: CacheDirectoriesProviding
     private let configLoader: ConfigLoading
+    private let fileSystem: FileSysteming
 
     public convenience init(
         generatorFactory: GeneratorFactorying,
@@ -80,8 +82,7 @@ final class TestService { // swiftlint:disable:this type_body_length
         self.init(
             generatorFactory: generatorFactory,
             cacheStorageFactory: cacheStorageFactory,
-            configLoader: configLoader,
-            automationStorage: AutomationStorage()
+            configLoader: configLoader
         )
     }
 
@@ -92,9 +93,9 @@ final class TestService { // swiftlint:disable:this type_body_length
         buildGraphInspector: BuildGraphInspecting = BuildGraphInspector(),
         simulatorController: SimulatorControlling = SimulatorController(),
         contentHasher: ContentHashing = ContentHasher(),
-        cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring = CacheDirectoriesProviderFactory(),
+        cacheDirectoriesProvider: CacheDirectoriesProviding = CacheDirectoriesProvider(),
         configLoader: ConfigLoading,
-        automationStorage: AutomationStoring
+        fileSystem: FileSysteming = FileSystem()
     ) {
         self.generatorFactory = generatorFactory
         self.cacheStorageFactory = cacheStorageFactory
@@ -102,9 +103,9 @@ final class TestService { // swiftlint:disable:this type_body_length
         self.buildGraphInspector = buildGraphInspector
         self.simulatorController = simulatorController
         self.contentHasher = contentHasher
-        self.cacheDirectoryProviderFactory = cacheDirectoryProviderFactory
+        self.cacheDirectoriesProvider = cacheDirectoriesProvider
         self.configLoader = configLoader
-        self.automationStorage = automationStorage
+        self.fileSystem = fileSystem
     }
 
     static func validateParameters(
@@ -162,6 +163,7 @@ final class TestService { // swiftlint:disable:this type_body_length
         runId: String,
         schemeName: String?,
         clean: Bool,
+        noUpload: Bool,
         configuration: String?,
         path: AbsolutePath,
         deviceName: String?,
@@ -188,14 +190,11 @@ final class TestService { // swiftlint:disable:this type_body_length
             )
         }
         // Load config
-        let config = try configLoader.loadConfig(path: path)
-        let cacheStorage = try cacheStorageFactory.cacheStorage(config: config)
-
-        let testsCacheTemporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
+        let config = try await configLoader.loadConfig(path: path)
+        let cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
 
         let testGenerator = generatorFactory.testing(
             config: config,
-            testsCacheDirectory: testsCacheTemporaryDirectory.path,
             testPlan: testPlanConfiguration?.testPlan,
             includedTargets: Set(testTargets.map(\.target)),
             excludedTargets: Set(skipTestTargets.filter { $0.class == nil }.map(\.target)),
@@ -203,14 +202,13 @@ final class TestService { // swiftlint:disable:this type_body_length
             configuration: configuration,
             ignoreBinaryCache: ignoreBinaryCache,
             ignoreSelectiveTesting: ignoreSelectiveTesting,
-            cacheStorage: cacheStorage,
-            automationStorage: automationStorage
+            cacheStorage: cacheStorage
         )
 
-        logger.notice("Generating project for testing", metadata: .section)
-        let graph = try await testGenerator.generateWithGraph(
+        ServiceContext.current?.logger?.notice("Generating project for testing", metadata: .section)
+        let (_, graph, mapperEnvironment) = try await testGenerator.generateWithGraph(
             path: path
-        ).1
+        )
 
         if generateOnly {
             return
@@ -220,7 +218,7 @@ final class TestService { // swiftlint:disable:this type_body_length
         let version = osVersion?.version()
         let testableSchemes = buildGraphInspector.testableSchemes(graphTraverser: graphTraverser) +
             buildGraphInspector.workspaceSchemes(graphTraverser: graphTraverser)
-        logger.log(
+        ServiceContext.current?.logger?.log(
             level: .debug,
             "Found the following testable schemes: \(Set(testableSchemes.map(\.name)).joined(separator: ", "))"
         )
@@ -234,27 +232,31 @@ final class TestService { // swiftlint:disable:this type_body_length
 
         let passedResultBundlePath = resultBundlePath
 
-        let resultBundlePath = try self.resultBundlePath(
+        let runResultBundlePath = try cacheDirectoriesProvider
+            .cacheDirectory(for: .runs)
+            .appending(components: runId, Constants.resultBundleName)
+
+        let resultBundlePath = try await self.resultBundlePath(
+            runResultBundlePath: runResultBundlePath,
             passedResultBundlePath: passedResultBundlePath,
-            runId: runId,
             config: config
         )
 
-        defer {
-            if let resultBundlePath, let passedResultBundlePath, config.fullHandle != nil {
-                if !FileHandler.shared.exists(resultBundlePath.parentDirectory) {
-                    try? FileHandler.shared.createFolder(resultBundlePath.parentDirectory)
-                }
-                try? FileHandler.shared.copy(from: passedResultBundlePath, to: resultBundlePath)
-            }
-        }
-
+        let schemes: [Scheme]
         if let schemeName {
             guard let scheme = graphTraverser.schemes().first(where: { $0.name == schemeName })
             else {
-                let schemes = automationStorage.initialGraph.map(GraphTraverser.init)?.schemes() ?? graphTraverser.schemes()
-                if schemes.first(where: { $0.name == schemeName }) != nil {
-                    logger.log(level: .info, "The scheme \(schemeName)'s test action has no tests to run, finishing early.")
+                let schemes = mapperEnvironment.initialGraph.map(GraphTraverser.init)?.schemes() ?? graphTraverser.schemes()
+                if let scheme = schemes.first(where: { $0.name == schemeName }) {
+                    ServiceContext.current?.logger?.log(
+                        level: .info,
+                        "The scheme \(schemeName)'s test action has no tests to run, finishing early."
+                    )
+                    await updateTestServiceAnalytics(
+                        mapperEnvironment: mapperEnvironment,
+                        schemes: [scheme],
+                        testPlanConfiguration: testPlanConfiguration
+                    )
                     return
                 } else {
                     throw TestServiceError.schemeNotFound(
@@ -264,97 +266,337 @@ final class TestService { // swiftlint:disable:this type_body_length
                 }
             }
 
+            await updateTestServiceAnalytics(
+                mapperEnvironment: mapperEnvironment,
+                schemes: [scheme],
+                testPlanConfiguration: testPlanConfiguration
+            )
+
             switch (testPlanConfiguration?.testPlan, scheme.testAction?.targets.isEmpty, scheme.testAction?.testPlans?.isEmpty) {
             case (_, false, _):
                 break
             case (nil, true, _), (nil, nil, _):
-                logger.log(level: .info, "The scheme \(schemeName)'s test action has no tests to run, finishing early.")
+                ServiceContext.current?.logger?.log(
+                    level: .info,
+                    "The scheme \(schemeName)'s test action has no tests to run, finishing early."
+                )
                 return
             case (_?, _, true), (_?, _, nil):
-                logger.log(level: .info, "The scheme \(schemeName)'s test action has no test plans to run, finishing early.")
+                ServiceContext.current?.logger?.log(
+                    level: .info,
+                    "The scheme \(schemeName)'s test action has no test plans to run, finishing early."
+                )
                 return
             default:
                 break
             }
 
-            let testSchemes: [Scheme] = [scheme]
-
-            for testScheme in testSchemes {
-                try await self.testScheme(
-                    scheme: testScheme,
-                    graphTraverser: graphTraverser,
-                    clean: clean,
-                    configuration: configuration,
-                    version: version,
-                    deviceName: deviceName,
-                    platform: platform,
-                    rosetta: rosetta,
-                    resultBundlePath: resultBundlePath,
-                    derivedDataPath: derivedDataPath,
-                    retryCount: retryCount,
-                    testTargets: testTargets,
-                    skipTestTargets: skipTestTargets,
-                    testPlanConfiguration: testPlanConfiguration,
-                    passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
-                )
-            }
+            schemes = [scheme]
         } else {
-            let testSchemes: [Scheme] = buildGraphInspector.workspaceSchemes(graphTraverser: graphTraverser)
-                .filter {
-                    $0.testAction.map { !$0.targets.isEmpty } ?? false
-                }
-
-            if testSchemes.isEmpty {
-                logger.log(level: .info, "There are no tests to run, finishing early")
-                return
-            }
-
-            for testScheme in testSchemes {
-                try await self.testScheme(
-                    scheme: testScheme,
-                    graphTraverser: graphTraverser,
-                    clean: clean,
-                    configuration: configuration,
-                    version: version,
-                    deviceName: deviceName,
-                    platform: platform,
-                    rosetta: rosetta,
-                    resultBundlePath: resultBundlePath,
-                    derivedDataPath: derivedDataPath,
-                    retryCount: retryCount,
-                    testTargets: testTargets,
-                    skipTestTargets: skipTestTargets,
-                    testPlanConfiguration: testPlanConfiguration,
-                    passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
-                )
-            }
+            schemes = buildGraphInspector.workspaceSchemes(graphTraverser: graphTraverser)
+            await updateTestServiceAnalytics(
+                mapperEnvironment: mapperEnvironment,
+                schemes: schemes,
+                testPlanConfiguration: testPlanConfiguration
+            )
         }
 
-        logger.log(level: .notice, "The project tests ran successfully", metadata: .success)
+        do {
+            try await testSchemes(
+                schemes,
+                graph: graph,
+                mapperEnvironment: mapperEnvironment,
+                cacheStorage: cacheStorage,
+                clean: clean,
+                noUpload: noUpload,
+                configuration: configuration,
+                version: version,
+                deviceName: deviceName,
+                platform: platform,
+                rosetta: rosetta,
+                resultBundlePath: resultBundlePath,
+                derivedDataPath: derivedDataPath,
+                retryCount: retryCount,
+                testTargets: testTargets,
+                skipTestTargets: skipTestTargets,
+                testPlanConfiguration: testPlanConfiguration,
+                passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
+            )
+        } catch {
+            try await copyResultBundlePathIfNeeded(
+                runResultBundlePath: runResultBundlePath,
+                resultBundlePath: resultBundlePath
+            )
+            throw error
+        }
 
-        // Saving hashes from `testsCacheTemporaryDirectory` to `testsCacheDirectory` after all the tests have run successfully
-        let cacheableItems: [CacheStorableItem: [AbsolutePath]] = try FileHandler.shared
-            .contentsOfDirectory(testsCacheTemporaryDirectory.path)
-            .reduce(into: [:]) { acc, hash in
-                guard let name = try FileHandler.shared.contentsOfDirectory(hash).first else { return }
-                acc[CacheStorableItem(name: name.basename, hash: hash.basename)] = [AbsolutePath]()
-            }
-
-        try await cacheStorage.store(cacheableItems, cacheCategory: .selectiveTests)
+        try await copyResultBundlePathIfNeeded(
+            runResultBundlePath: runResultBundlePath,
+            resultBundlePath: resultBundlePath
+        )
     }
 
     // MARK: - Helpers
 
+    private func testSchemes(
+        _ schemes: [Scheme],
+        graph: Graph,
+        mapperEnvironment: MapperEnvironment,
+        cacheStorage: CacheStoring,
+        clean: Bool,
+        noUpload: Bool,
+        configuration: String?,
+        version: Version?,
+        deviceName: String?,
+        platform: String?,
+        rosetta: Bool,
+        resultBundlePath: AbsolutePath?,
+        derivedDataPath: AbsolutePath?,
+        retryCount: Int,
+        testTargets: [TestIdentifier],
+        skipTestTargets: [TestIdentifier],
+        testPlanConfiguration: TestPlanConfiguration?,
+        passthroughXcodeBuildArguments: [String]
+    ) async throws {
+        let graphTraverser = GraphTraverser(graph: graph)
+        let testSchemes = schemes
+            .filter {
+                !self.testActionTargetReferences(scheme: $0, testPlanConfiguration: testPlanConfiguration).isEmpty
+            }
+
+        guard shouldRunTest(
+            for: schemes,
+            testPlanConfiguration: testPlanConfiguration,
+            mapperEnvironment: mapperEnvironment,
+            graph: graph
+        ) else { return }
+
+        for testScheme in testSchemes {
+            try await self.testScheme(
+                scheme: testScheme,
+                graphTraverser: graphTraverser,
+                clean: clean,
+                configuration: configuration,
+                version: version,
+                deviceName: deviceName,
+                platform: platform,
+                rosetta: rosetta,
+                resultBundlePath: resultBundlePath,
+                derivedDataPath: derivedDataPath,
+                retryCount: retryCount,
+                testTargets: testTargets,
+                skipTestTargets: skipTestTargets,
+                testPlanConfiguration: testPlanConfiguration,
+                passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
+            )
+        }
+
+        let uploadCacheStorage: CacheStoring
+        if noUpload {
+            uploadCacheStorage = try await cacheStorageFactory.cacheLocalStorage()
+        } else {
+            uploadCacheStorage = cacheStorage
+        }
+        try await storeSuccessfulTestHashes(
+            for: testSchemes,
+            testPlanConfiguration: testPlanConfiguration,
+            graph: graph,
+            mapperEnvironment: mapperEnvironment,
+            cacheStorage: uploadCacheStorage
+        )
+
+        ServiceContext.current?.alerts?.success(.alert("The project tests ran successfully"))
+    }
+
+    private func updateTestServiceAnalytics(
+        mapperEnvironment: MapperEnvironment,
+        schemes: [Scheme],
+        testPlanConfiguration: TestPlanConfiguration?
+    ) async {
+        let initialTestTargets = initialTestTargets(
+            mapperEnvironment: mapperEnvironment,
+            schemes: schemes,
+            testPlanConfiguration: testPlanConfiguration
+        )
+
+        await ServiceContext.current?.runMetadataStorage?.update(
+            selectiveTestingCacheItems: initialTestTargets.reduce(into: [:]) { result, element in
+                guard let hash = mapperEnvironment.targetTestHashes[element.path]?[element.target.name] else { return }
+                let cacheItem = mapperEnvironment.targetTestCacheItems[element.path]?[element.target.name] ?? CacheItem(
+                    name: element.target.name,
+                    hash: hash,
+                    source: .miss,
+                    cacheCategory: .selectiveTests
+                )
+                result[element.path, default: [:]][element.target.name] = cacheItem
+            }
+        )
+    }
+
+    private func copyResultBundlePathIfNeeded(
+        runResultBundlePath: AbsolutePath?,
+        resultBundlePath: AbsolutePath?
+    ) async throws {
+        if let runResultBundlePath, let resultBundlePath, runResultBundlePath != resultBundlePath {
+            guard try await fileSystem.exists(resultBundlePath) else { return }
+            if try await !fileSystem.exists(resultBundlePath.parentDirectory) {
+                try await fileSystem.makeDirectory(at: resultBundlePath.parentDirectory)
+            }
+            try await fileSystem.copy(
+                try await fileSystem.resolveSymbolicLink(resultBundlePath),
+                to: runResultBundlePath.parentDirectory.appending(components: "\(Constants.resultBundleName).xcresult")
+            )
+        }
+    }
+
+    private func shouldRunTest(
+        for schemes: [Scheme],
+        testPlanConfiguration: TestPlanConfiguration?,
+        mapperEnvironment: MapperEnvironment,
+        graph: Graph
+    ) -> Bool {
+        let testActionTargets = testActionTargets(
+            for: schemes,
+            testPlanConfiguration: testPlanConfiguration,
+            graph: graph
+        )
+        .map(\.target)
+
+        let skippedTestTargets = initialTestTargets(
+            mapperEnvironment: mapperEnvironment,
+            schemes: schemes,
+            testPlanConfiguration: testPlanConfiguration
+        )
+        .filter { target in
+            !testActionTargets.contains(where: {
+                $0.bundleId == target.target.bundleId
+            })
+        }
+
+        let testSchemes = schemes
+            .filter {
+                !self.testActionTargetReferences(scheme: $0, testPlanConfiguration: testPlanConfiguration).isEmpty
+            }
+
+        if testSchemes.isEmpty {
+            ServiceContext.current?.logger?.log(level: .info, "There are no tests to run, finishing early")
+            return false
+        }
+
+        if !skippedTestTargets.isEmpty {
+            ServiceContext.current?.logger?
+                .notice(
+                    "The following targets have not changed since the last successful run and will be skipped: \(skippedTestTargets.map(\.target.name).joined(separator: ", "))"
+                )
+        }
+
+        return true
+    }
+
+    private func initialTestTargets(
+        mapperEnvironment: MapperEnvironment,
+        schemes: [Scheme],
+        testPlanConfiguration: TestPlanConfiguration?
+    ) -> [GraphTarget] {
+        guard let initialGraph = mapperEnvironment.initialGraph else { return [] }
+        let initialSchemes = GraphTraverser(graph: initialGraph).schemes()
+        return testActionTargets(
+            for: initialSchemes
+                .filter { initialScheme in
+                    schemes.contains(where: { $0.name == initialScheme.name })
+                },
+            testPlanConfiguration: testPlanConfiguration,
+            graph: initialGraph
+        )
+    }
+
+    private func testActionTargets(
+        for schemes: [Scheme],
+        testPlanConfiguration: TestPlanConfiguration?,
+        graph: Graph
+    ) -> [GraphTarget] {
+        return schemes
+            .flatMap {
+                testActionTargetReferences(scheme: $0, testPlanConfiguration: testPlanConfiguration)
+            }
+            .compactMap {
+                guard let project = graph.projects[$0.projectPath],
+                      let target = project.targets[$0.name]
+                else {
+                    return nil
+                }
+                return GraphTarget(path: project.path, target: target, project: project)
+            }
+    }
+
+    private func testActionTargetReferences(
+        scheme: Scheme,
+        testPlanConfiguration: TestPlanConfiguration?
+    ) -> [TargetReference] {
+        let targets =
+            if let testPlanConfiguration {
+                scheme.testAction?.testPlans?
+                    .first(
+                        where: { $0.name == testPlanConfiguration.testPlan }
+                    )?.testTargets.map(\.target) ?? []
+            } else {
+                scheme.testAction?.targets.map(\.target) ?? []
+            }
+
+        return targets
+    }
+
+    private func storeSuccessfulTestHashes(
+        for schemes: [Scheme],
+        testPlanConfiguration: TestPlanConfiguration?,
+        graph: Graph,
+        mapperEnvironment: MapperEnvironment,
+        cacheStorage: CacheStoring
+    ) async throws {
+        let targets: [GraphTarget] = testActionTargets(
+            for: schemes,
+            testPlanConfiguration: testPlanConfiguration,
+            graph: graph
+        )
+        guard let initialGraph = mapperEnvironment.initialGraph else { return }
+        let graphTraverser = GraphTraverser(graph: initialGraph)
+
+        let testedGraphTargets: [GraphTarget] = targets.compactMap {
+            guard let project = initialGraph.projects[$0.path],
+                  let target = project.targets[$0.target.name] else { return nil }
+            return GraphTarget(path: $0.path, target: target, project: project)
+        }
+        try await fileSystem.runInTemporaryDirectory(prefix: "test") { _ in
+            let allTestedTargets: Set<GraphTarget> = Set(
+                graphTraverser.allTargetDependencies(traversingFromTargets: testedGraphTargets)
+                    .union(testedGraphTargets)
+            )
+
+            let hashes = allTestedTargets
+                .filter {
+                    return mapperEnvironment.targetTestCacheItems[$0.path]?[$0.target.name] == nil
+                }
+                .compactMap { graphTarget -> (target: Target, hash: String)? in
+                    guard let hash = mapperEnvironment.targetTestHashes[graphTarget.path]?[graphTarget.target.name]
+                    else { return nil }
+                    return (target: graphTarget.target, hash: hash)
+                }
+
+            let cacheableItems: [CacheStorableItem: [AbsolutePath]] = hashes
+                .reduce(into: [:]) { acc, element in
+                    acc[CacheStorableItem(name: element.target.name, hash: element.hash)] = [AbsolutePath]()
+                }
+
+            try await cacheStorage.store(cacheableItems, cacheCategory: .selectiveTests)
+        }
+    }
+
     /// - Returns: Result bundle path to use. Either passed by the user or a path in the Tuist cache
     private func resultBundlePath(
+        runResultBundlePath: AbsolutePath,
         passedResultBundlePath: AbsolutePath?,
-        runId: String,
         config: Config
-    ) throws -> AbsolutePath? {
-        let runResultBundlePath = try cacheDirectoryProviderFactory.cacheDirectories()
-            .cacheDirectory(for: .runs)
-            .appending(components: runId, Constants.resultBundleName)
-
+    ) async throws -> AbsolutePath? {
         if config.fullHandle == nil {
             return passedResultBundlePath
         } else {
@@ -380,7 +622,7 @@ final class TestService { // swiftlint:disable:this type_body_length
         testPlanConfiguration: TestPlanConfiguration?,
         passthroughXcodeBuildArguments: [String]
     ) async throws {
-        logger.log(level: .notice, "Testing scheme \(scheme.name)", metadata: .section)
+        ServiceContext.current?.logger?.log(level: .notice, "Testing scheme \(scheme.name)", metadata: .section)
         if let testPlan = testPlanConfiguration?.testPlan, let testPlans = scheme.testAction?.testPlans,
            !testPlans.contains(where: { $0.name == testPlan })
         {
@@ -408,15 +650,21 @@ final class TestService { // swiftlint:disable:this type_body_length
             buildPlatform = try buildableTarget.target.servicePlatform
         }
 
-        let destination = try await XcodeBuildDestination.find(
-            for: buildableTarget.target,
-            on: buildPlatform,
-            scheme: scheme,
-            version: version,
-            deviceName: deviceName,
-            graphTraverser: graphTraverser,
-            simulatorController: simulatorController
-        )
+        let destination: XcodeBuildDestination?
+
+        if passthroughXcodeBuildArguments.contains("-destination") {
+            destination = nil
+        } else {
+            destination = try await XcodeBuildDestination.find(
+                for: buildableTarget.target,
+                on: buildPlatform,
+                scheme: scheme,
+                version: version,
+                deviceName: deviceName,
+                graphTraverser: graphTraverser,
+                simulatorController: simulatorController
+            )
+        }
 
         try await xcodebuildController.test(
             .workspace(graphTraverser.workspace.xcWorkspacePath),

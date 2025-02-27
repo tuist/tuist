@@ -1,6 +1,5 @@
 import ArgumentParser
 import Foundation
-import Path
 
 struct OrganizationCommand: ParsableCommand {
     static var configuration: CommandConfiguration {

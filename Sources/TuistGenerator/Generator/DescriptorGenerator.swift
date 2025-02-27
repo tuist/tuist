@@ -1,5 +1,4 @@
 import Foundation
-import Path
 import TuistCore
 import TuistSupport
 import XcodeGraph
@@ -21,7 +20,7 @@ public protocol DescriptorGenerating {
     ///   - graphTraverser: Graph traverser.
     ///
     /// - Seealso: `GraphLoader`
-    func generateProject(project: Project, graphTraverser: GraphTraversing) throws -> ProjectDescriptor
+    func generateProject(project: Project, graphTraverser: GraphTraversing) async throws -> ProjectDescriptor
 
     /// Generate a workspace descriptor
     ///
@@ -29,7 +28,7 @@ public protocol DescriptorGenerating {
     ///   - graphTraverser: Graph traverser.
     ///
     /// - Seealso: `GraphLoader`
-    func generateWorkspace(graphTraverser: GraphTraversing) throws -> WorkspaceDescriptor
+    func generateWorkspace(graphTraverser: GraphTraversing) async throws -> WorkspaceDescriptor
 }
 
 // MARK: -
@@ -70,11 +69,11 @@ public final class DescriptorGenerator: DescriptorGenerating {
         self.projectDescriptorGenerator = projectDescriptorGenerator
     }
 
-    public func generateProject(project: Project, graphTraverser: GraphTraversing) throws -> ProjectDescriptor {
-        try projectDescriptorGenerator.generate(project: project, graphTraverser: graphTraverser)
+    public func generateProject(project: Project, graphTraverser: GraphTraversing) async throws -> ProjectDescriptor {
+        try await projectDescriptorGenerator.generate(project: project, graphTraverser: graphTraverser)
     }
 
-    public func generateWorkspace(graphTraverser: GraphTraversing) throws -> WorkspaceDescriptor {
-        try workspaceDescriptorGenerator.generate(graphTraverser: graphTraverser)
+    public func generateWorkspace(graphTraverser: GraphTraversing) async throws -> WorkspaceDescriptor {
+        try await workspaceDescriptorGenerator.generate(graphTraverser: graphTraverser)
     }
 }

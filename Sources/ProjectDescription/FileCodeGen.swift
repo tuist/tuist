@@ -1,5 +1,3 @@
-import Foundation
-
 /// Options for source file code generation.
 public enum FileCodeGen: String, Codable, Equatable, Sendable {
     /// Public codegen

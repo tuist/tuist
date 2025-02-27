@@ -1,8 +1,7 @@
-import Foundation
 import XcodeGraph
 
 public protocol ProjectMapping {
-    func map(project: Project) throws -> (Project, [SideEffectDescriptor])
+    func map(project: Project) async throws -> (Project, [SideEffectDescriptor])
 }
 
 public class SequentialProjectMapper: ProjectMapping {
@@ -12,14 +11,16 @@ public class SequentialProjectMapper: ProjectMapping {
         self.mappers = mappers
     }
 
-    public func map(project: Project) throws -> (Project, [SideEffectDescriptor]) {
-        var results = (project: project, sideEffects: [SideEffectDescriptor]())
-        results = try mappers.reduce(into: results) { results, mapper in
-            let (updatedProject, sideEffects) = try mapper.map(project: results.project)
-            results.project = updatedProject
-            results.sideEffects.append(contentsOf: sideEffects)
+    public func map(project: Project) async throws -> (Project, [SideEffectDescriptor]) {
+        var project = project
+        var sideEffects: [SideEffectDescriptor] = []
+        for mapper in mappers {
+            let (mappedProject, mappedSideEffects) = try await mapper.map(project: project)
+            project = mappedProject
+            sideEffects.append(contentsOf: mappedSideEffects)
         }
-        return results
+
+        return (project, sideEffects)
     }
 }
 

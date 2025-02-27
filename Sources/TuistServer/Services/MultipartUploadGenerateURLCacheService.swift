@@ -12,7 +12,8 @@ public protocol MultipartUploadGenerateURLCacheServicing {
         name: String,
         cacheCategory: RemoteCacheCategory,
         uploadId: String,
-        partNumber: Int
+        partNumber: Int,
+        contentLength: Int
     ) async throws -> String
 }
 
@@ -52,11 +53,13 @@ public final class MultipartUploadGenerateURLCacheService: MultipartUploadGenera
         name: String,
         cacheCategory: RemoteCacheCategory,
         uploadId: String,
-        partNumber: Int
+        partNumber: Int,
+        contentLength: Int
     ) async throws -> String {
         let client = Client.authenticated(serverURL: serverURL)
         let response = try await client.generateCacheArtifactMultipartUploadURL(.init(query: .init(
             cache_category: .init(cacheCategory),
+            content_length: contentLength,
             project_id: projectId,
             hash: hash,
             part_number: partNumber,
@@ -69,7 +72,7 @@ public final class MultipartUploadGenerateURLCacheService: MultipartUploadGenera
             case let .json(cacheArtifact):
                 return cacheArtifact.data.url
             }
-        case let .paymentRequired(paymentRequiredResponse):
+        case let .code402(paymentRequiredResponse):
             switch paymentRequiredResponse.body {
             case let .json(error):
                 throw MultipartUploadGenerateURLCacheServiceError.paymentRequired(error.message)

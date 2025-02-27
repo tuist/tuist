@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import ServiceContextModule
 import TuistLoader
 import TuistServer
 import TuistSupport
@@ -41,7 +42,7 @@ final class OrganizationShowService: OrganizationShowServicing {
         } else {
             directoryPath = FileHandler.shared.currentPath
         }
-        let config = try configLoader.loadConfig(path: directoryPath)
+        let config = try await configLoader.loadConfig(path: directoryPath)
         let serverURL = try serverURLService.url(configServerURL: config.url)
 
         let organization = try await getOrganizationService.getOrganization(
@@ -56,7 +57,7 @@ final class OrganizationShowService: OrganizationShowServicing {
 
         if json {
             let json = try organization.toJSON()
-            logger.info(.init(stringLiteral: json.toString(prettyPrint: true)), metadata: .json)
+            ServiceContext.current?.logger?.info(.init(stringLiteral: json.toString(prettyPrint: true)), metadata: .json)
             return
         }
 
@@ -89,10 +90,12 @@ final class OrganizationShowService: OrganizationShowServicing {
             switch ssoOrganization {
             case let .google(organizationId):
                 baseInfo.append("SSO: Google (\(organizationId))")
+            case let .okta(organizationId):
+                baseInfo.append("SSO: Okta (\(organizationId))")
             }
         }
 
-        logger.info("""
+        ServiceContext.current?.logger?.info("""
         \(baseInfo.joined(separator: "\n"))
 
         \("Usage".bold()) (current calendar month)

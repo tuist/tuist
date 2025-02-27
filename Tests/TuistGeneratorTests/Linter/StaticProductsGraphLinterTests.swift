@@ -202,6 +202,61 @@ class StaticProductsGraphLinterTests: XCTestCase {
         ])
     }
 
+    /// Dependencies between XCFrameworks are preserved when replacing target nodes with binaries for Tuist Cache.
+    /// See this PR for more details: https://github.com/tuist/tuist/pull/6592
+    func test_lint_whenStaticProductLinkedTwice_transitiveStaticXCFrameworks() throws {
+        // Given
+        let path: AbsolutePath = "/project"
+        let app = Target.test(name: "App")
+        let staticXCFrameworkA = GraphDependency.testXCFramework(
+            path: path.appending(component: "StaticXCFrameworkA"),
+            linking: .static
+        )
+        let staticXCFrameworkB = GraphDependency.testXCFramework(
+            path: path.appending(component: "StaticXCFrameworkB"),
+            linking: .static
+        )
+        let staticXCFrameworkC = GraphDependency.testXCFramework(
+            path: path.appending(component: "StaticXCFrameworkC"),
+            linking: .static
+        )
+        let frameworkA = Target.test(name: "FrameworkA", product: .framework)
+        let frameworkB = Target.test(name: "FrameworkB", product: .framework)
+        let frameworkC = Target.test(name: "FrameworkC", product: .framework)
+        let project = Project
+            .test(targets: [app, frameworkA, frameworkB, frameworkC])
+
+        let appDependency = GraphDependency.target(name: app.name, path: path)
+        let frameworkADependency = GraphDependency.target(name: frameworkA.name, path: path)
+        let frameworkBDependency = GraphDependency.target(name: frameworkB.name, path: path)
+        let frameworkCDependency = GraphDependency.target(name: frameworkC.name, path: path)
+
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            appDependency: Set([staticXCFrameworkC, frameworkADependency]),
+            frameworkADependency: Set([frameworkBDependency]),
+            frameworkBDependency: Set([frameworkCDependency]),
+            frameworkCDependency: Set([staticXCFrameworkA]),
+            staticXCFrameworkA: Set([staticXCFrameworkB]),
+            staticXCFrameworkB: Set([staticXCFrameworkC]),
+            staticXCFrameworkC: Set([]),
+        ]
+        let graph = Graph.test(
+            path: path,
+            projects: [path: project],
+            dependencies: dependencies
+        )
+        let config = Config.test()
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let results = subject.lint(graphTraverser: graphTraverser, config: config)
+
+        // Then
+        XCTAssertEqual(results, [
+            warning(product: "StaticXCFrameworkC", type: "Xcframework", linkedBy: [appDependency, frameworkCDependency]),
+        ])
+    }
+
     func test_lint_whenStaticProductLinkedTwice_transitiveFrameworks() throws {
         // Given
         let path: AbsolutePath = "/project"
@@ -1026,6 +1081,37 @@ class StaticProductsGraphLinterTests: XCTestCase {
         ])
     }
 
+    func test_lint_whenNoStaticProductLinkedTwice_xpc() throws {
+        // Given
+        let path: AbsolutePath = "/project"
+        let app = Target.test(name: "App")
+        let xpc = Target.test(name: "XPC", product: .xpc)
+        let staticFramework = Target.test(name: "StaticFramework", product: .staticFramework)
+        let project = Project.test(targets: [app, xpc, staticFramework])
+
+        let appDependency = GraphDependency.target(name: app.name, path: path)
+        let xpcDependency = GraphDependency.target(name: xpc.name, path: path)
+        let staticFrameworkDependency = GraphDependency.target(name: staticFramework.name, path: path)
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            appDependency: Set([xpcDependency, staticFrameworkDependency]),
+            xpcDependency: Set([staticFrameworkDependency]),
+            staticFrameworkDependency: Set([]),
+        ]
+        let graph = Graph.test(
+            path: path,
+            projects: [path: project],
+            dependencies: dependencies
+        )
+        let config = Config.test()
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let results = subject.lint(graphTraverser: graphTraverser, config: config)
+
+        // Then
+        XCTAssertTrue(results.isEmpty)
+    }
+
     func test_lint_whenStaticProductLinkedTwice_and_productExcluded() throws {
         // Given
         let path: AbsolutePath = "/project"
@@ -1093,6 +1179,45 @@ class StaticProductsGraphLinterTests: XCTestCase {
 
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
             appDependency: Set([macroStaticFrameworkDependency]),
+            macroStaticFrameworkDependency: Set([macroExecutableDependency]),
+            macroExecutableDependency: Set([swiftSyntaxDependency]),
+        ]
+        let graph = Graph.test(
+            path: path,
+            projects: [path: project],
+            dependencies: dependencies
+        )
+        let config = Config.test()
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let results = subject.lint(graphTraverser: graphTraverser, config: config)
+
+        // Then
+        XCTAssertEqual(results, [])
+    }
+
+    func test_lint_whenStaticMacroLinkedTwice() throws {
+        // Given
+        let path: AbsolutePath = "/project"
+        let app = Target.test(name: "App")
+        let frameworkA = Target.test(name: "FrameworkA", product: .framework)
+        let macroStaticFramework = Target.test(name: "MacroStaticFramework", product: .staticFramework)
+        let macroExecutable = Target.test(name: "Macro", product: .macro)
+        let swiftSyntax = Target.test(name: "SwiftSyntax", product: .staticLibrary)
+
+        let project = Project
+            .test(targets: [app, frameworkA, macroStaticFramework, macroExecutable, swiftSyntax])
+
+        let appDependency = GraphDependency.target(name: app.name, path: path)
+        let frameworkADependency = GraphDependency.target(name: frameworkA.name, path: path)
+        let macroStaticFrameworkDependency = GraphDependency.target(name: macroStaticFramework.name, path: path)
+        let macroExecutableDependency = GraphDependency.target(name: macroExecutable.name, path: path)
+        let swiftSyntaxDependency = GraphDependency.target(name: swiftSyntax.name, path: path)
+
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            appDependency: Set([frameworkADependency, macroStaticFrameworkDependency]),
+            frameworkADependency: Set([macroStaticFrameworkDependency]),
             macroStaticFrameworkDependency: Set([macroExecutableDependency]),
             macroExecutableDependency: Set([swiftSyntaxDependency]),
         ]

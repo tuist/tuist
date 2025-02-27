@@ -1,4 +1,6 @@
 import Foundation
+import Noora
+import ServiceContextModule
 import XCTest
 @testable import TuistSupport
 @testable import TuistSupportTesting
@@ -22,19 +24,37 @@ final class ErrorHandlerTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_fatalError_printsTheDescription_whenPrintableError() {
-        let error = TestError(type: .abort)
-        subject.fatal(error: error)
-        XCTAssertPrinterErrorContains(error.description)
+    func test_fatalError_printsTheDescription_whenPrintableError() async throws {
+        try await ServiceContext.withTestingDependencies {
+            let error = TestError(type: .abort)
+            subject.fatal(error: error)
+
+            let got = ServiceContext.current?.recordedUI()
+            let expectedOutput = """
+            stderr: ▌ ✖ Error
+            stderr: ▌ Error
+            stderr: ▌
+            stderr: ▌ Sorry this didn’t work. Here’s what to try next:
+            stderr: ▌  ▸ Consider creating an issue using the following link: https://github.com/tuist/tuist/issues/new/choose
+            """
+
+            XCTAssertEqual(got, expectedOutput)
+        }
     }
 
-    func test_fatalError_prints_whenItsSilent() {
-        let error = TestError(type: .bugSilent)
-        subject.fatal(error: error)
-        let expected = """
-        An unexpected error happened. We've opened an issue to fix it as soon as possible.
-        We are sorry for any inconveniences it might have caused.
-        """
-        XCTAssertPrinterErrorContains(expected)
+    func test_fatalError_prints_whenItsSilent() async throws {
+        try await ServiceContext.withTestingDependencies {
+            let error = TestError(type: .bugSilent)
+            subject.fatal(error: error)
+
+            let got = ServiceContext.current?.recordedUI()
+            let expectedOutput = """
+            stderr: ▌ ✖ Error
+            stderr: ▌ An unexpected error happened. We've opened an issue to fix it as soon as possible.
+            stderr: We are sorry for any inconveniences it might have caused.
+            """
+
+            XCTAssertEqual(got, expectedOutput)
+        }
     }
 }

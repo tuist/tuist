@@ -1,10 +1,11 @@
+import FileSystem
 import Foundation
 import TuistCore
 import TuistSupport
 import XcodeGraph
 
 protocol TargetLinting: AnyObject {
-    func lint(target: Target, options: Project.Options) -> [LintingIssue]
+    func lint(target: Target, options: Project.Options) async throws -> [LintingIssue]
 }
 
 class TargetLinter: TargetLinting {
@@ -12,38 +13,41 @@ class TargetLinter: TargetLinting {
 
     private let settingsLinter: SettingsLinting
     private let targetScriptLinter: TargetScriptLinting
+    private let fileSystem: FileSysteming
 
     // MARK: - Init
 
     init(
         settingsLinter: SettingsLinting = SettingsLinter(),
-        targetScriptLinter: TargetScriptLinting = TargetScriptLinter()
+        targetScriptLinter: TargetScriptLinting = TargetScriptLinter(),
+        fileSystem: FileSysteming = FileSystem()
     ) {
         self.settingsLinter = settingsLinter
         self.targetScriptLinter = targetScriptLinter
+        self.fileSystem = fileSystem
     }
 
     // MARK: - TargetLinting
 
-    func lint(target: Target, options: Project.Options) -> [LintingIssue] {
+    func lint(target: Target, options: Project.Options) async throws -> [LintingIssue] {
         var issues: [LintingIssue] = []
         issues.append(contentsOf: lintProductName(target: target))
         issues.append(contentsOf: lintProductNameBuildSettings(target: target))
         issues.append(contentsOf: lintValidPlatformProductCombinations(target: target))
         issues.append(contentsOf: lintBundleIdentifier(target: target))
         issues.append(contentsOf: lintHasSourceFiles(target: target))
-        issues.append(contentsOf: lintCopiedFiles(target: target))
+        try await issues.append(contentsOf: lintCopiedFiles(target: target))
         issues.append(contentsOf: lintLibraryHasNoResources(target: target, options: options))
         issues.append(contentsOf: lintDeploymentTarget(target: target))
-        issues.append(contentsOf: settingsLinter.lint(target: target))
+        try await issues.append(contentsOf: settingsLinter.lint(target: target))
         issues.append(contentsOf: lintDuplicateDependency(target: target))
         issues.append(contentsOf: lintValidSourceFileCodeGenAttributes(target: target))
-        issues.append(contentsOf: validateCoreDataModelsExist(target: target))
-        issues.append(contentsOf: validateCoreDataModelVersionsExist(target: target))
+        try await issues.append(contentsOf: validateCoreDataModelsExist(target: target))
+        try await issues.append(contentsOf: validateCoreDataModelVersionsExist(target: target))
         issues.append(contentsOf: lintMergeableLibrariesOnlyAppliesToDynamicTargets(target: target))
         issues.append(contentsOf: lintOnDemandResourcesTags(target: target))
         for script in target.scripts {
-            issues.append(contentsOf: targetScriptLinter.lint(script))
+            issues.append(contentsOf: try await targetScriptLinter.lint(script))
         }
         return issues
     }
@@ -122,6 +126,9 @@ class TargetLinter: TargetLinting {
     }
 
     private func lintHasSourceFiles(target: Target) -> [LintingIssue] {
+        // Skip linting presence of source files except for local targets.
+        // Some remote targets, such as a `systemLibrary` type, are expected to have no source files.
+        guard target.type == .local else { return [] }
         let supportsSources = target.supportsSources
         let sources = target.sources
 
@@ -146,7 +153,7 @@ class TargetLinter: TargetLinting {
         return []
     }
 
-    private func lintCopiedFiles(target: Target) -> [LintingIssue] {
+    private func lintCopiedFiles(target: Target) async throws -> [LintingIssue] {
         var issues: [LintingIssue] = []
 
         let files = target.resources.resources.map(\.path)
@@ -162,15 +169,15 @@ class TargetLinter: TargetLinting {
             return LintingIssue(reason: reason, severity: .warning)
         })
 
-        issues.append(contentsOf: lintInfoplistExists(target: target))
-        issues.append(contentsOf: lintEntitlementsExist(target: target))
+        try await issues.append(contentsOf: lintInfoplistExists(target: target))
+        try await issues.append(contentsOf: lintEntitlementsExist(target: target))
         return issues
     }
 
-    private func validateCoreDataModelsExist(target: Target) -> [LintingIssue] {
-        target.coreDataModels.map(\.path)
-            .compactMap { path in
-                if !FileHandler.shared.exists(path) {
+    private func validateCoreDataModelsExist(target: Target) async throws -> [LintingIssue] {
+        try await target.coreDataModels.map(\.path)
+            .concurrentCompactMap { path in
+                if try await !self.fileSystem.exists(path) {
                     let reason = "The Core Data model at path \(path.pathString) does not exist"
                     return LintingIssue(reason: reason, severity: .error)
                 } else {
@@ -179,12 +186,12 @@ class TargetLinter: TargetLinting {
             }
     }
 
-    private func validateCoreDataModelVersionsExist(target: Target) -> [LintingIssue] {
-        target.coreDataModels.compactMap { coreDataModel -> LintingIssue? in
+    private func validateCoreDataModelVersionsExist(target: Target) async throws -> [LintingIssue] {
+        try await target.coreDataModels.concurrentCompactMap { coreDataModel async throws -> LintingIssue? in
             let versionFileName = "\(coreDataModel.currentVersion).xcdatamodel"
             let versionPath = coreDataModel.path.appending(component: versionFileName)
 
-            if !FileHandler.shared.exists(versionPath) {
+            if try await !self.fileSystem.exists(versionPath) {
                 let reason =
                     "The default version of the Core Data model at path \(coreDataModel.path.pathString), \(coreDataModel.currentVersion), does not exist. There should be a file at \(versionPath.pathString)"
                 return LintingIssue(reason: reason, severity: .error)
@@ -193,11 +200,11 @@ class TargetLinter: TargetLinting {
         }
     }
 
-    private func lintInfoplistExists(target: Target) -> [LintingIssue] {
+    private func lintInfoplistExists(target: Target) async throws -> [LintingIssue] {
         var issues: [LintingIssue] = []
         if let infoPlist = target.infoPlist,
-           case let InfoPlist.file(path: path) = infoPlist,
-           !FileHandler.shared.exists(path)
+           case let InfoPlist.file(path: path, configuration: _) = infoPlist,
+           try await !fileSystem.exists(path)
         {
             issues
                 .append(LintingIssue(reason: "Info.plist file not found at path \(infoPlist.path!.pathString)", severity: .error))
@@ -205,11 +212,11 @@ class TargetLinter: TargetLinting {
         return issues
     }
 
-    private func lintEntitlementsExist(target: Target) -> [LintingIssue] {
+    private func lintEntitlementsExist(target: Target) async throws -> [LintingIssue] {
         var issues: [LintingIssue] = []
         if let entitlements = target.entitlements,
-           case let Entitlements.file(path: path) = entitlements,
-           !FileHandler.shared.exists(path)
+           case let Entitlements.file(path: path, configuration: _) = entitlements,
+           try await !fileSystem.exists(path)
         {
             issues
                 .append(LintingIssue(
@@ -363,9 +370,9 @@ extension TargetDependency {
 
     fileprivate var name: String {
         switch self {
-        case let .target(name, _):
+        case let .target(name, _, _):
             return name
-        case let .project(target, _, _):
+        case let .project(target, _, _, _):
             return target
         case let .framework(path, _, _):
             return path.basename

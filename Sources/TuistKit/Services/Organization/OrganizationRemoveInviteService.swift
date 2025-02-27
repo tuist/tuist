@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import ServiceContextModule
 import TuistLoader
 import TuistServer
 import TuistSupport
@@ -38,7 +39,7 @@ final class OrganizationRemoveInviteService: OrganizationRemoveInviteServicing {
         } else {
             directoryPath = FileHandler.shared.currentPath
         }
-        let config = try configLoader.loadConfig(path: directoryPath)
+        let config = try await configLoader.loadConfig(path: directoryPath)
         let serverURL = try serverURLService.url(configServerURL: config.url)
 
         try await cancelOrganizationRemoveInviteService.cancelOrganizationInvite(
@@ -47,6 +48,7 @@ final class OrganizationRemoveInviteService: OrganizationRemoveInviteServicing {
             serverURL: serverURL
         )
 
-        logger.info("The invitation for \(email) to the \(organizationName) organization was successfully cancelled.")
+        ServiceContext.current?.logger?
+            .info("The invitation for \(email) to the \(organizationName) organization was successfully cancelled.")
     }
 }

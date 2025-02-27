@@ -1,5 +1,4 @@
-import Foundation
-import Path
+import ServiceContextModule
 import TuistCore
 import XcodeGraph
 
@@ -12,7 +11,7 @@ public final class SourceRootPathProjectMapper: ProjectMapping {
     public init() {}
 
     public func map(project: Project) throws -> (Project, [SideEffectDescriptor]) {
-        logger.debug("Transforming project \(project.name): Setting $SRCROOT to \(project.name)")
+        ServiceContext.current?.logger?.debug("Transforming project \(project.name): Setting $SRCROOT to \(project.name)")
 
         var project = project
         var base = project.settings.base

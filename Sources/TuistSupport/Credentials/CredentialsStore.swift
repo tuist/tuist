@@ -30,7 +30,7 @@ enum CredentialsStoreError: FatalError {
     var description: String {
         switch self {
         case .credentialsNotFound:
-            return "You are not authenticated. Authenticate by running `tuist auth`."
+            return "You are not authenticated. Authenticate by running 'tuist auth login'."
         }
     }
 

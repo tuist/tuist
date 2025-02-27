@@ -1,10 +1,11 @@
 import Foundation
 import Path
+import TuistCore
+import TuistSupportTesting
 import XcodeGraph
 import XCTest
 
 @testable import TuistDependencies
-@testable import TuistSupportTesting
 
 final class PruneOrphanRemoteTargetsGraphMapperTests: TuistUnitTestCase {
     var subject: PruneOrphanRemoteTargetsGraphMapper!
@@ -41,7 +42,11 @@ final class PruneOrphanRemoteTargetsGraphMapperTests: TuistUnitTestCase {
                 transitivePackageProductWithNoDestinations,
                 packageDevProduct,
             ],
+<<<<<<< HEAD:Tests/TuistDependenciesTests/Mappers/PruneOrphanRemoteTargetsGraphMapperTests.swift
             type: .remotePackage
+=======
+            type: .external(hash: nil)
+>>>>>>> main:Tests/TuistDependenciesTests/Mappers/PruneOrphanExternalTargetsGraphMapperTests.swift
         )
         let directPackageProductDependency = GraphDependency.target(name: directPackageProduct.name, path: packageProject.path)
         let transitivePackageProductDependency = GraphDependency.target(
@@ -66,7 +71,7 @@ final class PruneOrphanRemoteTargetsGraphMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let (gotGraph, _) = try await subject.map(graph: graph)
+        let (gotGraph, _, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
 
         // Then
 

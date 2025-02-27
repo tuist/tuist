@@ -1,4 +1,3 @@
-import Foundation
 import Path
 import XcodeGraph
 
@@ -7,10 +6,11 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
         switch self {
         case let .framework(_, _, _, _, _, _, _, _, condition),
              let .library(_, _, _, _, condition),
-             let .xcframework(_, _, _, _, _, condition),
+             let .xcframework(_, _, _, condition),
              let .bundle(_, condition),
-             let .product(_, _, condition),
-             let .sdk(_, _, _, condition):
+             let .product(_, _, _, condition),
+             let .sdk(_, _, _, condition),
+             let .packageProduct(_, condition):
             return condition
         case .macro:
             return nil
@@ -21,9 +21,7 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
     case xcframework(
         path: AbsolutePath,
         infoPlist: XCFrameworkInfoPlist,
-        primaryBinaryPath: AbsolutePath,
-        binaryPath: AbsolutePath,
-        status: FrameworkStatus,
+        status: LinkingStatus,
         condition: PlatformCondition? = nil
     )
     case library(
@@ -41,16 +39,25 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
         linking: BinaryLinking,
         architectures: [BinaryArchitecture],
         product: Product,
-        status: FrameworkStatus,
+        status: LinkingStatus,
         condition: PlatformCondition? = nil
     )
     case bundle(path: AbsolutePath, condition: PlatformCondition? = nil)
-    case product(target: String, productName: String, condition: PlatformCondition? = nil)
-    case sdk(path: AbsolutePath, status: SDKStatus, source: SDKSource, condition: PlatformCondition? = nil)
+    case product(
+        target: String, productName: String, status: LinkingStatus = .required,
+        condition: PlatformCondition? = nil
+    )
+    case sdk(
+        path: AbsolutePath, status: LinkingStatus, source: SDKSource,
+        condition: PlatformCondition? = nil
+    )
+    case packageProduct(product: String, condition: PlatformCondition? = nil)
 
     init(_ dependency: GraphDependency, condition: PlatformCondition? = nil) {
         switch dependency {
-        case let .framework(path, binaryPath, dsymPath, bcsymbolmapPaths, linking, architectures, status):
+        case let .framework(
+            path, binaryPath, dsymPath, bcsymbolmapPaths, linking, architectures, status
+        ):
             self = .framework(
                 path: path,
                 binaryPath: binaryPath,
@@ -74,8 +81,6 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
             self = .xcframework(
                 path: xcframework.path,
                 infoPlist: xcframework.infoPlist,
-                primaryBinaryPath: xcframework.primaryBinaryPath,
-                binaryPath: xcframework.primaryBinaryPath,
                 status: xcframework.status,
                 condition: condition
             )
@@ -96,7 +101,7 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
             return path
         case let .library(path, _, _, _, _):
             return path
-        case let .xcframework(path, _, _, _, _, _):
+        case let .xcframework(path, _, _, _):
             return path
         default:
             return nil
@@ -117,46 +122,45 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
         case framework(path: AbsolutePath, condition: PlatformCondition?)
         case xcframework(path: AbsolutePath, condition: PlatformCondition?)
         case bundle(path: AbsolutePath, condition: PlatformCondition?)
+        case packageProduct(product: String, condition: PlatformCondition?)
 
         init(dependencyReference: GraphDependencyReference) {
             switch dependencyReference {
             case let .macro(path):
                 self = .macro(path: path)
             case .xcframework(
-                path: let path,
+                let path,
                 infoPlist: _,
-                primaryBinaryPath: _,
-                binaryPath: _,
-                status: _,
-                condition: let condition
+                status: _, let condition
             ):
                 self = .xcframework(path: path, condition: condition)
             case let .library(path: path, _, _, _, condition):
                 self = .library(path: path, condition: condition)
             case .framework(
-                path: let path,
+                let path,
                 binaryPath: _,
                 dsymPath: _,
                 bcsymbolmapPaths: _,
                 linking: _,
                 architectures: _,
                 product: _,
-                status: _,
-                condition: let condition
+                status: _, let condition
             ):
                 self = .framework(path: path, condition: condition)
             case let .bundle(path: path, condition):
                 self = .bundle(path: path, condition: condition)
-            case let .product(target: target, productName: productName, condition: condition):
+            case let .product(target: target, productName: productName, _, condition: condition):
                 self = .product(target: target, productName: productName, condition: condition)
-            case .sdk(path: let path, status: _, source: _, condition: let condition):
+            case .sdk(let path, status: _, source: _, let condition):
                 self = .sdk(path: path, condition: condition)
+            case let .packageProduct(product, condition):
+                self = .packageProduct(product: product, condition: condition)
             }
         }
     }
 }
 
-extension PlatformCondition?: Comparable {
+extension PlatformCondition?: Swift.Comparable {
     public static func < (lhs: Optional, rhs: Optional) -> Bool {
         guard let lhs else { return false }
         guard let rhs else { return true }

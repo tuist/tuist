@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import ServiceContextModule
 import TuistLoader
 import TuistServer
 import TuistSupport
@@ -36,7 +37,7 @@ final class OrganizationRemoveSSOService: OrganizationRemoveSSOServicing {
         } else {
             directoryPath = FileHandler.shared.currentPath
         }
-        let config = try configLoader.loadConfig(path: directoryPath)
+        let config = try await configLoader.loadConfig(path: directoryPath)
 
         let serverURL = try serverURLService.url(configServerURL: config.url)
         _ = try await updateOrganizationService.updateOrganization(
@@ -45,6 +46,6 @@ final class OrganizationRemoveSSOService: OrganizationRemoveSSOServicing {
             ssoOrganization: nil
         )
 
-        logger.info("SSO for \(organizationName) was removed.")
+        ServiceContext.current?.logger?.info("SSO for \(organizationName) was removed.")
     }
 }

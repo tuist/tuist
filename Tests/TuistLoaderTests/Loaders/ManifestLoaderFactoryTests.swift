@@ -1,6 +1,5 @@
 import Foundation
 import Mockable
-import Path
 import TuistSupport
 import XCTest
 

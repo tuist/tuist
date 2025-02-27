@@ -1,5 +1,3 @@
-import Foundation
-
 /// A location to a plugin, either local or remote.
 public struct PluginLocation: Codable, Equatable, Sendable {
     /// The type of location `local` or `git`.

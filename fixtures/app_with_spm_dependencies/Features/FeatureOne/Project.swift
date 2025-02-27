@@ -13,7 +13,6 @@ let project = Project(
             sources: ["Sources/*.{swift,m}"],
             headers: .headers(public: "Sources/*.h"),
             dependencies: [
-                .external(name: "Alamofire"),
                 .external(name: "UICKeyChainStore"),
             ],
             settings: .targetSettings
@@ -25,7 +24,7 @@ let project = Project(
             bundleId: "io.tuist.featureOne",
             sources: ["Sources/**"],
             dependencies: [
-                .external(name: "Alamofire"),
+                .external(name: "UICKeyChainStore"),
             ],
             settings: .targetSettings
         ),

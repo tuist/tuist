@@ -1,33 +1,30 @@
 import Foundation
-import MockableTest
-import Path
+import Mockable
 import TuistCore
 import TuistLoader
 import TuistScaffold
 import TuistSupport
-import XcodeGraph
 import XCTest
 
 @testable import TuistCoreTesting
 @testable import TuistKit
 @testable import TuistLoaderTesting
 @testable import TuistPluginTesting
-@testable import TuistScaffoldTesting
 @testable import TuistSupportTesting
 
 final class ScaffoldServiceTests: TuistUnitTestCase {
     var subject: ScaffoldService!
-    var templateLoader: MockTemplateLoader!
-    var templatesDirectoryLocator: MockTemplatesDirectoryLocator!
-    var templateGenerator: MockTemplateGenerator!
+    var templateLoader: MockTemplateLoading!
+    var templatesDirectoryLocator: MockTemplatesDirectoryLocating!
+    var templateGenerator: MockTemplateGenerating!
     var configLoader: MockConfigLoading!
     var pluginService: MockPluginService!
 
     override func setUp() {
         super.setUp()
-        templateLoader = MockTemplateLoader()
-        templatesDirectoryLocator = MockTemplatesDirectoryLocator()
-        templateGenerator = MockTemplateGenerator()
+        templateLoader = MockTemplateLoading()
+        templatesDirectoryLocator = MockTemplatesDirectoryLocating()
+        templateGenerator = MockTemplateGenerating()
         configLoader = MockConfigLoading()
         pluginService = MockPluginService()
         given(configLoader)
@@ -52,20 +49,22 @@ final class ScaffoldServiceTests: TuistUnitTestCase {
 
     func test_load_template_options() async throws {
         // Given
-        templateLoader.loadTemplateStub = { _ in
-            Template(
-                description: "test",
-                attributes: [
-                    .required("required"),
-                    .optional("optional", default: .string("")),
-                ],
-                items: []
+        given(templateLoader)
+            .loadTemplate(at: .any, plugins: .any)
+            .willReturn(
+                Template(
+                    description: "test",
+                    attributes: [
+                        .required("required"),
+                        .optional("optional", default: .string("")),
+                    ],
+                    items: []
+                )
             )
-        }
 
-        templatesDirectoryLocator.templateDirectoriesStub = { _ in
-            [try self.temporaryPath().appending(component: "template")]
-        }
+        given(templatesDirectoryLocator)
+            .templateDirectories(at: .any)
+            .willReturn([try temporaryPath().appending(component: "template")])
 
         let expectedOptions = (required: ["required"], optional: ["optional"])
 
@@ -82,16 +81,18 @@ final class ScaffoldServiceTests: TuistUnitTestCase {
 
     func test_load_template_plugin_options() async throws {
         // Given
-        templateLoader.loadTemplateStub = { _ in
-            Template(
-                description: "test",
-                attributes: [
-                    .required("required"),
-                    .optional("optional", default: .string("")),
-                ],
-                items: []
+        given(templateLoader)
+            .loadTemplate(at: .any, plugins: .any)
+            .willReturn(
+                Template(
+                    description: "test",
+                    attributes: [
+                        .required("required"),
+                        .optional("optional", default: .string("")),
+                    ],
+                    items: []
+                )
             )
-        }
 
         let expectedOptions = (required: ["required"], optional: ["optional"])
         let pluginTemplatePath = try temporaryPath().appending(component: "PluginTemplate")
@@ -100,9 +101,13 @@ final class ScaffoldServiceTests: TuistUnitTestCase {
             Plugins.test(templatePaths: [pluginTemplatePath])
         }
 
-        templatesDirectoryLocator.templatePluginDirectoriesStub = { _ in
-            [pluginTemplatePath]
-        }
+        given(templatesDirectoryLocator)
+            .templatePluginDirectories(at: .any)
+            .willReturn([pluginTemplatePath])
+
+        given(templatesDirectoryLocator)
+            .templateDirectories(at: .any)
+            .willReturn([])
 
         // When
         let options = try await subject.loadTemplateOptions(
@@ -117,6 +122,15 @@ final class ScaffoldServiceTests: TuistUnitTestCase {
 
     func test_fails_when_template_not_found() async throws {
         let templateName = "template"
+        given(templateLoader)
+            .loadTemplate(at: .any, plugins: .any)
+            .willReturn(
+                Template.test(attributes: [.required("required")])
+            )
+
+        given(templatesDirectoryLocator)
+            .templateDirectories(at: .any)
+            .willReturn([])
         await XCTAssertThrowsSpecific(
             try await subject.testRun(templateName: templateName),
             ScaffoldServiceError.templateNotFound(templateName, searchPaths: [])
@@ -125,13 +139,15 @@ final class ScaffoldServiceTests: TuistUnitTestCase {
 
     func test_fails_when_required_attribute_not_provided() async throws {
         // Given
-        templateLoader.loadTemplateStub = { _ in
-            Template.test(attributes: [.required("required")])
-        }
+        given(templateLoader)
+            .loadTemplate(at: .any, plugins: .any)
+            .willReturn(
+                Template.test(attributes: [.required("required")])
+            )
 
-        templatesDirectoryLocator.templateDirectoriesStub = { _ in
-            [try self.temporaryPath().appending(component: "template")]
-        }
+        given(templatesDirectoryLocator)
+            .templateDirectories(at: .any)
+            .willReturn([try temporaryPath().appending(component: "template")])
 
         // Then
         await XCTAssertThrowsSpecific(
@@ -142,27 +158,35 @@ final class ScaffoldServiceTests: TuistUnitTestCase {
 
     func test_optional_attribute_is_taken_from_template() async throws {
         // Given
-        templateLoader.loadTemplateStub = { _ in
-            Template.test(attributes: [.optional("optional", default: .string("optionalValue"))])
-        }
+        given(templateLoader)
+            .loadTemplate(at: .any, plugins: .any)
+            .willReturn(
+                Template.test(attributes: [.optional("optional", default: .string("optionalValue"))])
+            )
 
-        templatesDirectoryLocator.templateDirectoriesStub = { _ in
-            [try self.temporaryPath().appending(component: "template")]
-        }
+        given(templatesDirectoryLocator)
+            .templateDirectories(at: .any)
+            .willReturn([try temporaryPath().appending(component: "template")])
 
-        var generateAttributes: [String: Template.Attribute.Value] = [:]
-        templateGenerator.generateStub = { _, _, attributes in
-            generateAttributes = attributes
-        }
+        given(templateGenerator)
+            .generate(
+                template: .any,
+                to: .any,
+                attributes: .any
+            )
+            .willReturn()
 
         // When
         try await subject.testRun()
 
         // Then
-        XCTAssertEqual(
-            ["optional": .string("optionalValue")],
-            generateAttributes
-        )
+        verify(templateGenerator)
+            .generate(
+                template: .any,
+                to: .any,
+                attributes: .value(["optional": .string("optionalValue")])
+            )
+            .called(1)
     }
 
     func test_optional_dictionary_attribute_is_taken_from_template() async throws {
@@ -172,54 +196,70 @@ final class ScaffoldServiceTests: TuistUnitTestCase {
             "key2": .string("value2"),
         ])
 
-        templateLoader.loadTemplateStub = { _ in
-            Template.test(attributes: [.optional("optional", default: context)])
-        }
+        given(templateLoader)
+            .loadTemplate(at: .any, plugins: .any)
+            .willReturn(
+                Template.test(attributes: [.optional("optional", default: context)])
+            )
 
-        templatesDirectoryLocator.templateDirectoriesStub = { _ in
-            [try self.temporaryPath().appending(component: "template")]
-        }
+        given(templatesDirectoryLocator)
+            .templateDirectories(at: .any)
+            .willReturn([try temporaryPath().appending(component: "template")])
 
-        var generateAttributes: [String: Template.Attribute.Value] = [:]
-        templateGenerator.generateStub = { _, _, attributes in
-            generateAttributes = attributes
-        }
+        given(templateGenerator)
+            .generate(
+                template: .any,
+                to: .any,
+                attributes: .any
+            )
+            .willReturn()
 
         // When
         try await subject.testRun()
 
         // Then
-        XCTAssertEqual(
-            ["optional": context],
-            generateAttributes
-        )
+        verify(templateGenerator)
+            .generate(
+                template: .any,
+                to: .any,
+                attributes: .value(["optional": context])
+            )
+            .called(1)
     }
 
     func test_optional_integer_attribute_is_taken_from_template() async throws {
         // Given
         let defaultIntegerValue: Template.Attribute.Value = .integer(999)
 
-        templateLoader.loadTemplateStub = { _ in
-            Template.test(attributes: [.optional("optional", default: defaultIntegerValue)])
-        }
+        given(templateLoader)
+            .loadTemplate(at: .any, plugins: .any)
+            .willReturn(
+                Template.test(attributes: [.optional("optional", default: defaultIntegerValue)])
+            )
 
-        templatesDirectoryLocator.templateDirectoriesStub = { _ in
-            [try self.temporaryPath().appending(component: "template")]
-        }
+        given(templatesDirectoryLocator)
+            .templateDirectories(at: .any)
+            .willReturn([try temporaryPath().appending(component: "template")])
 
-        var generateAttributes: [String: Template.Attribute.Value] = [:]
-        templateGenerator.generateStub = { _, _, attributes in
-            generateAttributes = attributes
-        }
+        given(templateGenerator)
+            .generate(
+                template: .any,
+                to: .any,
+                attributes: .any
+            )
+            .willReturn()
 
         // When
         try await subject.testRun()
 
         // Then
-        XCTAssertEqual(
-            ["optional": defaultIntegerValue],
-            generateAttributes
-        )
+        verify(templateGenerator)
+            .generate(
+                template: .any,
+                to: .any,
+                attributes: .value(["optional": defaultIntegerValue])
+            )
+            .called(1)
     }
 
     func test_attributes_are_passed_to_generator() async throws {
@@ -227,21 +267,26 @@ final class ScaffoldServiceTests: TuistUnitTestCase {
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(.default)
-        templateLoader.loadTemplateStub = { _ in
-            Template.test(attributes: [
-                .optional("optional", default: .string("")),
-                .required("required"),
-            ])
-        }
+        given(templateLoader)
+            .loadTemplate(at: .any, plugins: .any)
+            .willReturn(
+                Template.test(attributes: [
+                    .optional("optional", default: .string("")),
+                    .required("required"),
+                ])
+            )
 
-        templatesDirectoryLocator.templateDirectoriesStub = { _ in
-            [try self.temporaryPath().appending(component: "template")]
-        }
+        given(templatesDirectoryLocator)
+            .templateDirectories(at: .any)
+            .willReturn([try temporaryPath().appending(component: "template")])
 
-        var generateAttributes: [String: Template.Attribute.Value] = [:]
-        templateGenerator.generateStub = { _, _, attributes in
-            generateAttributes = attributes
-        }
+        given(templateGenerator)
+            .generate(
+                template: .any,
+                to: .any,
+                attributes: .any
+            )
+            .willReturn()
 
         // When
         try await subject.testRun(
@@ -250,13 +295,18 @@ final class ScaffoldServiceTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(
-            [
-                "optional": .string("optionalValue"),
-                "required": .string("requiredValue"),
-            ],
-            generateAttributes
-        )
+        verify(templateGenerator)
+            .generate(
+                template: .any,
+                to: .any,
+                attributes: .value(
+                    [
+                        "optional": .string("optionalValue"),
+                        "required": .string("requiredValue"),
+                    ]
+                )
+            )
+            .called(1)
     }
 }
 

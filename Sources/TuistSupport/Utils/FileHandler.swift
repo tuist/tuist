@@ -49,8 +49,6 @@ public protocol FileHandling: AnyObject {
     var homeDirectory: Path.AbsolutePath { get }
 
     func replace(_ to: Path.AbsolutePath, with: Path.AbsolutePath) throws
-    func exists(_ path: Path.AbsolutePath) -> Bool
-    func move(from: Path.AbsolutePath, to: Path.AbsolutePath) throws
     func copy(from: Path.AbsolutePath, to: Path.AbsolutePath) throws
     func readFile(_ at: Path.AbsolutePath) throws -> Data
     func readTextFile(_ at: Path.AbsolutePath) throws -> String
@@ -66,23 +64,38 @@ public protocol FileHandling: AnyObject {
     func write(_ content: String, path: Path.AbsolutePath, atomically: Bool) throws
     func locateDirectoryTraversingParents(from: Path.AbsolutePath, path: String) -> Path.AbsolutePath?
     func locateDirectory(_ path: String, traversingFrom from: Path.AbsolutePath) throws -> Path.AbsolutePath?
-    func files(in path: Path.AbsolutePath, nameFilter: Set<String>?, extensionFilter: Set<String>?) -> Set<Path.AbsolutePath>
-    func glob(_ path: Path.AbsolutePath, glob: String) -> [Path.AbsolutePath]
-    func throwingGlob(_ path: Path.AbsolutePath, glob: String) throws -> [Path.AbsolutePath]
+    func files(
+        in path: Path.AbsolutePath,
+        filter: ((URL) -> Bool)?,
+        nameFilter: Set<String>?,
+        extensionFilter: Set<String>?
+    ) -> Set<Path.AbsolutePath>
+    func files(
+        in path: Path.AbsolutePath,
+        nameFilter: Set<String>?,
+        extensionFilter: Set<String>?
+    ) -> Set<Path.AbsolutePath>
     func linkFile(atPath: Path.AbsolutePath, toPath: Path.AbsolutePath) throws
     func createFolder(_ path: Path.AbsolutePath) throws
-    func delete(_ path: Path.AbsolutePath) throws
     func isFolder(_ path: Path.AbsolutePath) -> Bool
     func touch(_ path: Path.AbsolutePath) throws
     func contentsOfDirectory(_ path: Path.AbsolutePath) throws -> [Path.AbsolutePath]
     func urlSafeBase64MD5(path: Path.AbsolutePath) throws -> String
     func fileSize(path: Path.AbsolutePath) throws -> UInt64
-    func changeExtension(path: Path.AbsolutePath, to newExtension: String) throws -> Path.AbsolutePath
-    func resolveSymlinks(_ path: Path.AbsolutePath) throws -> Path.AbsolutePath
     func fileAttributes(at path: Path.AbsolutePath) throws -> [FileAttributeKey: Any]
     func filesAndDirectoriesContained(in path: Path.AbsolutePath) throws -> [Path.AbsolutePath]?
     func zipItem(at sourcePath: Path.AbsolutePath, to destinationPath: Path.AbsolutePath) throws
     func unzipItem(at sourcePath: Path.AbsolutePath, to destinationPath: Path.AbsolutePath) throws
+}
+
+extension FileHandling {
+    public func files(
+        in path: Path.AbsolutePath,
+        nameFilter: Set<String>?,
+        extensionFilter: Set<String>?
+    ) -> Set<Path.AbsolutePath> {
+        files(in: path, filter: nil, nameFilter: nameFilter, extensionFilter: extensionFilter)
+    }
 }
 
 public class FileHandler: FileHandling {
@@ -175,17 +188,13 @@ public class FileHandler: FileHandling {
         }
     }
 
-    public func exists(_ path: Path.AbsolutePath) -> Bool {
+    private func exists(_ path: Path.AbsolutePath) -> Bool {
         let exists = fileManager.fileExists(atPath: path.pathString)
         return exists
     }
 
     public func copy(from: Path.AbsolutePath, to: Path.AbsolutePath) throws {
         try fileManager.copyItem(atPath: from.pathString, toPath: to.pathString)
-    }
-
-    public func move(from: Path.AbsolutePath, to: Path.AbsolutePath) throws {
-        try fileManager.moveItem(atPath: from.pathString, toPath: to.pathString)
     }
 
     public func readFile(_ at: Path.AbsolutePath) throws -> Data {
@@ -239,6 +248,7 @@ public class FileHandler: FileHandling {
 
     public func files(
         in path: Path.AbsolutePath,
+        filter: ((URL) -> Bool)?,
         nameFilter: Set<String>?,
         extensionFilter: Set<String>?
     ) -> Set<Path.AbsolutePath> {
@@ -250,14 +260,19 @@ public class FileHandler: FileHandling {
             options: [.skipsHiddenFiles, .skipsPackageDescendants]
         )
 
-        func filter(candidateURL: URL) -> Bool {
+        func filterCandidate(with url: URL) -> Bool {
             if let extensionFilter {
-                guard extensionFilter.contains(candidateURL.pathExtension) else {
+                guard extensionFilter.contains(url.pathExtension) else {
                     return false
                 }
             }
             if let nameFilter {
-                guard nameFilter.contains(candidateURL.lastPathComponent) else {
+                guard nameFilter.contains(url.lastPathComponent) else {
+                    return false
+                }
+            }
+            if let filter {
+                guard filter(url) else {
                     return false
                 }
             }
@@ -265,7 +280,7 @@ public class FileHandler: FileHandling {
         }
 
         while let candidateURL = enumerator?.nextObject() as? Foundation.URL {
-            guard filter(candidateURL: candidateURL) else {
+            guard filterCandidate(with: candidateURL) else {
                 continue
             }
             // Symlinks need to be resolved for resulting absolute URLs to point to the right place.
@@ -277,26 +292,12 @@ public class FileHandler: FileHandling {
         return results
     }
 
-    public func glob(_ path: Path.AbsolutePath, glob: String) -> [Path.AbsolutePath] {
-        path.glob(glob)
-    }
-
-    public func throwingGlob(_ path: Path.AbsolutePath, glob: String) throws -> [Path.AbsolutePath] {
-        try path.throwingGlob(glob)
-    }
-
     public func createFolder(_ path: Path.AbsolutePath) throws {
         try fileManager.createDirectory(
             at: path.url,
             withIntermediateDirectories: true,
             attributes: nil
         )
-    }
-
-    public func delete(_ path: Path.AbsolutePath) throws {
-        if exists(path) {
-            try fileManager.removeItem(atPath: path.pathString)
-        }
     }
 
     public func touch(_ path: Path.AbsolutePath) throws {
@@ -318,7 +319,7 @@ public class FileHandler: FileHandling {
         let configPath = from.appending(component: path)
 
         let root = try! Path.AbsolutePath(validating: "/") // swiftlint:disable:this force_try
-        if FileHandler.shared.exists(configPath) {
+        if exists(configPath) {
             return configPath
         } else if from == root {
             return nil
@@ -333,10 +334,6 @@ public class FileHandler: FileHandling {
 
     public func createSymbolicLink(at path: Path.AbsolutePath, destination: Path.AbsolutePath) throws {
         try fileManager.createSymbolicLink(atPath: path.pathString, withDestinationPath: destination.pathString)
-    }
-
-    public func resolveSymlinks(_ path: Path.AbsolutePath) throws -> Path.AbsolutePath {
-        try .init(validating: TSCBasic.resolveSymlinks(.init(validating: path.pathString)).pathString)
     }
 
     public func fileAttributes(at path: Path.AbsolutePath) throws -> [FileAttributeKey: Any] {
@@ -366,16 +363,6 @@ public class FileHandler: FileHandling {
     }
 
     // MARK: - Extension
-
-    public func changeExtension(path: Path.AbsolutePath, to fileExtension: String) throws -> Path.AbsolutePath {
-        guard isFolder(path) == false else { throw FileHandlerError.expectedAFile(path) }
-        let sanitizedExtension = fileExtension.starts(with: ".") ? String(fileExtension.dropFirst()) : fileExtension
-        guard path.extension != sanitizedExtension else { return path }
-
-        let newPath = path.removingLastComponent().appending(component: "\(path.basenameWithoutExt).\(sanitizedExtension)")
-        try move(from: path, to: newPath)
-        return newPath
-    }
 
     public func zipItem(at sourcePath: Path.AbsolutePath, to destinationPath: Path.AbsolutePath) throws {
         try fileManager.zipItem(

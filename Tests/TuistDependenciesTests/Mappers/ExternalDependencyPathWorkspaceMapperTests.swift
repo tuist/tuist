@@ -1,5 +1,4 @@
 import Foundation
-import Path
 import TuistCore
 import TuistSupport
 import TuistSupportTesting
@@ -88,7 +87,11 @@ final class ExternalDependencyPathWorkspaceMapperTests: TuistUnitTestCase {
                             "SRCROOT": .string(externalProjectPath.pathString),
                         ]
                     ),
+<<<<<<< HEAD:Tests/TuistDependenciesTests/Mappers/ExternalDependencyPathWorkspaceMapperTests.swift
                     type: .remotePackage
+=======
+                    type: .external(hash: nil)
+>>>>>>> main:Tests/TuistDependenciesTests/Mappers/ExternalDependencyPathWorkspaceMapper.swift
                 ),
             ]
         )

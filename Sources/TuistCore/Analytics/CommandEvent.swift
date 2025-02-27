@@ -1,4 +1,3 @@
-import AnyCodable
 import Foundation
 import Path
 
@@ -7,7 +6,6 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
     public let runId: String
     public let name: String
     public let subcommand: String?
-    public let params: [String: AnyCodable]
     public let commandArguments: [String]
     public let durationInMs: Int
     public let clientId: String
@@ -17,6 +15,13 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
     public let machineHardwareName: String
     public let isCI: Bool
     public let status: Status
+    public let gitCommitSHA: String?
+    public let gitRef: String?
+    public let gitRemoteURLOrigin: String?
+    public let gitBranch: String?
+    public let graph: RunGraph?
+    public let previewId: String?
+    public let resultBundlePath: AbsolutePath?
 
     public enum Status: Codable, Equatable {
         case success, failure(String)
@@ -30,7 +35,6 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
         case runId
         case name
         case subcommand
-        case params
         case commandArguments
         case durationInMs = "duration"
         case clientId
@@ -40,13 +44,19 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
         case machineHardwareName
         case isCI
         case status
+        case gitCommitSHA
+        case gitRef
+        case gitRemoteURLOrigin
+        case gitBranch
+        case graph
+        case previewId
+        case resultBundlePath
     }
 
     public init(
         runId: String,
         name: String,
         subcommand: String?,
-        params: [String: AnyCodable],
         commandArguments: [String],
         durationInMs: Int,
         clientId: String,
@@ -55,12 +65,18 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
         macOSVersion: String,
         machineHardwareName: String,
         isCI: Bool,
-        status: Status
+        status: Status,
+        gitCommitSHA: String?,
+        gitRef: String?,
+        gitRemoteURLOrigin: String?,
+        gitBranch: String?,
+        graph: RunGraph?,
+        previewId: String?,
+        resultBundlePath: AbsolutePath?
     ) {
         self.runId = runId
         self.name = name
         self.subcommand = subcommand
-        self.params = params
         self.commandArguments = commandArguments
         self.durationInMs = durationInMs
         self.clientId = clientId
@@ -70,6 +86,13 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
         self.machineHardwareName = machineHardwareName
         self.isCI = isCI
         self.status = status
+        self.gitCommitSHA = gitCommitSHA
+        self.gitRef = gitRef
+        self.gitRemoteURLOrigin = gitRemoteURLOrigin
+        self.gitBranch = gitBranch
+        self.graph = graph
+        self.previewId = previewId
+        self.resultBundlePath = resultBundlePath
     }
 }
 
@@ -79,7 +102,6 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
             runId: String = "",
             name: String = "generate",
             subcommand: String? = nil,
-            params: [String: AnyCodable] = [:],
             commandArguments: [String] = [],
             durationInMs: Int = 20,
             clientId: String = "123",
@@ -87,13 +109,19 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
             swiftVersion: String = "5.2",
             macOSVersion: String = "10.15",
             machineHardwareName: String = "arm64",
-            status: Status = .success
+            status: Status = .success,
+            gitCommitSHA: String? = "0f783ea776192241154f5c192cd143efde7443aa",
+            gitRef: String? = "refs/heads/main",
+            gitRemoteURLOrigin: String? = "https://github.com/tuist/tuist",
+            gitBranch: String? = "main",
+            graph: RunGraph = RunGraph(name: "Graph", projects: []),
+            previewId: String? = nil,
+            resultBundlePath: AbsolutePath? = nil
         ) -> CommandEvent {
             CommandEvent(
                 runId: runId,
                 name: name,
                 subcommand: subcommand,
-                params: params,
                 commandArguments: commandArguments,
                 durationInMs: durationInMs,
                 clientId: clientId,
@@ -102,7 +130,14 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
                 macOSVersion: macOSVersion,
                 machineHardwareName: machineHardwareName,
                 isCI: false,
-                status: status
+                status: status,
+                gitCommitSHA: gitCommitSHA,
+                gitRef: gitRef,
+                gitRemoteURLOrigin: gitRemoteURLOrigin,
+                gitBranch: gitBranch,
+                graph: graph,
+                previewId: previewId,
+                resultBundlePath: resultBundlePath
             )
         }
     }

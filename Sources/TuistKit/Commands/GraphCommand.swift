@@ -1,4 +1,3 @@
-import AnyCodable
 import ArgumentParser
 import Foundation
 import GraphViz
@@ -9,11 +8,8 @@ import TuistSupport
 import XcodeGraph
 
 /// Command that generates and exports a dot graph from the workspace or project in the current directory.
-public struct GraphCommand: AsyncParsableCommand, HasTrackableParameters {
+public struct GraphCommand: AsyncParsableCommand {
     public init() {}
-
-    public static var analyticsDelegate: TrackableParametersDelegate?
-    public var runId = UUID().uuidString
 
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
@@ -86,14 +82,6 @@ public struct GraphCommand: AsyncParsableCommand, HasTrackableParameters {
     var outputPath: String?
 
     public func run() async throws {
-        GraphCommand.analyticsDelegate?.addParameters(
-            [
-                "format": AnyCodable(format.rawValue),
-                "algorithm": AnyCodable(layoutAlgorithm.rawValue),
-                "skip_external_dependencies": AnyCodable(skipExternalDependencies),
-                "skip_test_targets": AnyCodable(skipExternalDependencies),
-            ]
-        )
         try await GraphService().run(
             format: format,
             layoutAlgorithm: layoutAlgorithm,
@@ -111,10 +99,10 @@ public struct GraphCommand: AsyncParsableCommand, HasTrackableParameters {
 }
 
 enum GraphFormat: String, ExpressibleByArgument, CaseIterable {
-    case dot, json, png, svg
+    case dot, json, legacyJSON, png, svg
 }
 
-extension GraphViz.LayoutAlgorithm: ExpressibleByArgument {
+extension GraphViz.LayoutAlgorithm: ArgumentParser.ExpressibleByArgument {
     public static var allValueStrings: [String] {
         [
             LayoutAlgorithm.dot.rawValue,

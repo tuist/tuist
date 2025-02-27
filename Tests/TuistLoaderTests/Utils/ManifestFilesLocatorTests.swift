@@ -1,36 +1,48 @@
 import Foundation
-import Path
-import TuistSupport
+import Mockable
+import TuistCore
 import XCTest
 
 @testable import TuistCoreTesting
 @testable import TuistLoader
+@testable import TuistSupport
 @testable import TuistSupportTesting
 
 final class ManifestFilesLocatorTests: TuistUnitTestCase {
     private var subject: ManifestFilesLocator!
+    private var rootDirectoryLocator: MockRootDirectoryLocating!
 
-    override func setUp() {
+    override func setUpWithError() throws {
         super.setUp()
-        subject = ManifestFilesLocator()
+        rootDirectoryLocator = MockRootDirectoryLocating()
+
+        given(rootDirectoryLocator)
+            .locate(from: .any)
+            .willReturn(try temporaryPath())
+
+        subject = ManifestFilesLocator(
+            rootDirectoryLocator: rootDirectoryLocator,
+            fileSystem: fileSystem
+        )
     }
 
     override func tearDown() {
+        rootDirectoryLocator = nil
         subject = nil
         super.tearDown()
     }
 
-    func test_locateProjectManifests_returns_all_manifest_no_workspace_given_child_path() throws {
+    func test_locateProjectManifests_returns_all_manifest_no_workspace_given_child_path() async throws {
         // Given
         let tuistManifestSignature = "import ProjectDescription"
-        let paths = try createFiles([
+        let paths = try await createFiles([
             "Module/Project.swift",
             "Project.swift",
-            "Tuist/Config.swift",
+            Constants.tuistManifestFileName,
         ], content: tuistManifestSignature)
 
         // When
-        let manifests = subject
+        let manifests = try await subject
             .locateProjectManifests(at: paths.first!, excluding: [], onlyCurrentDirectory: false)
             .sorted(by: { $0.path < $1.path })
 
@@ -50,17 +62,17 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
         )
     }
 
-    func test_locateProjectManifests_returns_all_manifest_with_workspace_given_child_path() throws {
+    func test_locateProjectManifests_returns_all_manifest_with_workspace_given_child_path() async throws {
         // Given
         let tuistManifestSignature = "import ProjectDescription"
-        let paths = try createFiles([
+        let paths = try await createFiles([
             "Module/Project.swift",
             "Workspace.swift",
-            "Tuist/Config.swift",
+            Constants.tuistManifestFileName,
         ], content: tuistManifestSignature)
 
         // When
-        let manifests = subject
+        let manifests = try await subject
             .locateProjectManifests(at: paths.first!, excluding: [], onlyCurrentDirectory: false)
             .sorted(by: { $0.path < $1.path })
 
@@ -80,17 +92,21 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
         )
     }
 
-    func test_locateProjectManifests_returns_only_manifest_in_locating_path_when_only_current_directory() throws {
+    func test_locateProjectManifests_returns_only_manifest_in_locating_path_when_only_current_directory() async throws {
         // Given
-        let paths = try createFiles([
+        let paths = try await createFiles([
             "Workspace.swift",
             "Module/Project.swift",
-            "Tuist/Config.swift",
+            Constants.tuistManifestFileName,
         ])
 
         // When
-        let manifests = subject
-            .locateProjectManifests(at: paths.first!.parentDirectory, excluding: [], onlyCurrentDirectory: true)
+        let manifests = try await subject
+            .locateProjectManifests(
+                at: paths.first!.parentDirectory,
+                excluding: [],
+                onlyCurrentDirectory: true
+            )
             .sorted(by: { $0.path < $1.path })
 
         // Then
@@ -105,17 +121,17 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
         )
     }
 
-    func test_locateProjectManifests_falls_back_to_locatingPath_given_no_root_path() throws {
+    func test_locateProjectManifests_falls_back_to_locatingPath_given_no_root_path() async throws {
         // Given
         let tuistManifestSignature = "import ProjectDescription"
-        let paths = try createFiles([
+        let paths = try await createFiles([
             "A/Project.swift",
             "B/Workspace.swift",
             "C/Project.swift",
         ], content: tuistManifestSignature)
 
         // When
-        let manifests = subject
+        let manifests = try await subject
             .locateProjectManifests(at: try temporaryPath(), excluding: [], onlyCurrentDirectory: false)
             .sorted(by: { $0.path < $1.path })
 
@@ -139,10 +155,10 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
         )
     }
 
-    func test_locateProjectManifests_excludes_paths() throws {
+    func test_locateProjectManifests_excludes_paths() async throws {
         // Given
         let tuistManifestSignature = "import ProjectDescription"
-        let paths = try createFiles([
+        let paths = try await createFiles([
             "A/Project.swift",
             "B/Workspace.swift",
             "C/Project.swift",
@@ -154,7 +170,7 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
         ]
 
         // When
-        let manifests = subject
+        let manifests = try await subject
             .locateProjectManifests(at: try temporaryPath(), excluding: excluding, onlyCurrentDirectory: false)
             .sorted(by: { $0.path < $1.path })
 
@@ -178,10 +194,10 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
         )
     }
 
-    func test_locateProjectManifests_excludes_paths_when_fell_back_to_locatingPath_given_no_root_path() throws {
+    func test_locateProjectManifests_excludes_paths_when_fell_back_to_locatingPath_given_no_root_path() async throws {
         // Given
         let tuistManifestSignature = "import ProjectDescription"
-        let paths = try createFiles([
+        let paths = try await createFiles([
             "A/Project.swift",
             "B/Workspace.swift",
             "C/Project.swift",
@@ -193,7 +209,7 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
         ]
 
         // When
-        let manifests = subject
+        let manifests = try await subject
             .locateProjectManifests(at: try temporaryPath(), excluding: excluding, onlyCurrentDirectory: false)
             .sorted(by: { $0.path < $1.path })
 
@@ -217,10 +233,10 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
         )
     }
 
-    func test_locatePluginManifests_returns_all_plugins_when_given_root_path() throws {
+    func test_locatePluginManifests_returns_all_plugins_when_given_root_path() async throws {
         // Given
         let tuistManifestSignature = "import ProjectDescription"
-        let paths = try createFiles([
+        let paths = try await createFiles([
             "Plugin.swift",
             "A/Plugin.swift",
             "B/Plugin.swift",
@@ -228,7 +244,7 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
         ], content: tuistManifestSignature)
 
         // When
-        let manifests = subject
+        let manifests = try await subject
             .locatePluginManifests(
                 at: paths[0], // Plugin.swift
                 excluding: [],
@@ -248,9 +264,9 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
         )
     }
 
-    func test_locatePluginManifests_returns_only_plugin_in_cwdir_when_only_current_directory() throws {
+    func test_locatePluginManifests_returns_only_plugin_in_cwdir_when_only_current_directory() async throws {
         // Given
-        let paths = try createFiles([
+        let paths = try await createFiles([
             "Plugin.swift",
             "A/Plugin.swift",
             "B/Plugin.swift",
@@ -258,7 +274,7 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
         ])
 
         // When
-        let manifests = subject.locatePluginManifests(
+        let manifests = try await subject.locatePluginManifests(
             at: paths[0].parentDirectory, // Plugin.swift's parent directory
             excluding: [],
             onlyCurrentDirectory: true
@@ -273,16 +289,16 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
         )
     }
 
-    func test_locatePluginManifests_returns_plugin_when_given_child_path() throws {
+    func test_locatePluginManifests_returns_plugin_when_given_child_path() async throws {
         // Given
         let tuistManifestSignature = "import ProjectDescription"
-        let paths = try createFiles([
+        let paths = try await createFiles([
             "A/Plugin.swift",
             "A/Helpers/Helper.swift",
         ], content: tuistManifestSignature)
 
         // When
-        let manifests = subject.locatePluginManifests(
+        let manifests = try await subject.locatePluginManifests(
             at: paths[1], // A/Helpers/Helper.swift
             excluding: [],
             onlyCurrentDirectory: false
@@ -292,16 +308,16 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
         XCTAssertEqual(manifests[0], paths[0]) // A/Plugin.swift
     }
 
-    func test_locatePluginManifests_falls_back_to_locatingPath_when_no_root_path() throws {
+    func test_locatePluginManifests_falls_back_to_locatingPath_when_no_root_path() async throws {
         // Given
         let tuistManifestSignature = "import ProjectDescription"
-        let paths = try createFiles([
+        let paths = try await createFiles([
             "A/Plugin.swift",
             "B/Plugin.swift",
         ], content: tuistManifestSignature)
 
         // When
-        let manifests = subject
+        let manifests = try await subject
             .locatePluginManifests(
                 at: try temporaryPath(),
                 excluding: [],
@@ -319,10 +335,10 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
         )
     }
 
-    func test_locatePluginManifests_excludes_paths() throws {
+    func test_locatePluginManifests_excludes_paths() async throws {
         // Given
         let tuistManifestSignature = "import ProjectDescription"
-        let paths = try createFiles([
+        let paths = try await createFiles([
             "Plugin.swift",
             "A/Plugin.swift",
             "B/Plugin.swift",
@@ -335,7 +351,7 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
         ]
 
         // When
-        let manifests = subject
+        let manifests = try await subject
             .locatePluginManifests(
                 at: paths[0], // Plugin.swift
                 excluding: excluding,
@@ -355,10 +371,10 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
         )
     }
 
-    func test_locatePluginManifests_excludes_paths_when_fell_back_to_locatingPath_when_no_root_path() throws {
+    func test_locatePluginManifests_excludes_paths_when_fell_back_to_locatingPath_when_no_root_path() async throws {
         // Given
         let tuistManifestSignature = "import ProjectDescription"
-        let paths = try createFiles([
+        let paths = try await createFiles([
             "A/Plugin.swift",
             "B/Plugin.swift",
             "DirName/ExcludeMe/D/Plugin.swift",
@@ -369,7 +385,7 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
         ]
 
         // When
-        let manifests = subject
+        let manifests = try await subject
             .locatePluginManifests(
                 at: try temporaryPath(),
                 excluding: excluding,
@@ -387,9 +403,9 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
         )
     }
 
-    func test_locateConfig() throws {
+    func test_locateConfig() async throws {
         // Given
-        let paths = try createFiles([
+        let paths = try await createFiles([
             "Module01/File01.swift",
             "Module01/File02.swift",
             "Module01/File03.swift",
@@ -401,20 +417,20 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
 
             "File01.swift",
             "File02.swift",
-            "Tuist/Config.swift",
+            Constants.tuistManifestFileName,
         ])
 
         // When
-        let configPath = subject.locateConfig(at: try temporaryPath())
+        let configPath = try await subject.locateConfig(at: try temporaryPath())
 
         // Then
         XCTAssertNotNil(configPath)
         XCTAssertEqual(paths.last, configPath)
     }
 
-    func test_locateConfig_traversing() throws {
+    func test_locateConfig_traversing() async throws {
         // Given
-        let paths = try createFiles([
+        let paths = try await createFiles([
             "Module01/File01.swift",
             "Module01/File02.swift",
             "Module01/File03.swift",
@@ -426,21 +442,21 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
 
             "File01.swift",
             "File02.swift",
-            "Tuist/Config.swift",
+            Constants.tuistManifestFileName,
         ])
         let locatingPath = paths[5] // "Module02/Subdir01/File01.swift"
 
         // When
-        let configPath = subject.locateConfig(at: locatingPath)
+        let configPath = try await subject.locateConfig(at: locatingPath.parentDirectory)
 
         // Then
         XCTAssertNotNil(configPath)
         XCTAssertEqual(paths.last, configPath)
     }
 
-    func test_locateConfig_where_config_not_exist() throws {
+    func test_locateConfig_where_config_not_exist() async throws {
         // Given
-        try createFiles([
+        try await createFiles([
             "Module01/File01.swift",
             "Module01/File02.swift",
             "Module01/File03.swift",
@@ -455,15 +471,26 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
         ])
 
         // When
-        let configPath = subject.locateConfig(at: try temporaryPath())
+        let configPath = try await subject.locateConfig(at: try temporaryPath())
 
         // Then
         XCTAssertNil(configPath)
     }
 
-    func test_locateConfig_traversing_where_config_not_exist() throws {
+    func test_locateConfig_where_tuist_file_is_not_a_directory() async throws {
         // Given
-        let paths = try createFiles([
+        let paths = try await createFiles(["tuist"])
+
+        // When
+        let configPath = try await subject.locateConfig(at: paths[0].parentDirectory)
+
+        // Then
+        XCTAssertNil(configPath)
+    }
+
+    func test_locateConfig_traversing_where_config_not_exist() async throws {
+        // Given
+        let paths = try await createFiles([
             "Module01/File01.swift",
             "Module01/File02.swift",
             "Module01/File03.swift",
@@ -479,15 +506,15 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
         let locatingPath = paths[5] // "Module02/Subdir01/File01.swift"
 
         // When
-        let configPath = subject.locateConfig(at: locatingPath)
+        let configPath = try await subject.locateConfig(at: locatingPath.parentDirectory)
 
         // Then
         XCTAssertNil(configPath)
     }
 
-    func test_locatePackageManifest_when_in_root() throws {
+    func test_locatePackageManifest_when_in_root() async throws {
         // Given
-        let paths = try createFiles([
+        let paths = try await createFiles([
             "Module01/File01.swift",
             "Module01/File02.swift",
             "Module01/File03.swift",
@@ -499,21 +526,21 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
 
             "File01.swift",
             "File02.swift",
-            "Tuist/Config.swift",
+            Constants.tuistManifestFileName,
             "Package.swift",
         ])
 
         // When
-        let packageManifestPath = subject.locatePackageManifest(at: try temporaryPath())
+        let packageManifestPath = try await subject.locatePackageManifest(at: try temporaryPath())
 
         // Then
         XCTAssertNotNil(packageManifestPath)
         XCTAssertEqual(paths.last, packageManifestPath)
     }
 
-    func test_locatePackageManifest() throws {
+    func test_locatePackageManifest() async throws {
         // Given
-        let paths = try createFiles([
+        let paths = try await createFiles([
             "Module01/File01.swift",
             "Module01/File02.swift",
             "Module01/File03.swift",
@@ -525,28 +552,28 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
 
             "File01.swift",
             "File02.swift",
-            "Tuist/Config.swift",
+            Constants.tuistManifestFileName,
             "Package.swift",
             "Tuist/Package.swift",
         ])
 
         // When
-        let packageManifestPath = subject.locatePackageManifest(at: try temporaryPath())
+        let packageManifestPath = try await subject.locatePackageManifest(at: try temporaryPath())
 
         // Then
         XCTAssertNotNil(packageManifestPath)
         XCTAssertEqual(paths.last, packageManifestPath)
     }
 
-    func test_locateProjectManifests_returns_all_manifest_containing_manifest_signature() throws {
+    func test_locateProjectManifests_returns_all_manifest_containing_manifest_signature() async throws {
         // Given
         let tuistManifestSignature = "import ProjectDescription"
-        let correctPaths = try createFiles([
+        let correctPaths = try await createFiles([
             "Module/Project.swift",
         ], content: tuistManifestSignature)
 
         // When
-        let correctManifest = subject
+        let correctManifest = try await subject
             .locateProjectManifests(at: try temporaryPath(), excluding: [], onlyCurrentDirectory: false)
             .first
 
@@ -560,14 +587,14 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
         )
     }
 
-    func test_locateProjectManifests_returns_all_manifest_containing_empty_files() throws {
+    func test_locateProjectManifests_returns_all_manifest_containing_empty_files() async throws {
         // Given
-        let correctPaths = try createFiles([
+        let correctPaths = try await createFiles([
             "Module/Project.swift",
         ], content: "")
 
         // When
-        let correctManifest = subject
+        let correctManifest = try await subject
             .locateProjectManifests(at: try temporaryPath(), excluding: [], onlyCurrentDirectory: false)
             .first
 
@@ -581,15 +608,15 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
         )
     }
 
-    func test_locateProjectManifests_returns_no_manifest_containing_no_manifest_signature() throws {
+    func test_locateProjectManifests_returns_no_manifest_containing_no_manifest_signature() async throws {
         // Given
-        try createFiles([
+        try await createFiles([
             "Incorrect/Project.swift",
         ], content: "import AnythingElse")
 
         // When
 
-        let incorrectManifest = subject
+        let incorrectManifest = try await subject
             .locateProjectManifests(at: try temporaryPath(), excluding: [], onlyCurrentDirectory: false)
             .first
 

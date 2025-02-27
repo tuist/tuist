@@ -1,4 +1,6 @@
+import FileSystem
 import Path
+import ServiceContextModule
 import TuistCore
 import TuistLoader
 import TuistScaffold
@@ -44,35 +46,35 @@ class InitService {
     private let templatesDirectoryLocator: TemplatesDirectoryLocating
     private let templateGenerator: TemplateGenerating
     private let templateGitLoader: TemplateGitLoading
-    private let tuistVersionLoader: TuistVersionLoading
+    private let fileSystem: FileSysteming
 
     init(
         templateLoader: TemplateLoading = TemplateLoader(),
         templatesDirectoryLocator: TemplatesDirectoryLocating = TemplatesDirectoryLocator(),
         templateGenerator: TemplateGenerating = TemplateGenerator(),
         templateGitLoader: TemplateGitLoading = TemplateGitLoader(),
-        tuistVersionLoader: TuistVersionLoading = TuistVersionLoader()
+        fileSystem: FileSysteming = FileSystem()
     ) {
         self.templateLoader = templateLoader
         self.templatesDirectoryLocator = templatesDirectoryLocator
         self.templateGenerator = templateGenerator
         self.templateGitLoader = templateGitLoader
-        self.tuistVersionLoader = tuistVersionLoader
+        self.fileSystem = fileSystem
     }
 
     func loadTemplateOptions(
         templateName: String,
         path: String?
-    ) throws -> (
+    ) async throws -> (
         required: [String],
         optional: [String]
     ) {
         let path = try self.path(path)
-        let directories = try templatesDirectoryLocator.templateDirectories(at: path)
+        let directories = try await templatesDirectoryLocator.templateDirectories(at: path)
         var attributes: [Template.Attribute] = []
 
         if templateName.isGitURL {
-            try templateGitLoader.loadTemplate(from: templateName) { template in
+            try await templateGitLoader.loadTemplate(from: templateName) { template in
                 attributes = template.attributes
             }
         } else {
@@ -81,7 +83,7 @@ class InitService {
                 template: templateName
             )
 
-            let template = try templateLoader.loadTemplate(at: templateDirectory, plugins: .none)
+            let template = try await templateLoader.loadTemplate(at: templateDirectory, plugins: .none)
             attributes = template.attributes
         }
 
@@ -108,58 +110,60 @@ class InitService {
         templateName: String?,
         requiredTemplateOptions: [String: String],
         optionalTemplateOptions: [String: String?]
-    ) throws {
+    ) async throws {
         let platform = try self.platform(platform)
         let path = try self.path(path)
         let name = try self.name(name, path: path)
         let templateName = templateName ?? "default"
-        let tuistVersion = try tuistVersionLoader.getVersion()
-        try verifyDirectoryIsEmpty(path: path)
+        try await verifyDirectoryIsEmpty(path: path)
 
         if templateName.isGitURL {
-            try templateGitLoader.loadTemplate(from: templateName, closure: { template in
-                let parsedAttributes = try parseAttributes(
+            try await templateGitLoader.loadTemplate(from: templateName, closure: { template in
+                let parsedAttributes = try self.parseAttributes(
                     name: name,
                     platform: platform,
-                    tuistVersion: tuistVersion,
+                    tuistVersion: Constants.version,
                     requiredTemplateOptions: requiredTemplateOptions,
                     optionalTemplateOptions: optionalTemplateOptions,
                     template: template
                 )
 
-                try templateGenerator.generate(
+                try await self.templateGenerator.generate(
                     template: template,
                     to: path,
                     attributes: parsedAttributes
                 )
             })
         } else {
-            let directories = try templatesDirectoryLocator.templateDirectories(at: path)
+            let directories = try await templatesDirectoryLocator.templateDirectories(at: path)
             guard let templateDirectory = directories.first(where: { $0.basename == templateName })
             else { throw InitServiceError.templateNotFound(templateName) }
 
-            let template = try templateLoader.loadTemplate(at: templateDirectory, plugins: .none)
+            let template = try await templateLoader.loadTemplate(at: templateDirectory, plugins: .none)
             let parsedAttributes = try parseAttributes(
                 name: name,
                 platform: platform,
-                tuistVersion: tuistVersion,
+                tuistVersion: Constants.version,
                 requiredTemplateOptions: requiredTemplateOptions,
                 optionalTemplateOptions: optionalTemplateOptions,
                 template: template
             )
 
-            try templateGenerator.generate(
+            try await templateGenerator.generate(
                 template: template,
                 to: path,
                 attributes: parsedAttributes
             )
         }
 
-        logger.notice(
-            "Project generated at path \(path.pathString). Run `tuist generate` to generate the project and open it in Xcode. Use `tuist edit` to easily update the Tuist project definition.",
-            metadata: .success
-        )
-        logger
+        ServiceContext.current?.alerts?
+            .success(
+                .alert(
+                    "Project generated at path \(path.pathString). Run `tuist generate` to generate the project and open it in Xcode. Use `tuist edit` to easily update the Tuist project definition."
+                )
+            )
+
+        ServiceContext.current?.logger?
             .info(
                 "To learn more about tuist features, such as how to add external dependencies or how to use our ProjectDescription helpers, head to our tutorials page: https://docs.tuist.io/tutorials/tuist-tutorials"
             )
@@ -171,8 +175,11 @@ class InitService {
     ///
     /// - Parameter path: Directory to be checked.
     /// - Throws: An InitServiceError.nonEmptyDirectory error when the directory is not empty.
-    private func verifyDirectoryIsEmpty(path: AbsolutePath) throws {
-        if !path.glob("*").isEmpty {
+    private func verifyDirectoryIsEmpty(path: AbsolutePath) async throws {
+        let allowedFiles = Set(["mise.toml", ".mise.toml"])
+        let disallowedFiles = try await fileSystem.glob(directory: path, include: ["*"]).collect()
+            .filter { !allowedFiles.contains($0.basename) }
+        if !disallowedFiles.isEmpty {
             throw InitServiceError.nonEmptyDirectory(path)
         }
     }

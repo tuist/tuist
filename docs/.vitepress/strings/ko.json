@@ -1,0 +1,354 @@
+{
+  "aside": {
+    "translate": {
+      "title": {
+        "text": "Translation 🌍"
+      },
+      "description": {
+        "text": "이 페이지를 번역하거나 기존 번역을 개선할 수 있습니다."
+      },
+      "cta": {
+        "text": "기여"
+      }
+    }
+  },
+  "search": {
+    "placeholder": "검색",
+    "translations": {
+      "button": {
+        "button-text": "문서 검색",
+        "button-aria-label": "문서 검색"
+      },
+      "modal": {
+        "search-box": {
+          "reset-button-title": "쿼리 초기화",
+          "reset-button-aria-label": "쿼리 초기화",
+          "cancel-button-text": "취소",
+          "cancel-button-aria-label": "취소"
+        },
+        "start-screen": {
+          "recent-searches-title": "검색 이력",
+          "no-recent-searches-text": "검색 이력이 없음",
+          "save-recent-search-button-title": "검색 이력 저장",
+          "remove-recent-search-button-title": "검색 이력 삭제",
+          "favorite-searches-title": "즐겨찾기",
+          "remove-favorite-search-button-title": "즐겨찾기 삭제"
+        },
+        "error-screen": {
+          "title-text": "결과를 받을 수 없음",
+          "help-text": "네트워크 연결을 확인해주세요"
+        },
+        "footer": {
+          "select-text": "선택",
+          "navigate-text": "탐색",
+          "close-text": "닫기",
+          "search-by-text": "검색 제공자"
+        },
+        "no-results-screen": {
+          "no-results-text": "관련된 결과를 찾을 수 없음",
+          "suggested-query-text": "다른 검색어를 입력해보세요",
+          "report-missing-results-text": "검색 결과가 있어야 한다고 생각하나요?",
+          "report-missing-results-link-text": "피드백하기"
+        }
+      }
+    }
+  },
+  "navbar": {
+    "guides": {
+      "text": "안내서"
+    },
+    "cli": {
+      "text": "CLI"
+    },
+    "server": {
+      "text": "서버"
+    },
+    "resources": {
+      "text": "리소스",
+      "items": {
+        "references": {
+          "text": "참고자료"
+        },
+        "contributors": {
+          "text": "기여자들"
+        },
+        "changelog": {
+          "text": "수정사항"
+        }
+      }
+    }
+  },
+  "sidebars": {
+    "cli": {
+      "text": "CLI",
+      "items": {
+        "cli": {
+          "items": {
+            "logging": {
+              "text": "로깅"
+            }
+          }
+        },
+        "commands": {
+          "text": "Commands"
+        }
+      }
+    },
+    "references": {
+      "text": "References",
+      "items": {
+        "examples": {
+          "text": "Examples"
+        },
+        "migrations": {
+          "text": "Migrations",
+          "items": {
+            "from-v3-to-v4": {
+              "text": "From v3 to v4"
+            }
+          }
+        }
+      }
+    },
+    "contributors": {
+      "text": "Contributors",
+      "items": {
+        "get-started": {
+          "text": "Get started"
+        },
+        "issue-reporting": {
+          "text": "Issue reporting"
+        },
+        "code-reviews": {
+          "text": "Code reviews"
+        },
+        "principles": {
+          "text": "Principles"
+        },
+        "translate": {
+          "text": "Translate"
+        },
+        "cli": {
+          "text": "CLI",
+          "items": {
+            "logging": {
+              "text": "로깅"
+            }
+          }
+        }
+      }
+    },
+    "server": {
+      "items": {
+        "introduction": {
+          "text": "Introduction",
+          "items": {
+            "why-server": {
+              "text": "Why a server?"
+            },
+            "accounts-and-projects": {
+              "text": "Accounts and projects"
+            },
+            "authentication": {
+              "text": "Authentication"
+            },
+            "integrations": {
+              "text": "Integrations"
+            }
+          }
+        },
+        "on-premise": {
+          "text": "On-premise",
+          "items": {
+            "install": {
+              "text": "Install"
+            },
+            "metrics": {
+              "text": "Metrics"
+            }
+          }
+        },
+        "api-documentation": {
+          "text": "API documentation"
+        },
+        "status": {
+          "text": "Status"
+        },
+        "metrics-dashboard": {
+          "text": "통계 현황판"
+        }
+      }
+    },
+    "guides": {
+      "text": "안내서",
+      "items": {
+        "tuist": {
+          "text": "Tuist",
+          "items": {
+            "about": {
+              "text": "About Tuist"
+            }
+          }
+        },
+        "quick-start": {
+          "text": "Quick start",
+          "items": {
+            "install-tuist": {
+              "text": "Install Tuist"
+            },
+            "create-a-project": {
+              "text": "Create a project"
+            },
+            "optimize-workflows": {
+              "text": "Optimize workflows"
+            }
+          }
+        },
+        "develop": {
+          "text": "Develop",
+          "items": {
+            "generated-projects": {
+              "text": "Generated projects",
+              "items": {
+                "adoption": {
+                  "text": "Adoption",
+                  "items": {
+                    "new-project": {
+                      "text": "Create a new project"
+                    },
+                    "swift-package": {
+                      "text": "Try with a Swift Package"
+                    },
+                    "migrate": {
+                      "text": "Migrate",
+                      "items": {
+                        "xcode-project": {
+                          "text": "An Xcode project"
+                        },
+                        "swift-package": {
+                          "text": "A Swift package"
+                        },
+                        "xcodegen-project": {
+                          "text": "An XcodeGen project"
+                        },
+                        "bazel-project": {
+                          "text": "A Bazel project"
+                        }
+                      }
+                    }
+                  }
+                },
+                "manifests": {
+                  "text": "Manifests"
+                },
+                "directory-structure": {
+                  "text": "Directory structure"
+                },
+                "editing": {
+                  "text": "Editing"
+                },
+                "dependencies": {
+                  "text": "Dependencies"
+                },
+                "code-sharing": {
+                  "text": "Code sharing"
+                },
+                "synthesized-files": {
+                  "text": "Synthesized files"
+                },
+                "dynamic-configuration": {
+                  "text": "Dynamic configuration"
+                },
+                "templates": {
+                  "text": "Templates"
+                },
+                "plugins": {
+                  "text": "Plugins"
+                },
+                "hashing": {
+                  "text": "Hashing"
+                },
+                "inspect": {
+                  "text": "Inspect",
+                  "items": {
+                    "implicit-imports": {
+                      "text": "Implicit imports"
+                    }
+                  }
+                },
+                "the-cost-of-convenience": {
+                  "text": "The cost of convenience"
+                },
+                "tma-architecture": {
+                  "text": "Modular architecture"
+                },
+                "best-practices": {
+                  "text": "Best practices"
+                }
+              }
+            },
+            "cache": {
+              "text": "Cache"
+            },
+            "registry": {
+              "text": "Registry",
+              "items": {
+                "registry": {
+                  "text": "Registry"
+                },
+                "xcode-project": {
+                  "text": "Xcode project"
+                },
+                "generated-project": {
+                  "text": "Generated project"
+                },
+                "xcodeproj-integration": {
+                  "text": "XcodeProj-based integration"
+                },
+                "swift-package": {
+                  "text": "Swift package"
+                },
+                "continuous-integration": {
+                  "text": "Continuous integration"
+                }
+              }
+            },
+            "selective-testing": {
+              "text": "Selective testing",
+              "items": {
+                "selective-testing": {
+                  "text": "Selective testing"
+                },
+                "xcodebuild": {
+                  "text": "xcode 빌드"
+                },
+                "generated-project": {
+                  "text": "Generated project"
+                }
+              }
+            }
+          }
+        },
+        "automate": {
+          "text": "Automate",
+          "items": {
+            "continuous-integration": {
+              "text": "Continuous integration"
+            },
+            "workflows": {
+              "text": "Workflows"
+            }
+          }
+        },
+        "share": {
+          "text": "Share",
+          "items": {
+            "previews": {
+              "text": "Previews"
+            }
+          }
+        }
+      }
+    }
+  }
+}

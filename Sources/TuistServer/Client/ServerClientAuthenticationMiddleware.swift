@@ -1,4 +1,5 @@
 import Foundation
+import HTTPTypes
 import OpenAPIRuntime
 import TuistSupport
 
@@ -15,7 +16,7 @@ public enum ServerClientAuthenticationError: FatalError, Equatable {
     public var description: String {
         switch self {
         case .notAuthenticated:
-            return "No valid Tuist credentials found. Authenticate by running `tuist auth`."
+            return "You must be logged in to do this. To log in, run 'tuist auth login'."
         }
     }
 }
@@ -26,13 +27,17 @@ struct ServerClientAuthenticationMiddleware: ClientMiddleware {
     private let serverCredentialsStore: ServerCredentialsStoring
     private let refreshAuthTokenService: RefreshAuthTokenServicing
     private let dateService: DateServicing
+    private let cachedValueStore: CachedValueStoring
+    private let envVariables: [String: String]
 
     init() {
         self.init(
             serverAuthenticationController: ServerAuthenticationController(),
             serverCredentialsStore: ServerCredentialsStore(),
             refreshAuthTokenService: RefreshAuthTokenService(),
-            dateService: DateService()
+            dateService: DateService(),
+            cachedValueStore: CachedValueStore.shared,
+            envVariables: ProcessInfo.processInfo.environment
         )
     }
 
@@ -40,22 +45,33 @@ struct ServerClientAuthenticationMiddleware: ClientMiddleware {
         serverAuthenticationController: ServerAuthenticationControlling,
         serverCredentialsStore: ServerCredentialsStoring,
         refreshAuthTokenService: RefreshAuthTokenServicing,
-        dateService: DateServicing
+        dateService: DateServicing,
+        cachedValueStore: CachedValueStoring,
+        envVariables: [String: String]
     ) {
         self.serverAuthenticationController = serverAuthenticationController
         self.serverCredentialsStore = serverCredentialsStore
         self.refreshAuthTokenService = refreshAuthTokenService
         self.dateService = dateService
+        self.cachedValueStore = cachedValueStore
+        self.envVariables = envVariables
     }
 
     func intercept(
-        _ request: Request,
+        _ request: HTTPRequest,
+        body: HTTPBody?,
         baseURL: URL,
         operationID _: String,
-        next: (Request, URL) async throws -> Response
-    ) async throws -> Response {
+        next: (HTTPRequest, HTTPBody?, URL) async throws -> (HTTPResponse, HTTPBody?)
+    ) async throws -> (HTTPResponse, HTTPBody?) {
         var request = request
-        guard let token = try serverAuthenticationController.authenticationToken(serverURL: baseURL)
+
+        /// Cirrus environments don't require authentication so we skip in these cases
+        if envVariables[Constants.EnvironmentVariables.cirrusTuistCacheURL] != nil {
+            return try await next(request, body, baseURL)
+        }
+
+        guard let token = try await serverAuthenticationController.authenticationToken(serverURL: baseURL)
         else {
             throw ServerClientAuthenticationError.notAuthenticated
         }
@@ -73,24 +89,10 @@ struct ServerClientAuthenticationMiddleware: ClientMiddleware {
                     .timeIntervalSince(dateService.now()) < 30
 
                 if isExpired {
-                    do {
-                        let newTokens = try await refreshAuthTokenService.refreshTokens(
-                            serverURL: baseURL,
-                            refreshToken: refreshToken.token
-                        )
-                        try serverCredentialsStore
-                            .store(
-                                credentials: ServerCredentials(
-                                    token: nil,
-                                    accessToken: newTokens.accessToken,
-                                    refreshToken: newTokens.refreshToken
-                                ),
-                                serverURL: baseURL
-                            )
-                        tokenValue = newTokens.accessToken
-                    } catch {
-                        throw ServerClientAuthenticationError.notAuthenticated
+                    tokenValue = try await cachedValueStore.getValue(key: refreshToken.token) {
+                        try await refreshTokens(baseURL: baseURL, refreshToken: refreshToken)
                     }
+                    .accessToken
                 } else {
                     tokenValue = accessToken.token
                 }
@@ -100,8 +102,35 @@ struct ServerClientAuthenticationMiddleware: ClientMiddleware {
         }
 
         request.headerFields.append(.init(
-            name: "Authorization", value: "Bearer \(tokenValue)"
+            name: .authorization, value: "Bearer \(tokenValue)"
         ))
-        return try await next(request, baseURL)
+        return try await next(request, body, baseURL)
+    }
+
+    private func refreshTokens(
+        baseURL: URL,
+        refreshToken: JWT
+    ) async throws -> ServerAuthenticationTokens {
+        do {
+            let newTokens = try await RetryProvider()
+                .runWithRetries {
+                    return try await refreshAuthTokenService.refreshTokens(
+                        serverURL: baseURL,
+                        refreshToken: refreshToken.token
+                    )
+                }
+            try await serverCredentialsStore
+                .store(
+                    credentials: ServerCredentials(
+                        token: nil,
+                        accessToken: newTokens.accessToken,
+                        refreshToken: newTokens.refreshToken
+                    ),
+                    serverURL: baseURL
+                )
+            return newTokens
+        } catch {
+            throw ServerClientAuthenticationError.notAuthenticated
+        }
     }
 }

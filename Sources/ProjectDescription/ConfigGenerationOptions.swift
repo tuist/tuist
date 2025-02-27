@@ -1,4 +1,4 @@
-extension Config {
+extension Tuist {
     /// Options for project generation.
     public struct GenerationOptions: Codable, Equatable, Sendable {
         /**
@@ -44,7 +44,31 @@ extension Config {
             disablePackageVersionLocking: Bool = false,
             clonedSourcePackagesDirPath: Path? = nil,
             staticSideEffectsWarningTargets: StaticSideEffectsWarningTargets = .all,
-            enforceExplicitDependencies: Bool = false,
+            defaultConfiguration: String? = nil,
+            optionalAuthentication: Bool = false
+        ) -> Self {
+            self.init(
+                resolveDependenciesWithSystemScm: resolveDependenciesWithSystemScm,
+                disablePackageVersionLocking: disablePackageVersionLocking,
+                clonedSourcePackagesDirPath: clonedSourcePackagesDirPath,
+                staticSideEffectsWarningTargets: staticSideEffectsWarningTargets,
+                enforceExplicitDependencies: false,
+                defaultConfiguration: defaultConfiguration,
+                optionalAuthentication: optionalAuthentication
+            )
+        }
+
+        @available(
+            *,
+            deprecated,
+            message: "enforceExplicitDependencies is deprecated. Use the new tuist inspect implicit-imports instead."
+        )
+        public static func options(
+            resolveDependenciesWithSystemScm: Bool = false,
+            disablePackageVersionLocking: Bool = false,
+            clonedSourcePackagesDirPath: Path? = nil,
+            staticSideEffectsWarningTargets: StaticSideEffectsWarningTargets = .all,
+            enforceExplicitDependencies: Bool,
             defaultConfiguration: String? = nil,
             optionalAuthentication: Bool = false
         ) -> Self {

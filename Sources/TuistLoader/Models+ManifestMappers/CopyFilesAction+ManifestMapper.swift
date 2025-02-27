@@ -1,5 +1,5 @@
+import FileSystem
 import Foundation
-import Path
 import ProjectDescription
 import TuistCore
 import TuistSupport
@@ -24,23 +24,29 @@ extension XcodeGraph.CopyFilesAction {
     /// - Parameters:
     ///   - manifest: Manifest representation of platform model.
     ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.CopyFilesAction, generatorPaths: GeneratorPaths) throws -> XcodeGraph
+    static func from(
+        manifest: ProjectDescription.CopyFilesAction,
+        generatorPaths: GeneratorPaths,
+        fileSystem: FileSysteming
+    ) async throws -> XcodeGraph
         .CopyFilesAction
     {
-        var invalidResourceGlobs: [InvalidGlob] = []
-        let files: [XcodeGraph.CopyFileElement] = try manifest.files.flatMap { manifest -> [XcodeGraph.CopyFileElement] in
+        let result = try await manifest.files.concurrentMap { manifest -> ([XcodeGraph.CopyFileElement], InvalidGlob?) in
             do {
-                let files = try XcodeGraph.CopyFileElement.from(
+                let files = try await XcodeGraph.CopyFileElement.from(
                     manifest: manifest,
                     generatorPaths: generatorPaths,
+                    fileSystem: fileSystem,
                     includeFiles: { XcodeGraph.Target.isResource(path: $0) }
                 )
-                return files.cleanPackages()
+                return (files.cleanPackages(), nil)
             } catch let GlobError.nonExistentDirectory(invalidGlob) {
-                invalidResourceGlobs.append(invalidGlob)
-                return []
+                return ([], invalidGlob)
             }
         }
+
+        let files = result.map(\.0).flatMap { $0 }
+        let invalidResourceGlobs = result.compactMap(\.1)
 
         if !invalidResourceGlobs.isEmpty {
             throw CopyFilesManifestMapperError.invalidResourcesGlob(actionName: manifest.name, invalidGlobs: invalidResourceGlobs)

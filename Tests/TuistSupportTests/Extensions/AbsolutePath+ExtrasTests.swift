@@ -55,20 +55,6 @@ final class AbsolutePathExtrasTests: TuistUnitTestCase {
         XCTAssertEqual(resultA, resultB)
     }
 
-    func test_throwingGlob_throws_when_directoryDoesntExist() throws {
-        // Given
-        let dir = try temporaryPath()
-
-        // Then
-        XCTAssertThrowsSpecific(
-            try dir.throwingGlob("invalid/path/**/*"),
-            GlobError.nonExistentDirectory(InvalidGlob(
-                pattern: dir.appending(try RelativePath(validating: "invalid/path/**/*")).pathString,
-                nonExistentPath: dir.appending(try RelativePath(validating: "invalid/path/"))
-            ))
-        )
-    }
-
     func test_isInOpaqueDirectory() throws {
         XCTAssertFalse(try AbsolutePath(validating: "/test/directory.bundle").isInOpaqueDirectory)
         XCTAssertFalse(try AbsolutePath(validating: "/test/directory.xcassets").isInOpaqueDirectory)
@@ -78,6 +64,7 @@ final class AbsolutePathExtrasTests: TuistUnitTestCase {
         XCTAssertFalse(try AbsolutePath(validating: "/test/directory.docc").isInOpaqueDirectory)
         XCTAssertFalse(try AbsolutePath(validating: "/test/directory.playground").isInOpaqueDirectory)
         XCTAssertFalse(try AbsolutePath(validating: "/test/directory.bundle").isInOpaqueDirectory)
+        XCTAssertFalse(try AbsolutePath(validating: "/test/directory.xcmappingmodel").isInOpaqueDirectory)
 
         XCTAssertFalse(try AbsolutePath(validating: "/").isInOpaqueDirectory)
         XCTAssertFalse(try AbsolutePath(validating: "/test/directory.notopaque/file.notopaque").isInOpaqueDirectory)
@@ -91,5 +78,38 @@ final class AbsolutePathExtrasTests: TuistUnitTestCase {
         XCTAssertTrue(try AbsolutePath(validating: "/test/directory.xcdatamodeld/file.png").isInOpaqueDirectory)
         XCTAssertTrue(try AbsolutePath(validating: "/test/directory.docc/file.png").isInOpaqueDirectory)
         XCTAssertTrue(try AbsolutePath(validating: "/test/directory.playground/file.png").isInOpaqueDirectory)
+        XCTAssertTrue(try AbsolutePath(validating: "/test/directory.xcmappingmodel/file.png").isInOpaqueDirectory)
+    }
+
+    func test_opaqueDirectory() async throws {
+        for directory in [
+            "/test/directory.bundle",
+            "/test/directory.xcassets",
+            "/test/directory.scnassets",
+            "/test/directory.xcdatamodeld",
+            "/test/directory.docc",
+            "/test/directory.xcmappingmodel",
+        ] as [AbsolutePath] {
+            XCTAssertEqual(directory.opaqueParentDirectory(), nil)
+        }
+
+        XCTAssertEqual(try AbsolutePath(validating: "/").opaqueParentDirectory(), nil)
+        XCTAssertEqual(try AbsolutePath(validating: "/test/directory.notopaque/file.notopaque").opaqueParentDirectory(), nil)
+        XCTAssertEqual(try AbsolutePath(validating: "/test/directory.notopaque/directory.bundle").opaqueParentDirectory(), nil)
+        XCTAssertEqual(
+            try AbsolutePath(validating: "/test/directory.notopaque/directory.bundle/file.png").opaqueParentDirectory(),
+            try AbsolutePath(validating: "/test/directory.notopaque/directory.bundle")
+        )
+
+        for file in [
+            "/test/directory.bundle/file.png",
+            "/test/directory.xcassets/file.png",
+            "/test/directory.scnassets/file.png",
+            "/test/directory.xcdatamodeld/file.png",
+            "/test/directory.docc/file.png",
+            "/test/directory.xcmappingmodel/file.png",
+        ] as [AbsolutePath] {
+            XCTAssertEqual(file.opaqueParentDirectory(), file.parentDirectory)
+        }
     }
 }

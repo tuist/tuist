@@ -1,5 +1,4 @@
 import Foundation
-import Path
 import ProjectDescription
 import TuistCore
 import XcodeGraph
@@ -31,7 +30,8 @@ extension XcodeGraph.BuildAction {
             targets: targets,
             preActions: preActions,
             postActions: postActions,
-            runPostActionsOnFailure: manifest.runPostActionsOnFailure
+            runPostActionsOnFailure: manifest.runPostActionsOnFailure,
+            findImplicitDependencies: manifest.findImplicitDependencies
         )
     }
 }

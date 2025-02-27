@@ -1,7 +1,7 @@
 import Foundation
 
 /// Server command event
-public struct ServerCommandEvent: Codable {
+public struct ServerCommandEvent: Codable, Equatable {
     public let id: Int
     public let name: String
     public let url: URL
@@ -66,7 +66,7 @@ extension Components.Schemas.CommandEventArtifact._typePayload {
         public static func test(
             id: Int = 0,
             name: String = "generate",
-            url: URL = URL(string: "https://cloud.tuist.io/tuist-org/tuist/runs/10")!
+            url: URL = URL(string: "https://tuist.dev/tuist-org/tuist/runs/10")!
         ) -> Self {
             .init(
                 id: id,

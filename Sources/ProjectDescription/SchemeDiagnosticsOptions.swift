@@ -1,5 +1,3 @@
-import Foundation
-
 /// Options to configure scheme diagnostics for run and test actions.
 public struct SchemeDiagnosticsOptions: Equatable, Codable, Sendable {
     /// Enable the address sanitizer

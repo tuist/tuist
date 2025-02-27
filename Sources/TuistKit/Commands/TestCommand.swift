@@ -1,20 +1,17 @@
-import AnyCodable
 import ArgumentParser
 import Foundation
 import Path
+import ServiceContextModule
 import TuistCore
 import TuistServer
 import TuistSupport
-import XcodeGraph
 
 /// Command that tests a target from the project in the current directory.
-public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
+public struct TestCommand: AsyncParsableCommand, LogConfigurableCommand {
     public init() {}
 
-    public static var analyticsDelegate: TrackableParametersDelegate?
     public static var generatorFactory: GeneratorFactorying = GeneratorFactory()
     public static var cacheStorageFactory: CacheStorageFactorying = EmptyCacheStorageFactory()
-    public var runId = UUID().uuidString
 
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
@@ -22,6 +19,8 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
             abstract: "Tests a project"
         )
     }
+
+    var logFilePathDisplayStrategy: LogFilePathDisplayStrategy = .always
 
     @Argument(
         help: "The scheme to be tested. By default it tests all the testable targets of the project in the current directory.",
@@ -35,6 +34,13 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
         envKey: .testClean
     )
     var clean: Bool = false
+
+    @Flag(
+        name: .shortAndLong,
+        help: "When passed, the result necessary for test selection is not persisted to the server.",
+        envKey: .testNoUpload
+    )
+    var noUpload: Bool = false
 
     @Option(
         name: .shortAndLong,
@@ -154,7 +160,7 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
     var binaryCache: Bool = true
 
     @Flag(
-        help: "Run all tests instead of selectively test only those that have changed since the last successful test run.",
+        help: "When --no-selective-testing is passed, tuist runs all tests without using selective testing.",
         envKey: .testSelectiveTesting
     )
     var selectiveTesting: Bool = true
@@ -200,13 +206,13 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
 
         // Suggest the user to use passthrough arguments if already supported by xcodebuild
         if let derivedDataPath {
-            logger
+            ServiceContext.current?.logger?
                 .warning(
                     "--derivedDataPath is deprecated please use -derivedDataPath \(derivedDataPath) after the terminator (--) instead to passthrough parameters to xcodebuild"
                 )
         }
         if retryCount > 0 {
-            logger
+            ServiceContext.current?.logger?
                 .warning(
                     "--retryCount is deprecated please use -retry-tests-on-failure -test-iterations \(retryCount + 1) after the terminator (--) instead to passthrough parameters to xcodebuild"
                 )
@@ -218,32 +224,14 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
             FileHandler.shared.currentPath
         }
 
-        defer {
-            var parameters: [String: AnyCodable] = [
-                "no_binary_cache": AnyCodable(!binaryCache),
-                "no_selective_testing": AnyCodable(!selectiveTesting),
-            ]
-            parameters["cacheable_targets"] = AnyCodable(CacheAnalyticsStore.shared.cacheableTargets)
-            parameters["local_cache_target_hits"] = AnyCodable(CacheAnalyticsStore.shared.localCacheTargetsHits)
-            parameters["remote_cache_target_hits"] = AnyCodable(CacheAnalyticsStore.shared.remoteCacheTargetsHits)
-            parameters["test_targets"] = AnyCodable(CacheAnalyticsStore.shared.testTargets)
-            parameters["local_test_target_hits"] = AnyCodable(CacheAnalyticsStore.shared.localTestTargetHits)
-            parameters["remote_test_target_hits"] = AnyCodable(CacheAnalyticsStore.shared.remoteTestTargetHits)
-            parameters["target_hashes"] = AnyCodable(CacheAnalyticsStore.shared.targetHashes)
-            parameters["graph_path"] = AnyCodable(CacheAnalyticsStore.shared.graphPath)
-
-            TestCommand.analyticsDelegate?.addParameters(
-                parameters
-            )
-        }
-
         try await TestService(
             generatorFactory: Self.generatorFactory,
             cacheStorageFactory: Self.cacheStorageFactory
         ).run(
-            runId: runId,
+            runId: ServiceContext.current?.runMetadataStorage?.runId ?? UUID().uuidString,
             schemeName: scheme,
             clean: clean,
+            noUpload: noUpload,
             configuration: configuration,
             path: absolutePath,
             deviceName: device,
@@ -277,7 +265,7 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
     }
 }
 
-extension TestIdentifier: ExpressibleByArgument {
+extension TestIdentifier: ArgumentParser.ExpressibleByArgument {
     public init?(argument: String) {
         do {
             try self.init(string: argument)

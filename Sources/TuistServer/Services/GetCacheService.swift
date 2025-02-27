@@ -62,7 +62,7 @@ public final class GetCacheService: GetCacheServicing {
             case let .json(cacheArtifact):
                 return try ServerCacheArtifact(cacheArtifact)
             }
-        case let .paymentRequired(paymentRequiredResponse):
+        case let .code402(paymentRequiredResponse):
             switch paymentRequiredResponse.body {
             case let .json(error):
                 throw GetCacheServiceError.paymentRequired(error.message)

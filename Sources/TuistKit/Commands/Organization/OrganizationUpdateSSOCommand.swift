@@ -1,10 +1,9 @@
 import ArgumentParser
 import Foundation
-import Path
 import TuistSupport
 
 enum SSOProvider: String, ExpressibleByArgument, CaseIterable {
-    case google
+    case google, okta
 }
 
 struct OrganizationUpdateSSOCommand: AsyncParsableCommand {
@@ -30,7 +29,7 @@ struct OrganizationUpdateSSOCommand: AsyncParsableCommand {
 
     @Option(
         name: .shortAndLong,
-        help: "Organization ID for your SSO provider. For Google, this is your Google domain (for example, if your email is tuist@tuist.io, the domain would be tuist.io)",
+        help: "Organization ID for your SSO provider. For Google, this is your Google domain (for example, if your email is tuist@tuist.io, the domain would be tuist.io). For Okta, it's the organization domain (such as my-org.okta.com)",
         envKey: .organizationUpdateSSOOrganizationId
     )
     var organizationId: String

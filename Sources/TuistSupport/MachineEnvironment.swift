@@ -6,7 +6,6 @@ import Mockable
 public protocol MachineEnvironmentRetrieving: Sendable {
     var clientId: String { get }
     var macOSVersion: String { get }
-    var swiftVersion: String { get }
     var hardwareName: String { get }
     var isCI: Bool { get }
 }
@@ -40,12 +39,6 @@ public final class MachineEnvironment: MachineEnvironmentRetrieving {
     \(ProcessInfo.processInfo.operatingSystemVersion.minorVersion).\
     \(ProcessInfo.processInfo.operatingSystemVersion.patchVersion)
     """
-
-    /// The `swiftVersion` of the machine running Tuist
-    public let swiftVersion = try! System.shared // swiftlint:disable:this force_try
-        .capture(["/usr/bin/xcrun", "swift", "-version"])
-        .components(separatedBy: "Swift version ").last!
-        .components(separatedBy: " ").first!
 
     /// `hardwareName` is the name of the architecture of the machine running Tuist, e.g: "arm64" or "x86_64"
     public let hardwareName = ProcessInfo.processInfo.machineHardwareName

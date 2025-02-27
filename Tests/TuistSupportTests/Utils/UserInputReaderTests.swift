@@ -1,7 +1,9 @@
+import ServiceContextModule
+import TuistSupportTesting
 import XCTest
 @testable import TuistSupport
 
-class UserInputReaderTests: XCTestCase {
+class UserInputReaderTests: TuistUnitTestCase {
     func test_read_int_valid_input() {
         // Given
         var fakeReadLine = StringReader(input: "0")
@@ -41,6 +43,76 @@ class UserInputReaderTests: XCTestCase {
 
         // Then
         XCTAssertEqual(result, "string-value")
+    }
+
+    struct Value: Equatable {
+        let name: String
+    }
+
+    func test_read_value_when_only_value_provided() throws {
+        // Given
+        let reader: UserInputReader = .init { _ in
+            XCTFail("Value should be returned without reading a line")
+            return "string-value"
+        }
+        let value = Value(name: "value-one")
+
+        // When
+        let got = try reader.readValue(
+            asking: "Choose value:",
+            values: [value],
+            valueDescription: \.name
+        )
+
+        // Then
+        XCTAssertEqual(got, value)
+    }
+
+    func test_read_value_when_no_values_provided() throws {
+        // Given
+        let reader: UserInputReader = .init { _ in
+            XCTFail("Value should be returned without reading a line")
+            return "string-value"
+        }
+
+        // When / Then
+        XCTAssertThrowsSpecific(
+            try reader.readValue(
+                asking: "Choose value:",
+                values: [Value](),
+                valueDescription: \.name
+            ),
+            UserInputReaderError.noValuesProvided("Choose value:")
+        )
+    }
+
+    func test_read_value_when_multiple_values_provided() async throws {
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            var fakeReadLine = StringReader(input: "1")
+            let reader: UserInputReader = .init { _ in
+                fakeReadLine.readLine()
+            }
+            let valueOne = Value(name: "value-one")
+            let valueTwo = Value(name: "value-two")
+
+            // When
+            let got = try reader.readValue(
+                asking: "Choose value:",
+                values: [valueOne, valueTwo],
+                valueDescription: \.name
+            )
+
+            // Then
+            XCTAssertEqual(got, valueTwo)
+            XCTAssertStandardOutput(
+                pattern: """
+                Choose value:
+                \t0: value-one
+                \t1: value-two
+                """
+            )
+        }
     }
 }
 

@@ -3,7 +3,6 @@ import Difference
 import Foundation
 import TSCUtility
 import XCTest
-@testable import Path
 @testable import TuistCore
 @testable import TuistKit
 @testable import TuistSupport
@@ -430,7 +429,7 @@ final class CommandEnvironmentVariableTests: XCTestCase {
         XCTAssertTrue(runCommandWithEnvVars.generate)
         XCTAssertTrue(runCommandWithEnvVars.clean)
         XCTAssertEqual(runCommandWithEnvVars.os, "14.5")
-        XCTAssertEqual(runCommandWithEnvVars.scheme, "MyScheme")
+        XCTAssertEqual(runCommandWithEnvVars.runnable, .scheme("MyScheme"))
         XCTAssertEqual(runCommandWithEnvVars.arguments, ["arg1", "arg2", "arg3"])
 
         // Execute RunCommand with command line arguments
@@ -452,7 +451,7 @@ final class CommandEnvironmentVariableTests: XCTestCase {
         XCTAssertEqual(runCommandWithArgs.device, "iPhone 12")
         XCTAssertEqual(runCommandWithArgs.os, "15.0")
         XCTAssertTrue(runCommandWithArgs.rosetta)
-        XCTAssertEqual(runCommandWithArgs.scheme, "AnotherScheme")
+        XCTAssertEqual(runCommandWithArgs.runnable, .scheme("AnotherScheme"))
         XCTAssertEqual(runCommandWithArgs.arguments, ["arg4", "arg5"])
     }
 
@@ -483,6 +482,7 @@ final class CommandEnvironmentVariableTests: XCTestCase {
         // Set environment variables for TestCommand
         setVariable(.testScheme, value: "MyScheme")
         setVariable(.testClean, value: "true")
+        setVariable(.testNoUpload, value: "true")
         setVariable(.testPath, value: "/path/to/test")
         setVariable(.testDevice, value: "iPhone")
         setVariable(.testPlatform, value: "iOS")
@@ -505,6 +505,7 @@ final class CommandEnvironmentVariableTests: XCTestCase {
         let testCommandWithEnvVars = try TestCommand.parse([])
         XCTAssertEqual(testCommandWithEnvVars.scheme, "MyScheme")
         XCTAssertTrue(testCommandWithEnvVars.clean)
+        XCTAssertTrue(testCommandWithEnvVars.noUpload)
         XCTAssertEqual(testCommandWithEnvVars.path, "/path/to/test")
         XCTAssertEqual(testCommandWithEnvVars.device, "iPhone")
         XCTAssertEqual(testCommandWithEnvVars.platform, "iOS")
@@ -846,25 +847,25 @@ final class CommandEnvironmentVariableTests: XCTestCase {
         XCTAssertEqual(commandWithArgs.path, "/new/member/path")
     }
 
-    func testAuthCommandUsesEnvVars() throws {
+    func testLoginCommandUsesEnvVars() throws {
         setVariable(.authPath, value: "/path/to/auth")
 
-        let commandWithEnvVars = try AuthCommand.parse([])
+        let commandWithEnvVars = try LoginCommand.parse([])
         XCTAssertEqual(commandWithEnvVars.path, "/path/to/auth")
 
-        let commandWithArgs = try AuthCommand.parse([
+        let commandWithArgs = try LoginCommand.parse([
             "--path", "/new/auth/path",
         ])
         XCTAssertEqual(commandWithArgs.path, "/new/auth/path")
     }
 
-    func testSessionCommandUsesEnvVars() throws {
-        setVariable(.sessionPath, value: "/path/to/session")
+    func testWhoamiCommandUsesEnvVars() throws {
+        setVariable(.whoamiPath, value: "/path/to/session")
 
-        let commandWithEnvVars = try SessionCommand.parse([])
+        let commandWithEnvVars = try WhoamiCommand.parse([])
         XCTAssertEqual(commandWithEnvVars.path, "/path/to/session")
 
-        let commandWithArgs = try SessionCommand.parse([
+        let commandWithArgs = try WhoamiCommand.parse([
             "--path", "/new/session/path",
         ])
         XCTAssertEqual(commandWithArgs.path, "/new/session/path")
@@ -882,15 +883,36 @@ final class CommandEnvironmentVariableTests: XCTestCase {
         XCTAssertEqual(commandWithArgs.path, "/new/logout/path")
     }
 
-    func testAnalyticsCommandUsesEnvVars() throws {
-        setVariable(.analyticsPath, value: "/path/to/analytics")
+    func testCacheCommandUsesEnvVars() throws {
+        setVariable(.cacheExternalOnly, value: "true")
+        setVariable(.cacheGenerateOnly, value: "true")
+        setVariable(.cachePrintHashes, value: "true")
+        setVariable(.cacheConfiguration, value: "CacheConfig")
+        setVariable(.cachePath, value: "/cache/path")
+        setVariable(.cacheTargets, value: "Fmk1,Fmk2")
 
-        let commandWithEnvVars = try AnalyticsCommand.parse([])
-        XCTAssertEqual(commandWithEnvVars.path, "/path/to/analytics")
+        let commandWithEnvVars = try CacheCommand.parse([])
+        XCTAssertEqual(commandWithEnvVars.externalOnly, true)
+        XCTAssertEqual(commandWithEnvVars.generateOnly, true)
+        XCTAssertEqual(commandWithEnvVars.printHashes, true)
+        XCTAssertEqual(commandWithEnvVars.configuration, "CacheConfig")
+        XCTAssertEqual(commandWithEnvVars.path, "/cache/path")
+        XCTAssertEqual(commandWithEnvVars.targets, ["Fmk1", "Fmk2"])
 
-        let commandWithArgs = try AnalyticsCommand.parse([
-            "--path", "/new/analytics/path",
+        let commandWithArgs = try CacheCommand.parse([
+            "--external-only",
+            "--generate-only",
+            "--print-hashes",
+            "--configuration", "CacheConfig",
+            "--path", "/cache/path",
+            "--",
+            "Fmk1", "Fmk2",
         ])
-        XCTAssertEqual(commandWithArgs.path, "/new/analytics/path")
+        XCTAssertEqual(commandWithArgs.externalOnly, true)
+        XCTAssertEqual(commandWithArgs.generateOnly, true)
+        XCTAssertEqual(commandWithArgs.printHashes, true)
+        XCTAssertEqual(commandWithArgs.configuration, "CacheConfig")
+        XCTAssertEqual(commandWithArgs.path, "/cache/path")
+        XCTAssertEqual(commandWithArgs.targets, ["Fmk1", "Fmk2"])
     }
 }

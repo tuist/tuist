@@ -1,5 +1,6 @@
 import Foundation
-import MockableTest
+import HTTPTypes
+import Mockable
 import OpenAPIRuntime
 import TuistSupport
 import TuistSupportTesting
@@ -13,6 +14,7 @@ final class ServerClientAuthenticationMiddlewareTests: TuistUnitTestCase {
     private var serverCredentialsStore: MockServerCredentialsStoring!
     private var refreshAuthTokenService: MockRefreshAuthTokenServicing!
     private var dateService: MockDateServicing!
+    private var cachedValueStore: MockCachedValueStoring!
 
     override func setUp() {
         super.setUp()
@@ -25,7 +27,9 @@ final class ServerClientAuthenticationMiddlewareTests: TuistUnitTestCase {
             serverAuthenticationController: serverAuthenticationController,
             serverCredentialsStore: serverCredentialsStore,
             refreshAuthTokenService: refreshAuthTokenService,
-            dateService: dateService
+            dateService: dateService,
+            cachedValueStore: CachedValueStore(),
+            envVariables: [:]
         )
     }
 
@@ -38,11 +42,47 @@ final class ServerClientAuthenticationMiddlewareTests: TuistUnitTestCase {
         super.tearDown()
     }
 
+    func test_when_cirrus_env_variable_is_present() async throws {
+        // Given
+        subject = .init(
+            serverAuthenticationController: serverAuthenticationController,
+            serverCredentialsStore: serverCredentialsStore,
+            refreshAuthTokenService: refreshAuthTokenService,
+            dateService: dateService,
+            cachedValueStore: CachedValueStore(),
+            envVariables: [Constants.EnvironmentVariables.cirrusTuistCacheURL: "https://cirrus.dev"]
+        )
+        let url = URL(string: "https://test.tuist.io")!
+        let request = HTTPRequest(method: .get, scheme: nil, authority: nil, path: "/")
+        let response = HTTPResponse(
+            status: 200
+        )
+        var gotRequest: HTTPRequest!
+
+        // When
+        let (gotResponse, _) = try await subject.intercept(
+            request,
+            body: nil,
+            baseURL: url,
+            operationID: "123"
+        ) { request, body, _ in
+            gotRequest = request
+            return (response, body)
+        }
+
+        // Then
+        XCTAssertEqual(gotResponse, response)
+        XCTAssertEqual(
+            gotRequest.headerFields,
+            [:]
+        )
+    }
+
     func test_when_authentication_token_is_nil() async throws {
         let url = URL(string: "https://test.tuist.io")!
-        let request = Request(path: "/", method: .get)
-        let response = Response(
-            statusCode: 200
+        let request = HTTPRequest(method: .get, scheme: nil, authority: nil, path: "/")
+        let response = HTTPResponse(
+            status: 200
         )
 
         given(serverAuthenticationController)
@@ -53,10 +93,11 @@ final class ServerClientAuthenticationMiddlewareTests: TuistUnitTestCase {
         await XCTAssertThrowsSpecific(
             try await subject.intercept(
                 request,
+                body: nil,
                 baseURL: url,
                 operationID: "123"
-            ) { _, _ in
-                response
+            ) { _, _, _ in
+                (response, nil)
             },
             ServerClientAuthenticationError.notAuthenticated
         )
@@ -64,25 +105,26 @@ final class ServerClientAuthenticationMiddlewareTests: TuistUnitTestCase {
 
     func test_when_using_project_token() async throws {
         let url = URL(string: "https://test.tuist.io")!
-        let request = Request(path: "/", method: .get)
-        let response = Response(
-            statusCode: 200
+        let request = HTTPRequest(method: .get, scheme: nil, authority: nil, path: "/")
+        let response = HTTPResponse(
+            status: 200
         )
 
         given(serverAuthenticationController)
             .authenticationToken(serverURL: .any)
             .willReturn(.project("project-token"))
 
-        var gotRequest: Request!
+        var gotRequest: HTTPRequest!
 
         // When
-        let gotResponse = try await subject.intercept(
+        let (gotResponse, _) = try await subject.intercept(
             request,
+            body: nil,
             baseURL: url,
             operationID: "123"
-        ) { request, _ in
+        ) { request, body, _ in
             gotRequest = request
-            return response
+            return (response, body)
         }
 
         // Then
@@ -90,34 +132,33 @@ final class ServerClientAuthenticationMiddlewareTests: TuistUnitTestCase {
         XCTAssertEqual(
             gotRequest.headerFields,
             [
-                HeaderField(
-                    name: "Authorization", value: "Bearer project-token"
-                ),
+                .authorization: "Bearer project-token",
             ]
         )
     }
 
     func test_when_using_legacy_token() async throws {
         let url = URL(string: "https://test.tuist.io")!
-        let request = Request(path: "/", method: .get)
-        let response = Response(
-            statusCode: 200
+        let request = HTTPRequest(method: .get, scheme: nil, authority: nil, path: "/")
+        let response = HTTPResponse(
+            status: 200
         )
 
         given(serverAuthenticationController)
             .authenticationToken(serverURL: .any)
             .willReturn(.user(legacyToken: "legacy-token", accessToken: nil, refreshToken: nil))
 
-        var gotRequest: Request!
+        var gotRequest: HTTPRequest!
 
         // When
-        let gotResponse = try await subject.intercept(
+        let (gotResponse, _) = try await subject.intercept(
             request,
+            body: nil,
             baseURL: url,
             operationID: "123"
-        ) { request, _ in
+        ) { request, body, _ in
             gotRequest = request
-            return response
+            return (response, body)
         }
 
         // Then
@@ -125,18 +166,16 @@ final class ServerClientAuthenticationMiddlewareTests: TuistUnitTestCase {
         XCTAssertEqual(
             gotRequest.headerFields,
             [
-                HeaderField(
-                    name: "Authorization", value: "Bearer legacy-token"
-                ),
+                .authorization: "Bearer legacy-token",
             ]
         )
     }
 
     func test_when_using_valid_access_token() async throws {
         let url = URL(string: "https://test.tuist.io")!
-        let request = Request(path: "/", method: .get)
-        let response = Response(
-            statusCode: 200
+        let request = HTTPRequest(method: .get, scheme: nil, authority: nil, path: "/")
+        let response = HTTPResponse(
+            status: 200
         )
 
         given(serverAuthenticationController)
@@ -152,20 +191,21 @@ final class ServerClientAuthenticationMiddlewareTests: TuistUnitTestCase {
                 )
             )
 
-        var gotRequest: Request!
+        var gotRequest: HTTPRequest!
 
         given(dateService)
             .now()
             .willReturn(Date(timeIntervalSince1970: 0))
 
         // When
-        let gotResponse = try await subject.intercept(
+        let (gotResponse, _) = try await subject.intercept(
             request,
+            body: nil,
             baseURL: url,
             operationID: "123"
-        ) { request, _ in
+        ) { request, body, _ in
             gotRequest = request
-            return response
+            return (response, body)
         }
 
         // Then
@@ -173,18 +213,16 @@ final class ServerClientAuthenticationMiddlewareTests: TuistUnitTestCase {
         XCTAssertEqual(
             gotRequest.headerFields,
             [
-                HeaderField(
-                    name: "Authorization", value: "Bearer access-token"
-                ),
+                .authorization: "Bearer access-token",
             ]
         )
     }
 
     func test_when_access_token_is_expired() async throws {
         let url = URL(string: "https://test.tuist.io")!
-        let request = Request(path: "/", method: .get)
-        let response = Response(
-            statusCode: 200
+        let request = HTTPRequest(method: .get, scheme: nil, authority: nil, path: "/")
+        let response = HTTPResponse(
+            status: 200
         )
 
         given(serverAuthenticationController)
@@ -203,7 +241,7 @@ final class ServerClientAuthenticationMiddlewareTests: TuistUnitTestCase {
                 )
             )
 
-        var gotRequest: Request!
+        var gotRequest: HTTPRequest!
 
         given(dateService)
             .now()
@@ -223,13 +261,14 @@ final class ServerClientAuthenticationMiddlewareTests: TuistUnitTestCase {
             .willReturn()
 
         // When
-        let gotResponse = try await subject.intercept(
+        let (gotResponse, _) = try await subject.intercept(
             request,
+            body: nil,
             baseURL: url,
             operationID: "123"
-        ) { request, _ in
+        ) { request, body, _ in
             gotRequest = request
-            return response
+            return (response, body)
         }
 
         // Then
@@ -250,9 +289,7 @@ final class ServerClientAuthenticationMiddlewareTests: TuistUnitTestCase {
         XCTAssertEqual(
             gotRequest.headerFields,
             [
-                HeaderField(
-                    name: "Authorization", value: "Bearer new-access-token"
-                ),
+                .authorization: "Bearer new-access-token",
             ]
         )
     }

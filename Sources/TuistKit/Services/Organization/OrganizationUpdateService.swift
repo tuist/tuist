@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import ServiceContextModule
 import TuistLoader
 import TuistServer
 import TuistSupport
@@ -40,12 +41,14 @@ final class OrganizationUpdateSSOService: OrganizationUpdateSSOServicing {
         } else {
             directoryPath = FileHandler.shared.currentPath
         }
-        let config = try configLoader.loadConfig(path: directoryPath)
+        let config = try await configLoader.loadConfig(path: directoryPath)
 
         let ssoOrganization: SSOOrganization
         switch provider {
         case .google:
             ssoOrganization = .google(organizationId)
+        case .okta:
+            ssoOrganization = .okta(organizationId)
         }
 
         let serverURL = try serverURLService.url(configServerURL: config.url)
@@ -55,7 +58,7 @@ final class OrganizationUpdateSSOService: OrganizationUpdateSSOServicing {
             ssoOrganization: ssoOrganization
         )
 
-        logger
+        ServiceContext.current?.logger?
             .info(
                 "\(organizationName) now uses \(provider.rawValue.capitalized) SSO with \(organizationId). Users authenticated with the \(organizationId) SSO organization will automatically have access to the \(organizationName) projects."
             )

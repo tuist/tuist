@@ -1,5 +1,3 @@
-import Foundation
-
 /// Command Descriptor
 ///
 /// Describes a command that needs to be executed as part of

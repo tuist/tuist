@@ -13,7 +13,7 @@ public struct PackageSettings: Equatable, Codable {
     public let baseSettings: Settings
 
     /// The custom `Settings` to be applied to SPM targets
-    public let targetSettings: [String: SettingsDictionary]
+    public let targetSettings: [String: Settings]
 
     /// The custom project options for each project generated from a swift package
     public let projectOptions: [String: XcodeGraph.Project.Options]
@@ -23,9 +23,6 @@ public struct PackageSettings: Equatable, Codable {
     /// - Note: When generating an [SPM package](https://docs.tuist.io/guide/project/directory-structure.html#swift-package),
     /// test targets are always included regardless of the value of this property.
     public var includeLocalPackageTestTargets: Bool
-
-    /// Swift tools version of the parsed `Package.swift`
-    public let swiftToolsVersion: Version
 
     /// Initializes a new `PackageSettings` instance.
     /// - Parameters:
@@ -41,10 +38,9 @@ public struct PackageSettings: Equatable, Codable {
         productTypes: [String: Product],
         productDestinations: [String: Destinations],
         baseSettings: Settings,
-        targetSettings: [String: SettingsDictionary],
+        targetSettings: [String: Settings],
         projectOptions: [String: XcodeGraph.Project.Options] = [:],
-        includeLocalPackageTestTargets: Bool,
-        swiftToolsVersion: Version
+        includeLocalPackageTestTargets: Bool
     ) {
         self.productTypes = productTypes
         self.productDestinations = productDestinations
@@ -52,7 +48,6 @@ public struct PackageSettings: Equatable, Codable {
         self.targetSettings = targetSettings
         self.projectOptions = projectOptions
         self.includeLocalPackageTestTargets = includeLocalPackageTestTargets
-        self.swiftToolsVersion = swiftToolsVersion
     }
 }
 
@@ -62,10 +57,9 @@ public struct PackageSettings: Equatable, Codable {
             productTypes: [String: Product] = [:],
             productDestinations: [String: Destinations] = [:],
             baseSettings: Settings = Settings.default,
-            targetSettings: [String: SettingsDictionary] = [:],
+            targetSettings: [String: Settings] = [:],
             projectOptions: [String: XcodeGraph.Project.Options] = [:],
-            includeLocalPackageTestTargets: Bool = false,
-            swiftToolsVersion: Version = Version("5.4.9")
+            includeLocalPackageTestTargets: Bool = false
         ) -> PackageSettings {
             PackageSettings(
                 productTypes: productTypes,
@@ -73,8 +67,7 @@ public struct PackageSettings: Equatable, Codable {
                 baseSettings: baseSettings,
                 targetSettings: targetSettings,
                 projectOptions: projectOptions,
-                includeLocalPackageTestTargets: includeLocalPackageTestTargets,
-                swiftToolsVersion: swiftToolsVersion
+                includeLocalPackageTestTargets: includeLocalPackageTestTargets
             )
         }
     }

@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import ServiceContextModule
 import TuistLoader
 import TuistServer
 import TuistSupport
@@ -14,20 +15,17 @@ protocol ProjectDeleteServicing {
 final class ProjectDeleteService: ProjectDeleteServicing {
     private let deleteProjectService: DeleteProjectServicing
     private let getProjectService: GetProjectServicing
-    private let credentialsStore: ServerCredentialsStoring
     private let serverURLService: ServerURLServicing
     private let configLoader: ConfigLoading
 
     init(
         deleteProjectService: DeleteProjectServicing = DeleteProjectService(),
         getProjectService: GetProjectServicing = GetProjectService(),
-        credentialsStore: ServerCredentialsStoring = ServerCredentialsStore(),
         serverURLService: ServerURLServicing = ServerURLService(),
         configLoader: ConfigLoading = ConfigLoader()
     ) {
         self.deleteProjectService = deleteProjectService
         self.getProjectService = getProjectService
-        self.credentialsStore = credentialsStore
         self.serverURLService = serverURLService
         self.configLoader = configLoader
     }
@@ -42,7 +40,7 @@ final class ProjectDeleteService: ProjectDeleteServicing {
         } else {
             directoryPath = FileHandler.shared.currentPath
         }
-        let config = try configLoader.loadConfig(path: directoryPath)
+        let config = try await configLoader.loadConfig(path: directoryPath)
         let serverURL = try serverURLService.url(configServerURL: config.url)
 
         let project = try await getProjectService.getProject(
@@ -55,6 +53,6 @@ final class ProjectDeleteService: ProjectDeleteServicing {
             serverURL: serverURL
         )
 
-        logger.info("Successfully deleted the \(project.fullName) project.")
+        ServiceContext.current?.logger?.info("Successfully deleted the \(project.fullName) project.")
     }
 }

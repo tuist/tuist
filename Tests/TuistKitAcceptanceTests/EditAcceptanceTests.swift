@@ -1,4 +1,3 @@
-import Path
 import TuistAcceptanceTesting
 import TuistSupport
 import TuistSupportTesting
@@ -7,7 +6,7 @@ import XCTest
 
 final class EditAcceptanceTestiOSAppWithHelpers: TuistAcceptanceTestCase {
     func test_ios_app_with_helpers() async throws {
-        try setUpFixture(.iosAppWithHelpers)
+        try await setUpFixture(.iosAppWithHelpers)
         try await run(EditCommand.self)
         try build(scheme: "Manifests")
     }
@@ -15,7 +14,7 @@ final class EditAcceptanceTestiOSAppWithHelpers: TuistAcceptanceTestCase {
 
 final class EditAcceptanceTestPlugin: TuistAcceptanceTestCase {
     func test_plugin() async throws {
-        try setUpFixture(.plugin)
+        try await setUpFixture(.plugin)
         try await run(EditCommand.self)
         try build(scheme: "Plugins")
     }
@@ -23,7 +22,7 @@ final class EditAcceptanceTestPlugin: TuistAcceptanceTestCase {
 
 final class EditAcceptanceTestAppWithPlugins: TuistAcceptanceTestCase {
     func test_app_with_plugins() async throws {
-        try setUpFixture(.appWithPlugins)
+        try await setUpFixture(.appWithPlugins)
         try await run(InstallCommand.self)
         try await run(EditCommand.self)
         try build(scheme: "Manifests")
@@ -34,7 +33,7 @@ final class EditAcceptanceTestAppWithPlugins: TuistAcceptanceTestCase {
 
 final class EditAcceptanceTestAppWithSPMDependencies: TuistAcceptanceTestCase {
     func test_app_with_spm_dependencies() async throws {
-        try setUpFixture(.appWithSpmDependencies)
+        try await setUpFixture(.appWithSpmDependencies)
         try await run(EditCommand.self)
         try build(scheme: "Manifests")
     }
@@ -42,7 +41,7 @@ final class EditAcceptanceTestAppWithSPMDependencies: TuistAcceptanceTestCase {
 
 final class EditAcceptanceTestSPMPackage: TuistAcceptanceTestCase {
     func test_spm_package() async throws {
-        try setUpFixture(.spmPackage)
+        try await setUpFixture(.spmPackage)
         try await run(EditCommand.self)
         try build(scheme: "Manifests")
     }

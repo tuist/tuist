@@ -1,8 +1,11 @@
 import Foundation
+import Mockable
 import Queuer
+import ServiceContextModule
 import TuistCore
 import TuistSupport
 
+@Mockable
 public protocol AsyncQueuing {
     /// It dispatches the given event.
     /// - Parameter event: Event to be dispatched.
@@ -11,6 +14,9 @@ public protocol AsyncQueuing {
 
     /// Waits for the queue to be fulfilled if on the CI
     func waitIfCI()
+
+    /// Waits for the queue to be fulfilled
+    func wait()
 }
 
 private final class AsyncConcurrentOperation: ConcurrentOperation {
@@ -51,20 +57,25 @@ public class AsyncQueue: AsyncQueuing {
 
     // MARK: - AsyncQueuing
 
-    public func start() {
-        loadEvents()
+    public func start() async {
+        await loadEvents()
         queue.resume()
         waitIfCI()
     }
 
     public func waitIfCI() {
         if !ciChecker.isCI() { return }
+        wait()
+    }
+
+    public func wait() {
         queue.waitUntilAllOperationsAreFinished()
     }
 
     public func dispatch(event: some AsyncQueueEvent) throws {
         guard let dispatcher = dispatchers[event.dispatcherId] else {
-            logger.error("Couldn't find dispatcher with id: \(event.dispatcherId)")
+            ServiceContext.current?.logger?
+                .debug("Couldn't find dispatcher with id: \(event.dispatcherId), skipping dispatching \(event.id)")
             return
         }
 
@@ -80,10 +91,11 @@ public class AsyncQueue: AsyncQueuing {
 
     private func liveDispatchOperation(event: some AsyncQueueEvent, dispatcher: AsyncQueueDispatching) -> Operation {
         AsyncConcurrentOperation(name: event.id.uuidString) { operation in
-            logger.debug("Dispatching event with ID '\(event.id.uuidString)' to '\(dispatcher.identifier)'")
+            ServiceContext.current?.logger?
+                .debug("Dispatching event with ID '\(event.id.uuidString)' to '\(dispatcher.identifier)'")
             do {
                 try dispatcher.dispatch(event: event) {
-                    try self.persistor.delete(event: event)
+                    try await self.persistor.delete(event: event)
                     operation.finish(success: true)
                 }
             } catch {
@@ -96,10 +108,11 @@ public class AsyncQueue: AsyncQueuing {
         }
     }
 
-    private func dispatchPersisted(eventTuple: AsyncQueueEventTuple) throws {
+    private func dispatchPersisted(eventTuple: AsyncQueueEventTuple) async throws {
         guard let dispatcher = dispatchers.first(where: { $0.key == eventTuple.dispatcherId })?.value else {
-            try deletePersistedEvent(filename: eventTuple.filename)
-            logger.error("Couldn't find dispatcher for persisted event with id: \(eventTuple.dispatcherId)")
+            try await deletePersistedEvent(filename: eventTuple.filename)
+            ServiceContext.current?.logger?
+                .error("Couldn't find dispatcher for persisted event with id: \(eventTuple.dispatcherId)")
             return
         }
 
@@ -113,28 +126,30 @@ public class AsyncQueue: AsyncQueuing {
     ) -> Operation {
         ConcurrentOperation(name: event.id.uuidString) { _ in
             do {
-                logger.debug("Dispatching persisted event with ID '\(event.id.uuidString)' to '\(dispatcher.identifier)'")
+                ServiceContext.current?.logger?
+                    .debug("Dispatching persisted event with ID '\(event.id.uuidString)' to '\(dispatcher.identifier)'")
                 try dispatcher.dispatchPersisted(data: event.data) {
-                    try self.deletePersistedEvent(filename: event.filename)
+                    try await self.deletePersistedEvent(filename: event.filename)
                 }
             } catch {
-                logger.debug("Failed to dispatch persisted event with ID '\(event.id.uuidString)' to '\(dispatcher.identifier)'")
+                ServiceContext.current?.logger?
+                    .debug("Failed to dispatch persisted event with ID '\(event.id.uuidString)' to '\(dispatcher.identifier)'")
             }
         }
     }
 
-    private func loadEvents() {
+    private func loadEvents() async {
         do {
-            let events = try persistor.readAll()
+            let events = try await persistor.readAll()
             for event in events {
-                try dispatchPersisted(eventTuple: event)
+                try await dispatchPersisted(eventTuple: event)
             }
         } catch {
-            logger.debug("Error loading persisted events: \(error)")
+            ServiceContext.current?.logger?.debug("Error loading persisted events: \(error)")
         }
     }
 
-    private func deletePersistedEvent(filename: String) throws {
-        try persistor.delete(filename: filename)
+    private func deletePersistedEvent(filename: String) async throws {
+        try await persistor.delete(filename: filename)
     }
 }

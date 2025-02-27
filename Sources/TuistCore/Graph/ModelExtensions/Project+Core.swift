@@ -1,4 +1,3 @@
-import Foundation
 import Path
 import TuistSupport
 import XcodeGraph
@@ -42,7 +41,7 @@ extension Project {
     }
 
     public func derivedDirectoryPath(for target: Target) -> AbsolutePath {
-        if type == .remotePackage {
+        if case .remote = target.type {
             return path
                 // Leads to SPM's .build directory
                 .parentDirectory.parentDirectory

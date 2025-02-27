@@ -29,7 +29,7 @@ final class TestModelGenerator {
         self.config = config
     }
 
-    func generate() throws -> Graph {
+    func generate() async throws -> Graph {
         let models = try createModels()
         let graphLoader = GraphLoader(
             frameworkMetadataProvider: MockFrameworkMetadataProvider(),
@@ -38,7 +38,7 @@ final class TestModelGenerator {
             systemFrameworkMetadataProvider: SystemFrameworkMetadataProvider()
         )
 
-        return try graphLoader.loadWorkspace(
+        return try await graphLoader.loadWorkspace(
             workspace: models.workspace,
             projects: models.projects
         )
@@ -152,6 +152,7 @@ final class TestModelGenerator {
             xcodeProjPath: path.appending(component: "App.xcodeproj"),
             name: name,
             organizationName: nil,
+            classPrefix: nil,
             defaultKnownRegions: nil,
             developmentRegion: nil,
             options: .test(),
@@ -164,7 +165,11 @@ final class TestModelGenerator {
             additionalFiles: try createAdditionalFiles(path: path),
             resourceSynthesizers: [],
             lastUpgradeCheck: nil,
+<<<<<<< HEAD
             type: .tuistProject
+=======
+            type: .local
+>>>>>>> main
         )
     }
 
@@ -341,7 +346,8 @@ final class TestModelGenerator {
                     executable: nil,
                     filePath: nil,
                     arguments: createArguments(),
-                    diagnosticsOptions: SchemeDiagnosticsOptions()
+                    diagnosticsOptions: SchemeDiagnosticsOptions(),
+                    metalOptions: MetalOptions()
                 ),
                 archiveAction: ArchiveAction(
                     configurationName: "Debug",

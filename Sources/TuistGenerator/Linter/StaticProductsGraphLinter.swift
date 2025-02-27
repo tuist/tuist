@@ -1,5 +1,4 @@
 import Foundation
-import Path
 import TuistCore
 import XcodeGraph
 
@@ -87,10 +86,14 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
         }
 
         // Linking node case
-        guard case let GraphDependency.target(targetName, targetPath) = dependency,
+        guard case let GraphDependency.target(targetName, targetPath, _) = dependency,
               let dependencyTarget = graphTraverser.target(path: targetPath, name: targetName),
               dependencyTarget.target.canLinkStaticProducts()
         else {
+            cache.cache(
+                results: results,
+                for: dependency
+            )
             return results
         }
 
@@ -116,17 +119,24 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
             return []
         }
 
+        // Statically linking a macro does not present a problem so it should not be flagged
+        if case let .target(name, path, _) = staticProduct,
+           !graphTraverser.directSwiftMacroExecutables(path: path, name: name).isEmpty
+        {
+            return []
+        }
+
         // Common dependencies between test bundles and their hosts are automatically omitted
         // during generation - as such those shouldn't be flagged
         //
         // reference: https://github.com/tuist/tuist/pull/664
         let hosts: Set<GraphDependency> = linkedBy.filter { dependency -> Bool in
-            guard case let GraphDependency.target(targetName, targetPath) = dependency else { return false }
+            guard case let GraphDependency.target(targetName, targetPath, _) = dependency else { return false }
             guard let target = graphTraverser.target(path: targetPath, name: targetName) else { return false }
             return target.target.product.canHostTests()
         }
         let hostedTestBundles = linkedBy.filter { dependency -> Bool in
-            guard case let GraphDependency.target(targetName, targetPath) = dependency else { return false }
+            guard case let GraphDependency.target(targetName, targetPath, _) = dependency else { return false }
             guard let target = graphTraverser.target(path: targetPath, name: targetName) else { return false }
 
             let isTestsBundle = target.target.product.testsBundle
@@ -170,10 +180,11 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
             switch type {
             // Swift package products are currently assumed to be static
             case .runtime: return true
+            case .runtimeEmbedded: return true
             case .macro: return false
             case .plugin: return false
             }
-        case let .target(name, path):
+        case let .target(name, path, _):
             guard let target = graphTraverser.target(path: path, name: name) else { return false }
             return target.target.product.isStatic
         case .sdk, .macro:
@@ -187,8 +198,8 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
     }
 
     private func canVisit(dependency: GraphDependency, from: GraphDependency, graphTraverser: GraphTraversing) -> Bool {
-        guard case let GraphDependency.target(fromTargetName, fromTargetPath) = from else { return true }
-        guard case let GraphDependency.target(toTargetName, toTargetPath) = dependency else { return true }
+        guard case let GraphDependency.target(fromTargetName, fromTargetPath, _) = from else { return true }
+        guard case let GraphDependency.target(toTargetName, toTargetPath, _) = dependency else { return true }
 
         guard let fromTarget = graphTraverser.target(path: fromTargetPath, name: fromTargetName) else { return false }
         guard let toTarget = graphTraverser.target(path: toTargetPath, name: toTargetName) else { return false }
@@ -220,7 +231,7 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
             // ExtensionKit extensions can safely link the same static products as apps
             // as they are an independent product
             return false
-        case (.app, .app), (.app, .commandLineTool):
+        case (.app, .app), (.app, .commandLineTool), (.app, .xpc):
             // macOS application target can embed other helper applications, those helper applications
             // can safely link the same static products as they are independent products
             return false

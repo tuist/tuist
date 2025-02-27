@@ -1,10 +1,10 @@
 import Foundation
-import MockableTest
+import Mockable
+import ServiceContextModule
 import TuistLoader
 import TuistServer
 import TuistSupportTesting
 import XCTest
-
 @testable import TuistKit
 
 final class ProjectTokensCreateServiceTests: TuistUnitTestCase {
@@ -20,7 +20,7 @@ final class ProjectTokensCreateServiceTests: TuistUnitTestCase {
         createProjectTokenService = .init()
         serverURLService = .init()
         configLoader = .init()
-        serverURL = URL(string: "https://test.cloud.tuist.io")!
+        serverURL = URL(string: "https://test.tuist.dev")!
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(.test(url: serverURL))
@@ -45,18 +45,20 @@ final class ProjectTokensCreateServiceTests: TuistUnitTestCase {
     }
 
     func test_create_project_token() async throws {
-        // Given
-        given(createProjectTokenService)
-            .createProjectToken(
-                fullHandle: .value("tuist-org/tuist"),
-                serverURL: .any
-            )
-            .willReturn("new-token")
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            given(createProjectTokenService)
+                .createProjectToken(
+                    fullHandle: .value("tuist-org/tuist"),
+                    serverURL: .any
+                )
+                .willReturn("new-token")
 
-        // When
-        try await subject.run(fullHandle: "tuist-org/tuist", directory: nil)
+            // When
+            try await subject.run(fullHandle: "tuist-org/tuist", directory: nil)
 
-        // Then
-        XCTAssertStandardOutput(pattern: "new-token")
+            // Then
+            XCTAssertStandardOutput(pattern: "new-token")
+        }
     }
 }

@@ -1,5 +1,4 @@
 import Foundation
-import Path
 import TuistCore
 import TuistSupport
 import XcodeGraph
@@ -20,7 +19,7 @@ public final class ExternalDependencyPathWorkspaceMapper: WorkspaceMapping {
     // MARK: - Helpers
 
     private func map(project: Project) throws -> (Project, [SideEffectDescriptor]) {
-        guard project.type == .remotePackage else { return (project, []) }
+        guard case .external = project.type else { return (project, []) }
 
         var project = project
         let xcodeProjBasename = project.xcodeProjPath.basename

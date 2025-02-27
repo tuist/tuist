@@ -1,5 +1,4 @@
 import Foundation
-import Path
 
 /// Server organization usage
 public struct ServerOrganizationUsage: Codable {

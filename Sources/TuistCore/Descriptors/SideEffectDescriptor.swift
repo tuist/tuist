@@ -1,6 +1,3 @@
-import Foundation
-import Path
-
 /// Side Effect Descriptor
 ///
 /// Describes a side effect that needs to take place without performing it

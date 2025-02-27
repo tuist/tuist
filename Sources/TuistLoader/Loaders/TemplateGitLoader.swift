@@ -7,13 +7,13 @@ public protocol TemplateGitLoading {
     /// - Parameters:
     ///     - templateURL: Git repository url
     ///     - closure: Closure to perform work on loaded template
-    func loadTemplate(from templateURL: String, closure: (TuistCore.Template) throws -> Void) throws
+    func loadTemplate(from templateURL: String, closure: @escaping (TuistCore.Template) async throws -> Void) async throws
 }
 
 public final class TemplateGitLoader: TemplateGitLoading {
     private let templateLoader: TemplateLoading
     private let fileHandler: FileHandling
-    private let gitHandler: GitHandling
+    private let gitController: GitControlling
     private let templateLocationParser: TemplateLocationParsing
 
     /// Default constructor.
@@ -21,7 +21,7 @@ public final class TemplateGitLoader: TemplateGitLoading {
         self.init(
             templateLoader: TemplateLoader(),
             fileHandler: FileHandler.shared,
-            gitHandler: GitHandler(),
+            gitController: GitController(),
             templateLocationParser: TemplateLocationParser()
         )
     }
@@ -29,27 +29,31 @@ public final class TemplateGitLoader: TemplateGitLoading {
     init(
         templateLoader: TemplateLoading,
         fileHandler: FileHandling,
-        gitHandler: GitHandling,
+        gitController: GitControlling,
         templateLocationParser: TemplateLocationParsing
     ) {
         self.templateLoader = templateLoader
         self.fileHandler = fileHandler
-        self.gitHandler = gitHandler
+        self.gitController = gitController
         self.templateLocationParser = templateLocationParser
     }
 
-    public func loadTemplate(from templateURL: String, closure: (TuistCore.Template) throws -> Void) throws {
+    public func loadTemplate(
+        from templateURL: String,
+        closure: @escaping (TuistCore.Template) async throws -> Void
+    ) async throws {
         let repoURL = templateLocationParser.parseRepositoryURL(from: templateURL)
         let repoBranch = templateLocationParser.parseRepositoryBranch(from: templateURL)
-        try fileHandler.inTemporaryDirectory { temporaryPath in
+
+        try await fileHandler.inTemporaryDirectory { temporaryPath in
             let templatePath = temporaryPath.appending(component: "Template")
-            try fileHandler.createFolder(templatePath)
-            try gitHandler.clone(url: repoURL, to: templatePath)
+            try self.fileHandler.createFolder(templatePath)
+            try self.gitController.clone(url: repoURL, to: templatePath)
             if let repoBranch {
-                try gitHandler.checkout(id: repoBranch, in: templatePath)
+                try self.gitController.checkout(id: repoBranch, in: templatePath)
             }
-            let template = try templateLoader.loadTemplate(at: templatePath, plugins: .none)
-            try closure(template)
+            let template = try await self.templateLoader.loadTemplate(at: templatePath, plugins: .none)
+            try await closure(template)
         }
     }
 }

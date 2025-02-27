@@ -244,7 +244,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             preActions: preActions,
             postActions: postActions,
             parallelizeBuild: true,
-            buildImplicitDependencies: true,
+            buildImplicitDependencies: buildAction.findImplicitDependencies,
             runPostActionsOnFailure: buildAction.runPostActionsOnFailure ? true : nil
         )
     }
@@ -315,9 +315,14 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
                 )
             }
 
+            let parallelization: XCScheme.TestParallelization = switch testableTarget.parallelization {
+            case .none: .none
+            case .swiftTestingOnly: .swiftTestingOnly
+            case .all: .all
+            }
             let testable = XCScheme.TestableReference(
                 skipped: testableTarget.isSkipped,
-                parallelizable: testableTarget.isParallelizable,
+                parallelization: parallelization,
                 randomExecutionOrdering: testableTarget.isRandomExecutionOrdering,
                 buildableReference: reference,
                 locationScenarioReference: locationScenarioReference,
@@ -586,6 +591,11 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             enableGPUFrameCaptureMode = .autoEnabled
         }
 
+        let disableGPUValidationMode = scheme.runAction?.metalOptions?.apiValidation == false
+        let enableGPUShaderValidationMode = scheme.runAction?.metalOptions?.shaderValidation == true
+        let showGraphicsOverview = scheme.runAction?.metalOptions?.showGraphicsOverview == true
+        let logGraphicsOverview = scheme.runAction?.metalOptions?.logGraphicsOverview == true
+
         let preActions = try scheme.runAction?.preActions.map {
             try schemeExecutionAction(
                 action: $0,
@@ -605,7 +615,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         } ?? []
 
         return XCScheme.LaunchAction(
-            runnable: buildableProductRunnable,
+            runnable: pathRunnable ?? buildableProductRunnable,
             buildConfiguration: buildConfiguration,
             preActions: preActions,
             postActions: postActions,
@@ -614,9 +624,12 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             selectedLauncherIdentifier: launcherIdentifier,
             launchStyle: launchStyle,
             askForAppToLaunch: launchActionConstants.askForAppToLaunch,
-            pathRunnable: pathRunnable,
             locationScenarioReference: locationScenarioReference,
             enableGPUFrameCaptureMode: enableGPUFrameCaptureMode,
+            disableGPUValidationMode: disableGPUValidationMode,
+            enableGPUShaderValidationMode: enableGPUShaderValidationMode,
+            showGraphicsOverview: showGraphicsOverview,
+            logGraphicsOverview: logGraphicsOverview,
             enableAddressSanitizer: enableAddressSanitizer,
             enableASanStackUseAfterReturn: enableASanStackUseAfterReturn,
             enableThreadSanitizer: enableThreadSanitizer,
@@ -752,10 +765,12 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         rootPath: AbsolutePath,
         generatedProjects: [AbsolutePath: GeneratedProject]
     ) throws -> XCScheme.ArchiveAction? {
-        guard let target = defaultTargetReference(scheme: scheme),
-              let graphTarget = graphTraverser.target(path: target.projectPath, name: target.name) else { return nil }
-
         guard let archiveAction = scheme.archiveAction else {
+            guard let target = defaultTargetReference(scheme: scheme),
+                  let graphTarget = graphTraverser.target(path: target.projectPath, name: target.name)
+            else {
+                return nil
+            }
             return defaultSchemeArchiveAction(for: graphTarget.project)
         }
 

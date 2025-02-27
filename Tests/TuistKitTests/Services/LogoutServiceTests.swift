@@ -1,13 +1,11 @@
 import Foundation
-import MockableTest
-import Path
+import Mockable
 import TuistCore
 import TuistCoreTesting
 import TuistLoader
 import TuistLoaderTesting
 import TuistServer
 import TuistSupport
-import XcodeGraph
 import XCTest
 
 @testable import TuistKit
@@ -23,7 +21,7 @@ final class LogoutServiceTests: TuistUnitTestCase {
         super.setUp()
         serverSessionController = MockServerSessionControlling()
         configLoader = MockConfigLoading()
-        serverURL = URL(string: "https://test.cloud.tuist.io")!
+        serverURL = URL(string: "https://test.tuist.dev")!
         given(configLoader).loadConfig(path: .any).willReturn(.test(url: serverURL))
         subject = LogoutService(
             serverSessionController: serverSessionController,
@@ -39,13 +37,13 @@ final class LogoutServiceTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_logout() throws {
+    func test_logout() async throws {
         // Given
         given(serverSessionController)
             .logout(serverURL: .value(serverURL))
             .willReturn(())
 
         // When / Then
-        try subject.logout(directory: nil)
+        try await subject.logout(directory: nil)
     }
 }

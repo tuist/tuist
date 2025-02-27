@@ -1,9 +1,7 @@
-import ArgumentParser
-import Foundation
 import Path
 import TuistSupport
 
-struct MigrationCheckEmptyBuildSettingsCommand: ParsableCommand {
+struct MigrationCheckEmptyBuildSettingsCommand: AsyncParsableCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "check-empty-settings",
@@ -27,8 +25,8 @@ struct MigrationCheckEmptyBuildSettingsCommand: ParsableCommand {
     )
     var target: String?
 
-    func run() throws {
-        try MigrationCheckEmptyBuildSettingsService().run(
+    func run() async throws {
+        try await MigrationCheckEmptyBuildSettingsService().run(
             xcodeprojPath: try AbsolutePath(validating: xcodeprojPath, relativeTo: FileHandler.shared.currentPath),
             target: target
         )

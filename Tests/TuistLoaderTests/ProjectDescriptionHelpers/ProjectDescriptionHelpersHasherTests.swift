@@ -1,5 +1,4 @@
-import MockableTest
-import Path
+import Mockable
 import ProjectDescription
 import TuistCore
 import TuistSupport
@@ -33,7 +32,7 @@ final class ProjectDescriptionHelpersHasherTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_hash() throws {
+    func test_hash() async throws {
         // Given
         let temporaryDir = try temporaryPath()
         let helperPath = temporaryDir.appending(component: "Project+Templates.swift")
@@ -42,22 +41,8 @@ final class ProjectDescriptionHelpersHasherTests: TuistUnitTestCase {
 
         // Then
         for _ in 0 ..< 20 {
-            let got = try subject.hash(helpersDirectory: temporaryDir)
+            let got = try await subject.hash(helpersDirectory: temporaryDir)
             XCTAssertEqual(got, "5032b92c268cb7283c91ee37ec935c73")
         }
-    }
-
-    func test_prefixHash() throws {
-        // Given
-        let path = try AbsolutePath(validating: "/path/to/helpers")
-        let pathString = path.pathString
-        let index = pathString.index(pathString.startIndex, offsetBy: 7)
-        let expected = String(pathString.md5[..<index])
-
-        // When
-        let got = subject.prefixHash(helpersDirectory: path)
-
-        // Then
-        XCTAssertEqual(got, expected)
     }
 }

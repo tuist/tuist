@@ -2,6 +2,7 @@ import Foundation
 import Path
 import TuistCore
 import TuistSupport
+import ServiceContextModule
 
 public final class XcodeBuildController: XcodeBuildControlling {
     // MARK: - Attributes
@@ -44,25 +45,26 @@ public final class XcodeBuildController: XcodeBuildControlling {
         arguments: [XcodeBuildArgument],
         passthroughXcodeBuildArguments: [String]
     ) async throws {
-        var command = ["/usr/bin/xcrun", "xcodebuild"]
+        let extraArguments = arguments.flatMap(\.arguments)
+        var arguments: [String] = []
 
         // Action
         if clean {
-            command.append("clean")
+            arguments.append("clean")
         }
-        command.append("build")
+        arguments.append("build")
 
         // Scheme
-        command.append(contentsOf: ["-scheme", scheme])
+        arguments.append(contentsOf: ["-scheme", scheme])
 
         // Target
-        command.append(contentsOf: target.xcodebuildArguments)
+        arguments.append(contentsOf: target.xcodebuildArguments)
 
         // Arguments
-        command.append(contentsOf: arguments.flatMap(\.arguments))
+        arguments.append(contentsOf: extraArguments)
 
         // Passthrough arguments
-        command.append(contentsOf: passthroughXcodeBuildArguments)
+        arguments.append(contentsOf: passthroughXcodeBuildArguments)
 
         // Destination
         switch destination {
@@ -71,26 +73,28 @@ public final class XcodeBuildController: XcodeBuildControlling {
             if rosetta {
                 value += ["arch=x86_64"]
             }
-            command.append(contentsOf: ["-destination", value.joined(separator: ",")])
+            arguments.append(contentsOf: ["-destination", value.joined(separator: ",")])
         case .mac:
-            command.append(contentsOf: ["-destination", simulatorController.macOSDestination()])
+            arguments.append(contentsOf: ["-destination", simulatorController.macOSDestination()])
+        case .macCatalyst:
+            arguments.append(contentsOf: ["-destination", simulatorController.macOSDestination(catalyst: true)])
         case nil:
             break
         }
 
         // Derived data path
         if let derivedDataPath {
-            command.append(contentsOf: ["-derivedDataPath", derivedDataPath.pathString])
+            arguments.append(contentsOf: ["-derivedDataPath", derivedDataPath.pathString])
         }
 
-        try await run(command: command)
+        try await run(arguments: arguments)
     }
 
     public func test(
         _ target: XcodeBuildTarget,
         scheme: String,
         clean: Bool = false,
-        destination: XcodeBuildDestination,
+        destination: XcodeBuildDestination?,
         rosetta: Bool,
         derivedDataPath: AbsolutePath?,
         resultBundlePath: AbsolutePath?,
@@ -101,29 +105,30 @@ public final class XcodeBuildController: XcodeBuildControlling {
         testPlanConfiguration: TestPlanConfiguration?,
         passthroughXcodeBuildArguments: [String]
     ) async throws {
-        var command = ["/usr/bin/xcrun", "xcodebuild"]
+        let extraArguments = arguments.flatMap(\.arguments)
+        var arguments: [String] = []
 
         // Action
         if clean {
-            command.append("clean")
+            arguments.append("clean")
         }
-        command.append("test")
+        arguments.append("test")
 
         // Scheme
-        command.append(contentsOf: ["-scheme", scheme])
+        arguments.append(contentsOf: ["-scheme", scheme])
 
         // Target
-        command.append(contentsOf: target.xcodebuildArguments)
+        arguments.append(contentsOf: target.xcodebuildArguments)
 
         // Arguments
-        command.append(contentsOf: arguments.flatMap(\.arguments))
+        arguments.append(contentsOf: extraArguments)
 
         // Passthrough arguments
-        command.append(contentsOf: passthroughXcodeBuildArguments)
+        arguments.append(contentsOf: passthroughXcodeBuildArguments)
         
         // Retry On Failure
         if retryCount > 0 {
-            command.append(contentsOf: XcodeBuildArgument.retryCount(retryCount).arguments)
+            arguments.append(contentsOf: XcodeBuildArgument.retryCount(retryCount).arguments)
         }
 
         // Destination
@@ -133,41 +138,45 @@ public final class XcodeBuildController: XcodeBuildControlling {
             if rosetta {
                 value += ["arch=x86_64"]
             }
-            command.append(contentsOf: ["-destination", value.joined(separator: ",")])
+            arguments.append(contentsOf: ["-destination", value.joined(separator: ",")])
         case .mac:
-            command.append(contentsOf: ["-destination", simulatorController.macOSDestination()])
+            arguments.append(contentsOf: ["-destination", simulatorController.macOSDestination()])
+        case .macCatalyst:
+            arguments.append(contentsOf: ["-destination", simulatorController.macOSDestination(catalyst: true)])
+        case nil:
+            break
         }
 
         // Derived data path
         if let derivedDataPath {
-            command.append(contentsOf: ["-derivedDataPath", derivedDataPath.pathString])
+            arguments.append(contentsOf: ["-derivedDataPath", derivedDataPath.pathString])
         }
 
         // Result bundle path
         if let resultBundlePath {
-            command.append(contentsOf: ["-resultBundlePath", resultBundlePath.pathString])
+            arguments.append(contentsOf: ["-resultBundlePath", resultBundlePath.pathString])
         }
 
         for test in testTargets {
-            command.append(contentsOf: ["-only-testing", test.description])
+            arguments.append(contentsOf: ["-only-testing", test.description])
         }
 
         for test in skipTestTargets {
-            command.append(contentsOf: ["-skip-testing", test.description])
+            arguments.append(contentsOf: ["-skip-testing", test.description])
         }
 
         if let testPlanConfiguration {
-            command.append(contentsOf: ["-testPlan", testPlanConfiguration.testPlan])
+            arguments.append(contentsOf: ["-testPlan", testPlanConfiguration.testPlan])
             for configuration in testPlanConfiguration.configurations {
-                command.append(contentsOf: ["-only-test-configuration", configuration])
+                arguments.append(contentsOf: ["-only-test-configuration", configuration])
             }
 
             for configuration in testPlanConfiguration.skipConfigurations {
-                command.append(contentsOf: ["-skip-test-configuration", configuration])
+                arguments.append(contentsOf: ["-skip-test-configuration", configuration])
             }
         }
 
-        try await run(command: command)
+        try await run(arguments: arguments)
     }
 
     public func archive(
@@ -178,44 +187,44 @@ public final class XcodeBuildController: XcodeBuildControlling {
         arguments: [XcodeBuildArgument],
         derivedDataPath: AbsolutePath?
     ) async throws {
-        var command = ["/usr/bin/xcrun", "xcodebuild"]
+        let extraArguments = arguments.flatMap(\.arguments)
+        var arguments: [String] = []
 
         // Action
         if clean {
-            command.append("clean")
+            arguments.append("clean")
         }
-        command.append("archive")
+        arguments.append("archive")
 
         // Scheme
-        command.append(contentsOf: ["-scheme", scheme])
+        arguments.append(contentsOf: ["-scheme", scheme])
 
         // Target
-        command.append(contentsOf: target.xcodebuildArguments)
+        arguments.append(contentsOf: target.xcodebuildArguments)
 
         // Archive path
-        command.append(contentsOf: ["-archivePath", archivePath.pathString])
+        arguments.append(contentsOf: ["-archivePath", archivePath.pathString])
 
         // Derived data path
         if let derivedDataPath {
-            command.append(contentsOf: ["-derivedDataPath", derivedDataPath.pathString])
+            arguments.append(contentsOf: ["-derivedDataPath", derivedDataPath.pathString])
         }
 
         // Arguments
-        command.append(contentsOf: arguments.flatMap(\.arguments))
+        arguments.append(contentsOf: extraArguments)
 
-        try await run(command: command)
+        try await run(arguments: arguments)
     }
 
     public func createXCFramework(
         arguments: [String],
         output: AbsolutePath
     ) async throws {
-        var command = ["/usr/bin/xcrun", "xcodebuild", "-create-xcframework"]
-        command.append(contentsOf: arguments)
-        command.append(contentsOf: ["-output", output.pathString])
-        command.append("-allow-internal-distribution")
+        var arguments = ["-create-xcframework"] + arguments
+        arguments.append(contentsOf: ["-output", output.pathString])
+        arguments.append("-allow-internal-distribution")
 
-        try await run(command: command)
+        try await run(arguments: arguments)
     }
 
     enum ShowBuildSettingsError: Error {
@@ -291,7 +300,9 @@ public final class XcodeBuildController: XcodeBuildControlling {
         return buildSettingsByTargetName
     }
 
-    fileprivate func run(command: [String]) async throws {
+    public func run(arguments: [String]) async throws {
+        let logger = ServiceContext.current?.logger
+        
         func format(_ bytes: [UInt8]) -> String {
             let string = String(decoding: bytes, as: Unicode.UTF8.self)
             if self.environment.isVerbose == true {
@@ -305,14 +316,16 @@ public final class XcodeBuildController: XcodeBuildControlling {
             let lines = format(bytes).split(separator: "\n")
             for line in lines where !line.isEmpty {
                 if isError {
-                    logger.error("\(line)")
+                    logger?.error("\(line)")
                 } else {
-                    logger.notice("\(line)")
+                    logger?.info("\(line)")
                 }
             }
         }
         
-        logger.debug("Running xcodebuild command: \(command.joined(separator: " "))")
+        let command = ["/usr/bin/xcrun", "xcodebuild"] + arguments
+        
+        logger?.debug("Running xcodebuild command: \(command.joined(separator: " "))")
         
         try system.run(command,
                        verbose: false,

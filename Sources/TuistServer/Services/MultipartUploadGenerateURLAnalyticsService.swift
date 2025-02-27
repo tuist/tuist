@@ -9,7 +9,8 @@ public protocol MultipartUploadGenerateURLAnalyticsServicing {
         commandEventId: Int,
         partNumber: Int,
         uploadId: String,
-        serverURL: URL
+        serverURL: URL,
+        contentLength: Int
     ) async throws -> String
 }
 
@@ -46,7 +47,8 @@ public final class MultipartUploadGenerateURLAnalyticsService: MultipartUploadGe
         commandEventId: Int,
         partNumber: Int,
         uploadId: String,
-        serverURL: URL
+        serverURL: URL,
+        contentLength: Int
     ) async throws -> String {
         let client = Client.authenticated(serverURL: serverURL)
         let response = try await client.generateAnalyticsArtifactMultipartUploadURL(
@@ -56,6 +58,7 @@ public final class MultipartUploadGenerateURLAnalyticsService: MultipartUploadGe
                     .init(
                         command_event_artifact: .init(artifact),
                         multipart_upload_part: .init(
+                            content_length: contentLength,
                             part_number: partNumber,
                             upload_id: uploadId
                         )

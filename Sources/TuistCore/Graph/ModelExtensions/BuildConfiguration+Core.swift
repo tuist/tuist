@@ -1,5 +1,3 @@
-import Foundation
-import TuistSupport
 import XcodeGraph
 
 extension BuildConfiguration: XcodeRepresentable {

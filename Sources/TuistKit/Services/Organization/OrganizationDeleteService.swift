@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import ServiceContextModule
 import TuistLoader
 import TuistServer
 import TuistSupport
@@ -36,7 +37,7 @@ final class OrganizationDeleteService: OrganizationDeleteServicing {
         } else {
             directoryPath = FileHandler.shared.currentPath
         }
-        let config = try configLoader.loadConfig(path: directoryPath)
+        let config = try await configLoader.loadConfig(path: directoryPath)
         let serverURL = try serverURLService.url(configServerURL: config.url)
 
         try await deleteOrganizationService.deleteOrganization(
@@ -44,6 +45,6 @@ final class OrganizationDeleteService: OrganizationDeleteServicing {
             serverURL: serverURL
         )
 
-        logger.info("Tuist organization \(organizationName) was successfully deleted.")
+        ServiceContext.current?.logger?.info("Tuist organization \(organizationName) was successfully deleted.")
     }
 }

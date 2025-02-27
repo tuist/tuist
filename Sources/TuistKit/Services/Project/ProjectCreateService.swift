@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import ServiceContextModule
 import TuistLoader
 import TuistServer
 import TuistSupport
@@ -36,7 +37,7 @@ final class ProjectCreateService: ProjectCreateServicing {
         } else {
             directoryPath = FileHandler.shared.currentPath
         }
-        let config = try configLoader.loadConfig(path: directoryPath)
+        let config = try await configLoader.loadConfig(path: directoryPath)
 
         let serverURL = try serverURLService.url(configServerURL: config.url)
 
@@ -45,6 +46,6 @@ final class ProjectCreateService: ProjectCreateServicing {
             serverURL: serverURL
         )
 
-        logger.info("Tuist project \(project.fullName) was successfully created 🎉")
+        ServiceContext.current?.logger?.info("Tuist project \(project.fullName) was successfully created 🎉")
     }
 }

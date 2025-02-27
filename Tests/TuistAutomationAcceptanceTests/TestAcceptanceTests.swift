@@ -1,6 +1,6 @@
-import Path
 import TuistAcceptanceTesting
 import TuistSupport
+import TuistSupportTesting
 import XCTest
 
 @testable import TuistKit
@@ -8,21 +8,32 @@ import XCTest
 /// Test projects using tuist test
 final class TestAcceptanceTests: TuistAcceptanceTestCase {
     func test_with_app_with_framework_and_tests() async throws {
-        try setUpFixture(.appWithFrameworkAndTests)
+        try await setUpFixture(.appWithFrameworkAndTests)
         try await run(TestCommand.self)
         try await run(TestCommand.self, "App")
         try await run(TestCommand.self, "--test-targets", "FrameworkTests/FrameworkTests")
         try await run(TestCommand.self, "App", "--", "-testLanguage", "en")
     }
 
+    func test_with_ios_app_with_frameworks() async throws {
+        try await setUpFixture(.iosAppWithFrameworks)
+        try await run(TestCommand.self)
+    }
+
+    func test_with_framework_with_spm_bundle() async throws {
+        try await setUpFixture(.frameworkWithSPMBundle)
+        try await run(InstallCommand.self)
+        try await run(TestCommand.self)
+    }
+
     func test_with_app_with_test_plan() async throws {
-        try setUpFixture(.appWithTestPlan)
+        try await setUpFixture(.appWithTestPlan)
         try await run(TestCommand.self)
         try await run(TestCommand.self, "App", "--test-plan", "All")
     }
 
     func test_with_invalid_arguments() async throws {
-        try setUpFixture(.appWithFrameworkAndTests)
+        try await setUpFixture(.appWithFrameworkAndTests)
         await XCTAssertThrowsSpecific(
             try await run(TestCommand.self, "App", "--", "-scheme", "App"),
             XcodeBuildPassthroughArgumentError.alreadyHandled("-scheme")
@@ -65,6 +76,11 @@ final class TestAcceptanceTests: TuistAcceptanceTestCase {
         await XCTAssertThrows(
             try await run(TestCommand.self, "App", "--configuration", "Debug", "--", "-configuration", "Debug")
         )
+    }
+
+    func test_with_multiplatform_app() async throws {
+        try await setUpFixture(.multiplatformApp)
+        try await run(TestCommand.self)
     }
 }
 

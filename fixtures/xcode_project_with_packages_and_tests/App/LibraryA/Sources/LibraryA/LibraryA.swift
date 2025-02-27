@@ -1,0 +1,3 @@
+import LibraryB
+
+struct LibraryA {}

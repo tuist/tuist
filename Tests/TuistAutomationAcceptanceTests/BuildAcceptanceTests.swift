@@ -8,7 +8,7 @@ import XCTest
 /// Build projects using Tuist build
 final class BuildAcceptanceTestWithTemplates: TuistAcceptanceTestCase {
     func test_with_templates() async throws {
-        try run(InitCommand.self, "--platform", "ios", "--name", "MyApp")
+        try await run(InitCommand.self, "--platform", "ios", "--name", "MyApp")
         try await run(InstallCommand.self)
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self)
@@ -20,7 +20,7 @@ final class BuildAcceptanceTestWithTemplates: TuistAcceptanceTestCase {
 
 final class BuildAcceptanceTestInvalidArguments: TuistAcceptanceTestCase {
     func test_with_invalid_arguments() async throws {
-        try run(InitCommand.self, "--platform", "ios", "--name", "MyApp")
+        try await run(InitCommand.self, "--platform", "ios", "--name", "MyApp")
         try await run(InstallCommand.self)
         try await run(GenerateCommand.self)
         await XCTAssertThrowsSpecific(
@@ -50,7 +50,7 @@ final class BuildAcceptanceTestInvalidArguments: TuistAcceptanceTestCase {
 
 final class BuildAcceptanceTestAppWithPreviews: TuistAcceptanceTestCase {
     func test_with_previews() async throws {
-        try setUpFixture(.appWithPreviews)
+        try await setUpFixture(.appWithPreviews)
         try await run(InstallCommand.self)
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self)
@@ -59,7 +59,7 @@ final class BuildAcceptanceTestAppWithPreviews: TuistAcceptanceTestCase {
 
 final class BuildAcceptanceTestAppWithFrameworkAndTests: TuistAcceptanceTestCase {
     func test_with_framework_and_tests() async throws {
-        try setUpFixture(.appWithFrameworkAndTests)
+        try await setUpFixture(.appWithFrameworkAndTests)
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self)
         try await run(BuildCommand.self, "App")
@@ -71,7 +71,7 @@ final class BuildAcceptanceTestAppWithFrameworkAndTests: TuistAcceptanceTestCase
 // TODO: Fix -> This currently doesn't build because of a misconfig in Github actions where the tvOS platform is not available
 // final class BuildAcceptanceTestAppWithTests: TuistAcceptanceTestCase {
 //    func test() async throws {
-//        try setUpFixture("app_with_tests")
+//        try await setUpFixture("app_with_tests")
 //        try await run(GenerateCommand.self)
 //        try await run(BuildCommand.self)
 //        try await run(BuildCommand.self, "App")
@@ -83,7 +83,7 @@ final class BuildAcceptanceTestAppWithFrameworkAndTests: TuistAcceptanceTestCase
 
 final class BuildAcceptanceTestiOSAppWithCustomConfigurationAndBuildToCustomDirectory: TuistAcceptanceTestCase {
     func test_ios_app_with_custom_and_build_to_custom_directory() async throws {
-        try setUpFixture(.iosAppWithCustomConfiguration)
+        try await setUpFixture(.iosAppWithCustomConfiguration)
         try await run(GenerateCommand.self)
         try await run(
             BuildCommand.self,
@@ -124,15 +124,15 @@ final class BuildAcceptanceTestiOSAppWithCustomConfigurationAndBuildToCustomDire
 
 final class BuildAcceptanceTestFrameworkWithSwiftMacroIntegratedWithStandardMethod: TuistAcceptanceTestCase {
     func test_framework_with_swift_macro_integrated_with_standard_method() async throws {
-        try setUpFixture(.frameworkWithSwiftMacro)
+        try await setUpFixture(.frameworkWithSwiftMacro)
         try await run(GenerateCommand.self)
-        try await run(BuildCommand.self, "Framework")
+        try await run(BuildCommand.self, "Framework", "--", "-skipMacroValidation")
     }
 }
 
 final class BuildAcceptanceTestFrameworkWithSwiftMacroIntegratedWithXcodeProjPrimitives: TuistAcceptanceTestCase {
     func test_framework_with_swift_macro_integrated_with_xcode_proj_primitives() async throws {
-        try setUpFixture(.frameworkWithNativeSwiftMacro)
+        try await setUpFixture(.frameworkWithNativeSwiftMacro)
         try await run(InstallCommand.self)
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self, "Framework", "--platform", "macos")
@@ -142,7 +142,7 @@ final class BuildAcceptanceTestFrameworkWithSwiftMacroIntegratedWithXcodeProjPri
 
 final class BuildAcceptanceTestMultiplatformAppWithExtensions: TuistAcceptanceTestCase {
     func test() async throws {
-        try setUpFixture(.multiplatformAppWithExtension)
+        try await setUpFixture(.multiplatformAppWithExtension)
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self, "App", "--platform", "ios")
     }
@@ -150,7 +150,7 @@ final class BuildAcceptanceTestMultiplatformAppWithExtensions: TuistAcceptanceTe
 
 final class BuildAcceptanceTestMultiplatformAppWithSDK: TuistAcceptanceTestCase {
     func test() async throws {
-        try setUpFixture(.multiplatformAppWithSdk)
+        try await setUpFixture(.multiplatformAppWithSdk)
         try await run(InstallCommand.self)
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self, "App", "--platform", "macos")
@@ -160,7 +160,7 @@ final class BuildAcceptanceTestMultiplatformAppWithSDK: TuistAcceptanceTestCase 
 
 final class BuildAcceptanceTestMultiplatformµFeatureUnitTestsWithExplicitDependencies: TuistAcceptanceTestCase {
     func test() async throws {
-        try setUpFixture(.multiplatformµFeatureUnitTestsWithExplicitDependencies)
+        try await setUpFixture(.multiplatformµFeatureUnitTestsWithExplicitDependencies)
         try await run(InstallCommand.self)
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self, "ExampleApp", "--platform", "ios")
@@ -168,6 +168,7 @@ final class BuildAcceptanceTestMultiplatformµFeatureUnitTestsWithExplicitDepend
     }
 }
 
+<<<<<<< HEAD
 final class BuildAcceptanceTestAppWithSPMDependencies: TuistAcceptanceTestCase {
     func test() async throws {
         try setUpFixture(.appWithSpmDependencies)
@@ -178,18 +179,11 @@ final class BuildAcceptanceTestAppWithSPMDependencies: TuistAcceptanceTestCase {
     }
 }
 
+=======
+>>>>>>> main
 final class BuildAcceptanceTestMultiplatformAppWithMacrosAndEmbeddedWatchOSApp: TuistAcceptanceTestCase {
     func test() async throws {
-        try setUpFixture(.multiplatformAppWithMacrosAndEmbeddedWatchOSApp)
-        try await run(InstallCommand.self)
-        try await run(GenerateCommand.self)
-        try await run(BuildCommand.self, "App", "--platform", "ios")
-    }
-}
-
-final class BuildAcceptanceTestIosAppWithSPMDependencies: TuistAcceptanceTestCase {
-    func test() async throws {
-        try setUpFixture(.iosAppWithSpmDependencies)
+        try await setUpFixture(.multiplatformAppWithMacrosAndEmbeddedWatchOSApp)
         try await run(InstallCommand.self)
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self, "App", "--platform", "ios")

@@ -1,10 +1,11 @@
+import FileSystem
 import Foundation
 import Path
+import ServiceContextModule
 import TuistCore
 import TuistLoader
 import TuistServer
 import TuistSupport
-import XcodeGraph
 
 enum TuistCleanCategory: ExpressibleByArgument, CaseIterable, Equatable {
     static let allCases = CacheCategory.allCases
@@ -61,6 +62,8 @@ final class CleanService {
     private let configLoader: ConfigLoading
     private let serverURLService: ServerURLServicing
     private let cleanCacheService: CleanCacheServicing
+    private let fileSystem: FileSystem
+
     init(
         fileHandler: FileHandling,
         rootDirectoryLocator: RootDirectoryLocating,
@@ -68,7 +71,8 @@ final class CleanService {
         manifestFilesLocator: ManifestFilesLocating,
         configLoader: ConfigLoading,
         serverURLService: ServerURLServicing,
-        cleanCacheService: CleanCacheServicing
+        cleanCacheService: CleanCacheServicing,
+        fileSystem: FileSystem
     ) {
         self.fileHandler = fileHandler
         self.rootDirectoryLocator = rootDirectoryLocator
@@ -77,6 +81,7 @@ final class CleanService {
         self.configLoader = configLoader
         self.serverURLService = serverURLService
         self.cleanCacheService = cleanCacheService
+        self.fileSystem = fileSystem
     }
 
     public convenience init() {
@@ -87,7 +92,8 @@ final class CleanService {
             manifestFilesLocator: ManifestFilesLocator(),
             configLoader: ConfigLoader(),
             serverURLService: ServerURLService(),
-            cleanCacheService: CleanCacheService()
+            cleanCacheService: CleanCacheService(),
+            fileSystem: FileSystem()
         )
     }
 
@@ -102,7 +108,7 @@ final class CleanService {
             FileHandler.shared.currentPath
         }
 
-        let packageDirectory = manifestFilesLocator.locatePackageManifest(at: resolvedPath)?.parentDirectory
+        let packageDirectory = try await manifestFilesLocator.locatePackageManifest(at: resolvedPath)?.parentDirectory
 
         for category in categories {
             let directory: AbsolutePath?
@@ -115,17 +121,19 @@ final class CleanService {
                 )
             }
             if let directory,
-               fileHandler.exists(directory)
+               try await fileSystem.exists(directory)
             {
-                try FileHandler.shared.delete(directory)
-                logger.notice("Successfully cleaned artifacts at path \(directory.pathString)", metadata: .success)
+                try await fileSystem.remove(directory)
+                try await fileSystem.makeDirectory(at: directory)
+                ServiceContext.current?.alerts?
+                    .success(.alert("Successfully cleaned artifacts at path \(directory.pathString)"))
             } else {
-                logger.notice("There's nothing to clean for \(category.defaultValueDescription)")
+                ServiceContext.current?.logger?.notice("There's nothing to clean for \(category.defaultValueDescription)")
             }
         }
 
         if remote {
-            let config = try configLoader.loadConfig(path: resolvedPath)
+            let config = try await configLoader.loadConfig(path: resolvedPath)
             guard let fullHandle = config.fullHandle else { return }
             let serverURL = try serverURLService.url(configServerURL: config.url)
             try await cleanCacheService.cleanCache(
@@ -133,7 +141,7 @@ final class CleanService {
                 fullHandle: fullHandle
             )
 
-            logger.notice("Successfully cleaned the remote storage.")
+            ServiceContext.current?.logger?.notice("Successfully cleaned the remote storage.")
         }
     }
 }
