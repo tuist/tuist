@@ -6,13 +6,13 @@ import TuistServer
 import TuistSupport
 
 public struct InitService {
-    let fileSystem: FileSystem
-    let prompter: InitPrompting
-    let loginService: LoginServicing
-    let createProjectService: CreateProjectServicing
-    let serverSessionController: ServerSessionControlling
-    let startGeneratedProjectService: InitGeneratedProjectServicing
-    let keystrokeListener: KeyStrokeListening
+    private let fileSystem: FileSystem
+    private let prompter: InitPrompting
+    private let loginService: LoginServicing
+    private let createProjectService: CreateProjectServicing
+    private let serverSessionController: ServerSessionControlling
+    private let startGeneratedProjectService: InitGeneratedProjectServicing
+    private let keystrokeListener: KeyStrokeListening
 
     enum XcodeProjectOrWorkspace: Hashable, Equatable {
         case workspace(AbsolutePath)
