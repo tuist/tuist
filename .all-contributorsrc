@@ -1762,6 +1762,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "fdiaz",
+      "name": "Francisco Diaz",
+      "avatar_url": "https://avatars.githubusercontent.com/u/530662?v=4",
+      "profile": "https://franciscodiaz.cl",
+      "contributions": [
+        "doc"
+      ]
     }
   ],
   "contributorsPerLine": 7,
