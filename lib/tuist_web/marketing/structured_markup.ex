@@ -82,7 +82,7 @@ defmodule TuistWeb.Marketing.StructuredMarkup do
             "name" => question,
             "acceptedAnswer" => %{
               "@type" => "Answer",
-              "text" => Floki.text(answer)
+              "text" => answer |> Floki.parse_fragment() |> Floki.text()
             }
           }
         end)
@@ -132,7 +132,7 @@ defmodule TuistWeb.Marketing.StructuredMarkup do
             "url" => testimonial.author_link,
             "image" => Tuist.Environment.app_url(path: testimonial.avatar_src)
           },
-          "reviewBody" => Floki.text(testimonial.body),
+          "reviewBody" => testimonial.body |> Floki.parse_fragment() |> Floki.text(),
           "reviewRating" => %{
             "@type" => "Rating",
             "ratingValue" => 5
