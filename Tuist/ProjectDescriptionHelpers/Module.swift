@@ -241,6 +241,7 @@ public enum Module: String, CaseIterable {
             switch self {
             case .mcp:
                 [
+                    .target(name: Module.support.targetName),
                     .external(name: "MCPServer"),
                 ]
             case .acceptanceTesting:
@@ -853,8 +854,11 @@ public enum Module: String, CaseIterable {
             rootFolder = "Sources"
         }
 
+        var baseSettings = settings.base
+        baseSettings["MACOSX_DEPLOYMENT_TARGET"] = "14.0"
+
         let settings = Settings.settings(
-            base: settings.base,
+            base: baseSettings,
             configurations: [
                 .debug(
                     name: "Debug",

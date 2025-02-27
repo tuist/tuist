@@ -1,6 +1,5 @@
 import ArgumentParser
-import Foundation
-import XcodeGraph
+import TuistMCP
 
 public struct MCPCommand: AsyncParsableCommand, TrackableParsableCommand {
     public var analyticsRequired: Bool { false }
@@ -14,5 +13,7 @@ public struct MCPCommand: AsyncParsableCommand, TrackableParsableCommand {
         )
     }
 
-    public func run() async throws {}
+    public func run() async throws {
+        try await MCPCommandService().run()
+    }
 }
