@@ -386,6 +386,10 @@ let targets: [Target] = [
         name: "TuistMCP",
         dependencies: [
             "TuistSupport",
+            "FileSystem",
+            "Command",
+            "Path",
+            .product(name: "JSONSchemaBuilder", package: "swift-json-schema"),
             .product(name: "MCPServer", package: "mcp-swift-sdk"),
         ],
         swiftSettings: [
