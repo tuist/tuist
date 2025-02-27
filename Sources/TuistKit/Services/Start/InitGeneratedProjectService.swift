@@ -261,7 +261,7 @@ class InitGeneratedProjectService: InitGeneratedProjectServicing {
             } else {
                 throw StartGeneratedProjectServiceError.invalidValue(
                     argument: "platform",
-                    error: "Platform should be either ios, tvos, or macos"
+                    error: "Platform should be either ios, tvos, watchos, or macos"
                 )
             }
         } else {
