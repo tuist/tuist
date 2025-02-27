@@ -116,9 +116,7 @@ public struct InitService {
                     name: name,
                     platform: platform,
                     path: projectDirectory.pathString,
-                    templateName: "default",
-                    requiredTemplateOptions: [:],
-                    optionalTemplateOptions: [:]
+                    templateName: "default"
                 )
             }
         )
@@ -190,7 +188,7 @@ public struct InitService {
     private func findXcodeProjectsAndWorkspaces(in directory: AbsolutePath) async throws -> Set<XcodeProjectOrWorkspace> {
         var paths = Set(
             try await fileSystem.glob(directory: directory, include: ["**/*.xcworkspace"]).collect()
-                .filter({ $0.parentDirectory.extension != "xcodeproj" })
+                .filter { $0.parentDirectory.extension != "xcodeproj" }
                 .map(XcodeProjectOrWorkspace.workspace)
         )
         paths

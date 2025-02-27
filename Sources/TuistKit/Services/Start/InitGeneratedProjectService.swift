@@ -41,9 +41,7 @@ protocol InitGeneratedProjectServicing {
         name: String?,
         platform: String?,
         path: String?,
-        templateName: String?,
-        requiredTemplateOptions: [String: String],
-        optionalTemplateOptions: [String: String?]
+        templateName: String?
     ) async throws
 }
 
@@ -68,99 +66,35 @@ class InitGeneratedProjectService: InitGeneratedProjectServicing {
         self.fileSystem = fileSystem
     }
 
-    func loadTemplateOptions(
-        templateName: String,
-        path: String?
-    ) async throws -> (
-        required: [String],
-        optional: [String]
-    ) {
-        let path = try self.path(path)
-        let directories = try await templatesDirectoryLocator.templateDirectories(at: path)
-        var attributes: [Template.Attribute] = []
-
-        if templateName.isGitURL {
-            try await templateGitLoader.loadTemplate(from: templateName) { template in
-                attributes = template.attributes
-            }
-        } else {
-            let templateDirectory = try templateDirectory(
-                templateDirectories: directories,
-                template: templateName
-            )
-
-            let template = try await templateLoader.loadTemplate(at: templateDirectory, plugins: .none)
-            attributes = template.attributes
-        }
-
-        return attributes
-            .reduce(into: (required: [], optional: [])) { currentValue, attribute in
-                // name and platform attributes have default values, so add them to the optional
-                if attribute.name == "name" || attribute.name == "platform" {
-                    currentValue.optional.append(attribute.name)
-                    return
-                }
-                switch attribute {
-                case let .optional(name, default: _):
-                    currentValue.optional.append(name)
-                case let .required(name):
-                    currentValue.required.append(name)
-                }
-            }
-    }
-
     func run(
         name: String?,
         platform: String?,
         path: String?,
-        templateName: String?,
-        requiredTemplateOptions: [String: String],
-        optionalTemplateOptions: [String: String?]
+        templateName: String?
     ) async throws {
         let platform = try self.platform(platform)
         let path = try self.path(path)
         let name = try self.name(name, path: path)
         let templateName = templateName ?? "default"
         try await verifyDirectoryIsEmpty(path: path)
+        let directories = try await templatesDirectoryLocator.templateDirectories(at: path)
+        guard let templateDirectory = directories.first(where: { $0.basename == templateName })
+        else { throw StartGeneratedProjectServiceError.templateNotFound(templateName) }
 
-        if templateName.isGitURL {
-            try await templateGitLoader.loadTemplate(from: templateName, closure: { template in
-                let parsedAttributes = try self.parseAttributes(
-                    name: name,
-                    platform: platform,
-                    tuistVersion: Constants.version,
-                    requiredTemplateOptions: requiredTemplateOptions,
-                    optionalTemplateOptions: optionalTemplateOptions,
-                    template: template
-                )
+        let template = try await templateLoader.loadTemplate(at: templateDirectory, plugins: .none)
+        let parsedAttributes: [String: Template.Attribute.Value] = [
+            "name": .string(name),
+            "platform": .string(platform.caseValue),
+            "tuist_version": .string(Constants.version),
+            "class_name": .string(name.toValidSwiftIdentifier()),
+            "bundle_identifier": .string(name.toValidInBundleIdentifier()),
+        ]
 
-                try await self.templateGenerator.generate(
-                    template: template,
-                    to: path,
-                    attributes: parsedAttributes
-                )
-            })
-        } else {
-            let directories = try await templatesDirectoryLocator.templateDirectories(at: path)
-            guard let templateDirectory = directories.first(where: { $0.basename == templateName })
-            else { throw StartGeneratedProjectServiceError.templateNotFound(templateName) }
-
-            let template = try await templateLoader.loadTemplate(at: templateDirectory, plugins: .none)
-            let parsedAttributes = try parseAttributes(
-                name: name,
-                platform: platform,
-                tuistVersion: Constants.version,
-                requiredTemplateOptions: requiredTemplateOptions,
-                optionalTemplateOptions: optionalTemplateOptions,
-                template: template
-            )
-
-            try await templateGenerator.generate(
-                template: template,
-                to: path,
-                attributes: parsedAttributes
-            )
-        }
+        try await templateGenerator.generate(
+            template: template,
+            to: path,
+            attributes: parsedAttributes
+        )
     }
 
     // MARK: - Helpers
@@ -175,44 +109,6 @@ class InitGeneratedProjectService: InitGeneratedProjectServicing {
             .filter { !allowedFiles.contains($0.basename) }
         if !disallowedFiles.isEmpty {
             throw StartGeneratedProjectServiceError.nonEmptyDirectory(path)
-        }
-    }
-
-    /// Parses all `attributes` from `template`
-    /// If those attributes are optional, they default to `default` if not provided
-    /// - Returns: Array of parsed attributes
-    private func parseAttributes(
-        name: String,
-        platform: Platform,
-        tuistVersion: String,
-        requiredTemplateOptions: [String: String],
-        optionalTemplateOptions: [String: String?],
-        template: Template
-    ) throws -> [String: Template.Attribute.Value] {
-        let defaultAttributes: [String: Template.Attribute.Value] = [
-            "name": .string(name),
-            "platform": .string(platform.caseValue),
-            "tuist_version": .string(tuistVersion),
-            "class_name": .string(name.toValidSwiftIdentifier()),
-            "bundle_identifier": .string(name.toValidInBundleIdentifier()),
-        ]
-        return try template.attributes.reduce(into: defaultAttributes) { attributesDictionary, attribute in
-            if defaultAttributes.keys.contains(attribute.name) { return }
-
-            switch attribute {
-            case let .required(name):
-                guard let option = requiredTemplateOptions[name]
-                else { throw ScaffoldServiceError.attributeNotProvided(name) }
-                attributesDictionary[name] = .string(option)
-            case let .optional(name, default: defaultValue):
-                guard let unwrappedOption = optionalTemplateOptions[name],
-                      let option = unwrappedOption
-                else {
-                    attributesDictionary[name] = defaultValue
-                    return
-                }
-                attributesDictionary[name] = .string(option)
-            }
         }
     }
 
