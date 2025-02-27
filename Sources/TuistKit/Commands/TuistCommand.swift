@@ -152,7 +152,7 @@ public struct TuistCommand: AsyncParsableCommand {
     }
 
     private static func outputCompletion(logFilePath: AbsolutePath, shouldOutputLogFilePath: Bool) {
-        Swift.print("", terminator: "\n")
+        print("", terminator: "\n")
         ServiceContext.current?.alerts?.print()
         if shouldOutputLogFilePath {
             outputLogFilePath(logFilePath)
