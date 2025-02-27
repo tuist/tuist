@@ -235,7 +235,7 @@ class InitGeneratedProjectService: InitGeneratedProjectServicing {
         return templateDirectory
     }
 
-    /// Returns name to use. If `name` is nil, returns a directory name executed `init` command.
+    /// Returns name to use. If `name` is nil, returns the name of the directory `init` was executed in.
     private func name(_ name: String?, path: AbsolutePath) throws -> String {
         if let name {
             return name
