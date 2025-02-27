@@ -17,15 +17,7 @@ enum StartGeneratedProjectServiceError: LocalizedError, Equatable {
     case attributeNotProvided(String)
     case invalidValue(argument: String, error: String)
 
-    var type: ErrorType {
-        switch self {
-        case .ungettableProjectName, .nonEmptyDirectory, .templateNotFound, .templateNotProvided, .attributeNotProvided,
-             .invalidValue:
-            return .abort
-        }
-    }
-
-    var description: String {
+    var errorDescription: String? {
         switch self {
         case let .templateNotFound(template):
             return "Could not find template \(template). Make sure it exists at Tuist/Templates/\(template)"

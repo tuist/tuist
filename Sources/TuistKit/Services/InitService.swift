@@ -7,7 +7,7 @@ import TuistSupport
 
 public struct InitService {
     let fileSystem: FileSystem
-    let prompter: StartPrompting
+    let prompter: InitPrompting
     let loginService: LoginServicing
     let createProjectService: CreateProjectServicing
     let serverSessionController: ServerSessionControlling
@@ -42,7 +42,7 @@ public struct InitService {
 
     init(
         fileSystem: FileSystem = FileSystem(),
-        prompter: StartPrompting = StartPrompter(),
+        prompter: InitPrompting = InitPrompter(),
         loginService: LoginServicing = LoginService(),
         createProjectService: CreateProjectServicing = CreateProjectService(),
         serverSessionController: ServerSessionControlling = ServerSessionController(),
@@ -178,7 +178,7 @@ public struct InitService {
         return nil
     }
 
-    private func nameOfXcodeProjectOrWorkspace(in directory: AbsolutePath) async throws -> StartPromptingWorkflowType {
+    private func nameOfXcodeProjectOrWorkspace(in directory: AbsolutePath) async throws -> InitPromptingWorkflowType {
         let xcodeProjectsAndWorkspaces = try await findXcodeProjectsAndWorkspaces(in: directory)
         return prompter
             .promptWorkflowType(

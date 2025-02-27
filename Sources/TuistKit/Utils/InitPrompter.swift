@@ -1,7 +1,7 @@
 import Mockable
 import ServiceContextModule
 
-enum StartPromptingWorkflowType: Equatable, CustomStringConvertible {
+enum InitPromptingWorkflowType: Equatable, CustomStringConvertible {
     case integrateWithProjectOrWorkspace(String)
     case createGeneratedProject
 
@@ -14,17 +14,17 @@ enum StartPromptingWorkflowType: Equatable, CustomStringConvertible {
 }
 
 @Mockable
-protocol StartPrompting {
-    func promptWorkflowType(xcodeProjectOrWorkspace: InitService.XcodeProjectOrWorkspace?) -> StartPromptingWorkflowType
+protocol InitPrompting {
+    func promptWorkflowType(xcodeProjectOrWorkspace: InitService.XcodeProjectOrWorkspace?) -> InitPromptingWorkflowType
     func promptIntegrateWithServer() -> Bool
     func promptGeneratedProjectPlatform() -> String
     func promptGeneratedProjectName() -> String
 }
 
-struct StartPrompter: StartPrompting {
-    func promptWorkflowType(xcodeProjectOrWorkspace: InitService.XcodeProjectOrWorkspace?) -> StartPromptingWorkflowType {
+struct InitPrompter: InitPrompting {
+    func promptWorkflowType(xcodeProjectOrWorkspace: InitService.XcodeProjectOrWorkspace?) -> InitPromptingWorkflowType {
         var promptOptions = [
-            StartPromptingWorkflowType.createGeneratedProject,
+            InitPromptingWorkflowType.createGeneratedProject,
         ]
         if let xcodeProjectOrWorkspace {
             promptOptions.append(.integrateWithProjectOrWorkspace(xcodeProjectOrWorkspace.name))
@@ -51,8 +51,8 @@ struct StartPrompter: StartPrompting {
             title: "Platform",
             question: "Which platform would you like to generate code for?",
             options: [
-                "macOS",
                 "iOS",
+                "macOS",
                 "tvOS",
                 "watchOS",
             ],
