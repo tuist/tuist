@@ -5,13 +5,11 @@ swiftformat = "0.53.3"
 pnpm = "8.15.6"
 node = "20.12.0"
 sourcedocs = "2.0.2"
-create-dmg = "1.2.2"
 git-cliff = "2.6.0"
 "spm:apple/swift-openapi-generator" = "1.3.1"
 
 [alias]
 sourcedocs = "https://github.com/tuist/asdf-sourcedocs"
-create-dmg = "https://github.com/tuist/asdf-create-dmg.git"
 
 [settings]
 jobs = 6
