@@ -87,7 +87,7 @@ let targets: [Target] = [
             .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
             .product(name: "XcodeGraphMapper", package: "XcodeGraph"),
             .byName(name: "AnyCodable"),
-            .product(name: "XCResultKit", package: "XCResultKit")
+            .product(name: "XCResultKit", package: "XCResultKit"),
         ],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),

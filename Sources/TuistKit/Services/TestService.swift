@@ -377,7 +377,7 @@ final class TestService { // swiftlint:disable:this type_body_length
         } else {
             uploadCacheStorage = cacheStorage
         }
-        
+
         do {
             for testScheme in testSchemes {
                 try await self.testScheme(
@@ -398,30 +398,27 @@ final class TestService { // swiftlint:disable:this type_body_length
                     passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
                 )
             }
-        }
-        catch {
+        } catch {
             // Check the test results and store successful test hashes for any targets that passed
             guard let resultBundlePath, let resultParser = XCResultParser(url: resultBundlePath.url) else { throw error }
-            
+
             let successfulTestTargetNames = resultParser.successfulTestTargets()
             let testTargets = testActionTargets(for: schemes, testPlanConfiguration: testPlanConfiguration, graph: graph)
-            
+
             let successfulTestTargets = testTargets.filter { successfulTestTargetNames.contains($0.target.name) }
-            
+
             try await storeSuccessfulTestHashes(
                 for: successfulTestTargets,
-                testPlanConfiguration: testPlanConfiguration,
                 graph: graph,
                 mapperEnvironment: mapperEnvironment,
                 cacheStorage: uploadCacheStorage
             )
-            
+
             throw error
         }
 
         try await storeSuccessfulTestHashes(
             for: testActionTargets(for: schemes, testPlanConfiguration: testPlanConfiguration, graph: graph),
-            testPlanConfiguration: testPlanConfiguration,
             graph: graph,
             mapperEnvironment: mapperEnvironment,
             cacheStorage: uploadCacheStorage
@@ -570,7 +567,6 @@ final class TestService { // swiftlint:disable:this type_body_length
 
     private func storeSuccessfulTestHashes(
         for targets: [GraphTarget],
-        testPlanConfiguration: TestPlanConfiguration?,
         graph: Graph,
         mapperEnvironment: MapperEnvironment,
         cacheStorage: CacheStoring

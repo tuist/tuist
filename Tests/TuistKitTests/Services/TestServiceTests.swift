@@ -926,12 +926,12 @@ final class TestServiceTests: TuistUnitTestCase {
                 .called(1)
         }
     }
-    
+
     func test_run_tests_caches_passing_targets_when_some_targets_fail() async throws {
         // Given
         let projectPath = try temporaryPath().appending(component: "ProjectOne")
         givenGenerator()
-        
+
         let scheme = Scheme.test(
             name: "UnitTests",
             testAction: .test(
@@ -945,10 +945,10 @@ final class TestServiceTests: TuistUnitTestCase {
             .workspaceSchemes(graphTraverser: .any)
             .willReturn(
                 [
-                    scheme
+                    scheme,
                 ]
             )
-        
+
         let graph: Graph = .test(
             projects: [
                 projectPath: .test(
@@ -966,7 +966,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 ),
             ]
         )
-        
+
         var environment = MapperEnvironment()
         environment.initialGraph = graph
         environment.targetTestHashes = [
@@ -975,15 +975,15 @@ final class TestServiceTests: TuistUnitTestCase {
                 "FrameworkBTests": "hash-b",
             ],
         ]
-        
+
         given(generator)
             .generateWithGraph(path: .any)
             .willProduce { path in
                 (path, graph, environment)
             }
-        
+
         xcodebuildController.reset()
-        
+
         // This xcresult bundle has the tests from FrameworkATests failing, and the tests from FrameworkBTests passing
         let xcResultPath = fixturePath(path: try .init(validating: "Results.xcresult"))
         given(xcodebuildController)
@@ -1021,7 +1021,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 "UnitTests",
             ]
         )
-        
+
         verify(cacheStorage)
             .store(
                 .value(
@@ -1032,7 +1032,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 cacheCategory: .value(.selectiveTests)
             )
             .called(0)
-        
+
         verify(cacheStorage)
             .store(
                 .value(
