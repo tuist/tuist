@@ -371,35 +371,54 @@ final class TestService { // swiftlint:disable:this type_body_length
             graph: graph
         ) else { return }
 
-        for testScheme in testSchemes {
-            try await self.testScheme(
-                scheme: testScheme,
-                graphTraverser: graphTraverser,
-                clean: clean,
-                configuration: configuration,
-                version: version,
-                deviceName: deviceName,
-                platform: platform,
-                rosetta: rosetta,
-                resultBundlePath: resultBundlePath,
-                derivedDataPath: derivedDataPath,
-                retryCount: retryCount,
-                testTargets: testTargets,
-                skipTestTargets: skipTestTargets,
-                testPlanConfiguration: testPlanConfiguration,
-                passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
-            )
-        }
-
         let uploadCacheStorage: CacheStoring
         if noUpload {
             uploadCacheStorage = try await cacheStorageFactory.cacheLocalStorage()
         } else {
             uploadCacheStorage = cacheStorage
         }
+
+        do {
+            for testScheme in testSchemes {
+                try await self.testScheme(
+                    scheme: testScheme,
+                    graphTraverser: graphTraverser,
+                    clean: clean,
+                    configuration: configuration,
+                    version: version,
+                    deviceName: deviceName,
+                    platform: platform,
+                    rosetta: rosetta,
+                    resultBundlePath: resultBundlePath,
+                    derivedDataPath: derivedDataPath,
+                    retryCount: retryCount,
+                    testTargets: testTargets,
+                    skipTestTargets: skipTestTargets,
+                    testPlanConfiguration: testPlanConfiguration,
+                    passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
+                )
+            }
+        } catch {
+            // Check the test results and store successful test hashes for any targets that passed
+            guard let resultBundlePath, let resultParser = XCResultParser(url: resultBundlePath.url) else { throw error }
+
+            let successfulTestTargetNames = resultParser.successfulTestTargets()
+            let testTargets = testActionTargets(for: schemes, testPlanConfiguration: testPlanConfiguration, graph: graph)
+
+            let successfulTestTargets = testTargets.filter { successfulTestTargetNames.contains($0.target.name) }
+
+            try await storeSuccessfulTestHashes(
+                for: successfulTestTargets,
+                graph: graph,
+                mapperEnvironment: mapperEnvironment,
+                cacheStorage: uploadCacheStorage
+            )
+
+            throw error
+        }
+
         try await storeSuccessfulTestHashes(
-            for: testSchemes,
-            testPlanConfiguration: testPlanConfiguration,
+            for: testActionTargets(for: schemes, testPlanConfiguration: testPlanConfiguration, graph: graph),
             graph: graph,
             mapperEnvironment: mapperEnvironment,
             cacheStorage: uploadCacheStorage
@@ -547,17 +566,11 @@ final class TestService { // swiftlint:disable:this type_body_length
     }
 
     private func storeSuccessfulTestHashes(
-        for schemes: [Scheme],
-        testPlanConfiguration: TestPlanConfiguration?,
+        for targets: [GraphTarget],
         graph: Graph,
         mapperEnvironment: MapperEnvironment,
         cacheStorage: CacheStoring
     ) async throws {
-        let targets: [GraphTarget] = testActionTargets(
-            for: schemes,
-            testPlanConfiguration: testPlanConfiguration,
-            graph: graph
-        )
         guard let initialGraph = mapperEnvironment.initialGraph else { return }
         let graphTraverser = GraphTraverser(graph: initialGraph)
 
