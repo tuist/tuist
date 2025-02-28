@@ -22,13 +22,17 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
     public let graph: RunGraph?
     public let previewId: String?
     public let resultBundlePath: AbsolutePath?
+    public let ranAt: Date
 
     public enum Status: Codable, Equatable {
         case success, failure(String)
     }
 
     public let id = UUID()
-    public let date = Date()
+    public var date: Date {
+        ranAt
+    }
+
     public let dispatcherId = "TuistAnalytics"
 
     private enum CodingKeys: String, CodingKey {
@@ -51,6 +55,7 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
         case graph
         case previewId
         case resultBundlePath
+        case ranAt
     }
 
     public init(
@@ -72,7 +77,8 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
         gitBranch: String?,
         graph: RunGraph?,
         previewId: String?,
-        resultBundlePath: AbsolutePath?
+        resultBundlePath: AbsolutePath?,
+        ranAt: Date
     ) {
         self.runId = runId
         self.name = name
@@ -93,6 +99,7 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
         self.graph = graph
         self.previewId = previewId
         self.resultBundlePath = resultBundlePath
+        self.ranAt = ranAt
     }
 }
 
@@ -116,7 +123,8 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
             gitBranch: String? = "main",
             graph: RunGraph = RunGraph(name: "Graph", projects: []),
             previewId: String? = nil,
-            resultBundlePath: AbsolutePath? = nil
+            resultBundlePath: AbsolutePath? = nil,
+            ranAt: Date = Date()
         ) -> CommandEvent {
             CommandEvent(
                 runId: runId,
@@ -137,7 +145,8 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
                 gitBranch: gitBranch,
                 graph: graph,
                 previewId: previewId,
-                resultBundlePath: resultBundlePath
+                resultBundlePath: resultBundlePath,
+                ranAt: ranAt
             )
         }
     }

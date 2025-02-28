@@ -71,7 +71,8 @@ public final class CommandEventFactory {
             gitBranch: gitBranch,
             graph: graph,
             previewId: info.previewId,
-            resultBundlePath: info.resultBundlePath
+            resultBundlePath: info.resultBundlePath,
+            ranAt: info.ranAt
         )
         return commandEvent
     }

@@ -105,7 +105,8 @@ final class TuistAnalyticsDispatcherTests: TuistUnitTestCase {
             gitBranch: "main",
             graph: nil,
             previewId: nil,
-            resultBundlePath: nil
+            resultBundlePath: nil,
+            ranAt: Date()
         )
     }
 
