@@ -1,6 +1,7 @@
 import CryptoKit
 import Foundation
 import Mockable
+import ServiceContextModule
 
 @Mockable
 public protocol MachineEnvironmentRetrieving: Sendable {
@@ -8,6 +9,7 @@ public protocol MachineEnvironmentRetrieving: Sendable {
     var macOSVersion: String { get }
     var hardwareName: String { get }
     var isCI: Bool { get }
+    func modelIdentifier() -> String?
 }
 
 /// `MachineEnvironment` is a data structure that contains information about the machine executing Tuist
@@ -46,6 +48,44 @@ public final class MachineEnvironment: MachineEnvironmentRetrieving {
     /// Indicates whether Tuist is running in Continuous Integration (CI) environment
     public var isCI: Bool {
         CIChecker().isCI()
+    }
+
+    // Taken from: https://github.com/open-telemetry/opentelemetry-swift/blob/b1323295a67c7cf9b7c59a505d197432abe8a88a/Sources/Instrumentation/SDKResourceExtension/DataSource/DeviceDataSource.swift#L17
+    public func modelIdentifier() -> String? {
+        let hwName = UnsafeMutablePointer<Int32>.allocate(capacity: 2)
+        hwName[0] = CTL_HW
+
+        #if os(macOS)
+            hwName[1] = HW_MODEL
+        #else
+            hwName[1] = HW_MACHINE
+        #endif
+
+        let desiredLen = UnsafeMutablePointer<Int>.allocate(capacity: 1)
+
+        sysctl(hwName, 2, nil, desiredLen, nil, 0)
+
+        let machine = UnsafeMutablePointer<CChar>.allocate(capacity: desiredLen[0])
+        let len: UnsafeMutablePointer<Int>! = UnsafeMutablePointer<Int>.allocate(capacity: 1)
+
+        defer {
+            hwName.deallocate()
+            desiredLen.deallocate()
+            machine.deallocate()
+            len.deallocate()
+        }
+
+        len[0] = desiredLen[0]
+
+        let modelRequestError = sysctl(hwName, 2, machine, len, nil, 0)
+        if modelRequestError != 0 {
+            ServiceContext.current?.logger?
+                .debug("Failed to obtain model name due to #\(errno): \(String(describing: String(utf8String: strerror(errno))))")
+
+            return nil
+        }
+        let machineName = String(cString: machine)
+        return machineName
     }
 }
 

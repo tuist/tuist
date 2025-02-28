@@ -1,7 +1,9 @@
 import CryptoKit
 import Foundation
+import Mockable
 import Path
 
+@Mockable
 public protocol DerivedDataLocating {
     func locate(
         for projectPath: AbsolutePath

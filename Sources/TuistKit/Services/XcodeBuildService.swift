@@ -77,12 +77,19 @@ struct XcodeBuildService {
     ) async throws {
         let path = try await path(passthroughXcodebuildArguments: passthroughXcodebuildArguments)
         let config = try await configLoader.loadConfig(path: path)
+        let buildActions = ["build", "build-for-testing", "archive"]
         if passthroughXcodebuildArguments.contains("test") || passthroughXcodebuildArguments.contains("test-without-building") {
             try await runTests(
                 passthroughXcodebuildArguments: passthroughXcodebuildArguments,
                 path: path,
                 config: config
             )
+        } else if passthroughXcodebuildArguments.contains(where: { buildActions.contains($0) }) {
+            var passthroughXcodebuildArguments = passthroughXcodebuildArguments
+            try await passthroughXcodebuildArguments.append(
+                contentsOf: resultBundlePathArguments(passthroughXcodebuildArguments: passthroughXcodebuildArguments)
+            )
+            try await xcodeBuildController.run(arguments: passthroughXcodebuildArguments)
         } else {
             throw XcodeBuildServiceError.actionNotSupported
         }

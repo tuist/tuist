@@ -587,6 +587,13 @@ export function guidesSidebar(locale) {
             },
           ],
         },
+        {
+          text: localizedString(
+            locale,
+            "sidebars.guides.items.develop.items.insights.text",
+          ),
+          link: `/${locale}/guides/develop/insights`,
+        },
       ],
     },
     {
