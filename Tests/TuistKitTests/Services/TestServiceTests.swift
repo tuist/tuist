@@ -926,6 +926,124 @@ final class TestServiceTests: TuistUnitTestCase {
                 .called(1)
         }
     }
+    
+    func test_run_tests_caches_passing_targets_when_some_targets_fail() async throws {
+        // Given
+        let projectPath = try temporaryPath().appending(component: "ProjectOne")
+        givenGenerator()
+        
+        let scheme = Scheme.test(
+            name: "UnitTests",
+            testAction: .test(
+                targets: [
+                    .test(target: .init(projectPath: projectPath, name: "FrameworkATests")),
+                    .test(target: .init(projectPath: projectPath, name: "FrameworkBTests")),
+                ]
+            )
+        )
+        given(buildGraphInspector)
+            .workspaceSchemes(graphTraverser: .any)
+            .willReturn(
+                [
+                    scheme
+                ]
+            )
+        
+        let graph: Graph = .test(
+            projects: [
+                projectPath: .test(
+                    path: projectPath,
+                    targets: [
+                        .test(
+                            name: "FrameworkATests",
+                            bundleId: "io.tuist.FrameworkATests"
+                        ),
+                        .test(
+                            name: "FrameworkBTests",
+                            bundleId: "io.tuist.FrameworkBTests"
+                        ),
+                    ]
+                ),
+            ]
+        )
+        
+        var environment = MapperEnvironment()
+        environment.initialGraph = graph
+        environment.targetTestHashes = [
+            projectPath: [
+                "FrameworkATests": "hash-a",
+                "FrameworkBTests": "hash-b",
+            ],
+        ]
+        
+        given(generator)
+            .generateWithGraph(path: .any)
+            .willProduce { path in
+                (path, graph, environment)
+            }
+        
+        xcodebuildController.reset()
+        
+        // This xcresult bundle has the tests from FrameworkATests failing, and the tests from FrameworkBTests passing
+        let xcResultPath = fixturePath(path: try .init(validating: "Results.xcresult"))
+        given(xcodebuildController)
+            .test(
+                .any,
+                scheme: .any,
+                clean: .any,
+                destination: .any,
+                rosetta: .any,
+                derivedDataPath: .any,
+                resultBundlePath: .value(xcResultPath),
+                arguments: .any,
+                retryCount: .any,
+                testTargets: .any,
+                skipTestTargets: .any,
+                testPlanConfiguration: .any,
+                passthroughXcodeBuildArguments: .any
+            )
+            .willProduce { _, scheme, _, _, _, _, _, _, _, _, _, _, _ in
+                self.testedSchemes.append(scheme)
+                throw NSError.test()
+            }
+
+        // When / Then
+        do {
+            try await testRun(
+                path: try temporaryPath(),
+                resultBundlePath: xcResultPath
+            )
+            XCTFail("Should throw")
+        } catch {}
+        XCTAssertEqual(
+            testedSchemes,
+            [
+                "UnitTests",
+            ]
+        )
+        
+        verify(cacheStorage)
+            .store(
+                .value(
+                    [
+                        CacheStorableItem(name: "FrameworkATests", hash: "hash-a"): [],
+                    ]
+                ),
+                cacheCategory: .value(.selectiveTests)
+            )
+            .called(0)
+        
+        verify(cacheStorage)
+            .store(
+                .value(
+                    [
+                        CacheStorableItem(name: "FrameworkBTests", hash: "hash-b"): [],
+                    ]
+                ),
+                cacheCategory: .value(.selectiveTests)
+            )
+            .called(1)
+    }
 
     func test_run_tests_when_part_is_cached_and_scheme_is_passed() async throws {
         try await ServiceContext.withTestingDependencies {
