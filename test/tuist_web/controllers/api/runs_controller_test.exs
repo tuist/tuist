@@ -3,7 +3,8 @@ defmodule TuistWeb.API.RunsControllerTest do
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
-  use TuistTestSupport.Cases.ConnCase, async: true
+  alias Tuist.Runs.Build
+  use TuistTestSupport.Cases.ConnCase, async: false
 
   describe "GET /api/projects/:account_handle/:project_handle/runs" do
     setup %{conn: conn} do
@@ -193,6 +194,178 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       # Then
       assert response(conn, :not_found)
+    end
+  end
+
+  describe "POST /api/projects/:account_handle/:project_handle/runs" do
+    test "creates a new build", %{conn: conn} do
+      # Given
+      user = AccountsFixtures.user_fixture(preload: [:account], email: "tuist@tuist.io")
+      project = ProjectsFixtures.project_fixture(preload: [:account], account_id: user.account.id)
+
+      # When
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/projects/#{project.account.name}/#{project.name}/runs",
+          id: UUIDv7.generate(),
+          type: "build",
+          duration: 1000,
+          macos_version: "11.2.3",
+          xcode_version: "12.4",
+          is_ci: false,
+          model_identifier: "machine-123",
+          scheme: "App"
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+      [build] = Tuist.Repo.all(Build)
+
+      assert build.duration == 1000
+      assert build.macos_version == "11.2.3"
+      assert build.xcode_version == "12.4"
+      assert build.is_ci == false
+      assert build.model_identifier == "machine-123"
+      assert build.scheme == "App"
+      assert build.project_id == project.id
+      assert build.account_id == user.account.id
+
+      assert response == %{
+               "id" => build.id,
+               "duration" => 1000,
+               "project_id" => project.id
+             }
+
+      response
+    end
+
+    test "returns an existing build run if it already exists", %{conn: conn} do
+      # Given
+      user = AccountsFixtures.user_fixture(preload: [:account], email: "tuist@tuist.io")
+      project = ProjectsFixtures.project_fixture(preload: [:account], account_id: user.account.id)
+      id = UUIDv7.generate()
+
+      conn
+      |> Authentication.put_current_user(user)
+      |> put_req_header("content-type", "application/json")
+      |> post(~p"/api/projects/#{project.account.name}/#{project.name}/runs",
+        id: id,
+        type: "build",
+        duration: 1000,
+        is_ci: false
+      )
+
+      # When
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/projects/#{project.account.name}/#{project.name}/runs",
+          id: id,
+          type: "build",
+          duration: 1000,
+          is_ci: false
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+      [build] = Tuist.Repo.all(Build)
+
+      assert response == %{
+               "id" => build.id,
+               "duration" => 1000,
+               "project_id" => project.id
+             }
+
+      response
+    end
+
+    test "creates a new build when non-required parameters are missing", %{conn: conn} do
+      # Given
+      user = AccountsFixtures.user_fixture(preload: [:account], email: "tuist@tuist.io")
+      project = ProjectsFixtures.project_fixture(preload: [:account], account_id: user.account.id)
+
+      # When
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/projects/#{project.account.name}/#{project.name}/runs",
+          id: UUIDv7.generate(),
+          duration: 1000,
+          is_ci: false
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+      [build] = Tuist.Repo.all(Build)
+
+      assert build.duration == 1000
+      assert build.macos_version == nil
+      assert build.xcode_version == nil
+      assert build.is_ci == false
+      assert build.model_identifier == nil
+      assert build.scheme == nil
+      assert build.project_id == project.id
+      assert build.account_id == user.account.id
+
+      assert response == %{
+               "id" => build.id,
+               "duration" => 1000,
+               "project_id" => project.id
+             }
+
+      response
+    end
+
+    test "returns :not_found when project doesn't exist", %{conn: conn} do
+      # Given
+      user = AccountsFixtures.user_fixture(preload: [:account], email: "tuist@tuist.io")
+      non_existent_project_name = "non-existent-project"
+      non_existent_account_name = "non-existent-account"
+
+      # When
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/projects/#{non_existent_account_name}/#{non_existent_project_name}/runs",
+          id: UUIDv7.generate(),
+          duration: 1000,
+          is_ci: false
+        )
+
+      # Then
+      assert json_response(conn, :not_found) == %{
+               "message" => "The project non-existent-account/non-existent-project was not found."
+             }
+    end
+
+    test "returns forbidden when the user doesn't have permissions to create a build", %{
+      conn: conn
+    } do
+      # Given
+      user = AccountsFixtures.user_fixture(preload: [:account], email: "tuist@tuist.io")
+      project = ProjectsFixtures.project_fixture(preload: [:account])
+
+      # When
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/projects/#{project.account.name}/#{project.name}/runs",
+          id: UUIDv7.generate(),
+          duration: 1000,
+          is_ci: false
+        )
+
+      # Then
+      assert json_response(conn, :forbidden) == %{
+               "message" => "tuist is not authorized to create run"
+             }
     end
   end
 end

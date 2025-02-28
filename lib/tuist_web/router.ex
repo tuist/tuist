@@ -249,6 +249,7 @@ defmodule TuistWeb.Router do
 
         scope "/runs" do
           get "/", RunsController, :index
+          post "/", RunsController, :create
         end
 
         scope "/previews" do

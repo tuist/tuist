@@ -117,7 +117,7 @@
     id="test-runs-chart"
     type={:bar}
     title={gettext("Test runs")}
-    summary_value={gettext("%{runs_count} runs", runs_count: @test_runs_analytics.runs_count)}
+    summary_value={gettext("%{runs_count} runs", runs_count: @test_runs_analytics.count)}
     trend={@test_runs_analytics.trend}
     trend_positive={@test_runs_analytics.trend > 0}
     name={gettext("test runs")}
@@ -143,7 +143,7 @@
     id="cache-runs-chart"
     type={:bar}
     title={gettext("Cache runs")}
-    summary_value={gettext("%{runs_count} runs", runs_count: @cache_runs_analytics.runs_count)}
+    summary_value={gettext("%{runs_count} runs", runs_count: @cache_runs_analytics.count)}
     trend={@cache_runs_analytics.trend}
     trend_positive={@cache_runs_analytics.trend > 0}
     name={gettext("cache runs")}
@@ -169,7 +169,7 @@
     id="generate-runs-chart"
     type={:bar}
     title={gettext("Generate runs")}
-    summary_value={gettext("%{runs_count} runs", runs_count: @generate_runs_analytics.runs_count)}
+    summary_value={gettext("%{runs_count} runs", runs_count: @generate_runs_analytics.count)}
     trend={@generate_runs_analytics.trend}
     trend_positive={@generate_runs_analytics.trend > 0}
     name={gettext("generate runs")}
@@ -181,26 +181,26 @@
     title={gettext("Average build")}
     summary_value={
       gettext("%{duration} s",
-        duration: Float.round(@build_duration_analytics.total_average_duration / 1000, 1)
+        duration: Float.round(@builds_duration_analytics.total_average_duration / 1000, 1)
       )
     }
-    trend={@build_duration_analytics.trend}
-    trend_positive={@build_duration_analytics.trend < 0}
+    trend={@builds_duration_analytics.trend}
+    trend_positive={@builds_duration_analytics.trend < 0}
     name={gettext("average build duration")}
-    data={@build_duration_analytics.values |> milliseconds_to_seconds}
-    labels={@build_duration_analytics.dates}
+    data={@builds_duration_analytics.values |> milliseconds_to_seconds}
+    labels={@builds_duration_analytics.dates}
     formatter={:seconds}
   />
   <.analytics_chart
-    id="build-runs-chart"
+    id="builds-chart"
     type={:bar}
-    title={gettext("Build runs")}
-    summary_value={gettext("%{runs_count} runs", runs_count: @build_runs_analytics.runs_count)}
-    trend={@build_runs_analytics.trend}
-    trend_positive={@build_runs_analytics.trend > 0}
+    title={gettext("Builds")}
+    summary_value={gettext("%{builds_count} builds", builds_count: @builds_analytics.count)}
+    trend={@builds_analytics.trend}
+    trend_positive={@builds_analytics.trend > 0}
     name={gettext("build runs")}
-    data={@build_runs_analytics.values}
-    labels={@build_runs_analytics.dates}
+    data={@builds_analytics.values}
+    labels={@builds_analytics.dates}
   />
 </div>
 <script src="https://cdn.jsdelivr.net/npm/apexcharts">

@@ -9,15 +9,15 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
   alias TuistWeb.Authentication
   alias TuistWeb.API.EnsureProjectPresencePlug
 
-  def init(:command_event), do: :command_event
+  def init(:run), do: :run
   def init(:cache), do: :cache
   def init(:preview), do: :preview
   def init(:registry), do: :registry
 
   def call(conn, category) do
     case category do
-      :command_event ->
-        authorize_project(conn, :command_event)
+      :run ->
+        authorize_project(conn, :run)
 
       :cache ->
         authorize_project(conn, :cache)
@@ -57,30 +57,22 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
   def authorize_project(conn, category) do
     action = get_action(conn)
 
-    is_ci =
-      Map.get(conn.body_params, :is_ci)
-
     project =
       EnsureProjectPresencePlug.get_project(conn)
 
     subject =
       Authentication.authenticated_subject(conn)
 
-    cond do
-      not is_nil(is_ci) and Authorization.can(subject, action, project, category, is_ci: is_ci) ->
-        conn
-
-      is_nil(is_ci) and authorize(subject, action, project, category) ->
-        conn
-
-      true ->
-        conn
-        |> put_status(:forbidden)
-        |> json(%{
-          message:
-            "#{subject.account.name} is not authorized to #{Atom.to_string(action)} #{Atom.to_string(category)}"
-        })
-        |> halt()
+    if authorize(subject, action, project, category) do
+      conn
+    else
+      conn
+      |> put_status(:forbidden)
+      |> json(%{
+        message:
+          "#{subject.account.name} is not authorized to #{Atom.to_string(action)} #{Atom.to_string(category)}"
+      })
+      |> halt()
     end
   end
 
@@ -99,6 +91,18 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
 
   def authorize(subject, :create, account, :account_token) do
     Authorization.can?(:account_token_create, subject, account)
+  end
+
+  def authorize(subject, :create, project, :run) do
+    Authorization.can?(:project_run_create, subject, project)
+  end
+
+  def authorize(subject, :read, project, :run) do
+    Authorization.can?(:project_run_read, subject, project)
+  end
+
+  def authorize(subject, :update, project, :run) do
+    Authorization.can?(:project_run_update, subject, project)
   end
 
   def authorize(subject, action, project, category) do

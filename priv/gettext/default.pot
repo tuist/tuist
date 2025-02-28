@@ -97,7 +97,6 @@ msgstr ""
 #: lib/tuist_web/live/project_dashboard_live.html.heex:120
 #: lib/tuist_web/live/project_dashboard_live.html.heex:146
 #: lib/tuist_web/live/project_dashboard_live.html.heex:172
-#: lib/tuist_web/live/project_dashboard_live.html.heex:198
 #, elixir-autogen, elixir-format
 msgid "%{runs_count} runs"
 msgstr ""
@@ -348,11 +347,6 @@ msgstr ""
 #: lib/tuist_web/live/previews_live.html.heex:22
 #, elixir-autogen, elixir-format
 msgid "Branch"
-msgstr ""
-
-#: lib/tuist_web/live/project_dashboard_live.html.heex:197
-#, elixir-autogen, elixir-format
-msgid "Build runs"
 msgstr ""
 
 #: lib/tuist_web/live/preview_live.html.heex:61
@@ -2480,4 +2474,14 @@ msgstr ""
 #: lib/tuist_web/marketing/components/marketing_home_components.ex:66
 #, elixir-autogen, elixir-format
 msgid "Requires a generated project"
+msgstr ""
+
+#: lib/tuist_web/live/project_dashboard_live.html.heex:198
+#, elixir-autogen, elixir-format
+msgid "%{builds_count} builds"
+msgstr ""
+
+#: lib/tuist_web/live/project_dashboard_live.html.heex:197
+#, elixir-autogen, elixir-format
+msgid "Builds"
 msgstr ""

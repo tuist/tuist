@@ -21,7 +21,7 @@ defmodule TuistWeb.RunsController do
             "The page you are looking for doesn't exist or has been moved."
     end
 
-    if not Authorization.can(user, :read, command_event.project, :command_event) do
+    if not Authorization.can?(:project_run_read, user, command_event.project) do
       raise UnauthorizedError,
             "You don't have permission to access this page."
     end

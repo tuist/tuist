@@ -3,7 +3,6 @@ defmodule TuistWeb.API.AnalyticsController do
   use TuistWeb, :controller
   alias Tuist.Xcode
   alias Tuist.VCS
-  alias TuistWeb.API.Schemas.Module
   alias TuistWeb.API.Schemas.ArtifactMultipartUploadUrl
   alias TuistWeb.API.Schemas.ArtifactMultipartUploadParts
   alias TuistWeb.API.Schemas.ArtifactMultipartUploadPart
@@ -23,7 +22,7 @@ defmodule TuistWeb.API.AnalyticsController do
   )
 
   plug(TuistWeb.API.EnsureProjectPresencePlug)
-  plug(TuistWeb.API.Authorization.AuthorizationPlug, :command_event)
+  plug(TuistWeb.API.Authorization.AuthorizationPlug, :run)
 
   tags ["Analytics"]
 

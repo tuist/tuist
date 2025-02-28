@@ -1,9 +1,9 @@
 defmodule TuistWeb.ProjectDashboardLive do
   use TuistWeb, :live_view
   alias Tuist.Projects
-  alias Tuist.CommandEvents
   alias Tuist.Time
   alias Tuist.Accounts
+  alias Tuist.Runs.Analytics
 
   def mount(params, session, %{assigns: %{selected_project: project}} = socket) do
     user_token = session["user_token"]
@@ -96,64 +96,61 @@ defmodule TuistWeb.ProjectDashboardLive do
       :noreply,
       socket
       |> assign(
-        :build_duration_analytics,
-        CommandEvents.get_command_duration_analytics(
-          "build",
-          opts
-        )
+        :builds_duration_analytics,
+        Analytics.builds_duration_analytics(project.id, opts)
       )
       |> assign(
-        :build_runs_analytics,
-        CommandEvents.get_command_runs_analytics(
-          "build",
-          opts
-        )
+        :builds_analytics,
+        Analytics.builds_analytics(project.id, opts)
       )
       |> assign(
         :cache_duration_analytics,
-        CommandEvents.get_command_duration_analytics(
+        Analytics.runs_duration_analytics(
           "cache",
           opts
         )
       )
       |> assign(
         :cache_runs_analytics,
-        CommandEvents.get_command_runs_analytics(
+        Analytics.runs_analytics(
+          project.id,
           "cache",
           opts
         )
       )
       |> assign(
         :test_duration_analytics,
-        CommandEvents.get_command_duration_analytics(
+        Analytics.runs_duration_analytics(
           "test",
           opts
         )
       )
       |> assign(
         :test_runs_analytics,
-        CommandEvents.get_command_runs_analytics(
+        Analytics.runs_analytics(
+          project.id,
           "test",
           opts
         )
       )
       |> assign(
         :generate_duration_analytics,
-        CommandEvents.get_command_duration_analytics(
+        Analytics.runs_duration_analytics(
           "generate",
           opts
         )
       )
       |> assign(
         :generate_runs_analytics,
-        CommandEvents.get_command_runs_analytics(
+        Analytics.runs_analytics(
+          project.id,
           "generate",
           opts
         )
       )
       |> assign(
         :cache_hit_rate_analytics,
-        CommandEvents.get_cache_hit_rate_analytics(opts)
+        Analytics.cache_hit_rate_analytics(opts)
       )
       |> assign(
         :date_range,

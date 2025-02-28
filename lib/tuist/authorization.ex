@@ -13,6 +13,44 @@ defmodule Tuist.Authorization do
   alias Tuist.Repo
   use LetMe.Policy
 
+  object :project_run do
+    action :create do
+      desc "Allows users of a project to create a run."
+      allow [:authenticated_as_user, user_role: :user]
+
+      desc "Allows the admin of a project to create a run."
+      allow [:authenticated_as_user, user_role: :admin]
+
+      desc "Allows the authenticated project to create the run if it matches the project for which the run is being created."
+      allow [:authenticated_as_project, :projects_match]
+    end
+
+    action :read do
+      desc "Allows the authenticated subject to read a project's run if the project is public."
+      allow :public_project
+
+      desc "Allows users of a project to read a run."
+      allow [:authenticated_as_user, user_role: :user]
+
+      desc "Allows the admin of a project to read a run."
+      allow [:authenticated_as_user, user_role: :admin]
+
+      desc "Allows the authenticated project to read the run if it matches the project whose run is being read."
+      allow [:authenticated_as_project, :projects_match]
+    end
+
+    action :update do
+      desc "Allows users of a project to update a run."
+      allow [:authenticated_as_user, user_role: :user]
+
+      desc "Allows the admin of a project to update a run."
+      allow [:authenticated_as_user, user_role: :admin]
+
+      desc "Allows the authenticated project to update the run if it matches the project whose run is being read."
+      allow [:authenticated_as_project, :projects_match]
+    end
+  end
+
   object :project_cache do
     action :read do
       desc "Allows the authenticated subject to read a project's cache if the project is public."
@@ -243,7 +281,7 @@ defmodule Tuist.Authorization do
 
   def can(subject, :read, %CommandEvents.Event{} = command_event) do
     command_event = command_event |> Repo.preload(:project)
-    can(subject, :read, command_event.project, :command_event)
+    can?(:project_run_read, subject, command_event.project)
   end
 
   def can(%User{} = user, :read, :ops) do
@@ -254,44 +292,6 @@ defmodule Tuist.Authorization do
     else
       user.account.name in Tuist.Environment.ops_user_handles()
     end
-  end
-
-  def can(subject, action, project, category, opts \\ [])
-
-  def can(%User{} = user, :create, %Project{} = project, :command_event, opts) do
-    is_ci = Keyword.get(opts, :is_ci, false)
-
-    not is_ci and
-      Accounts.owns_account_or_belongs_to_account_organization?(user, %{id: project.account_id})
-  end
-
-  def can(%User{} = user, :update, %Project{} = project, :command_event, opts) do
-    is_ci = Keyword.get(opts, :is_ci, false)
-
-    not is_ci and
-      Accounts.owns_account_or_belongs_to_account_organization?(user, %{id: project.account_id})
-  end
-
-  def can(%Project{} = current_project, :update, %Project{} = project, :command_event, opts) do
-    is_ci = Keyword.get(opts, :is_ci, true)
-    is_ci and current_project.id == project.id
-  end
-
-  def can(%Project{} = current_project, :create, %Project{} = project, :command_event, opts) do
-    is_ci = Keyword.get(opts, :is_ci, true)
-    is_ci and current_project.id == project.id
-  end
-
-  def can(%User{} = user, :read, %Project{visibility: :private} = project, :command_event, _opts) do
-    Accounts.owns_account_or_belongs_to_account_organization?(user, %{id: project.account_id})
-  end
-
-  def can(nil, :read, %Project{visibility: :private}, :command_event, _opts) do
-    false
-  end
-
-  def can(_, :read, %Project{visibility: :public}, :command_event, _opts) do
-    true
   end
 
   def can?(action, subject, object) do

@@ -159,10 +159,6 @@ defmodule Tuist.BillingTest do
 
   describe "on_subscription_change/1" do
     test "when an account for the given customer doesn't exist" do
-      # Given
-      user = AccountsFixtures.user_fixture(customer_id: "customer_id")
-      account = Accounts.get_account_from_user(user)
-
       # When
       assert(
         Billing.on_subscription_change(%{

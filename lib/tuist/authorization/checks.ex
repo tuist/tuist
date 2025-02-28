@@ -77,6 +77,10 @@ defmodule Tuist.Authorization.Checks do
     authenticated_project.id == project.id
   end
 
+  def projects_match(_, _) do
+    false
+  end
+
   def public_project(_, %Project{visibility: :public}) do
     true
   end

@@ -10,6 +10,8 @@ defmodule TuistWeb.API.AccountTokensController do
 
   plug(TuistWeb.API.EnsureAccountPresencePlug)
 
+  tags ["Account tokens"]
+
   operation(:create,
     summary: "Create a new account token.",
     description: "This endpoint returns a new account token.",
