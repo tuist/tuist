@@ -42,24 +42,19 @@ final class GraphImportsLinter: GraphImportsLinting {
     ) async throws -> [Target: Set<String>] {
         let allInternalTargets = graphTraverser
             .allInternalTargets()
-        
-        let allTargets = if inspectType == .implicit {
-            allInternalTargets
-                .union(graphTraverser.allExternalTargets())
-                .filter {
-                    switch inspectType {
-                    case .redundant:
-                        return switch $0.target.product {
-                        case .staticLibrary, .staticFramework, .dynamicLibrary, .framework, .app: true
-                        default: false
-                        }
-                    case .implicit:
-                        return true
+        let allTargets = allInternalTargets
+            .union(graphTraverser.allExternalTargets())
+            .filter {
+                switch inspectType {
+                case .redundant:
+                    return switch $0.target.product {
+                    case .staticLibrary, .staticFramework, .dynamicLibrary, .framework, .app: true
+                    default: false
                     }
+                case .implicit:
+                    return true
                 }
-        } else {
-            allInternalTargets
-        }
+            }
         var observedTargetImports: [Target: Set<String>] = [:]
 
         let allTargetNames = Set(allTargets.map(\.target.productName))
