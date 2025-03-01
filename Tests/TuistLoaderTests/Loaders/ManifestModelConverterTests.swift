@@ -16,7 +16,7 @@ import XCTest
 final class ManifestModelConverterTests: TuistUnitTestCase {
     typealias WorkspaceManifest = ProjectDescription.Workspace
     typealias ProjectManifest = ProjectDescription.Project
-    typealias DependenciesGraphManifest = TuistCore.DependenciesGraph
+    typealias DependenciesGraphManifest = TuistLoader.DependenciesGraph
     typealias TargetManifest = ProjectDescription.Target
     typealias SettingsManifest = ProjectDescription.Settings
     typealias ConfigurationManifest = ProjectDescription.Configuration
@@ -61,11 +61,7 @@ final class ManifestModelConverterTests: TuistUnitTestCase {
             path: temporaryPath,
             plugins: .none,
             externalDependencies: [:],
-<<<<<<< HEAD
-            type: .tuistProject
-=======
             type: .local
->>>>>>> main
         )
 
         // Then
@@ -100,11 +96,7 @@ final class ManifestModelConverterTests: TuistUnitTestCase {
             path: temporaryPath,
             plugins: .none,
             externalDependencies: [:],
-<<<<<<< HEAD
-            type: .tuistProject
-=======
             type: .local
->>>>>>> main
         )
 
         // Then
@@ -147,11 +139,7 @@ final class ManifestModelConverterTests: TuistUnitTestCase {
             path: temporaryPath,
             plugins: .none,
             externalDependencies: [:],
-<<<<<<< HEAD
-            type: .tuistProject
-=======
             type: .local
->>>>>>> main
         )
 
         // Then
@@ -181,11 +169,7 @@ final class ManifestModelConverterTests: TuistUnitTestCase {
             path: temporaryPath,
             plugins: .none,
             externalDependencies: [:],
-<<<<<<< HEAD
-            type: .tuistProject
-=======
             type: .local
->>>>>>> main
         )
 
         // Then
@@ -213,11 +197,7 @@ final class ManifestModelConverterTests: TuistUnitTestCase {
             path: temporaryPath,
             plugins: .none,
             externalDependencies: [:],
-<<<<<<< HEAD
-            type: .tuistProject
-=======
             type: .local
->>>>>>> main
         )
 
         // Then
@@ -354,33 +334,33 @@ final class ManifestModelConverterTests: TuistUnitTestCase {
         }
     }
 
-    func test_loadDependenciesGraph_withExternalSPM() throws {
+    func test_loadDependenciesGraph_withExternalSPM() async throws {
         // Given
         let temporaryPath = try temporaryPath()
         try fileHandler.createFolder(temporaryPath.appending(components: ["checkouts", "Alamofire", "Source"]))
         let manifest = DependenciesGraphManifest.alamofire(spmFolder: .path(temporaryPath.pathString))
         let subject = makeSubject(with: makeManifestLoader())
-
+        
         // When
-        let model = try subject.convert(manifest: manifest, path: temporaryPath)
-
+        let model = try await subject.convert(dependenciesGraph: manifest, path: temporaryPath)
+        
         // Then
-        XCTAssertEqual(model.externalProjects.values.first?.type, .remotePackage)
+        XCTAssertEqual(model.externalProjects.values.first?.type, .external(hash: nil))
     }
 
-    func test_loadDependenciesGraph_withLocalSPM() throws {
+    func test_loadDependenciesGraph_withLocalSPM() async throws {
         // Given
         let temporaryPath = try temporaryPath()
-        try fileHandler.createFolder(temporaryPath.appending(components: ["ADependency", "Sources", "ALibrary"]))
-        try fileHandler.createFolder(temporaryPath.appending(components: ["ADependency", "Sources", "ALibraryUtils"]))
+        try fileHandler.createFolder(temporaryPath.appending(components: ["checkouts", "ADependency", "Sources", "ALibrary"]))
+        try fileHandler.createFolder(temporaryPath.appending(components: ["checkouts", "ADependency", "Sources", "ALibraryUtils"]))
         let manifest = DependenciesGraphManifest.aDependency(spmFolder: .path(temporaryPath.pathString))
         let subject = makeSubject(with: makeManifestLoader())
-
+        
         // When
-        let model = try subject.convert(manifest: manifest, path: temporaryPath)
-
+        let model = try await subject.convert(dependenciesGraph: manifest, path: temporaryPath)
+        
         // Then
-        XCTAssertEqual(model.externalProjects.values.first?.type, .localPackage)
+        XCTAssertEqual(model.externalProjects.values.first?.type, .local)
     }
 }
 

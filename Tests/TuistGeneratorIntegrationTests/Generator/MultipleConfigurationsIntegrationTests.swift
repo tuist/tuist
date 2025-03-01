@@ -436,11 +436,7 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
             additionalFiles: [],
             resourceSynthesizers: [],
             lastUpgradeCheck: nil,
-<<<<<<< HEAD
-            type: .tuistProject
-=======
             type: .local
->>>>>>> main
         )
     }
 

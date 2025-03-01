@@ -406,7 +406,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
         case .test:
             switch packageType {
             case .remote:
-                    ServiceContext.current?.logger?.debug("Target \(target.name) of type \(target.type) is ignored.")
+                ServiceContext.current?.logger?.debug("Target \(target.name) of type \(target.type) is ignored.")
                 return nil
             case .local:
                 if !packageSettings.includeLocalPackageTestTargets {

@@ -90,11 +90,7 @@ final class ProjectManifestMapperTests: TuistUnitTestCase {
                 additionalFiles: [.file(path: swiftFilePath)],
                 resourceSynthesizers: [],
                 lastUpgradeCheck: nil,
-<<<<<<< HEAD
-                type: .tuistProject
-=======
                 type: .local
->>>>>>> main
             )
         )
     }

@@ -228,15 +228,11 @@ final class GraphToGraphVizMapperTests: XCTestCase {
         let externalTarget = GraphTarget.test(path: externalProjectPath, target: externalTargetTarget)
         let project = Project.test(path: projectPath, targets: [iOSAppTarget, watchAppTarget])
         let coreProject = Project.test(path: coreProjectPath, targets: [coreTarget, coreTestsTarget])
-<<<<<<< HEAD
-        let externalProject = Project.test(path: "/Tuist/Dependencies", targets: [externalTargetTarget], type: .remotePackage)
-=======
         let externalProject = Project.test(
             path: "/Tuist/Dependencies",
             targets: [externalTargetTarget],
             type: .external(hash: nil)
         )
->>>>>>> main
         let externalDependency = GraphDependency.target(name: externalTarget.target.name, path: externalTarget.path)
 
         let graph = XcodeGraph.Graph.test(

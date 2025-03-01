@@ -84,13 +84,8 @@ final class PackageSettingsLoaderTests: TuistUnitTestCase {
                 ],
                 defaultSettings: .recommended
             ),
-<<<<<<< HEAD
             targetSettings: [:],
-            includeLocalPackageTestTargets: false,
-            swiftToolsVersion: Version(stringLiteral: "5.4.9")
-=======
-            targetSettings: [:]
->>>>>>> main
+            includeLocalPackageTestTargets: false
         )
         verify(manifestLoader)
             .register(plugins: .any)

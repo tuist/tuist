@@ -3198,20 +3198,6 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-<<<<<<< HEAD
-    func testMap_whenBinaryTargetPathByNameDependencyInLocalPackage_mapsToXcFramework() throws {
-        // Given
-        let basePath = try temporaryPath()
-        let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
-        try fileHandler.createFolder(sourcesPath)
-        let xcframeworkPath = basePath.appending(try RelativePath(validating: "artifacts/Dependency1.xcframework"))
-
-        // When
-        let project = try subject.map(
-            package: "Package",
-            basePath: basePath,
-            packageType: .local,
-=======
     func testMap_whenBinaryTargetZipPathByNameDependency_mapsToXcFramework() async throws {
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
@@ -3220,7 +3206,6 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         let project = try await subject.map(
             package: "Package",
             basePath: basePath,
->>>>>>> main
             packageInfos: [
                 "Package": .test(
                     name: "Package",
@@ -3234,15 +3219,6 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                                 .byName(name: "Dependency1", condition: nil),
                             ]
                         ),
-<<<<<<< HEAD
-                        .test(name: "Dependency1", type: .binary, path: xcframeworkPath.pathString),
-                    ]
-                ),
-            ]
-        )
-
-        // Then
-=======
                         .test(name: "Dependency1", type: .binary, path: "Package/Sources/Target1/Dependency1.xcframework.zip"),
                     ],
                     platforms: [.ios],
@@ -3252,39 +3228,26 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 ),
             ]
         )
->>>>>>> main
         XCTAssertBetterEqual(
             project,
             .testWithDefaultConfigs(
                 name: "Package",
-<<<<<<< HEAD
-                options: .options(automaticSchemesOptions: .enabled(), disableSynthesizedResourceAccessors: true),
-=======
->>>>>>> main
                 targets: [
                     .test(
                         "Target1",
                         basePath: basePath,
-<<<<<<< HEAD
-                        dependencies: [.xcframework(path: .path(xcframeworkPath.pathString))]
-=======
                         dependencies: [.xcframework(path: .path(
                             basePath
                                 .appending(try RelativePath(validating: "artifacts/Package/Dependency1.xcframework"))
                                 .pathString
                         ))]
->>>>>>> main
                     ),
                 ]
             )
         )
     }
 
-<<<<<<< HEAD
-    func testMap_whenExternalProductDependency_mapsToProjectDependencies() throws {
-=======
     func testMap_whenExternalProductDependency_mapsToProjectDependencies() async throws {
->>>>>>> main
         let basePath = try temporaryPath()
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/Target1")))
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package2/Sources/Target2")))
@@ -3903,8 +3866,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-<<<<<<< HEAD
-    func testMap_whenRemoteSwiftPackageHasTestTargets() throws {
+    func testMap_whenRemoteSwiftPackageHasTestTargets() async throws {
         // Given
         let basePath = try temporaryPath()
         try fileHandler.createFolder(basePath.appending(components: ["Package", "Sources", "Target1"]))
@@ -3913,7 +3875,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         try fileHandler.createFolder(basePath.appending(components: ["Package", "Tests", "Target2Tests"]))
 
         // When
-        let project = try subject.map(
+        let project = try await subject.map(
             package: "Package",
             basePath: basePath,
             packageType: .remote(artifactPaths: [:]),
@@ -3953,10 +3915,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenLocalSwiftPackageHasTestTargetWithNotIncludeLocalPackageTestTargets() throws {
-=======
-    func testMap_whenSwiftPackageHasTestTarget() async throws {
->>>>>>> main
+    func testMap_whenLocalSwiftPackageHasTestTargetWithNotIncludeLocalPackageTestTargets() async throws {
         // Given
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(components: ["Package", "Sources", "Target"])
@@ -3971,10 +3930,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             packageType: .local,
             packageInfos: [
                 "Package": .test(
-<<<<<<< HEAD
-=======
                     name: "Package",
->>>>>>> main
                     products: [
                         .init(name: "Product", type: .library(.automatic), targets: ["Target"]),
                     ],
@@ -3993,13 +3949,12 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         // Then
         XCTAssertBetterEqual(
             project,
-<<<<<<< HEAD
-            .test(
+            .testWithDefaultConfigs(
+                name: "Package",
                 options: .options(
                     automaticSchemesOptions: .enabled(),
                     disableSynthesizedResourceAccessors: true
                 ),
-                settings: .settings(),
                 targets: [
                     .test("Target", basePath: basePath),
                 ]
@@ -4007,7 +3962,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenLocalSwiftPackageHasTestTarget() throws {
+    func testMap_whenLocalSwiftPackageHasTestTarget() async throws {
         // Given
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(components: ["Package", "Sources", "Target"])
@@ -4016,7 +3971,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         try fileHandler.createFolder(testsPath)
 
         // When
-        let project = try subject.map(
+        let project = try await subject.map(
             package: "Package",
             basePath: basePath,
             packageType: .local,
@@ -4041,11 +3996,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         // Then
         XCTAssertBetterEqual(
             project,
-            .test(
-=======
             .testWithDefaultConfigs(
                 name: "Package",
->>>>>>> main
                 options: .options(
                     automaticSchemesOptions: .enabled(),
                     disableSynthesizedResourceAccessors: true
@@ -4067,11 +4019,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-<<<<<<< HEAD
-    func testMap_whenLocalSwiftPackageHasTestTargetWithExplicitProductDestinations() throws {
-=======
     func testMap_whenSwiftPackageHasTestTargetWithExplicitProductDestinations() async throws {
->>>>>>> main
         // Given
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(components: ["Package", "Sources", "Target"])
@@ -4086,10 +4034,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             packageType: .local,
             packageInfos: [
                 "Package": .test(
-<<<<<<< HEAD
-=======
                     name: "Package",
->>>>>>> main
                     products: [
                         .init(name: "Product", type: .library(.automatic), targets: ["Target"]),
                     ],
@@ -4112,12 +4057,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         // Then
         XCTAssertBetterEqual(
             project,
-<<<<<<< HEAD
-            .test(
-=======
             .testWithDefaultConfigs(
                 name: "Package",
->>>>>>> main
                 options: .options(
                     automaticSchemesOptions: .enabled(),
                     disableSynthesizedResourceAccessors: true
@@ -4146,11 +4087,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-<<<<<<< HEAD
-    func testMap_whenLocalSwiftPackageHasMultiDependencyTestTargetsWithExplicitProductDestinations() throws {
-=======
     func testMap_whenSwiftPackageHasMultiDependencyTestTargetsWithExplicitProductDestinations() async throws {
->>>>>>> main
         // Given
         let basePath = try temporaryPath()
         try fileHandler.createFolder(basePath.appending(components: ["Package", "Sources", "Target"]))
@@ -4168,10 +4105,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             packageType: .local,
             packageInfos: [
                 "Package": .test(
-<<<<<<< HEAD
-=======
                     name: "Package",
->>>>>>> main
                     products: [
                         .init(
                             name: "Product",
@@ -4216,12 +4150,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         // Then
         XCTAssertBetterEqual(
             project,
-<<<<<<< HEAD
-            .test(
-=======
             .testWithDefaultConfigs(
                 name: "Package",
->>>>>>> main
                 options: .options(
                     automaticSchemesOptions: .enabled(),
                     disableSynthesizedResourceAccessors: true
@@ -4553,16 +4483,10 @@ extension PackageInfoMapping {
 
         return try await map(
             packageInfo: packageInfos[package]!,
-<<<<<<< HEAD
             packageFolder: basePath.appending(component: package),
             packageType: packageType ?? .remote(artifactPaths: packageToTargetsToArtifactPaths[package]!),
-            packageSettings: packageSettings
-=======
-            path: basePath.appending(component: package),
-            packageType: packageType ?? .external(artifactPaths: packageToTargetsToArtifactPaths[package]!),
             packageSettings: packageSettings,
             packageModuleAliases: packageModuleAliases
->>>>>>> main
         )
     }
 }

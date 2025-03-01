@@ -62,7 +62,6 @@ public struct ExternalProjectsPlatformNarrowerGraphMapper: GraphMapping { // swi
          */
         var target = target
         let graphTarget = GraphTarget(path: project.path, target: target, project: project)
-
         if case .external = project.type, let targetFilteredPlatforms = externalTargetSupportedPlatforms[graphTarget] {
             target.destinations = target.destinations.filter { destination in
                 targetFilteredPlatforms.contains(destination.platform)

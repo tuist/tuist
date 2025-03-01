@@ -49,7 +49,6 @@ public protocol SwiftPackageManagerGraphLoading {
     /// - Parameter packagePath: The path to the `Package.swift` file where external dependencies are declared. If project is SPM
     /// package, it is the path to the root `Package.swift`.
     /// - Parameter packageSettings: The `PackageSettings` with descriptions of custom SPM settings.
-    /// - Parameter onlySPMProject: Whether it is only SPM project.
     /// - Returns: The loaded `DependenciesGraph`.
     func load(
         packagePath: AbsolutePath,

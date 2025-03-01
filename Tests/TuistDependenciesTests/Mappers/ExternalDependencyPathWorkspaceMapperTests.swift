@@ -43,7 +43,7 @@ final class ExternalDependencyPathWorkspaceMapperTests: TuistUnitTestCase {
             sourceRootPath: externalProjectPath,
             xcodeProjPath: externalProjectPath.appending(component: "ExternalDependency.xcodeproj"),
             name: "ExternalDependency",
-            type: .remotePackage
+            type: .external(hash: nil)
         )
 
         let workspace = Workspace.test(
@@ -87,11 +87,7 @@ final class ExternalDependencyPathWorkspaceMapperTests: TuistUnitTestCase {
                             "SRCROOT": .string(externalProjectPath.pathString),
                         ]
                     ),
-<<<<<<< HEAD:Tests/TuistDependenciesTests/Mappers/ExternalDependencyPathWorkspaceMapperTests.swift
-                    type: .remotePackage
-=======
                     type: .external(hash: nil)
->>>>>>> main:Tests/TuistDependenciesTests/Mappers/ExternalDependencyPathWorkspaceMapper.swift
                 ),
             ]
         )

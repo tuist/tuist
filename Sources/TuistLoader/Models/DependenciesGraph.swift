@@ -378,7 +378,7 @@ public struct DependenciesGraph: Equatable, Codable {
                         ),
                         targets: targets,
                         resourceSynthesizers: .default
-                    ), hash: nil, sourcePackageType: .local),
+                    ), hash: nil, sourcePackageType: .remote(artifactPaths: [:])),
                 ]
             )
         }

@@ -49,7 +49,7 @@ public struct PackageSettings: Codable, Equatable, Sendable {
     ///
     /// The default value is false.
     ///
-    /// - Note: When generating an [SPM package](https://docs.tuist.io/guide/project/directory-structure.html#swift-package),
+    /// - Note: When generating an [SPM package](https://docs.tuist.dev/guides/develop/projects/directory-structure#swift-package-badge-typewarning-textbeta-),
     /// test targets are always included regardless of the value of this property.
     public var includeLocalPackageTestTargets: Bool
 
@@ -62,7 +62,7 @@ public struct PackageSettings: Codable, Equatable, Sendable {
     ///    - projectOptions: Custom project configurations to be used for projects generated from SwiftPackageManager.
     ///    - includeLocalPackageTestTargets: A Boolean value that indicates whether the test targets of
     ///    local swift packages are included in the generated project.
-    ///    When generating an [SPM package](https://docs.tuist.io/guide/project/directory-structure.html#swift-package),
+    ///    When generating an [SPM package](https://docs.tuist.dev/guides/develop/projects/directory-structure#swift-package-badge-typewarning-textbeta-),
     ///    test targets are always included regardless of the value of this property.
     public init(
         productTypes: [String: Product] = [:],

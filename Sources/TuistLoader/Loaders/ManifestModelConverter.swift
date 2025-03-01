@@ -120,10 +120,9 @@ public final class ManifestModelConverter: ManifestModelConverting {
         let externalProjects = try await [AbsolutePath: XcodeGraph.Project](
             uniqueKeysWithValues: dependenciesGraph.externalProjects
                 .concurrentMap { path, project in
-                    // TODO: MG
                     let projectType: ProjectType = switch project.sourcePackageType {
-                        case .remote(let hash):
-                                .external(hash: nil)
+                        case .remote:
+                                .external(hash: project.hash)
                         case .local:
                                 .local
                     }

@@ -62,7 +62,6 @@ extension XcodeGraph.Graph {
 extension GraphDependency {
     fileprivate func isRemote(_ projects: [Path.AbsolutePath: XcodeGraph.Project]) -> Bool {
         switch self {
-
         case let .target(_, path, _):
             if case .external = projects[path]?.type {
                 return true

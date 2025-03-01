@@ -126,7 +126,6 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
             }
 
             let manifestsDependencyGraph = try await swiftPackageManagerGraphLoader.load(
-
                 packagePath: packagePath,
                 packageSettings: loadedPackageSettings
             )
