@@ -22,7 +22,7 @@ public struct LogsController {
             && machineReadableCommands.map { $0._commandName }.contains(CommandLine.arguments[1])
         // swiftformat:enable all
         let loggingConfig =
-            if isCommandMachineReadable || CommandLine.arguments.contains("--json") {
+            if isCommandMachineReadable || CommandLine.arguments.contains("json") {
                 LoggingConfig(
                     loggerType: .json,
                     verbose: ProcessInfo.processInfo.environment[Constants.EnvironmentVariables.verbose] != nil

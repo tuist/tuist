@@ -32,9 +32,12 @@ private enum TuistCLI {
             LoggingSystem.bootstrap(loggerHandler)
 
             var context = ServiceContext.topLevel
-            context.logger = Logger(label: "dev.tuist.cli", factory: loggerHandler)
-            context.ui = Noora()
-            context.alerts = AlertController()
+            if !CommandLine.arguments.contains("--quiet") {
+                context.logger = Logger(label: "dev.tuist.cli", factory: loggerHandler)
+                context.ui = Noora()
+                context.alerts = AlertController()
+            }
+
 
             try await ServiceContext.withValue(context) {
                 try await TuistCommand.main(logFilePath: logFilePath)
