@@ -332,7 +332,6 @@ public final class PackageInfoMapper: PackageInfoMapping {
                     packageFolder: packageFolder,
                     productTypes: productTypes,
                     packageSettings: packageSettings,
-                    productDestinations: packageSettings.productDestinations,
                     targetSettings: packageSettings.targetSettings,
                     packageModuleAliases: packageModuleAliases
                 )
@@ -386,7 +385,6 @@ public final class PackageInfoMapper: PackageInfoMapping {
         packageFolder: AbsolutePath,
         productTypes: [String: XcodeGraph.Product],
         packageSettings: TuistCore.PackageSettings,
-        productDestinations: [String: XcodeGraph.Destinations],
         targetSettings: [String: XcodeGraph.Settings],
         packageModuleAliases: [String: [String: String]]
     ) async throws -> ProjectDescription.Target? {
@@ -550,7 +548,6 @@ public final class PackageInfoMapper: PackageInfoMapping {
 
             dependencies = try linkerDependencies + target.dependencies.compactMap {
                 switch $0 {
-
                 case let .product(name: name, package: _, moduleAliases: moduleAliases, condition: condition):
                     try mapDependency(
                         name: name,
@@ -623,7 +620,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
         } catch {
             return nil
         }
-        
+
         if let target = packageInfo.targets.first(where: { $0.name == name }) {
             if target.type == .binary, case let .remote(artifactPaths: artifactPaths) = packageType {
                 guard let artifactPath = artifactPaths[target.name] else {

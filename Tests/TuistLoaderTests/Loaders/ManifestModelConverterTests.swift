@@ -340,10 +340,10 @@ final class ManifestModelConverterTests: TuistUnitTestCase {
         try fileHandler.createFolder(temporaryPath.appending(components: ["checkouts", "Alamofire", "Source"]))
         let manifest = DependenciesGraphManifest.alamofire(spmFolder: .path(temporaryPath.pathString))
         let subject = makeSubject(with: makeManifestLoader())
-        
+
         // When
         let model = try await subject.convert(dependenciesGraph: manifest, path: temporaryPath)
-        
+
         // Then
         XCTAssertEqual(model.externalProjects.values.first?.type, .external(hash: nil))
     }
@@ -352,13 +352,18 @@ final class ManifestModelConverterTests: TuistUnitTestCase {
         // Given
         let temporaryPath = try temporaryPath()
         try fileHandler.createFolder(temporaryPath.appending(components: ["checkouts", "ADependency", "Sources", "ALibrary"]))
-        try fileHandler.createFolder(temporaryPath.appending(components: ["checkouts", "ADependency", "Sources", "ALibraryUtils"]))
+        try fileHandler.createFolder(temporaryPath.appending(components: [
+            "checkouts",
+            "ADependency",
+            "Sources",
+            "ALibraryUtils",
+        ]))
         let manifest = DependenciesGraphManifest.aDependency(spmFolder: .path(temporaryPath.pathString))
         let subject = makeSubject(with: makeManifestLoader())
-        
+
         // When
         let model = try await subject.convert(dependenciesGraph: manifest, path: temporaryPath)
-        
+
         // Then
         XCTAssertEqual(model.externalProjects.values.first?.type, .local)
     }

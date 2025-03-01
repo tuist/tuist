@@ -4736,7 +4736,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let app = Target.test(name: "App", product: .app)
         let project = Project.test(path: try! AbsolutePath(validating: "/App"), targets: [app])
         let appDependency = GraphDependency.target(name: app.name, path: project.path)
-        
+
         let localDirectPackageProduct = Target.test(name: "LocalDirectPackage", product: .framework)
         let localOrphanPackageProduct = Target.test(name: "LocalOrphanPackage", product: .framework)
         let localPackageProject = Project.test(
@@ -4749,7 +4749,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
             name: localDirectPackageProduct.name,
             path: localPackageProject.path
         )
-        
+
         let remoteDirectPackageProduct = Target.test(name: "RemoteDirectPackage", product: .framework)
         let remoteOrphanPackageProduct = Target.test(name: "RemoteOrphanPackage", product: .framework)
         let remotePackageProject = Project.test(
@@ -4762,7 +4762,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
             name: remoteDirectPackageProduct.name,
             path: remotePackageProject.path
         )
-        
+
         let graph = Graph.test(
             path: project.path,
             projects: [
@@ -4772,17 +4772,17 @@ final class GraphTraverserTests: TuistUnitTestCase {
             ],
             dependencies: [appDependency: Set([localDirectPackageProductDependency, remoteDirectPackageProductDependency])]
         )
-        
+
         // When
         let got = GraphTraverser(graph: graph).allOrphanRemoteTargets()
-        
+
         // Then
         XCTAssertEqual(
             got,
             Set([GraphTarget(path: remotePackageProject.path, target: remoteOrphanPackageProduct, project: remotePackageProject)])
         )
     }
-    
+
     func test_orphanExternalDependencies_when_a_dependency_condition_platforms_are_not_used_downstream() throws {
         // Given
         let app = Target.test(name: "App", destinations: [.iPhone], product: .app)
@@ -5398,7 +5398,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
     func test_allLocalPackageTargets() throws {
         // Given
         let temporaryPath = try temporaryPath()
-        
+
         let localPackageTarget1 = Target.test(name: "LocalPackageTarget1", product: .framework)
         let localPackageTarget2 = Target.test(name: "LocalPackageTarget2", product: .framework)
         let localPackageProjectPath = temporaryPath.appending(component: "LocalPackageProject")
@@ -5407,7 +5407,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
             targets: [localPackageTarget1, localPackageTarget2],
             type: .local
         )
-        
+
         let remotePackageTarget1 = Target.test(name: "RemotePackageTarget1", product: .framework)
         let remotePackageProjectPath = temporaryPath.appending(component: "RemotePackageProject")
         let remotePackageProject = Project.test(
@@ -5415,24 +5415,24 @@ final class GraphTraverserTests: TuistUnitTestCase {
             targets: [remotePackageTarget1],
             type: .external(hash: nil)
         )
-        
+
         let graph = Graph.test(
             projects: [
                 localPackageProjectPath: localPackageProject,
                 remotePackageProjectPath: remotePackageProject,
             ]
         )
-        
+
         // When
         let got = GraphTraverser(graph: graph).allLocalPackageTargets()
-        
+
         // Then
         XCTAssertBetterEqual(got, Set([
             GraphTarget(path: localPackageProjectPath, target: localPackageTarget1, project: localPackageProject),
             GraphTarget(path: localPackageProjectPath, target: localPackageTarget2, project: localPackageProject),
         ]))
     }
-    
+
     func test_staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies_when_appDependensOnPrecompiledDynamicXCFrameworkWithStaticObjcXCFrameworkDependency(
     ) async throws {
         // App ---(depends on)---> Dynamic XCFramework ----> Static Objective-C XCFramework (A)

@@ -62,7 +62,6 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
     private let fileSystem: FileSysteming
 
     public init(
-        swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(),
         packageInfoMapper: PackageInfoMapping = PackageInfoMapper(),
         manifestLoader: ManifestLoading = ManifestLoader(),
         fileSystem: FileSysteming = FileSystem()
@@ -110,7 +109,7 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
             let name = dependency.packageRef.name
             let packageFolder: AbsolutePath
             let packageType: PackageType
-            
+
             let targetToArtifactPaths = try workspaceState.object.artifacts
                 .filter { $0.packageRef.identity == dependency.packageRef.identity }
                 .reduce(into: [:]) { result, artifact in

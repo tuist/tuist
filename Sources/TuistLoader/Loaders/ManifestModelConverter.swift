@@ -121,10 +121,10 @@ public final class ManifestModelConverter: ManifestModelConverting {
             uniqueKeysWithValues: dependenciesGraph.externalProjects
                 .concurrentMap { path, project in
                     let projectType: ProjectType = switch project.sourcePackageType {
-                        case .remote:
-                                .external(hash: project.hash)
-                        case .local:
-                                .local
+                    case .remote:
+                        .external(hash: project.hash)
+                    case .local:
+                        .local
                     }
                     let projectPath = try AbsolutePath(validating: path.pathString)
                     var project = try await self.convert(

@@ -20,7 +20,8 @@ public struct PackageSettings: Equatable, Codable {
 
     /// A Boolean value that indicates whether the test targets of local swift packages are included in generated project.
     ///
-    /// - Note: When generating an [SPM package](https://docs.tuist.dev/guides/develop/projects/directory-structure#swift-package-badge-typewarning-textbeta-),
+    /// - Note: When generating an [SPM
+    /// package](https://docs.tuist.dev/guides/develop/projects/directory-structure#swift-package-badge-typewarning-textbeta-),
     /// test targets are always included regardless of the value of this property.
     public var includeLocalPackageTestTargets: Bool
 
