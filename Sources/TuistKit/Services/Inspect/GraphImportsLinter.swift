@@ -42,19 +42,24 @@ final class GraphImportsLinter: GraphImportsLinting {
     ) async throws -> [Target: Set<String>] {
         let allInternalTargets = graphTraverser
             .allInternalTargets()
-        let allTargets = allInternalTargets
-            .union(graphTraverser.allExternalTargets())
-            .filter {
-                switch inspectType {
-                case .redundant:
-                    return switch $0.target.product {
-                    case .staticLibrary, .staticFramework, .dynamicLibrary, .framework, .app: true
-                    default: false
+        
+        let allTargets = if inspectType == .implicit {
+            allInternalTargets
+                .union(graphTraverser.allExternalTargets())
+                .filter {
+                    switch inspectType {
+                    case .redundant:
+                        return switch $0.target.product {
+                        case .staticLibrary, .staticFramework, .dynamicLibrary, .framework, .app: true
+                        default: false
+                        }
+                    case .implicit:
+                        return true
                     }
-                case .implicit:
-                    return true
                 }
-            }
+        } else {
+            allInternalTargets
+        }
         var observedTargetImports: [Target: Set<String>] = [:]
 
         let allTargetNames = Set(allTargets.map(\.target.productName))
@@ -64,7 +69,8 @@ final class GraphImportsLinter: GraphImportsLinting {
 
             let explicitTargetDependencies = explicitTargetDependencies(
                 graphTraverser: graphTraverser,
-                target: target
+                target: target,
+                externalDependenciesSearch: inspectType == .implicit
             )
 
             let observedImports = switch inspectType {
@@ -83,10 +89,16 @@ final class GraphImportsLinter: GraphImportsLinting {
 
     private func explicitTargetDependencies(
         graphTraverser: GraphTraverser,
-        target: GraphTarget
+        target: GraphTarget,
+        externalDependenciesSearch: Bool
     ) -> Set<String> {
-        let targetDependencies = graphTraverser
-            .directTargetDependencies(path: target.project.path, name: target.target.name)
+        let targetDependencies = if externalDependenciesSearch {
+            graphTraverser
+                .directTargetDependencies(path: target.project.path, name: target.target.name)
+        } else {
+            graphTraverser
+                .directLocalTargetDependencies(path: target.project.path, name: target.target.name)
+        }
 
         let explicitTargetDependencies = targetDependencies.map { targetDependency in
             if case .external = targetDependency.graphTarget.project.type { return graphTraverser
