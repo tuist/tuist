@@ -31,6 +31,7 @@ final class TestServiceTests: TuistUnitTestCase {
     private var cacheStorage: MockCacheStoring!
     private var runMetadataStorage: RunMetadataStorage!
     private var testedSchemes: [String] = []
+    private var xcResultParser: MockXCResultParsing!
 
     override func setUpWithError() throws {
         try super.setUpWithError()
@@ -43,6 +44,7 @@ final class TestServiceTests: TuistUnitTestCase {
         generatorFactory = .init()
         cacheStorage = .init()
         runMetadataStorage = RunMetadataStorage()
+        xcResultParser = .init()
 
         cacheStorageFactory = MockCacheStorageFactorying()
         given(cacheStorageFactory)
@@ -82,7 +84,8 @@ final class TestServiceTests: TuistUnitTestCase {
             simulatorController: simulatorController,
             contentHasher: contentHasher,
             cacheDirectoriesProvider: cacheDirectoriesProvider,
-            configLoader: configLoader
+            configLoader: configLoader,
+            xcResultParser: xcResultParser
         )
 
         given(simulatorController)
@@ -984,8 +987,7 @@ final class TestServiceTests: TuistUnitTestCase {
 
         xcodebuildController.reset()
 
-        // This xcresult bundle has the tests from FrameworkATests failing, and the tests from FrameworkBTests passing
-        let xcResultPath = fixturePath(path: try .init(validating: "Results.xcresult"))
+        let xcresultPath = try temporaryPath().appending(component: "bundle.xcresult")
         given(xcodebuildController)
             .test(
                 .any,
@@ -994,7 +996,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 destination: .any,
                 rosetta: .any,
                 derivedDataPath: .any,
-                resultBundlePath: .value(xcResultPath),
+                resultBundlePath: .value(xcresultPath),
                 arguments: .any,
                 retryCount: .any,
                 testTargets: .any,
@@ -1007,11 +1009,15 @@ final class TestServiceTests: TuistUnitTestCase {
                 throw NSError.test()
             }
 
+        given(xcResultParser)
+            .parse(path: .value(xcresultPath))
+            .willReturn(ParsedXCResult(passingTestTargetNames: ["FrameworkBTests"]))
+
         // When / Then
         do {
             try await testRun(
                 path: try temporaryPath(),
-                resultBundlePath: xcResultPath
+                resultBundlePath: xcresultPath
             )
             XCTFail("Should throw")
         } catch {}

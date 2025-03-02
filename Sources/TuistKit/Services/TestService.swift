@@ -71,6 +71,7 @@ final class TestService { // swiftlint:disable:this type_body_length
     private let cacheDirectoriesProvider: CacheDirectoriesProviding
     private let configLoader: ConfigLoading
     private let fileSystem: FileSysteming
+    private let xcResultParser: XCResultParsing
 
     public convenience init(
         generatorFactory: GeneratorFactorying,
@@ -95,7 +96,8 @@ final class TestService { // swiftlint:disable:this type_body_length
         contentHasher: ContentHashing = ContentHasher(),
         cacheDirectoriesProvider: CacheDirectoriesProviding = CacheDirectoriesProvider(),
         configLoader: ConfigLoading,
-        fileSystem: FileSysteming = FileSystem()
+        fileSystem: FileSysteming = FileSystem(),
+        xcResultParser: XCResultParsing = XCResultParser()
     ) {
         self.generatorFactory = generatorFactory
         self.cacheStorageFactory = cacheStorageFactory
@@ -106,6 +108,7 @@ final class TestService { // swiftlint:disable:this type_body_length
         self.cacheDirectoriesProvider = cacheDirectoriesProvider
         self.configLoader = configLoader
         self.fileSystem = fileSystem
+        self.xcResultParser = xcResultParser
     }
 
     static func validateParameters(
@@ -400,12 +403,11 @@ final class TestService { // swiftlint:disable:this type_body_length
             }
         } catch {
             // Check the test results and store successful test hashes for any targets that passed
-            guard let resultBundlePath, let resultParser = XCResultParser(url: resultBundlePath.url) else { throw error }
+            guard let resultBundlePath, let result = xcResultParser.parse(path: resultBundlePath) else { throw error }
 
-            let successfulTestTargetNames = resultParser.successfulTestTargets()
             let testTargets = testActionTargets(for: schemes, testPlanConfiguration: testPlanConfiguration, graph: graph)
 
-            let successfulTestTargets = testTargets.filter { successfulTestTargetNames.contains($0.target.name) }
+            let successfulTestTargets = testTargets.filter { result.passingTestTargetNames.contains($0.target.name) }
 
             try await storeSuccessfulTestHashes(
                 for: successfulTestTargets,

@@ -1,18 +1,28 @@
 import Foundation
+import Mockable
+import Path
 import XCResultKit
 
-final class XCResultParser {
-    private let resultFile: XCResultFile
-    private let invocationRecord: ActionsInvocationRecord
+@Mockable
+public protocol XCResultParsing {
+    func parse(path: AbsolutePath) -> ParsedXCResult?
+}
 
-    init?(url: URL) {
-        let resultFile = XCResultFile(url: url)
+public struct ParsedXCResult {
+    let passingTestTargetNames: Set<String>
+}
+
+struct XCResultParser: XCResultParsing {
+    func parse(path: AbsolutePath) -> ParsedXCResult? {
+        let resultFile = XCResultFile(url: path.url)
         guard let invocationRecord = resultFile.getInvocationRecord() else { return nil }
-        self.resultFile = resultFile
-        self.invocationRecord = invocationRecord
+
+        return ParsedXCResult(
+            passingTestTargetNames: successfulTestTargets(resultFile: resultFile, invocationRecord: invocationRecord)
+        )
     }
 
-    func successfulTestTargets() -> Set<String> {
+    private func successfulTestTargets(resultFile: XCResultFile, invocationRecord: ActionsInvocationRecord) -> Set<String> {
         let testRefs = invocationRecord.actions.compactMap { $0.actionResult.testsRef?.id }
         var passingTargets = [String]()
 
