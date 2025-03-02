@@ -1,26 +1,26 @@
 ---
-title: Translate
+title: 翻訳する
 titleTemplate: :title · コントリビューター · Tuist
-description: This document describes the principles that guide the development of Tuist.
+description: このドキュメントでは、Tuist の開発を導く原則について説明します。
 ---
 
-# Translate {#translate}
+# 翻訳 {#translate}
 
-Languages can be barriers to understanding. We want to make sure that Tuist is accessible to as many people as possible. If you speak a language that Tuist doesn't support, you can help us by translating the various surfaces of Tuist.
+言語は理解を妨げる大きな壁になることがあります。 私たちは Tuist をできるだけ多くの人に使っていただきたいと考えています。 もし Tuist がサポートしていない言語を話す場合、Tuist のさまざまな部分を翻訳していただくことでご協力ください。
 
-Since maintaining translations is a continuous effort, we add languages as we see contributors willing to help us maintain them. The following languages are currently supported:
+翻訳をメンテナンスするためには継続的な取り組みが必要となるため、私たちはメンテナンスに協力してくださるコントリビューターがいる言語を随時追加していきます。 現在サポートされている言語は、以下のとおりです：
 
-- English
-- Korean
-- Japanese
-- Russian
+- 英語
+- 韓国語
+- 日本語
+- ロシア語
 
-> [!TIP] REQUEST A NEW LANGUAGE
-> If you believe Tuist would benefit from supporting a new language, please create a new [topic in the community forum](https://community.tuist.io/c/general/4) to discuss it with the community.
+> [!TIP] 新しい言語のリクエスト
+> Tuist に新しい言語サポートを追加することが有益であると考える場合は、コミュニティフォーラムの[トピック](https://community.tuist.io/c/general/4)を作成して、コミュニティと議論してみてください。
 
-## How to translate
+## 翻訳方法 {#how-to-translate}
 
-We use [Crowdin](https://crowdin.com/) to manage the translations. First, go to the project that you want to contribute to:
+私たちは翻訳の管理に [Crowdin](https://crowdin.com/) を使用しています。 まず、貢献したいプロジェクトに移動します：
 
 - [Documentation](https://crowdin.com/project/tuist-documentation)
 - [Website](https://crowdin.com/project/tuist-documentation)
