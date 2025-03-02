@@ -4,15 +4,15 @@ titleTemplate: :title · コントリビューター · Tuist
 description: This document describes the principles that guide the development of Tuist.
 ---
 
-# Principles {#principles}
+# 原則 {#principles}
 
-This page describes principles that are pillars to the design and development of Tuist. They evolve with the project and are meant to ensure a sustainable growth that is well-aligned with the project foundation.
+このページでは、Tuistの設計と開発の柱となる原則について説明します。 これらの原則はプロジェクトとともに進化し、プロジェクトの基盤に適切に合致する形で持続可能な成長を保証するために存在します。
 
-## Default to conventions {#default-to-conventions}
+## 既定では慣習に従う {#default-to-conventions}
 
-One of the reasons why Tuist exists is because Xcode is weak in conventions and that leads to complex projects that are hard to scale up and maintain. For that reason, Tuist takes a different approach by defaulting to simple and thoroughly designed conventions. **Developers can opt-out from the conventions, but that’s a conscious decision that doesn’t feel natural.**
+Tuist が存在する理由のひとつは、Xcode が慣習に乏しく、それによって複雑で拡張性や保守性に難があるプロジェクトにつながっているためです。 そこで Tuist は、単純かつ綿密に設計された慣習に、まずは従うというアプローチを取ります。 **開発者は慣習から外れることもできますが、それはわざわざ行うことであり、自然な選択肢ではないように感じられます。**
 
-For example, there’s a convention for defining dependencies between targets by using the provided public interface. By doing that, Tuist ensures that the projects are generated with the right configurations for the linking to work. Developers have the option to define the dependencies through build settings, but they’d be doing it implicitly and therefore breaking Tuist features such as `tuist graph` or `tuist cache` that rely on some conventions being followed.
+たとえば、ターゲット間の依存関係を定義するとき、提供されたパブリック・インターフェイスを使用するという慣習があります。 これにより、Tuist はリンクが正しく動作するようプロジェクトを生成できます。 開発者はビルド設定を通じて依存関係を定義することも可能ですが、それを行うと暗黙的な定義になり、`tuist graph` や `tuist cache` のように特定の慣習に依存する Tuist の機能が正しく動作しなくなる恐れがあります。
 
 The reason why we default to conventions is that the more decision we can make on behalf of the developers, the more focus they’ll have crafting features for their apps. When we are left with no conventions like it’s the case in many projects, we have to make decisions that will end up not being consistent with other decisions and as a consequence, there’ll be an accidental complexity that will be hard to manage.
 
