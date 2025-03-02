@@ -1,7 +1,7 @@
 ---
 title: Generated project
 titleTemplate: :title · Selective testing · Develop · Guides · Tuist
-description: Learn how to leverage selective testing with a generated project.
+description: 생성된 프로젝트에서 선택적 테스트를 활용하는 방법을 배워봅니다.
 ---
 
 # Generated project {#generated-project}
@@ -11,7 +11,7 @@ description: Learn how to leverage selective testing with a generated project.
 > - <LocalizedLink href="/guides/develop/projects">생성된 프로젝트</LocalizedLink>
 > - <LocalizedLink href="/server/introduction/accounts-and-projects">Tuist 계정과 프로젝트</LocalizedLink>
 
-생성된 프로젝트에서 선택적으로 테스트를 실행하려면 `tuist test` 명령어를 사용하세요. The command <LocalizedLink href="/guides/develop/projects/hashing">hashes</LocalizedLink> your Xcode project the same way it does for <LocalizedLink href="/guides/develop/build/cache#cache-warming">warming the cache</LocalizedLink>, and on success, it persists the hashes on to determine what has changed in future runs.
+생성된 프로젝트에서 선택적으로 테스트를 실행하려면 `tuist test` 명령어를 사용하세요. 이 명령어는 <LocalizedLink href="/guides/develop/build/cache#cache-warming">캐시 워밍</LocalizedLink>과 동일한 방식으로 Xcode 프로젝트를 <LocalizedLink href="/guides/develop/projects/hashing">해시</LocalizedLink>하며, 성공적으로 실행되면 다음 실행 시 변경 사항을 파악하기 위해 해시 값을 저장합니다.
 
 다음에 실행하면 `tuist test`는 해시를 사용하여 마지막으로 성공적으로 실행된 테스트 이후 변경된 테스트만 선별합니다.
 
@@ -31,4 +31,4 @@ description: Learn how to leverage selective testing with a generated project.
 | `Core` 업데이트     | 개발자가 해당 타겟의 코드를 수정                                         | 이전과 동일                                                       |
 | `tuist test` 호출 | `CoreTests`, `FeatureATests`, 그리고 `FeatureBTests`에서 테스트 실행 | `FeatureATests`, `FeatureBTests`, 그리고 `CoreTests`의 새로운 해시 저장 |
 
-`tuist test` integrates directly with binary caching to use as many binaries from your local or remote storage to improve the build time when running your test suite. 선택적 테스트와 바이너리 캐싱의 조합은 CI에서 테스트를 수행하는 시간을 극적으로 줄일 수 있습니다.
+`tuist test`는 바이너리 캐싱을 활용하여 테스트를 실행할 때 로컬이나 원격 스토리지에서 가능한 많은 바이너리를 사용함으로써 빌드 시간을 단축합니다. 선택적 테스트와 바이너리 캐싱의 조합은 CI에서 테스트를 수행하는 시간을 극적으로 줄일 수 있습니다.
