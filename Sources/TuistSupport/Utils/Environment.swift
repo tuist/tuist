@@ -1,10 +1,12 @@
 import Darwin
 import FileSystem
 import Foundation
+import Mockable
 import Path
 
 /// Protocol that defines the interface of a local environment controller.
 /// It manages the local directory where tuistenv stores the tuist versions and user settings.
+@Mockable
 public protocol Environmenting: AnyObject, Sendable {
     /// Returns true if the output of Tuist should be coloured.
     var shouldOutputBeColoured: Bool { get }
@@ -36,6 +38,14 @@ public protocol Environmenting: AnyObject, Sendable {
 
     /// Returns true if the environment is a GitHub Actions environment
     var isGitHubActions: Bool { get }
+
+    /// Represents path stored in the `WORKSPACE_PATH` environment variable. This variable is defined in Xcode build actions and
+    /// can be used for further processing of a given Xcode project.
+    var workspacePath: AbsolutePath? { get }
+
+    /// Represents scheme name stored in the `SCHEME_NAME` environment variable. This variable is defined in Xcode build actions
+    /// and can be used for further processing.
+    var schemeName: String? { get }
 }
 
 /// Local environment controller.
@@ -186,5 +196,17 @@ public final class Environment: Environmenting {
             allowedVariableKeys.contains($0.key)
         }
         return tuistVariables.merging(allowedVariables, uniquingKeysWith: { $1 })
+    }
+
+    public var workspacePath: AbsolutePath? {
+        if let pathString = ProcessInfo.processInfo.environment["WORKSPACE_PATH"] {
+            return try? AbsolutePath(validating: pathString)
+        } else {
+            return nil
+        }
+    }
+
+    public var schemeName: String? {
+        ProcessInfo.processInfo.environment["SCHEME_NAME"]
     }
 }
