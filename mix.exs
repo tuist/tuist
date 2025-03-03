@@ -125,8 +125,7 @@ defmodule Tuist.MixProject do
       {:plug_minify_html, "~> 0.1.0"},
       {:briefly, "~> 0.5.0"},
       {:fun_with_flags, "~> 1.12.0"},
-      {:fun_with_flags_ui, "~> 1.0.0"},
-      {:esbuild, "~> 0.8"}
+      {:fun_with_flags_ui, "~> 1.0.0"}
     ]
   end
 
@@ -143,13 +142,9 @@ defmodule Tuist.MixProject do
       "ecto.setup": ["ecto.create", "ecto.migrate", "run priv/repo/seeds.exs"],
       "ecto.reset": ["ecto.drop", "ecto.create", "ecto.load", "ecto.migrate"],
       test: ["ecto.create --quiet", "ecto.migrate --quiet", "test"],
-      "assets.setup": ["esbuild.install --if-missing"],
-      "assets.build": ["esbuild app", "esbuild marketing", "esbuild apidocs", "esbuild storybook"],
+      "assets.setup": [],
+      "assets.build": [],
       "assets.deploy": [
-        "esbuild marketing --minify",
-        "esbuild app --minify",
-        "esbuild apidocs --minify",
-        "esbuild storybook --minify",
         "phx.digest"
       ]
     ]
