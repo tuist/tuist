@@ -241,7 +241,7 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
             }
 
             return buildConfigurations
-                .compactMap { $0.buildSettings["TEST_TARGET_NAME"] as? String }
+                .compactMap { $0.buildSettings["TEST_TARGET_NAME"]?.stringValue }
                 .first
         }
 
@@ -258,7 +258,7 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
 
             var attributes = pbxProject.targetAttributes[testTarget] ?? [:]
 
-            attributes["TestTargetID"] = target
+            attributes["TestTargetID"] = .targetReference(target)
 
             pbxProject.setTargetAttributes(attributes, target: testTarget)
         }
@@ -300,12 +300,12 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
         pbxProject.remotePackages = packageReferences.sorted { $0.key < $1.key }.map { $1 }
     }
 
-    private func generateAttributes(project: Project) -> [String: Any] {
-        var attributes: [String: Any] = [:]
+    private func generateAttributes(project: Project) -> [String: ProjectAttribute] {
+        var attributes: [String: ProjectAttribute] = [:]
 
         // On Demand Resources tags
         if let knownAssetTags = try? knownAssetTagsFetcher.fetch(project: project), !knownAssetTags.isEmpty {
-            attributes["KnownAssetTags"] = knownAssetTags
+            attributes["KnownAssetTags"] = .array(knownAssetTags)
         }
 
         // BuildIndependentTargetsInParallel
@@ -313,17 +313,17 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
 
         /// Organization name
         if let organizationName = project.organizationName {
-            attributes["ORGANIZATIONNAME"] = organizationName
+            attributes["ORGANIZATIONNAME"] = .string(organizationName)
         }
 
         /// Class prefix
         if let classPrefix = project.classPrefix {
-            attributes["CLASSPREFIX"] = classPrefix
+            attributes["CLASSPREFIX"] = .string(classPrefix)
         }
 
         /// Last upgrade check
         if let lastUpgradeCheck = project.lastUpgradeCheck {
-            attributes["LastUpgradeCheck"] = lastUpgradeCheck.xcodeStringValue
+            attributes["LastUpgradeCheck"] = .string(lastUpgradeCheck.xcodeStringValue)
         }
 
         return attributes
