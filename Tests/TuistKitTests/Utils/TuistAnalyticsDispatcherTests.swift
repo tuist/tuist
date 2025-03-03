@@ -1,9 +1,8 @@
+import FileSystem
 import Mockable
-import MockableTest
 import TuistCore
 import TuistServer
 import TuistSupport
-import XcodeGraph
 import XCTest
 @testable import TuistAnalytics
 @testable import TuistCoreTesting
@@ -14,27 +13,28 @@ final class TuistAnalyticsDispatcherTests: TuistUnitTestCase {
     private var subject: TuistAnalyticsDispatcher!
     private var createCommandEventService: MockCreateCommandEventServicing!
     private var ciChecker: MockCIChecking!
-    private var cacheDirectoriesProviderFactory: MockCacheDirectoriesProviderFactoring!
+    private var cacheDirectoriesProvider: MockCacheDirectoriesProviding!
     private var analyticsArtifactUploadService: MockAnalyticsArtifactUploadServicing!
 
     override func setUp() {
         super.setUp()
         createCommandEventService = .init()
         ciChecker = .init()
-        cacheDirectoriesProviderFactory = .init()
+        cacheDirectoriesProvider = .init()
         analyticsArtifactUploadService = .init()
+        cacheDirectoriesProvider = MockCacheDirectoriesProviding()
     }
 
     override func tearDown() {
         subject = nil
         createCommandEventService = nil
         ciChecker = nil
-        cacheDirectoriesProviderFactory = nil
+        cacheDirectoriesProvider = nil
         analyticsArtifactUploadService = nil
         super.tearDown()
     }
 
-    func testDispatch_whenAnalyticsIsEnabled_sendsToServer() throws {
+    func testDispatch_sendsToServer() throws {
         // Given
         let fullHandle = "project"
         let url = URL.test()
@@ -44,8 +44,9 @@ final class TuistAnalyticsDispatcherTests: TuistUnitTestCase {
             createCommandEventService: createCommandEventService,
             fileHandler: fileHandler,
             ciChecker: ciChecker,
-            cacheDirectoriesProviderFactory: cacheDirectoriesProviderFactory,
-            analyticsArtifactUploadService: analyticsArtifactUploadService
+            cacheDirectoriesProvider: cacheDirectoriesProvider,
+            analyticsArtifactUploadService: analyticsArtifactUploadService,
+            fileSystem: FileSystem()
         )
         subject = TuistAnalyticsDispatcher(
             backend: backend
@@ -67,18 +68,10 @@ final class TuistAnalyticsDispatcherTests: TuistUnitTestCase {
         given(analyticsArtifactUploadService)
             .uploadResultBundle(
                 .any,
-                targetHashes: .any,
-                graphPath: .any,
                 commandEventId: .value(10),
                 serverURL: .value(url)
             )
             .willReturn(())
-
-        let cacheDirectoriesProvider = MockCacheDirectoriesProviding()
-
-        given(cacheDirectoriesProviderFactory)
-            .cacheDirectories()
-            .willReturn(cacheDirectoriesProvider)
 
         given(cacheDirectoriesProvider)
             .cacheDirectory(for: .value(.runs))
@@ -97,7 +90,6 @@ final class TuistAnalyticsDispatcherTests: TuistUnitTestCase {
             runId: "run-id",
             name: "event",
             subcommand: nil,
-            params: [:],
             commandArguments: ["event"],
             durationInMs: 100,
             clientId: "client",
@@ -106,7 +98,14 @@ final class TuistAnalyticsDispatcherTests: TuistUnitTestCase {
             macOSVersion: "12.0",
             machineHardwareName: "arm64",
             isCI: false,
-            status: .success
+            status: .success,
+            gitCommitSHA: "26f4fda1548502c474642ce63db7630307242312",
+            gitRef: nil,
+            gitRemoteURLOrigin: "https://github.com/tuist/tuist",
+            gitBranch: "main",
+            graph: nil,
+            previewId: nil,
+            resultBundlePath: nil
         )
     }
 

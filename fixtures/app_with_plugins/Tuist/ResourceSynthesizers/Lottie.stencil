@@ -1,3 +1,4 @@
+// swiftlint:disable:this file_name
 // swiftformat:disable all
 // swiftlint:disable all
 {% if files %}

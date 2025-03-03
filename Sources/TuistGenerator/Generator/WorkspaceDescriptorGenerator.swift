@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import ServiceContextModule
 import TuistCore
 import TuistSupport
 import XcodeProj
@@ -28,7 +29,7 @@ protocol WorkspaceDescriptorGenerating: AnyObject {
     ///   - graphTraverser: Graph traverser.
     /// - Returns: Generated workspace descriptor
     /// - Throws: An error if the generation fails.
-    func generate(graphTraverser: GraphTraversing) throws -> WorkspaceDescriptor
+    func generate(graphTraverser: GraphTraversing) async throws -> WorkspaceDescriptor
 }
 
 final class WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
@@ -87,17 +88,17 @@ final class WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
     // MARK: - WorkspaceGenerating
 
     // swiftlint:disable:next function_body_length
-    func generate(graphTraverser: GraphTraversing) throws -> WorkspaceDescriptor {
+    func generate(graphTraverser: GraphTraversing) async throws -> WorkspaceDescriptor {
         let workspaceName = "\(graphTraverser.name).xcworkspace"
 
-        logger.notice("Generating workspace \(workspaceName)", metadata: .section)
+        ServiceContext.current?.logger?.notice("Generating workspace \(workspaceName)", metadata: .section)
 
         /// Projects
-        let projects = try Array(graphTraverser.projects.values)
-            .sorted(by: { $0.path < $1.path })
-            .compactMap(context: config.projectGenerationContext) { project -> ProjectDescriptor? in
-                try projectDescriptorGenerator.generate(project: project, graphTraverser: graphTraverser)
+        let projects = try await Array(graphTraverser.projects.values)
+            .concurrentCompactMap { project -> ProjectDescriptor? in
+                try await self.projectDescriptorGenerator.generate(project: project, graphTraverser: graphTraverser)
             }
+            .sorted(by: { $0.path < $1.path })
 
         let generatedProjects: [AbsolutePath: GeneratedProject] = Dictionary(uniqueKeysWithValues: projects.map { project in
             let pbxproj = project.xcodeProj.pbxproj

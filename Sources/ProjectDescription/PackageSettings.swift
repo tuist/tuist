@@ -1,5 +1,3 @@
-import Foundation
-
 /// A custom Swift Package Manager configuration
 ///
 ///
@@ -25,7 +23,7 @@ import Foundation
 ///     ]
 /// )
 /// ```
-public struct PackageSettings: Codable, Equatable {
+public struct PackageSettings: Codable, Equatable, Sendable {
     /// The custom `Product` type to be used for SPM targets.
     public var productTypes: [String: Product]
 
@@ -42,44 +40,60 @@ public struct PackageSettings: Codable, Equatable {
     public var baseSettings: Settings
 
     // Additional settings to be added to targets generated from SwiftPackageManager.
-    public var targetSettings: [String: SettingsDictionary]
+    public var targetSettings: [String: Settings]
 
     /// Custom project configurations to be used for projects generated from SwiftPackageManager.
     public var projectOptions: [String: Project.Options]
 
-    /// A Boolean value that indicates whether the test targets of local swift packages are included in generated project.
-    ///
-    /// The default value is false.
-    ///
-    /// - Note: When generating an [SPM package](https://docs.tuist.io/guide/project/directory-structure.html#swift-package),
-    /// test targets are always included regardless of the value of this property.
-    public var includeLocalPackageTestTargets: Bool
-
     /// Creates `PackageSettings` instance for custom Swift Package Manager configuration.
     /// - Parameters:
-    ///    - productTypes: The custom `Product` types to be used for SPM targets.
-    ///    - productDestinations: Custom destinations to be used for SPM products.
-    ///    - baseSettings: The base settings to be used for targets generated from SwiftPackageManager
-    ///    - targetSettings: Additional settings to be added to targets generated from SwiftPackageManager.
-    ///    - projectOptions: Custom project configurations to be used for projects generated from SwiftPackageManager.
-    ///    - includeLocalPackageTestTargets: A Boolean value that indicates whether the test targets of
-    ///    local swift packages are included in the generated project.
-    ///    When generating an [SPM package](https://docs.tuist.io/guide/project/directory-structure.html#swift-package),
-    ///    test targets are always included regardless of the value of this property.
+    ///     - productTypes: The custom `Product` types to be used for SPM targets.
+    ///     - productDestinations: Custom destinations to be used for SPM products.
+    ///     - baseSettings: Additional settings to be added to targets generated from SwiftPackageManager.
+    ///     - targetSettings: Additional settings to be added to targets generated from SwiftPackageManager.
+    ///     - projectOptions: Custom project configurations to be used for projects generated from SwiftPackageManager.
     public init(
         productTypes: [String: Product] = [:],
         productDestinations: [String: Destinations] = [:],
         baseSettings: Settings = .settings(),
-        targetSettings: [String: SettingsDictionary] = [:],
-        projectOptions: [String: Project.Options] = [:],
-        includeLocalPackageTestTargets: Bool = false
+        targetSettings: [String: Settings] = [:],
+        projectOptions: [String: Project.Options] = [:]
     ) {
         self.productTypes = productTypes
         self.productDestinations = productDestinations
         self.baseSettings = baseSettings
         self.targetSettings = targetSettings
         self.projectOptions = projectOptions
-        self.includeLocalPackageTestTargets = includeLocalPackageTestTargets
+        dumpIfNeeded(self)
+    }
+
+    /// Creates `PackageSettings` instance for custom Swift Package Manager configuration.
+    /// - Parameters:
+    ///     - productTypes: The custom `Product` types to be used for SPM targets.
+    ///     - productDestinations: Custom destinations to be used for SPM products.
+    ///     - baseSettings: Additional settings to be added to targets generated from SwiftPackageManager.
+    ///     - targetSettings: Additional settings to be added to targets generated from SwiftPackageManager.
+    ///     - projectOptions: Custom project configurations to be used for projects generated from SwiftPackageManager.
+    @available(
+        *,
+        deprecated,
+        renamed: "init(productTypes:productDestinations:baseSettings:targetSettings:projectOptions:)",
+        message: """
+        Consider using the 'Settings' type for parameter 'targetSettings' instead of 'SettingsDictionary'.
+        """
+    )
+    public init(
+        productTypes: [String: Product] = [:],
+        productDestinations: [String: Destinations] = [:],
+        baseSettings: Settings = .settings(),
+        targetSettings: [String: SettingsDictionary],
+        projectOptions: [String: Project.Options] = [:]
+    ) {
+        self.productTypes = productTypes
+        self.productDestinations = productDestinations
+        self.baseSettings = baseSettings
+        self.targetSettings = targetSettings.mapValues { .settings(base: $0) }
+        self.projectOptions = projectOptions
         dumpIfNeeded(self)
     }
 }

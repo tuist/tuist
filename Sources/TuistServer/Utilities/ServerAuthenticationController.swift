@@ -1,10 +1,11 @@
 import Foundation
 import Mockable
+import ServiceContextModule
 import TuistSupport
 
 @Mockable
 public protocol ServerAuthenticationControlling: Sendable {
-    func authenticationToken(serverURL: URL) throws -> AuthenticationToken?
+    func authenticationToken(serverURL: URL) async throws -> AuthenticationToken?
 }
 
 public enum AuthenticationToken: CustomStringConvertible, Equatable {
@@ -47,7 +48,7 @@ enum ServerAuthenticationControllerError: FatalError {
     var description: String {
         switch self {
         case let .invalidJWT(token):
-            return "The access token \(token) is invalid. Try to reauthenticate by running `tuist auth`."
+            return "The access token \(token) is invalid. Try to reauthenticate by running 'tuist auth login'."
         }
     }
 
@@ -74,31 +75,47 @@ public final class ServerAuthenticationController: ServerAuthenticationControlli
         self.environment = environment
     }
 
-    public func authenticationToken(serverURL: URL) throws -> AuthenticationToken? {
+    public func authenticationToken(serverURL: URL) async throws -> AuthenticationToken? {
         if ciChecker.isCI() {
-            if let deprecatedToken = environment.tuistVariables[Constants.EnvironmentVariables.deprecatedToken] {
-                logger
+            if let configToken = environment.tuistVariables[Constants.EnvironmentVariables.token] {
+                return .project(configToken)
+            } else if let deprecatedToken = environment.tuistVariables[Constants.EnvironmentVariables.deprecatedToken] {
+                ServiceContext.current?.logger?
                     .warning(
                         "Use `TUIST_CONFIG_TOKEN` environment variable instead of `TUIST_CONFIG_CLOUD_TOKEN` to authenticate on the CI"
                     )
                 return .project(deprecatedToken)
             } else {
-                return environment.tuistVariables[Constants.EnvironmentVariables.token].map { .project($0) }
+                return nil
             }
         } else {
-            let credentials = try credentialsStore.read(serverURL: serverURL)
+            var credentials: ServerCredentials? = try await credentialsStore.read(serverURL: serverURL)
+            if isTuistDevURL(serverURL), credentials == nil {
+                credentials = try await credentialsStore.read(serverURL: URL(string: "https://cloud.tuist.io")!)
+            }
             return try credentials.map {
-                if $0.token != nil {
-                    logger.warning("You are using a deprecated user token. Please, reauthenticate by running `tuist auth`.")
+                if let refreshToken = $0.refreshToken {
+                    return .user(
+                        legacyToken: nil,
+                        accessToken: try $0.accessToken.map(parseJWT),
+                        refreshToken: try parseJWT(refreshToken)
+                    )
+                } else {
+                    ServiceContext.current?.logger?
+                        .warning("You are using a deprecated user token. Please, reauthenticate by running 'tuist auth login'.")
+                    return .user(
+                        legacyToken: $0.token,
+                        accessToken: nil,
+                        refreshToken: nil
+                    )
                 }
-
-                return .user(
-                    legacyToken: $0.token,
-                    accessToken: try $0.accessToken.map(parseJWT),
-                    refreshToken: try $0.refreshToken.map(parseJWT)
-                )
             }
         }
+    }
+
+    func isTuistDevURL(_ serverURL: URL) -> Bool {
+        // URL fails if one of the URLs has a trailing slash and the other not.
+        return serverURL.absoluteString.hasPrefix("https://tuist.dev")
     }
 
     private func parseJWT(_ jwt: String) throws -> JWT {
@@ -128,11 +145,16 @@ public final class ServerAuthenticationController: ServerAuthenticationControlli
 
         return JWT(
             token: jwt,
-            expiryDate: Date(timeIntervalSince1970: TimeInterval(payload.exp))
+            expiryDate: Date(timeIntervalSince1970: TimeInterval(payload.exp)),
+            email: payload.email,
+            preferredUsername: payload.preferred_username
         )
     }
 
     private struct JWTPayload: Codable {
         let exp: Int
+        let email: String?
+        // swiftlint:disable:next identifier_name
+        let preferred_username: String?
     }
 }

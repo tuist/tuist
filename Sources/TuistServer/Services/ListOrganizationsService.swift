@@ -42,11 +42,7 @@ public final class ListOrganizationsService: ListOrganizationsServicing {
     ) async throws -> [String] {
         let client = Client.authenticated(serverURL: serverURL)
 
-        let response = try await client.listOrganizations(
-            .init(
-                query: .init()
-            )
-        )
+        let response = try await client.listOrganizations()
         switch response {
         case let .ok(okResponse):
             switch okResponse.body {

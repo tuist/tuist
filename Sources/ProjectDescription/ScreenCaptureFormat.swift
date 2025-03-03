@@ -1,5 +1,3 @@
-import Foundation
-
 /// Preferred screen capture format for UI tests results in Xcode 15+
 ///
 /// Available options are screen recordings and screenshots.

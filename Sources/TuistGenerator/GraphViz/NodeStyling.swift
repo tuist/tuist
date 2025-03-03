@@ -78,7 +78,7 @@ extension GraphDependency {
             return .init(fillColorName: .tan4, textColorName: .white, shape: .tab)
         case .xcframework:
             return .init(fillColorName: .lightskyblue1, shape: .trapezium)
-        case let .target(name: name, path: path):
+        case let .target(name: name, path: path, status: _):
             return graphTraverser.target(path: path, name: name)
                 .map(\.styleAttributes)
         }

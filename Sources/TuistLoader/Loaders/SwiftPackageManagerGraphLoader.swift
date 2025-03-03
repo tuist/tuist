@@ -1,6 +1,8 @@
+import FileSystem
 import Foundation
 import Path
 import ProjectDescription
+import ServiceContextModule
 import TSCUtility
 import TuistCore
 import TuistSupport
@@ -44,51 +46,51 @@ enum SwiftPackageManagerGraphGeneratorError: FatalError, Equatable {
 /// A protocol that defines an interface to load the `DependenciesGraph` for the `SwiftPackageManager` dependencies.
 public protocol SwiftPackageManagerGraphLoading {
     /// Generates the `DependenciesGraph` for the `SwiftPackageManager` dependencies.
-    /// - Parameter packagePath: The path to the `Package.swift` file where external dependencies are declared. If project is SPM
-    /// package, it is the path to the root `Package.swift`.
-    /// - Parameter packageSettings: The `PackageSettings` with descriptions of custom SPM settings.
-    /// - Parameter onlySPMProject: Whether it is only SPM project.
-    /// - Returns: The loaded `DependenciesGraph`.
+    /// - Parameter path: The path to the directory that contains the `checkouts` directory where `SwiftPackageManager` installed
+    /// dependencies.
     func load(
         packagePath: AbsolutePath,
         packageSettings: TuistCore.PackageSettings
-    ) throws -> TuistCore.DependenciesGraph
+    ) async throws -> TuistLoader.DependenciesGraph
 }
 
 public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
+    private let swiftPackageManagerController: SwiftPackageManagerControlling
     private let packageInfoMapper: PackageInfoMapping
     private let manifestLoader: ManifestLoading
-    private let fileHandler: FileHandling
+    private let fileSystem: FileSysteming
 
     public init(
+        swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(),
         packageInfoMapper: PackageInfoMapping = PackageInfoMapper(),
         manifestLoader: ManifestLoading = ManifestLoader(),
-        fileHandler: FileHandling = FileHandler.shared
+        fileSystem: FileSysteming = FileSystem()
     ) {
+        self.swiftPackageManagerController = swiftPackageManagerController
         self.packageInfoMapper = packageInfoMapper
         self.manifestLoader = manifestLoader
-        self.fileHandler = fileHandler
+        self.fileSystem = fileSystem
     }
 
     // swiftlint:disable:next function_body_length
     public func load(
         packagePath: AbsolutePath,
         packageSettings: TuistCore.PackageSettings
-    ) throws -> TuistCore.DependenciesGraph {
-        let buildFolder = packagePath.parentDirectory.appending(
+    ) async throws -> TuistLoader.DependenciesGraph {
+        let path = packagePath.parentDirectory.appending(
             component: Constants.SwiftPackageManager.packageBuildDirectoryName
         )
-        let checkoutsFolder = buildFolder.appending(
-            component: Constants.SwiftPackageManager.packageCheckoutDirectoryName
-        )
-        let workspacePath = buildFolder.appending(component: "workspace-state.json")
+        let checkoutsFolder = path.appending(component: "checkouts")
+        let workspacePath = path.appending(component: "workspace-state.json")
 
-        if !fileHandler.exists(workspacePath) {
+        if try await !fileSystem.exists(workspacePath) {
             throw SwiftPackageManagerGraphGeneratorError.installRequired
         }
 
         let workspaceState = try JSONDecoder()
-            .decode(SwiftPackageManagerWorkspaceState.self, from: try fileHandler.readFile(workspacePath))
+            .decode(SwiftPackageManagerWorkspaceState.self, from: try await fileSystem.readFile(at: workspacePath))
+
+        try await validatePackageResolved(at: packagePath.parentDirectory)
 
         let packageInfos: [
             // swiftlint:disable:next large_tuple
@@ -97,48 +99,48 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
                 name: String,
                 folder: AbsolutePath,
                 targetToArtifactPaths: [String: AbsolutePath],
-                packageType: PackageType,
-                info: PackageInfo
+                info: PackageInfo,
+                hash: String?
             )
         ]
-        packageInfos = try workspaceState.object.dependencies.map(context: .concurrent) { dependency in
+        packageInfos = try await workspaceState.object.dependencies.concurrentMap { dependency in
             let name = dependency.packageRef.name
             let packageFolder: AbsolutePath
-            let packageType: PackageType
+            switch dependency.packageRef.kind {
+            case "remote", "remoteSourceControl":
+                packageFolder = checkoutsFolder.appending(component: dependency.subpath)
+            case "local", "fileSystem", "localSourceControl":
+                // Depending on the swift version, the information is available either in `path` or in `location`
+                guard let path = dependency.packageRef.path ?? dependency.packageRef.location else {
+                    throw SwiftPackageManagerGraphGeneratorError.missingPathInLocalSwiftPackage(name)
+                }
+                // There's a bug in the `relative` implementation that produces the wrong path when using a symbolic link.
+                // This leads to nonexisting path in the `ModuleMapMapper` that relies on that method.
+                // To get around this, we're aligning paths from `workspace-state.json` with the /var temporary directory.
+                packageFolder = try AbsolutePath(
+                    validating: path.replacingOccurrences(of: "/private/var", with: "/var")
+                )
+            case "registry":
+                let registryFolder = path.appending(try RelativePath(validating: "registry/downloads"))
+                packageFolder = registryFolder.appending(try RelativePath(validating: dependency.subpath))
+            default:
+                throw SwiftPackageManagerGraphGeneratorError.unsupportedDependencyKind(dependency.packageRef.kind)
+            }
+
+            let packageInfo = try await self.manifestLoader.loadPackage(at: packageFolder)
             let targetToArtifactPaths = try workspaceState.object.artifacts
                 .filter { $0.packageRef.identity == dependency.packageRef.identity }
                 .reduce(into: [:]) { result, artifact in
                     result[artifact.targetName] = try AbsolutePath(validating: artifact.path)
                 }
 
-            switch dependency.packageRef.kind {
-            case "remote", "remoteSourceControl":
-                packageFolder = checkoutsFolder.appending(component: dependency.subpath)
-                packageType = .remote(artifactPaths: targetToArtifactPaths)
-            case "local", "fileSystem", "localSourceControl":
-                // Depending on the swift version, the information is available either in `path` or in `location`
-                guard let path = dependency.packageRef.path ?? dependency.packageRef.location else {
-                    throw SwiftPackageManagerGraphGeneratorError.missingPathInLocalSwiftPackage(name)
-                }
-                packageFolder = try AbsolutePath(validating: path)
-                packageType = .local
-            case "registry":
-                let registryFolder = buildFolder.appending(try RelativePath(validating: "registry/downloads"))
-                packageFolder = registryFolder.appending(try RelativePath(validating: dependency.subpath))
-                packageType = .remote(artifactPaths: targetToArtifactPaths)
-            default:
-                throw SwiftPackageManagerGraphGeneratorError.unsupportedDependencyKind(dependency.packageRef.kind)
-            }
-
-            let packageInfo = try manifestLoader.loadPackage(at: packageFolder)
-
             return (
                 id: dependency.packageRef.identity.lowercased(),
                 name: name,
                 folder: packageFolder,
                 targetToArtifactPaths: targetToArtifactPaths,
-                packageType: packageType,
-                info: packageInfo
+                info: packageInfo,
+                hash: dependency.state?.checkoutState?.revision
             )
         }
 
@@ -148,31 +150,94 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
             ($0.name, $0.targetToArtifactPaths)
         })
 
-        let externalDependencies = try packageInfoMapper.resolveExternalDependencies(
-            packageInfos: packageInfoDictionary,
-            packageToFolder: packageToFolder,
-            packageToTargetsToArtifactPaths: packageToTargetsToArtifactPaths
-        )
+        var mutablePackageModuleAliases: [String: [String: String]] = [:]
 
-        let externalProjects: [Path: TuistCore.DependenciesGraph.ExternalProject]
-        externalProjects = try packageInfos.reduce(into: [:]) { result, packageInfo in
-            if let manifest = try packageInfoMapper.map(
-                packageInfo: packageInfo.info,
-                packageFolder: packageInfo.folder,
-                packageType: packageInfo.packageType,
-                packageSettings: packageSettings
-            ) {
-                result[.path(packageInfo.folder.pathString)] = .init(
-                    project: manifest,
-                    sourcePackageType: packageInfo.packageType
-                )
+        for packageInfo in packageInfoDictionary.values {
+            for target in packageInfo.targets {
+                for dependency in target.dependencies {
+                    switch dependency {
+                    case let .product(
+                        name: _,
+                        package: packageName,
+                        moduleAliases: moduleAliases,
+                        condition: _
+                    ):
+                        guard let moduleAliases else { continue }
+                        mutablePackageModuleAliases[
+                            packageInfos.first(where: { $0.folder.basename == packageName })?
+                                .name ?? packageName
+                        ] = moduleAliases
+                    default:
+                        break
+                    }
+                }
             }
         }
+
+        let externalDependencies = try await packageInfoMapper.resolveExternalDependencies(
+            path: path,
+            packageInfos: packageInfoDictionary,
+            packageToFolder: packageToFolder,
+            packageToTargetsToArtifactPaths: packageToTargetsToArtifactPaths,
+            packageModuleAliases: mutablePackageModuleAliases
+        )
+
+        let packageModuleAliases = mutablePackageModuleAliases
+        let mappedPackageInfos = try await packageInfos.concurrentMap { packageInfo in
+            (
+                packageInfo: packageInfo,
+                hash: packageInfo.hash,
+                projectManifest: try await self.packageInfoMapper.map(
+                    packageInfo: packageInfo.info,
+                    path: packageInfo.folder,
+                    packageType: .external(artifactPaths: packageToTargetsToArtifactPaths[packageInfo.name] ?? [:]),
+                    packageSettings: packageSettings,
+                    packageModuleAliases: packageModuleAliases
+                )
+            )
+        }
+        let externalProjects: [Path: DependenciesGraph.ExternalProject] = mappedPackageInfos
+            .reduce(into: [:]) { result, item in
+                let (packageInfo, hash, projectManifest) = item
+                if let projectManifest {
+                    result[.path(packageInfo.folder.pathString)] = DependenciesGraph.ExternalProject(
+                        manifest: projectManifest,
+                        hash: hash
+                    )
+                }
+            }
 
         return DependenciesGraph(
             externalDependencies: externalDependencies,
             externalProjects: externalProjects
         )
+    }
+
+    private func validatePackageResolved(at path: AbsolutePath) async throws {
+        let savedPackageResolvedPath = path.appending(components: [
+            Constants.SwiftPackageManager.packageBuildDirectoryName,
+            Constants.DerivedDirectory.name,
+            Constants.SwiftPackageManager.packageResolvedName,
+        ])
+        let savedData: Data?
+        if try await fileSystem.exists(savedPackageResolvedPath) {
+            savedData = try await fileSystem.readFile(at: savedPackageResolvedPath)
+        } else {
+            savedData = nil
+        }
+
+        let currentPackageResolvedPath = path.appending(component: Constants.SwiftPackageManager.packageResolvedName)
+        let currentData: Data?
+        if try await fileSystem.exists(currentPackageResolvedPath) {
+            currentData = try await fileSystem.readFile(at: currentPackageResolvedPath)
+        } else {
+            currentData = nil
+        }
+
+        if currentData != savedData {
+            ServiceContext.current?.logger?
+                .warning("We detected outdated dependencies. Please run \"tuist install\" to update them.")
+        }
     }
 }
 

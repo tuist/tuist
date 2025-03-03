@@ -1,6 +1,8 @@
 import Difference
+import FileSystem
 import Foundation
 import Path
+import ServiceContextModule
 import XCTest
 
 @testable import TuistSupport
@@ -38,14 +40,6 @@ public final class MockFileHandler: FileHandler {
             return try super.filesAndDirectoriesContained(in: path)
         }
         return stubFilesAndDirectoriesContained(path)
-    }
-
-    public var stubExists: ((AbsolutePath) -> Bool)?
-    override public func exists(_ path: AbsolutePath) -> Bool {
-        guard let stubExists else {
-            return super.exists(path)
-        }
-        return stubExists(path)
     }
 
     public var stubReadFile: ((AbsolutePath) throws -> Data)?
@@ -91,36 +85,27 @@ public final class MockFileHandler: FileHandler {
         try closure(temporaryDirectory())
     }
 
-    public var stubFiles: ((AbsolutePath, Set<String>?, Set<String>?) -> Set<AbsolutePath>)?
+    public var stubFiles: ((AbsolutePath, ((URL) -> Bool)?, Set<String>?, Set<String>?) -> Set<AbsolutePath>)?
     override public func files(
         in path: AbsolutePath,
+        filter: ((URL) -> Bool)?,
         nameFilter: Set<String>?,
         extensionFilter: Set<String>?
     ) -> Set<AbsolutePath> {
         guard let stubFiles else {
-            return super.files(in: path, nameFilter: nameFilter, extensionFilter: extensionFilter)
+            return super.files(
+                in: path,
+                filter: filter,
+                nameFilter: nameFilter,
+                extensionFilter: extensionFilter
+            )
         }
-        return stubFiles(path, nameFilter, extensionFilter)
-    }
-
-    public var stubGlob: ((AbsolutePath, String) -> [AbsolutePath])?
-    override public func glob(_ path: AbsolutePath, glob: String) -> [AbsolutePath] {
-        guard let stubGlob else {
-            return super.glob(path, glob: glob)
-        }
-        return stubGlob(path, glob)
+        return stubFiles(path, filter, nameFilter, extensionFilter)
     }
 }
 
 open class TuistTestCase: XCTestCase {
     fileprivate var temporaryDirectory: TemporaryDirectory!
-
-    override public static func setUp() {
-        super.setUp()
-        DispatchQueue.once(token: "io.tuist.test.logging") {
-            LoggingSystem.bootstrap(TestingLogHandler.init)
-        }
-    }
 
     public var environment: MockEnvironment!
     public var fileHandler: MockFileHandler!
@@ -143,7 +128,6 @@ open class TuistTestCase: XCTestCase {
 
     override open func tearDown() {
         temporaryDirectory = nil
-        TestingLogHandler.reset()
         super.tearDown()
     }
 
@@ -155,15 +139,22 @@ open class TuistTestCase: XCTestCase {
     }
 
     @discardableResult
-    public func createFiles(_ files: [String], content: String? = nil) throws -> [AbsolutePath] {
+    public func createFiles(_ files: [String], content: String? = nil) async throws -> [AbsolutePath] {
         let temporaryPath = try temporaryPath()
-        let fileHandler = FileHandler()
+        let fileSystem = FileSystem()
         let paths = try files.map { temporaryPath.appending(try RelativePath(validating: $0)) }
 
         for item in paths {
-            try fileHandler.touch(item)
+            if try await !fileSystem.exists(item.parentDirectory, isDirectory: true) {
+                try await fileSystem.makeDirectory(at: item.parentDirectory)
+            }
+            if try await fileSystem.exists(item) {
+                try await fileSystem.remove(item)
+            }
             if let content {
-                try fileHandler.write(content, path: item, atomically: true)
+                try await fileSystem.writeText(content, at: item)
+            } else {
+                try await fileSystem.touch(item)
             }
         }
         return paths
@@ -181,8 +172,8 @@ open class TuistTestCase: XCTestCase {
     }
 
     public func XCTAssertBetterEqual<T: Equatable>(
-        _ expected: @autoclosure () throws -> T,
         _ received: @autoclosure () throws -> T,
+        _ expected: @autoclosure () throws -> T,
         file: StaticString = #filePath,
         line: UInt = #line
     ) {
@@ -222,7 +213,14 @@ open class TuistTestCase: XCTestCase {
         _ comparison: (Logger.Level, Logger.Level) -> Bool,
         file: StaticString = #file, line: UInt = #line
     ) {
-        let output = TestingLogHandler.collected[level, comparison]
+        guard let testingLogHandler = ServiceContext.current?.testingLogHandler else {
+            return XCTFail(
+                "The testing log handler hasn't been set with ServiceContext.withTestingDependencies.",
+                file: file,
+                line: line
+            )
+        }
+        let output = testingLogHandler.collected[level, comparison]
 
         let message = """
         The output:
@@ -243,7 +241,14 @@ open class TuistTestCase: XCTestCase {
         _ comparison: (Logger.Level, Logger.Level) -> Bool,
         file: StaticString = #file, line: UInt = #line
     ) {
-        let output = TestingLogHandler.collected[level, comparison]
+        guard let testingLogHandler = ServiceContext.current?.testingLogHandler else {
+            return XCTFail(
+                "The testing log handler hasn't been set with ServiceContext.withTestingDependencies.",
+                file: file,
+                line: line
+            )
+        }
+        let output = testingLogHandler.collected[level, comparison]
 
         let message = """
         The output:
@@ -258,11 +263,11 @@ open class TuistTestCase: XCTestCase {
         XCTAssertFalse(output.contains(notExpected), message, file: file, line: line)
     }
 
-    public func temporaryFixture(_ pathString: String) throws -> AbsolutePath {
+    public func temporaryFixture(_ pathString: String) async throws -> AbsolutePath {
         let path = try RelativePath(validating: pathString)
         let fixturePath = fixturePath(path: path)
         let destinationPath = (try temporaryPath()).appending(component: path.basename)
-        try FileHandler.shared.copy(from: fixturePath, to: destinationPath)
+        try await FileSystem().copy(fixturePath, to: destinationPath)
         return destinationPath
     }
 }

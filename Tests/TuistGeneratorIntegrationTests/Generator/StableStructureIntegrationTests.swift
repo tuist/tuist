@@ -1,9 +1,9 @@
+import FileSystem
 import Path
 import TuistCore
 import TuistCoreTesting
 import TuistLoaderTesting
 import TuistSupport
-import XcodeGraph
 import XcodeProj
 import XCTest
 
@@ -12,7 +12,21 @@ import XCTest
 @testable import TuistSupportTesting
 
 final class StableXcodeProjIntegrationTests: TuistTestCase {
-    func testXcodeProjStructureDoesNotChangeAfterRegeneration() throws {
+    private var fileSystem: FileSysteming!
+
+    override func setUp() {
+        super.setUp()
+
+        fileSystem = FileSystem()
+    }
+
+    override func tearDown() {
+        fileSystem = nil
+
+        super.tearDown()
+    }
+
+    func testXcodeProjStructureDoesNotChangeAfterRegeneration() async throws {
         // Given
         let temporaryPath = try temporaryPath()
         var capturedProjects = [[XcodeProj]]()
@@ -36,18 +50,18 @@ final class StableXcodeProjIntegrationTests: TuistTestCase {
                 headers: 100
             )
             let modelGenerator = TestModelGenerator(rootPath: temporaryPath, config: config)
-            let graph = try modelGenerator.generate()
+            let graph = try await modelGenerator.generate()
             let graphTraverser = GraphTraverser(graph: graph)
 
-            let workspaceDescriptor = try subject.generateWorkspace(graphTraverser: graphTraverser)
+            let workspaceDescriptor = try await subject.generateWorkspace(graphTraverser: graphTraverser)
 
             // Note: While we already have access to the `XcodeProj` models in `workspaceDescriptor`
             // unfortunately they are not equatable, however once serialized & deserialized back they are
-            try writer.write(workspace: workspaceDescriptor)
+            try await writer.write(workspace: workspaceDescriptor)
             let xcworkspace = try XCWorkspace(path: workspaceDescriptor.xcworkspacePath.path)
             let xcodeProjs = try findXcodeProjs(in: xcworkspace)
-            let sharedSchemes = try findSharedSchemes(in: xcworkspace)
-            let userSchemes = try findUserSchemes(in: xcworkspace)
+            let sharedSchemes = try await findSharedSchemes(in: xcworkspace)
+            let userSchemes = try await findUserSchemes(in: xcworkspace)
 
             capturedProjects.append(xcodeProjs)
             capturedWorkspaces.append(xcworkspace)
@@ -76,21 +90,28 @@ final class StableXcodeProjIntegrationTests: TuistTestCase {
         return xcodeProjs
     }
 
-    private func findSharedSchemes(in workspace: XCWorkspace) throws -> [XCScheme] {
-        try findSchemes(in: workspace, relativePath: try RelativePath(validating: "xcshareddata"))
+    private func findSharedSchemes(in workspace: XCWorkspace) async throws -> [XCScheme] {
+        try await findSchemes(in: workspace, relativePath: try RelativePath(validating: "xcshareddata"))
     }
 
-    private func findUserSchemes(in workspace: XCWorkspace) throws -> [XCScheme] {
-        try findSchemes(in: workspace, relativePath: try RelativePath(validating: "xcuserdata"))
+    private func findUserSchemes(in workspace: XCWorkspace) async throws -> [XCScheme] {
+        try await findSchemes(in: workspace, relativePath: try RelativePath(validating: "xcuserdata"))
     }
 
-    private func findSchemes(in workspace: XCWorkspace, relativePath: RelativePath) throws -> [XCScheme] {
+    private func findSchemes(in workspace: XCWorkspace, relativePath: RelativePath) async throws -> [XCScheme] {
         let temporaryPath = try temporaryPath()
         let projectsPaths = try workspace.projectPaths.map { temporaryPath.appending(try RelativePath(validating: $0)) }
         let parentDir = projectsPaths.map { $0.appending(relativePath) }
-        let schemes = try parentDir.map { FileHandler.shared.glob($0, glob: "**/*.xcscheme") }
-            .flatMap { $0 }
-            .map { try XCScheme(path: $0.path) }
+        let schemes: [XCScheme] = try await parentDir.concurrentMap {
+            try await self.fileSystem.glob(
+                directory: $0,
+                include: ["**/*.xcscheme", "*.xcscheme"]
+            )
+            .collect()
+        }
+        .flatMap { $0 }
+        .sorted()
+        .map { try XCScheme(path: $0.path) }
         return schemes
     }
 }

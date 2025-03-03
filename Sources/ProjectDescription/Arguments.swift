@@ -1,5 +1,3 @@
-import Foundation
-
 /// A collection of arguments and environment variables.
 public struct Arguments: Equatable, Codable, Sendable {
     public var environmentVariables: [String: EnvironmentVariable]

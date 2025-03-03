@@ -29,6 +29,8 @@ public enum Constants {
     public static let joinSlackURL: String = "https://slack.tuist.io/"
     public static let tuistGeneratedFileName = ".tuist-generated"
 
+    public static let tuistManifestFileName = "Tuist.swift"
+
     /// The cache version.
     /// This should change only when it changes the logic to map a `XcodeGraph.Target` to a cached build artifact.
     /// Changing this results in changing the target hash and hence forcing a rebuild of its artifact.
@@ -38,7 +40,6 @@ public enum Constants {
         public static let packageSwiftName = "Package.swift"
         public static let packageResolvedName = "Package.resolved"
         public static let packageBuildDirectoryName = ".build"
-        public static let packageCheckoutDirectoryName = "checkouts"
     }
 
     public enum DerivedDirectory {
@@ -74,9 +75,11 @@ public enum Constants {
         public static let token = "TUIST_CONFIG_TOKEN"
         @available(*, deprecated, message: "Use `token` instead")
         public static let deprecatedToken = "TUIST_CONFIG_CLOUD_TOKEN"
+        public static let quiet = "TUIST_CONFIG_QUIET"
+        public static let cirrusTuistCacheURL = "CIRRUS_TUIST_CACHE_URL"
     }
 
     public enum URLs {
-        public static let production = URL(string: "https://cloud.tuist.io")!
+        public static let production = URL(string: "https://tuist.dev")!
     }
 }

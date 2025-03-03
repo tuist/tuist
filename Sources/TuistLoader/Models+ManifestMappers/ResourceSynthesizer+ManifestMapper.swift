@@ -1,4 +1,3 @@
-import Path
 import ProjectDescription
 import TuistCore
 import XcodeGraph
@@ -9,11 +8,11 @@ extension XcodeGraph.ResourceSynthesizer {
         generatorPaths: GeneratorPaths,
         plugins: Plugins,
         resourceSynthesizerPathLocator: ResourceSynthesizerPathLocating
-    ) throws -> Self {
+    ) async throws -> Self {
         let template: XcodeGraph.ResourceSynthesizer.Template
         switch manifest.templateType {
         case let .defaultTemplate(resourceName: resourceName):
-            if let templatePath = resourceSynthesizerPathLocator.templatePath(
+            if let templatePath = try await resourceSynthesizerPathLocator.templatePath(
                 for: resourceName,
                 path: generatorPaths.manifestDirectory
             ) {
@@ -22,7 +21,7 @@ extension XcodeGraph.ResourceSynthesizer {
                 template = .defaultTemplate(resourceName)
             }
         case let .plugin(name: name, resourceName: resourceName):
-            let path = try resourceSynthesizerPathLocator.templatePath(
+            let path = try await resourceSynthesizerPathLocator.templatePath(
                 for: name,
                 resourceName: resourceName,
                 resourceSynthesizerPlugins: plugins.resourceSynthesizers

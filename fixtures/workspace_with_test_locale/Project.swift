@@ -11,7 +11,7 @@ let project = Project(
         )
     ),
     targets: [
-        .init(
+        Target.target(
             name: "App",
             destinations: .iOS,
             product: .app,

@@ -1,36 +1,33 @@
 import Foundation
-import Path
+import Mockable
 import TuistCore
+import TuistLoader
+import TuistLoaderTesting
 import TuistScaffold
 import TuistSupport
+import TuistSupportTesting
 import XCTest
 
 @testable import TuistKit
-@testable import TuistLoaderTesting
-@testable import TuistScaffoldTesting
-@testable import TuistSupportTesting
 
 final class InitServiceTests: TuistUnitTestCase {
-    var subject: InitService!
-    var templatesDirectoryLocator: MockTemplatesDirectoryLocator!
-    var templateGenerator: MockTemplateGenerator!
-    var templateLoader: MockTemplateLoader!
-    var templateGitLoader: MockTemplateGitLoader!
-    var tuistVersionLoader: MockTuistVersionLoader!
+    private var subject: InitService!
+    private var templatesDirectoryLocator: MockTemplatesDirectoryLocating!
+    private var templateGenerator: MockTemplateGenerating!
+    private var templateLoader: MockTemplateLoading!
+    private var templateGitLoader: MockTemplateGitLoader!
 
     override func setUp() {
         super.setUp()
-        templatesDirectoryLocator = MockTemplatesDirectoryLocator()
-        templateGenerator = MockTemplateGenerator()
-        templateLoader = MockTemplateLoader()
+        templatesDirectoryLocator = MockTemplatesDirectoryLocating()
+        templateGenerator = MockTemplateGenerating()
+        templateLoader = MockTemplateLoading()
         templateGitLoader = MockTemplateGitLoader()
-        tuistVersionLoader = MockTuistVersionLoader()
         subject = InitService(
             templateLoader: templateLoader,
             templatesDirectoryLocator: templatesDirectoryLocator,
             templateGenerator: templateGenerator,
-            templateGitLoader: templateGitLoader,
-            tuistVersionLoader: tuistVersionLoader
+            templateGitLoader: templateGitLoader
         )
     }
 
@@ -43,104 +40,168 @@ final class InitServiceTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_fails_when_directory_not_empty() throws {
+    func test_fails_when_directory_not_empty() async throws {
+        // Given
+        try await fileSystem.runInTemporaryDirectory(prefix: "InitService") { path in
+            try await fileSystem.touch(path.appending(component: "dummy"))
+            let defaultTemplatePath = try temporaryPath().appending(component: "default")
+            given(templatesDirectoryLocator)
+                .templateDirectories(at: .any)
+                .willReturn([defaultTemplatePath])
+            given(templateLoader)
+                .loadTemplate(at: .any, plugins: .any)
+                .willReturn(.test())
+            given(templateGenerator)
+                .generate(
+                    template: .any,
+                    to: .any,
+                    attributes: .any
+                )
+                .willReturn()
+
+            // Then
+            await XCTAssertThrowsSpecific(
+                { try await subject.testRun(path: path.pathString) },
+                InitServiceError.nonEmptyDirectory(path)
+            )
+        }
+    }
+
+    func test_succeeds_when_directory_only_contains_mise() async throws {
         // Given
         let path = FileHandler.shared.currentPath
-        try FileHandler.shared.touch(path.appending(component: "dummy"))
+        try FileHandler.shared.touch(path.appending(component: "mise.toml"))
 
         // Then
-        XCTAssertThrowsSpecific(try subject.testRun(), InitServiceError.nonEmptyDirectory(path))
+        XCTAssertNoThrow { try await self.subject.testRun() }
     }
 
-    func test_init_fails_when_template_not_found() throws {
+    func test_init_fails_when_template_not_found() async throws {
         let templateName = "template"
-        XCTAssertThrowsSpecific(try subject.testRun(templateName: templateName), InitServiceError.templateNotFound(templateName))
+        given(templateLoader)
+            .loadTemplate(at: .any, plugins: .any)
+            .willReturn(.test())
+        given(templatesDirectoryLocator)
+            .templateDirectories(at: .any)
+            .willReturn([])
+        await XCTAssertThrowsSpecific(
+            { try await self.subject.testRun(templateName: templateName) },
+            InitServiceError.templateNotFound(templateName)
+        )
     }
 
-    func test_init_default_when_no_template() throws {
+    func test_init_default_when_no_template() async throws {
         // Given
         let defaultTemplatePath = try temporaryPath().appending(component: "default")
-        templatesDirectoryLocator.templateDirectoriesStub = { _ in
-            [defaultTemplatePath]
-        }
-
-        let tuistVersion = "4.0.3"
-        tuistVersionLoader.getVersionStub = tuistVersion
+        given(templatesDirectoryLocator)
+            .templateDirectories(at: .any)
+            .willReturn([defaultTemplatePath])
 
         let expectedAttributes: [String: Template.Attribute.Value] = [
             "name": .string("Name"),
             "platform": .string("macOS"),
-            "tuist_version": .string(tuistVersion),
+            "tuist_version": .string(Constants.version),
             "class_name": .string("Name"),
             "bundle_identifier": .string("Name"),
         ]
-        var generatorAttributes: [String: Template.Attribute.Value] = [:]
-        templateGenerator.generateStub = { _, _, attributes in
-            generatorAttributes = attributes
-        }
+        given(templateGenerator)
+            .generate(
+                template: .any,
+                to: .any,
+                attributes: .any
+            )
+            .willReturn()
+        given(templateLoader)
+            .loadTemplate(at: .any, plugins: .any)
+            .willReturn(.test())
 
         // When
-        try subject.testRun(name: "Name", platform: "macos")
+        try await subject.testRun(name: "Name", platform: "macos")
 
         // Then
-        XCTAssertEqual(expectedAttributes, generatorAttributes)
+        verify(templateGenerator)
+            .generate(
+                template: .any,
+                to: .any,
+                attributes: .value(expectedAttributes)
+            )
+            .called(1)
     }
 
-    func test_init_default_platform() throws {
+    func test_init_default_platform() async throws {
         // Given
         let defaultTemplatePath = try temporaryPath().appending(component: "default")
-        templatesDirectoryLocator.templateDirectoriesStub = { _ in
-            [defaultTemplatePath]
-        }
-
-        let tuistVersion = "4.0.3"
-        tuistVersionLoader.getVersionStub = tuistVersion
+        given(templatesDirectoryLocator)
+            .templateDirectories(at: .any)
+            .willReturn([defaultTemplatePath])
 
         let expectedAttributes: [String: Template.Attribute.Value] = [
             "name": .string("Name"),
             "platform": .string("iOS"),
-            "tuist_version": .string(tuistVersion),
+            "tuist_version": .string(Constants.version),
             "class_name": .string("Name"),
             "bundle_identifier": .string("Name"),
         ]
-        var generatorAttributes: [String: Template.Attribute.Value] = [:]
-        templateGenerator.generateStub = { _, _, attributes in
-            generatorAttributes = attributes
-        }
+        given(templateGenerator)
+            .generate(
+                template: .any,
+                to: .any,
+                attributes: .any
+            )
+            .willReturn()
+        given(templateLoader)
+            .loadTemplate(at: .any, plugins: .any)
+            .willReturn(.test())
 
         // When
-        try subject.testRun(name: "Name")
+        try await subject.testRun(name: "Name")
 
         // Then
-        XCTAssertEqual(expectedAttributes, generatorAttributes)
+        verify(templateGenerator)
+            .generate(
+                template: .any,
+                to: .any,
+                attributes: .value(expectedAttributes)
+            )
+            .called(1)
     }
 
-    func test_init_default_with_unusual_name() throws {
+    func test_init_default_with_unusual_name() async throws {
         // Given
         let defaultTemplatePath = try temporaryPath().appending(component: "default")
-        templatesDirectoryLocator.templateDirectoriesStub = { _ in
-            [defaultTemplatePath]
-        }
-        let tuistVersion = "4.0.3"
-        tuistVersionLoader.getVersionStub = tuistVersion
+        given(templatesDirectoryLocator)
+            .templateDirectories(at: .any)
+            .willReturn([defaultTemplatePath])
 
         let expectedAttributes: [String: TuistCore.Template.Attribute.Value] = [
             "name": .string("unusual name"),
             "platform": .string("iOS"),
-            "tuist_version": .string(tuistVersion),
+            "tuist_version": .string(Constants.version),
             "class_name": .string("UnusualName"),
             "bundle_identifier": .string("unusual-name"),
         ]
-        var generatorAttributes: [String: TuistCore.Template.Attribute.Value] = [:]
-        templateGenerator.generateStub = { _, _, attributes in
-            generatorAttributes = attributes
-        }
+        given(templateGenerator)
+            .generate(
+                template: .any,
+                to: .any,
+                attributes: .any
+            )
+            .willReturn()
+        given(templateLoader)
+            .loadTemplate(at: .any, plugins: .any)
+            .willReturn(.test())
 
         // When
-        try subject.testRun(name: "unusual name")
+        try await subject.testRun(name: "unusual name")
 
         // Then
-        XCTAssertEqual(expectedAttributes, generatorAttributes)
+        verify(templateGenerator)
+            .generate(
+                template: .any,
+                to: .any,
+                attributes: .value(expectedAttributes)
+            )
+            .called(1)
     }
 
     func test_load_git_template_attributes() async throws {
@@ -156,25 +217,28 @@ final class InitServiceTests: TuistUnitTestCase {
             )
         }
 
-        let tuistVersion = "4.0.3"
-        tuistVersionLoader.getVersionStub = tuistVersion
-
         let expectedAttributes: [String: Template.Attribute.Value] = [
             "name": .string("Name"),
             "platform": .string("macOS"),
-            "tuist_version": .string(tuistVersion),
+            "tuist_version": .string(Constants.version),
             "class_name": .string("Name"),
             "bundle_identifier": .string("Name"),
             "required": .string("requiredValue"),
             "optional": .string("optionalValue"),
         ]
-        var generatorAttributes: [String: Template.Attribute.Value] = [:]
-        templateGenerator.generateStub = { _, _, attributes in
-            generatorAttributes = attributes
-        }
+        given(templateGenerator)
+            .generate(
+                template: .any,
+                to: .any,
+                attributes: .any
+            )
+            .willReturn()
+        given(templateLoader)
+            .loadTemplate(at: .any, plugins: .any)
+            .willReturn(.test())
 
         // When
-        try subject.testRun(
+        try await subject.testRun(
             name: "Name",
             platform: "macos",
             templateName: "https://url/to/repo.git",
@@ -184,7 +248,13 @@ final class InitServiceTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(expectedAttributes, generatorAttributes)
+        verify(templateGenerator)
+            .generate(
+                template: .any,
+                to: .any,
+                attributes: .value(expectedAttributes)
+            )
+            .called(1)
     }
 
     func test_optional_dictionary_attribute_is_taken_from_template() async throws {
@@ -194,78 +264,94 @@ final class InitServiceTests: TuistUnitTestCase {
             "key2": .string("value2"),
         ])
 
-        templateLoader.loadTemplateStub = { _ in
-            Template.test(attributes: [
-                .optional("optional", default: context),
-            ])
-        }
-
-        let tuistVersion = "4.0.3"
-        tuistVersionLoader.getVersionStub = tuistVersion
+        given(templateLoader)
+            .loadTemplate(at: .any, plugins: .any)
+            .willReturn(
+                Template.test(attributes: [
+                    .optional("optional", default: context),
+                ])
+            )
 
         let defaultTemplatePath = try temporaryPath().appending(component: "default")
-        templatesDirectoryLocator.templateDirectoriesStub = { _ in
-            [defaultTemplatePath]
-        }
+        given(templatesDirectoryLocator)
+            .templateDirectories(at: .any)
+            .willReturn([defaultTemplatePath])
 
         let expectedAttributes: [String: Template.Attribute.Value] = [
             "name": .string("Name"),
             "platform": .string("iOS"),
-            "tuist_version": .string(tuistVersion),
+            "tuist_version": .string(Constants.version),
             "class_name": .string("Name"),
             "bundle_identifier": .string("Name"),
             "optional": context,
         ]
 
-        var generatorAttributes: [String: Template.Attribute.Value] = [:]
-        templateGenerator.generateStub = { _, _, attributes in
-            generatorAttributes = attributes
-        }
+        given(templateGenerator)
+            .generate(
+                template: .any,
+                to: .any,
+                attributes: .any
+            )
+            .willReturn()
 
         // When
-        try subject.testRun(name: "Name")
+        try await subject.testRun(name: "Name")
 
         // Then
-        XCTAssertEqual(expectedAttributes, generatorAttributes)
+        verify(templateGenerator)
+            .generate(
+                template: .any,
+                to: .any,
+                attributes: .value(expectedAttributes)
+            )
+            .called(1)
     }
 
     func test_optional_integer_attribute_is_taken_from_template() async throws {
         // Given
         let defaultIntegerValue: Template.Attribute.Value = .integer(999)
 
-        templateLoader.loadTemplateStub = { _ in
-            Template.test(attributes: [
-                .optional("optional", default: defaultIntegerValue),
-            ])
-        }
-
-        let tuistVersion = "4.0.3"
-        tuistVersionLoader.getVersionStub = tuistVersion
+        given(templateLoader)
+            .loadTemplate(at: .any, plugins: .any)
+            .willReturn(
+                Template.test(attributes: [
+                    .optional("optional", default: defaultIntegerValue),
+                ])
+            )
 
         let defaultTemplatePath = try temporaryPath().appending(component: "default")
-        templatesDirectoryLocator.templateDirectoriesStub = { _ in
-            [defaultTemplatePath]
-        }
+        given(templatesDirectoryLocator)
+            .templateDirectories(at: .any)
+            .willReturn([defaultTemplatePath])
 
         let expectedAttributes: [String: Template.Attribute.Value] = [
             "name": .string("Name"),
             "platform": .string("iOS"),
-            "tuist_version": .string(tuistVersion),
+            "tuist_version": .string(Constants.version),
             "class_name": .string("Name"),
             "bundle_identifier": .string("Name"),
             "optional": defaultIntegerValue,
         ]
 
-        var generatorAttributes: [String: Template.Attribute.Value] = [:]
-        templateGenerator.generateStub = { _, _, attributes in
-            generatorAttributes = attributes
-        }
+        given(templateGenerator)
+            .generate(
+                template: .any,
+                to: .any,
+                attributes: .any
+            )
+            .willReturn()
 
         // When
-        try subject.testRun(name: "Name")
+        try await subject.testRun(name: "Name")
 
         // Then
-        XCTAssertEqual(expectedAttributes, generatorAttributes)
+        verify(templateGenerator)
+            .generate(
+                template: .any,
+                to: .any,
+                attributes: .value(expectedAttributes)
+            )
+            .called(1)
     }
 }
 
@@ -277,8 +363,8 @@ extension InitService {
         templateName: String? = nil,
         requiredTemplateOptions: [String: String] = [:],
         optionalTemplateOptions: [String: String?] = [:]
-    ) throws {
-        try run(
+    ) async throws {
+        try await run(
             name: name,
             platform: platform,
             path: path,

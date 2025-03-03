@@ -1,9 +1,7 @@
-import Path
 import TuistCore
 import TuistCoreTesting
 import TuistLoaderTesting
 import TuistSupport
-import XcodeGraph
 import XcodeProj
 import XCTest
 
@@ -18,7 +16,7 @@ final class TuistGeneratorPerformanceTests: TuistTestCase {
 
     // MARK: - Tests
 
-    func test_generateWorkspace_performance() throws {
+    func test_generateWorkspace_performance() async throws {
         guard !isRunningInDebug() else {
             // Performance tests need to be run in Release Mode for more realistic results
             // Note: When we switch to Xcode11.5+ only on CI we can use `XCTSkipIf` instead of a guard statement
@@ -27,31 +25,32 @@ final class TuistGeneratorPerformanceTests: TuistTestCase {
             return
         }
 
+        // Given
+        let subject = DescriptorGenerator()
+        let config = TestModelGenerator.WorkspaceConfig(
+            projects: 50,
+            testTargets: 5,
+            frameworkTargets: 5,
+            schemes: 10,
+            sources: 200,
+            resources: 100,
+            headers: 100
+        )
+        let temporaryPath = try temporaryPath()
+        let modelGenerator = TestModelGenerator(rootPath: temporaryPath, config: config)
+        let graph = try await modelGenerator.generate()
+
         measureMetrics([.wallClockTime], automaticallyStartMeasuring: false) {
-            do {
-                // Given
-                let subject = DescriptorGenerator()
-                let config = TestModelGenerator.WorkspaceConfig(
-                    projects: 50,
-                    testTargets: 5,
-                    frameworkTargets: 5,
-                    schemes: 10,
-                    sources: 200,
-                    resources: 100,
-                    headers: 100
-                )
-                let temporaryPath = try self.temporaryPath()
-                let modelGenerator = TestModelGenerator(rootPath: temporaryPath, config: config)
-                let graph = try modelGenerator.generate()
-
-                // When
-                startMeasuring()
-                let graphTraverser = GraphTraverser(graph: graph)
-                _ = try subject.generateWorkspace(graphTraverser: graphTraverser)
+            // When
+            startMeasuring()
+            let graphTraverser = GraphTraverser(graph: graph)
+            Task {
+                do {
+                    _ = try await subject.generateWorkspace(graphTraverser: graphTraverser)
+                } catch {
+                    XCTFail("Failed to generate workspace: \(error)")
+                }
                 stopMeasuring()
-
-            } catch {
-                XCTFail("Failed to generate workspace: \(error)")
             }
         }
     }

@@ -1,5 +1,4 @@
 import Foundation
-import Path
 import ProjectDescription
 import TuistCore
 import TuistSupport
@@ -32,12 +31,23 @@ extension XcodeGraph.TargetDependency {
         externalDependencies: [String: [XcodeGraph.TargetDependency]]
     ) throws -> [XcodeGraph.TargetDependency] {
         switch manifest {
-        case let .target(name, condition):
-            return [.target(name: name, condition: condition?.asGraphCondition)]
-        case let .project(target, projectPath, condition):
+        case let .target(name, status, condition):
+            return [.target(
+                name: name,
+                status: .from(manifest: status),
+                condition: condition?.asGraphCondition
+            )]
+        case let .macro(name: name):
+            return [.target(
+                name: name,
+                status: .required,
+                condition: nil
+            )]
+        case let .project(target, projectPath, status, condition):
             return [.project(
                 target: target,
                 path: try generatorPaths.resolve(path: projectPath),
+                status: .from(manifest: status),
                 condition: condition?.asGraphCondition
             )]
         case let .framework(frameworkPath, status, condition):
@@ -63,6 +73,8 @@ extension XcodeGraph.TargetDependency {
                 return [.package(product: product, type: .macro, condition: condition?.asGraphCondition)]
             case .runtime:
                 return [.package(product: product, type: .runtime, condition: condition?.asGraphCondition)]
+            case .runtimeEmbedded:
+                return [.package(product: product, type: .runtimeEmbedded, condition: condition?.asGraphCondition)]
             case .plugin:
                 return [.package(product: product, type: .plugin, condition: condition?.asGraphCondition)]
             }
@@ -133,6 +145,8 @@ extension ProjectDescription.SDKType {
         switch self {
         case .library:
             return "lib"
+        case .swiftLibrary:
+            return "libswift"
         case .framework:
             return ""
         }
@@ -141,7 +155,7 @@ extension ProjectDescription.SDKType {
     /// The extension associated to the type
     fileprivate var fileExtension: String {
         switch self {
-        case .library:
+        case .library, .swiftLibrary:
             return "tbd"
         case .framework:
             return "framework"

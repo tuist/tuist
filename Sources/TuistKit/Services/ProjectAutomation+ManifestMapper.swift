@@ -12,6 +12,7 @@ extension ProjectAutomation.Graph {
         // generate targets projects only
         let projects = targetsAndDependencies
             .map(\.key.project)
+            .uniqued()
             .reduce(into: [String: ProjectAutomation.Project]()) {
                 $0[$1.path.pathString] = ProjectAutomation.Project.from($1)
             }
@@ -37,13 +38,23 @@ extension ProjectAutomation.Project {
         let packages = project.packages
             .reduce(into: [ProjectAutomation.Package]()) { $0.append(ProjectAutomation.Package.from($1)) }
         let schemes = project.schemes.reduce(into: [ProjectAutomation.Scheme]()) { $0.append(ProjectAutomation.Scheme.from($1)) }
+
+        var dependenciesCache = [XcodeGraph.TargetDependency: ProjectAutomation.TargetDependency]()
         let targets = project.targets.mapValues { target in
-            ProjectAutomation.Target.from(target)
+            ProjectAutomation.Target.from(target, dependenciesCache: &dependenciesCache)
+        }
+
+        let isExternal = switch project.type {
+        case .external:
+            true
+        case .local:
+            false
         }
 
         return ProjectAutomation.Project(
             name: project.name,
             path: project.path.pathString,
+            isExternal: isExternal,
             packages: packages,
             targets: Array(targets.values),
             schemes: schemes
@@ -63,8 +74,20 @@ extension ProjectAutomation.Package {
 }
 
 extension ProjectAutomation.Target {
-    static func from(_ target: XcodeGraph.Target) -> ProjectAutomation.Target {
-        let dependencies = target.dependencies.map { Self.from($0) }
+    static func from(
+        _ target: XcodeGraph.Target,
+        dependenciesCache: inout [XcodeGraph.TargetDependency: ProjectAutomation.TargetDependency]
+    )
+        -> ProjectAutomation.Target
+    {
+        let dependencies = target.dependencies.map {
+            if let foundDependency = dependenciesCache[$0] {
+                return foundDependency
+            }
+            let target = Self.from($0)
+            dependenciesCache[$0] = target
+            return target
+        }
         return ProjectAutomation.Target(
             name: target.name,
             product: target.product.rawValue,
@@ -78,26 +101,32 @@ extension ProjectAutomation.Target {
 
     static func from(_ dependency: XcodeGraph.TargetDependency) -> ProjectAutomation.TargetDependency {
         switch dependency {
-        case let .target(name, _):
-            return .target(name: name)
-        case let .project(target, path, _):
-            return .project(target: target, path: path.pathString)
+        case let .target(name, status, _):
+            let linkingStatus: ProjectAutomation.LinkingStatus = status == .optional ? .optional : .required
+            return .target(name: name, status: linkingStatus)
+        case let .project(target, path, status, _):
+            let linkingStatus: ProjectAutomation.LinkingStatus = status == .optional ? .optional : .required
+            return .project(target: target, path: path.pathString, status: linkingStatus)
         case let .framework(path, status, _):
-            let frameworkStatus: ProjectAutomation.FrameworkStatus
+            let frameworkStatus: ProjectAutomation.LinkingStatus
             switch status {
             case .optional:
                 frameworkStatus = .optional
             case .required:
                 frameworkStatus = .required
+            case .none:
+                frameworkStatus = .none
             }
             return .framework(path: path.pathString, status: frameworkStatus)
         case let .xcframework(path, status, _):
-            let frameworkStatus: ProjectAutomation.FrameworkStatus
+            let frameworkStatus: ProjectAutomation.LinkingStatus
             switch status {
             case .optional:
                 frameworkStatus = .optional
             case .required:
                 frameworkStatus = .required
+            case .none:
+                frameworkStatus = .none
             }
             return .xcframework(path: path.pathString, status: frameworkStatus)
         case let .library(path, publicHeaders, swiftModuleMap, _):
@@ -114,14 +143,18 @@ extension ProjectAutomation.Target {
                 return .packagePlugin(product: product)
             case .runtime:
                 return .package(product: product)
+            case .runtimeEmbedded:
+                return .package(product: product, embedded: true)
             }
         case let .sdk(name, status, _):
-            let projectAutomationStatus: ProjectAutomation.SDKStatus
+            let projectAutomationStatus: ProjectAutomation.LinkingStatus
             switch status {
             case .optional:
                 projectAutomationStatus = .optional
             case .required:
                 projectAutomationStatus = .required
+            case .none:
+                projectAutomationStatus = .none
             }
             return .sdk(name: name, status: projectAutomationStatus)
         case .xctest:

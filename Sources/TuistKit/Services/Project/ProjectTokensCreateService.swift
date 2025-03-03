@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import ServiceContextModule
 import TuistLoader
 import TuistServer
 import TuistSupport
@@ -20,7 +21,7 @@ final class ProjectTokensCreateService: ProjectTokensCreateServicing {
         self.init(
             createProjectTokenService: CreateProjectTokenService(),
             serverURLService: ServerURLService(),
-            configLoader: ConfigLoader()
+            configLoader: ConfigLoader(warningController: WarningController.shared)
         )
     }
 
@@ -44,7 +45,7 @@ final class ProjectTokensCreateService: ProjectTokensCreateServicing {
         } else {
             directoryPath = FileHandler.shared.currentPath
         }
-        let config = try configLoader.loadConfig(path: directoryPath)
+        let config = try await configLoader.loadConfig(path: directoryPath)
         let serverURL = try serverURLService.url(configServerURL: config.url)
 
         let token = try await createProjectTokenService.createProjectToken(
@@ -52,6 +53,6 @@ final class ProjectTokensCreateService: ProjectTokensCreateServicing {
             serverURL: serverURL
         )
 
-        logger.info(.init(stringLiteral: token))
+        ServiceContext.current?.logger?.info(.init(stringLiteral: token))
     }
 }

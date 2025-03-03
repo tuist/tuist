@@ -1,26 +1,26 @@
-import Path
+import Mockable
+import ServiceContextModule
 import TuistCore
+import TuistLoader
+import TuistLoaderTesting
 import TuistPluginTesting
-import XcodeGraph
+import TuistScaffold
+import TuistSupportTesting
 import XCTest
 
-@testable import TuistCore
 @testable import TuistKit
-@testable import TuistLoaderTesting
-@testable import TuistScaffoldTesting
-@testable import TuistSupportTesting
 
 final class ListServiceTests: TuistUnitTestCase {
-    var subject: ListService!
-    var pluginService: MockPluginService!
-    var templateLoader: MockTemplateLoader!
-    var templatesDirectoryLocator: MockTemplatesDirectoryLocator!
+    private var subject: ListService!
+    private var pluginService: MockPluginService!
+    private var templateLoader: MockTemplateLoading!
+    private var templatesDirectoryLocator: MockTemplatesDirectoryLocating!
 
     override func setUp() {
         super.setUp()
         pluginService = MockPluginService()
-        templateLoader = MockTemplateLoader()
-        templatesDirectoryLocator = MockTemplatesDirectoryLocator()
+        templateLoader = MockTemplateLoading()
+        templatesDirectoryLocator = MockTemplatesDirectoryLocating()
         subject = ListService(
             pluginService: pluginService,
             templatesDirectoryLocator: templatesDirectoryLocator,
@@ -37,89 +37,101 @@ final class ListServiceTests: TuistUnitTestCase {
     }
 
     func test_lists_available_templates_table_format() async throws {
-        // Given
-        let expectedTemplates = ["template", "customTemplate"]
-        let expectedOutput = """
-        Name            Description
-        ──────────────  ───────────
-        template        description
-        customTemplate  description
-        """
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            let expectedTemplates = ["template", "customTemplate"]
+            let expectedOutput = """
+            Name            Description
+            ──────────────  ───────────
+            template        description
+            customTemplate  description
+            """
 
-        templatesDirectoryLocator.templateDirectoriesStub = { _ in
-            try expectedTemplates.map(self.temporaryPath().appending)
+            given(templatesDirectoryLocator)
+                .templateDirectories(at: .any)
+                .willReturn(try expectedTemplates.map(temporaryPath().appending))
+
+            given(templateLoader)
+                .loadTemplate(at: .any, plugins: .any)
+                .willReturn(
+                    Template(description: "description", items: [])
+                )
+
+            // When
+            try await subject.run(path: nil, outputFormat: .table)
+
+            // Then
+            XCTAssertPrinterContains(expectedOutput, at: .notice, ==)
         }
-
-        templateLoader.loadTemplateStub = { _ in
-            Template(description: "description", items: [])
-        }
-
-        // When
-        try await subject.run(path: nil, outputFormat: .table)
-
-        // Then
-        XCTAssertPrinterContains(expectedOutput, at: .notice, ==)
     }
 
     func test_lists_available_templates_json_format() async throws {
-        // Given
-        let expectedTemplates = ["template", "customTemplate"]
-        let expectedOutput = """
-        [
-          {
-            "description": "description",
-            "name": "template"
-          },
-          {
-            "description": "description",
-            "name": "customTemplate"
-          }
-        ]
-        """
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            let expectedTemplates = ["template", "customTemplate"]
+            let expectedOutput = """
+            [
+              {
+                "description": "description",
+                "name": "template"
+              },
+              {
+                "description": "description",
+                "name": "customTemplate"
+              }
+            ]
+            """
 
-        templatesDirectoryLocator.templateDirectoriesStub = { _ in
-            try expectedTemplates.map(self.temporaryPath().appending)
+            given(templatesDirectoryLocator)
+                .templateDirectories(at: .any)
+                .willReturn(try expectedTemplates.map(temporaryPath().appending))
+
+            given(templateLoader)
+                .loadTemplate(at: .any, plugins: .any)
+                .willReturn(
+                    Template(description: "description", items: [])
+                )
+
+            // When
+            try await subject.run(path: nil, outputFormat: .json)
+
+            // Then
+            XCTAssertPrinterContains(expectedOutput, at: .notice, ==)
         }
-
-        templateLoader.loadTemplateStub = { _ in
-            Template(description: "description", items: [])
-        }
-
-        // When
-        try await subject.run(path: nil, outputFormat: .json)
-
-        // Then
-        XCTAssertPrinterContains(expectedOutput, at: .notice, ==)
     }
 
     func test_lists_available_templates_with_plugins() async throws {
-        // Given
-        let expectedTemplates = ["template", "customTemplate", "pluginTemplate"]
-        let expectedOutput = """
-        Name            Description
-        ──────────────  ───────────
-        template        description
-        customTemplate  description
-        pluginTemplate  description
-        """
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            let expectedTemplates = ["template", "customTemplate", "pluginTemplate"]
+            let expectedOutput = """
+            Name            Description
+            ──────────────  ───────────
+            template        description
+            customTemplate  description
+            pluginTemplate  description
+            """
 
-        let pluginTemplatePath = try temporaryPath().appending(component: "PluginTemplate")
-        pluginService.loadPluginsStub = { _ in
-            Plugins.test(templatePaths: [pluginTemplatePath])
+            let pluginTemplatePath = try temporaryPath().appending(component: "PluginTemplate")
+            pluginService.loadPluginsStub = { _ in
+                Plugins.test(templatePaths: [pluginTemplatePath])
+            }
+
+            given(templatesDirectoryLocator)
+                .templateDirectories(at: .any)
+                .willReturn(try expectedTemplates.map(temporaryPath().appending))
+
+            given(templateLoader)
+                .loadTemplate(at: .any, plugins: .any)
+                .willReturn(
+                    Template(description: "description", items: [])
+                )
+
+            // When
+            try await subject.run(path: nil, outputFormat: .table)
+
+            // Then
+            XCTAssertPrinterContains(expectedOutput, at: .notice, ==)
         }
-
-        templatesDirectoryLocator.templateDirectoriesStub = { _ in
-            try expectedTemplates.map(self.temporaryPath().appending)
-        }
-
-        templateLoader.loadTemplateStub = { _ in
-            Template(description: "description", items: [])
-        }
-
-        // When
-        try await subject.run(path: nil, outputFormat: .table)
-
-        // Then
-        XCTAssertPrinterContains(expectedOutput, at: .notice, ==)
     }
 }

@@ -18,18 +18,18 @@ final class XcodeControllerTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_selected_when_xcodeSelectDoesntReturnThePath() throws {
+    func test_selected_when_xcodeSelectDoesntReturnThePath() async throws {
         // Given
         system.errorCommand(["xcode-select", "-p"])
 
-        // When
-        let xcode = try subject.selected()
-
-        // Then
-        XCTAssertNil(xcode)
+        // When / Then
+        do {
+            _ = try await subject.selected()
+            XCTFail("Should have failed")
+        } catch {}
     }
 
-    func test_selected_is_cached() throws {
+    func test_selected_is_cached() async throws {
         // Given
         let temporaryPath = try temporaryPath()
         let contentsPath = temporaryPath.appending(component: "Contents")
@@ -43,15 +43,16 @@ final class XcodeControllerTests: TuistUnitTestCase {
         system.succeedCommand(["xcode-select", "-p"], output: developerPath.pathString)
 
         // When
-        _ = try subject.selected()
+        _ = try await subject.selected()
 
         // Then
         // Testing that on the second run the value is cached and does not trigger a terminal command
         system.errorCommand(["xcode-select", "-p"])
-        XCTAssertNotNil(try subject.selected())
+        let selected = try await subject.selected()
+        XCTAssertNotNil(selected)
     }
 
-    func test_selected_when_xcodeSelectReturnsThePath() throws {
+    func test_selected_when_xcodeSelectReturnsThePath() async throws {
         // Given
         let temporaryPath = try temporaryPath()
         let contentsPath = temporaryPath.appending(component: "Contents")
@@ -65,21 +66,13 @@ final class XcodeControllerTests: TuistUnitTestCase {
         system.succeedCommand(["xcode-select", "-p"], output: developerPath.pathString)
 
         // When
-        let xcode = try subject.selected()
+        let xcode = try await subject.selected()
 
         // Then
         XCTAssertNotNil(xcode)
     }
 
-    func test_selectedVersion_when_xcodeSelectDoesntReturnThePath() throws {
-        // Given
-        system.errorCommand(["xcode-select", "-p"])
-
-        // Then
-        XCTAssertThrowsSpecific(try subject.selectedVersion(), XcodeController.XcodeVersionError.noXcode)
-    }
-
-    func test_selectedVersion_when_xcodeSelectReturnsThePath() throws {
+    func test_selectedVersion_when_xcodeSelectReturnsThePath() async throws {
         // Given
         let temporaryPath = try temporaryPath()
         let contentsPath = temporaryPath.appending(component: "Contents")
@@ -93,7 +86,7 @@ final class XcodeControllerTests: TuistUnitTestCase {
         system.succeedCommand(["xcode-select", "-p"], output: developerPath.pathString)
 
         // When
-        let xcodeVersion = try subject.selectedVersion()
+        let xcodeVersion = try await subject.selectedVersion()
 
         // Then
         XCTAssertEqual(Version(11, 3, 0), xcodeVersion)

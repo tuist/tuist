@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Path
 import ProjectDescription
@@ -10,19 +11,42 @@ extension XcodeGraph.TargetScript {
     /// - Parameters:
     ///   - manifest: Manifest representation of target action.
     ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.TargetScript, generatorPaths: GeneratorPaths) throws -> XcodeGraph
+    static func from(
+        manifest: ProjectDescription.TargetScript,
+        generatorPaths: GeneratorPaths,
+        fileSystem: FileSysteming
+    ) async throws -> XcodeGraph
         .TargetScript
     {
         let name = manifest.name
         let order = XcodeGraph.TargetScript.Order.from(manifest: manifest.order)
-        let inputPaths = try manifest.inputPaths
-            .compactMap { try $0.unfold(generatorPaths: generatorPaths) }
+        let inputPaths = try await manifest.inputPaths
+            .concurrentCompactMap {
+                try await $0.unfold(
+                    generatorPaths: generatorPaths,
+                    fileSystem: fileSystem
+                )
+            }
             .flatMap { $0 }
             .map(\.pathString)
-        let inputFileListPaths = try absolutePaths(for: manifest.inputFileListPaths, generatorPaths: generatorPaths)
-        let outputPaths = try absolutePaths(for: manifest.outputPaths, generatorPaths: generatorPaths)
-            .map(\.pathString)
-        let outputFileListPaths = try absolutePaths(for: manifest.outputFileListPaths, generatorPaths: generatorPaths)
+        let inputFileListPaths = try await absolutePaths(
+            for: manifest.inputFileListPaths,
+            generatorPaths: generatorPaths,
+            fileSystem: fileSystem
+        )
+        .map(\.pathString)
+        let outputPaths = try await absolutePaths(
+            for: manifest.outputPaths,
+            generatorPaths: generatorPaths,
+            fileSystem: fileSystem
+        )
+        .map(\.pathString)
+        let outputFileListPaths = try await absolutePaths(
+            for: manifest.outputFileListPaths,
+            generatorPaths: generatorPaths,
+            fileSystem: fileSystem
+        )
+        .map(\.pathString)
         let basedOnDependencyAnalysis = manifest.basedOnDependencyAnalysis
         let runForInstallBuildsOnly = manifest.runForInstallBuildsOnly
         let shellPath = manifest.shellPath
@@ -30,7 +54,11 @@ extension XcodeGraph.TargetScript {
         let dependencyFile: AbsolutePath?
 
         if let manifestDependencyFile = manifest.dependencyFile {
-            dependencyFile = try absolutePaths(for: [manifestDependencyFile], generatorPaths: generatorPaths).first
+            dependencyFile = try await absolutePaths(
+                for: [manifestDependencyFile],
+                generatorPaths: generatorPaths,
+                fileSystem: fileSystem
+            ).first
         } else {
             dependencyFile = nil
         }
@@ -63,15 +91,19 @@ extension XcodeGraph.TargetScript {
         )
     }
 
-    private static func absolutePaths(for paths: [Path], generatorPaths: GeneratorPaths) throws -> [AbsolutePath] {
-        try paths.map { (path: Path) -> [AbsolutePath] in
+    private static func absolutePaths(
+        for paths: [Path],
+        generatorPaths: GeneratorPaths,
+        fileSystem: FileSysteming
+    ) async throws -> [AbsolutePath] {
+        try await paths.concurrentMap { (path: Path) -> [AbsolutePath] in
             // avoid globbing paths that contain variables
             if path.pathString.contains("$") {
                 return [try generatorPaths.resolve(path: path)]
             }
             let absolutePath = try generatorPaths.resolve(path: path)
             let base = try AbsolutePath(validating: absolutePath.dirname)
-            return try base.throwingGlob(absolutePath.basename)
+            return try await fileSystem.glob(directory: base, include: [absolutePath.basename]).collect()
         }.reduce([], +)
     }
 }

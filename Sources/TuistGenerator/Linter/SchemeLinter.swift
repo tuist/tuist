@@ -1,16 +1,28 @@
+import FileSystem
 import Foundation
 import TuistCore
 import TuistSupport
 import XcodeGraph
 
 protocol SchemeLinting {
-    func lint(project: Project) -> [LintingIssue]
+    func lint(project: Project) async throws -> [LintingIssue]
 }
 
 class SchemeLinter: SchemeLinting {
-    func lint(project: Project) -> [LintingIssue] {
+    private let fileSystem: FileSysteming
+
+    init(
+        fileSystem: FileSysteming = FileSystem()
+    ) {
+        self.fileSystem = fileSystem
+    }
+
+    func lint(project: Project) async throws -> [LintingIssue] {
         var issues = [LintingIssue]()
-        issues.append(contentsOf: lintReferencedBuildConfigurations(schemes: project.schemes, settings: project.settings))
+        try await issues.append(contentsOf: lintReferencedBuildConfigurations(
+            schemes: project.schemes,
+            settings: project.settings
+        ))
         issues.append(contentsOf: lintCodeCoverageTargets(schemes: project.schemes, targets: Array(project.targets.values)))
         issues.append(contentsOf: lintExpandVariableTarget(schemes: project.schemes, targets: Array(project.targets.values)))
         issues.append(contentsOf: projectSchemeCantReferenceRemoteTargets(schemes: project.schemes, project: project))
@@ -19,12 +31,13 @@ class SchemeLinter: SchemeLinting {
 }
 
 extension SchemeLinter {
-    private func lintReferencedBuildConfigurations(schemes: [Scheme], settings: Settings) -> [LintingIssue] {
+    private func lintReferencedBuildConfigurations(schemes: [Scheme], settings: Settings) async throws -> [LintingIssue] {
         let buildConfigurations = Array(settings.configurations.keys)
-        return schemes.flatMap { lintScheme(scheme: $0, buildConfigurations: buildConfigurations) }
+        return try await schemes
+            .concurrentFlatMap { try await self.lintScheme(scheme: $0, buildConfigurations: buildConfigurations) }
     }
 
-    private func lintScheme(scheme: Scheme, buildConfigurations: [BuildConfiguration]) -> [LintingIssue] {
+    private func lintScheme(scheme: Scheme, buildConfigurations: [BuildConfiguration]) async throws -> [LintingIssue] {
         var issues: [LintingIssue] = []
         let buildConfigurationNames = buildConfigurations.map(\.name)
 
@@ -39,7 +52,7 @@ extension SchemeLinter {
             }
 
             if let storeKitPath = runAction.options.storeKitConfigurationPath,
-               !FileHandler.shared.exists(storeKitPath)
+               try await !fileSystem.exists(storeKitPath)
             {
                 issues.append(
                     LintingIssue(
@@ -59,8 +72,8 @@ extension SchemeLinter {
                     )
                 )
             }
-            testAction.testPlans?.forEach { testPlan in
-                if !FileHandler.shared.exists(testPlan.path) {
+            try await testAction.testPlans?.forEach(context: .concurrent) { testPlan in
+                if try await !self.fileSystem.exists(testPlan.path) {
                     issues.append(
                         LintingIssue(
                             reason: "Test Plan not found at path \(testPlan.path.pathString)",

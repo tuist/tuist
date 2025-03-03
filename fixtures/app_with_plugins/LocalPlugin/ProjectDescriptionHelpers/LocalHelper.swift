@@ -1,6 +1,6 @@
 import Foundation
 
-public struct LocalHelper {
+public struct LocalHelper: Sendable {
     let name: String
 
     public init(name: String) {

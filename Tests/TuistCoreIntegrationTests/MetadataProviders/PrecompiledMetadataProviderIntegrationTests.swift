@@ -1,5 +1,4 @@
 import Foundation
-import Path
 import TuistSupport
 
 import XCTest
@@ -20,12 +19,12 @@ final class PrecompiledMetadataProviderIntegrationTests: TuistTestCase {
         super.tearDown()
     }
 
-    func test_architectures() throws {
+    func test_architectures() async throws {
         // Given
-        let frameworkPath = try temporaryFixture("xpm.framework")
+        let frameworkPath = try await temporaryFixture("xpm.framework")
 
         // When
-        let got = try subject.architectures(
+        let got = try await subject.architectures(
             binaryPath: FrameworkMetadataProvider()
                 .loadMetadata(at: frameworkPath, status: .required).binaryPath
         )
@@ -34,12 +33,12 @@ final class PrecompiledMetadataProviderIntegrationTests: TuistTestCase {
         XCTAssertEqual(got.map(\.rawValue).sorted(), ["arm64", "x86_64"])
     }
 
-    func test_uuids() throws {
+    func test_uuids() async throws {
         // Given
-        let frameworkPath = try temporaryFixture("xpm.framework")
+        let frameworkPath = try await temporaryFixture("xpm.framework")
 
         // When
-        let got = try subject.uuids(
+        let got = try await subject.uuids(
             binaryPath: FrameworkMetadataProvider()
                 .loadMetadata(at: frameworkPath, status: .required).binaryPath
         )

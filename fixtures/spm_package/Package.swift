@@ -1,7 +1,7 @@
-// swift-tools-version: 5.9
+// swift-tools-version: 6.0
 // The swift-tools-version declares the minimum version of Swift required to build this package.
 
-import PackageDescription
+@preconcurrency import PackageDescription
 
 #if TUIST
     import ProjectDescription
@@ -12,6 +12,17 @@ import PackageDescription
                 .iPad,
                 .iPhone,
             ],
+        ],
+        targetSettings: [
+            "MyUIKitPackage": .settings(
+                debug: [
+                    "ACTIVE_COMPILATION_CONDITIONS": "$(inherited) QA_MODE",
+                ],
+                release: [
+                    "BUILD_LIBRARY_FOR_DISTRIBUTION": "YES",
+                    "SKIP_INSTALL": "NO",
+                ]
+            ),
         ]
     )
 

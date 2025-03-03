@@ -1,11 +1,10 @@
-import Foundation
 import Path
 import XcodeGraph
 
 // MARK: - GraphLoading
 
 public protocol GraphLoading {
-    func loadWorkspace(workspace: Workspace, projects: [Project]) throws -> Graph
+    func loadWorkspace(workspace: Workspace, projects: [Project]) async throws -> Graph
 }
 
 // swiftlint:disable:next type_body_length
@@ -38,11 +37,11 @@ public final class GraphLoader: GraphLoading {
 
     // MARK: - GraphLoading
 
-    public func loadWorkspace(workspace: Workspace, projects: [Project]) throws -> Graph {
+    public func loadWorkspace(workspace: Workspace, projects: [Project]) async throws -> Graph {
         let cache = Cache(projects: projects)
 
         for project in workspace.projects {
-            try loadProject(
+            try await loadProject(
                 path: project,
                 cache: cache
             )
@@ -66,7 +65,7 @@ public final class GraphLoader: GraphLoading {
     private func loadProject(
         path: AbsolutePath,
         cache: Cache
-    ) throws {
+    ) async throws {
         guard !cache.projectLoaded(path: path) else {
             return
         }
@@ -76,7 +75,7 @@ public final class GraphLoader: GraphLoading {
         cache.add(project: project)
 
         for target in project.targets.values {
-            try loadTarget(
+            try await loadTarget(
                 path: path,
                 name: target.name,
                 cache: cache
@@ -88,7 +87,7 @@ public final class GraphLoader: GraphLoading {
         path: AbsolutePath,
         name: String,
         cache: Cache
-    ) throws {
+    ) async throws {
         guard !cache.targetLoaded(path: path, name: name) else {
             return
         }
@@ -103,8 +102,8 @@ public final class GraphLoader: GraphLoading {
 
         cache.add(target: target, path: path)
         let targetDependency = GraphDependency.target(name: name, path: path)
-        let dependencies: [GraphDependency] = try target.dependencies.compactMap { dependency in
-            guard let graphDep = try loadDependency(
+        let dependencies: [GraphDependency] = try await target.dependencies.serialCompactMap { dependency in
+            guard let graphDep = try await self.loadDependency(
                 path: path,
                 forPlatforms: target.supportedPlatforms,
                 dependency: dependency,
@@ -125,36 +124,36 @@ public final class GraphLoader: GraphLoading {
         forPlatforms platforms: Set<Platform>,
         dependency: TargetDependency,
         cache: Cache
-    ) throws -> GraphDependency? {
+    ) async throws -> GraphDependency? {
         switch dependency {
-        case let .target(toTarget, _):
+        case let .target(toTarget, status, _):
             // A target within the same project.
-            try loadTarget(
+            try await loadTarget(
                 path: path,
                 name: toTarget,
                 cache: cache
             )
-            return .target(name: toTarget, path: path)
+            return .target(name: toTarget, path: path, status: status)
 
-        case let .project(toTarget, projectPath, _):
+        case let .project(toTarget, projectPath, status, _):
             // A target from another project
-            try loadProject(path: projectPath, cache: cache)
-            try loadTarget(
+            try await loadProject(path: projectPath, cache: cache)
+            try await loadTarget(
                 path: projectPath,
                 name: toTarget,
                 cache: cache
             )
-            return .target(name: toTarget, path: projectPath)
+            return .target(name: toTarget, path: projectPath, status: status)
 
         case let .framework(frameworkPath, status, _):
-            return try loadFramework(
+            return try await loadFramework(
                 path: frameworkPath,
                 cache: cache,
                 status: status
             )
 
         case let .library(libraryPath, publicHeaders, swiftModuleMap, _):
-            return try loadLibrary(
+            return try await loadLibrary(
                 path: libraryPath,
                 publicHeaders: publicHeaders,
                 swiftModuleMap: swiftModuleMap,
@@ -162,7 +161,7 @@ public final class GraphLoader: GraphLoading {
             )
 
         case let .xcframework(frameworkPath, status, _):
-            return try loadXCFramework(
+            return try await loadXCFramework(
                 path: frameworkPath,
                 cache: cache,
                 status: status
@@ -186,6 +185,8 @@ public final class GraphLoader: GraphLoading {
                 return try loadPackage(fromPath: path, productName: product, type: .runtime)
             case .plugin:
                 return try loadPackage(fromPath: path, productName: product, type: .plugin)
+            case .runtimeEmbedded:
+                return try loadPackage(fromPath: path, productName: product, type: .runtimeEmbedded)
             }
 
         case .xctest:
@@ -198,13 +199,13 @@ public final class GraphLoader: GraphLoading {
     private func loadFramework(
         path: AbsolutePath,
         cache: Cache,
-        status: FrameworkStatus
-    ) throws -> GraphDependency {
+        status: LinkingStatus
+    ) async throws -> GraphDependency {
         if let loaded = cache.frameworks[path] {
             return loaded
         }
 
-        let metadata = try frameworkMetadataProvider.loadMetadata(
+        let metadata = try await frameworkMetadataProvider.loadMetadata(
             at: path,
             status: status
         )
@@ -226,12 +227,12 @@ public final class GraphLoader: GraphLoading {
         publicHeaders: AbsolutePath,
         swiftModuleMap: AbsolutePath?,
         cache: Cache
-    ) throws -> GraphDependency {
+    ) async throws -> GraphDependency {
         if let loaded = cache.libraries[path] {
             return loaded
         }
 
-        let metadata = try libraryMetadataProvider.loadMetadata(
+        let metadata = try await libraryMetadataProvider.loadMetadata(
             at: path,
             publicHeaders: publicHeaders,
             swiftModuleMap: swiftModuleMap
@@ -250,24 +251,25 @@ public final class GraphLoader: GraphLoading {
     private func loadXCFramework(
         path: AbsolutePath,
         cache: Cache,
-        status: FrameworkStatus
-    ) throws -> GraphDependency {
+        status: LinkingStatus
+    ) async throws -> GraphDependency {
         if let loaded = cache.xcframeworks[path] {
             return loaded
         }
 
-        let metadata = try xcframeworkMetadataProvider.loadMetadata(
+        let metadata = try await xcframeworkMetadataProvider.loadMetadata(
             at: path,
             status: status
         )
         let xcframework: GraphDependency = .xcframework(GraphDependency.XCFramework(
             path: metadata.path,
             infoPlist: metadata.infoPlist,
-            primaryBinaryPath: metadata.primaryBinaryPath,
             linking: metadata.linking,
             mergeable: metadata.mergeable,
             status: metadata.status,
-            macroPath: metadata.macroPath
+            macroPath: metadata.macroPath,
+            swiftModules: metadata.swiftModules,
+            moduleMaps: metadata.moduleMaps
         ))
         cache.add(xcframework: xcframework, at: path)
         return xcframework
@@ -276,7 +278,7 @@ public final class GraphLoader: GraphLoading {
     private func loadSDK(
         name: String,
         platform: Platform,
-        status: SDKStatus,
+        status: LinkingStatus,
         source: SDKSource
     ) throws -> GraphDependency {
         let metadata = try systemFrameworkMetadataProvider.loadMetadata(

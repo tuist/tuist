@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Path
 import TuistCore
@@ -5,24 +6,32 @@ import TuistSupport
 import XcodeGraph
 
 protocol SettingsLinting: AnyObject {
-    func lint(project: Project) -> [LintingIssue]
-    func lint(target: Target) -> [LintingIssue]
+    func lint(project: Project) async throws -> [LintingIssue]
+    func lint(target: Target) async throws -> [LintingIssue]
 }
 
 final class SettingsLinter: SettingsLinting {
+    private let fileSystem: FileSysteming
+
+    init(
+        fileSystem: FileSysteming = FileSystem()
+    ) {
+        self.fileSystem = fileSystem
+    }
+
     // MARK: - SettingsLinting
 
-    func lint(project: Project) -> [LintingIssue] {
+    func lint(project: Project) async throws -> [LintingIssue] {
         var issues: [LintingIssue] = []
-        issues.append(contentsOf: lintConfigFilesExist(settings: project.settings))
+        try await issues.append(contentsOf: lintConfigFilesExist(settings: project.settings))
         issues.append(contentsOf: lintNonEmptyConfig(project: project))
         return issues
     }
 
-    func lint(target: Target) -> [LintingIssue] {
+    func lint(target: Target) async throws -> [LintingIssue] {
         var issues: [LintingIssue] = []
         if let settings = target.settings {
-            issues.append(contentsOf: lintConfigFilesExist(settings: settings))
+            try await issues.append(contentsOf: lintConfigFilesExist(settings: settings))
         }
 
         issues.append(contentsOf: lintDestinations(for: target.supportedPlatforms, and: target.deploymentTargets))
@@ -32,17 +41,17 @@ final class SettingsLinter: SettingsLinting {
 
     // MARK: - Fileprivate
 
-    private func lintConfigFilesExist(settings: Settings) -> [LintingIssue] {
+    private func lintConfigFilesExist(settings: Settings) async throws -> [LintingIssue] {
         var issues: [LintingIssue] = []
 
-        let lintPath: (AbsolutePath) -> Void = { path in
-            if !FileHandler.shared.exists(path) {
+        let lintPath: (AbsolutePath) async throws -> Void = { path in
+            if try await !self.fileSystem.exists(path) {
                 issues.append(LintingIssue(reason: "Configuration file not found at path \(path.pathString)", severity: .error))
             }
         }
 
         for configFilePath in settings.configurations.xcconfigs() {
-            lintPath(configFilePath)
+            try await lintPath(configFilePath)
         }
 
         return issues

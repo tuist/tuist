@@ -1,10 +1,10 @@
 import Path
+import ServiceContextModule
 import TuistCore
 import TuistLoader
 import TuistPlugin
 import TuistScaffold
 import TuistSupport
-import XcodeGraph
 
 enum ScaffoldServiceError: FatalError, Equatable {
     var type: ErrorType {
@@ -44,7 +44,7 @@ final class ScaffoldService {
         templateLoader: TemplateLoading = TemplateLoader(),
         templatesDirectoryLocator: TemplatesDirectoryLocating = TemplatesDirectoryLocator(),
         templateGenerator: TemplateGenerating = TemplateGenerator(),
-        configLoader: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader()),
+        configLoader: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader(), warningController: WarningController.shared),
         pluginService: PluginServicing = PluginService()
     ) {
         self.templateLoader = templateLoader
@@ -60,13 +60,13 @@ final class ScaffoldService {
     ) async throws -> (required: [String], optional: [String]) {
         let path = try self.path(path)
         let plugins = try await loadPlugins(at: path)
-        let templateDirectories = try locateTemplateDirectories(at: path, plugins: plugins)
+        let templateDirectories = try await locateTemplateDirectories(at: path, plugins: plugins)
         let templateDirectory = try templateDirectory(
             templateDirectories: templateDirectories,
             template: templateName
         )
 
-        let template = try templateLoader.loadTemplate(at: templateDirectory, plugins: plugins)
+        let template = try await templateLoader.loadTemplate(at: templateDirectory, plugins: plugins)
 
         return template.attributes.reduce(into: (required: [], optional: [])) { currentValue, attribute in
             switch attribute {
@@ -86,13 +86,13 @@ final class ScaffoldService {
     ) async throws {
         let path = try self.path(path)
         let plugins = try await loadPlugins(at: path)
-        let templateDirectories = try locateTemplateDirectories(at: path, plugins: plugins)
+        let templateDirectories = try await locateTemplateDirectories(at: path, plugins: plugins)
 
         let templateDirectory = try templateDirectory(
             templateDirectories: templateDirectories,
             template: templateName
         )
-        let template = try templateLoader.loadTemplate(at: templateDirectory, plugins: plugins)
+        let template = try await templateLoader.loadTemplate(at: templateDirectory, plugins: plugins)
 
         let parsedAttributes = try parseAttributes(
             requiredTemplateOptions: requiredTemplateOptions,
@@ -100,13 +100,13 @@ final class ScaffoldService {
             template: template
         )
 
-        try templateGenerator.generate(
+        try await templateGenerator.generate(
             template: template,
             to: path,
             attributes: parsedAttributes
         )
 
-        logger.notice("Template \(templateName) was successfully generated", metadata: .success)
+        ServiceContext.current?.logger?.notice("Template \(templateName) was successfully generated", metadata: .success)
     }
 
     // MARK: - Helpers
@@ -120,7 +120,7 @@ final class ScaffoldService {
     }
 
     private func loadPlugins(at path: AbsolutePath) async throws -> Plugins {
-        let config = try configLoader.loadConfig(path: path)
+        let config = try await configLoader.loadConfig(path: path)
         return try await pluginService.loadPlugins(using: config)
     }
 
@@ -156,8 +156,8 @@ final class ScaffoldService {
     private func locateTemplateDirectories(
         at path: AbsolutePath,
         plugins: Plugins
-    ) throws -> [AbsolutePath] {
-        let templateRelativeDirectories = try templatesDirectoryLocator.templateDirectories(at: path)
+    ) async throws -> [AbsolutePath] {
+        let templateRelativeDirectories = try await templatesDirectoryLocator.templateDirectories(at: path)
         let templatePluginDirectories = plugins.templateDirectories
         return templateRelativeDirectories + templatePluginDirectories
     }

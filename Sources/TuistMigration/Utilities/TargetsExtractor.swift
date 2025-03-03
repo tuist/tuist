@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Path
 import TSCBasic
@@ -37,7 +38,7 @@ public enum TargetsExtractorError: FatalError, Equatable {
 public protocol TargetsExtracting {
     /// - Parameters:
     ///   - xcodeprojPath: Path to the Xcode project.
-    func targetsSortedByDependencies(xcodeprojPath: Path.AbsolutePath) throws -> [TargetDependencyCount]
+    func targetsSortedByDependencies(xcodeprojPath: Path.AbsolutePath) async throws -> [TargetDependencyCount]
 }
 
 public struct TargetDependencyCount: Encodable {
@@ -47,14 +48,20 @@ public struct TargetDependencyCount: Encodable {
 }
 
 public final class TargetsExtractor: TargetsExtracting {
+    private let fileSystem: FileSysteming
+
     // MARK: - Init
 
-    public init() {}
+    public init(
+        fileSystem: FileSysteming = FileSystem()
+    ) {
+        self.fileSystem = fileSystem
+    }
 
     // MARK: - EmptyBuildSettingsChecking
 
-    public func targetsSortedByDependencies(xcodeprojPath: Path.AbsolutePath) throws -> [TargetDependencyCount] {
-        guard FileHandler.shared.exists(xcodeprojPath) else { throw TargetsExtractorError.missingXcodeProj(xcodeprojPath) }
+    public func targetsSortedByDependencies(xcodeprojPath: Path.AbsolutePath) async throws -> [TargetDependencyCount] {
+        guard try await fileSystem.exists(xcodeprojPath) else { throw TargetsExtractorError.missingXcodeProj(xcodeprojPath) }
         let pbxproj = try XcodeProj(pathString: xcodeprojPath.pathString).pbxproj
         let targets = pbxproj.nativeTargets + pbxproj.aggregateTargets + pbxproj.legacyTargets
         if targets.isEmpty {

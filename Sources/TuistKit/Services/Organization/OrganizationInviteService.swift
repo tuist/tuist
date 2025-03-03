@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import ServiceContextModule
 import TuistLoader
 import TuistServer
 import TuistSupport
@@ -20,7 +21,7 @@ final class OrganizationInviteService: OrganizationInviteServicing {
     init(
         createOrganizationInviteService: CreateOrganizationInviteServicing = CreateOrganizationInviteService(),
         serverURLService: ServerURLServicing = ServerURLService(),
-        configLoader: ConfigLoading = ConfigLoader()
+        configLoader: ConfigLoading = ConfigLoader(warningController: WarningController.shared)
     ) {
         self.createOrganizationInviteService = createOrganizationInviteService
         self.serverURLService = serverURLService
@@ -38,7 +39,7 @@ final class OrganizationInviteService: OrganizationInviteServicing {
         } else {
             directoryPath = FileHandler.shared.currentPath
         }
-        let config = try configLoader.loadConfig(path: directoryPath)
+        let config = try await configLoader.loadConfig(path: directoryPath)
         let serverURL = try serverURLService.url(configServerURL: config.url)
 
         let invitation = try await createOrganizationInviteService.createOrganizationInvite(
@@ -52,7 +53,7 @@ final class OrganizationInviteService: OrganizationInviteServicing {
             .appendingPathComponent("invitations")
             .appendingPathComponent(invitation.token)
 
-        logger.info("""
+        ServiceContext.current?.logger?.info("""
         \(invitation.inviteeEmail) was successfully invited to the \(organizationName) organization 🎉
 
         You can also share with them the invite link directly: \(invitationURL.absoluteString)

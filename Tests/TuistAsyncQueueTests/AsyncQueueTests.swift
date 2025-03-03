@@ -1,5 +1,5 @@
 import Foundation
-import MockableTest
+import Mockable
 import Queuer
 import TuistCore
 import TuistSupport
@@ -197,7 +197,7 @@ final class AsyncQueueTests: TuistUnitTestCase {
         XCTAssertEqual(mockPersistor.invokedDeleteEventCount, 0)
     }
 
-    func test_waits_for_queue_to_finish_when_CI() throws {
+    func test_waits_for_queue_to_finish_when_CI() async throws {
         // Given
         let eventTuple1: AsyncQueueEventTuple = makeEventTuple(id: 1)
         mockPersistor.stubbedReadAllResult = [eventTuple1]
@@ -207,7 +207,7 @@ final class AsyncQueueTests: TuistUnitTestCase {
 
         // When
         subject = makeSubject(queue: Queuer.shared)
-        subject.start()
+        await subject.start()
 
         // Then
         XCTAssertEqual(Queuer.shared.operationCount, 0)
@@ -228,7 +228,7 @@ final class AsyncQueueTests: TuistUnitTestCase {
     //     XCTAssertEqual(Queuer.shared.operationCount, 1)
     // }
 
-    func test_start_readsPersistedEventsInitialization() throws {
+    func test_start_readsPersistedEventsInitialization() async throws {
         // Given
         given(ciChecker)
             .isCI()
@@ -240,7 +240,7 @@ final class AsyncQueueTests: TuistUnitTestCase {
 
         // When
         subject = makeSubject()
-        subject.start()
+        await subject.start()
 
         // Then
         let numberOfOperationsQueued = mockQueuer.invokedAddOperationCount
@@ -265,7 +265,7 @@ final class AsyncQueueTests: TuistUnitTestCase {
         XCTAssertEqual(queuedOperation3.name, eventTuple3.id.uuidString)
     }
 
-    func test_start_persistedEventIsDispatchedByTheRightDispatcher() throws {
+    func test_start_persistedEventIsDispatchedByTheRightDispatcher() async throws {
         // Given
         given(ciChecker)
             .isCI()
@@ -280,10 +280,10 @@ final class AsyncQueueTests: TuistUnitTestCase {
 
         // When
         subject = makeSubject(queue: Queuer.shared)
-        subject.start()
+        await subject.start()
 
         // Then
-        wait(for: [expectation], timeout: timeout)
+        await fulfillment(of: [expectation], timeout: timeout)
         guard let dispatchedEventData = mockAsyncQueueDispatcher1.invokedDispatchPersistedDataParameter else {
             XCTFail("Data from persisted event was not dispatched")
             return
@@ -293,7 +293,7 @@ final class AsyncQueueTests: TuistUnitTestCase {
         XCTAssertEqual(mockAsyncQueueDispatcher2.invokedDispatchPersistedCount, 0)
     }
 
-    func test_start_sentPersistedEventIsThenDeleted() throws {
+    func test_start_sentPersistedEventIsThenDeleted() async throws {
         // Given
         given(ciChecker)
             .isCI()
@@ -309,10 +309,10 @@ final class AsyncQueueTests: TuistUnitTestCase {
 
         // When
         subject = makeSubject(queue: Queuer.shared)
-        subject.start()
+        await subject.start()
 
         // Then
-        wait(for: [expectation], timeout: timeout)
+        await fulfillment(of: [expectation], timeout: timeout)
         guard let filename = mockPersistor.invokedDeleteFilenameParameter else {
             XCTFail("Sent persisted event was then not deleted")
             return

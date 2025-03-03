@@ -86,6 +86,12 @@ public enum EnvKey: String, CaseIterable {
     case pluginOptionsConfiguration = "TUIST_PLUGIN_OPTIONS_CONFIGURATION"
     case pluginOptionsPath = "TUIST_PLUGIN_OPTIONS_PATH"
 
+    // LINT
+    case lintImplicitDependenciesPath = "TUIST_LINT_IMPLICIT_DEPENDENCIES_PATH"
+
+    // Redundant
+    case lintRedundantDependenciesPath = "TUIST_LINT_REDUNDANT_DEPENDENCIES_PATH"
+
     // RUN
     case runBuildTests = "TUIST_RUN_BUILD_TESTS"
     case runSkipBuild = "TUIST_RUN_SKIP_BUILD"
@@ -110,6 +116,7 @@ public enum EnvKey: String, CaseIterable {
     // TEST
     case testScheme = "TUIST_TEST_SCHEME"
     case testClean = "TUIST_TEST_CLEAN"
+    case testNoUpload = "TUIST_TEST_NO_UPLOAD"
     case testPath = "TUIST_TEST_PATH"
     case testDevice = "TUIST_TEST_DEVICE"
     case testPlatform = "TUIST_TEST_PLATFORM"
@@ -178,6 +185,11 @@ public enum EnvKey: String, CaseIterable {
     case projectCreateFullHandle = "TUIST_PROJECT_CREATE_FULL_HANDLE"
     case projectCreatePath = "TUIST_PROJECT_CREATE_PATH"
 
+    // PROJECT SHOW
+    case projectShowFullHandle = "TUIST_PROJECT_SHOW_FULL_HANDLE"
+    case projectShowPath = "TUIST_PROJECT_SHOW_PATH"
+    case projectShowWeb = "TUIST_PROJECT_SHOW_WEB"
+
     // ORGANIZATION INVITE
     case organizationInviteOrganizationName = "TUIST_ORGANIZATION_INVITE_ORGANIZATION_NAME"
     case organizationInviteEmail = "TUIST_ORGANIZATION_INVITE_EMAIL"
@@ -198,19 +210,43 @@ public enum EnvKey: String, CaseIterable {
     case organizationUpdateMemberRole = "TUIST_ORGANIZATION_UPDATE_MEMBER_ROLE"
     case organizationUpdateMemberPath = "TUIST_ORGANIZATION_UPDATE_MEMBER_PATH"
 
+    // REGISTRY LOGIN
+    case registryLoginPath = "TUIST_REGISTRY_LOGIN_PATH"
+
+    // REGISTRY LOGOUT
+    case registryLogoutPath = "TUIST_REGISTRY_LOGOUT_PATH"
+
+    // REGISTRY SETUP
+    case registrySetUpPath = "TUIST_REGISTRY_SETUP_PATH"
+
     // AUTH
     case authPath = "TUIST_AUTH_PATH"
     case authEmail = "TUIST_AUTH_EMAIL"
     case authPassword = "TUIST_AUTH_PASSWORD"
 
     // SESSION
-    case sessionPath = "TUIST_SESSION_PATH"
+    case whoamiPath = "TUIST_WHOAMI_PATH"
 
     // LOGOUT
     case logoutPath = "TUIST_LOGOUT_PATH"
 
     // ANALYTICS
     case analyticsPath = "TUIST_ANALYTICS_PATH"
+
+    // SHARE
+    case shareApp = "TUIST_SHARE_APP"
+    case shareConfiguration = "TUIST_SHARE_CONFIGURATION"
+    case sharePlatform = "TUIST_SHARE_PLATFORM"
+    case shareJSON = "TUIST_SHARE_JSON"
+    case shareDerivedDataPath = "TUIST_SHARE_DERIVED_DATA_PATH"
+
+    // CACHE
+    case cacheExternalOnly = "TUIST_CACHE_EXTERNAL_ONLY"
+    case cacheGenerateOnly = "TUIST_CACHE_GENERATE_ONLY"
+    case cachePrintHashes = "TUIST_CACHE_PRINT_HASHES"
+    case cacheConfiguration = "TUIST_CACHE_CONFIGURATION"
+    case cachePath = "TUIST_CACHE_PATH"
+    case cacheTargets = "TUIST_CACHE_TARGETS"
 }
 
 extension EnvKey {

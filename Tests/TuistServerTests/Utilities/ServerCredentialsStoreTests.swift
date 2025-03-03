@@ -17,37 +17,45 @@ final class ServerCredentialsStoreTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_crud_with_legacy_token() throws {
+    func test_crud_with_legacy_token() async throws {
         // Given
         let temporaryDirectory = try temporaryPath()
         let subject = ServerCredentialsStore(
-            fileHandler: FileHandler.shared,
+            fileSystem: fileSystem,
             configDirectory: temporaryDirectory
         )
         let credentials = ServerCredentials(token: "token", accessToken: nil, refreshToken: nil)
         let serverURL = URL(string: "https://tuist.io")!
 
-        // When/Then
-        try subject.store(credentials: credentials, serverURL: serverURL)
-        XCTAssertEqual(try subject.read(serverURL: serverURL), credentials)
-        try subject.delete(serverURL: serverURL)
-        XCTAssertEqual(try subject.read(serverURL: serverURL), nil)
+        // When
+        try await subject.store(credentials: credentials, serverURL: serverURL)
+
+        // Then
+        let gotRead = try await subject.read(serverURL: serverURL)
+        XCTAssertEqual(gotRead, credentials)
+        try await subject.delete(serverURL: serverURL)
+        let gotReadAfterDelete = try await subject.read(serverURL: serverURL)
+        XCTAssertEqual(gotReadAfterDelete, nil)
     }
 
-    func test_crud() throws {
+    func test_crud() async throws {
         // Given
         let temporaryDirectory = try temporaryPath()
         let subject = ServerCredentialsStore(
-            fileHandler: FileHandler.shared,
+            fileSystem: fileSystem,
             configDirectory: temporaryDirectory
         )
         let credentials = ServerCredentials(token: nil, accessToken: "access-token", refreshToken: "refresh-token")
         let serverURL = URL(string: "https://tuist.io")!
 
-        // When/Then
-        try subject.store(credentials: credentials, serverURL: serverURL)
-        XCTAssertEqual(try subject.read(serverURL: serverURL), credentials)
-        try subject.delete(serverURL: serverURL)
-        XCTAssertEqual(try subject.read(serverURL: serverURL), nil)
+        // When
+        try await subject.store(credentials: credentials, serverURL: serverURL)
+
+        // Then
+        let gotRead = try await subject.read(serverURL: serverURL)
+        XCTAssertEqual(gotRead, credentials)
+        try await subject.delete(serverURL: serverURL)
+        let gotReadAfterDelete = try await subject.read(serverURL: serverURL)
+        XCTAssertEqual(gotReadAfterDelete, nil)
     }
 }

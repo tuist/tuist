@@ -8,7 +8,7 @@ public struct ServerOrganization: Codable {
         case enterprise
         case none
 
-        public init(_ organization: Components.Schemas.Organization.planPayload) {
+        init(_ organization: Components.Schemas.Organization.planPayload) {
             switch organization {
             case .air:
                 self = .air
@@ -16,7 +16,7 @@ public struct ServerOrganization: Codable {
                 self = .pro
             case .enterprise:
                 self = .enterprise
-            case .none, .undocumented:
+            case .none:
                 self = .none
             }
         }
@@ -102,8 +102,8 @@ extension ServerOrganization {
             switch ssoProvider {
             case .google:
                 ssoOrganization = .google(ssoOrganizationId)
-            case .undocumented:
-                ssoOrganization = nil
+            case .okta:
+                ssoOrganization = .okta(ssoOrganizationId)
             }
         } else {
             ssoOrganization = nil
@@ -119,7 +119,7 @@ extension ServerOrganization.Member {
         switch organizationMember.role {
         case .admin:
             role = .admin
-        case .user, .undocumented:
+        case .user:
             role = .user
         }
     }

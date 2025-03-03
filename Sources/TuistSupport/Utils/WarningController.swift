@@ -1,9 +1,11 @@
 import Foundation
+import Mockable
 
 /**
  It represents the interface of a tool that can collect warnings during the execution of a program and flush
  them when the program decides.
  */
+@Mockable
 public protocol WarningControlling: Sendable {
     /// Appends a new warning to the list of warnings to be shown.
     /// - Parameter warning: The warning to be appended.

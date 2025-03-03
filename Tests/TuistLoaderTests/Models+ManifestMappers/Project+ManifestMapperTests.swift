@@ -1,5 +1,4 @@
 import Foundation
-import Path
 import ProjectDescription
 import TuistCore
 import TuistLoaderTesting
@@ -11,11 +10,15 @@ import XCTest
 @testable import XcodeGraph
 
 final class ProjectManifestMapperTests: TuistUnitTestCase {
-    func test_from() throws {
+    func test_from() async throws {
         // Given
+        let swiftFilePath = try temporaryPath()
+            .appending(component: "file.swift")
+        try await fileSystem.touch(swiftFilePath)
         let project = ProjectDescription.Project(
             name: "Name",
             organizationName: "Organization",
+            classPrefix: "ClassPrefix",
             options: .options(
                 automaticSchemesOptions: .enabled(
                     targetSchemesGrouping: .byNameSuffix(build: ["build"], test: ["test"], run: ["run"]),
@@ -37,23 +40,23 @@ final class ProjectManifestMapperTests: TuistUnitTestCase {
             targets: [],
             schemes: [],
             fileHeaderTemplate: .string("123"),
-            additionalFiles: [.glob(pattern: "/file.swift")],
+            additionalFiles: [.glob(pattern: .path(swiftFilePath.pathString))],
             resourceSynthesizers: []
         )
-        fileHandler.stubExists = { _ in true }
 
         // When
-        let got = try XcodeGraph.Project.from(
+        let got = try await XcodeGraph.Project.from(
             manifest: project,
-            generatorPaths: .init(manifestDirectory: "/"),
+            generatorPaths: .init(manifestDirectory: "/", rootDirectory: "/"),
             plugins: .none,
             externalDependencies: [:],
             resourceSynthesizerPathLocator: MockResourceSynthesizerPathLocator(),
-            type: .tuistProject
+            type: .local,
+            fileSystem: fileSystem
         )
 
         // Then
-        XCTAssertEqual(
+        XCTAssertBetterEqual(
             got,
             XcodeGraph.Project(
                 path: "/",
@@ -61,6 +64,7 @@ final class ProjectManifestMapperTests: TuistUnitTestCase {
                 xcodeProjPath: "/XcodeName.xcodeproj",
                 name: "Name",
                 organizationName: "Organization",
+                classPrefix: "ClassPrefix",
                 defaultKnownRegions: ["en-US", "Base"],
                 developmentRegion: "us",
                 options: .init(
@@ -83,10 +87,10 @@ final class ProjectManifestMapperTests: TuistUnitTestCase {
                 ],
                 schemes: [],
                 ideTemplateMacros: .init(fileHeader: "123"),
-                additionalFiles: [.file(path: "/file.swift")],
+                additionalFiles: [.file(path: swiftFilePath)],
                 resourceSynthesizers: [],
                 lastUpgradeCheck: nil,
-                type: .tuistProject
+                type: .local
             )
         )
     }

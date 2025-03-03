@@ -1,5 +1,3 @@
-import Foundation
-
 extension BuildRule {
     /// File types processed by a build rule.
     /// All the values are taken from build rule options hidden under a pup-up button's menu next to a label `Process` in a

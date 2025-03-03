@@ -1,22 +1,22 @@
+import FileSystem
 import Foundation
 import Path
 import TuistCore
 import TuistSupport
-import XcodeGraph
 
 public protocol StencilPathLocating {
-    func locate(at: AbsolutePath) -> AbsolutePath?
+    func locate(at: AbsolutePath) async throws -> AbsolutePath?
 
     func templatePath(
         for pluginName: String,
         resourceName: String,
         stencilPlugins: [PluginStencil]
-    ) throws -> AbsolutePath
+    ) async throws -> AbsolutePath
 
     func templatePath(
         for resourceName: String,
         path: AbsolutePath
-    ) -> AbsolutePath?
+    ) async throws -> AbsolutePath?
 }
 
 enum StencilPathLocatorError: FatalError, Equatable {
@@ -43,24 +43,27 @@ enum StencilPathLocatorError: FatalError, Equatable {
 
 public final class StencilPathLocator: StencilPathLocating {
     private let rootDirectoryLocator: RootDirectoryLocating
+    private let fileSystem: FileSysteming
 
     public init(
-        rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator()
+        rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator(),
+        fileSystem: FileSysteming = FileSystem()
     ) {
         self.rootDirectoryLocator = rootDirectoryLocator
+        self.fileSystem = fileSystem
     }
 
     public func templatePath(
         for pluginName: String,
         resourceName: String,
         stencilPlugins: [PluginStencil]
-    ) throws -> AbsolutePath {
+    ) async throws -> AbsolutePath {
         guard let plugin = stencilPlugins.first(where: { $0.name == pluginName })
         else { throw StencilPathLocatorError.pluginNotFound(pluginName, stencilPlugins.map(\.name)) }
 
         let resourceTemplatePath = plugin.path
             .appending(components: "\(resourceName).stencil")
-        guard FileHandler.shared.exists(resourceTemplatePath)
+        guard try await fileSystem.exists(resourceTemplatePath)
         else {
             throw StencilPathLocatorError
                 .resourceTemplateNotFound(name: "\(resourceName).stencil", plugin: plugin.name)
@@ -72,25 +75,25 @@ public final class StencilPathLocator: StencilPathLocating {
     public func templatePath(
         for resourceName: String,
         path: AbsolutePath
-    ) -> AbsolutePath? {
-        guard let rootDirectory = rootDirectoryLocator.locate(from: path) else { return nil }
+    ) async throws -> AbsolutePath? {
+        guard let rootDirectory = try await rootDirectoryLocator.locate(from: path) else { return nil }
         let templatePath = rootDirectory
             .appending(
                 components: Constants.tuistDirectoryName,
                 Constants.stencilsDirectoryName,
                 "\(resourceName).stencil"
             )
-        return FileHandler.shared.exists(templatePath) ? templatePath : nil
+        return try await fileSystem.exists(templatePath) ? templatePath : nil
     }
 
     // MARK: - Helpers
 
-    public func locate(at: AbsolutePath) -> AbsolutePath? {
-        guard let rootDirectory = rootDirectoryLocator.locate(from: at) else { return nil }
+    public func locate(at: AbsolutePath) async throws -> AbsolutePath? {
+        guard let rootDirectory = try await rootDirectoryLocator.locate(from: at) else { return nil }
         let helpersDirectory = rootDirectory
             .appending(component: Constants.tuistDirectoryName)
             .appending(component: Constants.stencilsDirectoryName)
-        if !FileHandler.shared.exists(helpersDirectory) { return nil }
+        if try await !fileSystem.exists(helpersDirectory) { return nil }
         return helpersDirectory
     }
 }

@@ -1,10 +1,12 @@
 import Foundation
-import MockableTest
+import Mockable
 import Path
+import ServiceContextModule
+import TuistCache
 import TuistCore
 import TuistLoader
 import TuistServer
-import XcodeGraph
+import TuistSupport
 import XcodeProj
 import XCTest
 @testable import TuistCoreTesting
@@ -14,7 +16,7 @@ import XCTest
 
 final class GenerateServiceTests: TuistUnitTestCase {
     private var subject: GenerateService!
-    private var opener: MockOpener!
+    private var opener: MockOpening!
     private var generator: MockGenerating!
     private var generatorFactory: MockGeneratorFactorying!
     private var cacheStorageFactory: MockCacheStorageFactorying!
@@ -22,7 +24,7 @@ final class GenerateServiceTests: TuistUnitTestCase {
 
     override func setUp() {
         super.setUp()
-        opener = MockOpener()
+        opener = .init()
         generator = .init()
         generatorFactory = .init()
         given(generatorFactory)
@@ -50,17 +52,17 @@ final class GenerateServiceTests: TuistUnitTestCase {
     override func tearDown() {
         opener = nil
         generator = nil
-        subject = nil
         generatorFactory = nil
         cacheStorageFactory = nil
         clock = nil
+        subject = nil
         super.tearDown()
     }
 
     func test_run_fatalErrors_when_theworkspaceGenerationFails() async throws {
         let expectedError = NSError.test()
         given(generator)
-            .generate(path: .any)
+            .generateWithGraph(path: .any)
             .willThrow(expectedError)
 
         do {
@@ -79,34 +81,22 @@ final class GenerateServiceTests: TuistUnitTestCase {
     }
 
     func test_run() async throws {
-        let workspacePath = try AbsolutePath(validating: "/test.xcworkspace")
-
-        given(generator)
-            .generate(path: .any)
-            .willReturn(workspacePath)
-
-        try await subject.run(
-            path: nil,
-            sources: [],
-            noOpen: false,
-            configuration: nil,
-            ignoreBinaryCache: false
-        )
-
-        XCTAssertEqual(opener.openArgs.last?.0, workspacePath.pathString)
-    }
-
-    func test_run_timeIsPrinted() async throws {
         // Given
         let workspacePath = try AbsolutePath(validating: "/test.xcworkspace")
-
+        var environment = MapperEnvironment()
         given(generator)
-            .generate(path: .any)
-            .willReturn(workspacePath)
-        clock.assertOnUnexpectedCalls = true
-        clock.primedTimers = [
-            0.234,
-        ]
+            .generateWithGraph(path: .any)
+            .willReturn(
+                (
+                    workspacePath,
+                    .test(),
+                    environment
+                )
+            )
+
+        given(opener)
+            .open(path: .any)
+            .willReturn()
 
         // When
         try await subject.run(
@@ -118,6 +108,39 @@ final class GenerateServiceTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertPrinterOutputContains("Total time taken: 0.234s")
+        verify(opener)
+            .open(path: .value(workspacePath))
+            .called(1)
+    }
+
+    func test_run_timeIsPrinted() async throws {
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            let workspacePath = try AbsolutePath(validating: "/test.xcworkspace")
+
+            given(opener)
+                .open(path: .any)
+                .willReturn()
+
+            given(generator)
+                .generateWithGraph(path: .any)
+                .willReturn((workspacePath, .test(), MapperEnvironment()))
+            clock.assertOnUnexpectedCalls = true
+            clock.primedTimers = [
+                0.234,
+            ]
+
+            // When
+            try await subject.run(
+                path: nil,
+                sources: [],
+                noOpen: false,
+                configuration: nil,
+                ignoreBinaryCache: false
+            )
+
+            // Then
+            XCTAssertPrinterOutputContains("Total time taken: 0.234s")
+        }
     }
 }

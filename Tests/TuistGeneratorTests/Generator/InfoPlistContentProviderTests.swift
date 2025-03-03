@@ -134,7 +134,33 @@ final class InfoPlistContentProviderTests: XCTestCase {
         ])
     }
 
-    func test_content_whenMacosFramework() {
+    func test_content_whenMacosFrameworkWithSources() {
+        // Given
+        let target = Target.test(destinations: .macOS, product: .framework, sources: ["/Example.swift"])
+
+        // When
+        let got = subject.content(
+            project: .empty(),
+            target: target,
+            extendedWith: ["ExtraAttribute": "Value"]
+        )
+
+        // Then
+        assertEqual(got, [
+            "CFBundleShortVersionString": "1.0",
+            "CFBundleExecutable": "$(EXECUTABLE_NAME)",
+            "CFBundleVersion": "1",
+            "NSHumanReadableCopyright": "Copyright ©. All rights reserved.",
+            "CFBundleInfoDictionaryVersion": "6.0",
+            "CFBundleDevelopmentRegion": "$(DEVELOPMENT_LANGUAGE)",
+            "ExtraAttribute": "Value",
+            "CFBundlePackageType": "FMWK",
+            "CFBundleIdentifier": "$(PRODUCT_BUNDLE_IDENTIFIER)",
+            "CFBundleName": "$(PRODUCT_NAME)",
+        ])
+    }
+
+    func test_content_whenMacosFrameworkWithoutSources() {
         // Given
         let target = Target.test(destinations: .macOS, product: .framework)
 
@@ -155,6 +181,31 @@ final class InfoPlistContentProviderTests: XCTestCase {
             "CFBundleDevelopmentRegion": "$(DEVELOPMENT_LANGUAGE)",
             "ExtraAttribute": "Value",
             "CFBundlePackageType": "FMWK",
+            "CFBundleIdentifier": "$(PRODUCT_BUNDLE_IDENTIFIER)",
+            "CFBundleName": "$(PRODUCT_NAME)",
+        ])
+    }
+
+    func test_content_whenMacosBundleWithoutSources() {
+        // Given
+        let target = Target.test(destinations: .macOS, product: .bundle)
+
+        // When
+        let got = subject.content(
+            project: .empty(),
+            target: target,
+            extendedWith: ["ExtraAttribute": "Value"]
+        )
+
+        // Then
+        assertEqual(got, [
+            "CFBundleShortVersionString": "1.0",
+            "CFBundleVersion": "1",
+            "NSHumanReadableCopyright": "Copyright ©. All rights reserved.",
+            "CFBundleInfoDictionaryVersion": "6.0",
+            "CFBundleDevelopmentRegion": "$(DEVELOPMENT_LANGUAGE)",
+            "ExtraAttribute": "Value",
+            "CFBundlePackageType": "BNDL",
             "CFBundleIdentifier": "$(PRODUCT_BUNDLE_IDENTIFIER)",
             "CFBundleName": "$(PRODUCT_NAME)",
         ])

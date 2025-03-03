@@ -3,18 +3,13 @@ import Path
 import TuistSupport
 import XCTest
 
-public class MockEnvironment: Environmenting {
+public final class MockEnvironment: Environmenting {
     fileprivate let directory: TemporaryDirectory
     fileprivate var setupCallCount: UInt = 0
     fileprivate var setupErrorStub: Error?
 
     init() throws {
         directory = try TemporaryDirectory(removeTreeOnDeinit: true)
-        try FileManager.default.createDirectory(
-            at: versionsDirectory.url,
-            withIntermediateDirectories: true,
-            attributes: nil
-        )
     }
 
     public var isVerbose: Bool = false
@@ -26,25 +21,19 @@ public class MockEnvironment: Environmenting {
     public var isStatsEnabled: Bool = true
     public var isGitHubActions: Bool = false
 
-    public var versionsDirectory: AbsolutePath {
-        directory.path.appending(component: "Versions")
-    }
-
-    public var settingsPath: AbsolutePath {
-        directory.path.appending(component: "settings.json")
-    }
-
     public var automationPath: AbsolutePath? {
         nil
+    }
+
+    public var cacheDirectory: AbsolutePath {
+        directory.path.appending(components: ".cache")
+    }
+
+    public var stateDirectory: AbsolutePath {
+        directory.path.appending(component: "state")
     }
 
     public var queueDirectory: AbsolutePath {
         queueDirectoryStub ?? directory.path.appending(component: Constants.AsyncQueue.directoryName)
     }
-
-    func path(version: String) -> AbsolutePath {
-        versionsDirectory.appending(component: version)
-    }
-
-    public func bootstrap() throws {}
 }

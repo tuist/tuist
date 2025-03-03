@@ -21,6 +21,12 @@ let betaScheme: Scheme = .scheme(
     analyzeAction: .analyzeAction(configuration: "Debug")
 )
 
+let betaArchiveOnlyScheme: Scheme = .scheme(
+    name: "App-Beta-ArchiveOnly",
+    shared: true,
+    archiveAction: .archiveAction(configuration: "Beta")
+)
+
 let project = Project(
     name: "MainApp",
     settings: settings,
@@ -49,5 +55,8 @@ let project = Project(
             ]
         ),
     ],
-    schemes: [betaScheme]
+    schemes: [
+        betaScheme,
+        betaArchiveOnlyScheme,
+    ]
 )

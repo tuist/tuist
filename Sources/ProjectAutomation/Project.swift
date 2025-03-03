@@ -8,6 +8,9 @@ public struct Project: Codable, Equatable, Sendable {
     /// The absolute path of the project.
     public let path: String
 
+    /// Indicates whether the project is imported through `Package.swift`.
+    public let isExternal: Bool
+
     /// The Swift packages that this project depends on.
     public let packages: [Package]
 
@@ -20,12 +23,14 @@ public struct Project: Codable, Equatable, Sendable {
     public init(
         name: String,
         path: String,
+        isExternal: Bool,
         packages: [Package] = [Package](),
         targets: [Target] = [Target](),
         schemes: [Scheme] = [Scheme]()
     ) {
         self.name = name
         self.path = path
+        self.isExternal = isExternal
         self.packages = packages
         self.targets = targets
         self.schemes = schemes

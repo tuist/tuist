@@ -1,7 +1,25 @@
-import class Foundation.ProcessInfo
+import FileLogging
 @_exported import Logging
+import LoggingOSLog
+import Path
+import ServiceContextModule
 
-let logger = Logger(label: "io.tuist.support")
+import class Foundation.ProcessInfo
+
+private enum LoggerServiceContextKey: ServiceContextKey {
+    typealias Value = Logger
+}
+
+extension ServiceContext {
+    public var logger: Logger? {
+        get {
+            self[LoggerServiceContextKey.self]
+        }
+        set {
+            self[LoggerServiceContextKey.self] = newValue
+        }
+    }
+}
 
 public struct LoggingConfig {
     public init(loggerType: LoggerType, verbose: Bool) {
@@ -14,34 +32,18 @@ public struct LoggingConfig {
         case detailed
         case osLog
         case json
+        case quiet
     }
 
     public var loggerType: LoggerType
     public var verbose: Bool
 }
 
-extension LoggingConfig {
-    public static var `default`: LoggingConfig {
-        let env = ProcessInfo.processInfo.environment
-
-        let osLog = env[Constants.EnvironmentVariables.osLog] != nil
-        let detailed = env[Constants.EnvironmentVariables.detailedLog] != nil
-        let verbose = env[Constants.EnvironmentVariables.verbose] != nil
-
-        if osLog {
-            return .init(loggerType: .osLog, verbose: verbose)
-        } else if detailed {
-            return .init(loggerType: .detailed, verbose: verbose)
-        } else {
-            return .init(loggerType: .console, verbose: verbose)
-        }
-    }
-}
-
-public enum LogOutput {
-    static var environment = ProcessInfo.processInfo.environment
-
-    public static func bootstrap(config: LoggingConfig = .default) {
+extension Logger {
+    public static func defaultLoggerHandler(
+        config: LoggingConfig = .default,
+        logFilePath: AbsolutePath
+    ) throws -> @Sendable (String) -> any LogHandler {
         let handler: VerboseLogHandler.Type
 
         switch config.loggerType {
@@ -53,20 +55,68 @@ public enum LogOutput {
             handler = StandardLogHandler.self
         case .json:
             handler = JSONLogHandler.self
+        case .quiet:
+            return quietLogHandler
         }
 
+        let fileLogger = try FileLogging(to: logFilePath.url)
+
+        let baseLoggers = { (label: String) -> [any LogHandler] in
+            var loggers: [any LogHandler] = [
+                FileLogHandler(label: label, fileLogger: fileLogger),
+            ]
+
+            // OSLog is not needed in development.
+            // If we include it, the Xcode console will show duplicated logs, making it harder for contributors to debug the
+            // execution
+            // within Xcode.
+            // When run directly from a terminal, logs are not duplicated.
+            #if RELEASE
+                loggers.append(LoggingOSLog(label: label))
+            #endif
+            return loggers
+        }
         if config.verbose {
-            LoggingSystem.bootstrap(handler.verbose)
+            return { label in
+                var loggers = baseLoggers(label)
+                loggers.append(handler.verbose(label: label))
+                return MultiplexLogHandler(loggers)
+            }
         } else {
-            LoggingSystem.bootstrap(handler.init)
+            return { label in
+                var loggers = baseLoggers(label)
+                loggers.append(handler.init(label: label))
+                return MultiplexLogHandler(loggers)
+            }
+        }
+    }
+}
+
+extension LoggingConfig {
+    public static var `default`: LoggingConfig {
+        let env = ProcessInfo.processInfo.environment
+
+        let quiet = env[Constants.EnvironmentVariables.quiet] != nil
+        let osLog = env[Constants.EnvironmentVariables.osLog] != nil
+        let detailed = env[Constants.EnvironmentVariables.detailedLog] != nil
+        let verbose = quiet ? false : env[Constants.EnvironmentVariables.verbose] != nil
+
+        if quiet {
+            return .init(loggerType: .quiet, verbose: verbose)
+        } else if osLog {
+            return .init(loggerType: .osLog, verbose: verbose)
+        } else if detailed {
+            return .init(loggerType: .detailed, verbose: verbose)
+        } else {
+            return .init(loggerType: .console, verbose: verbose)
         }
     }
 }
 
 // A `VerboseLogHandler` allows for a LogHandler to be initialised with the `debug` logLevel.
 protocol VerboseLogHandler: LogHandler {
-    static func verbose(label: String) -> LogHandler
-    init(label: String)
+    @Sendable static func verbose(label: String) -> LogHandler
+    @Sendable init(label: String)
 }
 
 extension DetailedLogHandler: VerboseLogHandler {
@@ -91,4 +141,8 @@ extension JSONLogHandler: VerboseLogHandler {
     public static func verbose(label: String) -> LogHandler {
         StandardLogHandler(label: label, logLevel: .debug)
     }
+}
+
+@Sendable private func quietLogHandler(label: String) -> LogHandler {
+    return StandardLogHandler(label: label, logLevel: .notice)
 }

@@ -1,8 +1,7 @@
 import ArgumentParser
 import Foundation
-import Path
 
-struct PluginArchiveCommand: ParsableCommand {
+struct PluginArchiveCommand: AsyncParsableCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "archive",
@@ -18,8 +17,8 @@ struct PluginArchiveCommand: ParsableCommand {
     )
     var path: String?
 
-    func run() throws {
-        try PluginArchiveService().run(
+    func run() async throws {
+        try await PluginArchiveService().run(
             path: path
         )
     }

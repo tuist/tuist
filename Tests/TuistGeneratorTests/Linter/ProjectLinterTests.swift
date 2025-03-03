@@ -1,5 +1,4 @@
 import Foundation
-import Path
 import TuistCore
 import TuistCoreTesting
 import TuistSupport
@@ -38,7 +37,7 @@ final class ProjectLinterTests: XCTestCase {
         super.tearDown()
     }
 
-    func test_lint_valid_watchTargetBundleIdentifiers() throws {
+    func test_lint_valid_watchTargetBundleIdentifiers() async throws {
         // Given
         let app = Target.test(name: "App", product: .app, bundleId: "app")
         let watchApp = Target.test(name: "WatchApp", product: .watch2App, bundleId: "app.watchapp")
@@ -50,7 +49,7 @@ final class ProjectLinterTests: XCTestCase {
         let project = Project.test(targets: [app, watchApp, watchExtension])
 
         // When
-        let got = subject.lint(project)
+        let got = try await subject.lint(project)
 
         // Then
         XCTAssertTrue(got.isEmpty)

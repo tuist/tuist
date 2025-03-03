@@ -1,9 +1,10 @@
 import Foundation
+import TuistCore
+import TuistSupportTesting
 import XcodeGraph
 import XCTest
 
 @testable import TuistDependencies
-@testable import TuistSupportTesting
 
 final class ExternalProjectsPlatformNarrowerGraphMapperTests: TuistUnitTestCase {
     var subject: ExternalProjectsPlatformNarrowerGraphMapper!
@@ -31,7 +32,7 @@ final class ExternalProjectsPlatformNarrowerGraphMapperTests: TuistUnitTestCase 
         )
 
         let project = Project.test(path: directory, targets: [appTarget])
-        let externalProject = Project.test(path: packagesDirectory, targets: [externalPackage], type: .remotePackage)
+        let externalProject = Project.test(path: packagesDirectory, targets: [externalPackage], type: .external(hash: nil))
 
         let appTargetDependency = GraphDependency.target(name: appTarget.name, path: project.path)
         let externalPackageDependency = GraphDependency.target(name: externalPackage.name, path: externalProject.path)
@@ -47,7 +48,7 @@ final class ExternalProjectsPlatformNarrowerGraphMapperTests: TuistUnitTestCase 
         )
 
         // When
-        let (mappedGraph, _) = try await subject.map(graph: graph)
+        let (mappedGraph, _, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
 
         // Then
 
@@ -75,7 +76,7 @@ final class ExternalProjectsPlatformNarrowerGraphMapperTests: TuistUnitTestCase 
         )
 
         let project = Project.test(path: directory, targets: [appTarget])
-        let externalProject = Project.test(path: packagesDirectory, targets: [externalPackage], type: .remotePackage)
+        let externalProject = Project.test(path: packagesDirectory, targets: [externalPackage], type: .external(hash: nil))
 
         let appTargetDependency = GraphDependency.target(name: appTarget.name, path: project.path)
         let externalPackageDependency = GraphDependency.target(name: externalPackage.name, path: externalProject.path)
@@ -97,7 +98,7 @@ final class ExternalProjectsPlatformNarrowerGraphMapperTests: TuistUnitTestCase 
         )
 
         // When
-        let (mappedGraph, _) = try await subject.map(graph: graph)
+        let (mappedGraph, _, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
 
         // Then
 
@@ -136,7 +137,7 @@ final class ExternalProjectsPlatformNarrowerGraphMapperTests: TuistUnitTestCase 
         let externalProject = Project.test(
             path: packagesDirectory,
             targets: [directExternalPackage, transitiveExternalPackage],
-            type: .remotePackage
+            type: .external(hash: nil)
         )
 
         let appTargetDependency = GraphDependency.target(name: appTarget.name, path: project.path)
@@ -158,7 +159,7 @@ final class ExternalProjectsPlatformNarrowerGraphMapperTests: TuistUnitTestCase 
         )
 
         // When
-        let (mappedGraph, _) = try await subject.map(graph: graph)
+        let (mappedGraph, _, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
 
         // Then
 
@@ -196,7 +197,7 @@ final class ExternalProjectsPlatformNarrowerGraphMapperTests: TuistUnitTestCase 
         let externalProject = Project.test(
             path: packagesDirectory,
             targets: [externalMacroFramework, externalMacroExecutable],
-            type: .remotePackage
+            type: .external(hash: nil)
         )
 
         let appTargetDependency = GraphDependency.target(name: appTarget.name, path: project.path)
@@ -221,7 +222,7 @@ final class ExternalProjectsPlatformNarrowerGraphMapperTests: TuistUnitTestCase 
         )
 
         // When
-        let (mappedGraph, _) = try await subject.map(graph: graph)
+        let (mappedGraph, _, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
 
         // Then
         XCTAssertEqual(

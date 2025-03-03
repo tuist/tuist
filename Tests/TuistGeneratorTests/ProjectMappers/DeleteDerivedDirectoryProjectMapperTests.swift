@@ -1,5 +1,4 @@
 import Foundation
-import Path
 import TuistCore
 import TuistSupport
 import XcodeGraph
@@ -21,7 +20,7 @@ public final class DeleteDerivedDirectoryProjectMapperTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_map_returns_sideEffectsToDeleteDerivedDirectories() throws {
+    func test_map_returns_sideEffectsToDeleteDerivedDirectories() async throws {
         // Given
         let projectPath = try temporaryPath()
         let derivedDirectory = projectPath.appending(component: Constants.DerivedDirectory.name)
@@ -31,7 +30,7 @@ public final class DeleteDerivedDirectoryProjectMapperTests: TuistUnitTestCase {
         try fileHandler.touch(derivedDirectory.appending(component: "TargetA.modulemap"))
 
         // When
-        let (_, sideEffects) = try subject.map(project: projectA)
+        let (_, sideEffects) = try await subject.map(project: projectA)
 
         // Then
         XCTAssertEqual(sideEffects, [

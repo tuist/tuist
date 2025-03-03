@@ -69,7 +69,7 @@ public final class MultipartUploadCompleteCacheService: MultipartUploadCompleteC
             case .json:
                 return
             }
-        case let .paymentRequired(paymentRequiredResponse):
+        case let .code402(paymentRequiredResponse):
             switch paymentRequiredResponse.body {
             case let .json(error):
                 throw MultipartUploadCompleteCacheServiceError.paymentRequired(error.message)

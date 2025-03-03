@@ -1,9 +1,7 @@
 import Foundation
-import Path
 import TuistSupport
 import XCTest
 
-@testable import TuistAutomation
 @testable import TuistCore
 @testable import TuistSupportTesting
 

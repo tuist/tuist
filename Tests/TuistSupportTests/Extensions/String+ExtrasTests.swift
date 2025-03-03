@@ -1,5 +1,4 @@
 import Foundation
-import Path
 import TSCUtility
 import XCTest
 

@@ -1,4 +1,3 @@
-import Path
 import TuistAcceptanceTesting
 import TuistSupport
 import TuistSupportTesting
@@ -7,7 +6,7 @@ import XCTest
 
 final class PrecomiledAcceptanceTestiOSAppWithStaticFrameworks: TuistAcceptanceTestCase {
     func test_ios_app_with_static_frameworks() async throws {
-        try setUpFixture(.iosAppWithStaticFrameworks)
+        try await setUpFixture(.iosAppWithStaticFrameworks)
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self)
     }
@@ -15,7 +14,7 @@ final class PrecomiledAcceptanceTestiOSAppWithStaticFrameworks: TuistAcceptanceT
 
 final class PrecomiledAcceptanceTestiOSAppWithStaticLibraries: TuistAcceptanceTestCase {
     func test_ios_app_with_static_libraries() async throws {
-        try setUpFixture(.iosAppWithStaticLibraries)
+        try await setUpFixture(.iosAppWithStaticLibraries)
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self)
     }
@@ -23,14 +22,14 @@ final class PrecomiledAcceptanceTestiOSAppWithStaticLibraries: TuistAcceptanceTe
 
 final class PrecomiledAcceptanceTestiOSAppWithTransitiveFramework: TuistAcceptanceTestCase {
     func test_ios_app_with_transitive_framework() async throws {
-        try setUpFixture(.iosAppWithTransitiveFramework)
+        try await setUpFixture(.iosAppWithTransitiveFramework)
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self, "App", "--platform", "iOS")
         try await XCTAssertProductWithDestinationContainsFrameworkWithArchitecture(
             framework: "Framework1",
             architecture: "arm64"
         )
-        try XCTAssertProductWithDestinationDoesNotContainHeaders(
+        try await XCTAssertProductWithDestinationDoesNotContainHeaders(
             "App.app",
             destination: "Debug-iphonesimulator"
         )
@@ -44,7 +43,7 @@ final class PrecomiledAcceptanceTestiOSAppWithTransitiveFramework: TuistAcceptan
 
 final class PrecompiledAcceptanceTestiOSAppWithStaticLibraryAndPackage: TuistAcceptanceTestCase {
     func test_ios_app_with_static_library_and_package() async throws {
-        try setUpFixture(.iosAppWithStaticLibraryAndPackage)
+        try await setUpFixture(.iosAppWithStaticLibraryAndPackage)
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self)
     }
@@ -52,14 +51,14 @@ final class PrecompiledAcceptanceTestiOSAppWithStaticLibraryAndPackage: TuistAcc
 
 final class PrecompiledAcceptanceTestiOSAppWithXCFrameworks: TuistAcceptanceTestCase {
     func test_ios_app_with_xcframeworks() async throws {
-        try setUpFixture(.iosAppWithXcframeworks)
+        try await setUpFixture(.iosAppWithXcframeworks)
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self)
         try await XCTAssertProductWithDestinationContainsFrameworkWithArchitecture(
             framework: "MyFramework",
             architecture: "x86_64"
         )
-        try XCTAssertProductWithDestinationDoesNotContainHeaders(
+        try await XCTAssertProductWithDestinationDoesNotContainHeaders(
             "App.app",
             destination: "Debug-iphonesimulator"
         )
@@ -75,13 +74,16 @@ extension TuistAcceptanceTestCase {
         file: StaticString = #file,
         line: UInt = #line
     ) async throws {
-        let productPath = try productPath(
+        let productPath = try await productPath(
             for: product,
             destination: destination
         )
 
-        guard let frameworkPath = FileHandler.shared.glob(productPath, glob: "**/Frameworks/\(framework).framework").first,
-              FileHandler.shared.exists(frameworkPath)
+        guard let frameworkPath = try await fileSystem.glob(
+            directory: productPath,
+            include: ["**/Frameworks/\(framework).framework"]
+        ).collect().first,
+            try await fileSystem.exists(frameworkPath)
         else {
             XCTFail(
                 "Framework \(framework) not found for product \(product) and destination \(destination)",

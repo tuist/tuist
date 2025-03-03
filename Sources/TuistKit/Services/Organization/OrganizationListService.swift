@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import ServiceContextModule
 import TuistLoader
 import TuistServer
 import TuistSupport
@@ -19,7 +20,7 @@ final class OrganizationListService: OrganizationListServicing {
     init(
         listOrganizationsService: ListOrganizationsServicing = ListOrganizationsService(),
         serverURLService: ServerURLServicing = ServerURLService(),
-        configLoader: ConfigLoading = ConfigLoader()
+        configLoader: ConfigLoading = ConfigLoader(warningController: WarningController.shared)
     ) {
         self.listOrganizationsService = listOrganizationsService
         self.serverURLService = serverURLService
@@ -36,7 +37,7 @@ final class OrganizationListService: OrganizationListServicing {
         } else {
             directoryPath = FileHandler.shared.currentPath
         }
-        let config = try configLoader.loadConfig(path: directoryPath)
+        let config = try await configLoader.loadConfig(path: directoryPath)
         let serverURL = try serverURLService.url(configServerURL: config.url)
 
         let organizations = try await listOrganizationsService.listOrganizations(
@@ -45,17 +46,18 @@ final class OrganizationListService: OrganizationListServicing {
 
         if json {
             let json = organizations.toJSON()
-            logger.info(.init(stringLiteral: json.toString(prettyPrint: true)), metadata: .json)
+            ServiceContext.current?.logger?.info(.init(stringLiteral: json.toString(prettyPrint: true)), metadata: .json)
             return
         }
 
         if organizations.isEmpty {
-            logger.info("You currently have no Cloud organizations. Create one by running `tuist organization create`.")
+            ServiceContext.current?.logger?
+                .info("You currently have no Cloud organizations. Create one by running `tuist organization create`.")
             return
         }
 
         let organizationsString = "Listing all your organizations:\n" + organizations.map { "  • \($0)" }
             .joined(separator: "\n")
-        logger.info("\(organizationsString)")
+        ServiceContext.current?.logger?.info("\(organizationsString)")
     }
 }

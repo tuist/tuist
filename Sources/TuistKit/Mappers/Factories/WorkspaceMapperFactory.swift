@@ -1,11 +1,8 @@
 import Foundation
-import Path
 import TSCUtility
-import TuistAutomation
 import TuistCore
 import TuistDependencies
 import TuistGenerator
-import XcodeGraph
 
 protocol WorkspaceMapperFactorying {
     /// Returns the default workspace mapper.

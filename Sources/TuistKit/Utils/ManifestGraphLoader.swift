@@ -1,6 +1,8 @@
 import Foundation
+import Mockable
 import Path
 import ProjectDescription
+import ServiceContextModule
 import TuistCore
 import TuistDependencies
 import TuistLoader
@@ -16,10 +18,11 @@ import XcodeGraph
 /// - A graph is loaded from the models
 ///
 /// - Note: This is a simplified implementation that loads a graph without applying any mappers or running any linters
+@Mockable
 public protocol ManifestGraphLoading {
     /// Loads a Workspace or Project Graph at a given path based on manifest availability
     /// - Note: This will search for a Workspace manifest first, then fallback to searching for a Project manifest
-    func load(path: AbsolutePath) async throws -> (Graph, [SideEffectDescriptor], [LintingIssue])
+    func load(path: AbsolutePath) async throws -> (Graph, [SideEffectDescriptor], MapperEnvironment, [LintingIssue])
     // swiftlint:disable:previous large_tuple
 }
 
@@ -44,7 +47,7 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
         graphMapper: GraphMapping
     ) {
         self.init(
-            configLoader: ConfigLoader(manifestLoader: manifestLoader),
+            configLoader: ConfigLoader(manifestLoader: manifestLoader, warningController: WarningController.shared),
             manifestLoader: manifestLoader,
             recursiveManifestLoader: RecursiveManifestLoader(manifestLoader: manifestLoader),
             converter: ManifestModelConverter(
@@ -93,15 +96,15 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
     }
 
     // swiftlint:disable:next function_body_length large_tuple
-    public func load(path: AbsolutePath) async throws -> (Graph, [SideEffectDescriptor], [LintingIssue]) {
-        try manifestLoader.validateHasRootManifest(at: path)
+    public func load(path: AbsolutePath) async throws -> (Graph, [SideEffectDescriptor], MapperEnvironment, [LintingIssue]) {
+        try await manifestLoader.validateHasRootManifest(at: path)
 
         // Load Plugins
         let plugins = try await loadPlugins(at: path)
 
         // Load Workspace
-        var allManifests = try recursiveManifestLoader.loadWorkspace(at: path)
-        let onlySPMProject = allManifests.projects.isEmpty
+        var allManifests = try await recursiveManifestLoader.loadWorkspace(at: path)
+        let isSPMProjectOnly = allManifests.projects.isEmpty
         let hasExternalDependencies = allManifests.projects.values.contains { $0.containsExternalDependencies }
 
         // Load DependenciesGraph
@@ -110,23 +113,19 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
         let packageSettings: TuistCore.PackageSettings?
 
         // Load SPM graph only if is SPM Project only or the workspace is using external dependencies
-        if let packagePath = manifestFilesLocator.locatePackageManifest(at: path),
-           onlySPMProject || hasExternalDependencies
+        if let packagePath = try await manifestFilesLocator.locatePackageManifest(at: path),
+           isSPMProjectOnly || hasExternalDependencies
         {
-            var loadedPackageSettings = try packageSettingsLoader.loadPackageSettings(
+            let loadedPackageSettings = try await packageSettingsLoader.loadPackageSettings(
                 at: packagePath.parentDirectory,
                 with: plugins
             )
 
-            if onlySPMProject {
-                loadedPackageSettings.includeLocalPackageTestTargets = true
-            }
-
-            let manifest = try swiftPackageManagerGraphLoader.load(
+            let manifestsDependencyGraph = try await swiftPackageManagerGraphLoader.load(
                 packagePath: packagePath,
                 packageSettings: loadedPackageSettings
             )
-            dependenciesGraph = try converter.convert(manifest: manifest, path: path)
+            dependenciesGraph = try await converter.convert(dependenciesGraph: manifestsDependencyGraph, path: path)
             packageSettings = loadedPackageSettings
         } else {
             packageSettings = nil
@@ -135,23 +134,25 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
 
         // Merge SPM graph
         if let packageSettings {
-            allManifests = try recursiveManifestLoader.loadAndMergePackageProjects(
+            allManifests = try await recursiveManifestLoader.loadAndMergePackageProjects(
                 in: allManifests,
                 packageSettings: packageSettings
             )
         }
 
         let (workspaceModels, manifestProjects) = (
-            try converter.convert(manifest: allManifests.workspace, path: allManifests.path),
+            try await converter.convert(manifest: allManifests.workspace, path: allManifests.path),
             allManifests.projects
         )
 
         // Lint Manifests
-        let lintingIssues = manifestProjects.flatMap { manifestLinter.lint(project: $0.value) }
+        let workspaceLintingIssues = manifestLinter.lint(workspace: allManifests.workspace)
+        let projectLintingIssues = manifestProjects.flatMap { manifestLinter.lint(project: $0.value) }
+        let lintingIssues = workspaceLintingIssues + projectLintingIssues
         try lintingIssues.printAndThrowErrorsIfNeeded()
 
         // Convert to models
-        let projectsModels = try convert(
+        let projectsModels = try await convert(
             projects: manifestProjects,
             plugins: plugins,
             externalDependencies: dependenciesGraph.externalDependencies
@@ -162,23 +163,31 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
         try graphLoaderLinter.lintWorkspace(workspace: workspaceModels, projects: projectsModels)
 
         // Apply any registered model mappers
-        let (updatedModels, modelMapperSideEffects) = try workspaceMapper.map(
+        let (updatedModels, modelMapperSideEffects) = try await workspaceMapper.map(
             workspace: .init(workspace: workspaceModels, projects: projectsModels)
         )
 
         // Load graph
         let graphLoader = GraphLoader()
-        let graph = try graphLoader.loadWorkspace(
+        let graph = try await graphLoader.loadWorkspace(
             workspace: updatedModels.workspace,
             projects: updatedModels.projects
         )
 
+        if await ServiceContext.current?.runMetadataStorage?.graph == nil {
+            await ServiceContext.current?.runMetadataStorage?.update(graph: graph)
+        }
+
         // Apply graph mappers
-        let (mappedGraph, graphMapperSideEffects) = try await graphMapper.map(graph: graph)
+        let (mappedGraph, graphMapperSideEffects, environment) = try await graphMapper.map(
+            graph: graph,
+            environment: MapperEnvironment()
+        )
 
         return (
             mappedGraph,
             modelMapperSideEffects + graphMapperSideEffects,
+            environment,
             lintingIssues
         )
     }
@@ -186,24 +195,23 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
     private func convert(
         projects: [AbsolutePath: ProjectDescription.Project],
         plugins: Plugins,
-        externalDependencies: [String: [XcodeGraph.TargetDependency]],
-        context: ExecutionContext = .concurrent
-    ) throws -> [XcodeGraph.Project] {
+        externalDependencies: [String: [XcodeGraph.TargetDependency]]
+    ) async throws -> [XcodeGraph.Project] {
         let tuples = projects.map { (path: $0.key, manifest: $0.value) }
-        return try tuples.map(context: context) {
-            try converter.convert(
+        return try await tuples.concurrentMap {
+            try await self.converter.convert(
                 manifest: $0.manifest,
                 path: $0.path,
                 plugins: plugins,
                 externalDependencies: externalDependencies,
-                type: .tuistProject
+                type: .local
             )
         }
     }
 
     @discardableResult
     func loadPlugins(at path: AbsolutePath) async throws -> Plugins {
-        let config = try configLoader.loadConfig(path: path)
+        let config = try await configLoader.loadConfig(path: path)
         let plugins = try await pluginsService.loadPlugins(using: config)
         try manifestLoader.register(plugins: plugins)
         return plugins

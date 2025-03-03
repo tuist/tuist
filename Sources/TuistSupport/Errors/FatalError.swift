@@ -31,13 +31,15 @@ public struct UnhandledError: FatalError {
 
     /// Error description.
     public var description: String {
-        """
-        We received an error that we couldn't handle:
-            - Localized description: \(error.localizedDescription)
-            - Error: \(error)
-
-        If you think it's a legit issue, please file an issue including the reproducible steps: https://github.com/tuist/tuist/issues/new/choose
-        """
+        if let error = error as? LocalizedError {
+            error.localizedDescription
+        } else {
+            """
+            We received an error that we couldn't handle:
+                - Localized description: \(error.localizedDescription)
+                - Error: \(error)
+            """
+        }
     }
 }
 

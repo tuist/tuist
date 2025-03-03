@@ -1,4 +1,3 @@
-import Foundation
 import Path
 
 /// It represents arguments that can be passed to the xcodebuild command.

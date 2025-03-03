@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import ServiceContextModule
 import SwiftGenKit
 import TuistCore
 import TuistSupport
@@ -50,7 +51,7 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
         guard !project.options.disableSynthesizedResourceAccessors else {
             return (project, [])
         }
-        logger.debug("Transforming project \(project.name): Synthesizing resource accessors")
+        ServiceContext.current?.logger?.debug("Transforming project \(project.name): Synthesizing resource accessors")
 
         let mappings = try project.targets.values
             .map { try mapTarget($0, project: project) }
@@ -182,7 +183,7 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
                     }
                 }
             }()
-        case .assets, .coreData, .fonts, .interfaceBuilder, .json, .plists, .yaml, .files:
+        case .assets, .coreData, .fonts, .interfaceBuilder, .json, .plists, .yaml, .files, .stringsCatalog:
             break
         }
 
@@ -196,7 +197,7 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
         } else {
             if try !FileHandler.shared.readFile(path).isEmpty { return true }
         }
-        logger.log(
+        ServiceContext.current?.logger?.log(
             level: .warning,
             "Skipping synthesizing accessors for \(path.pathString) because its contents are empty."
         )
@@ -217,6 +218,8 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
             throw SynthesizedResourceInterfaceProjectMapperError.defaultTemplateNotAvailable(parser)
         case .files:
             return SynthesizedResourceInterfaceTemplates.filesTemplate
+        case .stringsCatalog:
+            return "WIP on: https://github.com/tuist/tuist/pull/6296"
         }
     }
 

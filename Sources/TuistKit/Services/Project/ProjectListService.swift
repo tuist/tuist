@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import ServiceContextModule
 import TuistLoader
 import TuistServer
 import TuistSupport
@@ -19,7 +20,7 @@ final class ProjectListService: ProjectListServicing {
     init(
         listProjectsService: ListProjectsServicing = ListProjectsService(),
         serverURLService: ServerURLServicing = ServerURLService(),
-        configLoader: ConfigLoading = ConfigLoader()
+        configLoader: ConfigLoading = ConfigLoader(warningController: WarningController.shared)
     ) {
         self.listProjectsService = listProjectsService
         self.serverURLService = serverURLService
@@ -36,7 +37,7 @@ final class ProjectListService: ProjectListServicing {
         } else {
             directoryPath = FileHandler.shared.currentPath
         }
-        let config = try configLoader.loadConfig(path: directoryPath)
+        let config = try await configLoader.loadConfig(path: directoryPath)
         let serverURL = try serverURLService.url(configServerURL: config.url)
 
         let projects = try await listProjectsService.listProjects(
@@ -45,16 +46,17 @@ final class ProjectListService: ProjectListServicing {
 
         if json {
             let json = try projects.toJSON()
-            logger.info(.init(stringLiteral: json.toString(prettyPrint: true)), metadata: .json)
+            ServiceContext.current?.logger?.info(.init(stringLiteral: json.toString(prettyPrint: true)), metadata: .json)
             return
         }
 
         if projects.isEmpty {
-            logger.info("You currently have no Tuist projects. Create one by running `tuist project create`.")
+            ServiceContext.current?.logger?
+                .info("You currently have no Tuist projects. Create one by running `tuist project create`.")
             return
         }
 
         let projectsString = "Listing all your projects:\n" + projects.map { "  • \($0.fullName)" }.joined(separator: "\n")
-        logger.info("\(projectsString)")
+        ServiceContext.current?.logger?.info("\(projectsString)")
     }
 }

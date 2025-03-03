@@ -1,5 +1,3 @@
-import Foundation
-
 extension BuildRule {
     /// The type of compiler spec which is used for a selected file type.
     /// All the values are taken from build rule options hidden under a pup-up button's menu next to a label `Using` in a target's

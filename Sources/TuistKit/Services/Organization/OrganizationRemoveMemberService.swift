@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import ServiceContextModule
 import TuistLoader
 import TuistServer
 import TuistSupport
@@ -20,7 +21,7 @@ final class OrganizationRemoveMemberService: OrganizationRemoveMemberServicing {
     init(
         removeOrganizationMemberService: RemoveOrganizationMemberServicing = RemoveOrganizationMemberService(),
         serverURLService: ServerURLServicing = ServerURLService(),
-        configLoader: ConfigLoading = ConfigLoader()
+        configLoader: ConfigLoading = ConfigLoader(warningController: WarningController.shared)
     ) {
         self.removeOrganizationMemberService = removeOrganizationMemberService
         self.serverURLService = serverURLService
@@ -38,7 +39,7 @@ final class OrganizationRemoveMemberService: OrganizationRemoveMemberServicing {
         } else {
             directoryPath = FileHandler.shared.currentPath
         }
-        let config = try configLoader.loadConfig(path: directoryPath)
+        let config = try await configLoader.loadConfig(path: directoryPath)
         let serverURL = try serverURLService.url(configServerURL: config.url)
 
         try await removeOrganizationMemberService.removeOrganizationMember(
@@ -47,6 +48,7 @@ final class OrganizationRemoveMemberService: OrganizationRemoveMemberServicing {
             serverURL: serverURL
         )
 
-        logger.info("The member \(username) was successfully removed from the \(organizationName) organization.")
+        ServiceContext.current?.logger?
+            .info("The member \(username) was successfully removed from the \(organizationName) organization.")
     }
 }

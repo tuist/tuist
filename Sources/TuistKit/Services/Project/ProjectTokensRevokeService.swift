@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import ServiceContextModule
 import TuistLoader
 import TuistServer
 import TuistSupport
@@ -20,7 +21,7 @@ final class ProjectTokensRevokeService: ProjectTokensRevokeServicing {
     init(
         revokeProjectTokenService: RevokeProjectTokenServicing = RevokeProjectTokenService(),
         serverURLService: ServerURLServicing = ServerURLService(),
-        configLoader: ConfigLoading = ConfigLoader()
+        configLoader: ConfigLoading = ConfigLoader(warningController: WarningController.shared)
     ) {
         self.revokeProjectTokenService = revokeProjectTokenService
         self.serverURLService = serverURLService
@@ -38,7 +39,7 @@ final class ProjectTokensRevokeService: ProjectTokensRevokeServicing {
         } else {
             directoryPath = FileHandler.shared.currentPath
         }
-        let config = try configLoader.loadConfig(path: directoryPath)
+        let config = try await configLoader.loadConfig(path: directoryPath)
         let serverURL = try serverURLService.url(configServerURL: config.url)
 
         try await revokeProjectTokenService.revokeProjectToken(
@@ -47,6 +48,6 @@ final class ProjectTokensRevokeService: ProjectTokensRevokeServicing {
             serverURL: serverURL
         )
 
-        logger.info("The project token \(projectTokenId) was successfully revoked.")
+        ServiceContext.current?.logger?.info("The project token \(projectTokenId) was successfully revoked.")
     }
 }

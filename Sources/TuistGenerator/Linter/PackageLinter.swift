@@ -1,22 +1,24 @@
+import FileSystem
 import Foundation
-import Path
 import TuistCore
 import TuistSupport
 import XcodeGraph
 
 protocol PackageLinting: AnyObject {
-    func lint(_ package: Package) -> [LintingIssue]
+    func lint(_ package: Package) async throws -> [LintingIssue]
 }
 
-class PackageLinter: PackageLinting {
-    private let fileHandler: FileHandling
+final class PackageLinter: PackageLinting {
+    private let fileSystem: FileSysteming
 
-    init(fileHandler: FileHandling = FileHandler.shared) {
-        self.fileHandler = fileHandler
+    init(
+        fileSystem: FileSysteming = FileSystem()
+    ) {
+        self.fileSystem = fileSystem
     }
 
-    func lint(_ package: Package) -> [LintingIssue] {
-        if case let .local(path) = package, !fileHandler.exists(path) {
+    func lint(_ package: Package) async throws -> [LintingIssue] {
+        if case let .local(path) = package, try await !fileSystem.exists(path) {
             let issue = LintingIssue(
                 reason: "Package with local path (\(path)) does not exist.",
                 severity: .error
