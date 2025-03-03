@@ -10,7 +10,7 @@ msgstr ""
 "Project-Id-Version: tuist-website\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Language-Team: Korean\n"
-"PO-Revision-Date: 2025-02-27 11:21\n"
+"PO-Revision-Date: 2025-03-03 10:32\n"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:390
 #, elixir-autogen, elixir-format
@@ -1084,12 +1084,12 @@ msgstr ""
 #: lib/tuist_web/live/project_tests_live.html.heex:25
 #, elixir-autogen, elixir-format
 msgid "Module"
-msgstr ""
+msgstr "모듈"
 
 #: lib/tuist_web/live/project_test_case_detail_live.html.heex:38
 #, elixir-autogen, elixir-format
 msgid "Module hash"
-msgstr ""
+msgstr "모듈 해시"
 
 #: lib/tuist_web/live/project_test_case_detail_live.html.heex:11
 #, elixir-autogen, elixir-format
@@ -1485,7 +1485,7 @@ msgstr ""
 #: lib/tuist_web/live/user_registration_live.ex:91
 #, elixir-autogen, elixir-format
 msgid "Sign in"
-msgstr ""
+msgstr "로그인"
 
 #: lib/tuist_web/live/user_login_live.ex:89
 #, elixir-autogen, elixir-format
