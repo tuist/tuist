@@ -1974,8 +1974,8 @@ msgstr ""
 msgid "Via shared Slack channel"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:435
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:452
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:434
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:451
 #, elixir-autogen, elixir-format
 msgid "View all"
 msgstr ""
