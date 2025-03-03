@@ -145,7 +145,8 @@ final class ConfigGenerator: ConfigGenerating {
                 variantBuildConfiguration.baseConfiguration = fileReference
             }
         }
-        variantBuildConfiguration.buildSettings = settings.toAny()
+        // here too
+        variantBuildConfiguration.buildSettings = settings.toBuildSettings()
         pbxproj.add(object: variantBuildConfiguration)
         configurationList.buildConfigurations.append(variantBuildConfiguration)
     }
@@ -204,7 +205,8 @@ final class ConfigGenerator: ConfigGenerating {
             variantBuildConfiguration.baseConfiguration = fileReference
         }
 
-        variantBuildConfiguration.buildSettings = settings.toAny()
+        // Here
+        variantBuildConfiguration.buildSettings = settings.toBuildSettings()
         pbxproj.add(object: variantBuildConfiguration)
         configurationList.buildConfigurations.append(variantBuildConfiguration)
     }

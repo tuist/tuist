@@ -70,7 +70,7 @@ public final class SettingsToXCConfigExtractor: SettingsToXCConfigExtracting {
         /// Otherwise, we have to define them as SETTING_KEY[config=Config]=SETTING_VALUE
         let commonBuildSettings = repeatedBuildSettingsKeys.filter { buildSetting -> Bool in
             let values = buildConfigurations.map { $0.buildSettings[buildSetting]! }
-            let stringValues = values.compactMap { $0 as? String }
+            let stringValues = values.compactMap { $0.stringValue }
             if values.count != stringValues.count { return false }
             return Set(stringValues).count == 1
         }

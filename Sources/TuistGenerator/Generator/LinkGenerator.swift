@@ -386,9 +386,8 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
         let value = SettingValue
             .array(["$(inherited)"] + paths.map { $0.xcodeValue(sourceRootPath: sourceRootPath) }.uniqued().sorted())
         let newSetting = [name: value]
-        let helper = SettingsHelper()
         for configuration in configurationList.buildConfigurations {
-            try helper.extend(buildSettings: &configuration.buildSettings, with: newSetting)
+            try SettingsHelper().extend(buildSettings: &configuration.buildSettings, with: newSetting)
         }
     }
 
@@ -415,7 +414,7 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
             guard let fileRef = fileElements.file(path: path) else {
                 throw LinkGeneratorError.missingReference(path: path)
             }
-            var settings: [String: Any]?
+            var settings: [String: BuildFileSetting]?
             if status == .optional {
                 settings = ["ATTRIBUTES": ["Weak"]]
             }
@@ -440,7 +439,7 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
                 guard let fileRef = fileElements.product(target: dependencyTarget) else {
                     throw LinkGeneratorError.missingProduct(name: dependencyTarget)
                 }
-                let settings = status == .optional ? ["ATTRIBUTES": ["Weak"]] : nil
+                let settings: [String: BuildFileSetting]? = status == .optional ? ["ATTRIBUTES": ["Weak"]] : nil
                 let buildFile = PBXBuildFile(file: fileRef, settings: settings)
                 buildFile.applyCondition(condition, applicableTo: target)
                 pbxproj.add(object: buildFile)
@@ -613,7 +612,7 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
     }
 
     func createSDKBuildFile(for fileReference: PBXFileReference, status: LinkingStatus) -> PBXBuildFile {
-        var settings: [String: Any]?
+        var settings: [String: BuildFileSetting]?
         if status == .optional {
             settings = ["ATTRIBUTES": ["Weak"]]
         }
@@ -624,15 +623,15 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
     }
 }
 
-extension XCBuildConfiguration {
-    fileprivate func append(setting name: String, value: String) {
-        guard !value.isEmpty else {
-            return
-        }
-        let existing = (buildSettings[name] as? String) ?? "$(inherited)"
-        buildSettings[name] = [existing, value].joined(separator: " ")
-    }
-}
+//extension XCBuildConfiguration {
+//    fileprivate func append(setting name: String, value: String) {
+//        guard !value.isEmpty else {
+//            return
+//        }
+//        let existing = (buildSettings[name] as? String) ?? "$(inherited)"
+//        buildSettings[name] = [existing, value].joined(separator: " ")
+//    }
+//}
 
 extension PBXTarget {
     func addSwiftPackageProduct(
