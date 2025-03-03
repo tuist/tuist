@@ -71,12 +71,18 @@ defmodule TuistWeb.Marketing.MarketingHomeComponents do
           {@description}
         </p>
         <div class="marketing__home__section__features__feature__traits">
-          <span
+          <div
             :for={trait <- @traits}
             class="marketing__home__section__features__feature__traits__trait"
           >
-            {trait}
-          </span>
+            <TuistWeb.Marketing.MarketingIcons.check_circle_icon
+              size={32}
+              class="marketing__home__section__features__feature__traits__trait__icon"
+            />
+            <span>
+              {trait}
+            </span>
+          </div>
         </div>
         <div class="marketing__home__section__features__feature__main">
           {render_slot(@inner_block)}

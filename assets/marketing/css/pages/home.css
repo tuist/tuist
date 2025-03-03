@@ -37,8 +37,7 @@
 .marketing__home__terminal__bar {
   border-radius: var(--spacing-16) var(--spacing-16) 0 0;
   background: var(--dark-violet);
-  padding: var(--spacing-16) var(--spacing-24) var(--spacing-16)
-    var(--spacing-24);
+  padding: var(--spacing-16) var(--spacing-24) var(--spacing-16) var(--spacing-24);
   display: flex;
   flex-direction: row;
   gap: var(--spacing-8);
@@ -69,8 +68,7 @@
   background: var(--medium-violet);
   border-radius: 0 0 var(--spacing-16) var(--spacing-16);
   align-items: center;
-  padding: var(--spacing-24) var(--spacing-16) var(--spacing-24)
-    var(--spacing-16);
+  padding: var(--spacing-24) var(--spacing-16) var(--spacing-24) var(--spacing-16);
   overflow-x: auto;
   white-space: nowrap;
   scrollbar-width: none; /* Firefox */
@@ -176,8 +174,7 @@
   margin-right: auto;
 
   @media (max-width: 1024px) {
-    padding: var(--spacing-72) var(--spacing-24) var(--spacing-72)
-      var(--spacing-24);
+    padding: var(--spacing-72) var(--spacing-24) var(--spacing-72) var(--spacing-24);
     gap: var(--spacing-24);
   }
 }
@@ -218,6 +215,14 @@
   background: var(--light-gray-violet);
   padding: var(--spacing-8) var(--spacing-16);
   border-radius: var(--radius-l);
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--spacing-8);
+}
+
+.marketing__home__section__features__feature__traits__trait__icon {
+  color: var(--secondary-violet);
 }
 
 .marketing__home__section__features__feature {
