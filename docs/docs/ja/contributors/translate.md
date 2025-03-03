@@ -1,46 +1,46 @@
 ---
-title: Translate
+title: 翻訳する
 titleTemplate: :title · コントリビューター · Tuist
-description: This document describes the principles that guide the development of Tuist.
+description: このドキュメントでは、Tuist の開発を導く原則について説明します。
 ---
 
-# Translate {#translate}
+# 翻訳 {#translate}
 
-Languages can be barriers to understanding. We want to make sure that Tuist is accessible to as many people as possible. If you speak a language that Tuist doesn't support, you can help us by translating the various surfaces of Tuist.
+言語は理解を妨げる大きな壁になることがあります。 私たちは Tuist をできるだけ多くの人に使っていただきたいと考えています。 もし Tuist がサポートしていない言語を話す場合、Tuist のさまざまな部分を翻訳していただくことでご協力ください。
 
-Since maintaining translations is a continuous effort, we add languages as we see contributors willing to help us maintain them. The following languages are currently supported:
+翻訳をメンテナンスするためには継続的な取り組みが必要となるため、私たちはメンテナンスに協力してくださるコントリビューターがいる言語を随時追加していきます。 現在サポートされている言語は、以下のとおりです：
 
-- English
-- Korean
-- Japanese
-- Russian
+- 英語
+- 韓国語
+- 日本語
+- ロシア語
 
-> [!TIP] REQUEST A NEW LANGUAGE
-> If you believe Tuist would benefit from supporting a new language, please create a new [topic in the community forum](https://community.tuist.io/c/general/4) to discuss it with the community.
+> [!TIP] 新しい言語のリクエスト
+> Tuist に新しい言語サポートを追加することが有益であると考える場合は、コミュニティフォーラムの[トピック](https://community.tuist.io/c/general/4)を作成して、コミュニティと議論してみてください。
 
-## How to translate
+## 翻訳方法 {#how-to-translate}
 
-We use [Crowdin](https://crowdin.com/) to manage the translations. First, go to the project that you want to contribute to:
+私たちは翻訳の管理に [Crowdin](https://crowdin.com/) を使用しています。 まず、貢献したいプロジェクトに移動します：
 
 - [Documentation](https://crowdin.com/project/tuist-documentation)
 - [Website](https://crowdin.com/project/tuist-documentation)
 
-You'll need an account to start translating. You can sign in with GitHub. Once you have access, you can start translating. You'll see the list of resources that are available for translation. When you click on a resource, the editor will open, and you'll see a split view with the resource in the source language on the left and the translation on the right. Translate the text on the right and save your changes.
+翻訳を始めるにはアカウントが必要です。 GitHub アカウントでサインインできます。 サインイン後にアクセス権を得ると、翻訳を始められます。 翻訳対象のリソース一覧が表示されます。 リソースをクリックするとエディタが開き、左側にソース言語のリソース、右側に翻訳する箇所が表示されます。 右側のテキストを翻訳し、変更を保存してください。
 
-As translations are updated, Crowdin will push them automatically to the right repository opening a pull request, which the maintainers will review and merge.
+翻訳が更新されると Crowdin が自動的に該当リポジトリにプルリクエストを送信し、メンテナーがレビューとマージを行います。
 
-> [!IMPORTANT] DON'T MODIFY THE RESOURCES IN THE TARGET LANGUAGE
-> Crowdin segments the files to bind source and target languages. If you modify the source language, you'll break the binding, and the reconciliation might yield unexpected results.
+> [!IMPORTANT] 対象言語のリソースに直接変更を加えないでください
+> Crowdin はファイルをセグメント化してソース言語とターゲット言語を関連付けています。 ソース言語を変更すると、この紐付けが壊れ、想定外の結果が生じる可能性があります。
 
-## Guidelines
+## ガイドライン {#guidelines}
 
-The following are the guidelines we follow when translating.
+以下は私たちが翻訳の際に従っているガイドラインです。
 
-### Custom containers and GitHub alerts
+### カスタムコンテナや GitHub Alerts について {#custom-containers-and-github-alerts}
 
-When translating [custom containers](https://vitepress.dev/guide/markdown#custom-containers) or [GitHub Alerts](https://docs.github.com/en/get-started/writing-on-github/getting-started-with-writing-and-formatting-on-github/basic-writing-and-formatting-syntax#alerts), only translate the title and the content **but not the type of alert**.
+[カスタムコンテナ](https://vitepress.dev/guide/markdown#custom-containers) や [GitHub Alerts](https://docs.github.com/en/get-started/writing-on-github/getting-started-with-writing-and-formatting-on-github/basic-writing-and-formatting-syntax#alerts) を翻訳する際は、タイトルと内容のみ翻訳し、アラートの種類自体は翻訳しないようにしてください。
 
-:::details Example with GitHub Alert
+:::details GitHub Alert の例
 
 ````markdown
     > [!WARNING] 루트 변수
@@ -67,15 +67,15 @@ When translating [custom containers](https://vitepress.dev/guide/markdown#custom
 
 :::
 
-### Heading titles
+### 見出しタイトル {#heading-titles}
 
-When translating headings, only translate tht title but not the id. For example, when translating the following heading:
+見出しを翻訳する場合、見出しのタイトル部分のみ翻訳し、ID は変更しないでください。 たとえば、次の見出しがあるとします：
 
 ```markdown
 # Add dependencies {#add-dependencies}
 ```
 
-It should be translated as (note the id is not translated):
+これを翻訳する場合は、ID をそのままにして以下のように翻訳してください：
 
 ```markdown
 # 의존성 추가하기 {#add-dependencies}
