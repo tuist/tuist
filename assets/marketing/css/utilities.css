@@ -1,0 +1,59 @@
+.font-xxxl-strong {
+  font: var(--font-xxxl-strong);
+}
+
+.font-xxxl {
+  font: var(--font-xxxl);
+}
+
+.font-xxl-strong {
+  font: var(--font-xxl-strong);
+}
+
+.font-xxl {
+  font: var(--font-xxl);
+}
+
+.font-xl-strong {
+  font: var(--font-xl-strong);
+}
+
+.font-xl {
+  font: var(--font-xl);
+}
+
+.font-l-strong {
+  font: var(--font-l-strong);
+}
+
+.font-l {
+  font: var(--font-l);
+}
+
+.font-m-strong {
+  font: var(--font-m-strong);
+}
+
+.font-m {
+  font: var(--font-m);
+}
+
+.font-xs-strong {
+  font: var(--font-xs-strong);
+}
+
+.font-xs {
+  font: var(--font-xs);
+}
+
+.font-xxs-strong {
+  font: var(--font-xxs-strong);
+}
+
+.font-xxs {
+  font: var(--font-xxs);
+}
+
+.font-mono {
+  font: var(--font-mono);
+}

@@ -3,6 +3,10 @@
 "flyctl" = "0.3.41"
 "erlang" = "27.2"
 "npm:prettier" = "3.4.2"
+"pnpm" = "10.5.2"
+
+[hooks]
+postinstall = "mise run install"
 
 [env]
 TUIST_HOSTED = 1

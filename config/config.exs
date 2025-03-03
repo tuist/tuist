@@ -7,6 +7,34 @@
 # General application configuration
 import Config
 
+# esbuild
+config :esbuild,
+  version: "0.17.11",
+  app: [
+    args:
+      ~w(app.js --bundle --target=es2017 --outfile=../../priv/static/app/assets/bundle.js --external:/fonts/* --external:/images/*),
+    cd: Path.expand("../assets/app", __DIR__),
+    env: %{"NODE_PATH" => Path.expand("../deps", __DIR__)}
+  ],
+  marketing: [
+    args:
+      ~w(marketing.js --bundle --target=es2017 --outfile=../../priv/static/marketing/assets/bundle.js --external:/fonts/* --external:/images/*),
+    cd: Path.expand("../assets/marketing", __DIR__),
+    env: %{"NODE_PATH" => Path.expand("../deps", __DIR__)}
+  ],
+  apidocs: [
+    args:
+      ~w(apidocs.js --bundle --target=es2017 --outfile=../../priv/static/apidocs/assets/bundle.js --external:/fonts/* --external:/images/*),
+    cd: Path.expand("../assets/apidocs", __DIR__),
+    env: %{"NODE_PATH" => Path.expand("../deps", __DIR__)}
+  ],
+  storybook: [
+    args:
+      ~w(storybook.js --bundle --target=es2017 --outfile=../../priv/static/storybook/assets/bundle.js --external:/fonts/* --external:/images/*),
+    cd: Path.expand("../assets/storybook", __DIR__),
+    env: %{"NODE_PATH" => Path.expand("../deps", __DIR__)}
+  ]
+
 config :tuist,
   ecto_repos: [Tuist.Repo],
   generators: [timestamp_type: :utc_datetime]

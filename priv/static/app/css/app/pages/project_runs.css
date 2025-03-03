@@ -1,9 +1,0 @@
-.runs {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-3xl);
-
-  & table {
-    table-layout: auto;
-  }
-}

@@ -1,0 +1,77 @@
+:root {
+  /* Colors */
+  --violet: #622ed4;
+  --lime: #d7f775;
+  --dark-violet: #2c2250;
+  --medium-violet: #3c315b;
+  --light-violet: #afa2f3;
+  --gray-violet: rgb(232, 231, 249);
+  --light-gray-violet: #f3f2fd;
+  --white: #ffffff;
+  --off-white: #fbfbfb;
+  --yellow: #ffe487;
+  --pink: #ffa8f6;
+  --blue: #aeceff;
+  --red: #f66411;
+
+  /* Border radius */
+  --radius-xs: 0.25rem; /* 4px */
+  --radius-m: 0.5rem; /* 8px */
+  --radius-l: 1rem; /* 16px */
+  --radius-xl: 2rem; /* 32px */
+  --radius-full: 9999px;
+
+  /* Fonts */
+  --font-grotesk: "Space Grotesk", sans-serif;
+  --font-space-mono: "Space Mono", monospace;
+
+  /* Spacing */
+  --spacing-4: 0.25rem; /* 4px */
+  --spacing-8: 0.5rem; /* 8px */
+  --spacing-16: 1rem; /* 16px */
+  --spacing-24: 1.5rem; /* 24px */
+  --spacing-32: 2rem; /* 32px */
+  --spacing-48: 3rem; /* 48px */
+  --spacing-72: 4.5rem; /* 72px */
+  --spacing-96: 6rem; /* 96px */
+  --spacing-120: 7.5rem; /* 120px */
+
+  /* Fonts */
+  --font-xxxl-strong: normal 700 88px/94px var(--font-grotesk);
+  --font-xxxl: normal 300 88px/94px var(--font-grotesk);
+  --font-xxl-strong: normal 700 64px/70px var(--font-grotesk);
+  --font-xxl: normal 400 64px/70px var(--font-grotesk);
+  --font-xl-strong: normal 700 32px/36px var(--font-grotesk);
+  --font-xl: normal 400 32px/36px var(--font-grotesk);
+  --font-l-strong: normal 700 28px/32px var(--font-grotesk);
+  --font-l: normal 300 28px/32px var(--font-grotesk);
+  --font-m-strong: normal 700 22px/26px var(--font-grotesk);
+  --font-m: normal 300 22px/26px var(--font-grotesk);
+  --font-xs-strong: normal 700 18px/22px var(--font-grotesk);
+  --font-xs: normal 300 18px/22px var(--font-grotesk);
+  --font-xxs-strong: normal 700 16px/20px var(--font-grotesk);
+  --font-xxs: normal 300 16px/20px var(--font-grotesk);
+  --font-mono: normal 500 20px/24px var(--font-space-mono);
+}
+
+@media (max-width: 1024px) {
+  :root {
+    --font-xxxl-strong: normal 700 56px/60px var(--font-grotesk);
+    --font-xxxl: normal 300 56px/60px var(--font-grotesk);
+    --font-xxl-strong: normal 700 48px/52px var(--font-grotesk);
+    --font-xxl: normal 400 48px/52px var(--font-grotesk);
+    --font-xl-strong: normal 700 28px/32px var(--font-grotesk);
+    --font-xl: normal 400 28px/32px var(--font-grotesk);
+    --font-l-strong: normal 700 22px/26px var(--font-grotesk);
+    --font-l: normal 300 22px/26px var(--font-grotesk);
+    --font-m-strong: normal 700 18px/22px var(--font-grotesk);
+    --font-m: normal 300 18px/22px var(--font-grotesk);
+    --font-s-strong: normal 700 16px/20px var(--font-grotesk);
+    --font-s: normal 300 16px/20px var(--font-grotesk);
+    --font-xs-strong: normal 700 16px/20px var(--font-grotesk);
+    --font-xs: normal 300 16px/20px var(--font-grotesk);
+    --font-xxs-strong: normal 700 14px/18px var(--font-grotesk);
+    --font-xxs: normal 300 14px/18px var(--font-grotesk);
+    --font-mono: normal 500 16px/20px var(--font-space-mono);
+  }
+}

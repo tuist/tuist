@@ -19,7 +19,8 @@ defmodule TuistWeb do
   use Boundary, deps: [Tuist], exports: [Endpoint, Router]
 
   def static_paths,
-    do: ~w(assets fonts images favicon.ico robots.txt js css .well-known marketing app)
+    do:
+      ~w(assets fonts images favicon.ico robots.txt js css .well-known marketing app apidocs storybook)
 
   def router do
     quote do

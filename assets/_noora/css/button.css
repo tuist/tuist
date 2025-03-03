@@ -1,0 +1,249 @@
+.noora-button,
+.noora-link-button {
+  --noora-button-primary-background: var(--noora-purple-500);
+  --noora-button-primary-label: var(--noora-neutral-light-50);
+  --noora-button-primary-disabled-background: var(--noora-purple-300);
+  --noora-button-primary-disabled-label: var(--noora-neutral-light-200);
+  --noora-button-secondary-background: light-dark(var(--noora-neutral-light-50), var(--noora-neutral-dark-1100));
+  --noora-button-secondary-label: light-dark(var(--noora-neutral-light-1200), var(--noora-neutral-light-50));
+  --noora-button-secondary-disabled-background: var(--noora-neutral-light-100);
+  --noora-button-secondary-disabled-label: var(--noora-neutral-light-600);
+  --noora-button-destructive-background: var(--noora-red-500);
+  --noora-button-destructive-label: var(--noora-neutral-light-50);
+  --noora-button-destructive-disabled-background: var(--noora-red-300);
+  --noora-button-destructive-disabled-label: var(--noora-neutral-light-200);
+
+  -webkit-appearance: button;
+  align-items: center;
+  border-radius: var(--noora-radius-medium);
+  border: 0;
+  display: inline-flex;
+  gap: var(--noora-spacing-1);
+}
+
+.noora-button {
+  background: linear-gradient(180deg, var(--background-gradient-start) 0%, var(--background-gradient-end) 100%),
+    var(--background-base);
+  box-shadow: var(--border);
+
+  & > span {
+    padding: 0rem var(--noora-spacing-2);
+  }
+
+  &[data-variant="primary"] {
+    --background-base: var(--noora-button-primary-background);
+    --background-gradient-start: oklch(100% 0 0 / 0.16);
+    --background-gradient-end: oklch(100% 0 0 / 0);
+    --border: 0px 1px 0px 0px oklch(100% 0 0 / 0.2) inset,
+      0px 1px 1px 0px light-dark(oklch(31.8% 0.011 248.2 / 0.05), oklch(20.9% 0.009 264.4 / 0.2)),
+      0px 0px 0px 1px oklch(46.9% 0.27 286.9 / 0.9),
+      0px 1px 3px 0px light-dark(oklch(31.8% 0.011 248.2 / 0.16), oklch(0% 0 0 / 0.4));
+
+    color: var(--noora-button-primary-label);
+
+    &:hover {
+      --background-gradient-start: oklch(100% 0 0 / 0.08);
+      --background-gradient-end: oklch(100% 0 0 / 0);
+      --border: 0px 1px 1px oklch(31.8% 0.011 248.2 / 0.12), 0px 0px 0px 1px oklch(46.9% 0.27 286.9 / 0.9),
+        0px 2px 3px oklch(31.8% 0.011 248.2 / 0.16), 0px 1px 0px oklch(100% 0 0 / 0.1) inset;
+
+      @media (prefers-color-scheme: dark) {
+        --border: 0px 1px 0px 0px oklch(100% 0 0 / 0.1) inset, 0px 1px 1px 0px oklch(20.9% 0.009 264.4 / 0.2),
+          0px 0px 0px 1px oklch(46.9% 0.27 286.9 / 0.9), 0px 2px 3px 0px oklch(0% 0 0 / 0.4);
+      }
+    }
+
+    &:disabled {
+      --background-base: var(--noora-button-primary-disabled-background);
+      --background-gradient-start: light-dark(oklch(100% 0 0 / 0.16), oklch(31.8% 0.011 248.2 / 0.25));
+      --background-gradient-end: light-dark(oklch(100% 0 0 / 0), oklch(31.8% 0.011 248.2 / 0.5));
+      --border: 0px 1px 0px 0px oklch(100% 0 0 / 0.2) inset,
+        0px 1px 1px 0px light-dark(oklch(31.8% 0.011 248.2 / 0.12), oklch(20.9% 0.009 264.4 / 0.2)),
+        0px 0px 0px 1px oklch(46.9% 0.27 286.9 / 0.4),
+        0px 2px 3px 0px light-dark(oklch(31.8% 0.011 248.2 / 0.16), oklch(0% 0 0 / 0.4));
+      color: var(--noora-button-primary-disabled-label);
+    }
+
+    &:not(:disabled):active {
+      --border: 0px 0px 0px 1px oklch(46.9% 0.27 286.9 / 0.9),
+        0px 1px 4px 0px light-dark(oklch(0% 0 0 / 0.3), oklch(0% 0 0 / 0.4)) inset;
+      background: var(--noora-button-primary-background);
+    }
+  }
+
+  &[data-variant="secondary"] {
+    --background-base: var(--noora-button-secondary-background);
+    --background-gradient-start: light-dark(oklch(78.6% 0.013 248 / 0), oklch(100% 0 0 / 0.06));
+    --background-gradient-end: light-dark(oklch(78.6% 0.013 248 / 0.06), oklch(100% 0 0 / 0));
+    --border: 0px 1px 0px 0px light-dark(oklch(100% 0 0 / 0.9), oklch(100% 0 0 / 0.12)) inset,
+      0px 1px 1px 0px light-dark(oklch(31.8% 0.011 248.2 / 0.05), oklch(20.9% 0.009 264.4 / 0.8)),
+      0px 0px 0px 1px light-dark(oklch(31.8% 0.011 248.2 / 0.08), oklch(31.6% 0.01 260.7 / 0.9)),
+      0px 2px 3px 0px light-dark(oklch(31.8% 0.011 248.2 / 0.06), oklch(0% 0 0 / 0.24));
+
+    color: var(--noora-button-secondary-label);
+
+    &:hover {
+      --background-gradient-start: light-dark(oklch(78.6% 0.013 248 / 0.03), oklch(100% 0 0 / 0.03));
+      --background-gradient-end: light-dark(oklch(78.6% 0.013 248 / 0.13), oklch(100% 0 0 / 0));
+
+      @media (prefers-color-scheme: dark) {
+        --border: 0px 1px 0px 0px oklch(100% 0 0 / 0.06) inset, 0px 1px 1px 0px oklch(20.9% 0.009 264.4 / 0.8),
+          0px 0px 0px 1px oklch(31.6% 0.01 260.7 / 0.9), 0px 2px 3px 0px oklch(0% 0 0 / 0.24);
+      }
+    }
+
+    &:disabled {
+      --background-base: var(--noora-button-secondary-disabled-background);
+      --background-gradient-start: light-dark(oklch(78.6% 0.013 248 / 0), oklch(100% 0 0 / 0.06));
+      --background-gradient-end: light-dark(oklch(78.6% 0.013 248 / 0.06), oklch(100% 0 0 / 0));
+      --border: 0px 1px 0px 0px light-dark(oklch(100% 0 0 / 0.7), oklch(100% 0 0 / 0.12)) inset,
+        0px 1px 1px 0px light-dark(oklch(31.8% 0.011 248.2 / 0.05), oklch(20.9% 0.009 264.4 / 0.8)),
+        0px 0px 0px 1px light-dark(oklch(31.8% 0.011 248.2 / 0.05), oklch(31.6% 0.01 260.7 / 0.9)),
+        0px 2px 3px 0px light-dark(oklch(31.8% 0.011 248.2 / 0.06), oklch(0% 0 0 / 0.24));
+
+      color: var(--noora-button-secondary-disabled-label);
+    }
+
+    &:not(:disabled):active {
+      --background-gradient-start: light-dark(oklch(78.6% 0.013 248 / 0.03), oklch(100% 0 0 / 0.03));
+      --background-gradient-end: light-dark(oklch(78.6% 0.013 248 / 0.13), oklch(100% 0 0 / 0));
+      --border: 0px 0px 0px 1px light-dark(oklch(31.8% 0.011 248.2 / 0.08), oklch(31.6% 0.01 260.7 / 0.9)),
+        0px 1px 2px 0px light-dark(oklch(0% 0 0 / 0.05), oklch(0% 0 0 / 0.4)) inset;
+    }
+  }
+
+  &[data-variant="destructive"] {
+    --background-base: var(--noora-button-destructive-background);
+    --background-gradient-start: oklch(100% 0 0 / 0.24);
+    --background-gradient-end: oklch(100% 0 0 / 0);
+    --border: 0px 1px 0px 0px oklch(100% 0 0 / 0.2) inset,
+      0px 1px 1px 0px light-dark(oklch(31.8% 0.011 248.2 / 0.12), oklch(20.9% 0.009 264.4 / 0.2)),
+      0px 0px 0px 1px oklch(51.2% 0.201 30.7 / 0.8),
+      0px 2px 3px 0px light-dark(oklch(31.8% 0.011 248.2 / 0.16), oklch(0% 0 0 / 0.4));
+
+    color: var(--noora-button-destructive-label);
+
+    &:hover {
+      --background-gradient-start: oklch(100% 0 0 / 0.06);
+      --background-gradient-end: oklch(100% 0 0 / 0);
+      --border: 0px 1px 0px 0px oklch(100% 0 0 / 0.1) inset,
+        0px 1px 1px 0px light-dark(oklch(31.8% 0.011 248.2 / 0.12), oklch(20.9% 0.009 264.4 / 0.2)),
+        0px 0px 0px 1px oklch(51.2% 0.201 30.7 / 0.8),
+        0px 2px 3px 0px light-dark(oklch(31.8% 0.011 248.2 / 0.16), oklch(0% 0 0 / 0.4));
+    }
+
+    &:disabled {
+      --background-base: var(--noora-button-destructive-disabled-background);
+      --background-gradient-start: light-dark(oklch(100% 0 0 / 0.32), oklch(31.8% 0.011 248.2 / 0.25));
+      --background-gradient-end: light-dark(oklch(100% 0 0 / 0), oklch(31.8% 0.011 248.2 / 0.45));
+      --border: 0px 1px 0px 0px oklch(100% 0 0 / 0.2) inset,
+        0px 1px 1px 0px light-dark(oklch(31.8% 0.011 248.2 / 0.12), oklch(20.9% 0.009 264.4 / 0.2)),
+        0px 0px 0px 1px oklch(51.2% 0.201 30.7 / 0.5),
+        0px 2px 3px 0px light-dark(oklch(31.8% 0.011 248.2 / 0.16), oklch(0% 0 0 / 0.4));
+
+      color: var(--noora-button-destructive-disabled-label);
+    }
+
+    &:not(:disabled):active {
+      --border: 0px 0px 0px 1px oklch(51.2% 0.201 30.7 / 0.8),
+        0px 1px 4px 0px light-dark(oklch(0% 0 0 / 0.3), oklch(0% 0 0 / 0.4)) inset;
+
+      background: var(--noora-button-destructive-background);
+    }
+  }
+
+  &[data-size="small"] {
+    font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+    padding: var(--noora-spacing-2) var(--noora-spacing-3);
+
+    & svg {
+      height: var(--noora-icon-size-small);
+      width: var(--noora-icon-size-small);
+    }
+  }
+
+  &[data-size="medium"],
+  &[data-size="large"] {
+    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+    padding: var(--noora-spacing-3) var(--noora-spacing-4);
+  }
+
+  &[data-size="medium"] {
+    & svg {
+      height: var(--noora-icon-size-medium);
+      width: var(--noora-icon-size-medium);
+    }
+  }
+
+  &[data-size="large"] {
+    & svg {
+      height: var(--noora-icon-size-large);
+      width: var(--noora-icon-size-large);
+    }
+  }
+}
+
+.noora-link-button {
+  --noora-link-button-primary-label: light-dark(var(--noora-purple-500), var(--noora-purple-300));
+  --noora-link-button-secondary-label: light-dark(var(--noora-neutral-light-1200), var(--noora-neutral-light-50));
+  --noora-link-button-destructive-label: light-dark(var(--noora-red-500), var(--noora-red-300));
+  --noora-link-button-disabled-label: light-dark(var(--noora-neutral-light-600), var(--noora-neutral-light-300));
+
+  background: transparent;
+
+  &:disabled {
+    color: var(--noora-link-button-disabled-label) !important;
+    cursor: not-allowed;
+  }
+
+  &:not(:disabled)[data-underline] {
+    text-decoration: underline;
+
+    &:hover {
+      text-decoration-style: dotted;
+    }
+  }
+
+  &:not(:disabled):not([data-underline]):hover {
+    text-decoration: underline;
+  }
+
+  &[data-variant="primary"] {
+    color: var(--noora-link-button-primary-label);
+  }
+
+  &[data-variant="secondary"] {
+    color: var(--noora-link-button-secondary-label);
+  }
+
+  &[data-variant="destructive"] {
+    color: var(--noora-link-button-destructive-label);
+  }
+
+  &[data-size="small"] {
+    font: var(--noora-font-body-xsmall);
+
+    & svg {
+      width: var(--noora-icon-size-small);
+      height: var(--noora-icon-size-small);
+    }
+  }
+
+  &[data-size="medium"] {
+    font: var(--noora-font-body-small);
+
+    & svg {
+      width: var(--noora-icon-size-medium);
+      height: var(--noora-icon-size-medium);
+    }
+  }
+
+  &[data-size="large"] {
+    font: var(--noora-font-body-medium);
+
+    & svg {
+      width: var(--noora-icon-size-large);
+      height: var(--noora-icon-size-large);
+    }
+  }
+}

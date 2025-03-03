@@ -18,6 +18,16 @@ ARG DEBIAN_VERSION=bookworm-20241223-slim
 ARG BUILDER_IMAGE="hexpm/elixir:${ELIXIR_VERSION}-erlang-${OTP_VERSION}-debian-${DEBIAN_VERSION}"
 ARG RUNNER_IMAGE="debian:${DEBIAN_VERSION}"
 
+# install NPM dependencies
+FROM node:22-slim AS npm-deps
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+RUN corepack enable
+COPY package.json /app/package.json
+COPY pnpm-lock.yaml /app/pnpm-lock.yaml
+WORKDIR /app
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
+
 FROM ${BUILDER_IMAGE} as builder
 
 # install build dependencies
@@ -49,10 +59,11 @@ COPY config/config.exs config/${MIX_ENV}.exs config/
 RUN mix deps.compile
 
 COPY priv priv
-
+COPY assets assets
 COPY lib lib
 
 # compile assets
+COPY --from=npm-deps /app/node_modules /app/node_modules
 RUN mix assets.deploy
 
 # generate og images

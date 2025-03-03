@@ -1785,8 +1785,8 @@ msgstr ""
 msgid "Tuist"
 msgstr ""
 
-#: lib/tuist_web/marketing/layouts/marketing.html.heex:42
-#: lib/tuist_web/marketing/layouts/marketing.html.heex:48
+#: lib/tuist_web/marketing/layouts/marketing.html.heex:32
+#: lib/tuist_web/marketing/layouts/marketing.html.heex:38
 #, elixir-autogen, elixir-format
 msgid "Tuist Blog"
 msgstr ""
@@ -1802,8 +1802,8 @@ msgstr ""
 msgid "Tuist Cache"
 msgstr ""
 
-#: lib/tuist_web/marketing/layouts/marketing.html.heex:57
-#: lib/tuist_web/marketing/layouts/marketing.html.heex:63
+#: lib/tuist_web/marketing/layouts/marketing.html.heex:47
+#: lib/tuist_web/marketing/layouts/marketing.html.heex:53
 #, elixir-autogen, elixir-format
 msgid "Tuist Changelog"
 msgstr ""
@@ -2319,8 +2319,8 @@ msgid "Swift Stories newsletter's subscription form"
 msgstr ""
 
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:54
-#: lib/tuist_web/marketing/layouts/marketing.html.heex:71
-#: lib/tuist_web/marketing/layouts/marketing.html.heex:77
+#: lib/tuist_web/marketing/layouts/marketing.html.heex:61
+#: lib/tuist_web/marketing/layouts/marketing.html.heex:67
 #, elixir-autogen, elixir-format
 msgid "Swift Stories Newsletter"
 msgstr ""

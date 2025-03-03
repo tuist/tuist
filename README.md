@@ -17,7 +17,6 @@ This repository contains the source code of the server-side application that ext
 1. Get the private key from 1Password.
 1. Create a `priv/secrets/dev.key` file and add the key to decrypt the secrets needed for development.
 1. Install additional system dependencies with: `mise install`.
-1. Install the project dependencies with: `mise run install`.
 1. Start Postgres with: `brew services start postgresql@16`.
 1. Create a new database with: `mise run db:create`.
 1. Load the data into database with: `mise run db:load`.

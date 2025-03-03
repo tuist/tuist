@@ -1,0 +1,230 @@
+/* Color */
+
+.color--text-primary {
+  color: var(--text-primary);
+}
+
+.color--text-secondary {
+  color: var(--text-secondary);
+}
+
+.color--text-tertiary {
+  color: var(--text-tertiary);
+}
+
+.color--text-success-primary {
+  color: var(--text-success-primary);
+}
+
+.color--text-brand-primary {
+  color: var(--text-brand-primary);
+}
+
+.color--text-brand-secondary {
+  color: var(--text-brand-secondary);
+}
+
+.color--text-brand-tertiary {
+  color: var(--text-brand-tertiary);
+}
+
+.color--text-brand-tertiary_alt {
+  color: var(--text-brand-tertiary_alt);
+}
+
+.color--text-error-primary {
+  color: var(--error-400);
+}
+
+/* Fonts */
+
+.font--regular {
+  font-weight: var(--font-weight-regular);
+}
+
+.font--medium {
+  font-weight: var(--font-weight-medium);
+}
+
+.font--semibold {
+  font-weight: var(--font-weight-semibold);
+}
+
+.font--bold {
+  font-weight: var(--font-weight-bold);
+}
+
+/* Text */
+.text--extraExtraLarge {
+  font-size: var(--font-size-text-extraExtraLarge);
+  line-height: var(--line-height-text-extraExtraLarge);
+}
+
+.text--extraLarge {
+  font-size: var(--font-size-text-extraLarge);
+  line-height: var(--line-height-text-extraLarge);
+}
+
+.text--large {
+  font-size: var(--font-size-text-large);
+  line-height: var(--line-height-text-large);
+}
+
+.text--medium {
+  font-size: var(--font-size-text-medium);
+  line-height: var(--line-height-text-medium);
+}
+
+.text--small {
+  font-size: var(--font-size-text-small);
+  line-height: var(--line-height-text-small);
+}
+
+.text--extraSmall {
+  font-size: var(--font-size-text-extraSmall);
+  line-height: var(--line-height-text-extraSmall);
+}
+
+/* Stack */
+
+.stack {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.stack--horizontal {
+  flex-direction: row;
+  align-items: center;
+}
+
+.stack--vertical {
+  flex-direction: column;
+}
+
+.stack--vertical--xxs > * + * {
+  margin-top: var(--spacing-xxs);
+}
+
+.stack--vertical--xs > * + * {
+  margin-top: var(--spacing-xs);
+}
+
+.stack--vertical--sm > * + * {
+  margin-top: var(--spacing-sm);
+}
+
+.stack--vertical--md > * + * {
+  margin-top: var(--spacing-md);
+}
+
+.stack--vertical--lg > * + * {
+  margin-top: var(--spacing-lg);
+}
+
+.stack--vertical--xl > * + * {
+  margin-top: var(--spacing-xl);
+}
+
+.stack--vertical--2xl > * + * {
+  margin-top: var(--spacing-2xl);
+}
+
+.stack--vertical--3xl > * + * {
+  margin-top: var(--spacing-3xl);
+}
+
+.stack--vertical--4xl > * + * {
+  margin-top: var(--spacing-4xl);
+}
+
+.stack--vertical--5xl > * + * {
+  margin-top: var(--spacing-5xl);
+}
+
+.stack--vertical--6xl > * + * {
+  margin-top: var(--spacing-6xl);
+}
+
+.stack--vertical--7xl > * + * {
+  margin-top: var(--spacing-7xl);
+}
+
+.stack--vertical--8xl > * + * {
+  margin-top: var(--spacing-8xl);
+}
+
+.stack--vertical--9xl > * + * {
+  margin-top: var(--spacing-9xl);
+}
+
+.stack--vertical--10xl > * + * {
+  margin-top: var(--spacing-10xl);
+}
+
+.stack--vertical--11xl > * + * {
+  margin-top: var(--spacing-11xl);
+}
+
+.stack--horizontal--xxs > * + * {
+  margin-left: var(--spacing-xxs);
+}
+
+.stack--horizontal--xs > * + * {
+  margin-left: var(--spacing-xs);
+}
+
+.stack--horizontal--sm > * + * {
+  margin-left: var(--spacing-sm);
+}
+
+.stack--horizontal--md > * + * {
+  margin-left: var(--spacing-md);
+}
+
+.stack--horizontal--lg > * + * {
+  margin-left: var(--spacing-lg);
+}
+
+.stack--horizontal--xl > * + * {
+  margin-left: var(--spacing-xl);
+}
+
+.stack--horizontal--2xl > * + * {
+  margin-left: var(--spacing-2xl);
+}
+
+.stack--horizontal--3xl > * + * {
+  margin-left: var(--spacing-3xl);
+}
+
+.stack--horizontal--4xl > * + * {
+  margin-left: var(--spacing-4xl);
+}
+
+.stack--horizontal--5xl > * + * {
+  margin-left: var(--spacing-5xl);
+}
+
+.stack--horizontal--6xl > * + * {
+  margin-left: var(--spacing-6xl);
+}
+
+.stack--horizontal--7xl > * + * {
+  margin-left: var(--spacing-7xl);
+}
+
+.stack--horizontal--8xl > * + * {
+  margin-left: var(--spacing-8xl);
+}
+
+.stack--horizontal--9xl > * + * {
+  margin-left: var(--spacing-9xl);
+}
+
+.stack--horizontal--10xl > * + * {
+  margin-left: var(--spacing-10xl);
+}
+
+.stack--horizontal--11xl > * + * {
+  margin-left: var(--spacing-11xl);
+}

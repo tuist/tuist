@@ -14,7 +14,7 @@ concurrency:
 env:
   MIX_ENV: test
   MASTER_KEY: ${{ secrets.MASTER_KEY }}
-  MISE_EXPERIMENTAL: 1
+  MISE_EXPERIMENTAL: "1"
 
 jobs:
   check_locales_extraction:
@@ -24,7 +24,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: jdx/mise-action@v2
-      - name: Restore Cache
+      - name: Restore Mix Cache
         uses: actions/cache@v3
         id: mix-cache
         with:
@@ -33,8 +33,19 @@ jobs:
             _build
             _site
           key: mix-${{ hashFiles('mix.lock') }}
-      - name: Install dependencies
+      - name: Install Mix dependencies
         run: mix deps.get
+      - name: Restore PNPM Cache
+        uses: actions/cache@v3
+        id: pnpm-cache
+        with:
+          path: |
+            ~/.pnpm-store
+          key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+      - name: Install PNPM dependencies
+        run: |
+          pnpm config set store-dir ~/.pnpm-store
+          pnpm install
       - name: Check if extraction is needed
         run: mix gettext.extract --check-up-to-date
       - name: Print instruction if extraction validation fails
@@ -60,7 +71,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: jdx/mise-action@v2
-      - name: Restore Cache
+      - name: Restore Mix Cache
         uses: actions/cache@v3
         id: mix-cache
         with:
@@ -69,14 +80,19 @@ jobs:
             _build
             _site
           key: mix-${{ hashFiles('mix.lock') }}
-      - name: Install dependencies
+      - name: Install Mix dependencies
         run: mix deps.get
-      - name: Create the database
-        run: mix ecto.create
-      # This is necessary because the migrations of Rails continue to be the source
-      # of truth for the current shape of the schema.
-      - name: Dump the initial database schema
-        run: mix ecto.load
+      - name: Restore PNPM Cache
+        uses: actions/cache@v3
+        id: pnpm-cache
+        with:
+          path: |
+            ~/.pnpm-store
+          key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+      - name: Install PNPM dependencies
+        run: |
+          pnpm config set store-dir ~/.pnpm-store
+          pnpm install
       - name: Run tests
         run: mix test
   analyze-migrations:
@@ -99,7 +115,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: jdx/mise-action@v2
-      - name: Restore Cache
+      - name: Restore Mix Cache
         uses: actions/cache@v3
         id: mix-cache
         with:
@@ -108,14 +124,19 @@ jobs:
             _build
             _site
           key: mix-${{ hashFiles('mix.lock') }}
-      - name: Install dependencies
+      - name: Install Mix dependencies
         run: mix deps.get
-      - name: Create the database
-        run: mix ecto.create
-      # This is necessary because the migrations of Rails continue to be the source
-      # of truth for the current shape of the schema.
-      - name: Dump the initial database schema
-        run: mix ecto.load
+      - name: Restore PNPM Cache
+        uses: actions/cache@v3
+        id: pnpm-cache
+        with:
+          path: |
+            ~/.pnpm-store
+          key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+      - name: Install PNPM dependencies
+        run: |
+          pnpm config set store-dir ~/.pnpm-store
+          pnpm install
       - name: Analyze migrations
         run: mix excellent_migrations.migrate
   credo:
@@ -125,7 +146,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: jdx/mise-action@v2
-      - name: Restore Cache
+      - name: Restore Mix Cache
         uses: actions/cache@v3
         id: mix-cache
         with:
@@ -145,7 +166,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4 # v4
       - uses: jdx/mise-action@v2
-      - name: Restore Cache
+      - name: Restore Mix Cache
         uses: actions/cache@v3
         id: mix-cache
         with:
@@ -165,7 +186,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4 # v4
       - uses: jdx/mise-action@v2
-      - name: Restore Cache
+      - name: Restore Mix Cache
         uses: actions/cache@v3
         id: mix-cache
         with:
@@ -215,7 +236,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4 # v4
       - uses: jdx/mise-action@v2
-      - name: Restore Cache
+      - name: Restore Mix Cache
         uses: actions/cache@v3
         id: mix-cache
         with:
@@ -224,14 +245,19 @@ jobs:
             _build
             _site
           key: mix-${{ hashFiles('mix.lock') }}
-      - name: Install dependencies
+      - name: Install Mix dependencies
         run: mix deps.get
-      - name: Create the database
-        run: mix ecto.create
-      # This is necessary because the migrations of Rails continue to be the source
-      # of truth for the current shape of the schema.
-      - name: Load the initial schema
-        run: mix ecto.load
+      - name: Restore PNPM Cache
+        uses: actions/cache@v3
+        id: pnpm-cache
+        with:
+          path: |
+            ~/.pnpm-store
+          key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+      - name: Install PNPM dependencies
+        run: |
+          pnpm config set store-dir ~/.pnpm-store
+          pnpm install
       - name: Run migrations
         run: mix ecto.migrate
       - name: Seed the database

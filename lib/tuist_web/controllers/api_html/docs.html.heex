@@ -23,13 +23,10 @@
     />
     <meta property="twitter:url" content={Tuist.Environment.app_url()} />
     
-<!-- CookieConsent -->
-    <link
-      rel="stylesheet"
-      href="https://cdn.jsdelivr.net/gh/orestbida/cookieconsent@3.1.0/dist/cookieconsent.css"
-    />
-    <script type="module" src="/marketing/js/cookieconsent-config.js">
+<!-- Assets -->
+    <script defer phx-track-static type="module" src={~p"/apidocs/assets/bundle.js"}>
     </script>
+    <link phx-track-static rel="stylesheet" href={~p"/apidocs/assets/bundle.css"} />
   </head>
   <body>
     <!--

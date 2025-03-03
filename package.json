@@ -1,0 +1,19 @@
+{
+  "name": "@tuist/server",
+  "private": true,
+  "dependencies": {
+    "@scalar/api-reference": "^1.25.122",
+    "@zag-js/dialog": "^1.2.1",
+    "@zag-js/menu": "^1.2.1",
+    "@zag-js/pin-input": "^1.2.1",
+    "@zag-js/tooltip": "^1.2.1",
+    "@zag-js/types": "^1.2.1",
+    "shiki": "1.26.1",
+    "vanilla-cookieconsent": "3.1.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "vue-demi"
+    ]
+  }
+}

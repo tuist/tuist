@@ -27,6 +27,10 @@ hello-*.tar
 
 # Ignore assets that are produced by build tools.
 /priv/static/assets/
+/priv/static/app/assets/
+/priv/static/marketing/assets/
+/priv/static/apidocs/assets/
+/priv/static/storybook/assets/
 
 # Ignore digested assets cache.
 /priv/static/cache_manifest.json
@@ -34,6 +38,7 @@ hello-*.tar
 # In case you use Node.js/npm, you want to ignore these.
 npm-debug.log
 /assets/node_modules/
+node_modules/
 
 .DS_Store
 priv/secrets/*.key

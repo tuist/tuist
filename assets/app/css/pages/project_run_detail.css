@@ -1,0 +1,46 @@
+.run-detail {
+  margin-bottom: var(--spacing-4xl);
+  margin-right: var(--spacing-4xl);
+}
+
+.run-detail__header {
+  justify-content: space-between;
+}
+
+.target-breakdown-chart {
+  flex-grow: 1;
+}
+
+.run-detail__target-breakdown__table {
+  flex-grow: 6;
+  overflow-y: auto;
+  max-height: 420px;
+
+  & th {
+    position: sticky;
+    top: 0;
+  }
+}
+
+.run-detail__target-breakdown__table__badge-container {
+  display: flex;
+}
+
+.run-detail__target-breakdown__content {
+  align-items: start;
+}
+
+.run-detail__details__row {
+  border-top: 1px solid var(--border-secondary);
+  padding: var(--spacing-2xl) 0;
+}
+
+.run-detail__details__row__title {
+  flex: 1;
+}
+
+.run-detail__details__row__value {
+  display: flex;
+  align-items: start;
+  flex: 4;
+}

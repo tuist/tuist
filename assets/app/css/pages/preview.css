@@ -1,0 +1,102 @@
+.preview {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-lg);
+}
+
+.preview__title {
+  padding-bottom: var(--spacing-lg);
+}
+
+.preview__header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-xl);
+  padding-bottom: var(--spacing-lg);
+}
+
+.preview__header__icon {
+  object-fit: contain;
+  height: 70px;
+  width: 70px;
+  flex-direction: row;
+  display: flex;
+  align-items: center;
+  border-radius: 10px;
+}
+
+.preview__header__metadata {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-xs);
+}
+
+.preview__header__metadata__title {
+  font: var(--text-extra-large-regular);
+  color: var(--text-primary);
+}
+
+.preview__header__metadata__subtitle {
+  font: var(--text-);
+}
+
+.preview__header__download-text {
+  font: var(--text-small-regular);
+  color: var(--text-primary);
+}
+
+.preview__extra-metadata {
+  background-color: var(--bg-secondary);
+  padding: var(--spacing-lg) var(--spacing-xl);
+  border-radius: var(--radius-sm);
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  column-gap: var(--spacing-5xl);
+  row-gap: var(--spacing-lg);
+  width: 100%;
+  max-width: 800px;
+  box-sizing: border-box;
+}
+
+@media (max-width: 1024px) {
+  .preview__extra-metadata {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.preview__extra-metadata-item__title {
+  font: var(--text-medium-regular);
+  color: var(--text-primary);
+}
+
+.preview__extra-metadata-item__value {
+  font: var(--text-small-regular);
+  color: var(--text-secondary);
+}
+
+.preview__qr-code {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-lg);
+  background-color: var(--bg-secondary);
+  padding: var(--spacing-lg) var(--spacing-xl);
+  border-radius: var(--radius-sm);
+  width: 100%;
+  max-width: 800px;
+  box-sizing: border-box;
+  margin-top: var(--spacing-lg);
+}
+
+.preview__qr-code__title {
+  font: var(--text-medium-regular);
+  color: var(--text-primary);
+}
+
+.preview__qr-code__image {
+  width: 150px;
+}

@@ -20,19 +20,9 @@
     >
       <%= raw structured_data %>
     </script>
-    <!-- Import Maps -->
-    <script type="importmap" nonce={get_csp_nonce()}>
-      {
-        "imports": {
-          "phoenix_html": "https://cdn.jsdelivr.net/npm/phoenix_html@4.1.1/+esm",
-          "phoenix": "https://cdn.jsdelivr.net/npm/phoenix@1.7.14/+esm",
-          "phoenix_live_view": "https://cdn.jsdelivr.net/npm/phoenix_live_view@1.0.0/+esm"
-        }
-      }
-    </script>
     <!-- Assets -->
-    <link phx-track-static rel="stylesheet" href={~p"/marketing/css/marketing.css"} />
-    <script defer phx-track-static type="module" src={~p"/marketing/js/marketing.js"}>
+    <link phx-track-static rel="stylesheet" href={~p"/marketing/assets/bundle.css"} />
+    <script defer phx-track-static type="module" src={~p"/marketing/assets/bundle.js"}>
     </script>
     <!-- RSS -->
     <%= if assigns[:head_include_blog_rss_and_atom] do %>
@@ -91,12 +81,6 @@
     <TuistWeb.LayoutComponents.head_analytics_scripts
       :if={Tuist.Environment.analytics_enabled?()}
       {assigns}
-    />
-    
-<!-- CookieConsent -->
-    <link
-      rel="stylesheet"
-      href="https://cdn.jsdelivr.net/gh/orestbida/cookieconsent@3.1.0/dist/cookieconsent.css"
     />
     
 <!-- hCaptcha -->
