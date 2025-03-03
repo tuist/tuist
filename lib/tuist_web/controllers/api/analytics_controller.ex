@@ -77,6 +77,11 @@ defmodule TuistWeb.API.AnalyticsController do
              type: :string,
              description: "The version of macOS that ran the command."
            },
+           ran_at: %Schema{
+             type: :string,
+             format: :string,
+             description: "The date for when the command was run."
+           },
            params: %Schema{
              deprecated: true,
              type: :object,
@@ -306,7 +311,8 @@ defmodule TuistWeb.API.AnalyticsController do
         git_commit_sha: git_commit_sha,
         git_ref: git_ref,
         git_remote_url_origin: git_remote_url_origin,
-        git_branch: Map.get(body_params, :git_branch)
+        git_branch: Map.get(body_params, :git_branch),
+        ran_at: date(body_params)
       })
 
     xcode_graph = Map.get(body_params, :xcode_graph)
@@ -367,6 +373,19 @@ defmodule TuistWeb.API.AnalyticsController do
       not_found: {"The command event doesn't exist", "application/json", Error}
     }
   )
+
+  defp date(body_params) do
+    case Map.get(body_params, :ran_at) do
+      nil ->
+        DateTime.utc_now()
+
+      date_string ->
+        case DateTime.from_iso8601(date_string) do
+          {:ok, date, _} -> date
+          {:error, _} -> DateTime.utc_now()
+        end
+    end
+  end
 
   def multipart_start(
         %{

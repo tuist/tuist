@@ -36,7 +36,8 @@ defmodule TuistTestSupport.Fixtures.CommandEventsFixtures do
       git_commit_sha: Keyword.get(attrs, :git_commit_sha),
       git_ref: Keyword.get(attrs, :git_ref),
       git_branch: Keyword.get(attrs, :git_branch),
-      created_at: Keyword.get(attrs, :created_at, Time.utc_now())
+      created_at: Keyword.get(attrs, :created_at, Time.utc_now()),
+      ran_at: Keyword.get(attrs, :ran_at, DateTime.utc_now())
     })
   end
 

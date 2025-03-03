@@ -282,7 +282,8 @@ defmodule Tuist.CommandEvents do
           preview_id: preview_id,
           git_commit_sha: git_commit_sha,
           git_ref: git_ref,
-          git_branch: git_branch
+          git_branch: git_branch,
+          ran_at: ran_at
         } = event
       ) do
     command_event =
@@ -313,7 +314,8 @@ defmodule Tuist.CommandEvents do
         git_commit_sha: git_commit_sha,
         git_branch: git_branch,
         git_ref: git_ref,
-        created_at: Map.get(event, :created_at, Time.utc_now())
+        created_at: Map.get(event, :created_at, Time.utc_now()),
+        ran_at: ran_at
       })
       |> Repo.insert!()
 

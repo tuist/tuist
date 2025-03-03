@@ -138,6 +138,19 @@ for _event <- 1..10000 do
     |> Enum.reverse()
     |> Enum.take(Enum.random(0..(14 - length(remote_test_target_hits))))
 
+  created_at =
+    NaiveDateTime.new!(
+      Date.add(DateTime.utc_now(), -Enum.random(0..400)),
+      Time.new!(
+        Enum.random(0..23),
+        Enum.random(0..59),
+        Enum.random(0..59),
+        Enum.random(0..999_999)
+      )
+    )
+
+  ran_at = created_at
+
   CommandEvents.create_command_event(%{
     name: name,
     duration: Enum.random(10000..100_000),
@@ -171,7 +184,8 @@ for _event <- 1..10000 do
           Enum.random(0..59),
           Enum.random(0..999_999)
         )
-      )
+      ),
+    ran_at: ran_at
   })
 end
 

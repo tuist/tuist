@@ -553,7 +553,6 @@ msgstr ""
 
 #: lib/tuist_web/live/preview_live.html.heex:65
 #: lib/tuist_web/live/previews_live.html.heex:28
-#: lib/tuist_web/live/project_runs_live.html.heex:25
 #, elixir-autogen, elixir-format
 msgid "Created at"
 msgstr ""
@@ -785,11 +784,6 @@ msgstr ""
 #: lib/tuist_web/live/project_dashboard_live.html.heex:19
 #, elixir-autogen, elixir-format
 msgid "Filter"
-msgstr ""
-
-#: lib/tuist_web/live/project_run_detail_live.html.heex:101
-#, elixir-autogen, elixir-format
-msgid "Finished at"
 msgstr ""
 
 #: lib/tuist_web/live/project_tests_live.html.heex:4
@@ -1333,6 +1327,8 @@ msgstr ""
 msgid "QR code"
 msgstr ""
 
+#: lib/tuist_web/live/project_run_detail_live.html.heex:101
+#: lib/tuist_web/live/project_runs_live.html.heex:25
 #: lib/tuist_web/live/project_test_case_detail_live.html.heex:43
 #, elixir-autogen, elixir-format
 msgid "Ran at"
@@ -1648,7 +1644,7 @@ msgstr ""
 msgid "Supported platforms"
 msgstr ""
 
-#: lib/tuist_web/live/project_run_detail_live.html.heex:107
+#: lib/tuist_web/live/project_run_detail_live.html.heex:110
 #, elixir-autogen, elixir-format
 msgid "Swift version"
 msgstr ""
@@ -1859,7 +1855,7 @@ msgstr ""
 msgid "Tuist is designed to grow with you. Only add a card if you need more than the free tier limits or dedicated support."
 msgstr ""
 
-#: lib/tuist_web/live/project_run_detail_live.html.heex:104
+#: lib/tuist_web/live/project_run_detail_live.html.heex:107
 #, elixir-autogen, elixir-format
 msgid "Tuist version"
 msgstr ""
@@ -2237,7 +2233,7 @@ msgstr ""
 msgid "generate runs"
 msgstr ""
 
-#: lib/tuist_web/live/project_run_detail_live.html.heex:110
+#: lib/tuist_web/live/project_run_detail_live.html.heex:113
 #, elixir-autogen, elixir-format
 msgid "macOS version"
 msgstr ""

@@ -98,8 +98,11 @@
           <.run_detail_row title={gettext("Duration")}>
             {gettext("%{duration} s", duration: Float.round(@command_event.duration / 1000, 1))}
           </.run_detail_row>
-          <.run_detail_row title={gettext("Finished at")}>
-            {Calendar.strftime(@command_event.created_at, "%b %d %Y, %I:%M:%S")}
+          <.run_detail_row title={gettext("Ran at")}>
+            {Calendar.strftime(
+              Map.get(@command_event, :ran_at, @command_event.created_at),
+              "%b %d %Y, %I:%M:%S"
+            )}
           </.run_detail_row>
           <.run_detail_row title={gettext("Tuist version")}>
             {@command_event.tuist_version}

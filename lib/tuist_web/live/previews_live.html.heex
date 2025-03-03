@@ -26,7 +26,7 @@
       {(command_event.git_commit_sha || "None") |> String.slice(0, 7)}
     </:col>
     <:col :let={command_event} label={gettext("Created at")}>
-      {Timex.from_now(command_event.created_at)}
+      {Timex.from_now(Map.get(command_event, :ran_at, command_event.created_at))}
     </:col>
   </.table>
   <.pagination

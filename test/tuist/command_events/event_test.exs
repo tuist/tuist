@@ -88,7 +88,8 @@ defmodule Tuist.CommandEvents.EventTest do
       user_id: Keyword.get(attrs, :user_id, 1),
       client_id: "client-id",
       status: Keyword.get(attrs, :status, :success),
-      error_message: nil
+      error_message: nil,
+      ran_at: ~U[2022-02-28 15:54:06Z]
     }
   end
 end

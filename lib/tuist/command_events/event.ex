@@ -58,6 +58,7 @@ defmodule Tuist.CommandEvents.Event do
     field :git_commit_sha, :string
     field :git_ref, :string
     field :git_branch, :string
+    field :ran_at, :utc_datetime
 
     # Binary Cache
     field :cacheable_targets, {:array, :string}, default: []
@@ -117,14 +118,15 @@ defmodule Tuist.CommandEvents.Event do
         :preview_id,
         :git_commit_sha,
         :git_ref,
-        :git_branch
+        :git_branch,
+        :ran_at
       ])
 
     is_ci = get_field(changeset, :is_ci)
 
     changeset
     |> validate_required(
-      [:project_id, :name] ++
+      [:project_id, :name, :ran_at] ++
         if is_ci do
           []
         else

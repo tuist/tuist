@@ -22,8 +22,8 @@
     <:col :let={command_event} label={gettext("Duration")}>
       {"#{Float.round(command_event.duration / 1000, 1)} s"}
     </:col>
-    <:col :let={command_event} label={gettext("Created at")}>
-      {Timex.from_now(command_event.created_at)}
+    <:col :let={command_event} label={gettext("Ran at")}>
+      {Timex.from_now(Map.get(command_event, :run_at, command_event.created_at))}
     </:col>
   </.table>
   <.pagination
