@@ -106,7 +106,7 @@ defmodule Tuist.MixProject do
       {:error_tracker, "~> 0.5.0"},
       {:excellent_migrations, "~> 0.1.8"},
       {:ex_aws_sts, "~> 2.2"},
-      {:qr_code, "~> 3.1.0"},
+      {:qr_code, "~> 3.2.0"},
       {:nimble_publisher, "~> 1.1"},
       {:yaml_elixir, "~> 2.11"},
       {:reading_time, "~> 0.2.0"},
