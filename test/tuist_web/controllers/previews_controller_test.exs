@@ -604,6 +604,29 @@ defmodule TuistWeb.PreviewsControllerTest do
                "The project tuist/non-existing-project was not found."
     end
 
+    test "returns bad_request when the id is invalid", %{
+      conn: conn,
+      user: user,
+      project: project,
+      account: account
+    } do
+      # Given
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+
+      # When
+      conn =
+        conn
+        |> get(~p"/api/projects/#{account.name}/#{project.name}/previews/invalid-id")
+
+      # Then
+      response = json_response(conn, :bad_request)
+
+      assert response["message"] ==
+               "The provided preview ID invalid-id doesn't have a valid format."
+    end
+
     test "returns forbidden when user is not authorized to read preview", %{
       conn: conn,
       user: user

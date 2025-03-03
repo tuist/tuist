@@ -265,48 +265,53 @@ defmodule TuistWeb.API.PreviewsController do
         } = conn,
         _params
       ) do
-    preview = Previews.get_preview_by_id(preview_id, preload: [:command_event])
+    case Previews.get_preview_by_id(preview_id, preload: [:command_event]) do
+      {:ok, preview} ->
+        :ok =
+          Storage.multipart_complete_upload(
+            get_object_key(conn, preview_id),
+            upload_id,
+            parts
+            |> Enum.map(fn %{part_number: part_number, etag: etag} ->
+              {part_number, etag}
+            end)
+          )
 
-    if is_nil(preview) do
-      conn
-      |> put_status(:not_found)
-      |> json(%{message: "Preview not found."})
-    else
-      :ok =
-        Storage.multipart_complete_upload(
-          get_object_key(conn, preview_id),
-          upload_id,
-          parts
-          |> Enum.map(fn %{part_number: part_number, etag: etag} ->
-            {part_number, etag}
-          end)
-        )
+        Tuist.Analytics.preview_upload(Authentication.authenticated_subject(conn))
 
-      Tuist.Analytics.preview_upload(Authentication.authenticated_subject(conn))
+        {git_commit_sha, git_branch} =
+          if is_nil(preview.command_event) do
+            {nil, nil}
+          else
+            {
+              preview.command_event.git_commit_sha,
+              preview.command_event.git_branch
+            }
+          end
 
-      {git_commit_sha, git_branch} =
-        if is_nil(preview.command_event) do
-          {nil, nil}
-        else
-          {
-            preview.command_event.git_commit_sha,
-            preview.command_event.git_branch
-          }
-        end
+        conn
+        |> put_status(:ok)
+        |> json(%{
+          id: preview_id,
+          url: url(~p"/#{account_handle}/#{project_handle}/previews/#{preview_id}"),
+          qr_code_url:
+            url(~p"/#{account_handle}/#{project_handle}/previews/#{preview_id}/qr-code.png"),
+          icon_url: url(~p"/#{account_handle}/#{project_handle}/previews/#{preview_id}/icon.png"),
+          bundle_identifier: preview.bundle_identifier,
+          display_name: preview.display_name,
+          git_commit_sha: git_commit_sha,
+          git_branch: git_branch
+        })
 
-      conn
-      |> put_status(:ok)
-      |> json(%{
-        id: preview_id,
-        url: url(~p"/#{account_handle}/#{project_handle}/previews/#{preview_id}"),
-        qr_code_url:
-          url(~p"/#{account_handle}/#{project_handle}/previews/#{preview_id}/qr-code.png"),
-        icon_url: url(~p"/#{account_handle}/#{project_handle}/previews/#{preview_id}/icon.png"),
-        bundle_identifier: preview.bundle_identifier,
-        display_name: preview.display_name,
-        git_commit_sha: git_commit_sha,
-        git_branch: git_branch
-      })
+      {:error, :not_found} ->
+        conn
+        |> put_status(:not_found)
+        |> json(%{message: "Preview not found."})
+
+      {:error, reason} ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{message: reason})
     end
   end
 
@@ -342,7 +347,8 @@ defmodule TuistWeb.API.PreviewsController do
       forbidden:
         {"The authenticated subject is not authorized to perform this action", "application/json",
          Error},
-      not_found: {"The preview does not exist", "application/json", Error}
+      not_found: {"The preview does not exist", "application/json", Error},
+      bad_request: {"The request is invalid", "application/json", Error}
     }
   )
 
@@ -356,47 +362,52 @@ defmodule TuistWeb.API.PreviewsController do
         } = conn,
         _params
       ) do
-    preview = Previews.get_preview_by_id(preview_id, preload: [:command_event])
+    case Previews.get_preview_by_id(preview_id, preload: [:command_event]) do
+      {:ok, preview} ->
+        expires_in = 3600
 
-    if is_nil(preview) do
-      conn
-      |> put_status(:not_found)
-      |> json(%{message: "Preview not found."})
-    else
-      expires_in = 3600
+        url =
+          Storage.generate_download_url(
+            get_object_key(conn, preview_id),
+            expires_in: expires_in
+          )
 
-      url =
-        Storage.generate_download_url(
-          get_object_key(conn, preview_id),
-          expires_in: expires_in
-        )
+        expires_at = System.system_time(:second) + expires_in
+        Tuist.Analytics.preview_download(Authentication.authenticated_subject(conn))
 
-      expires_at = System.system_time(:second) + expires_in
-      Tuist.Analytics.preview_download(Authentication.authenticated_subject(conn))
+        {git_commit_sha, git_branch} =
+          if is_nil(preview.command_event) do
+            {nil, nil}
+          else
+            {
+              preview.command_event.git_commit_sha,
+              preview.command_event.git_branch
+            }
+          end
 
-      {git_commit_sha, git_branch} =
-        if is_nil(preview.command_event) do
-          {nil, nil}
-        else
-          {
-            preview.command_event.git_commit_sha,
-            preview.command_event.git_branch
-          }
-        end
+        conn
+        |> json(%{
+          id: preview_id,
+          url: url,
+          expires_at: expires_at,
+          qr_code_url:
+            url(~p"/#{account_handle}/#{project_handle}/previews/#{preview_id}/qr-code.png"),
+          icon_url: url(~p"/#{account_handle}/#{project_handle}/previews/#{preview_id}/icon.png"),
+          bundle_identifier: preview.bundle_identifier,
+          display_name: preview.display_name,
+          git_commit_sha: git_commit_sha,
+          git_branch: git_branch
+        })
 
-      conn
-      |> json(%{
-        id: preview_id,
-        url: url,
-        expires_at: expires_at,
-        qr_code_url:
-          url(~p"/#{account_handle}/#{project_handle}/previews/#{preview_id}/qr-code.png"),
-        icon_url: url(~p"/#{account_handle}/#{project_handle}/previews/#{preview_id}/icon.png"),
-        bundle_identifier: preview.bundle_identifier,
-        display_name: preview.display_name,
-        git_commit_sha: git_commit_sha,
-        git_branch: git_branch
-      })
+      {:error, :not_found} ->
+        conn
+        |> put_status(:not_found)
+        |> json(%{message: "Preview not found."})
+
+      {:error, reason} ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{message: reason})
     end
   end
 
@@ -623,27 +634,32 @@ defmodule TuistWeb.API.PreviewsController do
         } = conn,
         _params
       ) do
-    preview = Previews.get_preview_by_id(preview_id)
+    case Previews.get_preview_by_id(preview_id) do
+      {:ok, preview} ->
+        expires_in = 3600
 
-    if is_nil(preview) do
-      conn
-      |> put_status(:not_found)
-      |> json(%{message: "Preview not found."})
-    else
-      expires_in = 3600
+        upload_url =
+          Storage.generate_upload_url(
+            Previews.get_icon_storage_key(%{
+              account_handle: account_handle,
+              project_handle: project_handle,
+              preview_id: preview.id
+            }),
+            expires_in: expires_in
+          )
 
-      upload_url =
-        Storage.generate_upload_url(
-          Previews.get_icon_storage_key(%{
-            account_handle: account_handle,
-            project_handle: project_handle,
-            preview_id: preview_id
-          }),
-          expires_in: expires_in
-        )
+        conn
+        |> json(%{url: upload_url, expires_at: System.system_time(:second) + expires_in})
 
-      conn
-      |> json(%{url: upload_url, expires_at: System.system_time(:second) + expires_in})
+      {:error, :not_found} ->
+        conn
+        |> put_status(:not_found)
+        |> json(%{message: "Preview not found."})
+
+      {:error, reason} ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{message: reason})
     end
   end
 

@@ -88,13 +88,16 @@ defmodule TuistWeb.PreviewLive do
   end
 
   defp get_current_preview(preview_id) do
-    preview = Previews.get_preview_by_id(preview_id, preload: [:command_event, :project])
+    case Previews.get_preview_by_id(preview_id, preload: [:command_event, :project]) do
+      {:error, :not_found} ->
+        raise TuistWeb.Errors.NotFoundError, "Preview not found."
 
-    if is_nil(preview) do
-      raise TuistWeb.Errors.NotFoundError,
-            "Preview not found."
+      {:ok, preview} ->
+        preview
+
+      {:error, _} ->
+        raise TuistWeb.Errors.NotFoundError,
+              "Preview not found."
     end
-
-    preview
   end
 end

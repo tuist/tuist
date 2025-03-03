@@ -57,7 +57,7 @@ defmodule Tuist.PreviewsTest do
         )
 
       # When
-      result = Previews.get_preview_by_id(preview.id)
+      {:ok, result} = Previews.get_preview_by_id(preview.id)
 
       # Then
       assert result == preview
@@ -77,10 +77,33 @@ defmodule Tuist.PreviewsTest do
         )
 
       # When
-      result = Previews.get_preview_by_id(preview.id, preload: [:command_event])
+      {:ok, result} = Previews.get_preview_by_id(preview.id, preload: [:command_event])
 
       # Then
       assert result.command_event.id == command_event.id
+    end
+
+    test "returns an error when the id is invalid" do
+      # Given
+      invalid_id = "invalid-id"
+
+      # When
+      {:error, result} = Previews.get_preview_by_id(invalid_id)
+
+      # Then
+      assert result ==
+               "The provided preview ID invalid-id doesn't have a valid format."
+    end
+
+    test "returns not_found error when the preview is not found" do
+      # Given
+      preview_id = UUIDv7.generate()
+
+      # When
+      result = Previews.get_preview_by_id(preview_id)
+
+      # Then
+      assert result == {:error, :not_found}
     end
   end
 

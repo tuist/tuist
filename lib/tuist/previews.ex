@@ -31,10 +31,17 @@ defmodule Tuist.Previews do
   end
 
   def get_preview_by_id(id, opts \\ []) do
-    preload = Keyword.get(opts, :preload, [])
+    if Tuist.UUIDv7.valid?(id) do
+      preload = Keyword.get(opts, :preload, [])
+      preview = Repo.get_by(Preview, id: id) |> Repo.preload(preload)
 
-    Repo.get_by(Preview, id: id)
-    |> Repo.preload(preload)
+      case preview do
+        nil -> {:error, :not_found}
+        %Preview{} = preview -> {:ok, preview}
+      end
+    else
+      {:error, "The provided preview ID #{id} doesn't have a valid format."}
+    end
   end
 
   def get_storage_key(%{

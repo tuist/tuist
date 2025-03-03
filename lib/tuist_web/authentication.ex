@@ -348,12 +348,17 @@ defmodule TuistWeb.Authentication do
         } = conn,
         opts
       ) do
-    preview = Previews.get_preview_by_id(preview_id)
+    case Previews.get_preview_by_id(preview_id) do
+      {:error, _} ->
+        require_authenticated_user(conn, opts)
 
-    if is_nil(preview) or
-         not Authorization.can(nil, :read, preview |> Repo.preload(:project)),
-       do: require_authenticated_user(conn, opts),
-       else: conn
+      {:ok, preview} ->
+        if Authorization.can(nil, :read, preview |> Repo.preload(:project)) do
+          conn
+        else
+          require_authenticated_user(conn, opts)
+        end
+    end
   end
 
   defp put_token_in_session(conn, token) do
