@@ -3898,7 +3898,11 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     cxxLanguageStandard: nil,
                     swiftLanguageVersions: nil
                 ),
-            ]
+            ],
+            packageSettings: .test(
+                baseSettings: .default,
+                includeLocalPackageTestTargets: true
+            )
         )
 
         // Then
@@ -3961,7 +3965,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 ),
             ],
             packageSettings: .test(
-                productDestinations: ["Product": [.iPhone, .iPad]]
+                productDestinations: ["Product": [.iPhone, .iPad]],
+                includeLocalPackageTestTargets: true
             )
         )
 
@@ -4057,7 +4062,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 ),
             ],
             packageSettings: .test(
-                productDestinations: ["MacProduct": [.mac]]
+                productDestinations: ["MacProduct": [.mac]],
+                includeLocalPackageTestTargets: true
             )
         )
 
@@ -4142,7 +4148,11 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         ),
                     ]
                 ),
-            ]
+            ],
+            packageSettings: .test(
+                baseSettings: .default,
+                includeLocalPackageTestTargets: true
+            )
         )
 
         // Then

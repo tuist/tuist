@@ -100,15 +100,23 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
                 folder: AbsolutePath,
                 targetToArtifactPaths: [String: AbsolutePath],
                 info: PackageInfo,
+                packageType: PackageType,
                 hash: String?
             )
         ]
         packageInfos = try await workspaceState.object.dependencies.concurrentMap { dependency in
             let name = dependency.packageRef.name
             let packageFolder: AbsolutePath
+            let packageType: PackageType
+            let targetToArtifactPaths = try workspaceState.object.artifacts
+                .filter { $0.packageRef.identity == dependency.packageRef.identity }
+                .reduce(into: [:]) { result, artifact in
+                    result[artifact.targetName] = try AbsolutePath(validating: artifact.path)
+                }
             switch dependency.packageRef.kind {
             case "remote", "remoteSourceControl":
                 packageFolder = checkoutsFolder.appending(component: dependency.subpath)
+                packageType = .external(artifactPaths: targetToArtifactPaths)
             case "local", "fileSystem", "localSourceControl":
                 // Depending on the swift version, the information is available either in `path` or in `location`
                 guard let path = dependency.packageRef.path ?? dependency.packageRef.location else {
@@ -120,19 +128,16 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
                 packageFolder = try AbsolutePath(
                     validating: path.replacingOccurrences(of: "/private/var", with: "/var")
                 )
+                packageType = .local
             case "registry":
                 let registryFolder = path.appending(try RelativePath(validating: "registry/downloads"))
                 packageFolder = registryFolder.appending(try RelativePath(validating: dependency.subpath))
+                packageType = .external(artifactPaths: targetToArtifactPaths)
             default:
                 throw SwiftPackageManagerGraphGeneratorError.unsupportedDependencyKind(dependency.packageRef.kind)
             }
 
             let packageInfo = try await self.manifestLoader.loadPackage(at: packageFolder)
-            let targetToArtifactPaths = try workspaceState.object.artifacts
-                .filter { $0.packageRef.identity == dependency.packageRef.identity }
-                .reduce(into: [:]) { result, artifact in
-                    result[artifact.targetName] = try AbsolutePath(validating: artifact.path)
-                }
 
             return (
                 id: dependency.packageRef.identity.lowercased(),
@@ -140,6 +145,7 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
                 folder: packageFolder,
                 targetToArtifactPaths: targetToArtifactPaths,
                 info: packageInfo,
+                packageType: packageType,
                 hash: dependency.state?.checkoutState?.revision
             )
         }
@@ -190,7 +196,7 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
                 projectManifest: try await self.packageInfoMapper.map(
                     packageInfo: packageInfo.info,
                     path: packageInfo.folder,
-                    packageType: .external(artifactPaths: packageToTargetsToArtifactPaths[packageInfo.name] ?? [:]),
+                    packageType: packageInfo.packageType,
                     packageSettings: packageSettings,
                     packageModuleAliases: packageModuleAliases
                 )
@@ -199,10 +205,16 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
         let externalProjects: [Path: DependenciesGraph.ExternalProject] = mappedPackageInfos
             .reduce(into: [:]) { result, item in
                 let (packageInfo, hash, projectManifest) = item
+                let projectType: ProjectType = switch packageInfo.packageType {
+                case .external:
+                    ProjectType.external(hash: hash)
+                case .local:
+                    ProjectType.local
+                }
                 if let projectManifest {
                     result[.path(packageInfo.folder.pathString)] = DependenciesGraph.ExternalProject(
                         manifest: projectManifest,
-                        hash: hash
+                        projectType: projectType
                     )
                 }
             }

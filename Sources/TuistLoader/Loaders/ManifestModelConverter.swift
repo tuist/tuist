@@ -126,7 +126,7 @@ public final class ManifestModelConverter: ManifestModelConverting {
                         path: projectPath,
                         plugins: .none,
                         externalDependencies: externalDependencies,
-                        type: .external(hash: project.hash)
+                        type: project.projectType
                     )
                     // Disable all lastUpgradeCheck related warnings on projects generated from dependencies
                     project.lastUpgradeCheck = Version(99, 9, 9)

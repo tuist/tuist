@@ -17,24 +17,10 @@ public struct ExternalProjectsPlatformNarrowerGraphMapper: GraphMapping { // swi
         graph: Graph,
         environment: MapperEnvironment
     ) async throws -> (Graph, [TuistCore.SideEffectDescriptor], MapperEnvironment) {
-        ServiceContext.current?.logger?.debug("Transforming graph \(graph.name): Aligning external target platforms with locals'")
-
-        // If the project has no external dependencies we skip this.
-        if graph.projects.values.first(
-            where: {
-                switch $0.type {
-                case .external:
-                    return true
-                case .local:
-                    return false
-                }
-            }
-        ) == nil {
-            return (graph, [], environment)
-        }
+        ServiceContext.current?.logger?.debug("Transforming graph \(graph.name): Aligning target platforms with locals'")
 
         var graph = graph
-        let externalTargetSupportedPlatforms = GraphTraverser(graph: graph).externalTargetSupportedPlatforms()
+        let targetSupportedPlatforms = GraphTraverser(graph: graph).allTargetSupportedPlatforms()
 
         graph.projects = Dictionary(uniqueKeysWithValues: graph.projects.map { projectPath, project in
             var project = project
@@ -42,7 +28,7 @@ public struct ExternalProjectsPlatformNarrowerGraphMapper: GraphMapping { // swi
                 let mappedTarget = mapTarget(
                     target: target,
                     project: project,
-                    externalTargetSupportedPlatforms: externalTargetSupportedPlatforms
+                    targetSupportedPlatforms: targetSupportedPlatforms
                 )
                 return (mappedTarget.name, mappedTarget)
             })
@@ -55,14 +41,14 @@ public struct ExternalProjectsPlatformNarrowerGraphMapper: GraphMapping { // swi
     private func mapTarget(
         target: Target,
         project: Project,
-        externalTargetSupportedPlatforms: [GraphTarget: Set<Platform>]
+        targetSupportedPlatforms: [GraphTarget: Set<Platform>]
     ) -> Target {
         /**
          We only include the destinations whose platform is included in the list of the target supported platforms.
          */
         var target = target
         let graphTarget = GraphTarget(path: project.path, target: target, project: project)
-        if case .external = project.type, let targetFilteredPlatforms = externalTargetSupportedPlatforms[graphTarget] {
+        if let targetFilteredPlatforms = targetSupportedPlatforms[graphTarget] {
             target.destinations = target.destinations.filter { destination in
                 targetFilteredPlatforms.contains(destination.platform)
             }

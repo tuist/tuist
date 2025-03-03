@@ -116,10 +116,14 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
         if let packagePath = try await manifestFilesLocator.locatePackageManifest(at: path),
            isSPMProjectOnly || hasExternalDependencies
         {
-            let loadedPackageSettings = try await packageSettingsLoader.loadPackageSettings(
+            var loadedPackageSettings = try await packageSettingsLoader.loadPackageSettings(
                 at: packagePath.parentDirectory,
                 with: plugins
             )
+            
+            if isSPMProjectOnly {
+                loadedPackageSettings.includeLocalPackageTestTargets = true
+            }
 
             let manifestsDependencyGraph = try await swiftPackageManagerGraphLoader.load(
                 packagePath: packagePath,

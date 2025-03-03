@@ -72,7 +72,7 @@ final class PackageSettingsLoaderTests: TuistUnitTestCase {
         let got = try await subject.loadPackageSettings(at: temporaryPath, with: plugins)
 
         // Then
-        let expected: TuistCore.PackageSettings = .init(
+        let expected: TuistCore.PackageSettings = .test(
             productTypes: [:],
             productDestinations: [:],
             baseSettings: XcodeGraph.Settings(

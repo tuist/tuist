@@ -1,14 +1,21 @@
 import ProjectDescription
+import enum XcodeGraph.ProjectType
 
 /// A directed acyclic graph (DAG) that Tuist uses to represent the dependency tree.
 public struct DependenciesGraph: Equatable, Codable {
     public struct ExternalProject: Equatable, Codable {
         public var manifest: ProjectDescription.Project
-        public var hash: String?
+        public var projectType: ProjectType
+        public var hash: String? {
+            if case .external(let hash) = projectType {
+                return hash
+            }
+            return nil
+        }
 
-        public init(manifest: ProjectDescription.Project, hash: String?) {
+        public init(manifest: ProjectDescription.Project, projectType: ProjectType) {
             self.manifest = manifest
-            self.hash = hash
+            self.projectType = projectType
         }
     }
 
@@ -176,7 +183,7 @@ public struct DependenciesGraph: Equatable, Codable {
                         ),
                         targets: targets,
                         resourceSynthesizers: .default
-                    ), hash: nil),
+                    ), projectType: .external(hash: nil)),
                 ]
             )
         }
@@ -257,7 +264,7 @@ public struct DependenciesGraph: Equatable, Codable {
                         ),
                         targets: targets,
                         resourceSynthesizers: .default
-                    ), hash: nil),
+                    ), projectType: .external(hash: nil)),
                 ]
             )
         }
@@ -315,7 +322,7 @@ public struct DependenciesGraph: Equatable, Codable {
                         ),
                         targets: targets,
                         resourceSynthesizers: .default
-                    ), hash: nil),
+                    ), projectType: .external(hash: nil)),
                 ]
             )
         }
@@ -376,7 +383,7 @@ public struct DependenciesGraph: Equatable, Codable {
                         ),
                         targets: targets,
                         resourceSynthesizers: .default
-                    ), hash: nil),
+                    ), projectType: .external(hash: nil)),
                 ]
             )
         }
@@ -515,7 +522,7 @@ public struct DependenciesGraph: Equatable, Codable {
                         ),
                         targets: targets,
                         resourceSynthesizers: .default
-                    ), hash: nil),
+                    ), projectType: .external(hash: nil)),
                 ]
             )
         }
@@ -633,7 +640,7 @@ public struct DependenciesGraph: Equatable, Codable {
                         ),
                         targets: targets,
                         resourceSynthesizers: .default
-                    ), hash: nil),
+                    ), projectType: .external(hash: nil)),
                 ]
             )
         }
@@ -691,7 +698,7 @@ public struct DependenciesGraph: Equatable, Codable {
                         ),
                         targets: targets,
                         resourceSynthesizers: .default
-                    ), hash: nil),
+                    ), projectType: .external(hash: nil)),
                 ]
             )
         }
