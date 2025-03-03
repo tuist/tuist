@@ -24,6 +24,7 @@ public struct TrackableCommandInfo {
     let selectiveTestingCacheItems: [AbsolutePath: [String: CacheItem]]
     let previewId: String?
     let resultBundlePath: AbsolutePath?
+    let ranAt: Date
 }
 
 /// A `TrackableCommand` wraps a `ParsableCommand` and reports its execution to an analytics provider
@@ -58,6 +59,7 @@ public class TrackableCommand {
         backend: TuistAnalyticsServerBackend?
     ) async throws {
         let timer = clock.startTimer()
+        let ranAt = clock.now
         let pathIndex = commandArguments.firstIndex(of: "--path")
         let path: AbsolutePath
         if let pathIndex, commandArguments.endIndex > pathIndex + 1 {
@@ -82,7 +84,8 @@ public class TrackableCommand {
                         runId: runMetadataStorage.runId,
                         path: path,
                         runMetadataStorage: runMetadataStorage,
-                        backend: backend
+                        backend: backend,
+                        ranAt: ranAt
                     )
                 }
             } catch {
@@ -93,7 +96,8 @@ public class TrackableCommand {
                         runId: await runMetadataStorage.runId,
                         path: path,
                         runMetadataStorage: runMetadataStorage,
-                        backend: backend
+                        backend: backend,
+                        ranAt: ranAt
                     )
                 }
                 throw error
@@ -107,7 +111,8 @@ public class TrackableCommand {
         runId: String,
         path: AbsolutePath,
         runMetadataStorage: RunMetadataStorage,
-        backend: TuistAnalyticsServerBackend
+        backend: TuistAnalyticsServerBackend,
+        ranAt: Date
     ) async throws {
         let durationInSeconds = timer.stop()
         let durationInMs = Int(durationInSeconds * 1000)
@@ -124,7 +129,8 @@ public class TrackableCommand {
             binaryCacheItems: runMetadataStorage.binaryCacheItems,
             selectiveTestingCacheItems: runMetadataStorage.selectiveTestingCacheItems,
             previewId: runMetadataStorage.previewId,
-            resultBundlePath: runMetadataStorage.resultBundlePath
+            resultBundlePath: runMetadataStorage.resultBundlePath,
+            ranAt: Date()
         )
         let commandEvent = try commandEventFactory.make(
             from: info,
