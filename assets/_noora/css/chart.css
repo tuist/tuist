@@ -1,0 +1,8 @@
+.noora-chart {
+  position: relative;
+  height: 100vh;
+  width: 800px;
+  overflow: hidden;
+  margin: 0;
+  padding: 0;
+}

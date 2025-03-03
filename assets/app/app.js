@@ -21,6 +21,8 @@ import "phoenix_html";
 import { Socket } from "phoenix";
 import { LiveSocket } from "phoenix_live_view";
 import topbar from "./js/vendor/topbar.js";
+import "./js/Chart.js";
+import "./js/Stack.js";
 import * as NooraComponents from "../_noora/noora.js";
 import "./app.css";
 
