@@ -58,23 +58,23 @@ public struct InitService {
         self.keystrokeListener = keystrokeListener
     }
 
-    public func run(from directory: AbsolutePath) async throws {
+    func run(from directory: AbsolutePath, answers: InitPromptAnswers?) async throws {
         let tuistSwiftLine: String
         let projectDirectory: AbsolutePath
 
-        switch try await nameOfXcodeProjectOrWorkspace(in: directory) {
+        switch try await nameOfXcodeProjectOrWorkspace(in: directory, answers: answers) {
         case .createGeneratedProject:
-            let name = prompter.promptGeneratedProjectName()
-            let platform = prompter.promptGeneratedProjectPlatform()
+            let name = answers?.generatedProjectName ?? prompter.promptGeneratedProjectName()
+            let platform = answers?.generatedProjectPlatform ?? prompter.promptGeneratedProjectPlatform()
             projectDirectory = try await createGeneratedProject(at: directory, name: name, platform: platform)
-            if let fullHandle = try await integrateWithXcodeProjectOrWorkspace(named: name, in: directory) {
+            if let fullHandle = try await integrateWithXcodeProjectOrWorkspace(named: name, in: directory, answers: answers) {
                 tuistSwiftLine = "let tuist = Tuist(fullHandle: \"\(fullHandle)\", project: .tuist())"
             } else {
                 tuistSwiftLine = "let tuist = Tuist(project: .tuist())"
             }
         case let .integrateWithProjectOrWorkspace(name):
             projectDirectory = directory
-            if let fullHandle = try await integrateWithXcodeProjectOrWorkspace(named: name, in: directory) {
+            if let fullHandle = try await integrateWithXcodeProjectOrWorkspace(named: name, in: directory, answers: answers) {
                 tuistSwiftLine = "let tuist = Tuist(fullHandle: \"\(fullHandle)\", project: .xcode())"
             } else {
                 tuistSwiftLine = "let tuist = Tuist(project: .xcode())"
@@ -108,7 +108,6 @@ public struct InitService {
             errorMessage: "Failed to create generated project",
             showSpinner: true,
             task: { _ in
-
                 if !(try await fileSystem.exists(projectDirectory)) {
                     try await fileSystem.makeDirectory(at: projectDirectory)
                 }
@@ -125,9 +124,10 @@ public struct InitService {
 
     private func integrateWithXcodeProjectOrWorkspace(
         named projectHandle: String,
-        in directory: AbsolutePath
+        in directory: AbsolutePath,
+        answers: InitPromptAnswers?
     ) async throws -> String? {
-        let integrateWithServer = prompter.promptIntegrateWithServer()
+        let integrateWithServer = answers?.integrateWithServer ?? prompter.promptIntegrateWithServer()
         if integrateWithServer {
             try await ServiceContext.current?.ui?.collapsibleStep(
                 title: "Authentication",
@@ -176,9 +176,12 @@ public struct InitService {
         return nil
     }
 
-    private func nameOfXcodeProjectOrWorkspace(in directory: AbsolutePath) async throws -> InitPromptingWorkflowType {
+    private func nameOfXcodeProjectOrWorkspace(
+        in directory: AbsolutePath,
+        answers: InitPromptAnswers?
+    ) async throws -> InitPromptingWorkflowType {
         let xcodeProjectsAndWorkspaces = try await findXcodeProjectsAndWorkspaces(in: directory)
-        return prompter
+        return answers?.workflowType ?? prompter
             .promptWorkflowType(
                 xcodeProjectOrWorkspace: xcodeProjectsAndWorkspaces
                     .first(where: \.isWorkspace) ?? xcodeProjectsAndWorkspaces.first(where: \.isProject)

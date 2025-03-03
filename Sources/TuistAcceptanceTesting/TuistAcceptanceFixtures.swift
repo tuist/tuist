@@ -33,7 +33,6 @@ public enum TuistAcceptanceFixtures {
     case commandLineToolWithDynamicFramework
     case commandLineToolWithDynamicLibrary
     case commandLineToolWithStaticLibrary
-    case generatediOSApp
     case frameworkWithEnvironmentVariables
     case frameworkWithMacroAndPluginPackages
     case frameworkWithNativeSwiftMacro
@@ -183,8 +182,6 @@ public enum TuistAcceptanceFixtures {
             return "framework_with_swift_macro"
         case .frameworkWithSPMBundle:
             return "framework_with_spm_bundle"
-        case .generatediOSApp:
-            return "generated_ios_app"
         case .invalidManifest:
             return "invalid_manifest"
         case .invalidWorkspaceManifestName:

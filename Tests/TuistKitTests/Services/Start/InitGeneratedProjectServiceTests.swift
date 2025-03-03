@@ -10,7 +10,7 @@ import XCTest
 
 @testable import TuistKit
 
-final class StartGeneratedProjectServiceTests: TuistUnitTestCase {
+final class InitGeneratedProjectServiceTests: TuistUnitTestCase {
     private var subject: InitGeneratedProjectService!
     private var templatesDirectoryLocator: MockTemplatesDirectoryLocating!
     private var templateGenerator: MockTemplateGenerating!
@@ -241,10 +241,7 @@ final class StartGeneratedProjectServiceTests: TuistUnitTestCase {
         try await subject.testRun(
             name: "Name",
             platform: "macos",
-            templateName: "https://url/to/repo.git",
-            requiredTemplateOptions: [
-                "required": "requiredValue",
-            ]
+            templateName: "https://url/to/repo.git"
         )
 
         // Then
@@ -360,17 +357,13 @@ extension InitGeneratedProjectService {
         name: String? = nil,
         platform: String? = nil,
         path: String? = nil,
-        templateName: String? = nil,
-        requiredTemplateOptions: [String: String] = [:],
-        optionalTemplateOptions: [String: String?] = [:]
+        templateName: String? = nil
     ) async throws {
         try await run(
             name: name,
             platform: platform,
             path: path,
-            templateName: templateName,
-            requiredTemplateOptions: requiredTemplateOptions,
-            optionalTemplateOptions: optionalTemplateOptions
+            templateName: templateName
         )
     }
 }

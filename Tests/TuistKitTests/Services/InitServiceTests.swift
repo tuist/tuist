@@ -22,7 +22,7 @@ private struct MockKeyStrokeListening: KeyStrokeListening {
 
 struct InitServiceTests {
     private let fileSystem = FileSystem()
-    private let prompter = MockStartPrompting()
+    private let prompter = MockInitPrompting()
     private let loginService = MockLoginServicing()
     private let createProjectService = MockCreateProjectServicing()
     private let serverSessionController = MockServerSessionControlling()
@@ -57,7 +57,7 @@ struct InitServiceTests {
 
             try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
                 // When
-                try await subject.run(from: temporaryDirectory)
+                try await subject.run(from: temporaryDirectory, answers: nil)
 
                 // Then
                 let tuistSwift = try await fileSystem.readTextFile(at: temporaryDirectory.appending(components: [
@@ -82,7 +82,7 @@ struct InitServiceTests {
 
             try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
                 // When
-                try await subject.run(from: temporaryDirectory)
+                try await subject.run(from: temporaryDirectory, answers: nil)
 
                 // Then
                 let tuistSwift = try await fileSystem.readTextFile(at: temporaryDirectory.appending(components: [
@@ -117,7 +117,7 @@ struct InitServiceTests {
                 try await fileSystem.makeDirectory(at: temporaryDirectory.appending(component: "\(projectName).xcodeproj"))
 
                 // When
-                try await subject.run(from: temporaryDirectory)
+                try await subject.run(from: temporaryDirectory, answers: nil)
 
                 // Then
                 let tuistSwift = try await fileSystem.readTextFile(at: temporaryDirectory.appending(components: ["Tuist.swift"]))
@@ -143,7 +143,7 @@ struct InitServiceTests {
                 try await fileSystem.makeDirectory(at: temporaryDirectory.appending(component: "\(projectName).xcodeproj"))
 
                 // When
-                try await subject.run(from: temporaryDirectory)
+                try await subject.run(from: temporaryDirectory, answers: nil)
 
                 // Then
                 let tuistSwift = try await fileSystem.readTextFile(at: temporaryDirectory.appending(components: ["Tuist.swift"]))

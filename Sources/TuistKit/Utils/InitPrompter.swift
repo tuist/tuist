@@ -1,7 +1,32 @@
+import Foundation
 import Mockable
 import ServiceContextModule
 
-enum InitPromptingWorkflowType: Equatable, CustomStringConvertible {
+struct InitPromptAnswers: Codable {
+    let workflowType: InitPromptingWorkflowType
+    let integrateWithServer: Bool
+    let generatedProjectPlatform: String
+    let generatedProjectName: String
+
+    public init(
+        workflowType: InitPromptingWorkflowType,
+        integrateWithServer: Bool,
+        generatedProjectPlatform: String,
+        generatedProjectName: String
+    ) {
+        self.workflowType = workflowType
+        self.integrateWithServer = integrateWithServer
+        self.generatedProjectPlatform = generatedProjectPlatform
+        self.generatedProjectName = generatedProjectName
+    }
+
+    func base64EncodedJSONString() throws -> String {
+        let jsonData = try JSONEncoder().encode(self)
+        return jsonData.base64EncodedString()
+    }
+}
+
+enum InitPromptingWorkflowType: Codable, Equatable, CustomStringConvertible {
     case integrateWithProjectOrWorkspace(String)
     case createGeneratedProject
 
