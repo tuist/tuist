@@ -31,7 +31,7 @@ final class TestServiceTests: TuistUnitTestCase {
     private var cacheStorage: MockCacheStoring!
     private var runMetadataStorage: RunMetadataStorage!
     private var testedSchemes: [String] = []
-    private var xcResultParser: MockXCResultParsing!
+    private var xcResultService: MockXCResultServicing!
 
     override func setUpWithError() throws {
         try super.setUpWithError()
@@ -44,7 +44,7 @@ final class TestServiceTests: TuistUnitTestCase {
         generatorFactory = .init()
         cacheStorage = .init()
         runMetadataStorage = RunMetadataStorage()
-        xcResultParser = .init()
+        xcResultService = .init()
 
         cacheStorageFactory = MockCacheStorageFactorying()
         given(cacheStorageFactory)
@@ -85,7 +85,7 @@ final class TestServiceTests: TuistUnitTestCase {
             contentHasher: contentHasher,
             cacheDirectoriesProvider: cacheDirectoriesProvider,
             configLoader: configLoader,
-            xcResultParser: xcResultParser
+            xcResultService: xcResultService
         )
 
         given(simulatorController)
@@ -1009,9 +1009,13 @@ final class TestServiceTests: TuistUnitTestCase {
                 throw NSError.test()
             }
 
-        given(xcResultParser)
+        given(xcResultService)
             .parse(path: .value(xcresultPath))
-            .willReturn(ParsedXCResult(passingTestTargetNames: ["FrameworkBTests"]))
+            .willReturn(InvocationRecord(actions: [], testSummaries: []))
+
+        given(xcResultService)
+            .successfulTestTargets(invocationRecord: .any)
+            .willReturn(["FrameworkBTests"])
 
         // When / Then
         do {
