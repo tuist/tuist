@@ -42,7 +42,7 @@ defmodule Tuist.MixProject do
       {:phoenix_live_reload, "~> 1.2", only: :dev},
       {:phoenix_live_view, "~> 1.0.0"},
       {:floki, ">= 0.33.0"},
-      {:phoenix_live_dashboard, "~> 0.8.3"},
+      {:phoenix_live_dashboard, "~> 0.8.4"},
       {:heroicons,
        github: "tailwindlabs/heroicons",
        tag: "v2.1.1",
@@ -64,7 +64,7 @@ defmodule Tuist.MixProject do
       # to address this issue https://github.com/appsignal/appsignal-elixir/issues/981
       {:hackney, "1.21.0"},
       {:appsignal_phoenix, "~> 2.5"},
-      {:castore, "~> 1.0"},
+      {:castore, "~> 1.0.12"},
       {:uniq, "~> 0.6"},
       {:encrypted_secrets, "~> 0.3.0"},
       {:ex_aws, "~> 2.5.5"},
@@ -125,7 +125,8 @@ defmodule Tuist.MixProject do
       {:plug_minify_html, "~> 0.1.0"},
       {:briefly, "~> 0.5.0"},
       {:fun_with_flags, "~> 1.12.0"},
-      {:fun_with_flags_ui, "~> 1.0.0"}
+      {:fun_with_flags_ui, "~> 1.0.0"},
+      {:esbuild, "~> 0.8"}
     ]
   end
 
@@ -142,9 +143,13 @@ defmodule Tuist.MixProject do
       "ecto.setup": ["ecto.create", "ecto.migrate", "run priv/repo/seeds.exs"],
       "ecto.reset": ["ecto.drop", "ecto.create", "ecto.load", "ecto.migrate"],
       test: ["ecto.create --quiet", "ecto.migrate --quiet", "test"],
-      "assets.setup": [],
-      "assets.build": [],
+      "assets.setup": ["esbuild.install --if-missing"],
+      "assets.build": ["esbuild app", "esbuild marketing", "esbuild apidocs", "esbuild storybook"],
       "assets.deploy": [
+        "esbuild marketing --minify",
+        "esbuild app --minify",
+        "esbuild apidocs --minify",
+        "esbuild storybook --minify",
         "phx.digest"
       ]
     ]
