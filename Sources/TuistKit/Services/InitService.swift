@@ -1,266 +1,201 @@
 import FileSystem
+import Noora
 import Path
 import ServiceContextModule
-import TuistCore
-import TuistLoader
-import TuistScaffold
+import TuistServer
 import TuistSupport
-import XcodeGraph
 
-enum InitServiceError: FatalError, Equatable {
-    case ungettableProjectName(AbsolutePath)
-    case nonEmptyDirectory(AbsolutePath)
-    case templateNotFound(String)
-    case templateNotProvided
-    case attributeNotProvided(String)
-    case invalidValue(argument: String, error: String)
+public struct InitService {
+    private let fileSystem: FileSystem
+    private let prompter: InitPrompting
+    private let loginService: LoginServicing
+    private let createProjectService: CreateProjectServicing
+    private let serverSessionController: ServerSessionControlling
+    private let startGeneratedProjectService: InitGeneratedProjectServicing
+    private let keystrokeListener: KeyStrokeListening
 
-    var type: ErrorType {
-        switch self {
-        case .ungettableProjectName, .nonEmptyDirectory, .templateNotFound, .templateNotProvided, .attributeNotProvided,
-             .invalidValue:
-            return .abort
+    enum XcodeProjectOrWorkspace: Hashable, Equatable {
+        case workspace(AbsolutePath)
+        case project(AbsolutePath)
+
+        var isWorkspace: Bool {
+            switch self {
+            case .workspace: true
+            case .project: false
+            }
+        }
+
+        var isProject: Bool {
+            switch self {
+            case .workspace: false
+            case .project: true
+            }
+        }
+
+        var name: String {
+            switch self {
+            case let .project(path): return path.basenameWithoutExt
+            case let .workspace(path): return path.basenameWithoutExt
+            }
         }
     }
-
-    var description: String {
-        switch self {
-        case let .templateNotFound(template):
-            return "Could not find template \(template). Make sure it exists at Tuist/Templates/\(template)"
-        case .templateNotProvided:
-            return "You must provide template name"
-        case let .ungettableProjectName(path):
-            return "Couldn't infer the project name from path \(path.pathString)."
-        case let .nonEmptyDirectory(path):
-            return "Can't initialize a project in the non-empty directory at path \(path.pathString)."
-        case let .attributeNotProvided(name):
-            return "You must provide \(name) option. Add --\(name) desired_value to your command."
-        case let .invalidValue(argument: argument, error: error):
-            return "\(error) for argument \(argument); use --help to print usage"
-        }
-    }
-}
-
-class InitService {
-    private let templateLoader: TemplateLoading
-    private let templatesDirectoryLocator: TemplatesDirectoryLocating
-    private let templateGenerator: TemplateGenerating
-    private let templateGitLoader: TemplateGitLoading
-    private let fileSystem: FileSysteming
 
     init(
-        templateLoader: TemplateLoading = TemplateLoader(),
-        templatesDirectoryLocator: TemplatesDirectoryLocating = TemplatesDirectoryLocator(),
-        templateGenerator: TemplateGenerating = TemplateGenerator(),
-        templateGitLoader: TemplateGitLoading = TemplateGitLoader(),
-        fileSystem: FileSysteming = FileSystem()
+        fileSystem: FileSystem = FileSystem(),
+        prompter: InitPrompting = InitPrompter(),
+        loginService: LoginServicing = LoginService(),
+        createProjectService: CreateProjectServicing = CreateProjectService(),
+        serverSessionController: ServerSessionControlling = ServerSessionController(),
+        startGeneratedProjectService: InitGeneratedProjectServicing = InitGeneratedProjectService(),
+        keystrokeListener: KeyStrokeListening = KeyStrokeListener()
     ) {
-        self.templateLoader = templateLoader
-        self.templatesDirectoryLocator = templatesDirectoryLocator
-        self.templateGenerator = templateGenerator
-        self.templateGitLoader = templateGitLoader
         self.fileSystem = fileSystem
+        self.prompter = prompter
+        self.loginService = loginService
+        self.createProjectService = createProjectService
+        self.serverSessionController = serverSessionController
+        self.startGeneratedProjectService = startGeneratedProjectService
+        self.keystrokeListener = keystrokeListener
     }
 
-    func loadTemplateOptions(
-        templateName: String,
-        path: String?
-    ) async throws -> (
-        required: [String],
-        optional: [String]
-    ) {
-        let path = try self.path(path)
-        let directories = try await templatesDirectoryLocator.templateDirectories(at: path)
-        var attributes: [Template.Attribute] = []
+    public func run(from directory: AbsolutePath) async throws {
+        let tuistSwiftLine: String
+        let projectDirectory: AbsolutePath
 
-        if templateName.isGitURL {
-            try await templateGitLoader.loadTemplate(from: templateName) { template in
-                attributes = template.attributes
+        switch try await nameOfXcodeProjectOrWorkspace(in: directory) {
+        case .createGeneratedProject:
+            let name = prompter.promptGeneratedProjectName()
+            let platform = prompter.promptGeneratedProjectPlatform()
+            projectDirectory = try await createGeneratedProject(at: directory, name: name, platform: platform)
+            if let fullHandle = try await integrateWithXcodeProjectOrWorkspace(named: name, in: directory) {
+                tuistSwiftLine = "let tuist = Tuist(fullHandle: \"\(fullHandle)\", project: .tuist())"
+            } else {
+                tuistSwiftLine = "let tuist = Tuist(project: .tuist())"
             }
-        } else {
-            let templateDirectory = try templateDirectory(
-                templateDirectories: directories,
-                template: templateName
-            )
-
-            let template = try await templateLoader.loadTemplate(at: templateDirectory, plugins: .none)
-            attributes = template.attributes
+        case let .integrateWithProjectOrWorkspace(name):
+            projectDirectory = directory
+            if let fullHandle = try await integrateWithXcodeProjectOrWorkspace(named: name, in: directory) {
+                tuistSwiftLine = "let tuist = Tuist(fullHandle: \"\(fullHandle)\", project: .xcode())"
+            } else {
+                tuistSwiftLine = "let tuist = Tuist(project: .xcode())"
+            }
         }
 
-        return attributes
-            .reduce(into: (required: [], optional: [])) { currentValue, attribute in
-                // name and platform attributes have default values, so add them to the optional
-                if attribute.name == "name" || attribute.name == "platform" {
-                    currentValue.optional.append(attribute.name)
-                    return
-                }
-                switch attribute {
-                case let .optional(name, default: _):
-                    currentValue.optional.append(name)
-                case let .required(name):
-                    currentValue.required.append(name)
-                }
-            }
+        let tuistSwiftFileContent = """
+        import ProjectDescription
+
+        \(tuistSwiftLine)
+        """
+        let tuistSwiftFilePath = projectDirectory.appending(component: "Tuist.swift")
+        if try await fileSystem.exists(tuistSwiftFilePath) {
+            try await fileSystem.remove(tuistSwiftFilePath)
+        }
+        try await fileSystem.writeText(tuistSwiftFileContent, at: tuistSwiftFilePath)
+
+        ServiceContext.current?.alerts?.success(.alert("You are all set to explore the Tuist universe", nextSteps: [
+            "Accelerate your builds with the \(.link(title: "cache", href: "https://docs.tuist.dev/en/guides/develop/cache"))",
+            "Accelerate your test runs with \(.link(title: "selective testing", href: "https://docs.tuist.dev/en/guides/develop/selective-testing"))",
+            "Accelerate your Swift package resolution with \(.link(title: "the registry", href: "https://docs.tuist.dev/en/guides/develop/registry"))",
+            "Share your app easily with \(.link(title: "previews", href: "https://docs.tuist.dev/en/guides/share/previews"))",
+        ]))
     }
 
-    func run(
-        name: String?,
-        platform: String?,
-        path: String?,
-        templateName: String?,
-        requiredTemplateOptions: [String: String],
-        optionalTemplateOptions: [String: String?]
-    ) async throws {
-        let platform = try self.platform(platform)
-        let path = try self.path(path)
-        let name = try self.name(name, path: path)
-        let templateName = templateName ?? "default"
-        try await verifyDirectoryIsEmpty(path: path)
+    private func createGeneratedProject(at directory: AbsolutePath, name: String, platform: String) async throws -> AbsolutePath {
+        let projectDirectory = directory.appending(component: name)
+        try await ServiceContext.current?.ui?.progressStep(
+            message: "Creating generated project",
+            successMessage: "Generated project created",
+            errorMessage: "Failed to create generated project",
+            showSpinner: true,
+            task: { _ in
 
-        if templateName.isGitURL {
-            try await templateGitLoader.loadTemplate(from: templateName, closure: { template in
-                let parsedAttributes = try self.parseAttributes(
+                if !(try await fileSystem.exists(projectDirectory)) {
+                    try await fileSystem.makeDirectory(at: projectDirectory)
+                }
+                try await startGeneratedProjectService.run(
                     name: name,
                     platform: platform,
-                    tuistVersion: Constants.version,
-                    requiredTemplateOptions: requiredTemplateOptions,
-                    optionalTemplateOptions: optionalTemplateOptions,
-                    template: template
+                    path: projectDirectory.pathString,
+                    templateName: "default"
                 )
-
-                try await self.templateGenerator.generate(
-                    template: template,
-                    to: path,
-                    attributes: parsedAttributes
-                )
-            })
-        } else {
-            let directories = try await templatesDirectoryLocator.templateDirectories(at: path)
-            guard let templateDirectory = directories.first(where: { $0.basename == templateName })
-            else { throw InitServiceError.templateNotFound(templateName) }
-
-            let template = try await templateLoader.loadTemplate(at: templateDirectory, plugins: .none)
-            let parsedAttributes = try parseAttributes(
-                name: name,
-                platform: platform,
-                tuistVersion: Constants.version,
-                requiredTemplateOptions: requiredTemplateOptions,
-                optionalTemplateOptions: optionalTemplateOptions,
-                template: template
-            )
-
-            try await templateGenerator.generate(
-                template: template,
-                to: path,
-                attributes: parsedAttributes
-            )
-        }
-
-        ServiceContext.current?.alerts?
-            .success(
-                .alert(
-                    "Project generated at path \(path.pathString). Run `tuist generate` to generate the project and open it in Xcode. Use `tuist edit` to easily update the Tuist project definition."
-                )
-            )
-
-        ServiceContext.current?.logger?
-            .info(
-                "To learn more about tuist features, such as how to add external dependencies or how to use our ProjectDescription helpers, head to our tutorials page: https://docs.tuist.io/tutorials/tuist-tutorials"
-            )
+            }
+        )
+        return projectDirectory
     }
 
-    // MARK: - Helpers
-
-    /// Checks if the given directory is empty, essentially that it doesn't contain any file or directory.
-    ///
-    /// - Parameter path: Directory to be checked.
-    /// - Throws: An InitServiceError.nonEmptyDirectory error when the directory is not empty.
-    private func verifyDirectoryIsEmpty(path: AbsolutePath) async throws {
-        let allowedFiles = Set(["mise.toml", ".mise.toml"])
-        let disallowedFiles = try await fileSystem.glob(directory: path, include: ["*"]).collect()
-            .filter { !allowedFiles.contains($0.basename) }
-        if !disallowedFiles.isEmpty {
-            throw InitServiceError.nonEmptyDirectory(path)
-        }
-    }
-
-    /// Parses all `attributes` from `template`
-    /// If those attributes are optional, they default to `default` if not provided
-    /// - Returns: Array of parsed attributes
-    private func parseAttributes(
-        name: String,
-        platform: Platform,
-        tuistVersion: String,
-        requiredTemplateOptions: [String: String],
-        optionalTemplateOptions: [String: String?],
-        template: Template
-    ) throws -> [String: Template.Attribute.Value] {
-        let defaultAttributes: [String: Template.Attribute.Value] = [
-            "name": .string(name),
-            "platform": .string(platform.caseValue),
-            "tuist_version": .string(tuistVersion),
-            "class_name": .string(name.toValidSwiftIdentifier()),
-            "bundle_identifier": .string(name.toValidInBundleIdentifier()),
-        ]
-        return try template.attributes.reduce(into: defaultAttributes) { attributesDictionary, attribute in
-            if defaultAttributes.keys.contains(attribute.name) { return }
-
-            switch attribute {
-            case let .required(name):
-                guard let option = requiredTemplateOptions[name]
-                else { throw ScaffoldServiceError.attributeNotProvided(name) }
-                attributesDictionary[name] = .string(option)
-            case let .optional(name, default: defaultValue):
-                guard let unwrappedOption = optionalTemplateOptions[name],
-                      let option = unwrappedOption
-                else {
-                    attributesDictionary[name] = defaultValue
-                    return
+    private func integrateWithXcodeProjectOrWorkspace(
+        named projectHandle: String,
+        in directory: AbsolutePath
+    ) async throws -> String? {
+        let integrateWithServer = prompter.promptIntegrateWithServer()
+        if integrateWithServer {
+            try await ServiceContext.current?.ui?.collapsibleStep(
+                title: "Authentication",
+                successMessage: "Authenticated",
+                errorMessage: "Authentication failed",
+                visibleLines: 3,
+                task: { progress in
+                    try await loginService.run(email: nil, password: nil, directory: nil) { event in
+                        switch event {
+                        case let .openingBrowser(url):
+                            await withCheckedContinuation { continuation in
+                                progress("Press ENTER to open \(url) in your browser to authenticate...")
+                                keystrokeListener.listen { key in
+                                    switch key {
+                                    case .returnKey:
+                                        continuation.resume()
+                                        return .abort
+                                    default:
+                                        return .continue
+                                    }
+                                }
+                            }
+                        default:
+                            progress("\(event.description)")
+                        }
+                    }
                 }
-                attributesDictionary[name] = .string(option)
-            }
+            )
+
+            let accountHandle = try await serverSessionController.whoami(serverURL: Constants.URLs.production)!
+            let fullHandle = "\(accountHandle)/\(projectHandle)"
+
+            try await ServiceContext.current?.ui?.progressStep(
+                message: "Creating Tuist project",
+                successMessage: "Project connected",
+                errorMessage: "Project connection failed",
+                showSpinner: true,
+                task: { _ in
+                    _ = try await createProjectService.createProject(fullHandle: fullHandle, serverURL: Constants.URLs.production)
+                }
+            )
+
+            return fullHandle
         }
+
+        return nil
     }
 
-    /// Finds template directory
-    /// - Parameters:
-    ///     - templateDirectories: Paths of available templates
-    ///     - template: Name of template
-    /// - Returns: `AbsolutePath` of template directory
-    private func templateDirectory(templateDirectories: [AbsolutePath], template: String) throws -> AbsolutePath {
-        guard let templateDirectory = templateDirectories.first(where: { $0.basename == template })
-        else { throw InitServiceError.templateNotFound(template) }
-        return templateDirectory
+    private func nameOfXcodeProjectOrWorkspace(in directory: AbsolutePath) async throws -> InitPromptingWorkflowType {
+        let xcodeProjectsAndWorkspaces = try await findXcodeProjectsAndWorkspaces(in: directory)
+        return prompter
+            .promptWorkflowType(
+                xcodeProjectOrWorkspace: xcodeProjectsAndWorkspaces
+                    .first(where: \.isWorkspace) ?? xcodeProjectsAndWorkspaces.first(where: \.isProject)
+            )
     }
 
-    /// Returns name to use. If `name` is nil, returns a directory name executed `init` command.
-    private func name(_ name: String?, path: AbsolutePath) throws -> String {
-        if let name {
-            return name
-        } else if let directoryName = path.components.last {
-            return directoryName
-        } else {
-            throw InitServiceError.ungettableProjectName(AbsolutePath.current)
-        }
-    }
-
-    private func path(_ path: String?) throws -> AbsolutePath {
-        if let path {
-            return try AbsolutePath(validating: path, relativeTo: FileHandler.shared.currentPath)
-        } else {
-            return FileHandler.shared.currentPath
-        }
-    }
-
-    private func platform(_ platform: String?) throws -> Platform {
-        if let platformString = platform {
-            if let platform = Platform(rawValue: platformString) {
-                return platform
-            } else {
-                throw InitServiceError.invalidValue(argument: "platform", error: "Platform should be either ios, tvos, or macos")
-            }
-        } else {
-            return .iOS
-        }
+    private func findXcodeProjectsAndWorkspaces(in directory: AbsolutePath) async throws -> Set<XcodeProjectOrWorkspace> {
+        var paths = Set(
+            try await fileSystem.glob(directory: directory, include: ["**/*.xcworkspace"]).collect()
+                .filter { $0.parentDirectory.extension != "xcodeproj" }
+                .map(XcodeProjectOrWorkspace.workspace)
+        )
+        paths
+            .formUnion(
+                try await fileSystem.glob(directory: directory, include: ["**/*.xcodeproj"]).collect()
+                    .map(XcodeProjectOrWorkspace.project)
+            )
+        return paths
     }
 }

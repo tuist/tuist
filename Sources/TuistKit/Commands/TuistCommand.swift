@@ -15,11 +15,11 @@ public struct TuistCommand: AsyncParsableCommand {
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "tuist",
-            abstract: "Generate, build and test your Xcode projects.",
+            abstract: "Build better apps faster.",
             subcommands: [],
             groupedSubcommands: [
                 CommandGroup(
-                    name: "Start",
+                    name: "Get started",
                     subcommands: [
                         InitCommand.self,
                     ]
@@ -103,9 +103,6 @@ public struct TuistCommand: AsyncParsableCommand {
             if processedArguments.first == ScaffoldCommand.configuration.commandName {
                 try await ScaffoldCommand.preprocess(processedArguments)
             }
-            if processedArguments.first == InitCommand.configuration.commandName {
-                try await InitCommand.preprocess(processedArguments)
-            }
             let command = try parseAsRoot(processedArguments)
             executeCommand = {
                 logFilePathDisplayStrategy = (command as? LogConfigurableCommand)?
@@ -155,6 +152,7 @@ public struct TuistCommand: AsyncParsableCommand {
     }
 
     private static func outputCompletion(logFilePath: AbsolutePath, shouldOutputLogFilePath: Bool) {
+        print("", terminator: "\n")
         ServiceContext.current?.alerts?.print()
         if shouldOutputLogFilePath {
             outputLogFilePath(logFilePath)

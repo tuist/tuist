@@ -304,13 +304,6 @@ export function guidesSidebar(locale) {
         {
           text: localizedString(
             locale,
-            "sidebars.guides.items.quick-start.items.create-a-project.text",
-          ),
-          link: `/${locale}/guides/quick-start/create-a-project`,
-        },
-        {
-          text: localizedString(
-            locale,
             "sidebars.guides.items.quick-start.items.add-dependencies.text",
           ),
           link: `/${locale}/guides/quick-start/add-dependencies`,
@@ -321,13 +314,6 @@ export function guidesSidebar(locale) {
             "sidebars.guides.items.quick-start.items.gather-insights.text",
           ),
           link: `/${locale}/guides/quick-start/gather-insights`,
-        },
-        {
-          text: localizedString(
-            locale,
-            "sidebars.guides.items.quick-start.items.optimize-workflows.text",
-          ),
-          link: `/${locale}/guides/quick-start/optimize-workflows`,
         },
       ],
     },

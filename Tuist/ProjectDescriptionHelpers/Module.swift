@@ -315,6 +315,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "AnyCodable"),
                     .external(name: "OpenAPIRuntime"),
                     .external(name: "XCResultKit"),
+                    .external(name: "Noora")
                 ]
             case .core:
                 [

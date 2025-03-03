@@ -8,7 +8,7 @@ import XCTest
 /// Build projects using Tuist build
 final class BuildAcceptanceTestWithTemplates: TuistAcceptanceTestCase {
     func test_with_templates() async throws {
-        try await run(InitCommand.self, "--platform", "ios", "--name", "MyApp")
+        try await setUpFixture(.generatediOSApp)
         try await run(InstallCommand.self)
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self)
@@ -20,7 +20,7 @@ final class BuildAcceptanceTestWithTemplates: TuistAcceptanceTestCase {
 
 final class BuildAcceptanceTestInvalidArguments: TuistAcceptanceTestCase {
     func test_with_invalid_arguments() async throws {
-        try await run(InitCommand.self, "--platform", "ios", "--name", "MyApp")
+        try await setUpFixture(.generatediOSApp)
         try await run(InstallCommand.self)
         try await run(GenerateCommand.self)
         await XCTAssertThrowsSpecific(

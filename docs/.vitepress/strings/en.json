@@ -195,12 +195,6 @@
           "items": {
             "install-tuist": {
               "text": "Install Tuist"
-            },
-            "create-a-project": {
-              "text": "Create a project"
-            },
-            "optimize-workflows": {
-              "text": "Optimize workflows"
             }
           }
         },

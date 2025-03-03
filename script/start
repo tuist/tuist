@@ -1,0 +1,17 @@
+#!/bin/bash
+
+# This script is designed to start using Tuist deferring the installation.
+#
+# $ curl https://tuist.run | sh
+
+set -eo pipefail
+
+TMP_DIR=$(mktemp -d)
+trap 'rm -rf -- "$TMP_DIR"' EXIT
+
+DOWNLOAD_URL="https://github.com/tuist/tuist/releases/latest/download/tuist.zip"
+DOWNLOAD_PATH=$TMP_DIR/tuist.zip
+curl -sL -o "$DOWNLOAD_PATH" "$DOWNLOAD_URL"
+unzip -q $DOWNLOAD_PATH -d $TMP_DIR
+
+$TMP_DIR/tuist start
