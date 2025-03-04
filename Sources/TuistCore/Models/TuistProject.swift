@@ -20,7 +20,7 @@ public enum TuistProject: Equatable, Hashable {
 
     public func hash(into hasher: inout Hasher) {
         switch self {
-        case let .generated(compatibleXcodeVersions, swiftVersion, _plugins, generationOptions, _installOptions):
+        case let .generated(compatibleXcodeVersions, swiftVersion, _, generationOptions, _):
             hasher.combine("type-generated")
             hasher.combine(generationOptions)
             hasher.combine(swiftVersion)
