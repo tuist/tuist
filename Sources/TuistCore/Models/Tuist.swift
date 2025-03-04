@@ -5,17 +5,9 @@ import XcodeGraph
 
 /// This model allows to configure Tuist.
 public struct Tuist: Equatable, Hashable {
-    /// List of `Plugin`s used to extend Tuist.
-    public let plugins: [PluginLocation]
-
-    /// Generation options.
-    public let generationOptions: GenerationOptions
-
-    /// Install options.
-    public let installOptions: InstallOptions
-
-    /// List of Xcode versions the project or set of projects is compatible with.
-    public let compatibleXcodeVersions: CompatibleXcodeVersions
+    /// Configures the project Tuist will interact with.
+    /// When no project is provided, Tuist defaults to the workspace or project in the current directory.
+    public let project: TuistProject
 
     /// The full project handle such as tuist-org/tuist.
     public let fullHandle: String?
@@ -23,96 +15,46 @@ public struct Tuist: Equatable, Hashable {
     /// The base URL that points to the Tuist server.
     public let url: URL
 
-    /// The version of Swift that will be used by Tuist.
-    /// If `nil` is passed then Tuist will use the environment’s version.
-    public let swiftVersion: Version?
-
-    /// The path of the config file.
-    public let path: AbsolutePath?
-
     /// Returns the default Tuist configuration.
     public static var `default`: Tuist {
-        Tuist(
-            compatibleXcodeVersions: .all,
+        return Tuist(
+            project: .defaultGeneratedProject(),
             fullHandle: nil,
-            url: Constants.URLs.production,
-            swiftVersion: nil,
-            plugins: [],
-            generationOptions: .init(
-                resolveDependenciesWithSystemScm: false,
-                disablePackageVersionLocking: false,
-                staticSideEffectsWarningTargets: .all
-            ),
-            installOptions: .init(
-                passthroughSwiftPackageManagerArguments: []
-            ),
-            path: nil
+            url: Constants.URLs.production
         )
     }
 
     /// Initializes the tuist cofiguration.
     ///
     /// - Parameters:
-    ///   - compatibleXcodeVersions: List of Xcode versions the project or set of projects is compatible with.
-    ///   - cloud: Cloud configuration.
-    ///   - swiftVersion: The version of Swift that will be used by Tuist.
-    ///   - plugins: List of locations to a `Plugin` manifest.
-    ///   - generationOptions: Generation options.
-    ///   - installOptions: Install options.
-    ///   - path: The path of the config file.
+
     public init(
-        compatibleXcodeVersions: CompatibleXcodeVersions,
+        project: TuistProject,
         fullHandle: String?,
-        url: URL,
-        swiftVersion: Version?,
-        plugins: [PluginLocation],
-        generationOptions: GenerationOptions,
-        installOptions: InstallOptions,
-        path: AbsolutePath?
+        url: URL
     ) {
-        self.compatibleXcodeVersions = compatibleXcodeVersions
+        self.project = project
         self.fullHandle = fullHandle
         self.url = url
-        self.swiftVersion = swiftVersion
-        self.plugins = plugins
-        self.generationOptions = generationOptions
-        self.installOptions = installOptions
-        self.path = path
     }
 
     // MARK: - Hashable
 
     public func hash(into hasher: inout Hasher) {
-        hasher.combine(generationOptions)
+        hasher.combine(project)
         hasher.combine(fullHandle)
         hasher.combine(url)
-        hasher.combine(swiftVersion)
-        hasher.combine(compatibleXcodeVersions)
     }
 }
 
 #if DEBUG
     extension Tuist {
         public static func test(
-            compatibleXcodeVersions: CompatibleXcodeVersions = .all,
+            project: TuistProject = .defaultGeneratedProject(),
             fullHandle: String? = nil,
-            url: URL = Constants.URLs.production,
-            swiftVersion: Version? = nil,
-            plugins: [PluginLocation] = [],
-            generationOptions: GenerationOptions = Tuist.default.generationOptions,
-            installOptions: InstallOptions = Tuist.default.installOptions,
-            path: AbsolutePath? = nil
+            url: URL = Constants.URLs.production
         ) -> Tuist {
-            .init(
-                compatibleXcodeVersions: compatibleXcodeVersions,
-                fullHandle: fullHandle,
-                url: url,
-                swiftVersion: swiftVersion,
-                plugins: plugins,
-                generationOptions: generationOptions,
-                installOptions: installOptions,
-                path: path
-            )
+            return Tuist(project: project, fullHandle: fullHandle, url: url)
         }
     }
 
