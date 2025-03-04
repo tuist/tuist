@@ -95,9 +95,9 @@ We facilitate authentication through [identity providers (IdP)](https://en.wikip
 We recommend authenticating using a [GitHub App](https://docs.github.com/en/apps/creating-github-apps/about-creating-github-apps/about-creating-github-apps) but you can also use the [OAuth App](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/creating-an-oauth-app). Make sure to include all essential environment variables specified by GitHub in the server environment. Absent variables will cause Tuist to overlook the GitHub authentication. To properly set up the GitHub app:
 
 - In the GitHub app's general settings:
-  - Copy the `Client ID` and set it as `TUIST_GITHUB_APP_CLIENT_ID`
-  - Create and copy a new `client secret` and set it as `TUIST_GITHUB_APP_CLIENT_SECRET`
-  - Set the `Callback URL` as `http://YOUR_APP_URL/users/auth/github/callback`. `YOUR_APP_URL` can also be your server's IP address.
+ - Copy the `Client ID` and set it as `TUIST_GITHUB_APP_CLIENT_ID`
+ - Create and copy a new `client secret` and set it as `TUIST_GITHUB_APP_CLIENT_SECRET`
+ - Set the `Callback URL` as `http://YOUR_APP_URL/users/auth/github/callback`. `YOUR_APP_URL` can also be your server's IP address.
 - In the `Permissions and events`'s `Account permissions` section, set the `Email addresses` permission to `Read-only`.
 
 You'll then need to expose the following environment variables in the environment where the Tuist server runs:
