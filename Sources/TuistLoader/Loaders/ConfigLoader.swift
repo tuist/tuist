@@ -42,7 +42,7 @@ public final class ConfigLoader: ConfigLoading {
         }
 
         guard let configPath = try await locateConfig(at: path) else {
-            let config = TuistCore.Tuist.default
+            let config = try await defaultConfig(at: path)
             cachedConfigs[path] = config
             return config
         }
@@ -80,5 +80,21 @@ public final class ConfigLoader: ConfigLoading {
             }
         }
         return nil
+    }
+
+    private func defaultConfig(at path: AbsolutePath) async throws -> Tuist {
+        let anyXcodeProjectOrWorkspace = !(
+            try await fileSystem.glob(directory: path, include: ["*.xcodeproj", "*.xcworkspace"])
+                .collect()
+        ).isEmpty
+        if anyXcodeProjectOrWorkspace {
+            return Tuist(
+                project: .xcode,
+                fullHandle: nil,
+                url: Constants.URLs.production
+            )
+        } else {
+            return TuistCore.Tuist.default
+        }
     }
 }

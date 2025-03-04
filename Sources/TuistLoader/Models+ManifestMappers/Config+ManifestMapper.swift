@@ -61,16 +61,16 @@ extension TuistCore.Tuist {
             let installOptions = TuistCore.Tuist.InstallOptions.from(
                 manifest: installOptions
             )
-
             return TuistCore.Tuist(
-                compatibleXcodeVersions: compatibleXcodeVersions,
+                project: .generated(
+                    compatibleXcodeVersions: compatibleXcodeVersions,
+                    swiftVersion: swiftVersion.map { .init(stringLiteral: $0.description) },
+                    plugins: plugins,
+                    generationOptions: generationOptions,
+                    installOptions: installOptions
+                ),
                 fullHandle: fullHandle,
-                url: url,
-                swiftVersion: swiftVersion.map { .init(stringLiteral: $0.description) },
-                plugins: plugins,
-                generationOptions: generationOptions,
-                installOptions: installOptions,
-                path: path
+                url: url
             )
         case .xcode:
             fatalError("Xcode projects and workspaces are not supported yet.")
