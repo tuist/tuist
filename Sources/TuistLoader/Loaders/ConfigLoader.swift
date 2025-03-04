@@ -15,7 +15,7 @@ public protocol ConfigLoading {
     /// - Parameter path: Directory from which look up and load the Config.
     /// - Returns: Loaded Config object.
     /// - Throws: An error if the Tuist.swift can't be parsed.
-    func loadConfig(path: AbsolutePath) async throws -> TuistCore.Config
+    func loadConfig(path: AbsolutePath) async throws -> TuistCore.Tuist
 
     /// Locates the Tuist.swift manifest from the given directory.
     func locateConfig(at: AbsolutePath) async throws -> AbsolutePath?
@@ -25,7 +25,7 @@ public final class ConfigLoader: ConfigLoading {
     private let manifestLoader: ManifestLoading
     private let rootDirectoryLocator: RootDirectoryLocating
     private let fileSystem: FileSysteming
-    private var cachedConfigs: [AbsolutePath: TuistCore.Config] = [:]
+    private var cachedConfigs: [AbsolutePath: TuistCore.Tuist] = [:]
     public init(
         manifestLoader: ManifestLoading = ManifestLoader(),
         rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator(),
@@ -36,13 +36,13 @@ public final class ConfigLoader: ConfigLoading {
         self.fileSystem = fileSystem
     }
 
-    public func loadConfig(path: AbsolutePath) async throws -> TuistCore.Config {
+    public func loadConfig(path: AbsolutePath) async throws -> TuistCore.Tuist {
         if let cached = cachedConfigs[path] {
             return cached
         }
 
         guard let configPath = try await locateConfig(at: path) else {
-            let config = TuistCore.Config.default
+            let config = TuistCore.Tuist.default
             cachedConfigs[path] = config
             return config
         }
@@ -54,7 +54,7 @@ public final class ConfigLoader: ConfigLoading {
 
         let manifest = try await manifestLoader.loadConfig(at: configPath.parentDirectory)
         let rootDirectory: AbsolutePath = try await rootDirectoryLocator.locate(from: configPath)
-        let config = try await TuistCore.Config.from(
+        let config = try await TuistCore.Tuist.from(
             manifest: manifest,
             rootDirectory: rootDirectory,
             at: configPath

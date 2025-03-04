@@ -27,11 +27,11 @@ final class EnvironmentLinterTests: TuistUnitTestCase {
     func test_lintXcodeVersion_doesntReturnIssues_theVersionsOfXcodeAreCompatible() async throws {
         // Given
         let configs = [
-            Config.test(compatibleXcodeVersions: "4.3.2"),
-            Config.test(compatibleXcodeVersions: .exact("4.3.2")),
-            Config.test(compatibleXcodeVersions: .upToNextMajor("4.0")),
-            Config.test(compatibleXcodeVersions: .upToNextMinor("4.3")),
-            Config.test(compatibleXcodeVersions: ["1.0", "4.3.2"]),
+            Tuist.test(compatibleXcodeVersions: "4.3.2"),
+            Tuist.test(compatibleXcodeVersions: .exact("4.3.2")),
+            Tuist.test(compatibleXcodeVersions: .upToNextMajor("4.0")),
+            Tuist.test(compatibleXcodeVersions: .upToNextMinor("4.3")),
+            Tuist.test(compatibleXcodeVersions: ["1.0", "4.3.2"]),
         ]
 
         given(xcodeController)
@@ -48,14 +48,14 @@ final class EnvironmentLinterTests: TuistUnitTestCase {
     func test_lintXcodeVersion_returnsALintingIssue_when_theVersionsOfXcodeAreIncompatible() async throws {
         // Given
         let configs = [
-            Config.test(compatibleXcodeVersions: "4.3.1"),
-            Config.test(compatibleXcodeVersions: .exact("4.3.1")),
-            Config.test(compatibleXcodeVersions: .upToNextMajor("3.0")),
-            Config.test(compatibleXcodeVersions: .upToNextMajor("5.0")),
-            Config.test(compatibleXcodeVersions: .upToNextMinor("4.2.0")),
-            Config.test(compatibleXcodeVersions: .upToNextMinor("4.3.3")),
-            Config.test(compatibleXcodeVersions: ["4.3", "4.3.3"]),
-            Config.test(compatibleXcodeVersions: .list(["3.2.1"])),
+            Tuist.test(compatibleXcodeVersions: "4.3.1"),
+            Tuist.test(compatibleXcodeVersions: .exact("4.3.1")),
+            Tuist.test(compatibleXcodeVersions: .upToNextMajor("3.0")),
+            Tuist.test(compatibleXcodeVersions: .upToNextMajor("5.0")),
+            Tuist.test(compatibleXcodeVersions: .upToNextMinor("4.2.0")),
+            Tuist.test(compatibleXcodeVersions: .upToNextMinor("4.3.3")),
+            Tuist.test(compatibleXcodeVersions: ["4.3", "4.3.3"]),
+            Tuist.test(compatibleXcodeVersions: .list(["3.2.1"])),
         ]
 
         given(xcodeController)
@@ -75,7 +75,7 @@ final class EnvironmentLinterTests: TuistUnitTestCase {
 
     func test_lintXcodeVersion_doesntReturnIssues_whenAllVersionsAreSupported() async throws {
         // Given
-        let config = Config.test(compatibleXcodeVersions: .all)
+        let config = Tuist.test(compatibleXcodeVersions: .all)
         given(xcodeController)
             .selected()
             .willReturn(.test(infoPlist: .test(version: "4.3.2")))
@@ -89,7 +89,7 @@ final class EnvironmentLinterTests: TuistUnitTestCase {
 
     func test_lintXcodeVersion_throws_when_theSelectedXcodeCantBeObtained() async throws {
         // Given
-        let config = Config.test(compatibleXcodeVersions: .list(["3.2.1"]))
+        let config = Tuist.test(compatibleXcodeVersions: .list(["3.2.1"]))
         let error = NSError.test()
         given(xcodeController)
             .selected()

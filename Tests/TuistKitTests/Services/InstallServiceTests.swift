@@ -62,7 +62,7 @@ final class InstallServiceTests: TuistUnitTestCase {
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(
-                Config.test(swiftVersion: .init(stringLiteral: stubbedSwiftVersion.description))
+                Tuist.test(swiftVersion: .init(stringLiteral: stubbedSwiftVersion.description))
             )
 
         pluginService.fetchRemotePluginsStub = { _ in
@@ -100,7 +100,7 @@ final class InstallServiceTests: TuistUnitTestCase {
 
     func test_run_when_installing_plugins() async throws {
         // Given
-        let config = Config.test(
+        let config = Tuist.test(
             plugins: [
                 .git(url: "url", gitReference: .tag("tag"), directory: nil, releaseUrl: nil),
             ]
@@ -108,7 +108,7 @@ final class InstallServiceTests: TuistUnitTestCase {
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(config)
-        var invokedConfig: Config?
+        var invokedConfig: Tuist?
         pluginService.loadPluginsStub = { config in
             invokedConfig = config
             return .test()
@@ -143,7 +143,7 @@ final class InstallServiceTests: TuistUnitTestCase {
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(
-                Config.test(swiftVersion: .init(stringLiteral: stubbedSwiftVersion.description))
+                Tuist.test(swiftVersion: .init(stringLiteral: stubbedSwiftVersion.description))
             )
 
         pluginService.fetchRemotePluginsStub = { _ in }
@@ -232,7 +232,7 @@ final class InstallServiceTests: TuistUnitTestCase {
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(
-                Config.test(
+                Tuist.test(
                     swiftVersion: .init(stringLiteral: stubbedSwiftVersion.description),
                     installOptions: .test(
                         passthroughSwiftPackageManagerArguments: ["--replace-scm-with-registry"]
@@ -281,7 +281,7 @@ final class InstallServiceTests: TuistUnitTestCase {
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(
-                Config.test(
+                Tuist.test(
                     swiftVersion: .init(stringLiteral: stubbedSwiftVersion.description),
                     installOptions: .test(
                         passthroughSwiftPackageManagerArguments: ["--replace-scm-with-registry"]

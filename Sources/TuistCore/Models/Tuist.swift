@@ -4,7 +4,7 @@ import TuistSupport
 import XcodeGraph
 
 /// This model allows to configure Tuist.
-public struct Config: Equatable, Hashable {
+public struct Tuist: Equatable, Hashable {
     /// List of `Plugin`s used to extend Tuist.
     public let plugins: [PluginLocation]
 
@@ -31,8 +31,8 @@ public struct Config: Equatable, Hashable {
     public let path: AbsolutePath?
 
     /// Returns the default Tuist configuration.
-    public static var `default`: Config {
-        Config(
+    public static var `default`: Tuist {
+        Tuist(
             compatibleXcodeVersions: .all,
             fullHandle: nil,
             url: Constants.URLs.production,
@@ -92,17 +92,17 @@ public struct Config: Equatable, Hashable {
 }
 
 #if DEBUG
-    extension Config {
+    extension Tuist {
         public static func test(
             compatibleXcodeVersions: CompatibleXcodeVersions = .all,
             fullHandle: String? = nil,
             url: URL = Constants.URLs.production,
             swiftVersion: Version? = nil,
             plugins: [PluginLocation] = [],
-            generationOptions: GenerationOptions = Config.default.generationOptions,
-            installOptions: InstallOptions = Config.default.installOptions,
+            generationOptions: GenerationOptions = Tuist.default.generationOptions,
+            installOptions: InstallOptions = Tuist.default.installOptions,
             path: AbsolutePath? = nil
-        ) -> Config {
+        ) -> Tuist {
             .init(
                 compatibleXcodeVersions: compatibleXcodeVersions,
                 fullHandle: fullHandle,
@@ -116,12 +116,12 @@ public struct Config: Equatable, Hashable {
         }
     }
 
-    extension Config.GenerationOptions {
+    extension Tuist.GenerationOptions {
         public static func test(
             resolveDependenciesWithSystemScm: Bool = false,
             disablePackageVersionLocking: Bool = false,
             clonedSourcePackagesDirPath: AbsolutePath? = nil,
-            staticSideEffectsWarningTargets: TuistCore.Config.GenerationOptions.StaticSideEffectsWarningTargets = .all,
+            staticSideEffectsWarningTargets: TuistCore.Tuist.GenerationOptions.StaticSideEffectsWarningTargets = .all,
             enforceExplicitDependencies: Bool = false,
             defaultConfiguration: String? = nil,
             optionalAuthentication: Bool = false
@@ -138,7 +138,7 @@ public struct Config: Equatable, Hashable {
         }
     }
 
-    extension Config.InstallOptions {
+    extension Tuist.InstallOptions {
         public static func test(
             passthroughSwiftPackageManagerArguments: [String] = []
         ) -> Self {

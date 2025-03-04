@@ -25,7 +25,7 @@ enum ConfigManifestMapperError: FatalError {
     }
 }
 
-extension TuistCore.Config {
+extension TuistCore.Tuist {
     /// Maps a ProjectDescription.Config instance into a XcodeGraph.Config model.
     /// - Parameters:
     ///   - manifest: Manifest representation of Tuist config.
@@ -34,11 +34,11 @@ extension TuistCore.Config {
         manifest: ProjectDescription.Config,
         rootDirectory: AbsolutePath,
         at path: AbsolutePath
-    ) async throws -> TuistCore.Config {
+    ) async throws -> TuistCore.Tuist {
         switch manifest.project {
         case let .tuist(compatibleXcodeVersions, manifestSwiftVersion, plugins, generationOptions, installOptions):
             let generatorPaths = GeneratorPaths(manifestDirectory: path, rootDirectory: rootDirectory)
-            let generationOptions = try TuistCore.Config.GenerationOptions.from(
+            let generationOptions = try TuistCore.Tuist.GenerationOptions.from(
                 manifest: generationOptions,
                 generatorPaths: generatorPaths
             )
@@ -58,11 +58,11 @@ extension TuistCore.Config {
                 throw ConfigManifestMapperError.invalidServerURL(manifest.url)
             }
 
-            let installOptions = TuistCore.Config.InstallOptions.from(
+            let installOptions = TuistCore.Tuist.InstallOptions.from(
                 manifest: installOptions
             )
 
-            return TuistCore.Config(
+            return TuistCore.Tuist(
                 compatibleXcodeVersions: compatibleXcodeVersions,
                 fullHandle: fullHandle,
                 url: url,
@@ -78,7 +78,7 @@ extension TuistCore.Config {
     }
 }
 
-extension TuistCore.Config.GenerationOptions {
+extension TuistCore.Tuist.GenerationOptions {
     /// Maps a ProjectDescription.Config.GenerationOptions instance into a XcodeGraph.Config.GenerationOptions model.
     /// - Parameters:
     ///   - manifest: Manifest representation of Tuist config generation options
@@ -86,7 +86,7 @@ extension TuistCore.Config.GenerationOptions {
     static func from(
         manifest: ProjectDescription.Config.GenerationOptions,
         generatorPaths: GeneratorPaths
-    ) throws -> TuistCore.Config.GenerationOptions {
+    ) throws -> TuistCore.Tuist.GenerationOptions {
         let clonedSourcePackagesDirPath: AbsolutePath? = try {
             if let path = manifest.clonedSourcePackagesDirPath {
                 return try generatorPaths.resolve(path: path)
@@ -98,7 +98,7 @@ extension TuistCore.Config.GenerationOptions {
             resolveDependenciesWithSystemScm: manifest.resolveDependenciesWithSystemScm,
             disablePackageVersionLocking: manifest.disablePackageVersionLocking,
             clonedSourcePackagesDirPath: clonedSourcePackagesDirPath,
-            staticSideEffectsWarningTargets: TuistCore.Config.GenerationOptions.StaticSideEffectsWarningTargets
+            staticSideEffectsWarningTargets: TuistCore.Tuist.GenerationOptions.StaticSideEffectsWarningTargets
                 .from(manifest: manifest.staticSideEffectsWarningTargets),
             enforceExplicitDependencies: manifest.enforceExplicitDependencies,
             defaultConfiguration: manifest.defaultConfiguration,
@@ -107,27 +107,27 @@ extension TuistCore.Config.GenerationOptions {
     }
 }
 
-extension TuistCore.Config.InstallOptions {
+extension TuistCore.Tuist.InstallOptions {
     /// Maps a ProjectDescription.Config.InstallOptions instance into a TuistCore.Config.InstallOptions model.
     /// - Parameters:
     ///   - manifest: Manifest representation of Tuist config generation options
     static func from(
         manifest: ProjectDescription.Config.InstallOptions
-    ) -> TuistCore.Config.InstallOptions {
+    ) -> TuistCore.Tuist.InstallOptions {
         return .init(
             passthroughSwiftPackageManagerArguments: manifest.passthroughSwiftPackageManagerArguments
         )
     }
 }
 
-extension TuistCore.Config.GenerationOptions.StaticSideEffectsWarningTargets {
+extension TuistCore.Tuist.GenerationOptions.StaticSideEffectsWarningTargets {
     /// Maps a ProjectDescription.Config.GenerationOptions.StaticSideEffectsWarningTargets instance into a
     /// XcodeGraph.Config.GenerationOptions.StaticSideEffectsWarningTargets model.
     /// - Parameters:
     ///   - manifest: Manifest representation of Tuist config static side effects warning targets option
     static func from(
         manifest: ProjectDescription.Config.GenerationOptions.StaticSideEffectsWarningTargets
-    ) -> TuistCore.Config.GenerationOptions.StaticSideEffectsWarningTargets {
+    ) -> TuistCore.Tuist.GenerationOptions.StaticSideEffectsWarningTargets {
         switch manifest {
         case .all: return .all
         case .none: return .none

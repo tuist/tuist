@@ -103,7 +103,7 @@ final class SwiftPackageManagerInteractorTests: TuistTestCase {
     func test_generate_usesSystemGitCredentials() async throws {
         // Given
         let temporaryPath = try temporaryPath()
-        let config = Config(
+        let config = Tuist(
             compatibleXcodeVersions: .all,
             fullHandle: nil,
             url: Constants.URLs.production,
@@ -230,7 +230,7 @@ final class SwiftPackageManagerInteractorTests: TuistTestCase {
     func test_generate_sets_cloned_source_packages_dir_path() async throws {
         // Given
         let temporaryPath = try temporaryPath()
-        let config = Config(
+        let config = Tuist(
             compatibleXcodeVersions: .all,
             fullHandle: nil,
             url: Constants.URLs.production,

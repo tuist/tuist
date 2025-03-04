@@ -24,7 +24,7 @@ public protocol SwiftPackageManagerInteracting {
     /// - Parameters:
     ///   - graphTraverser: The graph traverser.
     ///   - workspaceName: The name GraphTraversing the generated workspace (e.g. `MyWorkspace.xcworkspace`)
-    func install(graphTraverser: GraphTraversing, workspaceName: String, config: Config) async throws
+    func install(graphTraverser: GraphTraversing, workspaceName: String, config: Tuist) async throws
 }
 
 public class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting {
@@ -38,7 +38,7 @@ public class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting {
         self.system = system
     }
 
-    public func install(graphTraverser: GraphTraversing, workspaceName: String, config: Config = .default) async throws {
+    public func install(graphTraverser: GraphTraversing, workspaceName: String, config: Tuist = .default) async throws {
         try await generatePackageDependencyManager(
             at: graphTraverser.path,
             workspaceName: workspaceName,
@@ -50,7 +50,7 @@ public class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting {
     private func generatePackageDependencyManager(
         at path: AbsolutePath,
         workspaceName: String,
-        config: Config,
+        config: Tuist,
         graphTraverser: GraphTraversing
     ) async throws {
         guard !config.generationOptions.disablePackageVersionLocking,

@@ -7,7 +7,7 @@ import XcodeGraph
 public protocol DefaultConfigurationFetching {
     func fetch(
         configuration: String?,
-        config: TuistCore.Config,
+        config: TuistCore.Tuist,
         graph: XcodeGraph.Graph
     ) throws -> String
 }
@@ -41,7 +41,7 @@ public struct DefaultConfigurationFetcher: DefaultConfigurationFetching {
 
     public func fetch(
         configuration: String?,
-        config: TuistCore.Config,
+        config: TuistCore.Tuist,
         graph: XcodeGraph.Graph
     ) throws -> String {
         let allProjectConfigurations = Set(graph.projects.values.map(\.settings).flatMap(\.configurations.keys)).sorted()

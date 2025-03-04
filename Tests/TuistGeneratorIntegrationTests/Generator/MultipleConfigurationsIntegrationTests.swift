@@ -349,7 +349,7 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
         let writer = XcodeProjWriter()
         let linter = GraphLinter()
         let graphLoader = GraphLoader()
-        let config = Config.test()
+        let config = Tuist.test()
 
         let graph = try await graphLoader.loadWorkspace(
             workspace: models.workspace,
@@ -387,8 +387,8 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
         return WorkspaceWithProjects(workspace: workspace, projects: [project])
     }
 
-    private func createConfig() -> Config {
-        Config(
+    private func createConfig() -> Tuist {
+        Tuist(
             compatibleXcodeVersions: .all,
             fullHandle: nil,
             url: Constants.URLs.production,

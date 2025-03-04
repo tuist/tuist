@@ -39,7 +39,7 @@ final class GraphLinterTests: TuistUnitTestCase {
             GraphDependency.testFramework(path: frameworkAPath): Set(),
             GraphDependency.testFramework(path: frameworkBPath): Set(),
         ])
-        let config = Config.test()
+        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
@@ -61,7 +61,7 @@ final class GraphLinterTests: TuistUnitTestCase {
             .selectedVersion()
             .willReturn(versionStub)
         let graph = Graph.test(packages: [path: ["package": package]])
-        let config = Config.test()
+        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
@@ -82,7 +82,7 @@ final class GraphLinterTests: TuistUnitTestCase {
             .selectedVersion()
             .willReturn(versionStub)
         let graph = Graph.test(packages: [path: ["package": package]])
-        let config = Config.test()
+        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
@@ -129,7 +129,7 @@ final class GraphLinterTests: TuistUnitTestCase {
             projects: [path: project]
         )
 
-        let config = Config.test()
+        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
@@ -180,7 +180,7 @@ final class GraphLinterTests: TuistUnitTestCase {
             projects: [path: project]
         )
 
-        let config = Config.test()
+        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
@@ -202,7 +202,7 @@ final class GraphLinterTests: TuistUnitTestCase {
             .selectedVersion()
             .willThrow(error)
         let graph = Graph.test(packages: [path: ["package": package]])
-        let config = Config.test()
+        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
@@ -243,7 +243,7 @@ final class GraphLinterTests: TuistUnitTestCase {
             projects: [path: project],
             dependencies: dependencies
         )
-        let config = Config.test()
+        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
@@ -284,7 +284,7 @@ final class GraphLinterTests: TuistUnitTestCase {
             projects: [path: project],
             dependencies: dependencies
         )
-        let config = Config.test()
+        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
@@ -328,7 +328,7 @@ final class GraphLinterTests: TuistUnitTestCase {
             projects: [path: project],
             dependencies: dependencies
         )
-        let config = Config.test()
+        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
@@ -355,7 +355,7 @@ final class GraphLinterTests: TuistUnitTestCase {
             projects: [path: project],
             dependencies: dependencies
         )
-        let config = Config.test()
+        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
@@ -382,7 +382,7 @@ final class GraphLinterTests: TuistUnitTestCase {
             projects: [path: project],
             dependencies: dependencies
         )
-        let config = Config.test()
+        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
@@ -409,7 +409,7 @@ final class GraphLinterTests: TuistUnitTestCase {
             projects: [path: project],
             dependencies: dependencies
         )
-        let config = Config.test()
+        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
@@ -448,7 +448,7 @@ final class GraphLinterTests: TuistUnitTestCase {
             projects: [path: project],
             dependencies: dependencies
         )
-        let config = Config.test()
+        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
@@ -477,7 +477,7 @@ final class GraphLinterTests: TuistUnitTestCase {
             projects: [path: project],
             dependencies: dependencies
         )
-        let config = Config.test()
+        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
@@ -506,7 +506,7 @@ final class GraphLinterTests: TuistUnitTestCase {
             projects: [path: project],
             dependencies: dependencies
         )
-        let config = Config.test()
+        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
@@ -541,7 +541,7 @@ final class GraphLinterTests: TuistUnitTestCase {
             projects: [path: project],
             dependencies: dependencies
         )
-        let config = Config.test()
+        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
@@ -568,7 +568,7 @@ final class GraphLinterTests: TuistUnitTestCase {
             projects: [path: project],
             dependencies: dependencies
         )
-        let config = Config.test()
+        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
@@ -595,7 +595,7 @@ final class GraphLinterTests: TuistUnitTestCase {
             projects: [path: project],
             dependencies: dependencies
         )
-        let config = Config.test()
+        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
@@ -632,7 +632,7 @@ final class GraphLinterTests: TuistUnitTestCase {
             projects: [path: project],
             dependencies: dependencies
         )
-        let config = Config.test()
+        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
@@ -669,7 +669,7 @@ final class GraphLinterTests: TuistUnitTestCase {
             projects: [path: project],
             dependencies: dependencies
         )
-        let config = Config.test()
+        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
@@ -706,7 +706,7 @@ final class GraphLinterTests: TuistUnitTestCase {
             projects: [path: project],
             dependencies: dependencies
         )
-        let config = Config.test()
+        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
@@ -743,7 +743,7 @@ final class GraphLinterTests: TuistUnitTestCase {
             projects: [path: project],
             dependencies: dependencies
         )
-        let config = Config.test()
+        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
@@ -795,7 +795,7 @@ final class GraphLinterTests: TuistUnitTestCase {
             projects: [path: project],
             dependencies: dependencies
         )
-        let config = Config.test()
+        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
@@ -839,7 +839,7 @@ final class GraphLinterTests: TuistUnitTestCase {
             projects: [path: project],
             dependencies: dependencies
         )
-        let config = Config.test()
+        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
@@ -880,7 +880,7 @@ final class GraphLinterTests: TuistUnitTestCase {
             projects: [path: project],
             dependencies: dependencies
         )
-        let config = Config.test()
+        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
@@ -941,7 +941,7 @@ final class GraphLinterTests: TuistUnitTestCase {
             ],
             dependencies: dependencies
         )
-        let config = Config.test()
+        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
@@ -1014,7 +1014,7 @@ final class GraphLinterTests: TuistUnitTestCase {
             ],
             dependencies: dependencies
         )
-        let config = Config.test()
+        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
@@ -1089,7 +1089,7 @@ final class GraphLinterTests: TuistUnitTestCase {
             ],
             dependencies: dependencies
         )
-        let config = Config.test()
+        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
@@ -1160,7 +1160,7 @@ final class GraphLinterTests: TuistUnitTestCase {
             ],
             dependencies: dependencies
         )
-        let config = Config.test()
+        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
@@ -1204,7 +1204,7 @@ final class GraphLinterTests: TuistUnitTestCase {
             projects: [path: project],
             dependencies: dependencies
         )
-        let config = Config.test()
+        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
@@ -1248,7 +1248,7 @@ final class GraphLinterTests: TuistUnitTestCase {
             projects: [path: project],
             dependencies: dependencies
         )
-        let config = Config.test()
+        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
@@ -1301,7 +1301,7 @@ final class GraphLinterTests: TuistUnitTestCase {
             projects: [temporaryPath: project],
             dependencies: dependencies
         )
-        let config = Config.test()
+        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
@@ -1346,7 +1346,7 @@ final class GraphLinterTests: TuistUnitTestCase {
             projects: [temporaryPath: project],
             dependencies: dependencies
         )
-        let config = Config.test()
+        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
@@ -1388,7 +1388,7 @@ final class GraphLinterTests: TuistUnitTestCase {
             projects: [path: project],
             dependencies: dependencies
         )
-        let config = Config.test()
+        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
@@ -1431,7 +1431,7 @@ final class GraphLinterTests: TuistUnitTestCase {
             projects: [path: project],
             dependencies: dependencies
         )
-        let config = Config.test()
+        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
@@ -1497,7 +1497,7 @@ final class GraphLinterTests: TuistUnitTestCase {
             projects: [temporaryPath: project],
             dependencies: dependencies
         )
-        let config = Config.test()
+        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
@@ -1550,7 +1550,7 @@ final class GraphLinterTests: TuistUnitTestCase {
             projects: [temporaryPath: project],
             dependencies: dependencies
         )
-        let config = Config.test()
+        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
@@ -1589,7 +1589,7 @@ final class GraphLinterTests: TuistUnitTestCase {
             projects: [path: project],
             dependencies: dependencies
         )
-        let config = Config.test()
+        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
@@ -1628,7 +1628,7 @@ final class GraphLinterTests: TuistUnitTestCase {
             projects: [path: project],
             dependencies: dependencies
         )
-        let config = Config.test()
+        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
@@ -1678,7 +1678,7 @@ final class GraphLinterTests: TuistUnitTestCase {
             projects: [path: project],
             dependencies: dependencies
         )
-        let config = Config.test()
+        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
@@ -1710,7 +1710,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         )
 
         // When
-        let got = try await subject.lint(graphTraverser: GraphTraverser(graph: graph), config: Config.test())
+        let got = try await subject.lint(graphTraverser: GraphTraverser(graph: graph), config: Tuist.test())
 
         // Then
         XCTAssertEmpty(got)
@@ -1740,7 +1740,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         )
 
         // When
-        let got = try await subject.lint(graphTraverser: GraphTraverser(graph: graph), config: Config.test())
+        let got = try await subject.lint(graphTraverser: GraphTraverser(graph: graph), config: Tuist.test())
 
         // Then
         XCTAssertEmpty(got)
@@ -1775,7 +1775,7 @@ final class GraphLinterTests: TuistUnitTestCase {
             projects: [path: project],
             dependencies: dependencies
         )
-        let config = Config.test()
+        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
@@ -1810,7 +1810,7 @@ final class GraphLinterTests: TuistUnitTestCase {
             ],
             dependencies: [:]
         )
-        let config = Config.test()
+        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
@@ -1822,7 +1822,7 @@ final class GraphLinterTests: TuistUnitTestCase {
 
     func test_lintCodeCoverage_none() async throws {
         // Given
-        let config = Config.test()
+        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: .test())
 
         // When
@@ -1834,7 +1834,7 @@ final class GraphLinterTests: TuistUnitTestCase {
 
     func test_lintCodeCoverage_all() async throws {
         // Given
-        let config = Config.test()
+        let config = Tuist.test()
         let graphTraverser = GraphTraverser(
             graph: .test(
                 workspace: .test(
@@ -1889,7 +1889,7 @@ final class GraphLinterTests: TuistUnitTestCase {
             ),
             projects: [temporaryPath: project]
         )
-        let config = Config.test()
+        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
@@ -1901,7 +1901,7 @@ final class GraphLinterTests: TuistUnitTestCase {
 
     func test_lintCodeCoverage_relevant_notConfigured() async throws {
         // Given
-        let config = Config.test()
+        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: .test(
             workspace: .test(
                 generationOptions: .test(
@@ -1946,7 +1946,7 @@ final class GraphLinterTests: TuistUnitTestCase {
             ),
             projects: [temporaryPath: project]
         )
-        let config = Config.test()
+        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
@@ -1958,7 +1958,7 @@ final class GraphLinterTests: TuistUnitTestCase {
 
     func test_lintCodeCoverage_targets_empty() async throws {
         // Given
-        let config = Config.test()
+        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: .test(
             workspace: .test(
                 generationOptions: .test(
@@ -2003,7 +2003,7 @@ final class GraphLinterTests: TuistUnitTestCase {
             ),
             projects: [temporaryPath: project]
         )
-        let config = Config.test()
+        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
@@ -2049,7 +2049,7 @@ final class GraphLinterTests: TuistUnitTestCase {
                 ): try XCTUnwrap(.test([.macos])),
             ]
         )
-        let config = Config.test()
+        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
@@ -2081,7 +2081,7 @@ final class GraphLinterTests: TuistUnitTestCase {
                 .target(name: watchOnlyTarget.name, path: path): [],
             ]
         )
-        let config = Config.test()
+        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
@@ -2127,7 +2127,7 @@ final class GraphLinterTests: TuistUnitTestCase {
                 .target(name: watchApp.name, path: path): [],
             ]
         )
-        let config = Config.test()
+        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
@@ -2173,7 +2173,7 @@ final class GraphLinterTests: TuistUnitTestCase {
                 ],
             ]
         )
-        let config = Config.test()
+        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
@@ -2212,7 +2212,7 @@ final class GraphLinterTests: TuistUnitTestCase {
                 ],
             ]
         )
-        let config = Config.test()
+        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
@@ -2276,7 +2276,7 @@ final class GraphLinterTests: TuistUnitTestCase {
                     ],
                 ]
             )
-            let config = Config.test()
+            let config = Tuist.test()
             let graphTraverser = GraphTraverser(graph: graph)
 
             // When
@@ -2311,7 +2311,7 @@ final class GraphLinterTests: TuistUnitTestCase {
             ]
         )
 
-        let config = Config.test()
+        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When

@@ -475,8 +475,8 @@ final class PluginServiceTests: TuistUnitTestCase {
         XCTAssertEqual(plugins, expectedPlugins)
     }
 
-    private func mockConfig(plugins: [TuistCore.PluginLocation]) -> TuistCore.Config {
-        TuistCore.Config(
+    private func mockConfig(plugins: [TuistCore.PluginLocation]) -> TuistCore.Tuist {
+        TuistCore.Tuist(
             compatibleXcodeVersions: .all,
             fullHandle: nil,
             url: Constants.URLs.production,

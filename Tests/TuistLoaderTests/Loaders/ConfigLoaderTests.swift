@@ -76,7 +76,7 @@ final class ConfigLoaderTests: TuistUnitTestCase {
         let result = try await subject.loadConfig(path: configPath)
 
         // Then
-        XCTAssertEqual(result, TuistCore.Config(
+        XCTAssertEqual(result, TuistCore.Tuist(
             compatibleXcodeVersions: .all,
             fullHandle: nil,
             url: Constants.URLs.production,
@@ -105,7 +105,7 @@ final class ConfigLoaderTests: TuistUnitTestCase {
         let result = try await subject.loadConfig(path: configPath)
 
         // Then
-        XCTAssertEqual(result, TuistCore.Config(
+        XCTAssertEqual(result, TuistCore.Tuist(
             compatibleXcodeVersions: .all,
             fullHandle: nil,
             url: Constants.URLs.production,
@@ -149,7 +149,7 @@ final class ConfigLoaderTests: TuistUnitTestCase {
         let result = try await subject.loadConfig(path: moduleAPath)
 
         // Then
-        XCTAssertEqual(result, TuistCore.Config(
+        XCTAssertEqual(result, TuistCore.Tuist(
             compatibleXcodeVersions: .all,
             fullHandle: nil,
             url: Constants.URLs.production,
@@ -180,7 +180,7 @@ final class ConfigLoaderTests: TuistUnitTestCase {
         let result = try await subject.loadConfig(path: projectPath)
 
         // Then
-        XCTAssertBetterEqual(result, TuistCore.Config(
+        XCTAssertBetterEqual(result, TuistCore.Tuist(
             compatibleXcodeVersions: .all,
             fullHandle: "tuist/tuist",
             url: try XCTUnwrap(URL(string: "https://test.tuist.io")),
@@ -213,7 +213,7 @@ final class ConfigLoaderTests: TuistUnitTestCase {
         let result = try await subject.loadConfig(path: projectPath)
 
         // Then
-        XCTAssertBetterEqual(result, TuistCore.Config(
+        XCTAssertBetterEqual(result, TuistCore.Tuist(
             compatibleXcodeVersions: .all,
             fullHandle: "tuist/tuist",
             url: try XCTUnwrap(URL(string: "https://test.tuist.io")),

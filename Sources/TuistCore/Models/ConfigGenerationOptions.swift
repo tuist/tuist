@@ -1,6 +1,6 @@
 import Path
 
-extension Config {
+extension Tuist {
     public struct GenerationOptions: Codable, Hashable {
         public enum StaticSideEffectsWarningTargets: Codable, Hashable, Equatable {
             case all

@@ -7,7 +7,7 @@ public protocol EnvironmentLinting {
     ///
     /// - Parameter config: Tuist configuration to be linted against the system.
     /// - Returns: A list of linting issues.
-    func lint(config: Config) async throws -> [LintingIssue]
+    func lint(config: Tuist) async throws -> [LintingIssue]
 }
 
 public class EnvironmentLinter: EnvironmentLinting {
@@ -18,7 +18,7 @@ public class EnvironmentLinter: EnvironmentLinting {
         self.rootDirectoryLocator = rootDirectoryLocator
     }
 
-    public func lint(config: Config) async throws -> [LintingIssue] {
+    public func lint(config: Tuist) async throws -> [LintingIssue] {
         var issues = [LintingIssue]()
 
         issues.append(contentsOf: try await lintXcodeVersion(config: config))
@@ -32,7 +32,7 @@ public class EnvironmentLinter: EnvironmentLinting {
     /// - Parameter config: Tuist configuration.
     /// - Returns: An array with a linting issue if the selected version is not compatible.
     /// - Throws: An error if there's an error obtaining the selected Xcode version.
-    func lintXcodeVersion(config: Config) async throws -> [LintingIssue] {
+    func lintXcodeVersion(config: Tuist) async throws -> [LintingIssue] {
         let xcode = try await XcodeController.shared.selected()
 
         let version = xcode.infoPlist.version

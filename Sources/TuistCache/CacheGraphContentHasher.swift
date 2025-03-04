@@ -15,7 +15,7 @@ public protocol CacheGraphContentHashing {
     func contentHashes(
         for graph: Graph,
         configuration: String?,
-        config: TuistCore.Config,
+        config: TuistCore.Tuist,
         excludedTargets: Set<String>
     ) async throws -> [GraphTarget: String]
 }
@@ -61,7 +61,7 @@ public final class CacheGraphContentHasher: CacheGraphContentHashing {
     public func contentHashes(
         for graph: Graph,
         configuration: String?,
-        config: TuistCore.Config,
+        config: TuistCore.Tuist,
         excludedTargets: Set<String>
     ) async throws -> [GraphTarget: String] {
         let graphTraverser = GraphTraverser(graph: graph)

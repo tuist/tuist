@@ -8,11 +8,11 @@ import XcodeGraph
 /// static products are linked multiple times.
 ///
 protocol StaticProductsGraphLinting {
-    func lint(graphTraverser: GraphTraversing, config: Config) -> [LintingIssue]
+    func lint(graphTraverser: GraphTraversing, config: Tuist) -> [LintingIssue]
 }
 
 class StaticProductsGraphLinter: StaticProductsGraphLinting {
-    func lint(graphTraverser: GraphTraversing, config: Config) -> [LintingIssue] {
+    func lint(graphTraverser: GraphTraversing, config: Tuist) -> [LintingIssue] {
         warnings(in: Array(graphTraverser.dependencies.keys), graphTraverser: graphTraverser, config: config)
             .sorted()
             .map(lintIssue)
@@ -21,7 +21,7 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
     private func warnings(
         in dependencies: [GraphDependency],
         graphTraverser: GraphTraversing,
-        config: Config
+        config: Tuist
     ) -> Set<StaticDependencyWarning> {
         var warnings = Set<StaticDependencyWarning>()
         let cache = Cache()
@@ -66,7 +66,7 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
         visiting dependency: GraphDependency,
         graphTraverser: GraphTraversing,
         cache: Cache,
-        config: Config
+        config: Tuist
     ) -> StaticProducts {
         if let cachedResult = cache.results(for: dependency) {
             return cachedResult
@@ -113,7 +113,7 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
         staticProduct: GraphDependency,
         linkedBy: Set<GraphDependency>,
         graphTraverser: GraphTraversing,
-        config: Config
+        config: Tuist
     ) -> [StaticDependencyWarning] {
         if shouldSkipDependency(staticProduct, config: config) {
             return []
@@ -158,7 +158,7 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
         ]
     }
 
-    private func shouldSkipDependency(_ dependency: GraphDependency, config: Config) -> Bool {
+    private func shouldSkipDependency(_ dependency: GraphDependency, config: Tuist) -> Bool {
         switch config.generationOptions.staticSideEffectsWarningTargets {
         case .all: return false
         case .none: return true

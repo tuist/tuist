@@ -6,7 +6,7 @@ import TuistSupport
 import XcodeGraph
 
 public protocol GraphLinting: AnyObject {
-    func lint(graphTraverser: GraphTraversing, config: Config) async throws -> [LintingIssue]
+    func lint(graphTraverser: GraphTraversing, config: Tuist) async throws -> [LintingIssue]
 }
 
 // swiftlint:disable type_body_length
@@ -40,7 +40,7 @@ public class GraphLinter: GraphLinting {
 
     // MARK: - GraphLinting
 
-    public func lint(graphTraverser: GraphTraversing, config: Config) async throws -> [LintingIssue] {
+    public func lint(graphTraverser: GraphTraversing, config: Tuist) async throws -> [LintingIssue] {
         var issues: [LintingIssue] = []
         try await issues.append(
             contentsOf: graphTraverser.projects.concurrentMap { _, project async throws -> [LintingIssue] in
@@ -122,7 +122,7 @@ public class GraphLinter: GraphLinting {
         }
     }
 
-    private func lintDependencies(graphTraverser: GraphTraversing, config: Config) async throws -> [LintingIssue] {
+    private func lintDependencies(graphTraverser: GraphTraversing, config: Tuist) async throws -> [LintingIssue] {
         var issues: [LintingIssue] = []
 
         issues.append(contentsOf: lintDuplicatedProductNamesInDependencies(graphTraverser: graphTraverser))
