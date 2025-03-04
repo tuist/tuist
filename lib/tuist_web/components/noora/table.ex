@@ -117,6 +117,7 @@ defmodule TuistWeb.Noora.Table do
     doc: "An optional icon to render next to the label. Mutually exclusive with `image`."
 
   attr :description, :string, default: nil, doc: "The description of the cell"
+  attr :secondary_description, :string, default: nil, doc: "The secondary description of the cell"
   attr :rest, :global
 
   slot :image,
@@ -134,7 +135,13 @@ defmodule TuistWeb.Noora.Table do
       </div>
       <div data-part="column">
         <span data-part="label">{@label}</span>
-        <span data-part="description">{@description}</span>
+        <span data-part="description">
+          {@description}
+          <span :if={@secondary_description} data-part="dot">•</span>
+          <span :if={@secondary_description} data-part="secondary_description">
+            {@secondary_description}
+          </span>
+        </span>
       </div>
     </div>
     """

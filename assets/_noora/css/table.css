@@ -29,11 +29,6 @@
       z-index: 1;
     }
 
-    & thead {
-      color: var(--noora-surface-label-primary);
-      font: var(--noora-body-medium-font-weight) var(--noora-body-medium-font);
-    }
-
     & tbody {
       background: transparent;
 
@@ -81,8 +76,8 @@
 
   & th {
     background: var(--noora-surface-table-header);
-    font-weight: var(--noora-font-weight-medium);
-    font: var(--noora-body-medium-font);
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
     padding: var(--noora-spacing-4) var(--noora-spacing-7);
     position: sticky;
     text-align: left;
@@ -103,6 +98,10 @@
         height: 100%;
         width: 100%;
       }
+
+      &:hover {
+        color: var(--noora-surface-label-primary);
+      }
     }
   }
 
@@ -114,14 +113,15 @@
     &[data-type="text"] {
       align-items: center;
       display: flex;
-      font: var(--noora-body-medium-font);
+      font: var(--noora-font-body-medium);
       gap: var(--noora-spacing-2);
       padding: var(--noora-spacing-7);
 
       & [data-part="icon"] {
+        display: inline-flex;
         color: var(--noora-surface-label-primary);
-        height: var(--noora-icon-size-large);
-        width: var(--noora-icon-size-large);
+        height: var(--noora-icon-size-medium);
+        width: var(--noora-icon-size-medium);
 
         & svg {
           height: 100%;
@@ -173,12 +173,12 @@
 
       & [data-part="label"] {
         color: var(--noora-surface-label-primary);
-        font: var(--noora-font-weight-medium) var(--noora-body-medium-font);
+        font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
       }
 
       & [data-part="description"] {
         color: var(--noora-surface-label-secondary);
-        font: var(--noora-body-small-font);
+        font: var(--noora-font-body-small);
       }
     }
 

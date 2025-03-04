@@ -35,7 +35,7 @@ defmodule TuistWeb.Storybook.Table do
             <.text_and_description_cell label={i.label} description="An internal identifier" icon="alert_circle" />
           </:col>
           <:col :let={i} label="Text and description with image">
-            <.text_and_description_cell label={i.label} description="Look, an image!">
+            <.text_and_description_cell label={i.label} description="Look, an image!" secondary_description="So pretty.">
               <:image>
                 <img src="/images/tuist_social.jpeg" />
               </:image>
