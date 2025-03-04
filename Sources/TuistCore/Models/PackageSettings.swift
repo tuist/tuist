@@ -60,7 +60,7 @@ public struct PackageSettings: Equatable, Codable {
             baseSettings: Settings = Settings.default,
             targetSettings: [String: Settings] = [:],
             projectOptions: [String: XcodeGraph.Project.Options] = [:],
-            includeLocalPackageTestTargets: Bool = false
+            includeLocalPackageTestTargets: Bool = true
         ) -> PackageSettings {
             PackageSettings(
                 productTypes: productTypes,

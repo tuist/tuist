@@ -47,7 +47,7 @@ public struct PackageSettings: Codable, Equatable, Sendable {
 
     /// A Boolean value that indicates whether the test targets of local swift packages are included in generated project.
     ///
-    /// The default value is false.
+    /// The default value is true.
     ///
     /// - Note: When generating an [SPM
     /// package](https://docs.tuist.dev/guides/develop/projects/directory-structure#swift-package-badge-typewarning-textbeta-),
@@ -72,7 +72,7 @@ public struct PackageSettings: Codable, Equatable, Sendable {
         baseSettings: Settings = .settings(),
         targetSettings: [String: Settings] = [:],
         projectOptions: [String: Project.Options] = [:],
-        includeLocalPackageTestTargets: Bool = false
+        includeLocalPackageTestTargets: Bool = true
     ) {
         self.productTypes = productTypes
         self.productDestinations = productDestinations
@@ -104,7 +104,7 @@ public struct PackageSettings: Codable, Equatable, Sendable {
         baseSettings: Settings = .settings(),
         targetSettings: [String: SettingsDictionary],
         projectOptions: [String: Project.Options] = [:],
-        includeLocalPackageTestTargets: Bool = false
+        includeLocalPackageTestTargets: Bool = true
     ) {
         self.productTypes = productTypes
         self.productDestinations = productDestinations

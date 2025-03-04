@@ -3943,7 +3943,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         ),
                     ]
                 ),
-            ]
+            ],
+            packageSettings: .test(includeLocalPackageTestTargets: false)
         )
 
         // Then
