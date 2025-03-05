@@ -32,16 +32,86 @@ private enum TuistCLI {
             LoggingSystem.bootstrap(loggerHandler)
 
             var context = ServiceContext.topLevel
-            if !CommandLine.arguments.contains("--quiet") {
-                context.logger = Logger(label: "dev.tuist.cli", factory: loggerHandler)
-                context.ui = Noora()
-                context.alerts = AlertController()
-            }
 
+            context.logger = Logger(label: "dev.tuist.cli", factory: loggerHandler)
+            context.ui = CLIUI()
+            context.alerts = AlertController()
 
             try await ServiceContext.withValue(context) {
                 try await TuistCommand.main(logFilePath: logFilePath)
             }
+        }
+    }
+}
+
+#error("TODO: is a simple proxy on top of Noora ok?")
+#error("TODO: where to place this?")
+struct CLIUI: Noorable {
+    // MARK: - Properties
+
+    let noora = Noora()
+    let isQuiet: Bool = ProcessInfo.processInfo.environment[Constants.EnvironmentVariables.quiet] != nil
+
+    // MARK: - Noorable
+
+    func success(_ alert: SuccessAlert) {
+        if !isQuiet {
+            noora.success(alert)
+        }
+    }
+
+    func error(_ alert: ErrorAlert) {
+        #error("TODO: Should UI errors be printed even if quiet?")
+        if !isQuiet {
+            noora.error(alert)
+        }
+    }
+
+    func warning(_ alerts: WarningAlert...) {
+        if !isQuiet {
+            noora.warning(alerts)
+        }
+    }
+
+    func warning(_ alerts: [WarningAlert]) {
+        if !isQuiet {
+            noora.warning(alerts)
+        }
+    }
+
+    func progressStep(
+        message: String,
+        successMessage: String?,
+        errorMessage: String?,
+        showSpinner: Bool,
+        task: @escaping ((String) -> Void) async throws -> Void
+    ) async throws {
+        if !isQuiet {
+            try await noora.progressStep(
+                message: message,
+                successMessage: successMessage,
+                errorMessage: errorMessage,
+                showSpinner: showSpinner,
+                task: task
+            )
+        }
+    }
+
+    func collapsibleStep(
+        title: TerminalText,
+        successMessage: TerminalText?,
+        errorMessage: TerminalText?,
+        visibleLines: UInt,
+        task: @escaping (@escaping (TerminalText) -> Void) async throws -> Void
+    ) async throws {
+        if !isQuiet {
+            try await noora.collapsibleStep(
+                title: title,
+                successMessage: successMessage,
+                errorMessage: errorMessage,
+                visibleLines: visibleLines,
+                task: task
+            )
         }
     }
 }
