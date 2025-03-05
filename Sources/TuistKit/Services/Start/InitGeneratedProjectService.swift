@@ -13,22 +13,16 @@ enum StartGeneratedProjectServiceError: LocalizedError, Equatable {
     case ungettableProjectName(AbsolutePath)
     case nonEmptyDirectory(AbsolutePath)
     case templateNotFound(String)
-    case templateNotProvided
-    case attributeNotProvided(String)
     case invalidValue(argument: String, error: String)
 
     var errorDescription: String? {
         switch self {
         case let .templateNotFound(template):
             return "Could not find template \(template). Make sure it exists at Tuist/Templates/\(template)"
-        case .templateNotProvided:
-            return "You must provide template name"
         case let .ungettableProjectName(path):
             return "Couldn't infer the project name from path \(path.pathString)."
         case let .nonEmptyDirectory(path):
             return "Can't initialize a project in the non-empty directory at path \(path.pathString)."
-        case let .attributeNotProvided(name):
-            return "You must provide \(name) option. Add --\(name) desired_value to your command."
         case let .invalidValue(argument: argument, error: error):
             return "\(error) for argument \(argument); use --help to print usage"
         }
