@@ -98,7 +98,11 @@ final class EditService {
             return .none
         }
 
-        guard let plugins = try? await pluginService.loadPlugins(using: config) else {
+        guard let generatedProjectOptions = config.project.generatedProject else {
+            return .none
+        }
+
+        guard let plugins = try? await pluginService.loadPlugins(using: generatedProjectOptions) else {
             ServiceContext.current?.logger?
                 .warning("Unable to load Plugin.swift manifest, fix and re-run in order to use plugin(s).")
             return .none

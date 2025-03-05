@@ -5,15 +5,18 @@ import TuistCore
 class MockStaticProductsGraphLinter: StaticProductsGraphLinting {
     var invokedLint = false
     var invokedLintCount = 0
-    var invokedLintParameters: (graphTraverser: GraphTraversing, config: Tuist)?
-    var invokedLintParametersList = [(graphTraverser: GraphTraversing, config: Tuist)]()
+    var invokedLintParameters: (graphTraverser: GraphTraversing, configGeneratedProjectOptions: TuistGeneratedProjectOptions)?
+    var invokedLintParametersList = [(
+        graphTraverser: GraphTraversing,
+        configGeneratedProjectOptions: TuistGeneratedProjectOptions
+    )]()
     var stubbedLintResult: [LintingIssue]! = []
 
-    func lint(graphTraverser: GraphTraversing, config: Tuist) -> [LintingIssue] {
+    func lint(graphTraverser: GraphTraversing, configGeneratedProjectOptions: TuistGeneratedProjectOptions) -> [LintingIssue] {
         invokedLint = true
         invokedLintCount += 1
-        invokedLintParameters = (graphTraverser, config)
-        invokedLintParametersList.append((graphTraverser, config))
+        invokedLintParameters = (graphTraverser, configGeneratedProjectOptions)
+        invokedLintParametersList.append((graphTraverser, configGeneratedProjectOptions))
         return stubbedLintResult
     }
 }

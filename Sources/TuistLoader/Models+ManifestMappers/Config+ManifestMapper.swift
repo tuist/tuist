@@ -35,10 +35,17 @@ extension TuistCore.Tuist {
         rootDirectory: AbsolutePath,
         at path: AbsolutePath
     ) async throws -> TuistCore.Tuist {
+        let fullHandle = manifest.fullHandle
+        let urlString = manifest.url
+
+        guard let url = URL(string: urlString.dropSuffix("/")) else {
+            throw ConfigManifestMapperError.invalidServerURL(manifest.url)
+        }
+
         switch manifest.project {
         case let .tuist(compatibleXcodeVersions, manifestSwiftVersion, plugins, generationOptions, installOptions):
             let generatorPaths = GeneratorPaths(manifestDirectory: path, rootDirectory: rootDirectory)
-            let generationOptions = try TuistCore.Tuist.GenerationOptions.from(
+            let generationOptions = try TuistCore.TuistGeneratedProjectOptions.GenerationOptions.from(
                 manifest: generationOptions,
                 generatorPaths: generatorPaths
             )
@@ -51,87 +58,24 @@ extension TuistCore.Tuist {
                 swiftVersion = nil
             }
 
-            let fullHandle = manifest.fullHandle
-            let urlString = manifest.url
-
-            guard let url = URL(string: urlString.dropSuffix("/")) else {
-                throw ConfigManifestMapperError.invalidServerURL(manifest.url)
-            }
-
-            let installOptions = TuistCore.Tuist.InstallOptions.from(
+            let installOptions = TuistCore.TuistGeneratedProjectOptions.InstallOptions.from(
                 manifest: installOptions
             )
             return TuistCore.Tuist(
                 project: .generated(
-                    compatibleXcodeVersions: compatibleXcodeVersions,
-                    swiftVersion: swiftVersion.map { .init(stringLiteral: $0.description) },
-                    plugins: plugins,
-                    generationOptions: generationOptions,
-                    installOptions: installOptions
+                    TuistGeneratedProjectOptions(
+                        compatibleXcodeVersions: compatibleXcodeVersions,
+                        swiftVersion: swiftVersion.map { .init(stringLiteral: $0.description) },
+                        plugins: plugins,
+                        generationOptions: generationOptions,
+                        installOptions: installOptions
+                    )
                 ),
                 fullHandle: fullHandle,
                 url: url
             )
         case .xcode:
-            fatalError("Xcode projects and workspaces are not supported yet.")
-        }
-    }
-}
-
-extension TuistCore.Tuist.GenerationOptions {
-    /// Maps a ProjectDescription.Config.GenerationOptions instance into a XcodeGraph.Config.GenerationOptions model.
-    /// - Parameters:
-    ///   - manifest: Manifest representation of Tuist config generation options
-    ///   - generatorPaths: Generator paths
-    static func from(
-        manifest: ProjectDescription.Config.GenerationOptions,
-        generatorPaths: GeneratorPaths
-    ) throws -> TuistCore.Tuist.GenerationOptions {
-        let clonedSourcePackagesDirPath: AbsolutePath? = try {
-            if let path = manifest.clonedSourcePackagesDirPath {
-                return try generatorPaths.resolve(path: path)
-            } else {
-                return nil
-            }
-        }()
-        return .init(
-            resolveDependenciesWithSystemScm: manifest.resolveDependenciesWithSystemScm,
-            disablePackageVersionLocking: manifest.disablePackageVersionLocking,
-            clonedSourcePackagesDirPath: clonedSourcePackagesDirPath,
-            staticSideEffectsWarningTargets: TuistCore.Tuist.GenerationOptions.StaticSideEffectsWarningTargets
-                .from(manifest: manifest.staticSideEffectsWarningTargets),
-            enforceExplicitDependencies: manifest.enforceExplicitDependencies,
-            defaultConfiguration: manifest.defaultConfiguration,
-            optionalAuthentication: manifest.optionalAuthentication
-        )
-    }
-}
-
-extension TuistCore.Tuist.InstallOptions {
-    /// Maps a ProjectDescription.Config.InstallOptions instance into a TuistCore.Config.InstallOptions model.
-    /// - Parameters:
-    ///   - manifest: Manifest representation of Tuist config generation options
-    static func from(
-        manifest: ProjectDescription.Config.InstallOptions
-    ) -> TuistCore.Tuist.InstallOptions {
-        return .init(
-            passthroughSwiftPackageManagerArguments: manifest.passthroughSwiftPackageManagerArguments
-        )
-    }
-}
-
-extension TuistCore.Tuist.GenerationOptions.StaticSideEffectsWarningTargets {
-    /// Maps a ProjectDescription.Config.GenerationOptions.StaticSideEffectsWarningTargets instance into a
-    /// XcodeGraph.Config.GenerationOptions.StaticSideEffectsWarningTargets model.
-    /// - Parameters:
-    ///   - manifest: Manifest representation of Tuist config static side effects warning targets option
-    static func from(
-        manifest: ProjectDescription.Config.GenerationOptions.StaticSideEffectsWarningTargets
-    ) -> TuistCore.Tuist.GenerationOptions.StaticSideEffectsWarningTargets {
-        switch manifest {
-        case .all: return .all
-        case .none: return .none
-        case let .excluding(excludedTargets): return .excluding(excludedTargets)
+            return TuistCore.Tuist(project: .xcode(TuistXcodeProjectOptions()), fullHandle: fullHandle, url: url)
         }
     }
 }

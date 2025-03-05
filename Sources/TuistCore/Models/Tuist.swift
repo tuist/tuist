@@ -50,43 +50,11 @@ public struct Tuist: Equatable, Hashable {
 #if DEBUG
     extension Tuist {
         public static func test(
-            project: TuistProject = .defaultGeneratedProject(),
+            project: TuistProject = .testGeneratedProject(),
             fullHandle: String? = nil,
             url: URL = Constants.URLs.production
         ) -> Tuist {
             return Tuist(project: project, fullHandle: fullHandle, url: url)
-        }
-    }
-
-    extension Tuist.GenerationOptions {
-        public static func test(
-            resolveDependenciesWithSystemScm: Bool = false,
-            disablePackageVersionLocking: Bool = false,
-            clonedSourcePackagesDirPath: AbsolutePath? = nil,
-            staticSideEffectsWarningTargets: TuistCore.Tuist.GenerationOptions.StaticSideEffectsWarningTargets = .all,
-            enforceExplicitDependencies: Bool = false,
-            defaultConfiguration: String? = nil,
-            optionalAuthentication: Bool = false
-        ) -> Self {
-            .init(
-                resolveDependenciesWithSystemScm: resolveDependenciesWithSystemScm,
-                disablePackageVersionLocking: disablePackageVersionLocking,
-                clonedSourcePackagesDirPath: clonedSourcePackagesDirPath,
-                staticSideEffectsWarningTargets: staticSideEffectsWarningTargets,
-                enforceExplicitDependencies: enforceExplicitDependencies,
-                defaultConfiguration: defaultConfiguration,
-                optionalAuthentication: optionalAuthentication
-            )
-        }
-    }
-
-    extension Tuist.InstallOptions {
-        public static func test(
-            passthroughSwiftPackageManagerArguments: [String] = []
-        ) -> Self {
-            .init(
-                passthroughSwiftPackageManagerArguments: passthroughSwiftPackageManagerArguments
-            )
         }
     }
 #endif

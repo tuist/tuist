@@ -27,7 +27,7 @@ final class DefaultConfigurationFetcherTests: TuistUnitTestCase {
 
         // When/Then
         XCTAssertThrowsSpecific(
-            try subject.fetch(configuration: nil, config: .test(), graph: graph),
+            try subject.fetch(configuration: nil, defaultConfiguration: nil, graph: graph),
             DefaultConfigurationFetcherError.debugBuildConfigurationNotFound
         )
     }
@@ -40,7 +40,7 @@ final class DefaultConfigurationFetcherTests: TuistUnitTestCase {
         ])
 
         // When
-        let got = try subject.fetch(configuration: nil, config: .test(), graph: graph)
+        let got = try subject.fetch(configuration: nil, defaultConfiguration: nil, graph: graph)
 
         // Then
         XCTAssertEqual(got, "Development")
@@ -54,7 +54,7 @@ final class DefaultConfigurationFetcherTests: TuistUnitTestCase {
         ])
 
         // When
-        let got = try subject.fetch(configuration: "Dev", config: .test(), graph: graph)
+        let got = try subject.fetch(configuration: "Dev", defaultConfiguration: nil, graph: graph)
 
         // Then
         XCTAssertEqual(got, "Dev")
@@ -69,7 +69,7 @@ final class DefaultConfigurationFetcherTests: TuistUnitTestCase {
 
         // When
         XCTAssertThrowsSpecific(
-            try subject.fetch(configuration: "Debug", config: .test(), graph: graph),
+            try subject.fetch(configuration: "Debug", defaultConfiguration: nil, graph: graph),
             DefaultConfigurationFetcherError.configurationNotFound("Debug", available: ["Dev"])
         )
     }
@@ -91,11 +91,7 @@ final class DefaultConfigurationFetcherTests: TuistUnitTestCase {
         // When
         let got = try subject.fetch(
             configuration: nil,
-            config: .test(
-                generationOptions: .test(
-                    defaultConfiguration: "Release"
-                )
-            ),
+            defaultConfiguration: "Release",
             graph: graph
         )
 
@@ -120,11 +116,7 @@ final class DefaultConfigurationFetcherTests: TuistUnitTestCase {
         // When
         let got = try subject.fetch(
             configuration: "Dev",
-            config: .test(
-                generationOptions: .test(
-                    defaultConfiguration: "Release"
-                )
-            ),
+            defaultConfiguration: "Release",
             graph: graph
         )
 
@@ -143,11 +135,7 @@ final class DefaultConfigurationFetcherTests: TuistUnitTestCase {
         XCTAssertThrowsSpecific(
             try subject.fetch(
                 configuration: nil,
-                config: .test(
-                    generationOptions: .test(
-                        defaultConfiguration: "Debug"
-                    )
-                ),
+                defaultConfiguration: "Debug",
                 graph: graph
             ),
             DefaultConfigurationFetcherError.defaultConfigurationNotFound("Debug", available: ["Dev"])

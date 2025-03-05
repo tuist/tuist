@@ -78,13 +78,13 @@ final class ConfigLoaderTests: TuistUnitTestCase {
         // Then
 
         XCTAssertEqual(result, TuistCore.Tuist(
-            project: .generated(
+            project: .generated(TuistGeneratedProjectOptions(
                 compatibleXcodeVersions: .all,
                 swiftVersion: nil,
                 plugins: [],
                 generationOptions: .test(),
                 installOptions: .test()
-            ),
+            )),
             fullHandle: nil,
             url: Constants.URLs.production
         ))
@@ -108,13 +108,13 @@ final class ConfigLoaderTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(result, TuistCore.Tuist(
-            project: .generated(
+            project: .generated(TuistGeneratedProjectOptions(
                 compatibleXcodeVersions: .all,
                 swiftVersion: nil,
                 plugins: [],
                 generationOptions: .test(),
                 installOptions: .test()
-            ),
+            )),
             fullHandle: nil,
             url: Constants.URLs.production
         ))
@@ -153,13 +153,13 @@ final class ConfigLoaderTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(result, TuistCore.Tuist(
-            project: .generated(
+            project: .generated(TuistGeneratedProjectOptions(
                 compatibleXcodeVersions: .all,
                 swiftVersion: nil,
                 plugins: [],
                 generationOptions: .test(),
                 installOptions: .test()
-            ),
+            )),
             fullHandle: nil,
             url: Constants.URLs.production
         ))
@@ -185,13 +185,13 @@ final class ConfigLoaderTests: TuistUnitTestCase {
 
         // Then
         XCTAssertBetterEqual(result, TuistCore.Tuist(
-            project: .generated(
+            project: .generated(TuistGeneratedProjectOptions(
                 compatibleXcodeVersions: .all,
                 swiftVersion: nil,
                 plugins: [],
                 generationOptions: .test(),
                 installOptions: .test()
-            ),
+            )),
             fullHandle: "tuist/tuist",
             url: try XCTUnwrap(URL(string: "https://test.tuist.io"))
         ))
@@ -215,13 +215,13 @@ final class ConfigLoaderTests: TuistUnitTestCase {
 
         // Then
         XCTAssertBetterEqual(result, TuistCore.Tuist(
-            project: .generated(
+            project: .generated(TuistGeneratedProjectOptions(
                 compatibleXcodeVersions: .all,
                 swiftVersion: nil,
                 plugins: [],
                 generationOptions: .test(),
                 installOptions: .test()
-            ),
+            )),
             fullHandle: "tuist/tuist",
             url: try XCTUnwrap(URL(string: "https://test.tuist.io"))
         ))

@@ -8,20 +8,24 @@ import XcodeGraph
 /// static products are linked multiple times.
 ///
 protocol StaticProductsGraphLinting {
-    func lint(graphTraverser: GraphTraversing, config: Tuist) -> [LintingIssue]
+    func lint(graphTraverser: GraphTraversing, configGeneratedProjectOptions: TuistGeneratedProjectOptions) -> [LintingIssue]
 }
 
 class StaticProductsGraphLinter: StaticProductsGraphLinting {
-    func lint(graphTraverser: GraphTraversing, config: Tuist) -> [LintingIssue] {
-        warnings(in: Array(graphTraverser.dependencies.keys), graphTraverser: graphTraverser, config: config)
-            .sorted()
-            .map(lintIssue)
+    func lint(graphTraverser: GraphTraversing, configGeneratedProjectOptions: TuistGeneratedProjectOptions) -> [LintingIssue] {
+        warnings(
+            in: Array(graphTraverser.dependencies.keys),
+            graphTraverser: graphTraverser,
+            configGeneratedProjectOptions: configGeneratedProjectOptions
+        )
+        .sorted()
+        .map(lintIssue)
     }
 
     private func warnings(
         in dependencies: [GraphDependency],
         graphTraverser: GraphTraversing,
-        config: Tuist
+        configGeneratedProjectOptions: TuistGeneratedProjectOptions
     ) -> Set<StaticDependencyWarning> {
         var warnings = Set<StaticDependencyWarning>()
         let cache = Cache()
@@ -34,11 +38,16 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
                 visiting: dependency,
                 graphTraverser: graphTraverser,
                 cache: cache,
-                config: config
+                configGeneratedProjectOptions: configGeneratedProjectOptions
             )
 
             warnings.formUnion(results.linked.flatMap {
-                staticDependencyWarning(staticProduct: $0.key, linkedBy: $0.value, graphTraverser: graphTraverser, config: config)
+                staticDependencyWarning(
+                    staticProduct: $0.key,
+                    linkedBy: $0.value,
+                    graphTraverser: graphTraverser,
+                    configGeneratedProjectOptions: configGeneratedProjectOptions
+                )
             })
         }
         return warnings
@@ -66,7 +75,7 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
         visiting dependency: GraphDependency,
         graphTraverser: GraphTraversing,
         cache: Cache,
-        config: Tuist
+        configGeneratedProjectOptions: TuistGeneratedProjectOptions
     ) -> StaticProducts {
         if let cachedResult = cache.results(for: dependency) {
             return cachedResult
@@ -74,8 +83,13 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
 
         // Collect dependency results traversing the graph (dfs)
         var results = dependencies(for: dependency, graphTraverser: graphTraverser).reduce(StaticProducts()) { results, dep in
-            buildStaticProductsMap(visiting: dep, graphTraverser: graphTraverser, cache: cache, config: config)
-                .merged(with: results)
+            buildStaticProductsMap(
+                visiting: dep,
+                graphTraverser: graphTraverser,
+                cache: cache,
+                configGeneratedProjectOptions: configGeneratedProjectOptions
+            )
+            .merged(with: results)
         }
 
         // Static node case
@@ -113,9 +127,9 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
         staticProduct: GraphDependency,
         linkedBy: Set<GraphDependency>,
         graphTraverser: GraphTraversing,
-        config: Tuist
+        configGeneratedProjectOptions: TuistGeneratedProjectOptions
     ) -> [StaticDependencyWarning] {
-        if shouldSkipDependency(staticProduct, config: config) {
+        if shouldSkipDependency(staticProduct, configGeneratedProjectOptions: configGeneratedProjectOptions) {
             return []
         }
 
@@ -158,8 +172,11 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
         ]
     }
 
-    private func shouldSkipDependency(_ dependency: GraphDependency, config: Tuist) -> Bool {
-        switch config.generationOptions.staticSideEffectsWarningTargets {
+    private func shouldSkipDependency(
+        _ dependency: GraphDependency,
+        configGeneratedProjectOptions: TuistGeneratedProjectOptions
+    ) -> Bool {
+        switch configGeneratedProjectOptions.generationOptions.staticSideEffectsWarningTargets {
         case .all: return false
         case .none: return true
         case let .excluding(names): return names.contains(dependency.name)

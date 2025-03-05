@@ -48,12 +48,8 @@ enum PluginServiceError: FatalError, Equatable {
 
 /// A protocol defining a service for interacting with plugins.
 public protocol PluginServicing {
-    /// Loads the `Plugins` and returns them as defined in given config.
-    /// - Throws: An error if there are issues loading a plugin.
-    /// - Returns: The loaded `Plugins` representation.
-    func loadPlugins(using config: Tuist) async throws -> Plugins
-    /// - Returns: Array of `RemotePluginPaths` for each remote plugin.
-    func remotePluginPaths(using config: Tuist) async throws -> [RemotePluginPaths]
+    func loadPlugins(using configGeneratedProjectsOptions: TuistGeneratedProjectOptions) async throws -> Plugins
+    func remotePluginPaths(using configGeneratedProjectsOptions: TuistGeneratedProjectOptions) async throws -> [RemotePluginPaths]
 }
 
 enum PluginServiceConstants {
@@ -101,16 +97,17 @@ public struct PluginService: PluginServicing {
         self.fileSystem = fileSystem
     }
 
-    public func remotePluginPaths(using config: Tuist) async throws -> [RemotePluginPaths] {
-        try await config.plugins.concurrentCompactMap { pluginLocation in
+    public func remotePluginPaths(using configGeneratedProjectsOptions: TuistGeneratedProjectOptions) async throws
+        -> [RemotePluginPaths]
+    {
+        try await configGeneratedProjectsOptions.plugins.concurrentCompactMap { pluginLocation -> RemotePluginPaths? in
             switch pluginLocation {
             case .local:
                 return nil
             case let .git(url: url, gitReference: .sha(sha), directory, _):
                 let pluginCacheDirectory = try pluginCacheDirectory(
                     url: url,
-                    gitId: sha,
-                    config: config
+                    gitId: sha
                 )
                 var repositoryPath = pluginCacheDirectory.appending(component: PluginServiceConstants.repository)
                 if let directory {
@@ -123,8 +120,7 @@ public struct PluginService: PluginServicing {
             case let .git(url: url, gitReference: .tag(tag), directory, _):
                 let pluginCacheDirectory = try pluginCacheDirectory(
                     url: url,
-                    gitId: tag,
-                    config: config
+                    gitId: tag
                 )
                 var repositoryPath = pluginCacheDirectory.appending(component: PluginServiceConstants.repository)
                 if let directory {
@@ -139,12 +135,12 @@ public struct PluginService: PluginServicing {
         }
     }
 
-    public func loadPlugins(using config: Tuist) async throws -> Plugins {
-        guard !config.plugins.isEmpty else { return .none }
+    public func loadPlugins(using configGeneratedProjectsOptions: TuistGeneratedProjectOptions) async throws -> Plugins {
+        guard !configGeneratedProjectsOptions.plugins.isEmpty else { return .none }
 
-        try await fetchRemotePlugins(using: config)
+        try await fetchRemotePlugins(using: configGeneratedProjectsOptions)
 
-        let localPluginPaths: [AbsolutePath] = try config.plugins
+        let localPluginPaths: [AbsolutePath] = try configGeneratedProjectsOptions.plugins
             .compactMap { pluginLocation in
                 switch pluginLocation {
                 case let .local(path):
@@ -157,7 +153,7 @@ public struct PluginService: PluginServicing {
         let localPluginManifests = try await localPluginPaths
             .concurrentMap { try await manifestLoader.loadPlugin(at: $0) }
 
-        let remotePluginPaths = try await remotePluginPaths(using: config)
+        let remotePluginPaths = try await remotePluginPaths(using: configGeneratedProjectsOptions)
         let remotePluginRepositoryPaths = remotePluginPaths.map(\.repositoryPath)
         let remotePluginManifests = try await remotePluginRepositoryPaths
             .concurrentMap { try await manifestLoader.loadPlugin(at: $0) }
@@ -196,15 +192,15 @@ public struct PluginService: PluginServicing {
         )
     }
 
-    func fetchRemotePlugins(using config: Tuist) async throws {
-        for pluginLocation in config.plugins {
+    func fetchRemotePlugins(using configGeneratedProjectsOptions: TuistGeneratedProjectOptions) async throws {
+        for pluginLocation in configGeneratedProjectsOptions.plugins {
             switch pluginLocation {
             case let .git(url, gitReference, _, releaseUrl):
                 try await fetchRemotePlugin(
                     url: url,
                     releaseUrl: releaseUrl,
                     gitReference: gitReference,
-                    config: config
+                    configGeneratedProjectsOptions: configGeneratedProjectsOptions
                 )
             case .local:
                 continue
@@ -216,12 +212,11 @@ public struct PluginService: PluginServicing {
         url: String,
         releaseUrl: String?,
         gitReference: PluginLocation.GitReference,
-        config: Tuist
+        configGeneratedProjectsOptions _: TuistGeneratedProjectOptions
     ) async throws {
         let pluginCacheDirectory = try pluginCacheDirectory(
             url: url,
-            gitId: gitReference.raw,
-            config: config
+            gitId: gitReference.raw
         )
         try await fetchGitPluginRepository(
             pluginCacheDirectory: pluginCacheDirectory,
@@ -243,8 +238,7 @@ public struct PluginService: PluginServicing {
 
     private func pluginCacheDirectory(
         url: String,
-        gitId: String,
-        config _: Tuist
+        gitId: String
     ) throws -> AbsolutePath {
         let cacheDirectory = try cacheDirectoriesProvider.cacheDirectory(for: .plugins)
         let fingerprint = "\(url)-\(gitId)".md5

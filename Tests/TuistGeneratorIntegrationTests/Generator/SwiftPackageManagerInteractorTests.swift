@@ -103,16 +103,6 @@ final class SwiftPackageManagerInteractorTests: TuistTestCase {
     func test_generate_usesSystemGitCredentials() async throws {
         // Given
         let temporaryPath = try temporaryPath()
-        let config = Tuist(
-            compatibleXcodeVersions: .all,
-            fullHandle: nil,
-            url: Constants.URLs.production,
-            swiftVersion: nil,
-            plugins: [],
-            generationOptions: .test(resolveDependenciesWithSystemScm: true),
-            installOptions: .test(),
-            path: nil
-        )
 
         let target = anyTarget(dependencies: [
             .package(product: "Example", type: .runtime),
@@ -146,7 +136,14 @@ final class SwiftPackageManagerInteractorTests: TuistTestCase {
         try await createFiles(["\(workspacePath.basename)/xcshareddata/swiftpm/Package.resolved"])
 
         // When
-        try await subject.install(graphTraverser: graphTraverser, workspaceName: workspacePath.basename, config: config)
+        try await subject.install(
+            graphTraverser: graphTraverser,
+            workspaceName: workspacePath.basename,
+            configGeneratedProjectOptions: .test(
+                compatibleXcodeVersions: .all,
+                generationOptions: .test(resolveDependenciesWithSystemScm: true)
+            )
+        )
 
         // Then
         let exists = try await fileSystem.exists(temporaryPath.appending(component: ".package.resolved"))
@@ -230,17 +227,6 @@ final class SwiftPackageManagerInteractorTests: TuistTestCase {
     func test_generate_sets_cloned_source_packages_dir_path() async throws {
         // Given
         let temporaryPath = try temporaryPath()
-        let config = Tuist(
-            compatibleXcodeVersions: .all,
-            fullHandle: nil,
-            url: Constants.URLs.production,
-            swiftVersion: nil,
-            plugins: [],
-            generationOptions: .test(clonedSourcePackagesDirPath: temporaryPath.appending(component: "spm")),
-            installOptions: .test(),
-            path: nil
-        )
-
         let spmPath = temporaryPath.appending(component: "spm")
         let target = anyTarget(dependencies: [
             .package(product: "Example", type: .runtime),
@@ -273,7 +259,14 @@ final class SwiftPackageManagerInteractorTests: TuistTestCase {
         try await createFiles(["\(workspacePath.basename)/xcshareddata/swiftpm/Package.resolved"])
 
         // When
-        try await subject.install(graphTraverser: graphTraverser, workspaceName: workspacePath.basename, config: config)
+        try await subject.install(
+            graphTraverser: graphTraverser,
+            workspaceName: workspacePath.basename,
+            configGeneratedProjectOptions: .test(generationOptions: .test(
+                clonedSourcePackagesDirPath: temporaryPath
+                    .appending(component: "spm")
+            ))
+        )
 
         // Then
         let exists = try await fileSystem.exists(temporaryPath.appending(component: ".package.resolved"))

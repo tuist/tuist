@@ -349,14 +349,14 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
         let writer = XcodeProjWriter()
         let linter = GraphLinter()
         let graphLoader = GraphLoader()
-        let config = Tuist.test()
 
         let graph = try await graphLoader.loadWorkspace(
             workspace: models.workspace,
             projects: models.projects
         )
         let graphTraverser = GraphTraverser(graph: graph)
-        try await linter.lint(graphTraverser: graphTraverser, config: config).printAndThrowErrorsIfNeeded()
+        try await linter.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
+            .printAndThrowErrorsIfNeeded()
         let descriptor = try await subject.generateWorkspace(graphTraverser: graphTraverser)
         try await writer.write(workspace: descriptor)
     }
@@ -385,19 +385,6 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
         )
         let workspace = try createWorkspace(path: temporaryPath, projects: ["App"])
         return WorkspaceWithProjects(workspace: workspace, projects: [project])
-    }
-
-    private func createConfig() -> Tuist {
-        Tuist(
-            compatibleXcodeVersions: .all,
-            fullHandle: nil,
-            url: Constants.URLs.production,
-            swiftVersion: nil,
-            plugins: [],
-            generationOptions: .test(),
-            installOptions: .test(),
-            path: nil
-        )
     }
 
     private func createWorkspace(path: Path.AbsolutePath, projects: [String]) throws -> Workspace {

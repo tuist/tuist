@@ -57,7 +57,7 @@ final class CachePrintHashesService {
         let hashes = try await cacheGraphContentHasher.contentHashes(
             for: graph,
             configuration: configuration,
-            config: config,
+            defaultConfiguration: config.project.generatedProject?.generationOptions.defaultConfiguration,
             excludedTargets: []
         )
         let duration = timer.stop()

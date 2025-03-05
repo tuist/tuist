@@ -62,7 +62,7 @@ final class InstallServiceTests: TuistUnitTestCase {
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(
-                Tuist.test(swiftVersion: .init(stringLiteral: stubbedSwiftVersion.description))
+                .test(project: .generated(.test(swiftVersion: .init(stringLiteral: stubbedSwiftVersion.description))))
             )
 
         pluginService.fetchRemotePluginsStub = { _ in
@@ -100,15 +100,14 @@ final class InstallServiceTests: TuistUnitTestCase {
 
     func test_run_when_installing_plugins() async throws {
         // Given
-        let config = Tuist.test(
-            plugins: [
-                .git(url: "url", gitReference: .tag("tag"), directory: nil, releaseUrl: nil),
-            ]
-        )
+        let config = Tuist.test(project: .generated(.test(plugins: [
+            .git(url: "url", gitReference: .tag("tag"), directory: nil, releaseUrl: nil),
+        ])))
+
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(config)
-        var invokedConfig: Tuist?
+        var invokedConfig: TuistGeneratedProjectOptions?
         pluginService.loadPluginsStub = { config in
             invokedConfig = config
             return .test()
@@ -124,7 +123,7 @@ final class InstallServiceTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(invokedConfig, config)
+        XCTAssertEqual(invokedConfig, config.project.generatedProject)
     }
 
     func test_run_when_installing_dependencies() async throws {
@@ -143,7 +142,7 @@ final class InstallServiceTests: TuistUnitTestCase {
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(
-                Tuist.test(swiftVersion: .init(stringLiteral: stubbedSwiftVersion.description))
+                Tuist.test(project: .generated(.test(swiftVersion: .init(stringLiteral: stubbedSwiftVersion.description))))
             )
 
         pluginService.fetchRemotePluginsStub = { _ in }
@@ -232,12 +231,12 @@ final class InstallServiceTests: TuistUnitTestCase {
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(
-                Tuist.test(
+                Tuist.test(project: .generated(.test(
                     swiftVersion: .init(stringLiteral: stubbedSwiftVersion.description),
                     installOptions: .test(
                         passthroughSwiftPackageManagerArguments: ["--replace-scm-with-registry"]
                     )
-                )
+                )))
             )
 
         pluginService.fetchRemotePluginsStub = { _ in
@@ -281,12 +280,12 @@ final class InstallServiceTests: TuistUnitTestCase {
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(
-                Tuist.test(
+                Tuist.test(project: .generated(.test(
                     swiftVersion: .init(stringLiteral: stubbedSwiftVersion.description),
                     installOptions: .test(
                         passthroughSwiftPackageManagerArguments: ["--replace-scm-with-registry"]
                     )
-                )
+                )))
             )
 
         pluginService.fetchRemotePluginsStub = { _ in
