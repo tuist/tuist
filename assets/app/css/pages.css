@@ -1,6 +1,7 @@
 @import "./pages/account_projects.css";
 @import "./pages/auth.css";
 @import "./pages/account_billing.css";
+@import "./pages/error.css";
 @import "./pages/project_analytics.css";
 @import "./pages/project_run_detail.css";
 @import "./pages/project_runs.css";

@@ -1654,7 +1654,7 @@ msgstr ""
 msgid "Tailored agreements to meet your specific needs"
 msgstr ""
 
-#: lib/tuist_web/controllers/error_html.ex:112
+#: lib/tuist_web/controllers/error_html.ex:111
 #, elixir-autogen, elixir-format
 msgid "Take me home"
 msgstr ""
