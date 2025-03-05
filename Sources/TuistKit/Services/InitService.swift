@@ -129,33 +129,35 @@ public struct InitService {
     ) async throws -> String? {
         let integrateWithServer = answers?.integrateWithServer ?? prompter.promptIntegrateWithServer()
         if integrateWithServer {
-            try await ServiceContext.current?.ui?.collapsibleStep(
-                title: "Authentication",
-                successMessage: "Authenticated",
-                errorMessage: "Authentication failed",
-                visibleLines: 3,
-                task: { progress in
-                    try await loginService.run(email: nil, password: nil, directory: nil) { event in
-                        switch event {
-                        case let .openingBrowser(url):
-                            await withCheckedContinuation { continuation in
-                                progress("Press ENTER to open \(url) in your browser to authenticate...")
-                                keystrokeListener.listen { key in
-                                    switch key {
-                                    case .returnKey:
-                                        continuation.resume()
-                                        return .abort
-                                    default:
-                                        return .continue
+            if try await serverSessionController.whoami(serverURL: Constants.URLs.production) == nil {
+                try await ServiceContext.current?.ui?.collapsibleStep(
+                    title: "Authentication",
+                    successMessage: "Authenticated",
+                    errorMessage: "Authentication failed",
+                    visibleLines: 3,
+                    task: { progress in
+                        try await loginService.run(email: nil, password: nil, directory: nil) { event in
+                            switch event {
+                            case let .openingBrowser(url):
+                                await withCheckedContinuation { continuation in
+                                    progress("Press ENTER to open \(url) in your browser to authenticate...")
+                                    keystrokeListener.listen { key in
+                                        switch key {
+                                        case .returnKey:
+                                            continuation.resume()
+                                            return .abort
+                                        default:
+                                            return .continue
+                                        }
                                     }
                                 }
+                            default:
+                                progress("\(event.description)")
                             }
-                        default:
-                            progress("\(event.description)")
                         }
                     }
-                }
-            )
+                )
+            }
 
             let accountHandle = try await serverSessionController.whoami(serverURL: Constants.URLs.production)!
             let fullHandle = "\(accountHandle)/\(projectHandle)"
