@@ -2,6 +2,11 @@
   margin: 0;
   overflow: hidden;
   padding: 0;
+
+  & [data-part="chart"] {
+    height: 100%;
+    width: 100%;
+  }
 }
 
 .noora-chart-tooltip {

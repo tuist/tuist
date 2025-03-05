@@ -42,7 +42,17 @@ defmodule TuistWeb.Storybook.Chart do
                 ["2024-10-26", 38],
                 ["2024-11-15", 42],
                 ["2024-12-02", 56],
-                ["2024-12-20", 62]
+                ["2024-12-20", 62],
+                ["2025-01-08", 58],
+                ["2025-01-25", 64],
+                ["2025-02-10", 60],
+                ["2025-02-28", 66],
+                ["2025-03-15", 70],
+                ["2025-04-02", 65],
+                ["2025-04-20", 72],
+                ["2025-05-07", 68],
+                ["2025-05-25", 74],
+                ["2025-06-12", 78]
               ]
             }
           ],
@@ -55,8 +65,9 @@ defmodule TuistWeb.Storybook.Chart do
             xAxis: %{
               type: "time",
               axisLabel: %{
-                fontSize: 10,
-                formatter: "{MMM} {dd}"
+                margin: 16,
+                showMaxLabel: true,
+                formatter: "fn:firstAndLastDate"
               }
             }
           }

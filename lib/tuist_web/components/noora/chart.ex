@@ -1,5 +1,39 @@
 defmodule TuistWeb.Noora.Chart do
-  @moduledoc false
+  @moduledoc """
+
+  ## Custom formatters
+
+  For labels, we offer a few custom formatters:
+
+  - `firstAndLastDate`: Renders the first and last label only as dates. This is useful for time series charts.
+
+  If this does not match your use case, you can also pass a completely custom formatter. This expects a global `nooraChartFormatters` object
+  with a function named after the formatter you want to use. For example, if you want to use a "first label only" formatter, you can define
+  a function named `firstLabelOnly` in the `nooraChartFormatters` object as such:
+
+  ```js
+  nooraChartFormatters = {
+    firstLabelOnly: (el) => (value, index) => {
+      if (index === 0) {
+        return value;
+      }
+    }
+  };
+  ```
+
+  You can use these function-based formatters in your chart configuration as such:
+
+  ```elixir
+  %{
+    extra_options: %{
+      xAxis: %{
+        axisLabel: %{
+          formatter: "fn:firstLabelOnly"
+        }
+      }
+    }
+  ```
+  """
   use Phoenix.Component
 
   attr :id, :string, required: true, doc: "The ID used for the chart container"
