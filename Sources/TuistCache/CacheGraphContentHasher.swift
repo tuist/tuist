@@ -6,16 +6,10 @@ import XcodeGraph
 
 @Mockable
 public protocol CacheGraphContentHashing {
-    /// Hashes graph
-    /// - Parameters:
-    ///     - graph: Graph to hash
-    ///     - configuration: Configuration to hash.
-    ///     - config: The `Tuist.swift` model
-    ///     - excludedTargets: Targets to be excluded from hashes calculation
     func contentHashes(
         for graph: Graph,
         configuration: String?,
-        config: TuistCore.Config,
+        defaultConfiguration: String?,
         excludedTargets: Set<String>
     ) async throws -> [GraphTarget: String]
 }
@@ -61,14 +55,14 @@ public final class CacheGraphContentHasher: CacheGraphContentHashing {
     public func contentHashes(
         for graph: Graph,
         configuration: String?,
-        config: TuistCore.Config,
+        defaultConfiguration: String?,
         excludedTargets: Set<String>
     ) async throws -> [GraphTarget: String] {
         let graphTraverser = GraphTraverser(graph: graph)
         let version = versionFetcher.version()
         let configuration = try defaultConfigurationFetcher.fetch(
             configuration: configuration,
-            config: config,
+            defaultConfiguration: defaultConfiguration,
             graph: graph
         )
 

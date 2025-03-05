@@ -113,7 +113,7 @@ final class ContentHashingIntegrationTests: TuistUnitTestCase {
         let contentHash = try await subject.contentHashes(
             for: graph,
             configuration: "Debug",
-            config: .test(),
+            defaultConfiguration: nil,
             excludedTargets: []
         )
 
@@ -149,7 +149,7 @@ final class ContentHashingIntegrationTests: TuistUnitTestCase {
         let contentHash = try await subject.contentHashes(
             for: graph,
             configuration: "Debug",
-            config: .test(),
+            defaultConfiguration: nil,
             excludedTargets: []
         )
 
@@ -185,7 +185,7 @@ final class ContentHashingIntegrationTests: TuistUnitTestCase {
         let contentHash = try await subject.contentHashes(
             for: graph,
             configuration: "Debug",
-            config: .test(),
+            defaultConfiguration: nil,
             excludedTargets: []
         )
 
@@ -224,7 +224,7 @@ final class ContentHashingIntegrationTests: TuistUnitTestCase {
         let contentHash = try await subject.contentHashes(
             for: graph,
             configuration: "Debug",
-            config: .test(),
+            defaultConfiguration: nil,
             excludedTargets: []
         )
 
@@ -260,7 +260,7 @@ final class ContentHashingIntegrationTests: TuistUnitTestCase {
         let contentHash = try await subject.contentHashes(
             for: graph,
             configuration: "Debug",
-            config: .test(),
+            defaultConfiguration: nil,
             excludedTargets: []
         )
 
@@ -297,7 +297,7 @@ final class ContentHashingIntegrationTests: TuistUnitTestCase {
         let contentHash = try await subject.contentHashes(
             for: graph,
             configuration: "Debug",
-            config: .test(),
+            defaultConfiguration: nil,
             excludedTargets: []
         )
 
@@ -335,7 +335,7 @@ final class ContentHashingIntegrationTests: TuistUnitTestCase {
         let contentHash = try await subject.contentHashes(
             for: graph,
             configuration: "Debug",
-            config: .test(),
+            defaultConfiguration: nil,
             excludedTargets: []
         )
 
@@ -371,7 +371,7 @@ final class ContentHashingIntegrationTests: TuistUnitTestCase {
         let contentHash = try await subject.contentHashes(
             for: graph,
             configuration: "Debug",
-            config: .test(),
+            defaultConfiguration: nil,
             excludedTargets: []
         )
 
@@ -411,7 +411,7 @@ final class ContentHashingIntegrationTests: TuistUnitTestCase {
         let contentHash = try await subject.contentHashes(
             for: graph,
             configuration: "Debug",
-            config: .test(),
+            defaultConfiguration: nil,
             excludedTargets: []
         )
 
@@ -448,7 +448,7 @@ final class ContentHashingIntegrationTests: TuistUnitTestCase {
         let contentHash = try await subject.contentHashes(
             for: graph,
             configuration: "Debug",
-            config: .test(),
+            defaultConfiguration: nil,
             excludedTargets: []
         )
 

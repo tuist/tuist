@@ -611,7 +611,7 @@ final class TestService { // swiftlint:disable:this type_body_length
     private func resultBundlePath(
         runResultBundlePath: AbsolutePath,
         passedResultBundlePath: AbsolutePath?,
-        config: Config
+        config: Tuist
     ) async throws -> AbsolutePath? {
         if config.fullHandle == nil {
             return passedResultBundlePath

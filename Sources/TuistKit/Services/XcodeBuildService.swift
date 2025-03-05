@@ -91,7 +91,7 @@ struct XcodeBuildService {
     private func runTests(
         passthroughXcodebuildArguments: [String],
         path: AbsolutePath,
-        config: Config
+        config: Tuist
     ) async throws {
         let cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
         guard let schemeName = passedValue(for: "-scheme", arguments: passthroughXcodebuildArguments)
