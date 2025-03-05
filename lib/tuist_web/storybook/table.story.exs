@@ -11,9 +11,10 @@ defmodule TuistWeb.Storybook.Table do
        text_and_description_cell: 1,
        badge_cell: 1,
        status_badge_cell: 1,
-       button_cell: 1},
+       button_cell: 1,
+       link_button_cell: 1},
       {TuistWeb.Noora.Button, button: 1},
-      {TuistWeb.Noora.Icon, pencil: 1, trash: 1}
+      {TuistWeb.Noora.Icon, chevron_left: 1, pencil: 1, trash: 1}
     ]
 
   def variations do
@@ -63,6 +64,13 @@ defmodule TuistWeb.Storybook.Table do
                 <.button variant="secondary" icon_only><.trash /></.button>
               </:button>
             </.button_cell>
+          </:col>
+          <:col :let={i} label="Link button">
+            <.link_button_cell label={i.label} variant="secondary" underline={true}>
+              <:icon_left>
+                <.chevron_left />
+              </:icon_left>
+            </.link_button_cell>
           </:col>
           """
         ]

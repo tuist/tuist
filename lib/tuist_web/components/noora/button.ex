@@ -8,6 +8,9 @@ defmodule TuistWeb.Noora.Button do
   @button_variants ~w(primary secondary destructive)
   @button_sizes ~w(small medium large)
 
+  def button_variants, do: @button_variants
+  def button_sizes, do: @button_sizes
+
   attr :label, :string, required: true, doc: "The label of the button"
 
   attr :variant, :string,

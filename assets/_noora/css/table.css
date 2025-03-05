@@ -184,7 +184,8 @@
 
     &[data-type="badge"],
     &[data-type="status_badge"],
-    &[data-type="button"] {
+    &[data-type="button"],
+    &[data-type="link_button"] {
       padding: var(--noora-spacing-7);
     }
 

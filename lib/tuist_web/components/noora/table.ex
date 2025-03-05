@@ -30,6 +30,7 @@ defmodule TuistWeb.Noora.Table do
   use Phoenix.Component
   import TuistWeb.Noora.Icon
   import TuistWeb.Noora.Badge
+  import TuistWeb.Noora.Button
   import TuistWeb.Noora.Utils
 
   attr :id, :string, required: true, doc: "A uniqie identifier for the table"
@@ -194,6 +195,35 @@ defmodule TuistWeb.Noora.Table do
       <%= for button <- @button do %>
         {render_slot(button)}
       <% end %>
+    </div>
+    """
+  end
+
+  attr :label, :string, required: true, doc: "The label of the button"
+
+  attr :variant, :string,
+    values: button_variants(),
+    default: "primary",
+    doc: "Determines the style"
+
+  attr :underline, :boolean, default: false, doc: "Determines if the button is underlined"
+
+  attr :rest, :global
+
+  slot :icon_left, doc: "Icon displayed on the left of an item"
+  slot :icon_right, doc: "Icon displayed on the right of an item"
+
+  def link_button_cell(assigns) do
+    ~H"""
+    <div data-part="cell" data-type="link_button" {@rest}>
+      <.link_button label={@label} variant={@variant} underline={@underline} size="large">
+        <:icon_left>
+          {render_slot(@icon_left)}
+        </:icon_left>
+        <:icon_right>
+          {render_slot(@icon_right)}
+        </:icon_right>
+      </.link_button>
     </div>
     """
   end
