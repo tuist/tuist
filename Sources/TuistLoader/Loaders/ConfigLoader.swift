@@ -89,7 +89,7 @@ public final class ConfigLoader: ConfigLoading {
         ).isEmpty
         if anyXcodeProjectOrWorkspace {
             return Tuist(
-                project: .xcode,
+                project: .xcode(TuistXcodeProjectOptions()),
                 fullHandle: nil,
                 url: Constants.URLs.production
             )

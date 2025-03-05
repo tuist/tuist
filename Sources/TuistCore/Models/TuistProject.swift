@@ -16,7 +16,7 @@ public enum TuistProject: Equatable, Hashable {
         generationOptions: Tuist.GenerationOptions,
         installOptions: Tuist.InstallOptions
     )
-    case xcode
+    case xcode(TuistXcodeProjectOptions)
 
     public func hash(into hasher: inout Hasher) {
         switch self {
