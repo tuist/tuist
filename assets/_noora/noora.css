@@ -1,14 +1,15 @@
-@import "./css/tokens.css";
 @import "./css/badge.css";
 @import "./css/banner.css";
 @import "./css/button.css";
+@import "./css/chart.css";
 @import "./css/dismiss-icon.css";
 @import "./css/dropdown.css";
 @import "./css/hint-text.css";
 @import "./css/label.css";
 @import "./css/modal.css";
 @import "./css/shortcut-key.css";
+@import "./css/table.css";
 @import "./css/tag.css";
 @import "./css/text-input.css";
-@import "./css/table.css";
+@import "./css/tokens.css";
 @import "./css/tooltip.css";

@@ -1,8 +1,46 @@
 .noora-chart {
-  position: relative;
-  height: 100vh;
-  width: 800px;
-  overflow: hidden;
   margin: 0;
+  overflow: hidden;
   padding: 0;
+}
+
+.noora-chart-tooltip {
+  align-items: center;
+  background: var(--noora-surface-background-primary);
+  border-radius: var(--noora-radius-medium);
+  box-shadow: var(--noora-border-medium);
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-4);
+  justify-content: center;
+  padding: var(--noora-spacing-5);
+
+  & [data-part="series-item"] {
+    align-items: center;
+    display: flex;
+    gap: var(--noora-spacing-3);
+    width: 100%;
+  }
+
+  & [data-part="dot"] {
+    background: var(--color);
+    border-radius: var(--noora-radius-xsmall);
+    height: 4px;
+    width: 8px;
+    flex-shrink: 0;
+  }
+
+  & [data-part="label"] {
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-xsmall);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  & [data-part="value"] {
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-xsmall);
+    margin-left: auto;
+  }
 }
