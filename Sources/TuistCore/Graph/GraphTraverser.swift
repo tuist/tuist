@@ -1248,9 +1248,9 @@ public class GraphTraverser: GraphTraversing {
                 parentPlatforms: targetsWithExternalDependency.target.supportedPlatforms
             )
         }
-        let allLocalPakcageTestTargets = allLocalPackageTargets()
+        let allLocalPackageTestTargets = allLocalPackageTargets()
             .filter { $0.target.product == .unitTests || $0.target.product == .uiTests }
-        for testTarget in allLocalPakcageTestTargets {
+        for testTarget in allLocalPackageTestTargets {
             var supportedPlatforms = testTarget.target.supportedPlatforms
             let dependencies = directTargetDependencies(path: testTarget.path, name: testTarget.target.name)
             for dependency in dependencies {
