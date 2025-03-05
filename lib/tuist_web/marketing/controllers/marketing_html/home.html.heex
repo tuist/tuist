@@ -341,6 +341,35 @@
       </video>
     </div>
   </TuistWeb.Marketing.MarketingHomeComponents.feature>
+  <TuistWeb.Marketing.MarketingHomeComponents.feature
+    name={gettext("Tuist Registry")}
+    id="features-registry"
+    description={
+      gettext(
+        "Optimizes the resolution of Swift packages in your projects. Download only source archives of the package versions you need – saving both time and disk space, locally or on the CI."
+      )
+    }
+    traits={[
+      gettext("SwiftPM standard"),
+      gettext("All open source Swift packages")
+    ]}
+  >
+    <:logo :let={%{class: class}}>
+      <TuistWeb.Marketing.MarketingComponents.app_lifecycle_measure_artwork class={class} />
+    </:logo>
+    <div class="marketing__home__section__features__feature__registry">
+      <TuistWeb.Marketing.MarketingHomeComponents.feature_registry_row_1 class="marketing__home__section__features__feature__registry__artwork" />
+      <TuistWeb.Marketing.MarketingHomeComponents.feature_registry_row_1_small_viewport
+        class="marketing__home__section__features__feature__registry__artwork"
+        data_small_view_port
+      />
+      <TuistWeb.Marketing.MarketingHomeComponents.feature_registry_row_2 class="marketing__home__section__features__feature__registry__artwork" />
+      <TuistWeb.Marketing.MarketingHomeComponents.feature_registry_row_2_small_viewport
+        class="marketing__home__section__features__feature__registry__artwork"
+        data_small_view_port
+      />
+    </div>
+  </TuistWeb.Marketing.MarketingHomeComponents.feature>
 </div>
 <!-- Testimonials section -->
 <div class="marketing__home__section__testimonials">

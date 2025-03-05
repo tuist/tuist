@@ -422,6 +422,32 @@
   }
 }
 
+.marketing__home__section__features__feature__registry {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-16);
+}
+
+.marketing__home__section__features__feature__registry__artwork {
+  display: block;
+
+  &[data_small_view_port] {
+    display: none;
+  }
+
+  @media (max-width: 1024px) {
+    &[data_small_view_port] {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+
+    &:not([data_small_view_port]) {
+      display: none;
+    }
+  }
+}
+
 .marketing__home__section__testimonials {
   background: linear-gradient(to bottom, white, var(--lime));
   display: flex;
