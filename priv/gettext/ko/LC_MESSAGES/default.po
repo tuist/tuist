@@ -10,7 +10,7 @@ msgstr ""
 "Project-Id-Version: tuist-website\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Language-Team: Korean\n"
-"PO-Revision-Date: 2025-03-03 12:48\n"
+"PO-Revision-Date: 2025-03-04 07:31\n"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:389
 #, elixir-autogen, elixir-format
@@ -1082,7 +1082,7 @@ msgstr "모듈 해시"
 #: lib/tuist_web/live/project_test_case_detail_live.html.heex:11
 #, elixir-autogen, elixir-format
 msgid "Module: %{module_name}"
-msgstr ""
+msgstr "모듈:  %{module_name}"
 
 #: lib/tuist_web/marketing/components/marketing_components.ex:353
 #, elixir-autogen, elixir-format
@@ -1202,17 +1202,17 @@ msgstr ""
 #: lib/tuist_web/live/user_registration_live.ex:48
 #, elixir-autogen, elixir-format
 msgid "Password"
-msgstr ""
+msgstr "비밀번호"
 
 #: lib/tuist_web/live/user_reset_password_live.ex:65
 #, elixir-autogen, elixir-format
 msgid "Password reset successfully."
-msgstr ""
+msgstr "비밀번호가 재설정되었습니다."
 
 #: lib/tuist/accounts/user.ex:76
 #, elixir-autogen, elixir-format
 msgid "Passwords don't match"
-msgstr ""
+msgstr "비밀번호가 일치하지 않습니다"
 
 #: lib/tuist/billing.ex:57
 #, elixir-autogen, elixir-format
@@ -1742,12 +1742,12 @@ msgstr ""
 #: lib/tuist_web/live/project_run_detail_live.ex:25
 #, elixir-autogen, elixir-format
 msgid "The page you are looking for doesn't exist or has been moved."
-msgstr ""
+msgstr "죄송합니다, 찾으시는 페이지가 존재하지 않거나 이동되었습니다."
 
 #: lib/tuist_web/live/layout_live.ex:49
 #, elixir-autogen, elixir-format
 msgid "The project you are looking for doesn't exist or has been moved."
-msgstr ""
+msgstr "죄송합니다, 찾으시는 프로젝트가 존재하지 않거나 이동되었습니다."
 
 #: lib/tuist_web/live/account_projects_live.html.heex:45
 #, elixir-autogen, elixir-format
@@ -1757,7 +1757,7 @@ msgstr ""
 #: lib/tuist/accounts/user_notifier.ex:110
 #, elixir-autogen, elixir-format
 msgid "To start using Tuist, verify your email and you are good to go:"
-msgstr ""
+msgstr "Tuist를 시작하기 앞서, 이메일 인증을 진행해주세요:"
 
 #: lib/tuist_web/controllers/error_html.ex:62
 #, elixir-autogen, elixir-format
@@ -1787,7 +1787,7 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:321
 #, elixir-autogen, elixir-format
 msgid "Tuist"
-msgstr ""
+msgstr "Tuist"
 
 #: lib/tuist_web/marketing/layouts/marketing.html.heex:32
 #: lib/tuist_web/marketing/layouts/marketing.html.heex:38
@@ -1978,8 +1978,8 @@ msgstr ""
 msgid "Via shared Slack channel"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:435
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:452
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:434
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:451
 #, elixir-autogen, elixir-format
 msgid "View all"
 msgstr ""
@@ -2032,7 +2032,7 @@ msgstr ""
 #: lib/tuist_web/controllers/error_html.ex:41
 #, elixir-autogen, elixir-format
 msgid "We can't find that page."
-msgstr ""
+msgstr "페이지를 찾을 수 없습니다."
 
 #: lib/tuist_web/live/accept_invitation_live.ex:37
 #, elixir-autogen, elixir-format
