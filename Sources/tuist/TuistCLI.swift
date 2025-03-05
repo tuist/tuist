@@ -52,6 +52,13 @@ struct CLIUI: Noorable {
     let noora = Noora()
     let isQuiet: Bool = ProcessInfo.processInfo.environment[Constants.EnvironmentVariables.quiet] != nil
 
+    func message(_ text: TerminalText) {
+        #error(
+            "TODO: better way to format? - there is no direct method on Noora to format like mentioned here: https://noora.tuist.dev/text-styling"
+        )
+        print(text.formatted(theme: .default, terminal: Terminal()))
+    }
+
     // MARK: - Noorable
 
     func success(_ alert: SuccessAlert) {
