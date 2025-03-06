@@ -18,7 +18,7 @@ struct InspectBuildCommand: AsyncParsableCommand {
     var path: String?
 
     func run() async throws {
-        try await InspectBuildService()
+        try await InspectBuildCommandService()
             .run(
                 path: path
             )

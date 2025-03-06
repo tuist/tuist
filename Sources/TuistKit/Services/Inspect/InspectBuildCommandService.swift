@@ -8,7 +8,7 @@ import TuistLoader
 import TuistServer
 import TuistSupport
 
-enum InspectBuildServiceError: Equatable, LocalizedError {
+enum InspectBuildCommandServiceError: Equatable, LocalizedError {
     case projectNotFound(AbsolutePath)
     case noBuildLogFound(buildLogsPath: AbsolutePath, projectPath: AbsolutePath)
     case missingFullHandle
@@ -28,7 +28,7 @@ enum InspectBuildServiceError: Equatable, LocalizedError {
     }
 }
 
-struct InspectBuildService {
+struct InspectBuildCommandService {
     private let environment: Environmenting
     private let derivedDataLocator: DerivedDataLocating
     private let fileSystem: FileSysteming
@@ -71,7 +71,7 @@ struct InspectBuildService {
         path: String?
     ) async throws {
         let referenceDate = dateService.now()
-        guard let executablePath = Bundle.main.executablePath else { throw InspectBuildServiceError.executablePathMissing }
+        guard let executablePath = Bundle.main.executablePath else { throw InspectBuildCommandServiceError.executablePathMissing }
 
         if environment.tuistVariables["TUIST_INSPECT_BUILD_WAIT"] != "YES",
            environment.workspacePath != nil
@@ -97,7 +97,7 @@ struct InspectBuildService {
 
         guard try await fileSystem.exists(logManifestPlistPath)
         else {
-            throw InspectBuildServiceError.noBuildLogFound(buildLogsPath: buildLogsPath, projectPath: projectPath)
+            throw InspectBuildCommandServiceError.noBuildLogFound(buildLogsPath: buildLogsPath, projectPath: projectPath)
         }
         let xcactivityLog = try await latestXCActivityLog(
             logManifestPlistPath: logManifestPlistPath,
@@ -117,7 +117,7 @@ struct InspectBuildService {
     ) async throws {
         let config = try await configLoader
             .loadConfig(path: projectPath)
-        guard let fullHandle = config.fullHandle else { throw InspectBuildServiceError.missingFullHandle }
+        guard let fullHandle = config.fullHandle else { throw InspectBuildCommandServiceError.missingFullHandle }
         try await createBuildService.createBuild(
             fullHandle: fullHandle,
             serverURL: config.url,
@@ -152,7 +152,7 @@ struct InspectBuildService {
               (referenceDate.timeIntervalSinceReferenceDate - 10 ..< referenceDate.timeIntervalSinceReferenceDate + 10) ~=
               latestLog.timeStoppedRecording
         else {
-            throw InspectBuildServiceError.noBuildLogFound(buildLogsPath: buildLogsPath, projectPath: projectPath)
+            throw InspectBuildCommandServiceError.noBuildLogFound(buildLogsPath: buildLogsPath, projectPath: projectPath)
         }
         let logPath = buildLogsPath.appending(component: latestLog.fileName)
         return try xcactivityParser.parse(logPath)
@@ -190,7 +190,7 @@ struct InspectBuildService {
             .first {
                 return workspacePath
             } else {
-                throw InspectBuildServiceError.projectNotFound(basePath)
+                throw InspectBuildCommandServiceError.projectNotFound(basePath)
             }
         }
     }

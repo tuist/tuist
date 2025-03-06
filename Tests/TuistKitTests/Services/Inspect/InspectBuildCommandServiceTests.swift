@@ -10,8 +10,8 @@ import XcodeGraph
 
 @testable import TuistKit
 
-struct InspectBuildServiceTests {
-    private let subject: InspectBuildService
+struct InspectBuildCommandServiceTests {
+    private let subject: InspectBuildCommandService
     private let environment = MockEnvironmenting()
     private let ciChecker = MockCIChecking()
     private let configLoader = MockConfigLoading()
@@ -25,7 +25,7 @@ struct InspectBuildServiceTests {
     private let dateService = MockDateServicing()
 
     init() {
-        subject = InspectBuildService(
+        subject = InspectBuildCommandService(
             environment: environment,
             derivedDataLocator: derivedDataLocator,
             fileSystem: fileSystem,
@@ -89,7 +89,7 @@ struct InspectBuildServiceTests {
 
     @Test
     func test_createsBuild() async throws {
-        try await fileSystem.runInTemporaryDirectory(prefix: "InspectBuildServiceTests") { temporaryDirectory in
+        try await fileSystem.runInTemporaryDirectory(prefix: "InspectBuildCommandServiceTests") { temporaryDirectory in
             // Given
             let projectPath = temporaryDirectory.appending(component: "App.xcodeproj")
             given(environment)
@@ -167,7 +167,7 @@ struct InspectBuildServiceTests {
 
     @Test
     func test_createsBuild_with_path_from_cli() async throws {
-        try await fileSystem.runInTemporaryDirectory(prefix: "InspectBuildServiceTests") { temporaryDirectory in
+        try await fileSystem.runInTemporaryDirectory(prefix: "InspectBuildCommandServiceTests") { temporaryDirectory in
             // Given
             let projectPath = temporaryDirectory.appending(component: "App.xcodeproj")
             try await fileSystem.makeDirectory(at: projectPath)
@@ -203,7 +203,7 @@ struct InspectBuildServiceTests {
 
     @Test
     func test_when_no_project_exists_at_a_given_path() async throws {
-        try await fileSystem.runInTemporaryDirectory(prefix: "InspectBuildServiceTests") { temporaryDirectory in
+        try await fileSystem.runInTemporaryDirectory(prefix: "InspectBuildCommandServiceTests") { temporaryDirectory in
             // Given
             given(environment)
                 .workspacePath
@@ -211,7 +211,7 @@ struct InspectBuildServiceTests {
             // When / Then
             // When / Then
             await #expect(
-                throws: InspectBuildServiceError.projectNotFound(
+                throws: InspectBuildCommandServiceError.projectNotFound(
                     temporaryDirectory
                 )
             ) {
@@ -222,7 +222,7 @@ struct InspectBuildServiceTests {
 
     @Test
     func test_when_no_logs_exist() async throws {
-        try await fileSystem.runInTemporaryDirectory(prefix: "InspectBuildServiceTests") { temporaryDirectory in
+        try await fileSystem.runInTemporaryDirectory(prefix: "InspectBuildCommandServiceTests") { temporaryDirectory in
             // Given
             let projectPath = temporaryDirectory.appending(component: "App.xcodeproj")
             given(environment)
@@ -235,7 +235,7 @@ struct InspectBuildServiceTests {
 
             // When / Then
             await #expect(
-                throws: InspectBuildServiceError.noBuildLogFound(
+                throws: InspectBuildCommandServiceError.noBuildLogFound(
                     buildLogsPath: derivedDataPath.appending(components: "Logs", "Build"),
                     projectPath: projectPath
                 )
@@ -247,7 +247,7 @@ struct InspectBuildServiceTests {
 
     @Test
     func test_when_full_handle_not_specified() async throws {
-        try await fileSystem.runInTemporaryDirectory(prefix: "InspectBuildServiceTests") { temporaryDirectory in
+        try await fileSystem.runInTemporaryDirectory(prefix: "InspectBuildCommandServiceTests") { temporaryDirectory in
             // Given
             let projectPath = temporaryDirectory.appending(component: "App.xcodeproj")
             try await fileSystem.makeDirectory(at: projectPath)
@@ -282,7 +282,7 @@ struct InspectBuildServiceTests {
 
             // When / Then
             await #expect(
-                throws: InspectBuildServiceError.missingFullHandle
+                throws: InspectBuildCommandServiceError.missingFullHandle
             ) {
                 try await subject.run(path: projectPath.parentDirectory.pathString)
             }
