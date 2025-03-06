@@ -26,7 +26,7 @@ public enum Tuist {
 
     /// Loads and returns the graph at the given path.
     /// - parameter path: the path which graph should be loaded. If nil, the current path is used.
-    public static func graph(at path: String? = nil, format: String = "json") throws -> Graph {
+    public static func graph(at path: String? = nil) throws -> Graph {
         let temporaryDirectory = try createTemporaryDirectory()
 
         do {
