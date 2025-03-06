@@ -86,6 +86,9 @@
           "items": {
             "logging": {
               "text": "Logging"
+            },
+            "shell-completions": {
+              "text": "Shell completions"
             }
           }
         },
@@ -195,6 +198,9 @@
           "items": {
             "install-tuist": {
               "text": "Install Tuist"
+            },
+            "get-started": {
+              "text": "Get started"
             }
           }
         },

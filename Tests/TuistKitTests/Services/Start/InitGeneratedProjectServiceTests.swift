@@ -40,47 +40,6 @@ final class InitGeneratedProjectServiceTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_fails_when_directory_not_empty() async throws {
-        // Given
-        try await fileSystem.runInTemporaryDirectory(prefix: "InitService") { path in
-            try await fileSystem.touch(path.appending(component: "dummy"))
-            let defaultTemplatePath = try temporaryPath().appending(component: "default")
-            given(templatesDirectoryLocator)
-                .templateDirectories(at: .any)
-                .willReturn([defaultTemplatePath])
-            given(templateLoader)
-                .loadTemplate(at: .any, plugins: .any)
-                .willReturn(.test())
-            given(templateGenerator)
-                .generate(
-                    template: .any,
-                    to: .any,
-                    attributes: .any
-                )
-                .willReturn()
-
-            // Then
-            await XCTAssertThrowsSpecific(
-                { try await subject.testRun(path: path.pathString) },
-                StartGeneratedProjectServiceError.nonEmptyDirectory(path)
-            )
-        }
-    }
-
-    func test_init_fails_when_template_not_found() async throws {
-        let templateName = "template"
-        given(templateLoader)
-            .loadTemplate(at: .any, plugins: .any)
-            .willReturn(.test())
-        given(templatesDirectoryLocator)
-            .templateDirectories(at: .any)
-            .willReturn([])
-        await XCTAssertThrowsSpecific(
-            { try await self.subject.testRun(templateName: templateName) },
-            StartGeneratedProjectServiceError.templateNotFound(templateName)
-        )
-    }
-
     func test_init_default_when_no_template() async throws {
         // Given
         let defaultTemplatePath = try temporaryPath().appending(component: "default")

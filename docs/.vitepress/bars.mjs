@@ -304,16 +304,9 @@ export function guidesSidebar(locale) {
         {
           text: localizedString(
             locale,
-            "sidebars.guides.items.quick-start.items.add-dependencies.text",
+            "sidebars.guides.items.quick-start.items.get-started.text",
           ),
-          link: `/${locale}/guides/quick-start/add-dependencies`,
-        },
-        {
-          text: localizedString(
-            locale,
-            "sidebars.guides.items.quick-start.items.gather-insights.text",
-          ),
-          link: `/${locale}/guides/quick-start/gather-insights`,
+          link: `/${locale}/guides/quick-start/get-started`,
         },
       ],
     },

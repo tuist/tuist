@@ -285,4 +285,6 @@
 /references/project-description/typealiases/runactionoptions.simulatedlocation /en/references/project-description/typealiases/runactionoptions.simulatedlocation 301
 /references/project-description/typealiases/settingvalue.booleanliteraltype /en/references/project-description/typealiases/settingvalue.booleanliteraltype 301
 /references/project-description/typealiases/settingsdictionary /en/references/project-description/typealiases/settingsdictionary 301
+/:locale/guides/quick-start/create-a-project /:locale/guides/quick-start/get-started 301
+/:locale/guides/quick-start/optimize-workflows /:locale/guides/quick-start/get-started 301
 /en 301
