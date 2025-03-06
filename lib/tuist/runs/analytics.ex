@@ -2,9 +2,6 @@ defmodule Tuist.Runs.Analytics do
   @moduledoc """
   Module for run-related analytics, such as builds.
   """
-  alias Tuist.Xcode.XcodeProject
-  alias Tuist.Xcode.XcodeGraph
-  alias Tuist.Xcode.XcodeTarget
   alias Tuist.Runs.Build
   alias Tuist.Repo
   alias Tuist.CommandEvents.Event
@@ -298,61 +295,26 @@ defmodule Tuist.Runs.Analytics do
     start_date = opts |> Keyword.get(:start_date, Date.add(DateTime.utc_now(), -30))
     end_date = DateTime.to_date(DateTime.utc_now())
 
-    legacy_result =
-      from(
-        e in Event,
+    result =
+      from(e in Event,
         where:
           e.project_id == ^project_id and
             e.created_at > ^NaiveDateTime.new!(start_date, ~T[00:00:00]) and
             e.created_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59]),
         select: %{
-          legacy_cacheable_targets_count:
-            sum(fragment("array_length(?, 1)", e.cacheable_targets)),
-          legacy_local_cache_target_hits_count:
+          cacheable_targets_count: sum(fragment("array_length(?, 1)", e.cacheable_targets)),
+          local_cache_target_hits_count:
             sum(fragment("array_length(?, 1)", e.local_cache_target_hits)),
-          legacy_remote_cache_target_hits_count:
+          remote_cache_target_hits_count:
             sum(fragment("array_length(?, 1)", e.remote_cache_target_hits))
         }
       )
       |> add_filters(opts)
       |> Repo.one()
 
-    result =
-      from(
-        e in Event,
-        join: x in XcodeGraph,
-        on: x.command_event_id == e.id,
-        join: p in XcodeProject,
-        on: x.id == p.xcode_graph_id,
-        join: t in XcodeTarget,
-        on: p.id == t.xcode_project_id,
-        where:
-          e.project_id == ^project_id and
-            e.created_at > ^NaiveDateTime.new!(start_date, ~T[00:00:00]) and
-            e.created_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59]),
-        select: %{
-          cacheable_targets_count: count(t.id) |> filter(not is_nil(t.binary_cache_hash)),
-          local_cache_target_hits_count: count(t) |> filter(t.binary_cache_hit == :local),
-          remote_cache_target_hits_count: count(t) |> filter(t.binary_cache_hit == :remote)
-        }
-      )
-      |> add_filters(opts)
-      |> Repo.one()
-
-    compute_cache_hit_rate_from_results(legacy_result, result)
-  end
-
-  defp compute_cache_hit_rate_from_results(legacy_result, result) do
-    local_cache_target_hits_count =
-      (result.local_cache_target_hits_count || 0) +
-        (legacy_result.legacy_local_cache_target_hits_count || 0)
-
-    remote_cache_target_hits_count =
-      (result.remote_cache_target_hits_count || 0) +
-        (legacy_result.legacy_remote_cache_target_hits_count || 0)
-
-    cacheable_targets_count =
-      (result.cacheable_targets_count || 0) + (legacy_result.legacy_cacheable_targets_count || 0)
+    local_cache_target_hits_count = result.local_cache_target_hits_count || 0
+    remote_cache_target_hits_count = result.remote_cache_target_hits_count || 0
+    cacheable_targets_count = result.cacheable_targets_count || 0
 
     if cacheable_targets_count == 0 do
       0
@@ -368,10 +330,8 @@ defmodule Tuist.Runs.Analytics do
 
     time_bucket = time_bucket_for_date_period(date_period)
 
-    # Fetch legacy data from Event table
-    legacy_cache_hit_rate_metadata_map =
-      from(
-        e in Event,
+    cache_hit_rate_metadata_map =
+      from(e in Event,
         group_by: selected_as(^date_period),
         where:
           e.created_at > ^NaiveDateTime.new!(start_date, ~T[00:00:00]) and
@@ -379,54 +339,24 @@ defmodule Tuist.Runs.Analytics do
             e.project_id == ^project_id,
         select: %{
           date: selected_as(time_bucket(e.created_at, ^time_bucket), ^date_period),
-          legacy_cacheable_targets_count:
-            sum(fragment("array_length(?, 1)", e.cacheable_targets)),
-          legacy_local_cache_target_hits_count:
-            sum(fragment("array_length(?, 1)", e.local_cache_target_hits)),
-          legacy_remote_cache_target_hits_count:
+          cacheable_targets: sum(fragment("array_length(?, 1)", e.cacheable_targets)),
+          local_cache_target_hits: sum(fragment("array_length(?, 1)", e.local_cache_target_hits)),
+          remote_cache_target_hits:
             sum(fragment("array_length(?, 1)", e.remote_cache_target_hits))
         }
       )
       |> add_filters(opts)
       |> Repo.all()
-      |> Map.new(&{normalise_date(&1.date, date_period), &1})
-
-    # Fetch new data from XcodeTarget table
-    new_cache_hit_rate_metadata_map =
-      from(
-        e in Event,
-        join: x in XcodeGraph,
-        on: x.command_event_id == e.id,
-        join: p in XcodeProject,
-        on: x.id == p.xcode_graph_id,
-        join: t in XcodeTarget,
-        on: p.id == t.xcode_project_id,
-        group_by: selected_as(^date_period),
-        where:
-          e.created_at > ^NaiveDateTime.new!(start_date, ~T[00:00:00]) and
-            e.created_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59]) and
-            e.project_id == ^project_id,
-        select: %{
-          date: selected_as(time_bucket(e.created_at, ^time_bucket), ^date_period),
-          cacheable_targets_count: count(t.id) |> filter(not is_nil(t.binary_cache_hash)),
-          local_cache_target_hits_count: count(t) |> filter(t.binary_cache_hit == :local),
-          remote_cache_target_hits_count: count(t) |> filter(t.binary_cache_hit == :remote)
-        }
+      |> Map.new(
+        &{normalise_date(&1.date, date_period),
+         %{
+           cacheable_targets: &1.cacheable_targets,
+           local_cache_target_hits: &1.local_cache_target_hits,
+           remote_cache_target_hits: &1.remote_cache_target_hits
+         }}
       )
-      |> add_filters(opts)
-      |> Repo.all()
-      |> Map.new(&{normalise_date(&1.date, date_period), &1})
-
-    # Merge legacy and new data
-    cache_hit_rate_metadata_map =
-      merge_metadata_maps(legacy_cache_hit_rate_metadata_map, new_cache_hit_rate_metadata_map)
 
     date_range_for_date_period(date_period, start_date: start_date, end_date: end_date)
-    |> add_missing_dates(cache_hit_rate_metadata_map)
-  end
-
-  defp add_missing_dates(date_range, cache_hit_rate_metadata_map) do
-    date_range
     |> Enum.map(fn date ->
       cache_hit_rate_metadata = Map.get(cache_hit_rate_metadata_map, date)
 
@@ -446,41 +376,6 @@ defmodule Tuist.Runs.Analytics do
         }
       end
     end)
-  end
-
-  defp merge_metadata_maps(legacy_cache_hit_rate_metadata_map, cache_hit_rate_metadata_map) do
-    Enum.uniq(
-      Map.keys(legacy_cache_hit_rate_metadata_map) ++ Map.keys(cache_hit_rate_metadata_map)
-    )
-    |> Enum.map(fn date ->
-      legacy_data =
-        Map.get(legacy_cache_hit_rate_metadata_map, date, %{
-          legacy_cacheable_targets_count: 0,
-          legacy_local_cache_target_hits_count: 0,
-          legacy_remote_cache_target_hits_count: 0
-        })
-
-      new_data =
-        Map.get(cache_hit_rate_metadata_map, date, %{
-          cacheable_targets_count: 0,
-          local_cache_target_hits_count: 0,
-          remote_cache_target_hits_count: 0
-        })
-
-      {date,
-       %{
-         cacheable_targets:
-           (legacy_data.legacy_cacheable_targets_count || 0) +
-             (new_data.cacheable_targets_count || 0),
-         local_cache_target_hits:
-           (legacy_data.legacy_local_cache_target_hits_count || 0) +
-             (new_data.local_cache_target_hits_count || 0),
-         remote_cache_target_hits:
-           (legacy_data.legacy_remote_cache_target_hits_count || 0) +
-             (new_data.remote_cache_target_hits_count || 0)
-       }}
-    end)
-    |> Map.new()
   end
 
   def total_execution_period_average_duration(%{
