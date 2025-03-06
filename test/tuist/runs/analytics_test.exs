@@ -4,6 +4,7 @@ defmodule Tuist.Runs.AnalyticsTest do
   alias TuistTestSupport.Fixtures.RunsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
+  alias TuistTestSupport.Fixtures.XcodeFixtures
   alias Tuist.Runs.Analytics
 
   describe "builds_duration_analytics/2" do
@@ -314,6 +315,63 @@ defmodule Tuist.Runs.AnalyticsTest do
 
   describe "cache_hit_rate_analytics/4" do
     test "returns cache hit rates for the last three days" do
+      DateTime
+      |> stub(:utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+
+      project = ProjectsFixtures.project_fixture()
+
+      command_event =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          name: "generate",
+          created_at: ~N[2024-04-30 03:00:00]
+        )
+
+      xcode_graph = XcodeFixtures.xcode_graph_fixture(command_event_id: command_event.id)
+      xcode_project_one = XcodeFixtures.xcode_project_fixture(xcode_graph_id: xcode_graph.id)
+
+      XcodeFixtures.xcode_target_fixture(
+        xcode_project_id: xcode_project_one.id,
+        name: "A",
+        binary_cache_hit: :local,
+        binary_cache_hash: "hash-a"
+      )
+
+      XcodeFixtures.xcode_target_fixture(
+        xcode_project_id: xcode_project_one.id,
+        name: "B",
+        binary_cache_hit: :remote,
+        binary_cache_hash: "hash-b"
+      )
+
+      XcodeFixtures.xcode_target_fixture(
+        xcode_project_id: xcode_project_one.id,
+        name: "C",
+        binary_cache_hit: :miss,
+        binary_cache_hash: "hash-c"
+      )
+
+      XcodeFixtures.xcode_target_fixture(
+        xcode_project_id: xcode_project_one.id,
+        name: "D",
+        binary_cache_hit: :miss,
+        binary_cache_hash: "hash-d"
+      )
+
+      # When
+      got =
+        Analytics.cache_hit_rate_analytics(
+          project_id: project.id,
+          start_date: Date.add(DateTime.utc_now(), -2),
+          end_date: DateTime.to_date(DateTime.utc_now())
+        )
+
+      # Then
+      assert got.values == [0, 0, 0.5]
+      assert got.cache_hit_rate == 0.5
+    end
+
+    test "returns cache hit rates for the last three days with legacy data" do
       # Given
       DateTime
       |> stub(:utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
