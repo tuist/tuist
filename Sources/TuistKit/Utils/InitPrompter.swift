@@ -7,17 +7,23 @@ struct InitPromptAnswers: Codable {
     let integrateWithServer: Bool
     let generatedProjectPlatform: String
     let generatedProjectName: String
+    let accountType: InitPromptingAccountType
+    let newOrganizationAccountHandle: String
 
     public init(
         workflowType: InitPromptingWorkflowType,
         integrateWithServer: Bool,
         generatedProjectPlatform: String,
-        generatedProjectName: String
+        generatedProjectName: String,
+        accountType: InitPromptingAccountType,
+        newOrganizationAccountHandle: String
     ) {
         self.workflowType = workflowType
         self.integrateWithServer = integrateWithServer
         self.generatedProjectPlatform = generatedProjectPlatform
         self.generatedProjectName = generatedProjectName
+        self.accountType = accountType
+        self.newOrganizationAccountHandle = newOrganizationAccountHandle
     }
 
     func base64EncodedJSONString() throws -> String {
@@ -38,15 +44,50 @@ enum InitPromptingWorkflowType: Codable, Equatable, CustomStringConvertible {
     }
 }
 
+enum InitPromptingAccountType: Codable, Equatable, CustomStringConvertible {
+    case userAccount(String)
+    case createOrganizationAccount
+
+    var description: String {
+        switch self {
+        case let .userAccount(handle): "My personal account: '\(handle)'"
+        case .createOrganizationAccount: "A new organization account"
+        }
+    }
+}
+
 @Mockable
 protocol InitPrompting {
     func promptWorkflowType(xcodeProjectOrWorkspace: InitService.XcodeProjectOrWorkspace?) -> InitPromptingWorkflowType
     func promptIntegrateWithServer() -> Bool
+    func promptAccountType(authenticatedUserHandle: String) -> InitPromptingAccountType
+    func promptNewOrganizationAccountHandle() -> String
     func promptGeneratedProjectPlatform() -> String
     func promptGeneratedProjectName() -> String
 }
 
 struct InitPrompter: InitPrompting {
+    func promptAccountType(authenticatedUserHandle: String) -> InitPromptingAccountType {
+        var promptOptions = [
+            InitPromptingAccountType.userAccount(authenticatedUserHandle),
+            InitPromptingAccountType.createOrganizationAccount,
+        ]
+        return (ServiceContext.current?.ui?.singleChoicePrompt(
+            title: "Account",
+            question: "In which account would you like to create the project?",
+            options: promptOptions
+        ))!
+    }
+
+    func promptNewOrganizationAccountHandle() -> String {
+        (ServiceContext.current?.ui?.textPrompt(
+            title: "Organization handle",
+            prompt: "Which handle would you like to use for the new organization account?",
+            description: "We recommend hyphened lower-cased handles (e.g. my-organization)",
+            collapseOnAnswer: true
+        ))!
+    }
+
     func promptWorkflowType(xcodeProjectOrWorkspace: InitService.XcodeProjectOrWorkspace?) -> InitPromptingWorkflowType {
         var promptOptions = [
             InitPromptingWorkflowType.createGeneratedProject,

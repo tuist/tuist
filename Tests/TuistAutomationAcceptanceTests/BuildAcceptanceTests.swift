@@ -16,7 +16,9 @@ final class BuildAcceptanceTestWithTemplates: TuistAcceptanceTestCase {
                     workflowType: .createGeneratedProject,
                     integrateWithServer: false,
                     generatedProjectPlatform: "ios",
-                    generatedProjectName: "MyApp"
+                    generatedProjectName: "MyApp",
+                    accountType: .createOrganizationAccount,
+                    newOrganizationAccountHandle: "organization"
                 )
                 try await run(
                     InitCommand.self,
@@ -45,7 +47,9 @@ final class BuildAcceptanceTestInvalidArguments: TuistAcceptanceTestCase {
                     workflowType: .createGeneratedProject,
                     integrateWithServer: false,
                     generatedProjectPlatform: "ios",
-                    generatedProjectName: "MyApp"
+                    generatedProjectName: "MyApp",
+                    accountType: .createOrganizationAccount,
+                    newOrganizationAccountHandle: "organization"
                 )
                 try await run(
                     InitCommand.self,

@@ -10,9 +10,11 @@ public struct InitService {
     private let prompter: InitPrompting
     private let loginService: LoginServicing
     private let createProjectService: CreateProjectServicing
+    private let createOrganizationService: CreateOrganizationServicing
     private let serverSessionController: ServerSessionControlling
-    private let startGeneratedProjectService: InitGeneratedProjectServicing
+    private let initGeneratedProjectService: InitGeneratedProjectServicing
     private let keystrokeListener: KeyStrokeListening
+    private let getProjectService: GetProjectServicing
 
     enum XcodeProjectOrWorkspace: Hashable, Equatable {
         case workspace(AbsolutePath)
@@ -46,35 +48,54 @@ public struct InitService {
         loginService: LoginServicing = LoginService(),
         createProjectService: CreateProjectServicing = CreateProjectService(),
         serverSessionController: ServerSessionControlling = ServerSessionController(),
-        startGeneratedProjectService: InitGeneratedProjectServicing = InitGeneratedProjectService(),
-        keystrokeListener: KeyStrokeListening = KeyStrokeListener()
+        initGeneratedProjectService: InitGeneratedProjectServicing = InitGeneratedProjectService(),
+        keystrokeListener: KeyStrokeListening = KeyStrokeListener(),
+        createOrganizationService: CreateOrganizationServicing = CreateOrganizationService(),
+        getProjectService: GetProjectServicing = GetProjectService()
     ) {
         self.fileSystem = fileSystem
         self.prompter = prompter
         self.loginService = loginService
         self.createProjectService = createProjectService
         self.serverSessionController = serverSessionController
-        self.startGeneratedProjectService = startGeneratedProjectService
+        self.initGeneratedProjectService = initGeneratedProjectService
         self.keystrokeListener = keystrokeListener
+        self.createOrganizationService = createOrganizationService
+        self.getProjectService = getProjectService
     }
 
     func run(from directory: AbsolutePath, answers: InitPromptAnswers?) async throws {
         let tuistSwiftLine: String
         let projectDirectory: AbsolutePath
 
+        var nextSteps: [TerminalText] = []
+
         switch try await nameOfXcodeProjectOrWorkspace(in: directory, answers: answers) {
         case .createGeneratedProject:
+            nextSteps.append("Generate your project with \(.command("tuist generate"))")
+            nextSteps.append("Visualize your project graph with \(.command("tuist graph"))")
+
             let name = answers?.generatedProjectName ?? prompter.promptGeneratedProjectName()
             let platform = answers?.generatedProjectPlatform ?? prompter.promptGeneratedProjectPlatform()
             projectDirectory = try await createGeneratedProject(at: directory, name: name, platform: platform)
-            if let fullHandle = try await integrateWithXcodeProjectOrWorkspace(named: name, in: directory, answers: answers) {
+            if let fullHandle = try await integrateWithXcodeProjectOrWorkspace(
+                named: name,
+                in: directory,
+                answers: answers,
+                nextSteps: &nextSteps
+            ) {
                 tuistSwiftLine = "let tuist = Tuist(fullHandle: \"\(fullHandle)\", project: .tuist())"
             } else {
                 tuistSwiftLine = "let tuist = Tuist(project: .tuist())"
             }
         case let .integrateWithProjectOrWorkspace(name):
             projectDirectory = directory
-            if let fullHandle = try await integrateWithXcodeProjectOrWorkspace(named: name, in: directory, answers: answers) {
+            if let fullHandle = try await integrateWithXcodeProjectOrWorkspace(
+                named: name,
+                in: directory,
+                answers: answers,
+                nextSteps: &nextSteps
+            ) {
                 tuistSwiftLine = "let tuist = Tuist(fullHandle: \"\(fullHandle)\", project: .xcode())"
             } else {
                 tuistSwiftLine = "let tuist = Tuist(project: .xcode())"
@@ -92,12 +113,7 @@ public struct InitService {
         }
         try await fileSystem.writeText(tuistSwiftFileContent, at: tuistSwiftFilePath)
 
-        ServiceContext.current?.alerts?.success(.alert("You are all set to explore the Tuist universe", nextSteps: [
-            "Accelerate your builds with the \(.link(title: "cache", href: "https://docs.tuist.dev/en/guides/develop/cache"))",
-            "Accelerate your test runs with \(.link(title: "selective testing", href: "https://docs.tuist.dev/en/guides/develop/selective-testing"))",
-            "Accelerate your Swift package resolution with \(.link(title: "the registry", href: "https://docs.tuist.dev/en/guides/develop/registry"))",
-            "Share your app easily with \(.link(title: "previews", href: "https://docs.tuist.dev/en/guides/share/previews"))",
-        ]))
+        ServiceContext.current?.alerts?.success(.alert("You are all set to explore the Tuist universe", nextSteps: nextSteps))
     }
 
     private func createGeneratedProject(at directory: AbsolutePath, name: String, platform: String) async throws -> AbsolutePath {
@@ -111,7 +127,7 @@ public struct InitService {
                 if !(try await fileSystem.exists(projectDirectory)) {
                     try await fileSystem.makeDirectory(at: projectDirectory)
                 }
-                try await startGeneratedProjectService.run(
+                try await initGeneratedProjectService.run(
                     name: name,
                     platform: platform,
                     path: projectDirectory.pathString,
@@ -125,7 +141,8 @@ public struct InitService {
     private func integrateWithXcodeProjectOrWorkspace(
         named projectHandle: String,
         in directory: AbsolutePath,
-        answers: InitPromptAnswers?
+        answers: InitPromptAnswers?,
+        nextSteps: inout [TerminalText]
     ) async throws -> String? {
         let integrateWithServer = answers?.integrateWithServer ?? prompter.promptIntegrateWithServer()
         if integrateWithServer {
@@ -158,24 +175,54 @@ public struct InitService {
                     }
                 )
             }
-
-            let accountHandle = try await serverSessionController.whoami(serverURL: Constants.URLs.production)!
-            let fullHandle = "\(accountHandle)/\(projectHandle)"
-
+            let fullHandle = "\(try await accountHandle(answers: answers))/\(projectHandle)"
             try await ServiceContext.current?.ui?.progressStep(
                 message: "Creating Tuist project",
                 successMessage: "Project connected",
                 errorMessage: "Project connection failed",
                 showSpinner: true,
                 task: { _ in
-                    _ = try await createProjectService.createProject(fullHandle: fullHandle, serverURL: Constants.URLs.production)
+                    if (try? await getProjectService.getProject(fullHandle: fullHandle, serverURL: Constants.URLs.production)) ==
+                        nil
+                    {
+                        _ = try await createProjectService.createProject(
+                            fullHandle: fullHandle,
+                            serverURL: Constants.URLs.production
+                        )
+                    }
                 }
             )
 
+            nextSteps.append(contentsOf: [
+                "Accelerate your builds with the \(.link(title: "cache", href: "https://docs.tuist.dev/en/guides/develop/cache"))",
+                "Accelerate your test runs with \(.link(title: "selective testing", href: "https://docs.tuist.dev/en/guides/develop/selective-testing"))",
+                "Accelerate your Swift package resolution with \(.link(title: "the registry", href: "https://docs.tuist.dev/en/guides/develop/registry"))",
+                "Share your app easily with \(.link(title: "previews", href: "https://docs.tuist.dev/en/guides/share/previews"))",
+            ])
+
             return fullHandle
+        } else {
+            nextSteps.append(contentsOf: [
+                "Learn more about how our \(.link(title: "platform capabilities", href: "https://docs.tuist.dev/en/"))",
+            ])
         }
 
         return nil
+    }
+
+    private func accountHandle(answers: InitPromptAnswers?) async throws -> String {
+        let accountHandle = try await serverSessionController.whoami(serverURL: Constants.URLs.production)!
+        switch answers?.accountType ?? prompter.promptAccountType(authenticatedUserHandle: accountHandle) {
+        case .createOrganizationAccount:
+            let organizationHandle = answers?.newOrganizationAccountHandle ?? prompter.promptNewOrganizationAccountHandle()
+            _ = try await createOrganizationService.createOrganization(
+                name: organizationHandle,
+                serverURL: Constants.URLs.production
+            )
+            return organizationHandle
+        case let .userAccount(handle):
+            return handle
+        }
     }
 
     private func nameOfXcodeProjectOrWorkspace(

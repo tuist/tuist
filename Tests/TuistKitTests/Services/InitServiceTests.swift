@@ -28,6 +28,8 @@ struct InitServiceTests {
     private let serverSessionController = MockServerSessionControlling()
     private let startGeneratedProjectService = InitGeneratedProjectService()
     private let keystrokeListener = MockKeyStrokeListening()
+    private let createOrganizationService = MockCreateOrganizationServicing()
+    private let getProjectService = MockGetProjectServicing()
     private let subject: InitService
 
     init() {
@@ -37,8 +39,10 @@ struct InitServiceTests {
             loginService: loginService,
             createProjectService: createProjectService,
             serverSessionController: serverSessionController,
-            startGeneratedProjectService: startGeneratedProjectService,
-            keystrokeListener: keystrokeListener
+            initGeneratedProjectService: startGeneratedProjectService,
+            keystrokeListener: keystrokeListener,
+            createOrganizationService: createOrganizationService,
+            getProjectService: getProjectService
         )
     }
 
@@ -48,12 +52,22 @@ struct InitServiceTests {
             given(prompter).promptGeneratedProjectName().willReturn("Test")
             given(prompter).promptIntegrateWithServer().willReturn(true)
             given(prompter).promptGeneratedProjectPlatform().willReturn("ios")
+            given(prompter).promptAccountType(authenticatedUserHandle: .value("account")).willReturn(.createOrganizationAccount)
+            given(prompter).promptNewOrganizationAccountHandle().willReturn("organization")
+            given(createOrganizationService).createOrganization(
+                name: .value("organization"),
+                serverURL: .value(Constants.URLs.production)
+            ).willReturn(.test())
             given(loginService).run(email: .value(nil), password: .value(nil), directory: .any, onEvent: .any).willReturn()
             given(serverSessionController).whoami(serverURL: .value(Constants.URLs.production)).willReturn("account")
-            given(createProjectService).createProject(
-                fullHandle: .value("account/Test"),
+            given(getProjectService).getProject(
+                fullHandle: .value("organization/Test"),
                 serverURL: .value(Constants.URLs.production)
-            ).willReturn(.test(fullName: "account/Test"))
+            ).willReturn(.test(fullName: "organization/Test"))
+            given(createProjectService).createProject(
+                fullHandle: .value("organization/Test"),
+                serverURL: .value(Constants.URLs.production)
+            ).willReturn(.test(fullName: "organization/Test"))
 
             try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
                 // When
@@ -67,7 +81,7 @@ struct InitServiceTests {
                 #expect(tuistSwift == """
                 import ProjectDescription
 
-                let tuist = Tuist(fullHandle: "account/Test", project: .tuist())
+                let tuist = Tuist(fullHandle: "organization/Test", project: .tuist())
                 """)
             }
         }
@@ -104,8 +118,13 @@ struct InitServiceTests {
             given(prompter).promptWorkflowType(xcodeProjectOrWorkspace: .any)
                 .willReturn(.integrateWithProjectOrWorkspace(projectName))
             given(prompter).promptIntegrateWithServer().willReturn(true)
+            given(prompter).promptAccountType(authenticatedUserHandle: .value("account")).willReturn(.userAccount("account"))
             given(loginService).run(email: .value(nil), password: .value(nil), directory: .any, onEvent: .any).willReturn()
             given(serverSessionController).whoami(serverURL: .value(Constants.URLs.production)).willReturn("account")
+            given(getProjectService).getProject(
+                fullHandle: .value("account/\(projectName)"),
+                serverURL: .value(Constants.URLs.production)
+            ).willReturn(.test(fullName: "account/\(projectName)"))
             given(createProjectService).createProject(
                 fullHandle: .value("account/\(projectName)"),
                 serverURL: .value(Constants.URLs.production)
