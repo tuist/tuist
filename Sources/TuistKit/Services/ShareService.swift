@@ -185,7 +185,7 @@ struct ShareService {
 
             let configuration = try defaultConfigurationFetcher.fetch(
                 configuration: configuration,
-                config: config,
+                defaultConfiguration: config.project.generatedProject?.generationOptions.defaultConfiguration,
                 graph: graph
             )
 

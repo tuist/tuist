@@ -121,7 +121,11 @@ final class ScaffoldService {
 
     private func loadPlugins(at path: AbsolutePath) async throws -> Plugins {
         let config = try await configLoader.loadConfig(path: path)
-        return try await pluginService.loadPlugins(using: config)
+        if let configGeneratedProjectOptions = config.project.generatedProject {
+            return try await pluginService.loadPlugins(using: configGeneratedProjectOptions)
+        } else {
+            return Plugins(projectDescriptionHelpers: [], templatePaths: [], resourceSynthesizers: [])
+        }
     }
 
     /// Parses all `attributes` from `template`

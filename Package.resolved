@@ -1,5 +1,5 @@
 {
-  "originHash" : "c12bb00476dce5a1346539d60c0bbe6d0ec728e94be5c8f213b64ac6a128a7b5",
+  "originHash" : "7fad09aa1b4f2e5cbd1ef857f277c55ba87a9c4f5e069f38b051fa777c0d894e",
   "pins" : [
     {
       "identity" : "aexml",
@@ -114,8 +114,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/p-x9/MachOKit",
       "state" : {
-        "revision" : "30b56f12a448137123c17b4f9b67ee867baecc86",
-        "version" : "0.29.0"
+        "revision" : "7ea55264554310709a4669091be21e5b5423aa44",
+        "version" : "0.29.1"
       }
     },
     {
@@ -236,15 +236,6 @@
       }
     },
     {
-      "identity" : "swift-asn1",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/apple/swift-asn1.git",
-      "state" : {
-        "revision" : "ae33e5941bb88d88538d0a6b19ca0b01e6c76dcf",
-        "version" : "1.3.1"
-      }
-    },
-    {
       "identity" : "swift-atomics",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-atomics.git",
@@ -260,15 +251,6 @@
       "state" : {
         "revision" : "671108c96644956dddcd89dd59c203dcdb36cec7",
         "version" : "1.1.4"
-      }
-    },
-    {
-      "identity" : "swift-crypto",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/apple/swift-crypto.git",
-      "state" : {
-        "revision" : "45305d32cfb830faebcaa9a7aea66ad342637518",
-        "version" : "3.11.1"
       }
     },
     {
@@ -411,8 +393,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/XcodeGraph.git",
       "state" : {
-        "revision" : "b4a3d49b88b15e558cf3cb04f9fa1e4779d13d6c",
-        "version" : "1.8.4"
+        "revision" : "40a1d9a5dc7c610ec1d433a40e36abbb01d751d8",
+        "version" : "1.8.8"
       }
     },
     {
@@ -420,8 +402,17 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/XcodeProj",
       "state" : {
-        "revision" : "7cb7fbe091b3feb087bb179c445fb96b4fa10982",
-        "version" : "8.27.2"
+        "revision" : "02bc2dd6224aa59147941d85fdc45a7677af62f6",
+        "version" : "8.27.3"
+      }
+    },
+    {
+      "identity" : "xcresultkit",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/davidahouse/XCResultKit",
+      "state" : {
+        "revision" : "d49890579f3fd10253ae3d4ba056b89e76ea971e",
+        "version" : "1.2.2"
       }
     },
     {

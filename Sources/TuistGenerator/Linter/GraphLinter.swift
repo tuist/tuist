@@ -6,7 +6,8 @@ import TuistSupport
 import XcodeGraph
 
 public protocol GraphLinting: AnyObject {
-    func lint(graphTraverser: GraphTraversing, config: Config) async throws -> [LintingIssue]
+    func lint(graphTraverser: GraphTraversing, configGeneratedProjectOptions: TuistGeneratedProjectOptions) async throws
+        -> [LintingIssue]
 }
 
 // swiftlint:disable type_body_length
@@ -40,7 +41,10 @@ public class GraphLinter: GraphLinting {
 
     // MARK: - GraphLinting
 
-    public func lint(graphTraverser: GraphTraversing, config: Config) async throws -> [LintingIssue] {
+    public func lint(
+        graphTraverser: GraphTraversing,
+        configGeneratedProjectOptions: TuistGeneratedProjectOptions
+    ) async throws -> [LintingIssue] {
         var issues: [LintingIssue] = []
         try await issues.append(
             contentsOf: graphTraverser.projects.concurrentMap { _, project async throws -> [LintingIssue] in
@@ -48,7 +52,10 @@ public class GraphLinter: GraphLinting {
             }
             .flatMap { $0 }
         )
-        try await issues.append(contentsOf: lintDependencies(graphTraverser: graphTraverser, config: config))
+        try await issues.append(contentsOf: lintDependencies(
+            graphTraverser: graphTraverser,
+            configGeneratedProjectOptions: configGeneratedProjectOptions
+        ))
         issues.append(contentsOf: lintMismatchingConfigurations(graphTraverser: graphTraverser))
         issues.append(contentsOf: lintWatchBundleIndentifiers(graphTraverser: graphTraverser))
         issues.append(contentsOf: lintCodeCoverageMode(graphTraverser: graphTraverser))
@@ -122,13 +129,19 @@ public class GraphLinter: GraphLinting {
         }
     }
 
-    private func lintDependencies(graphTraverser: GraphTraversing, config: Config) async throws -> [LintingIssue] {
+    private func lintDependencies(
+        graphTraverser: GraphTraversing,
+        configGeneratedProjectOptions: TuistGeneratedProjectOptions
+    ) async throws -> [LintingIssue] {
         var issues: [LintingIssue] = []
 
         issues.append(contentsOf: lintDuplicatedProductNamesInDependencies(graphTraverser: graphTraverser))
         issues.append(contentsOf: lintDependencyRelationships(graphTraverser: graphTraverser))
         issues.append(contentsOf: lintLinkableDependencies(graphTraverser: graphTraverser))
-        issues.append(contentsOf: staticProductsLinter.lint(graphTraverser: graphTraverser, config: config))
+        issues.append(contentsOf: staticProductsLinter.lint(
+            graphTraverser: graphTraverser,
+            configGeneratedProjectOptions: configGeneratedProjectOptions
+        ))
         try await issues.append(contentsOf: lintPrecompiledFrameworkDependencies(graphTraverser: graphTraverser))
         await issues.append(contentsOf: lintPackageDependencies(graphTraverser: graphTraverser))
         try await issues.append(contentsOf: lintAppClip(graphTraverser: graphTraverser))

@@ -42,7 +42,7 @@ final class LintImplicitImportsServiceTests: TuistUnitTestCase {
     func test_run_throwsAnError_when_thereAreIssues() async throws {
         // Given
         let path = try AbsolutePath(validating: "/project")
-        let config = Config.test()
+        let config = Tuist.test()
         let app = Target.test(name: "App", product: .app)
         let framework = Target.test(name: "Framework", product: .framework)
         let project = Project.test(path: path, targets: [app, framework])
@@ -63,7 +63,7 @@ final class LintImplicitImportsServiceTests: TuistUnitTestCase {
     func test_run_when_external_package_target_is_implicitly_imported() async throws {
         // Given
         let path = try AbsolutePath(validating: "/project")
-        let config = Config.test()
+        let config = Tuist.test()
         let app = Target.test(name: "App", product: .app)
         let project = Project.test(path: path, targets: [app])
         let testTarget = Target.test(name: "PackageTarget", product: .app)
@@ -87,7 +87,7 @@ final class LintImplicitImportsServiceTests: TuistUnitTestCase {
     func test_run_when_external_package_target_is_explicitly_imported() async throws {
         // Given
         let path = try AbsolutePath(validating: "/project")
-        let config = Config.test()
+        let config = Tuist.test()
         let app = Target.test(name: "App", product: .app)
         let project = Project.test(path: path, targets: [app])
         let testTarget = Target.test(name: "PackageTarget", product: .app)
@@ -113,7 +113,7 @@ final class LintImplicitImportsServiceTests: TuistUnitTestCase {
     func test_run_when_external_package_target_is_recursively_imported() async throws {
         // Given
         let path = try AbsolutePath(validating: "/project")
-        let config = Config.test()
+        let config = Tuist.test()
         let app = Target.test(name: "App", product: .app)
         let project = Project.test(path: path, targets: [app])
         let testTarget = Target.test(name: "PackageTarget", product: .app)
@@ -149,7 +149,7 @@ final class LintImplicitImportsServiceTests: TuistUnitTestCase {
     func test_run_doesntThrowAnyErrors_when_thereAreNoIssues() async throws {
         // Given
         let path = try AbsolutePath(validating: "/project")
-        let config = Config.test()
+        let config = Tuist.test()
         let app = Target.test(name: "App", product: .app)
         let framework = Target.test(name: "Framework", product: .framework)
         let project = Project.test(path: path, targets: [app, framework])

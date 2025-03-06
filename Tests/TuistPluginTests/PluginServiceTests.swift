@@ -71,7 +71,7 @@ final class PluginServiceTests: TuistUnitTestCase {
         let pluginCGitURL = "https://url/to/repo/c.git"
         let pluginCGitTag = "abc"
         let pluginCFingerprint = "\(pluginCGitURL)-\(pluginCGitTag)".md5
-        let config = mockConfig(
+        let generatedProjectsOptions = mockConfigGeneratedProjectOptions(
             plugins: [
                 .git(url: pluginAGitURL, gitReference: .sha(pluginAGitSha), directory: nil, releaseUrl: nil),
                 .git(url: pluginBGitURL, gitReference: .tag(pluginBGitTag), directory: nil, releaseUrl: nil),
@@ -92,7 +92,7 @@ final class PluginServiceTests: TuistUnitTestCase {
         )
 
         // When
-        let remotePluginPaths = try await subject.remotePluginPaths(using: config)
+        let remotePluginPaths = try await subject.remotePluginPaths(using: generatedProjectsOptions)
 
         // Then
         XCTAssertEqual(
@@ -120,7 +120,7 @@ final class PluginServiceTests: TuistUnitTestCase {
         let pluginGitURL = "https://url/to/repo.git"
         let pluginGitSha = "abc"
         let pluginFingerprint = "\(pluginGitURL)-\(pluginGitSha)".md5
-        let config = mockConfig(
+        let config = mockConfigGeneratedProjectOptions(
             plugins: [
                 .git(url: pluginGitURL, gitReference: .sha(pluginGitSha), directory: nil, releaseUrl: nil),
             ]
@@ -164,7 +164,7 @@ final class PluginServiceTests: TuistUnitTestCase {
         let pluginGitURL = "https://url/to/repo.git"
         let pluginGitTag = "1.0.0"
         let pluginFingerprint = "\(pluginGitURL)-\(pluginGitTag)".md5
-        let config = mockConfig(
+        let config = mockConfigGeneratedProjectOptions(
             plugins: [
                 .git(url: pluginGitURL, gitReference: .tag(pluginGitTag), directory: nil, releaseUrl: nil),
             ]
@@ -208,7 +208,7 @@ final class PluginServiceTests: TuistUnitTestCase {
         let pluginGitURL = "https://url/to/repo.git"
         let pluginGitTag = "1.0.0"
         let pluginFingerprint = "\(pluginGitURL)-\(pluginGitTag)".md5
-        let config = mockConfig(
+        let generatedProjectsOptions = mockConfigGeneratedProjectOptions(
             plugins: [
                 .git(url: pluginGitURL, gitReference: .tag(pluginGitTag), directory: nil, releaseUrl: nil),
             ]
@@ -229,7 +229,7 @@ final class PluginServiceTests: TuistUnitTestCase {
         try fileHandler.touch(commandPath)
 
         // When / Then
-        _ = try await subject.fetchRemotePlugins(using: config)
+        _ = try await subject.fetchRemotePlugins(using: generatedProjectsOptions)
     }
 
     func test_loadPlugins_WHEN_localHelpers() async throws {
@@ -249,14 +249,15 @@ final class PluginServiceTests: TuistUnitTestCase {
                 ProjectDescription.Plugin(name: pluginName)
             )
 
-        let config = mockConfig(plugins: [TuistCore.PluginLocation.local(path: pluginPath.pathString)])
+        let generatedProjectOptions =
+            mockConfigGeneratedProjectOptions(plugins: [TuistCore.PluginLocation.local(path: pluginPath.pathString)])
 
         try fileHandler.createFolder(
             pluginPath.appending(component: Constants.helpersDirectoryName)
         )
 
         // When
-        let plugins = try await subject.loadPlugins(using: config)
+        let plugins = try await subject.loadPlugins(using: generatedProjectOptions)
 
         // Then
         let expectedHelpersPath = pluginPath.appending(component: Constants.helpersDirectoryName)
@@ -293,7 +294,7 @@ final class PluginServiceTests: TuistUnitTestCase {
 
         try fileHandler.createFolder(cachedPluginPath.appending(component: Constants.helpersDirectoryName))
 
-        let config = mockConfig(plugins: [
+        let generatedProjectOptions = mockConfigGeneratedProjectOptions(plugins: [
             TuistCore.PluginLocation.git(
                 url: pluginGitUrl,
                 gitReference: .tag(pluginGitReference),
@@ -306,7 +307,7 @@ final class PluginServiceTests: TuistUnitTestCase {
             .willReturn(try temporaryPath())
 
         // When
-        let plugins = try await subject.loadPlugins(using: config)
+        let plugins = try await subject.loadPlugins(using: generatedProjectOptions)
 
         // Then
         let expectedHelpersPath = cachedPluginPath.appending(component: Constants.helpersDirectoryName)
@@ -335,10 +336,11 @@ final class PluginServiceTests: TuistUnitTestCase {
                 ProjectDescription.Plugin(name: pluginName)
             )
 
-        let config = mockConfig(plugins: [TuistCore.PluginLocation.local(path: pluginPath.pathString)])
+        let generatedProjectOptions =
+            mockConfigGeneratedProjectOptions(plugins: [TuistCore.PluginLocation.local(path: pluginPath.pathString)])
 
         // When
-        let plugins = try await subject.loadPlugins(using: config)
+        let plugins = try await subject.loadPlugins(using: generatedProjectOptions)
         let expectedPlugins = Plugins.test(
             resourceSynthesizers: [
                 PluginResourceSynthesizer(name: pluginName, path: resourceTemplatesPath),
@@ -373,8 +375,8 @@ final class PluginServiceTests: TuistUnitTestCase {
                 ProjectDescription.Plugin(name: pluginName)
             )
 
-        let config =
-            mockConfig(plugins: [
+        let generatedProjectOptions =
+            mockConfigGeneratedProjectOptions(plugins: [
                 TuistCore.PluginLocation.git(
                     url: pluginGitUrl,
                     gitReference: .tag(pluginGitReference),
@@ -384,7 +386,7 @@ final class PluginServiceTests: TuistUnitTestCase {
             ])
 
         // When
-        let plugins = try await subject.loadPlugins(using: config)
+        let plugins = try await subject.loadPlugins(using: generatedProjectOptions)
         let expectedPlugins = Plugins.test(
             resourceSynthesizers: [
                 PluginResourceSynthesizer(name: pluginName, path: resourceTemplatesPath),
@@ -420,10 +422,11 @@ final class PluginServiceTests: TuistUnitTestCase {
                 ProjectDescription.Plugin(name: pluginName)
             )
 
-        let config = mockConfig(plugins: [TuistCore.PluginLocation.local(path: pluginPath.pathString)])
+        let generatedProjectOptions =
+            mockConfigGeneratedProjectOptions(plugins: [TuistCore.PluginLocation.local(path: pluginPath.pathString)])
 
         // Then
-        let plugins = try await subject.loadPlugins(using: config)
+        let plugins = try await subject.loadPlugins(using: generatedProjectOptions)
         let expectedPlugins = Plugins.test(templatePaths: [templatePath])
         XCTAssertEqual(plugins, expectedPlugins)
     }
@@ -463,28 +466,27 @@ final class PluginServiceTests: TuistUnitTestCase {
                 ProjectDescription.Plugin(name: pluginName)
             )
 
-        let config =
-            mockConfig(plugins: [
+        let generatedProjectOptions =
+            mockConfigGeneratedProjectOptions(plugins: [
                 TuistCore.PluginLocation
                     .git(url: pluginGitUrl, gitReference: .tag(pluginGitReference), directory: nil, releaseUrl: nil),
             ])
 
         // Then
-        let plugins = try await subject.loadPlugins(using: config)
+        let plugins = try await subject.loadPlugins(using: generatedProjectOptions)
         let expectedPlugins = Plugins.test(templatePaths: [templatePath])
         XCTAssertEqual(plugins, expectedPlugins)
     }
 
-    private func mockConfig(plugins: [TuistCore.PluginLocation]) -> TuistCore.Config {
-        TuistCore.Config(
+    private func mockConfigGeneratedProjectOptions(plugins: [TuistCore.PluginLocation]) -> TuistCore
+        .TuistGeneratedProjectOptions
+    {
+        TuistCore.TuistGeneratedProjectOptions(
             compatibleXcodeVersions: .all,
-            fullHandle: nil,
-            url: Constants.URLs.production,
             swiftVersion: nil,
             plugins: plugins,
             generationOptions: .test(),
-            installOptions: .test(),
-            path: nil
+            installOptions: .test()
         )
     }
 }

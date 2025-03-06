@@ -76,15 +76,17 @@ final class ConfigLoaderTests: TuistUnitTestCase {
         let result = try await subject.loadConfig(path: configPath)
 
         // Then
-        XCTAssertEqual(result, TuistCore.Config(
-            compatibleXcodeVersions: .all,
+
+        XCTAssertEqual(result, TuistCore.Tuist(
+            project: .generated(TuistGeneratedProjectOptions(
+                compatibleXcodeVersions: .all,
+                swiftVersion: nil,
+                plugins: [],
+                generationOptions: .test(),
+                installOptions: .test()
+            )),
             fullHandle: nil,
-            url: Constants.URLs.production,
-            swiftVersion: nil,
-            plugins: [],
-            generationOptions: .test(),
-            installOptions: .test(),
-            path: configPath
+            url: Constants.URLs.production
         ))
     }
 
@@ -105,15 +107,16 @@ final class ConfigLoaderTests: TuistUnitTestCase {
         let result = try await subject.loadConfig(path: configPath)
 
         // Then
-        XCTAssertEqual(result, TuistCore.Config(
-            compatibleXcodeVersions: .all,
+        XCTAssertEqual(result, TuistCore.Tuist(
+            project: .generated(TuistGeneratedProjectOptions(
+                compatibleXcodeVersions: .all,
+                swiftVersion: nil,
+                plugins: [],
+                generationOptions: .test(),
+                installOptions: .test()
+            )),
             fullHandle: nil,
-            url: Constants.URLs.production,
-            swiftVersion: nil,
-            plugins: [],
-            generationOptions: .test(),
-            installOptions: .test(),
-            path: configPath
+            url: Constants.URLs.production
         ))
     }
 
@@ -149,15 +152,16 @@ final class ConfigLoaderTests: TuistUnitTestCase {
         let result = try await subject.loadConfig(path: moduleAPath)
 
         // Then
-        XCTAssertEqual(result, TuistCore.Config(
-            compatibleXcodeVersions: .all,
+        XCTAssertEqual(result, TuistCore.Tuist(
+            project: .generated(TuistGeneratedProjectOptions(
+                compatibleXcodeVersions: .all,
+                swiftVersion: nil,
+                plugins: [],
+                generationOptions: .test(),
+                installOptions: .test()
+            )),
             fullHandle: nil,
-            url: Constants.URLs.production,
-            swiftVersion: nil,
-            plugins: [],
-            generationOptions: .test(),
-            installOptions: .test(),
-            path: configPath
+            url: Constants.URLs.production
         ))
     }
 
@@ -180,15 +184,16 @@ final class ConfigLoaderTests: TuistUnitTestCase {
         let result = try await subject.loadConfig(path: projectPath)
 
         // Then
-        XCTAssertBetterEqual(result, TuistCore.Config(
-            compatibleXcodeVersions: .all,
+        XCTAssertBetterEqual(result, TuistCore.Tuist(
+            project: .generated(TuistGeneratedProjectOptions(
+                compatibleXcodeVersions: .all,
+                swiftVersion: nil,
+                plugins: [],
+                generationOptions: .test(),
+                installOptions: .test()
+            )),
             fullHandle: "tuist/tuist",
-            url: try XCTUnwrap(URL(string: "https://test.tuist.io")),
-            swiftVersion: nil,
-            plugins: [],
-            generationOptions: .test(),
-            installOptions: .test(),
-            path: configPath
+            url: try XCTUnwrap(URL(string: "https://test.tuist.io"))
         ))
     }
 
@@ -199,13 +204,9 @@ final class ConfigLoaderTests: TuistUnitTestCase {
         try await fileSystem.makeDirectory(at: configPath.parentDirectory)
         try await fileSystem.touch(configPath)
         stub(rootDirectory: projectPath)
+
         stub(
-            config: ProjectDescription.Config(
-                cloud: .cloud(
-                    projectId: "tuist/tuist",
-                    url: "https://test.tuist.io"
-                )
-            ),
+            config: ProjectDescription.Config(fullHandle: "tuist/tuist", url: "https://test.tuist.io", project: .tuist()),
             at: configPath.parentDirectory
         )
 
@@ -213,15 +214,52 @@ final class ConfigLoaderTests: TuistUnitTestCase {
         let result = try await subject.loadConfig(path: projectPath)
 
         // Then
-        XCTAssertBetterEqual(result, TuistCore.Config(
-            compatibleXcodeVersions: .all,
+        XCTAssertBetterEqual(result, TuistCore.Tuist(
+            project: .generated(TuistGeneratedProjectOptions(
+                compatibleXcodeVersions: .all,
+                swiftVersion: nil,
+                plugins: [],
+                generationOptions: .test(),
+                installOptions: .test()
+            )),
             fullHandle: "tuist/tuist",
-            url: try XCTUnwrap(URL(string: "https://test.tuist.io")),
-            swiftVersion: nil,
-            plugins: [],
-            generationOptions: .test(),
-            installOptions: .test(),
-            path: configPath
+            url: try XCTUnwrap(URL(string: "https://test.tuist.io"))
+        ))
+    }
+
+    func test_loadConfig_whenFileIsMissing_but_xcodeProjectIsPresent() async throws {
+        // Given
+        let projectPath = try temporaryPath().appending(component: "project")
+        try await fileSystem.makeDirectory(at: projectPath)
+        try await fileSystem.touch(projectPath.appending(component: "Test.xcodeproj"))
+        stub(rootDirectory: nil)
+
+        // When
+        let result = try await subject.loadConfig(path: projectPath)
+
+        // Then
+        XCTAssertBetterEqual(result, TuistCore.Tuist(
+            project: .xcode(TuistXcodeProjectOptions()),
+            fullHandle: nil,
+            url: Constants.URLs.production
+        ))
+    }
+
+    func test_loadConfig_whenFileIsMissing_but_xcodeWorkspaceIsPresent() async throws {
+        // Given
+        let projectPath = try temporaryPath().appending(component: "project")
+        try await fileSystem.makeDirectory(at: projectPath)
+        try await fileSystem.touch(projectPath.appending(component: "Test.xcworkspace"))
+        stub(rootDirectory: nil)
+
+        // When
+        let result = try await subject.loadConfig(path: projectPath)
+
+        // Then
+        XCTAssertBetterEqual(result, TuistCore.Tuist(
+            project: .xcode(TuistXcodeProjectOptions()),
+            fullHandle: nil,
+            url: Constants.URLs.production
         ))
     }
 
@@ -239,7 +277,7 @@ final class ConfigLoaderTests: TuistUnitTestCase {
         registeredConfigs[path] = .success(config)
     }
 
-    private func stub(rootDirectory: AbsolutePath) {
+    private func stub(rootDirectory: AbsolutePath?) {
         given(rootDirectoryLocator)
             .locate(from: .any)
             .willReturn(rootDirectory as AbsolutePath?)

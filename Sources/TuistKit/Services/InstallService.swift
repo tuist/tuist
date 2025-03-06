@@ -58,7 +58,9 @@ final class InstallService {
         ServiceContext.current?.logger?.notice("Resolving and fetching plugins.", metadata: .section)
 
         let config = try await configLoader.loadConfig(path: path)
-        _ = try await pluginService.loadPlugins(using: config)
+        if let generatedProjectOptions = config.project.generatedProject {
+            _ = try await pluginService.loadPlugins(using: generatedProjectOptions)
+        }
 
         ServiceContext.current?.alerts?.success(.alert("Plugins resolved and fetched successfully."))
     }
@@ -74,19 +76,23 @@ final class InstallService {
         if update {
             ServiceContext.current?.logger?.notice("Updating dependencies.", metadata: .section)
 
-            try swiftPackageManagerController.update(
-                at: packageManifestPath.parentDirectory,
-                arguments: config.installOptions.passthroughSwiftPackageManagerArguments,
-                printOutput: true
-            )
+            if let generatedProjectOptions = config.project.generatedProject {
+                try swiftPackageManagerController.update(
+                    at: packageManifestPath.parentDirectory,
+                    arguments: generatedProjectOptions.installOptions.passthroughSwiftPackageManagerArguments,
+                    printOutput: true
+                )
+            }
         } else {
             ServiceContext.current?.logger?.notice("Resolving and fetching dependencies.", metadata: .section)
 
-            try swiftPackageManagerController.resolve(
-                at: packageManifestPath.parentDirectory,
-                arguments: config.installOptions.passthroughSwiftPackageManagerArguments,
-                printOutput: true
-            )
+            if let generatedProjectOptions = config.project.generatedProject {
+                try swiftPackageManagerController.resolve(
+                    at: packageManifestPath.parentDirectory,
+                    arguments: generatedProjectOptions.installOptions.passthroughSwiftPackageManagerArguments,
+                    printOutput: true
+                )
+            }
         }
 
         try await savePackageResolved(at: packageManifestPath.parentDirectory)

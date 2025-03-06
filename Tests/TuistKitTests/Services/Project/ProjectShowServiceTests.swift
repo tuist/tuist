@@ -64,7 +64,7 @@ final class ProjectShowServiceTests: TuistUnitTestCase {
         let path = try temporaryPath()
         var expectedURLComponents = URLComponents(url: Constants.URLs.production, resolvingAgainstBaseURL: false)!
         expectedURLComponents.path = "/tuist/tuist"
-        let config = Config.test(fullHandle: "tuist/tuist")
+        let config = Tuist.test(fullHandle: "tuist/tuist")
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
         given(opener).open(url: .any).willReturn()
 
@@ -81,7 +81,7 @@ final class ProjectShowServiceTests: TuistUnitTestCase {
         var expectedURLComponents = URLComponents(url: Constants.URLs.production, resolvingAgainstBaseURL: false)!
         expectedURLComponents.path = "/tuist/tuist"
         given(opener).open(url: .value(expectedURLComponents.url!)).willReturn()
-        let config = Config.test(fullHandle: nil)
+        let config = Tuist.test(fullHandle: nil)
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
 
         // When/Then

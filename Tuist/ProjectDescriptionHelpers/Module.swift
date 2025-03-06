@@ -314,6 +314,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "GraphViz"),
                     .external(name: "AnyCodable"),
                     .external(name: "OpenAPIRuntime"),
+                    .external(name: "XCResultKit"),
                 ]
             case .core:
                 [
