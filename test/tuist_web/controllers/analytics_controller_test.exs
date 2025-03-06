@@ -372,7 +372,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
                     %{name: "TargetA", binary_cache_metadata: %{hash: "hash-a", hit: "local"}},
                     %{
                       name: "TargetATests",
-                      selective_testing_metadata: %{hash: "hash-a-tests", hit: "miss"}
+                      selective_testing_metadata: %{hash: "hash-a-tests", hit: "remote"}
                     }
                   ]
                 }
@@ -394,6 +394,12 @@ defmodule TuistWeb.AnalyticsControllerTest do
              }
 
       command_event = Repo.preload(command_event, xcode_graph: [xcode_projects: :xcode_targets])
+      assert command_event.cacheable_targets == ["TargetA"]
+      assert command_event.local_cache_target_hits == ["TargetA"]
+      assert command_event.remote_cache_target_hits == []
+      assert command_event.test_targets == ["TargetATests"]
+      assert command_event.local_test_target_hits == []
+      assert command_event.remote_test_target_hits == ["TargetATests"]
       assert command_event.xcode_graph.name == "Graph"
       assert command_event.xcode_graph.xcode_projects |> Enum.map(& &1.name) == ["ProjectA"]
       xcode_project = command_event.xcode_graph.xcode_projects |> hd()
@@ -402,7 +408,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       assert xcode_targets |> Enum.map(& &1.binary_cache_hash) == ["hash-a", nil]
       assert xcode_targets |> Enum.map(& &1.binary_cache_hit) == [:local, nil]
       assert xcode_targets |> Enum.map(& &1.selective_testing_hash) == [nil, "hash-a-tests"]
-      assert xcode_targets |> Enum.map(& &1.selective_testing_hit) == [nil, :miss]
+      assert xcode_targets |> Enum.map(& &1.selective_testing_hit) == [nil, :remote]
     end
   end
 

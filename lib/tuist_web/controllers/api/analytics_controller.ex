@@ -284,7 +284,8 @@ defmodule TuistWeb.API.AnalyticsController do
     git_remote_url_origin = Map.get(body_params, :git_remote_url_origin)
     preview_id = Map.get(body_params, :preview_id)
 
-    params = Map.get(body_params, :params, %{})
+    cache_metadata = cache_metadata(body_params)
+    selective_testing_metadata = selective_testing_metadata(body_params)
 
     command_event =
       CommandEvents.create_command_event(%{
@@ -295,12 +296,12 @@ defmodule TuistWeb.API.AnalyticsController do
         tuist_version: body_params.tuist_version,
         swift_version: body_params.swift_version,
         macos_version: body_params.macos_version,
-        cacheable_targets: Map.get(params, :cacheable_targets, []),
-        local_cache_target_hits: Map.get(params, :local_cache_target_hits, []),
-        remote_cache_target_hits: Map.get(params, :remote_cache_target_hits, []),
-        test_targets: Map.get(params, :test_targets, []),
-        local_test_target_hits: Map.get(params, :local_test_target_hits, []),
-        remote_test_target_hits: Map.get(params, :remote_test_target_hits, []),
+        cacheable_targets: cache_metadata.cacheable_targets,
+        local_cache_target_hits: cache_metadata.local_cache_target_hits,
+        remote_cache_target_hits: cache_metadata.remote_cache_target_hits,
+        test_targets: selective_testing_metadata.test_targets,
+        local_test_target_hits: selective_testing_metadata.local_test_target_hits,
+        remote_test_target_hits: selective_testing_metadata.remote_test_target_hits,
         is_ci: body_params.is_ci,
         user_id: user_id,
         client_id: body_params.client_id,
@@ -345,6 +346,72 @@ defmodule TuistWeb.API.AnalyticsController do
       name: command_event.name,
       url: url(~p"/#{project.account.name}/#{project.name}/runs/#{command_event.id}")
     })
+  end
+
+  defp cache_metadata(params) do
+    xcode_graph = Map.get(params, :xcode_graph)
+
+    if is_nil(xcode_graph) do
+      params = Map.get(params, :params, %{})
+
+      %{
+        cacheable_targets: Map.get(params, :cacheable_targets, []),
+        local_cache_target_hits: Map.get(params, :local_cache_target_hits, []),
+        remote_cache_target_hits: Map.get(params, :remote_cache_target_hits, [])
+      }
+    else
+      targets =
+        xcode_graph.projects
+        |> Enum.flat_map(& &1["targets"])
+
+      %{
+        cacheable_targets:
+          targets
+          |> Enum.filter(&(not is_nil(&1["binary_cache_metadata"]["hash"])))
+          |> Enum.map(& &1["name"]),
+        local_cache_target_hits:
+          targets
+          |> Enum.filter(&(&1["binary_cache_metadata"]["hit"] == "local"))
+          |> Enum.map(& &1["name"]),
+        remote_cache_target_hits:
+          targets
+          |> Enum.filter(&(&1["binary_cache_metadata"]["hit"] == "remote"))
+          |> Enum.map(& &1["name"])
+      }
+    end
+  end
+
+  defp selective_testing_metadata(params) do
+    xcode_graph = Map.get(params, :xcode_graph)
+
+    if is_nil(xcode_graph) do
+      params = Map.get(params, :params, %{})
+
+      %{
+        test_targets: Map.get(params, :test_targets, []),
+        local_test_target_hits: Map.get(params, :local_test_target_hits, []),
+        remote_test_target_hits: Map.get(params, :remote_test_target_hits, [])
+      }
+    else
+      targets =
+        xcode_graph.projects
+        |> Enum.flat_map(& &1["targets"])
+
+      %{
+        test_targets:
+          targets
+          |> Enum.filter(&(not is_nil(&1["selective_testing_metadata"]["hash"])))
+          |> Enum.map(& &1["name"]),
+        local_test_target_hits:
+          targets
+          |> Enum.filter(&(&1["selective_testing_metadata"]["hit"] == "local"))
+          |> Enum.map(& &1["name"]),
+        remote_test_target_hits:
+          targets
+          |> Enum.filter(&(&1["selective_testing_metadata"]["hit"] == "remote"))
+          |> Enum.map(& &1["name"])
+      }
+    end
   end
 
   # CommandEvent artifacts
