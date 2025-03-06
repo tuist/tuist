@@ -3869,11 +3869,11 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
     func testMap_whenRemoteSwiftPackageHasTestTargets() async throws {
         // Given
         let basePath = try temporaryPath()
-        try fileHandler.createFolder(basePath.appending(components: ["Package", "Sources", "Target1"]))
-        try fileHandler.createFolder(basePath.appending(components: ["Package", "Sources", "Target2"]))
-        try fileHandler.createFolder(basePath.appending(components: ["Package", "Tests", "Target1Tests"]))
-        try fileHandler.createFolder(basePath.appending(components: ["Package", "Tests", "Target2Tests"]))
-
+        try await fileSystem.makeDirectory(at: basePath.appending(components: ["Package", "Sources", "Target1"]))
+        try await fileSystem.makeDirectory(at: basePath.appending(components: ["Package", "Sources", "Target2"]))
+        try await fileSystem.makeDirectory(at: basePath.appending(components: ["Package", "Tests", "Target1Tests"]))
+        try await fileSystem.makeDirectory(at: basePath.appending(components: ["Package", "Tests", "Target2Tests"]))
+        
         // When
         let project = try await subject.map(
             package: "Package",
@@ -3919,9 +3919,9 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         // Given
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(components: ["Package", "Sources", "Target"])
-        try fileHandler.createFolder(sourcesPath)
+        try await fileSystem.makeDirectory(at: sourcesPath)
         let testsPath = basePath.appending(components: ["Package", "Tests", "TargetTests"])
-        try fileHandler.createFolder(testsPath)
+        try await fileSystem.makeDirectory(at: testsPath)
 
         // When
         let project = try await subject.map(
@@ -3967,9 +3967,9 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         // Given
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(components: ["Package", "Sources", "Target"])
-        try fileHandler.createFolder(sourcesPath)
+        try await fileSystem.makeDirectory(at: sourcesPath)
         let testsPath = basePath.appending(components: ["Package", "Tests", "TargetTests"])
-        try fileHandler.createFolder(testsPath)
+        try await fileSystem.makeDirectory(at: testsPath)
 
         // When
         let project = try await subject.map(
@@ -3991,7 +3991,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     ]
                 ),
             ],
-            packageSettings: .test(includeLocalPackageTestTargets: true)
+            packageSettings: .test()
         )
 
         // Then
@@ -4050,8 +4050,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 ),
             ],
             packageSettings: .test(
-                productDestinations: ["Product": [.iPhone, .iPad]],
-                includeLocalPackageTestTargets: true
+                productDestinations: ["Product": [.iPhone, .iPad]]
             )
         )
 
@@ -4143,8 +4142,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 ),
             ],
             packageSettings: .test(
-                productDestinations: ["MacProduct": [.mac]],
-                includeLocalPackageTestTargets: true
+                productDestinations: ["MacProduct": [.mac]]
             )
         )
 
@@ -4230,7 +4228,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     ]
                 ),
             ],
-            packageSettings: .test(includeLocalPackageTestTargets: true)
+            packageSettings: .test()
         )
 
         // Then

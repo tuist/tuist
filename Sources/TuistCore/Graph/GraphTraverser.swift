@@ -1531,7 +1531,7 @@ public class GraphTraverser: GraphTraversing {
 
     /// Returns all the targets of local packages which also contained test targets.
     /// - Returns: A set containing all the targets of local packages.
-    func allLocalPackageTargets() -> Set<GraphTarget> {
+    private func allLocalPackageTargets() -> Set<GraphTarget> {
         let localPackageProjects = graph.projects.filter { $0.value.type == .local }
         return Set<GraphTarget>(
             localPackageProjects.flatMap { path, project in

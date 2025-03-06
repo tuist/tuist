@@ -337,7 +337,7 @@ final class ManifestModelConverterTests: TuistUnitTestCase {
     func test_loadDependenciesGraph_withExternalSPM() async throws {
         // Given
         let temporaryPath = try temporaryPath()
-        try fileHandler.createFolder(temporaryPath.appending(components: ["checkouts", "Alamofire", "Source"]))
+        try await fileSystem.makeDirectory(at: temporaryPath.appending(components: ["checkouts", "Alamofire", "Source"]))
         let manifest = DependenciesGraphManifest.alamofire(spmFolder: .path(temporaryPath.pathString))
         let subject = makeSubject(with: makeManifestLoader())
 
@@ -351,8 +351,8 @@ final class ManifestModelConverterTests: TuistUnitTestCase {
     func test_loadDependenciesGraph_withLocalSPM() async throws {
         // Given
         let temporaryPath = try temporaryPath()
-        try fileHandler.createFolder(temporaryPath.appending(components: ["checkouts", "ADependency", "Sources", "ALibrary"]))
-        try fileHandler.createFolder(temporaryPath.appending(components: [
+        try await fileSystem.makeDirectory(at: temporaryPath.appending(components: ["checkouts", "ADependency", "Sources", "ALibrary"]))
+        try await fileSystem.makeDirectory(at: temporaryPath.appending(components: [
             "checkouts",
             "ADependency",
             "Sources",

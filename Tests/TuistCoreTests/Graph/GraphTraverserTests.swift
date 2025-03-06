@@ -4734,13 +4734,13 @@ final class GraphTraverserTests: TuistUnitTestCase {
     func test_allOrphanRemoteTargets_whenLocalPackageHasOrphanTargets() throws {
         // Given
         let app = Target.test(name: "App", product: .app)
-        let project = Project.test(path: try! AbsolutePath(validating: "/App"), targets: [app])
+        let project = Project.test(path: "/App", targets: [app])
         let appDependency = GraphDependency.target(name: app.name, path: project.path)
 
         let localDirectPackageProduct = Target.test(name: "LocalDirectPackage", product: .framework)
         let localOrphanPackageProduct = Target.test(name: "LocalOrphanPackage", product: .framework)
         let localPackageProject = Project.test(
-            path: try! AbsolutePath(validating: "/LocalPackage"),
+            path: "/LocalPackage",
             name: "LocalPackage",
             targets: [localDirectPackageProduct, localOrphanPackageProduct],
             type: .local
@@ -4753,7 +4753,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let remoteDirectPackageProduct = Target.test(name: "RemoteDirectPackage", product: .framework)
         let remoteOrphanPackageProduct = Target.test(name: "RemoteOrphanPackage", product: .framework)
         let remotePackageProject = Project.test(
-            path: try! AbsolutePath(validating: "/RemotePackage"),
+            path: "/RemotePackage",
             name: "RemotePackage",
             targets: [remoteDirectPackageProduct, remoteOrphanPackageProduct],
             type: .external(hash: nil)
@@ -4906,13 +4906,13 @@ final class GraphTraverserTests: TuistUnitTestCase {
         // Given
         let app = Target.test(name: "App", destinations: [.iPhone], product: .app)
         let framework = Target.test(name: "Framework", destinations: [.iPhone], product: .framework)
-        let project = Project.test(path: try! AbsolutePath(validating: "/App"), targets: [app, framework])
+        let project = Project.test(path: "/App", targets: [app, framework])
         let appDependency = GraphDependency.target(name: app.name, path: project.path)
         let frameworkDependency = GraphDependency.target(name: framework.name, path: project.path)
 
         let directRemotePackageProduct = Target.test(name: "DirectRemotePackage", destinations: [.iPhone], product: .app)
         let remotePackageProject = Project.test(
-            path: try! AbsolutePath(validating: "/RemotePackage"),
+            path: "/RemotePackage",
             name: "RemotePackage",
             targets: [directRemotePackageProduct],
             type: .external(hash: nil)
@@ -4924,7 +4924,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
         let directLocalPackageProduct = Target.test(name: "DirectLocalPackage", destinations: [.iPhone], product: .app)
         let localPackageProject = Project.test(
-            path: try! AbsolutePath(validating: "/LocalPackage"),
+            path: "/LocalPackage",
             name: "LocalPackage",
             targets: [directLocalPackageProduct],
             type: .external(hash: nil)
@@ -5393,44 +5393,6 @@ final class GraphTraverserTests: TuistUnitTestCase {
         XCTAssertEqual(got.sorted(), [
             "\(precompiledMacroPath.pathString)#\(precompiledMacroPath.basename.replacingOccurrences(of: ".macro", with: ""))",
         ])
-    }
-
-    func test_allLocalPackageTargets() throws {
-        // Given
-        let temporaryPath = try temporaryPath()
-
-        let localPackageTarget1 = Target.test(name: "LocalPackageTarget1", product: .framework)
-        let localPackageTarget2 = Target.test(name: "LocalPackageTarget2", product: .framework)
-        let localPackageProjectPath = temporaryPath.appending(component: "LocalPackageProject")
-        let localPackageProject = Project.test(
-            path: localPackageProjectPath,
-            targets: [localPackageTarget1, localPackageTarget2],
-            type: .local
-        )
-
-        let remotePackageTarget1 = Target.test(name: "RemotePackageTarget1", product: .framework)
-        let remotePackageProjectPath = temporaryPath.appending(component: "RemotePackageProject")
-        let remotePackageProject = Project.test(
-            path: remotePackageProjectPath,
-            targets: [remotePackageTarget1],
-            type: .external(hash: nil)
-        )
-
-        let graph = Graph.test(
-            projects: [
-                localPackageProjectPath: localPackageProject,
-                remotePackageProjectPath: remotePackageProject,
-            ]
-        )
-
-        // When
-        let got = GraphTraverser(graph: graph).allLocalPackageTargets()
-
-        // Then
-        XCTAssertBetterEqual(got, Set([
-            GraphTarget(path: localPackageProjectPath, target: localPackageTarget1, project: localPackageProject),
-            GraphTarget(path: localPackageProjectPath, target: localPackageTarget2, project: localPackageProject),
-        ]))
     }
 
     func test_staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies_when_appDependensOnPrecompiledDynamicXCFrameworkWithStaticObjcXCFrameworkDependency(

@@ -23,7 +23,7 @@ final class PruneOrphanRemoteTargetsGraphMapperTests: TuistUnitTestCase {
     func test_map_when_remote_targets_to_prune() async throws {
         // Given
         let app = Target.test(name: "App", destinations: [.iPhone], product: .app)
-        let project = Project.test(path: try! AbsolutePath(validating: "/App"), targets: [app])
+        let project = Project.test(path: "/App", targets: [app])
         let appDependency = GraphDependency.target(name: app.name, path: project.path)
         let directPackageProduct = Target.test(name: "DirectPackage", destinations: [.iPhone], product: .app)
         let transitivePackageProduct = Target.test(name: "TransitivePackage", destinations: [.iPhone], product: .app)
