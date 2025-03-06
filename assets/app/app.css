@@ -6,13 +6,17 @@
 
 body {
   margin: 0;
+}
+
+body:not(html[data-noora] body) {
+  margin: 0;
   font-family: "Inter", sans-serif;
   background-color: var(--bg-primary);
 }
 
 /* Display 2xl */
 
-h1 {
+h1:not(html[data-noora] h1) {
   margin: 0;
   font-size: 4.5rem;
   line-height: 5.625rem;
@@ -21,7 +25,7 @@ h1 {
 }
 
 /* Display xl */
-h2 {
+h2:not(html[data-noora] h2) {
   margin: 0;
   font-size: 3.75rem;
   line-height: 4.5rem;
@@ -30,7 +34,7 @@ h2 {
 }
 
 /* Display lg */
-h3 {
+h3:not(html[data-noora] h3) {
   margin: 0;
   font-size: 3rem;
   line-height: 3.75rem;
@@ -39,7 +43,7 @@ h3 {
 }
 
 /* Display md */
-h4 {
+h4:not(html[data-noora] h4) {
   margin: 0;
   font-size: 2.25rem;
   line-height: 2.75rem;
@@ -48,7 +52,7 @@ h4 {
 }
 
 /* Display sm */
-h5 {
+h5:not(html[data-noora] h5) {
   margin: 0;
   font-size: 1.5rem;
   line-height: 2rem;
@@ -56,22 +60,21 @@ h5 {
 }
 
 /* Display xs */
-h6 {
+h6:not(html[data-noora] h6) {
   margin: 0;
   font-size: 1.125rem;
   line-height: 1.75rem;
   color: var(--text-primary);
 }
 
-p {
+p:not(html[data-noora] p) {
   margin: 0;
 }
 
-a {
+a:not(html[data-noora] a) {
   text-decoration: none;
   color: var(--text-secondary);
   display: flex;
-  padding: 0;
   align-items: center;
   gap: var(--spacing-md);
 
@@ -80,12 +83,12 @@ a {
   }
 }
 
-p {
+p:not(html[data-noora] p) {
   color: var(--text-secondary);
 }
 /* Buttons */
 
-button {
+button:not(html[data-noora] button) {
   transition-property: color, background-color;
   transition-timing-function: var(--timing-function-base);
   transition-duration: 0.15s;
@@ -101,7 +104,7 @@ button {
   }
 }
 
-button svg {
+button:not(html[data-noora] button) svg {
   transition-property: stroke;
   transition-timing-function: var(--timing-function-base);
   transition-duration: 0.15s;

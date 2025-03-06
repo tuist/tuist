@@ -25,6 +25,7 @@
   background: linear-gradient(180deg, var(--background-gradient-start) 0%, var(--background-gradient-end) 100%),
     var(--background-base);
   box-shadow: var(--border);
+  cursor: pointer;
 
   & > span {
     padding: 0rem var(--noora-spacing-2);

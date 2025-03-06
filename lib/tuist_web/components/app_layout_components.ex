@@ -3,6 +3,11 @@ defmodule TuistWeb.AppLayoutComponents do
   A collection of components that are used from the layouts.
   """
   use TuistWeb, :live_component
+  import TuistWeb.AppComponents, except: [icon: 1]
+  import TuistWeb.Noora.Breadcrumbs
+  import TuistWeb.Noora.Icon
+
+  defdelegate noora_button(assigns), to: TuistWeb.Noora.Button, as: :button
 
   attr :current_path, :string, required: true
   attr :current_user, :map, required: true
@@ -134,111 +139,147 @@ defmodule TuistWeb.AppLayoutComponents do
   attr :latest_cli_release, :map, required: false
 
   def headerbar(assigns) do
-    ~H"""
-    <header class="headerbar">
-      <!-- Logo -->
-      <.link navigate={~p"/#{@selected_account.name}/projects"}>
-        <img
-          src="/images/tuist_logo_32x32@2x.png"
-          alt={gettext("Tuist Icon")}
-          class="headerbar__logo"
-        />
-      </.link>
-      <!-- Breadcrumbs -->
-      <.breadcrumbs breadcrumbs={@breadcrumbs} />
-      <!-- Links -->
-      <nav class="headerbar__links">
-        <a
-          :if={latest_cli_release = @latest_cli_release.ok? && @latest_cli_release.result}
-          class="headerbar__links__release-badge"
-          target="_blank"
-          href={latest_cli_release.html_url}
-        >
-          <.badge title={"#{gettext("New release:")} #{latest_cli_release.name}"} kind={:brand} />
-        </a>
-        <a class="headerbar__links__link text--small" href="https://docs.tuist.io" target="_blank">
-          <.book_open_icon class="headerbar__links__icon" />
-          {gettext("Documentation")}
-        </a>
-      </nav>
-      <!-- Avatar -->
-      <%= if not is_nil(@current_user) do %>
-        <div class="dropdown">
-          <% dropdown_class_name = "headerbar__links__avatar__dropdown" %>
-          <img
-            class="headerbar__links__avatar"
-            phx-click={JS.toggle(to: ".#{dropdown_class_name}", display: "flex")}
-            phx-window-keydown={JS.hide(to: ".#{dropdown_class_name}")}
-            phx-key="Escape"
-            src={Tuist.Accounts.User.gravatar_url(@current_user)}
-          />
-          <div class={dropdown_class_name} hidden phx-click-away={JS.hide()}>
-            <div class="headerbar__links__avatar__dropdown__account-email">
-              <div class="headerbar__links__avatar__dropdown__account-email-label text--extraSmall">
-                Signed as
-              </div>
-              <div class="headerbar__links__avatar__dropdown__account-email-value text--small">
-                {@current_user.email}
-              </div>
-            </div>
-            <hr class="headerbar__links__avatar__dropdown__break" />
-            <.link
-              href={~p"/users/log_out"}
-              method="delete"
-              class="headerbar__links__avatar__dropdown__option"
-            >
-              <.log_out_icon />
-              <div class="headerbar__links__avatar__dropdown__option__link text--small">Log out</div>
-            </.link>
-          </div>
+    if FunWithFlags.enabled?(:noora) do
+      ~H"""
+      <header class="headerbar">
+        <div data-part="left-section">
+          <.link navigate={~p"/#{@selected_account.name}/projects"}>
+            <img src="/images/tuist_dashboard.png" alt={gettext("Tuist Icon")} class="headerbar__logo" />
+          </.link>
+          <.headerbar_breadcrumbs breadcrumbs={@breadcrumbs} />
         </div>
-      <% end %>
-    </header>
-    """
+        <div data-part="right-section">
+          <.link href={Tuist.Environment.get_url(:documentation)} target="_blank">
+            <.noora_button variant="secondary" icon_only>
+              <.book />
+            </.noora_button>
+          </.link>
+        </div>
+      </header>
+      """
+    else
+      ~H"""
+      <header class="headerbar">
+        <.link navigate={~p"/#{@selected_account.name}/projects"}>
+          <img
+            src="/images/tuist_logo_32x32@2x.png"
+            alt={gettext("Tuist Icon")}
+            class="headerbar__logo"
+          />
+        </.link>
+        <.headerbar_breadcrumbs breadcrumbs={@breadcrumbs} />
+        <nav class="headerbar__links">
+          <a
+            :if={latest_cli_release = @latest_cli_release.ok? && @latest_cli_release.result}
+            class="headerbar__links__release-badge"
+            target="_blank"
+            href={latest_cli_release.html_url}
+          >
+            <.badge title={"#{gettext("New release:")} #{latest_cli_release.name}"} kind={:brand} />
+          </a>
+          <a class="headerbar__links__link text--small" href="https://docs.tuist.io" target="_blank">
+            <.book_open_icon class="headerbar__links__icon" />
+            {gettext("Documentation")}
+          </a>
+        </nav>
+        <!-- Avatar -->
+        <%= if not is_nil(@current_user) do %>
+          <div class="dropdown">
+            <% dropdown_class_name = "headerbar__links__avatar__dropdown" %>
+            <img
+              class="headerbar__links__avatar"
+              phx-click={JS.toggle(to: ".#{dropdown_class_name}", display: "flex")}
+              phx-window-keydown={JS.hide(to: ".#{dropdown_class_name}")}
+              phx-key="Escape"
+              src={Tuist.Accounts.User.gravatar_url(@current_user)}
+            />
+            <div class={dropdown_class_name} hidden phx-click-away={JS.hide()}>
+              <div class="headerbar__links__avatar__dropdown__account-email">
+                <div class="headerbar__links__avatar__dropdown__account-email-label text--extraSmall">
+                  Signed as
+                </div>
+                <div class="headerbar__links__avatar__dropdown__account-email-value text--small">
+                  {@current_user.email}
+                </div>
+              </div>
+              <hr class="headerbar__links__avatar__dropdown__break" />
+              <.link
+                href={~p"/users/log_out"}
+                method="delete"
+                class="headerbar__links__avatar__dropdown__option"
+              >
+                <.log_out_icon />
+                <div class="headerbar__links__avatar__dropdown__option__link text--small">Log out</div>
+              </.link>
+            </div>
+          </div>
+        <% end %>
+      </header>
+      """
+    end
   end
 
   attr :breadcrumbs, :list, required: true
 
-  def breadcrumbs(assigns) do
-    ~H"""
-    <nav :if={not Enum.empty?(@breadcrumbs)} class="headerbar__breadcrumbs">
-      <ol class="headerbar__breadcrumbs__list">
+  def headerbar_breadcrumbs(assigns) do
+    if FunWithFlags.enabled?(:noora) do
+      ~H"""
+      <.breadcrumbs>
         <%= for {breadcrumb, index} <- Enum.with_index(@breadcrumbs) do %>
-          <%= cond do %>
-            <% Map.get(breadcrumb, :href) -> %>
-              <a href={breadcrumb.href} class="headerbar__breadcrumbs__list-link-item">
-                {Phoenix.HTML.raw(breadcrumb.content)}
-              </a>
-            <% Enum.empty?(Map.get(breadcrumb, :items, []))-> %>
-              <span class="headerbar__breadcrumbs__text-item">
-                {Phoenix.HTML.raw(breadcrumb.content)}
-              </span>
-            <% true -> %>
-              <.headless_dropdown dropdown_id={"breadcrumbs-item-#{index}-#{breadcrumb.content}"}>
-                <:activator :let={attrs}>
-                  <div class="headerbar__breadcrumbs__dropdown-item" {attrs}>
-                    {Phoenix.HTML.raw(breadcrumb.content)}
-                    <.chevron_selector_horizontal class="headerbar__breadcrumbs__dropdown-item__icon" />
-                  </div>
-                </:activator>
-                <div class="headerbar__breadcrumbs__dropdown-item__menu">
-                  <a
-                    :for={%{content: item_content, href: item_href} <- breadcrumb.items}
-                    class="headerbar__breadcrumbs__dropdown-item__menu__item"
-                    href={item_href}
-                  >
-                    {item_content}
-                  </a>
-                </div>
-              </.headless_dropdown>
-          <% end %>
-          <%= if index != length(@breadcrumbs) - 1 do %>
-            <.chevron_right_icon class="headerbar__breadcrumbs__list-chevron" />
-          <% end %>
+          <.breadcrumb id={"app-breadcrumb-#{index}"} label={breadcrumb.label}>
+            <:icon :if={Map.get(breadcrumb, :icon)}><.icon name={Map.get(breadcrumb, :icon)} /></:icon>
+            <.breadcrumb_item
+              :for={breadcrumb_item <- breadcrumb.items}
+              value={breadcrumb_item.value}
+              label={breadcrumb_item.label}
+              selected={breadcrumb_item.selected}
+              href={breadcrumb_item.href}
+            />
+          </.breadcrumb>
         <% end %>
-      </ol>
-    </nav>
-    """
+      </.breadcrumbs>
+      """
+    else
+      ~H"""
+      <nav :if={not Enum.empty?(@breadcrumbs)} class="headerbar__breadcrumbs">
+        <ol class="headerbar__breadcrumbs__list">
+          <%= for {breadcrumb, index} <- Enum.with_index(@breadcrumbs) do %>
+            <%= cond do %>
+              <% Map.get(breadcrumb, :href) -> %>
+                <a href={breadcrumb.href} class="headerbar__breadcrumbs__list-link-item">
+                  {Phoenix.HTML.raw(breadcrumb.label)}
+                </a>
+              <% Enum.empty?(Map.get(breadcrumb, :items, []))-> %>
+                <span class="headerbar__breadcrumbs__text-item">
+                  {Phoenix.HTML.raw(breadcrumb.label)}
+                </span>
+              <% true -> %>
+                <.headless_dropdown dropdown_id={"breadcrumbs-item-#{index}-#{breadcrumb.label}"}>
+                  <:activator :let={attrs}>
+                    <div class="headerbar__breadcrumbs__dropdown-item" {attrs}>
+                      {Phoenix.HTML.raw(breadcrumb.label)}
+                      <.chevron_selector_horizontal class="headerbar__breadcrumbs__dropdown-item__icon" />
+                    </div>
+                  </:activator>
+                  <div class="headerbar__breadcrumbs__dropdown-item__menu">
+                    <a
+                      :for={%{label: item_content, href: item_href} <- breadcrumb.items}
+                      class="headerbar__breadcrumbs__dropdown-item__menu__item"
+                      href={item_href}
+                    >
+                      {item_content}
+                    </a>
+                  </div>
+                </.headless_dropdown>
+            <% end %>
+            <%= if index != length(@breadcrumbs) - 1 do %>
+              <.chevron_right_icon class="headerbar__breadcrumbs__list-chevron" />
+            <% end %>
+          <% end %>
+        </ol>
+      </nav>
+      """
+    end
   end
 
   def append_breadcrumb(%Phoenix.LiveView.Socket{} = socket, breadcrumb) do

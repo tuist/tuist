@@ -39,35 +39,60 @@ defmodule TuistWeb.LayoutLive do
       project_handle: project_handle
     })
 
-    project =
+    selected_project =
       Projects.get_project_by_account_and_project_handles(account_handle, project_handle,
         preload: [:account]
       )
 
-    if is_nil(project) do
+    if is_nil(selected_project) do
       raise TuistWeb.Errors.NotFoundError,
             gettext("The project you are looking for doesn't exist or has been moved.")
     end
 
-    %{account: selected_account} = project
+    %{account: selected_account} = selected_project
 
     selected_account_projects = selected_account |> get_account_projects(current_user)
+
+    current_user_accounts =
+      if is_nil(current_user) do
+        []
+      else
+        (current_user |> get_user_organization_accounts()) ++ [current_user.account]
+      end
 
     {:cont,
      socket
      |> assign_current_path()
-     |> append_breadcrumb(%{content: selected_account.name})
      |> append_breadcrumb(%{
-       content: project.name,
+       label: selected_account.name,
+       icon: "smart_home",
+       items:
+         current_user_accounts
+         |> Enum.map(fn account ->
+           %{
+             label: account.name,
+             value: account.id,
+             selected: account.id == selected_account.id,
+             href: ~p"/#{account.name}/projects"
+           }
+         end)
+     })
+     |> append_breadcrumb(%{
+       label: selected_project.name,
        items:
          selected_account_projects
          |> Enum.map(fn project ->
-           %{content: project.name, href: ~p"/#{account_handle}/#{project.name}"}
+           %{
+             label: project.name,
+             value: project.id,
+             selected: selected_project.id == project.id,
+             href: ~p"/#{account_handle}/#{project.name}"
+           }
          end)
      })
      |> assign_latest_cli_release()
      |> assign(:selected_account, selected_account)
-     |> assign(:selected_project, project)
+     |> assign(:selected_project, selected_project)
      |> assign(:current_user, current_user)
      |> assign(
        :selected_account_projects,
@@ -96,11 +121,16 @@ defmodule TuistWeb.LayoutLive do
      socket
      |> assign_current_path()
      |> append_breadcrumb(%{
-       content: selected_account.name,
+       label: selected_account.name,
        items:
          current_user_accounts
          |> Enum.map(fn account ->
-           %{content: account.name, href: ~p"/#{account.name}/projects"}
+           %{
+             label: account.name,
+             value: account.id,
+             href: ~p"/#{account.name}/projects",
+             selected: account.id == selected_account.id
+           }
          end)
      })
      |> assign(

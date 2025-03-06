@@ -5,7 +5,10 @@ defmodule TuistWeb.Storybook.Dropdown do
   def function, do: &TuistWeb.Noora.Dropdown.dropdown/1
 
   def imports,
-    do: [{TuistWeb.Noora.Dropdown, [dropdown_item: 1]}, {TuistWeb.Noora.Icon, [category: 1]}]
+    do: [
+      {TuistWeb.Noora.Dropdown, [dropdown_item: 1]},
+      {TuistWeb.Noora.Icon, [category: 1, chevron_right: 1]}
+    ]
 
   def variations do
     [
@@ -17,7 +20,7 @@ defmodule TuistWeb.Storybook.Dropdown do
         slots: [
           """
           <.dropdown_item value="1" label="Item 1" />
-          <.dropdown_item value="2" label="Item 2" right_icon={false} />
+          <.dropdown_item value="2" label="Item 2"><:right_icon><.chevron_right /></:right_icon></.dropdown_item>
           <.dropdown_item value="3" label="Item 3" secondary_text="Foo" />
           <.dropdown_item value="4" label="Item 4"><:left_icon><.category /></:left_icon></.dropdown_item>
           <.dropdown_item value="5" label="Item 5" />

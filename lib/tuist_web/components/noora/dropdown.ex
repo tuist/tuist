@@ -82,7 +82,7 @@ defmodule TuistWeb.Noora.Dropdown do
         </div>
       </button>
       <div data-part="positioner">
-        <div data-part="content">
+        <div class="noora-dropdown-content" data-part="content">
           {render_slot(@inner_block)}
         </div>
       </div>
@@ -94,7 +94,7 @@ defmodule TuistWeb.Noora.Dropdown do
     """
   end
 
-  attr :value, :string, required: true, doc: "Value associated with the dropdown item"
+  attr :value, :string, required: false, doc: "Value associated with the dropdown item"
   attr :patch, :string, default: nil, doc: "Phoenix LiveView patch navigation path"
   attr :navigate, :string, default: nil, doc: "Phoenix LiveView navigation path"
   attr :href, :string, default: nil, doc: "Standard URL for navigation"
@@ -109,9 +109,9 @@ defmodule TuistWeb.Noora.Dropdown do
     default: nil,
     doc: "Additional description text (only visible when size is 'large')"
 
-  attr :right_icon, :boolean,
-    default: true,
-    doc: "Controls visibility of the right chevron icon"
+  slot :right_icon,
+    required: false,
+    doc: "Optional slot for rendering an icon on the right side of the item"
 
   attr :rest, :global, doc: "Additional HTML attributes"
 
@@ -122,12 +122,14 @@ defmodule TuistWeb.Noora.Dropdown do
   def dropdown_item(assigns) do
     ~H"""
     <.link
+      class="noora-dropdown-item"
       data-part="item"
-      data-value={@value}
+      data-value={@value || @label}
       patch={@patch}
       navigate={@navigate}
       href={@href}
       data-size={@size}
+      {@rest}
     >
       <div :if={has_slot_content?(@left_icon, assigns)} data-part="left-icon">
         {render_slot(@left_icon)}
@@ -139,12 +141,14 @@ defmodule TuistWeb.Noora.Dropdown do
         </span>
         <div :if={@size == "large"}>
           <span data-part="description">
-            hallo {@description}
+            {@description}
           </span>
         </div>
       </div>
 
-      <div :if={@right_icon} data-part="right-icon"><.chevron_right /></div>
+      <div :if={has_slot_content?(@right_icon, assigns)} data-part="right-icon">
+        {render_slot(@right_icon)}
+      </div>
     </.link>
     """
   end

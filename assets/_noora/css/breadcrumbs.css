@@ -1,0 +1,107 @@
+.noora-breadcrumbs {
+  --noora-breadcrumb-icon: light-dark(var(--noora-neutral-light-700), var(--noora-neutral-dark-300));
+  --noora-breadcrumb-label: light-dark(var(--nora-neutral-light-1100), var(--noora-neutral-dark-50));
+  --noora-breadcrumb-background: light-dark(var(--noora-neutral-light-50), var(--noora-neutral-dark-1100));
+
+  align-items: center;
+  display: flex;
+  flex-direction: row;
+
+  & [data-part="slash"],
+  & [data-part="arrow"] {
+    color: var(--noora-breadcrumb-icon);
+    height: var(--noora-icon-size-large);
+    padding: 0 var(--noora-spacing-2);
+    width: var(--noora-icon-size-large);
+
+    & svg {
+      height: 100%;
+      width: 100%;
+    }
+  }
+
+  &:not([data-style="slash"]) > [data-part="slash"],
+  &:not([data-style="arrow"]) > [data-part="arrow"],
+  & [data-part="slash"]:nth-last-child(2),
+  & [data-part="arrow"]:last-child {
+    display: none;
+  }
+}
+
+.noora-breadcrumb {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-2);
+
+  & [data-part="trigger"] {
+    align-items: center;
+    background: unset;
+    border: unset;
+    cursor: pointer;
+    display: flex;
+    font: var(--noora-font-body-medium);
+    gap: var(--noora-spacing-2);
+    outline: unset;
+    padding: var(--noora-spacing-3) var(--noora-spacing-2);
+
+    &:not(:has([data-part="icon"])) {
+      padding: var(--noora-spacing-3) var(--noora-spacing-2) var(--noora-spacing-3) var(--noora-spacing-4);
+    }
+
+    & [data-part="icon"] {
+      color: var(--noora-breadcrumb-icon);
+      flex-shrink: 0;
+      height: var(--noora-icon-size-medium);
+      width: var(--noora-icon-size-medium);
+
+      & svg {
+        height: 100%;
+        width: 100%;
+      }
+    }
+
+    & [data-part="label"] {
+      color: var(--noora-breadcrumb-label);
+      font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+    }
+
+    &[data-state="open"],
+    &:active,
+    &:hover {
+      background-color: var(--noora-breadcrumb-background);
+      border-radius: var(--noora-radius-medium);
+      box-shadow: var(--noora-light-border-default);
+    }
+
+    /* Fixing layout shift by initially hiding the positioner */
+    & + [data-part="positioner"] {
+      display: none;
+    }
+
+    &[data-state="open"] + [data-part="positioner"] {
+      display: flex;
+    }
+  }
+
+  & [data-part="selector"] {
+    align-items: center;
+    color: var(--noora-breadcrumb-icon);
+    display: inline-flex;
+    flex-shrink: 0;
+    height: var(--noora-icon-size-medium);
+    width: var(--noora-icon-size-medium);
+
+    & svg {
+      height: 100%;
+      width: 100%;
+    }
+  }
+
+  & [data-part="item"]:not([data-selected]) [data-part="right-icon"] {
+    visibility: hidden;
+  }
+
+  & [data-part="right-icon"] {
+    color: var(--noora-surface-label-primary);
+  }
+}

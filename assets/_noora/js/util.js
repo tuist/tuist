@@ -128,7 +128,8 @@ export const renderPart = (root, name, api) => {
  */
 export const getOption = (el, name, validOptions) => {
   const kebabName = name.replace(/([a-z])([A-Z])/g, "$1-$2").toLowerCase();
-  let initial = el.dataset[kebabName];
+  // We need to check both for `name` and `kebabName` due to differences between browser engines.
+  let initial = el.dataset[name] || el.dataset[kebabName];
 
   if (validOptions && initial !== undefined && !validOptions.includes(initial)) {
     console.error(`Invalid '${name}' specified: '${initial}'. Expected one of '${validOptions.join("', '")}'.`);

@@ -106,15 +106,35 @@ defmodule TuistWeb.LayoutLiveTest do
       assert socket.assigns.current_user == user
 
       assert socket.assigns.breadcrumbs == [
-               %{content: organization.account.name},
+               %{
+                 label: organization.account.name,
+                 icon: "smart_home",
+                 items: [
+                   %{
+                     label: organization.account.name,
+                     selected: true,
+                     value: organization.account.id,
+                     href: ~p"/#{organization.account.name}/projects",
+                     selected: true
+                   },
+                   %{
+                     label: user.account.name,
+                     value: user.account.id,
+                     href: ~p"/#{user.account.name}/projects",
+                     selected: false
+                   }
+                 ]
+               },
                %{
                  items: [
                    %{
-                     content: project.name,
+                     label: project.name,
+                     value: project.id,
+                     selected: true,
                      href: ~p"/#{organization.account.name}/#{project.name}"
                    }
                  ],
-                 content: project.name
+                 label: project.name
                }
              ]
 
@@ -144,9 +164,14 @@ defmodule TuistWeb.LayoutLiveTest do
       assert socket.assigns.breadcrumbs == [
                %{
                  items: [
-                   %{content: user.account.name, href: ~p"/#{user.account.name}/projects"}
+                   %{
+                     label: user.account.name,
+                     selected: true,
+                     href: ~p"/#{user.account.name}/projects",
+                     value: user.account.id
+                   }
                  ],
-                 content: user.account.name
+                 label: user.account.name
                }
              ]
 
@@ -178,15 +203,19 @@ defmodule TuistWeb.LayoutLiveTest do
                %{
                  items: [
                    %{
-                     content: organization.account.name,
+                     label: organization.account.name,
+                     value: organization.account.id,
+                     selected: true,
                      href: ~p"/#{organization.account.name}/projects"
                    },
                    %{
-                     content: user.account.name,
+                     label: user.account.name,
+                     value: user.account.id,
+                     selected: false,
                      href: ~p"/#{user.account.name}/projects"
                    }
                  ],
-                 content: organization.account.name
+                 label: organization.account.name
                }
              ]
 
@@ -218,15 +247,19 @@ defmodule TuistWeb.LayoutLiveTest do
                %{
                  items: [
                    %{
-                     content: organization.account.name,
+                     label: organization.account.name,
+                     selected: true,
+                     value: organization.account.id,
                      href: ~p"/#{organization.account.name}/projects"
                    },
                    %{
-                     content: user.account.name,
+                     label: user.account.name,
+                     selected: false,
+                     value: user.account.id,
                      href: ~p"/#{user.account.name}/projects"
                    }
                  ],
-                 content: organization.account.name
+                 label: organization.account.name
                }
              ]
 

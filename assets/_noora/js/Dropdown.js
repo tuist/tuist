@@ -1,5 +1,5 @@
 import * as menu from "@zag-js/menu";
-import { normalizeProps, spreadProps, renderPart, getBooleanOption } from "./util.js";
+import { normalizeProps, spreadProps, renderPart, getBooleanOption, getOption } from "./util.js";
 import { Component } from "./component.js";
 
 class Menu extends Component {
@@ -70,6 +70,7 @@ export default {
       loopFocus: getBooleanOption(this.el, "loopFocus"),
       closeOnSelect: getBooleanOption(this.el, "closeOnSelect"),
       typeahead: getBooleanOption(this.el, "typeahead"),
+      positioning: { offset: { mainAxis: getOption(this.el, "positioningOffsetMainAxis") } },
       onOpenChange: (details) => {
         if (this.el.dataset.onOpenChange) {
           this.pushEvent(this.el.dataset.onOpenChange, details);
