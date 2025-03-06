@@ -87,6 +87,7 @@ let targets: [Target] = [
             .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
             .product(name: "XcodeGraphMapper", package: "XcodeGraph"),
             .byName(name: "AnyCodable"),
+            .product(name: "XCResultKit", package: "XCResultKit"),
         ],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
@@ -516,7 +517,7 @@ let package = Package(
             url: "https://github.com/apple/swift-openapi-urlsession", .upToNextMajor(from: "1.0.2")
         ),
         .package(url: "https://github.com/tuist/Path", .upToNextMajor(from: "0.3.0")),
-        .package(url: "https://github.com/tuist/XcodeGraph.git", exact: "1.8.4"),
+        .package(url: "https://github.com/tuist/XcodeGraph.git", exact: "1.8.8"),
         .package(url: "https://github.com/tuist/FileSystem.git", .upToNextMajor(from: "0.7.0")),
         .package(url: "https://github.com/tuist/Command.git", .upToNextMajor(from: "0.8.0")),
         .package(url: "https://github.com/sparkle-project/Sparkle.git", from: "2.6.4"),
@@ -530,6 +531,7 @@ let package = Package(
         ),
         .package(url: "https://github.com/crspybits/swift-log-file", .upToNextMajor(from: "0.1.0")),
         .package(url: "https://github.com/tuist/Noora", .upToNextMajor(from: "0.21.3")),
+        .package(url: "https://github.com/davidahouse/XCResultKit", .upToNextMajor(from: "1.2.2")),
     ],
     targets: targets
 )

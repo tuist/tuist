@@ -75,7 +75,15 @@ class ListService {
 
     private func loadPlugins(at path: AbsolutePath) async throws -> Plugins {
         let config = try await configLoader.loadConfig(path: path)
-        return try await pluginService.loadPlugins(using: config)
+        if let generationOptions = config.project.generatedProject {
+            return try await pluginService.loadPlugins(using: generationOptions)
+        } else {
+            return Plugins(
+                projectDescriptionHelpers: [],
+                templatePaths: [],
+                resourceSynthesizers: []
+            )
+        }
     }
 
     /// Locates all template directories, local, system, and plugin.

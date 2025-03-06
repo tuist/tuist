@@ -60,7 +60,7 @@ final class CacheGraphContentHasherTests: TuistUnitTestCase {
             )
             .willReturn([:])
         given(defaultConfigurationFetcher)
-            .fetch(configuration: .any, config: .any, graph: .any)
+            .fetch(configuration: .any, defaultConfiguration: .any, graph: .any)
             .willReturn("Debug")
         given(swiftVersionProvider).swiftlangVersion().willReturn("5.10.0")
 
@@ -68,7 +68,7 @@ final class CacheGraphContentHasherTests: TuistUnitTestCase {
         _ = try await subject.contentHashes(
             for: Graph.test(),
             configuration: "Debug",
-            config: .test(),
+            defaultConfiguration: nil,
             excludedTargets: []
         )
 
@@ -104,7 +104,7 @@ final class CacheGraphContentHasherTests: TuistUnitTestCase {
             )
             .willReturn([:])
         given(defaultConfigurationFetcher)
-            .fetch(configuration: .any, config: .any, graph: .any)
+            .fetch(configuration: .any, defaultConfiguration: .any, graph: .any)
             .willReturn("Debug")
         given(swiftVersionProvider).swiftlangVersion().willReturn("5.10.0")
 
@@ -112,7 +112,7 @@ final class CacheGraphContentHasherTests: TuistUnitTestCase {
         _ = try await subject.contentHashes(
             for: Graph.test(),
             configuration: "Debug",
-            config: .test(),
+            defaultConfiguration: nil,
             excludedTargets: ["Excluded"]
         )
 
@@ -155,7 +155,7 @@ final class CacheGraphContentHasherTests: TuistUnitTestCase {
             )
             .willReturn([:])
         given(defaultConfigurationFetcher)
-            .fetch(configuration: .any, config: .any, graph: .any)
+            .fetch(configuration: .any, defaultConfiguration: .any, graph: .any)
             .willReturn("Debug")
         given(swiftVersionProvider).swiftlangVersion().willReturn("5.10.0")
 
@@ -163,7 +163,7 @@ final class CacheGraphContentHasherTests: TuistUnitTestCase {
         _ = try await subject.contentHashes(
             for: Graph.test(),
             configuration: "Debug",
-            config: .test(),
+            defaultConfiguration: nil,
             excludedTargets: ["Excluded"]
         )
 

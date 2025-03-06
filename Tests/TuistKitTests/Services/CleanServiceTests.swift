@@ -198,7 +198,7 @@ final class CleanServiceTests: TuistUnitTestCase {
             given(configLoader)
                 .loadConfig(path: .any)
                 .willReturn(
-                    Config.test(
+                    Tuist.test(
                         fullHandle: "tuist/tuist",
                         url: url
                     )

@@ -71,7 +71,7 @@ public final class BuildService {
         osVersion: String?,
         rosetta: Bool,
         generateOnly: Bool,
-        generator _: ((Config) throws -> Generating)? = nil,
+        generator _: ((Tuist) throws -> Generating)? = nil,
         passthroughXcodeBuildArguments: [String]
     ) async throws {
         let graph: Graph

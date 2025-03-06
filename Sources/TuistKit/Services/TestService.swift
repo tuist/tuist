@@ -71,6 +71,7 @@ final class TestService { // swiftlint:disable:this type_body_length
     private let cacheDirectoriesProvider: CacheDirectoriesProviding
     private let configLoader: ConfigLoading
     private let fileSystem: FileSysteming
+    private let xcResultService: XCResultServicing
 
     public convenience init(
         generatorFactory: GeneratorFactorying,
@@ -95,7 +96,8 @@ final class TestService { // swiftlint:disable:this type_body_length
         contentHasher: ContentHashing = ContentHasher(),
         cacheDirectoriesProvider: CacheDirectoriesProviding = CacheDirectoriesProvider(),
         configLoader: ConfigLoading,
-        fileSystem: FileSysteming = FileSystem()
+        fileSystem: FileSysteming = FileSystem(),
+        xcResultService: XCResultServicing = XCResultService()
     ) {
         self.generatorFactory = generatorFactory
         self.cacheStorageFactory = cacheStorageFactory
@@ -106,6 +108,7 @@ final class TestService { // swiftlint:disable:this type_body_length
         self.cacheDirectoriesProvider = cacheDirectoriesProvider
         self.configLoader = configLoader
         self.fileSystem = fileSystem
+        self.xcResultService = xcResultService
     }
 
     static func validateParameters(
@@ -371,35 +374,54 @@ final class TestService { // swiftlint:disable:this type_body_length
             graph: graph
         ) else { return }
 
-        for testScheme in testSchemes {
-            try await self.testScheme(
-                scheme: testScheme,
-                graphTraverser: graphTraverser,
-                clean: clean,
-                configuration: configuration,
-                version: version,
-                deviceName: deviceName,
-                platform: platform,
-                rosetta: rosetta,
-                resultBundlePath: resultBundlePath,
-                derivedDataPath: derivedDataPath,
-                retryCount: retryCount,
-                testTargets: testTargets,
-                skipTestTargets: skipTestTargets,
-                testPlanConfiguration: testPlanConfiguration,
-                passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
-            )
-        }
-
         let uploadCacheStorage: CacheStoring
         if noUpload {
             uploadCacheStorage = try await cacheStorageFactory.cacheLocalStorage()
         } else {
             uploadCacheStorage = cacheStorage
         }
+
+        do {
+            for testScheme in testSchemes {
+                try await self.testScheme(
+                    scheme: testScheme,
+                    graphTraverser: graphTraverser,
+                    clean: clean,
+                    configuration: configuration,
+                    version: version,
+                    deviceName: deviceName,
+                    platform: platform,
+                    rosetta: rosetta,
+                    resultBundlePath: resultBundlePath,
+                    derivedDataPath: derivedDataPath,
+                    retryCount: retryCount,
+                    testTargets: testTargets,
+                    skipTestTargets: skipTestTargets,
+                    testPlanConfiguration: testPlanConfiguration,
+                    passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
+                )
+            }
+        } catch {
+            // Check the test results and store successful test hashes for any targets that passed
+            guard let resultBundlePath, let invocationRecord = xcResultService.parse(path: resultBundlePath) else { throw error }
+
+            let testTargets = testActionTargets(for: schemes, testPlanConfiguration: testPlanConfiguration, graph: graph)
+
+            let passingTestTargetNames = xcResultService.successfulTestTargets(invocationRecord: invocationRecord)
+            let passingTestTargets = testTargets.filter { passingTestTargetNames.contains($0.target.name) }
+
+            try await storeSuccessfulTestHashes(
+                for: passingTestTargets,
+                graph: graph,
+                mapperEnvironment: mapperEnvironment,
+                cacheStorage: uploadCacheStorage
+            )
+
+            throw error
+        }
+
         try await storeSuccessfulTestHashes(
-            for: testSchemes,
-            testPlanConfiguration: testPlanConfiguration,
+            for: testActionTargets(for: schemes, testPlanConfiguration: testPlanConfiguration, graph: graph),
             graph: graph,
             mapperEnvironment: mapperEnvironment,
             cacheStorage: uploadCacheStorage
@@ -547,17 +569,11 @@ final class TestService { // swiftlint:disable:this type_body_length
     }
 
     private func storeSuccessfulTestHashes(
-        for schemes: [Scheme],
-        testPlanConfiguration: TestPlanConfiguration?,
+        for targets: [GraphTarget],
         graph: Graph,
         mapperEnvironment: MapperEnvironment,
         cacheStorage: CacheStoring
     ) async throws {
-        let targets: [GraphTarget] = testActionTargets(
-            for: schemes,
-            testPlanConfiguration: testPlanConfiguration,
-            graph: graph
-        )
         guard let initialGraph = mapperEnvironment.initialGraph else { return }
         let graphTraverser = GraphTraverser(graph: initialGraph)
 
@@ -595,7 +611,7 @@ final class TestService { // swiftlint:disable:this type_body_length
     private func resultBundlePath(
         runResultBundlePath: AbsolutePath,
         passedResultBundlePath: AbsolutePath?,
-        config: Config
+        config: Tuist
     ) async throws -> AbsolutePath? {
         if config.fullHandle == nil {
             return passedResultBundlePath
