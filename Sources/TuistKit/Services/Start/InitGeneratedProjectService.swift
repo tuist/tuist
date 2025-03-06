@@ -70,7 +70,6 @@ class InitGeneratedProjectService: InitGeneratedProjectServicing {
         let path = try self.path(path)
         let name = try self.name(name, path: path)
         let templateName = templateName ?? "default"
-        try await verifyDirectoryIsEmpty(path: path)
         let directories = try await templatesDirectoryLocator.templateDirectories(at: path)
         guard let templateDirectory = directories.first(where: { $0.basename == templateName })
         else { throw StartGeneratedProjectServiceError.templateNotFound(templateName) }
@@ -92,19 +91,6 @@ class InitGeneratedProjectService: InitGeneratedProjectServicing {
     }
 
     // MARK: - Helpers
-
-    /// Checks if the given directory is empty, essentially that it doesn't contain any file or directory.
-    ///
-    /// - Parameter path: Directory to be checked.
-    /// - Throws: An InitServiceError.nonEmptyDirectory error when the directory is not empty.
-    private func verifyDirectoryIsEmpty(path: AbsolutePath) async throws {
-        let allowedFiles = Set(["mise.toml", ".mise.toml"])
-        let disallowedFiles = try await fileSystem.glob(directory: path, include: ["*"]).collect()
-            .filter { !allowedFiles.contains($0.basename) }
-        if !disallowedFiles.isEmpty {
-            throw StartGeneratedProjectServiceError.nonEmptyDirectory(path)
-        }
-    }
 
     /// Finds template directory
     /// - Parameters:

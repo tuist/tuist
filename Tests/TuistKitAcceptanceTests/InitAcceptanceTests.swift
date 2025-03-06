@@ -29,6 +29,11 @@ final class InitAcceptanceTestmacOSApp: TuistAcceptanceTestCase {
                 try await run(InstallCommand.self)
                 try await run(GenerateCommand.self)
                 try await run(BuildCommand.self)
+
+                let configFileCreated = try await fileSystem.exists(fixturePath.appending(component: "Tuist.swift"))
+                let miseFileCreated = try await fileSystem.exists(fixturePath.appending(component: "mise.toml"))
+                XCTAssertTrue(configFileCreated)
+                XCTAssertTrue(miseFileCreated)
             }
         }
     }
@@ -55,6 +60,11 @@ final class InitAcceptanceTestmacOSApp: TuistAcceptanceTestCase {
                 try await run(InstallCommand.self)
                 try await run(GenerateCommand.self)
                 try await run(BuildCommand.self)
+
+                let configFileCreated = try await fileSystem.exists(fixturePath.appending(component: "Tuist.swift"))
+                let miseFileCreated = try await fileSystem.exists(fixturePath.appending(component: "mise.toml"))
+                XCTAssertTrue(configFileCreated)
+                XCTAssertTrue(miseFileCreated)
             }
         }
     }
@@ -82,7 +92,9 @@ final class InitAcceptanceTestmacOSApp: TuistAcceptanceTestCase {
                 )
 
                 let configFileCreated = try await fileSystem.exists(fixturePath.appending(component: "Tuist.swift"))
+                let miseFileCreated = try await fileSystem.exists(fixturePath.appending(component: "mise.toml"))
                 XCTAssertTrue(configFileCreated)
+                XCTAssertTrue(miseFileCreated)
             }
         }
     }

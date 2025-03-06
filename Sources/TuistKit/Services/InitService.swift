@@ -113,7 +113,25 @@ public struct InitService {
         }
         try await fileSystem.writeText(tuistSwiftFileContent, at: tuistSwiftFilePath)
 
+        try await mise(path: directory, nextSteps: &nextSteps)
+
         ServiceContext.current?.alerts?.success(.alert("You are all set to explore the Tuist universe", nextSteps: nextSteps))
+    }
+
+    private func mise(path: AbsolutePath, nextSteps: inout [TerminalText]) async throws {
+        if let existingMiseTomlPath = (
+            try await [path.appending(component: ".mise.toml"), path.appending(component: "mise.toml")]
+                .concurrentFilter {
+                    try await fileSystem.exists($0)
+                }
+        ).first {
+            nextSteps.append("Add 'tuist = \'\(Constants.version!)\'' to your \(existingMiseTomlPath.basename)")
+        } else {
+            try await fileSystem.writeText("""
+            [tools]
+            tuist = "\(Constants.version!)"
+            """, at: path.appending(component: "mise.toml"))
+        }
     }
 
     private func createGeneratedProject(at directory: AbsolutePath, name: String, platform: String) async throws -> AbsolutePath {

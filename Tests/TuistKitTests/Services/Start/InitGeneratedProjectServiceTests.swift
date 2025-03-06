@@ -67,15 +67,6 @@ final class InitGeneratedProjectServiceTests: TuistUnitTestCase {
         }
     }
 
-    func test_succeeds_when_directory_only_contains_mise() async throws {
-        // Given
-        let path = FileHandler.shared.currentPath
-        try FileHandler.shared.touch(path.appending(component: "mise.toml"))
-
-        // Then
-        XCTAssertNoThrow { try await self.subject.testRun() }
-    }
-
     func test_init_fails_when_template_not_found() async throws {
         let templateName = "template"
         given(templateLoader)
