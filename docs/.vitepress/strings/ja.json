@@ -326,6 +326,9 @@
                   "text": "生成されたプロジェクト"
                 }
               }
+            },
+            "insights": {
+              "text": "Insights"
             }
           }
         },
