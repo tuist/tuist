@@ -35,7 +35,9 @@ final class ErrorHandlerTests: TuistUnitTestCase {
             stderr: ▌ Error
             stderr: ▌
             stderr: ▌ Sorry this didn’t work. Here’s what to try next:
-            stderr: ▌  ▸ Consider creating an issue using the following link: https://github.com/tuist/tuist/issues/new/choose
+            stderr: ▌  ▸ If the error is actionable, address it
+            stderr: ▌  ▸ If the error is not actionable, let\'s discuss it in the ]8;;https://community.tuist.dev/c/troubleshooting-how-to/6\\Troubleshooting & how to]8;;\\
+            stderr: ▌  ▸ If you are very certain it\'s a bug, ]8;;https://github.com/tuist/tuist\\file an issue]8;;\\
             """
 
             XCTAssertEqual(got, expectedOutput)
