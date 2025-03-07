@@ -92,6 +92,9 @@ public enum EnvKey: String, CaseIterable {
     // Redundant
     case lintRedundantDependenciesPath = "TUIST_LINT_REDUNDANT_DEPENDENCIES_PATH"
 
+    // BUILD
+    case inspectBuildPath = "TUIST_INSPECT_BUILD_PATH"
+
     // RUN
     case runBuildTests = "TUIST_RUN_BUILD_TESTS"
     case runSkipBuild = "TUIST_RUN_SKIP_BUILD"
