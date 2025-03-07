@@ -11,7 +11,7 @@ fi
 # We'll gradually traverse the graph ensuring targets, and their dependency trees,
 # support macOS, Linux, and Windows. Once a target has been verified to compile for all platforms,
 # we'll include it below
-target_flags="--target ProjectDescription"
+target_flags="--target ProjectDescription --target TuistSupport"
 
 if [ "$usage_linux_vm" = "true" ]; then
     $CONTAINER_ENGINE run --rm \
