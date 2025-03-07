@@ -3873,7 +3873,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         try await fileSystem.makeDirectory(at: basePath.appending(components: ["Package", "Sources", "Target2"]))
         try await fileSystem.makeDirectory(at: basePath.appending(components: ["Package", "Tests", "Target1Tests"]))
         try await fileSystem.makeDirectory(at: basePath.appending(components: ["Package", "Tests", "Target2Tests"]))
-        
+
         // When
         let project = try await subject.map(
             package: "Package",

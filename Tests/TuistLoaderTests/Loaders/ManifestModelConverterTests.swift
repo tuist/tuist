@@ -351,7 +351,12 @@ final class ManifestModelConverterTests: TuistUnitTestCase {
     func test_loadDependenciesGraph_withLocalSPM() async throws {
         // Given
         let temporaryPath = try temporaryPath()
-        try await fileSystem.makeDirectory(at: temporaryPath.appending(components: ["checkouts", "ADependency", "Sources", "ALibrary"]))
+        try await fileSystem.makeDirectory(at: temporaryPath.appending(components: [
+            "checkouts",
+            "ADependency",
+            "Sources",
+            "ALibrary",
+        ]))
         try await fileSystem.makeDirectory(at: temporaryPath.appending(components: [
             "checkouts",
             "ADependency",
