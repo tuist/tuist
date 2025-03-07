@@ -86,6 +86,9 @@
           "items": {
             "logging": {
               "text": "ロギング"
+            },
+            "shell-completions": {
+              "text": "Shell completions"
             }
           }
         },
@@ -196,11 +199,8 @@
             "install-tuist": {
               "text": "Tuistのインストール"
             },
-            "create-a-project": {
-              "text": "プロジェクトの作成"
-            },
-            "optimize-workflows": {
-              "text": "ワークフローの最適化"
+            "get-started": {
+              "text": "はじめに"
             }
           }
         },
