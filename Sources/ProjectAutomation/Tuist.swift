@@ -34,7 +34,7 @@ public enum Tuist {
             var arguments = [
                 "tuist",
                 "graph",
-                "--format", "json",
+                "--format", "legacyJSON",
                 "--output-path", temporaryDirectory.path,
             ]
             if let path {
