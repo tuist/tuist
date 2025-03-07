@@ -17,8 +17,6 @@ final class AccountAcceptanceTests: ServerAcceptanceTestCase {
             let got = ServiceContext.current?.recordedUI()
             let expectedOutput = """
             ▌ ✔ Success
-            ▌ Successfully logged in.
-            ▌ ✔ Success
             ▌ The account tuistrocks was successfully updated.
             """
 
@@ -34,8 +32,6 @@ final class AccountAcceptanceTests: ServerAcceptanceTestCase {
 
             let got = ServiceContext.current?.recordedUI()
             let expectedOutput = """
-            ▌ ✔ Success
-            ▌ Successfully logged in.
             ▌ ✔ Success
             ▌ The account \(newHandle) was successfully updated.
             """
