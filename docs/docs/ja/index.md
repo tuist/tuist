@@ -3,22 +3,131 @@ title: Tuistとは？
 description: Apple 標準の開発ツールを強化し、より大規模で優れたアプリを構築する。
 ---
 
-# Tuist {#tuist}
+<script setup>
+import VPFeatures from "vitepress/dist/client/theme-default/components/VPFeatures.vue"
+</script>
 
-アプリ開発の世界、特に Apple のようなプラットフォームでは、組織はしばしば **生産性の問題** に直面します。これには、遅いコンパイル時間、不確実なテスト、リソースを消耗する複雑な自動化ワークフローが含まれます。 従来、企業は専任のプラットフォームチームを結成してこれらの問題に対処しています。 これらの専門家はコードベースの健全性と整合性を維持し、他の開発者が機能の開発に集中できるようにします。 しかし、このアプローチは高コストでリスクが伴う可能性があり、重要な役割を担うチームメンバーの退職が生産性に深刻な影響を及ぼすことがあります。
+# From idea to the store
 
-**Tuist は、アプリ開発を加速し、強化するために設計されたツールチェーンです。** 私たちは公式ツールやシステムとシームレスに統合し、開発者が馴染みのある環境で作業できるようサポートします。 ツールやシステムの統合の負担を軽減することで、チームが機能開発と全体的な開発者体験の向上にエネルギーを注げるようにします。 要するに、Tuistはあなたのプロジェクトを支えるチームのような役割を果たします。 アプリアイディアの閃きからユーザーへのリリースまで、私たちはあなたと共に歩み、発生する課題に取り組みます。
+We are the only **integrated extension of Apple's native toolchain to build better apps faster.**
 
-Tuistは、開発者の主要な入り口である **[CLI](https://github.com/tuist/tuist)** と、CLIが状態を保持し、他の公開サービスと統合するためのサーバーで構成されています。 サーバーを必要とする機能は、サブスクリプションを必要とする場合がありますのでご注意ください。
+<br/>
 
-## Tuist を使う理由は？ {#why-would-i-use-tuist}
+<HomeCards>
+    <HomeCard icon="📝"
+        title="Generated projects"
+        details="A Swift-based DSL to make Xcode projects more managleable and scalable."
+        linkText="Create or migrate project"
+        link="/guides/develop/projects"/>
+    <HomeCard icon="📦"
+        title="Cache"
+        details="Get faster compilations by skipping compilation with cached binaries."
+        linkText="Speed up compilations"
+        link="/guides/develop/cache"/>
+    <HomeCard
+        icon="✅"
+        title="Selective testing"
+        details="Skip test targets when the dependent-upon code hasn't changed."
+        linkText="Speed up test runs"
+        link="/guides/develop/selective-testing"/>
+    <HomeCard
+        icon="📱"
+        title="Previews"
+        details="Share previews of your app with a URL that launches the app on a click."
+        linkText="Share your apps"
+        link="/guides/share/previews"/>
+    <HomeCard
+        icon="📦"
+        title="Registry"
+        details="Cut down the size of your resolved packages and the resolution time. From minutes to seconds."
+        linkText="Speed up package resolution"
+        link="/guides/share/previews"/>
+    <HomeCard
+        icon="📊"
+        title="Insights"
+        details="Get project insights to maintain a productive developer environment."
+        linkText="Track project health"
+        link="/guides/develop/insights"/>
+</HomeCards>
 
-なぜTuistを選択するのか？ その理由は以下の通りです。
+## Installation
 
-- **モジュール化を容易にする：** プロジェクトが成長し、複数のプラットフォームにまたがると、モジュール化が重要になります。 Tuistはこの複雑さを簡素化し、プロジェクトの構造を最適化し、よりよく理解するためのツールを提供します。
-- **ワークフローの最適化：** プロジェクト情報を活用し、Tuistは選択的なテスト実行とビルド間の決定論的なバイナリ再利用を通じて効率を向上させます。
-- **プロジェクトの健全な成長を促進する：** プロジェクトのダイナミクスに関する洞察と、情報に基づいた意思決定のための専門的なガイダンスを提供します。 このアプローチにより、開発者の離職やビジネスゴールの達成に失敗することに繋がる健全でないプロジェクトによるフラストレーションや生産性の低下を防ぎます。 このアプローチにより、開発者の離職やビジネスゴールの達成に失敗することに繋がる健全でないプロジェクトによるフラストレーションや生産性の低下を防ぎます。
-- **高コストなプラットフォーム専任チームの代替：** 高コストでリスクのある社内の専任チームに投資するのではなく、Tuistをあなたのバーチャル専門家として利用してください。 私たちは、属人化に伴うリスクを避けながら、安定したサポートを提供します。 私たちは、属人化に伴うリスクを避けながら、安定したサポートを提供します。
-- **サイロの解消：** プラットフォーム特有のエコシステム (例：Xcodeの閉じられた環境) とは異なり、Tuistはウェブ中心の体験を提供し、Slack、Prometheus、GitHubなどの人気ツールとシームレスに統合され、クロスツールコラボレーションを強化します。
+Install Tuist and run `tuist init` to get started:
 
-Tuist やプロジェクト、会社情報について詳しく知りたい場合は、私たちの[ハンドブック](https://handbook.tuist.io/)をご覧ください。そこには、私たちのビジョンや価値、Tuist を支えるチームに関する詳細な情報が含まれています。
+::: code-group
+
+```bash [Homebrew]
+brew tap tuist/tuist
+brew install --formula tuist
+
+tuist init
+```
+
+```bash [Mise]
+mise x tuist@latest -- tuist init
+```
+
+:::
+
+Check out our <LocalizedLink href="/guides/quick-start/install-tuist">installation guide</LocalizedLink> for more details.
+
+## Discover more
+
+Try out Tuist in minutes and learn how to get the most out of Tuist.
+
+<HomeCards type="carousel">
+    <HomeCard icon="⚙️"
+        title="Examples"
+        details="Check out examples of generated Xcode projects."
+        linkText="Show me examples"
+        link="/references/examples/app_with_airship_sdk"/>
+    <HomeCard
+        icon="🌈"
+        title="awesome-tuist"
+        details="A community-driven collection of Tuist related blog posts, tasks, projects, and more."
+        linkText="Show me the awesomeness"
+        link="https://github.com/tuist/awesome-tuist"/>
+    <HomeCard
+        icon="📚"
+        title="Handbook"
+        details="Learn more about the open company behind Tuist."
+        linkText="Read the hadnbook"
+        link="https://handbook.tuist.dev"/>
+</HomeCards>
+
+## Watch our latest talks
+
+Explore our team's presentations. Stay informed and gain expertise.
+
+<HomeVideos :videos="[['Tuist Registry Walkthrough', '2bd2deb4-1897-4c5b-9de6-37c8acd16fb0'],['Running latest Tuist Previews', '6872527d-4225-469d-9b89-2ec562c37603'], ['Inspect implicit imports to make Xcode more reliable and its builds more deterministic', '88696ce1-aa08-48e8-b410-bc7a57726d67'], ['Clean Xcode builds with binary XCFrameworks from Tuist Cloud', '3a15bae1-a0b2-4c6e-97f2-f78457d87099']]"/>
+
+## Join the community
+
+See the source code, connect with others, and get connected.
+
+<HomeCommunity>
+    <HomeCommunityItem title="Forum" description="Interact with other community members in a synchronous manner" href="https://community.tuist.dev">
+        <template v-slot:logo></template>
+    </HomeCommunityItem>
+    <HomeCommunityItem title="Slack" description="Interact with other community members in a synchronous manner" href="https://slack.tuist.io/">
+        <template v-slot:logo></template>
+    </HomeCommunityItem>
+    <HomeCommunityItem title="Videos" description="Watch talks from the Tuist team and the community" href="https://videos.tuist.dev/">
+        <template v-slot:logo></template>
+    </HomeCommunityItem>
+    <HomeCommunityItem title="GitHub" description="Check out our contributions to open source" href="https://github.com/tuist">
+        <template v-slot:logo></template>
+    </HomeCommunityItem>
+    <HomeCommunityItem title="Bluesky" description="Follow us on Bluesky to stay up to date with our work" href="https://bsky.app/profile/tuist.dev">
+        <template v-slot:logo></template>
+    </HomeCommunityItem>
+    <HomeCommunityItem title="Mastodon" description="Follow us on Bluesky to stay up to date with our work" href="https://fosstodon.org/@tuist">
+        <template v-slot:logo></template>
+    </HomeCommunityItem>
+    <HomeCommunityItem title="LinkedIn" description="Follow Tuist on LinkedIn for news and updates" href="https://www.linkedin.com/company/tuistio">
+        <template v-slot:logo></template>
+    </HomeCommunityItem>
+    <HomeCommunityItem title="Reddit" description="Get the latest updates on r/tuist" href="https://www.reddit.com/r/tuist/">
+        <template v-slot:logo></template>
+    </HomeCommunityItem>
+</HomeCommunity>
