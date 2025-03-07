@@ -15,11 +15,11 @@ public struct TuistCommand: AsyncParsableCommand {
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "tuist",
-            abstract: "Generate, build and test your Xcode projects.",
+            abstract: "Build better apps faster.",
             subcommands: [],
             groupedSubcommands: [
                 CommandGroup(
-                    name: "Start",
+                    name: "Get started",
                     subcommands: [
                         InitCommand.self,
                     ]
@@ -103,9 +103,6 @@ public struct TuistCommand: AsyncParsableCommand {
             if processedArguments.first == ScaffoldCommand.configuration.commandName {
                 try await ScaffoldCommand.preprocess(processedArguments)
             }
-            if processedArguments.first == InitCommand.configuration.commandName {
-                try await InitCommand.preprocess(processedArguments)
-            }
             let command = try parseAsRoot(processedArguments)
             executeCommand = {
                 logFilePathDisplayStrategy = (command as? LogConfigurableCommand)?
@@ -130,7 +127,9 @@ public struct TuistCommand: AsyncParsableCommand {
             try await executeCommand()
             outputCompletion(logFilePath: logFilePath, shouldOutputLogFilePath: logFilePathDisplayStrategy == .always)
         } catch let error as FatalError {
-            self.outputCompletion(logFilePath: logFilePath, shouldOutputLogFilePath: true)
+            self.outputCompletion(logFilePath: logFilePath, shouldOutputLogFilePath: true, beforeLogsLine: {
+                errorHandler.fatal(error: error)
+            })
             _exit(exitCode(for: error).rawValue)
         } catch let error as ClientError where error.underlyingError is ServerClientAuthenticationError {
             ServiceContext.current?.ui?
@@ -154,8 +153,14 @@ public struct TuistCommand: AsyncParsableCommand {
         }
     }
 
-    private static func outputCompletion(logFilePath: AbsolutePath, shouldOutputLogFilePath: Bool) {
+    private static func outputCompletion(
+        logFilePath: AbsolutePath,
+        shouldOutputLogFilePath: Bool,
+        beforeLogsLine: () -> Void = {}
+    ) {
+        print("\n")
         ServiceContext.current?.alerts?.print()
+        beforeLogsLine()
         if shouldOutputLogFilePath {
             outputLogFilePath(logFilePath)
         }

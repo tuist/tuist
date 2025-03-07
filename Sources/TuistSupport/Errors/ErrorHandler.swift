@@ -29,7 +29,9 @@ public final class ErrorHandler: ErrorHandling {
                 .alert(
                     "\(error.description)",
                     nextSteps: [
-                        "Consider creating an issue using the following link: https://github.com/tuist/tuist/issues/new/choose",
+                        "If the error is actionable, address it",
+                        "If the error is not actionable, let's discuss it in the \(.link(title: "Troubleshooting & how to", href: "https://community.tuist.dev/c/troubleshooting-how-to/6"))",
+                        "If you are very certain it's a bug, \(.link(title: "file an issue", href: "https://github.com/tuist/tuist"))",
                     ]
                 )
             )
