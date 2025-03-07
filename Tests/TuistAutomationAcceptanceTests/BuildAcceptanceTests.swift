@@ -53,7 +53,7 @@ final class BuildAcceptanceTestAppWithPreviews: TuistAcceptanceTestCase {
         try await setUpFixture(.appWithPreviews)
         try await run(InstallCommand.self)
         try await run(GenerateCommand.self)
-        try await run(BuildCommand.self)
+        try await run(BuildCommand.self, "--platform", "ios")
     }
 }
 
