@@ -8,8 +8,7 @@ public struct InitCommand: AsyncParsableCommand {
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "init",
-            abstract: "Get started with Tuist in your Xcode project or create a generated project.",
-            shouldDisplay: true
+            abstract: "Get started with Tuist in your Xcode project or create a generated project."
         )
     }
 
@@ -32,7 +31,7 @@ public struct InitCommand: AsyncParsableCommand {
     public init() {}
 
     public func run() async throws {
-        try await InitService().run(from: try await directory(), answers: answers())
+        try await InitCommandService().run(from: try await directory(), answers: answers())
     }
 
     private func directory() async throws -> AbsolutePath {

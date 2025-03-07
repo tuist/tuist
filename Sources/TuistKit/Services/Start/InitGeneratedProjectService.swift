@@ -9,7 +9,7 @@ import TuistScaffold
 import TuistSupport
 import XcodeGraph
 
-enum StartGeneratedProjectServiceError: LocalizedError, Equatable {
+enum InitGeneratedProjectServiceError: LocalizedError, Equatable {
     case ungettableProjectName(AbsolutePath)
     case nonEmptyDirectory(AbsolutePath)
     case templateNotFound(String)
@@ -34,8 +34,7 @@ protocol InitGeneratedProjectServicing {
     func run(
         name: String?,
         platform: String?,
-        path: String?,
-        templateName: String?
+        path: String?
     ) async throws
 }
 
@@ -63,16 +62,15 @@ class InitGeneratedProjectService: InitGeneratedProjectServicing {
     func run(
         name: String?,
         platform: String?,
-        path: String?,
-        templateName: String?
+        path: String?
     ) async throws {
         let platform = try self.platform(platform)
         let path = try self.path(path)
         let name = try self.name(name, path: path)
-        let templateName = templateName ?? "default"
+        let templateName = "default"
         let directories = try await templatesDirectoryLocator.templateDirectories(at: path)
         guard let templateDirectory = directories.first(where: { $0.basename == templateName })
-        else { throw StartGeneratedProjectServiceError.templateNotFound(templateName) }
+        else { throw InitGeneratedProjectServiceError.templateNotFound(templateName) }
 
         let template = try await templateLoader.loadTemplate(at: templateDirectory, plugins: .none)
         let parsedAttributes: [String: Template.Attribute.Value] = [
@@ -99,7 +97,7 @@ class InitGeneratedProjectService: InitGeneratedProjectServicing {
     /// - Returns: `AbsolutePath` of template directory
     private func templateDirectory(templateDirectories: [AbsolutePath], template: String) throws -> AbsolutePath {
         guard let templateDirectory = templateDirectories.first(where: { $0.basename == template })
-        else { throw StartGeneratedProjectServiceError.templateNotFound(template) }
+        else { throw InitGeneratedProjectServiceError.templateNotFound(template) }
         return templateDirectory
     }
 
@@ -110,7 +108,7 @@ class InitGeneratedProjectService: InitGeneratedProjectServicing {
         } else if let directoryName = path.components.last {
             return directoryName
         } else {
-            throw StartGeneratedProjectServiceError.ungettableProjectName(AbsolutePath.current)
+            throw InitGeneratedProjectServiceError.ungettableProjectName(AbsolutePath.current)
         }
     }
 
@@ -127,7 +125,7 @@ class InitGeneratedProjectService: InitGeneratedProjectServicing {
             if let platform = Platform(rawValue: platformString) {
                 return platform
             } else {
-                throw StartGeneratedProjectServiceError.invalidValue(
+                throw InitGeneratedProjectServiceError.invalidValue(
                     argument: "platform",
                     error: "Platform should be either ios, tvos, watchos, or macos"
                 )

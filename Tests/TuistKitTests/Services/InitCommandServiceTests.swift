@@ -1,3 +1,4 @@
+import Command
 import FileSystem
 import Foundation
 import Mockable
@@ -20,7 +21,7 @@ private struct MockKeyStrokeListening: KeyStrokeListening {
     }
 }
 
-struct InitServiceTests {
+struct InitCommandServiceTests {
     private let fileSystem = FileSystem()
     private let prompter = MockInitPrompting()
     private let loginService = MockLoginServicing()
@@ -30,10 +31,11 @@ struct InitServiceTests {
     private let keystrokeListener = MockKeyStrokeListening()
     private let createOrganizationService = MockCreateOrganizationServicing()
     private let getProjectService = MockGetProjectServicing()
-    private let subject: InitService
+    private let commandRunner = MockCommandRunning()
+    private let subject: InitCommandService
 
     init() {
-        subject = InitService(
+        subject = InitCommandService(
             fileSystem: fileSystem,
             prompter: prompter,
             loginService: loginService,
@@ -42,7 +44,8 @@ struct InitServiceTests {
             initGeneratedProjectService: startGeneratedProjectService,
             keystrokeListener: keystrokeListener,
             createOrganizationService: createOrganizationService,
-            getProjectService: getProjectService
+            getProjectService: getProjectService,
+            commandRunner: commandRunner
         )
     }
 
@@ -70,6 +73,9 @@ struct InitServiceTests {
             ).willReturn(.test(fullName: "organization/Test"))
 
             try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
+                given(commandRunner).run(arguments: .matching { $0.contains("mise") }, environment: .any, workingDirectory: .any)
+                    .willReturn(.init(unfolding: { nil }))
+
                 // When
                 try await subject.run(from: temporaryDirectory, answers: nil)
 
@@ -95,6 +101,9 @@ struct InitServiceTests {
             given(prompter).promptGeneratedProjectPlatform().willReturn("ios")
 
             try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
+                given(commandRunner).run(arguments: .matching { $0.contains("mise") }, environment: .any, workingDirectory: .any)
+                    .willReturn(.init(unfolding: { nil }))
+
                 // When
                 try await subject.run(from: temporaryDirectory, answers: nil)
 
@@ -112,11 +121,11 @@ struct InitServiceTests {
         }
     }
 
-    @Test func generatesTheRightConfiguration_when_integrationWithExistingXcodeProjectAndConnectedToServer() async throws {
+    @Test func generatesTheRightConfiguration_when_connectingAnExistingXcodeProject_and_connectedToServer() async throws {
         try await ServiceContext.withTestingDependencies {
             let projectName = UUID().uuidString
             given(prompter).promptWorkflowType(xcodeProjectOrWorkspace: .any)
-                .willReturn(.integrateWithProjectOrWorkspace(projectName))
+                .willReturn(.connectProjectOrSwiftPackage(projectName))
             given(prompter).promptIntegrateWithServer().willReturn(true)
             given(prompter).promptAccountType(authenticatedUserHandle: .value("account")).willReturn(.userAccount("account"))
             given(loginService).run(email: .value(nil), password: .value(nil), directory: .any, onEvent: .any).willReturn()
@@ -132,7 +141,8 @@ struct InitServiceTests {
 
             try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
                 // Given
-
+                given(commandRunner).run(arguments: .matching { $0.contains("mise") }, environment: .any, workingDirectory: .any)
+                    .willReturn(.init(unfolding: { nil }))
                 try await fileSystem.makeDirectory(at: temporaryDirectory.appending(component: "\(projectName).xcodeproj"))
 
                 // When
@@ -149,16 +159,17 @@ struct InitServiceTests {
         }
     }
 
-    @Test func generatesTheRightConfiguration_when_integrationWithExistingXcodeProjectAndNotConnectedToServer() async throws {
+    @Test func generatesTheRightConfiguration_when_connectingAnExistingXcodeProject_and_NotConnectedToServer() async throws {
         try await ServiceContext.withTestingDependencies {
             let projectName = UUID().uuidString
             given(prompter).promptWorkflowType(xcodeProjectOrWorkspace: .any)
-                .willReturn(.integrateWithProjectOrWorkspace(projectName))
+                .willReturn(.connectProjectOrSwiftPackage(projectName))
             given(prompter).promptIntegrateWithServer().willReturn(false)
 
             try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
                 // Given
-
+                given(commandRunner).run(arguments: .matching { $0.contains("mise") }, environment: .any, workingDirectory: .any)
+                    .willReturn(.init(unfolding: { nil }))
                 try await fileSystem.makeDirectory(at: temporaryDirectory.appending(component: "\(projectName).xcodeproj"))
 
                 // When

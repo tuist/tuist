@@ -33,12 +33,17 @@ struct InitPromptAnswers: Codable {
 }
 
 enum InitPromptingWorkflowType: Codable, Equatable, CustomStringConvertible {
-    case integrateWithProjectOrWorkspace(String)
+    case connectProjectOrSwiftPackage(String?)
     case createGeneratedProject
 
     var description: String {
         switch self {
-        case let .integrateWithProjectOrWorkspace(name): "Integrate with \(name)"
+        case let .connectProjectOrSwiftPackage(name):
+            if let name {
+                "Integrate with \(name)"
+            } else {
+                "Integrate the Xcode project or Swift Package"
+            }
         case .createGeneratedProject: "Create a generated project"
         }
     }
@@ -58,7 +63,7 @@ enum InitPromptingAccountType: Codable, Equatable, CustomStringConvertible {
 
 @Mockable
 protocol InitPrompting {
-    func promptWorkflowType(xcodeProjectOrWorkspace: InitService.XcodeProjectOrWorkspace?) -> InitPromptingWorkflowType
+    func promptWorkflowType(xcodeProjectOrWorkspace: InitCommandService.XcodeProjectOrWorkspace?) -> InitPromptingWorkflowType
     func promptIntegrateWithServer() -> Bool
     func promptAccountType(authenticatedUserHandle: String) -> InitPromptingAccountType
     func promptNewOrganizationAccountHandle() -> String
@@ -88,13 +93,11 @@ struct InitPrompter: InitPrompting {
         ))!
     }
 
-    func promptWorkflowType(xcodeProjectOrWorkspace: InitService.XcodeProjectOrWorkspace?) -> InitPromptingWorkflowType {
-        var promptOptions = [
+    func promptWorkflowType(xcodeProjectOrWorkspace: InitCommandService.XcodeProjectOrWorkspace?) -> InitPromptingWorkflowType {
+        let promptOptions = [
             InitPromptingWorkflowType.createGeneratedProject,
+            InitPromptingWorkflowType.connectProjectOrSwiftPackage(xcodeProjectOrWorkspace?.name),
         ]
-        if let xcodeProjectOrWorkspace {
-            promptOptions.append(.integrateWithProjectOrWorkspace(xcodeProjectOrWorkspace.name))
-        }
         return (ServiceContext.current?.ui?.singleChoicePrompt(
             title: "Start",
             question: "How would you like to start with Tuist?",

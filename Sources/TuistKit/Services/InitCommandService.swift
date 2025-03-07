@@ -1,11 +1,24 @@
+import Command
 import FileSystem
+import Foundation
 import Noora
 import Path
 import ServiceContextModule
 import TuistServer
 import TuistSupport
 
-public struct InitService {
+public enum InitCommandServiceError: LocalizedError {
+    case emptyProjectHandle
+
+    public var errorDescription: String? {
+        switch self {
+        case .emptyProjectHandle:
+            return "The project handel introduced is empty."
+        }
+    }
+}
+
+public struct InitCommandService {
     private let fileSystem: FileSystem
     private let prompter: InitPrompting
     private let loginService: LoginServicing
@@ -15,6 +28,7 @@ public struct InitService {
     private let initGeneratedProjectService: InitGeneratedProjectServicing
     private let keystrokeListener: KeyStrokeListening
     private let getProjectService: GetProjectServicing
+    private let commandRunner: CommandRunning
 
     enum XcodeProjectOrWorkspace: Hashable, Equatable {
         case workspace(AbsolutePath)
@@ -51,7 +65,8 @@ public struct InitService {
         initGeneratedProjectService: InitGeneratedProjectServicing = InitGeneratedProjectService(),
         keystrokeListener: KeyStrokeListening = KeyStrokeListener(),
         createOrganizationService: CreateOrganizationServicing = CreateOrganizationService(),
-        getProjectService: GetProjectServicing = GetProjectService()
+        getProjectService: GetProjectServicing = GetProjectService(),
+        commandRunner: CommandRunning = CommandRunner()
     ) {
         self.fileSystem = fileSystem
         self.prompter = prompter
@@ -62,6 +77,7 @@ public struct InitService {
         self.keystrokeListener = keystrokeListener
         self.createOrganizationService = createOrganizationService
         self.getProjectService = getProjectService
+        self.commandRunner = commandRunner
     }
 
     func run(from directory: AbsolutePath, answers: InitPromptAnswers?) async throws {
@@ -88,10 +104,10 @@ public struct InitService {
             } else {
                 tuistSwiftLine = "let tuist = Tuist(project: .tuist())"
             }
-        case let .integrateWithProjectOrWorkspace(name):
+        case let .connectProjectOrSwiftPackage(name):
             projectDirectory = directory
             if let fullHandle = try await integrateWithXcodeProjectOrWorkspace(
-                named: name,
+                named: name ?? projectDirectory.basename,
                 in: directory,
                 answers: answers,
                 nextSteps: &nextSteps
@@ -113,25 +129,32 @@ public struct InitService {
         }
         try await fileSystem.writeText(tuistSwiftFileContent, at: tuistSwiftFilePath)
 
-        try await mise(path: directory, nextSteps: &nextSteps)
+        try await mise(path: projectDirectory, nextSteps: &nextSteps)
+
+        let currentWorkingDirectory = try await fileSystem.currentWorkingDirectory()
+        if projectDirectory != currentWorkingDirectory {
+            nextSteps.insert(
+                "Choose the project directory with \(.command("cd \(projectDirectory.relative(to: currentWorkingDirectory).pathString)"))",
+                at: 0
+            )
+        }
 
         ServiceContext.current?.alerts?.success(.alert("You are all set to explore the Tuist universe", nextSteps: nextSteps))
     }
 
-    private func mise(path: AbsolutePath, nextSteps: inout [TerminalText]) async throws {
-        if let existingMiseTomlPath = (
-            try await [path.appending(component: ".mise.toml"), path.appending(component: "mise.toml")]
-                .concurrentFilter {
-                    try await fileSystem.exists($0)
-                }
-        ).first {
-            nextSteps.append("Add 'tuist = \'\(Constants.version!)\'' to your \(existingMiseTomlPath.basename)")
-        } else {
-            try await fileSystem.writeText("""
-            [tools]
-            tuist = "\(Constants.version!)"
-            """, at: path.appending(component: "mise.toml"))
-        }
+    private func mise(path: AbsolutePath, nextSteps _: inout [TerminalText]) async throws {
+        let version = (Constants.version == "x.y.z") ? "latest" : Constants.version
+        try? await commandRunner.run(
+            arguments: [
+                "/usr/bin/env",
+                "mise",
+                "use",
+                "tuist@\(version!)",
+                "--path",
+                path.appending(component: "mise.toml").pathString,
+            ],
+            workingDirectory: path
+        ).awaitCompletion()
     }
 
     private func createGeneratedProject(at directory: AbsolutePath, name: String, platform: String) async throws -> AbsolutePath {
@@ -148,8 +171,7 @@ public struct InitService {
                 try await initGeneratedProjectService.run(
                     name: name,
                     platform: platform,
-                    path: projectDirectory.pathString,
-                    templateName: "default"
+                    path: projectDirectory.pathString
                 )
             }
         )
@@ -194,6 +216,11 @@ public struct InitService {
                 )
             }
             let fullHandle = "\(try await accountHandle(answers: answers))/\(projectHandle)"
+
+            if fullHandle == "" {
+                throw InitCommandServiceError.emptyProjectHandle
+            }
+
             try await ServiceContext.current?.ui?.progressStep(
                 message: "Creating Tuist project",
                 successMessage: "Project connected",

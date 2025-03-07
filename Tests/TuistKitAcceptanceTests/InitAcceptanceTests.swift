@@ -75,7 +75,7 @@ final class InitAcceptanceTestmacOSApp: TuistAcceptanceTestCase {
                 try await setUpFixture(.xcodeProjectiOSApp)
 
                 let initAnswers = InitPromptAnswers(
-                    workflowType: .integrateWithProjectOrWorkspace("App"),
+                    workflowType: .connectProjectOrSwiftPackage("App"),
                     integrateWithServer: false,
                     generatedProjectPlatform: "",
                     generatedProjectName: "",

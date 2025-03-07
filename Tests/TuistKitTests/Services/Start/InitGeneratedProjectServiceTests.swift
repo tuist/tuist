@@ -159,14 +159,12 @@ extension InitGeneratedProjectService {
     func testRun(
         name: String? = nil,
         platform: String? = nil,
-        path: String? = nil,
-        templateName: String? = nil
+        path: String? = nil
     ) async throws {
         try await run(
             name: name,
             platform: platform,
-            path: path,
-            templateName: templateName
+            path: path
         )
     }
 }
