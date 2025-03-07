@@ -75,7 +75,7 @@
         </td>
       </tr>
     </table>
-    <div style="background-color: #F3F2FD; padding-top: 1rem; padding-bottom: 2rem; max-width: 100%; box-sizing: border-box; text-align: center;">
+    <div style="background-color: #F3F2FD; padding-top: 2rem; padding-bottom: 2rem; max-width: 100%; box-sizing: border-box; text-align: center;">
       <%= if not is_nil(@issue.hero["image"]) do %>
         <% img_src =
           if(String.starts_with?(@issue.hero["image"], "/"),
@@ -85,7 +85,7 @@
         <img
           src={img_src}
           alt={@issue.hero["alt"]}
-          style="object-fit: cover; max-width: 150px; height: auto; border-radius: 2rem; display: block; margin-left: auto; margin-right: auto;"
+          style={"object-fit: cover; max-width: #{Map.get(@issue.hero, "image_max_width", "150px")}; height: auto; border-radius: 2rem; display: block; margin-left: auto; margin-right: auto;"}
         />
       <% end %>
       <%= if not is_nil(@issue.hero["video"]) do %>
