@@ -263,6 +263,11 @@ public protocol GraphTraversing {
     /// - Returns: A dictionary with the graph targets as keys, and the platforms that they support
     /// as values
     func externalTargetSupportedPlatforms() -> [GraphTarget: Set<Platform>]
+    
+    /// Returns a dictionary containing a graph target as the key, and narrowed platforms as the value.
+    ///
+    /// - Note: For test targets, there are no cascaded platforms, so it aligns the platforms to their dependencies.
+    func allTargetSupportedPlatforms() -> [GraphTarget: Set<Platform>]
 
     /// Given a target's project path and name, it returns its target dependencies that are external.
     /// - Parameters:
