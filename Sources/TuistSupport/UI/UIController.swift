@@ -13,7 +13,7 @@ public struct UIController: Noorable {
     // MARK: - Initializer
 
     public init(noorable: Noorable) {
-        self.noora = noorable
+        noora = noorable
     }
 
     // MARK: - Methods
