@@ -16,15 +16,8 @@ public struct UIController: Noorable {
     /// Flag to silent all output
     let isQuiet: Bool = ProcessInfo.processInfo.environment[Constants.EnvironmentVariables.quiet] != nil
 
-    /// Logger for stdout
-    ///
-    /// TODO: This should be removed once Noora supports regular text output.
-    let logger: Logger
-
     // MARK: - Initializer
-    public init(logger: Logger) {
-        self.logger = logger
-    }
+    public init() { }
 
     // MARK: - Methods
 
@@ -33,7 +26,7 @@ public struct UIController: Noorable {
     /// - Parameters
     ///   - text: The text to show.
     public func message(_ text: TerminalText) {
-        logger.info("\(text.formatted(theme: .default, terminal: Terminal()))")
+        print("\(text.formatted(theme: .default, terminal: Terminal()))")
     }
 
     // MARK: - Noorable
