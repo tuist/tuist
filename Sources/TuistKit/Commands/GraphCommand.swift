@@ -9,8 +9,6 @@ import XcodeGraph
 
 /// Command that generates and exports a dot graph from the workspace or project in the current directory.
 public struct GraphCommand: AsyncParsableCommand {
-    public init() {}
-
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "graph",
@@ -81,7 +79,15 @@ public struct GraphCommand: AsyncParsableCommand {
     )
     var outputPath: String?
 
+    public init() {}
+
     public func run() async throws {
+        // If output path is present
+        var absoluteOutputPath: AbsolutePath?
+        if let outputPath {
+            absoluteOutputPath = try AbsolutePath(validating: outputPath, relativeTo: FileHandler.shared.currentPath)
+        }
+
         try await GraphService().run(
             format: format,
             layoutAlgorithm: layoutAlgorithm,
@@ -91,15 +97,25 @@ public struct GraphCommand: AsyncParsableCommand {
             platformToFilter: platform,
             targetsToFilter: targets,
             path: path.map { try AbsolutePath(validating: $0) } ?? FileHandler.shared.currentPath,
-            outputPath: outputPath
-                .map { try AbsolutePath(validating: $0, relativeTo: FileHandler.shared.currentPath) } ?? FileHandler.shared
-                .currentPath
+            outputPath: absoluteOutputPath
         )
     }
 }
 
 enum GraphFormat: String, ExpressibleByArgument, CaseIterable {
     case dot, json, legacyJSON, png, svg
+}
+
+extension GraphFormat {
+    /// Flag to indicate if an output to stdout is allowed.
+    var allowsStdOut: Bool {
+        switch self {
+        case .json, .svg, .dot:
+            return true
+        default:
+            return false
+        }
+    }
 }
 
 extension GraphViz.LayoutAlgorithm: ArgumentParser.ExpressibleByArgument {

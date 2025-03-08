@@ -32,7 +32,7 @@ extension ServiceContext {
         context.logger = Logger(label: label, factory: { _ in
             return testingLogHandler
         })
-        context.ui = NooraMock()
+        context.ui = UIController(noorable: NooraMock())
         context.alerts = AlertController()
         try await ServiceContext.withValue(context) {
             try await closure()

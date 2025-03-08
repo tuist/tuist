@@ -2,11 +2,11 @@ import Noora
 import ServiceContextModule
 
 private enum UIServiceContextKey: ServiceContextKey {
-    typealias Value = Noorable
+    typealias Value = UIController
 }
 
 extension ServiceContext {
-    public var ui: Noorable? {
+    public var ui: UIController? {
         get {
             self[UIServiceContextKey.self]
         } set {
@@ -23,7 +23,7 @@ extension ServiceContext {
 
         public func recordedUI() -> String! {
             alerts?.print()
-            return (ui as? NooraMock)?.description as? String
+            return (ui?.noora as? NooraMock)?.description as? String
         }
     }
 #endif
