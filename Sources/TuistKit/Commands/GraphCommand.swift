@@ -9,7 +9,6 @@ import XcodeGraph
 
 /// Command that generates and exports a dot graph from the workspace or project in the current directory.
 public struct GraphCommand: AsyncParsableCommand {
-    public init() {}
 
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
@@ -80,6 +79,8 @@ public struct GraphCommand: AsyncParsableCommand {
         envKey: .graphOutputPath
     )
     var outputPath: String?
+
+    public init() {}
 
     public func run() async throws {
         // If output path is present

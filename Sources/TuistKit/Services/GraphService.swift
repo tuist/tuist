@@ -135,7 +135,7 @@ extension GraphService {
         from graph: XcodeGraph.Graph
     ) throws {
         let jsonString = try json(from: graph)
-        print("\(jsonString)")
+        ServiceContext.current?.ui?.message("\(jsonString)")
     }
 
     // MARK: GraphViz Export
