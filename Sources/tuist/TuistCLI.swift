@@ -33,7 +33,7 @@ private enum TuistCLI {
 
             var context = ServiceContext.topLevel
             context.logger = Logger(label: "dev.tuist.cli", factory: loggerHandler)
-            context.ui = UIController()
+            context.ui = UIController(noorable: Noora())
             context.alerts = AlertController()
 
             try await ServiceContext.withValue(context) {

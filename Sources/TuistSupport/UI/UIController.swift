@@ -5,14 +5,16 @@ import Noora
 public struct UIController: Noorable {
     // MARK: - Properties
 
-    let noora = Noora()
+    let noora: Noorable
 
     /// Flag to silent all output
     let isQuiet: Bool = ProcessInfo.processInfo.environment[Constants.EnvironmentVariables.quiet] != nil
 
     // MARK: - Initializer
 
-    public init() {}
+    public init(noorable: Noorable) {
+        self.noora = noorable
+    }
 
     // MARK: - Methods
 
