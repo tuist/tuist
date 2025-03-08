@@ -1,23 +1,18 @@
-//
-//  UIController.swift
-//  Tuist
-//
-//  Created by Weiß, Alexander on 08.03.25.
-//
-
-import Noora
 import Foundation
+import Noora
 
 /// A controller for UI elements on the terminal.
 public struct UIController: Noorable {
     // MARK: - Properties
+
     let noora = Noora()
 
     /// Flag to silent all output
     let isQuiet: Bool = ProcessInfo.processInfo.environment[Constants.EnvironmentVariables.quiet] != nil
 
     // MARK: - Initializer
-    public init() { }
+
+    public init() {}
 
     // MARK: - Methods
 
@@ -30,6 +25,7 @@ public struct UIController: Noorable {
     }
 
     // MARK: - Noorable
+
     /// Shows a success alert.
     ///
     /// - Parameters:
@@ -45,8 +41,8 @@ public struct UIController: Noorable {
     public func error(_ alert: ErrorAlert) {
         // ``isQuiet`` is not respected here, since errors should always be recorded
         noora.error(alert)
-
     }
+
     /// Shows warning alerts.
     ///
     /// - Parameters:
@@ -70,7 +66,8 @@ public struct UIController: Noorable {
     ///   - successMessage: The message that the step gets updated to when the action completes.
     ///   - errorMessage: The message that the step gets updated to when the action errors.
     ///   - showSpinner: True to show a spinner.
-    ///   - task: The asynchronous task to run. The caller can use the argument that the function takes to update the step message.
+    ///   - task: The asynchronous task to run. The caller can use the argument that the function takes to update the step
+    /// message.
     public func progressStep(
         message: String,
         successMessage: String?,
@@ -89,7 +86,8 @@ public struct UIController: Noorable {
         }
     }
 
-    /// A component to represent long-running operations showing the last lines of the sub-process, and collapsing it on completion.
+    /// A component to represent long-running operations showing the last lines of the sub-process, and collapsing it on
+    /// completion.
     ///
     /// - Parameters:
     ///   - title: A representative title of the underlying operation.

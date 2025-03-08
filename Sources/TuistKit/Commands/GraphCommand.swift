@@ -9,7 +9,6 @@ import XcodeGraph
 
 /// Command that generates and exports a dot graph from the workspace or project in the current directory.
 public struct GraphCommand: AsyncParsableCommand {
-
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "graph",
