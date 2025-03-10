@@ -10,7 +10,7 @@ description: Узнайте о Tuist DSL для описания Xcode прое�
 
 ## Как это работает? {#how-does-it-work}
 
-Чтобы начать работу со сгенерированными XCode-проектами, вам нужно определить свой проект с помощью \*\*Предметно-ориентированного языка(DSL) Tuist \*\*. This entails using manifest files such as `Workspace.swift` or `Project.swift`. If you've worked with the Swift Package Manager before, the approach is very similar.
+Чтобы начать работу со сгенерированными XCode-проектами, вам нужно определить свой проект с помощью \*\*Предметно-ориентированного языка(DSL) Tuist \*\*. Это подразумевает использование манифест файлов, таких как `Workspace.swift` или `Project.swift`. If you've worked with the Swift Package Manager before, the approach is very similar.
 
 Once you've defined your project, Tuist offers various workflows to manage and interact with it:
 
