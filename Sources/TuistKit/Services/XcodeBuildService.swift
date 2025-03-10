@@ -180,7 +180,7 @@ struct XcodeBuildService {
         if !skipTestTargets.isEmpty {
             ServiceContext.current?.logger?
                 .info(
-                    "The following targets have not changed since the last successful run and will be skipped: \(Set(skipTestTargets.compactMap(\.target)).joined(separator: ", "))"
+                    "The following targets have not changed since the last successful run and will be skipped: \(Set(skipTestTargets.compactMap(\.target)).sorted().joined(separator: ", "))"
                 )
         }
 

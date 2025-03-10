@@ -508,7 +508,7 @@ final class TestService { // swiftlint:disable:this type_body_length
         if !skippedTestTargets.isEmpty {
             ServiceContext.current?.logger?
                 .notice(
-                    "The following targets have not changed since the last successful run and will be skipped: \(skippedTestTargets.map(\.target.name).joined(separator: ", "))"
+                    "The following targets have not changed since the last successful run and will be skipped: \(skippedTestTargets.map(\.target.name).sorted().joined(separator: ", "))"
                 )
         }
 
