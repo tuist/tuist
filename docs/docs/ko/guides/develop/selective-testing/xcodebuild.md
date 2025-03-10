@@ -10,7 +10,7 @@ description: Learn how to leverage selective testing with `xcodebuild`.
 >
 > - <LocalizedLink href="/server/introduction/accounts-and-projects">Tuist 계정과 프로젝트</LocalizedLink>
 
-To run tests selectively using `xcodebuild`, you can prepend your `xcodebuild` command with `tuist` – for example, `tuist xcodebuild test -scheme App`. The command hashes your project and on success, it persists the hashes to determine what has changed in future runs.
+`xcodebuild`를 이용하여 테스트를 개별적으로 실행하려면, `xcodebuild` 명령어 앞에 `tuist`를 붙이면 됩니다. 예를 들어서, `tuist xcodebuild test -scheme App`와 같이 사용할 수 있습니다. 이 명령어는 프로젝트를 해시화하고 이후에 어떠한 항목들이 바뀌는지 확인하기 위한 용도로 사용될 수 있습니다.
 
 In future runs `tuist xcodebuild test` transparently uses the hashes to filter down the tests to run only the ones that have changed since the last successful test run.
 
