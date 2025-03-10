@@ -1,7 +1,7 @@
 ---
 title: Shell completions
 titleTemplate: :title · CLI · Tuist
-description: Learn how to configure your shell to auto-complete Tuist commands.
+description: Tuist 명령어를 자동으로 완성하도록 셀을 구성하는 방법에 대해 배워봅니다.
 ---
 
 # Shell completions
