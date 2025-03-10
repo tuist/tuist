@@ -17,6 +17,7 @@ enum TestServiceError: FatalError, Equatable {
     case testIdentifierInvalid(value: String)
     case duplicatedTestTargets(Set<TestIdentifier>)
     case nothingToSkip(skipped: [TestIdentifier], included: [TestIdentifier])
+    case actionInvalid
 
     // Error description
     var description: String {
@@ -47,6 +48,8 @@ enum TestServiceError: FatalError, Equatable {
             return "The target identifier cannot be specified both in --test-targets and --skip-test-targets (were specified: \(targets.map(\.description).joined(separator: ", ")))"
         case let .nothingToSkip(skippedTargets, includedTargets):
             return "Some of the targets specified in --skip-test-targets (\(skippedTargets.map(\.description).joined(separator: ", "))) will always be skipped as they are not included in the targets specified (\(includedTargets.map(\.description).joined(separator: ", ")))"
+        case .actionInvalid:
+            return "Cannot specify both --build-only and --without-building"
         }
     }
 
@@ -54,7 +57,7 @@ enum TestServiceError: FatalError, Equatable {
     var type: ErrorType {
         switch self {
         case .schemeNotFound, .schemeWithoutTestableTargets, .testPlanNotFound, .testIdentifierInvalid, .duplicatedTestTargets,
-             .nothingToSkip:
+             .nothingToSkip, .actionInvalid:
             return .abort
         }
     }
@@ -172,6 +175,7 @@ final class TestService { // swiftlint:disable:this type_body_length
         deviceName: String?,
         platform: String?,
         osVersion: String?,
+        action: XcodeBuildTestAction,
         rosetta: Bool,
         skipUITests: Bool,
         resultBundlePath: AbsolutePath?,
@@ -316,6 +320,7 @@ final class TestService { // swiftlint:disable:this type_body_length
                 version: version,
                 deviceName: deviceName,
                 platform: platform,
+                action: action,
                 rosetta: rosetta,
                 resultBundlePath: resultBundlePath,
                 derivedDataPath: derivedDataPath,
@@ -352,6 +357,7 @@ final class TestService { // swiftlint:disable:this type_body_length
         version: Version?,
         deviceName: String?,
         platform: String?,
+        action: XcodeBuildTestAction,
         rosetta: Bool,
         resultBundlePath: AbsolutePath?,
         derivedDataPath: AbsolutePath?,
@@ -391,6 +397,7 @@ final class TestService { // swiftlint:disable:this type_body_length
                     version: version,
                     deviceName: deviceName,
                     platform: platform,
+                    action: action,
                     rosetta: rosetta,
                     resultBundlePath: resultBundlePath,
                     derivedDataPath: derivedDataPath,
@@ -629,6 +636,7 @@ final class TestService { // swiftlint:disable:this type_body_length
         version: Version?,
         deviceName: String?,
         platform: String?,
+        action: XcodeBuildTestAction,
         rosetta: Bool,
         resultBundlePath: AbsolutePath?,
         derivedDataPath: AbsolutePath?,
@@ -687,6 +695,7 @@ final class TestService { // swiftlint:disable:this type_body_length
             scheme: scheme.name,
             clean: clean,
             destination: destination,
+            action: action,
             rosetta: rosetta,
             derivedDataPath: derivedDataPath,
             resultBundlePath: resultBundlePath,

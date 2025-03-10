@@ -172,6 +172,20 @@ public struct TestCommand: AsyncParsableCommand, LogConfigurableCommand {
     )
     var generateOnly: Bool = false
 
+    @Flag(
+        name: .long,
+        help: "When passed, run the tests without building.",
+        envKey: .testWithoutBuilding
+    )
+    var withoutBuilding: Bool = false
+
+    @Flag(
+        name: .long,
+        help: "When passed, build the tests, but don't run them",
+        envKey: .testBuildOnly
+    )
+    var buildOnly: Bool = false
+
     @Argument(
         parsing: .postTerminator,
         help: "xcodebuild arguments that will be passthrough"
@@ -179,6 +193,10 @@ public struct TestCommand: AsyncParsableCommand, LogConfigurableCommand {
     var passthroughXcodeBuildArguments: [String] = []
 
     public func validate() throws {
+        if withoutBuilding, buildOnly {
+            throw TestServiceError.actionInvalid
+        }
+
         try TestService.validateParameters(
             testTargets: testTargets,
             skipTestTargets: skipTestTargets
@@ -224,6 +242,14 @@ public struct TestCommand: AsyncParsableCommand, LogConfigurableCommand {
             FileHandler.shared.currentPath
         }
 
+        let action: XcodeBuildTestAction = if buildOnly {
+            .build
+        } else if withoutBuilding {
+            .testWithoutBuilding
+        } else {
+            .test
+        }
+
         try await TestService(
             generatorFactory: Self.generatorFactory,
             cacheStorageFactory: Self.cacheStorageFactory
@@ -237,6 +263,7 @@ public struct TestCommand: AsyncParsableCommand, LogConfigurableCommand {
             deviceName: device,
             platform: platform,
             osVersion: os,
+            action: action,
             rosetta: rosetta,
             skipUITests: skipUITests,
             resultBundlePath: resultBundlePath.map {

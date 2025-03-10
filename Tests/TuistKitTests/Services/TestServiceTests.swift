@@ -114,6 +114,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 scheme: .any,
                 clean: .any,
                 destination: .any,
+                action: .any,
                 rosetta: .any,
                 derivedDataPath: .any,
                 resultBundlePath: .any,
@@ -124,7 +125,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 testPlanConfiguration: .any,
                 passthroughXcodeBuildArguments: .any
             )
-            .willProduce { _, scheme, _, _, _, _, _, _, _, _, _, _, _ in
+            .willProduce { _, scheme, _, _, _, _, _, _, _, _, _, _, _, _ in
                 self.testedSchemes.append(scheme)
             }
     }
@@ -293,6 +294,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 scheme: .any,
                 clean: .any,
                 destination: .any,
+                action: .any,
                 rosetta: .value(true),
                 derivedDataPath: .any,
                 resultBundlePath: .any,
@@ -344,6 +346,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 scheme: .any,
                 clean: .any,
                 destination: .value(nil),
+                action: .any,
                 rosetta: .any,
                 derivedDataPath: .any,
                 resultBundlePath: .any,
@@ -994,6 +997,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 scheme: .any,
                 clean: .any,
                 destination: .any,
+                action: .any,
                 rosetta: .any,
                 derivedDataPath: .any,
                 resultBundlePath: .value(xcresultPath),
@@ -1004,7 +1008,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 testPlanConfiguration: .any,
                 passthroughXcodeBuildArguments: .any
             )
-            .willProduce { _, scheme, _, _, _, _, _, _, _, _, _, _, _ in
+            .willProduce { _, scheme, _, _, _, _, _, _, _, _, _, _, _, _ in
                 self.testedSchemes.append(scheme)
                 throw NSError.test()
             }
@@ -1246,6 +1250,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 scheme: .any,
                 clean: .any,
                 destination: .any,
+                action: .any,
                 rosetta: .any,
                 derivedDataPath: .any,
                 resultBundlePath: .any,
@@ -1256,7 +1261,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 testPlanConfiguration: .any,
                 passthroughXcodeBuildArguments: .any
             )
-            .willProduce { _, scheme, _, _, _, _, _, _, _, _, _, _, _ in
+            .willProduce { _, scheme, _, _, _, _, _, _, _, _, _, _, _, _ in
                 self.testedSchemes.append(scheme)
                 throw NSError.test()
             }
@@ -1347,6 +1352,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 scheme: .any,
                 clean: .any,
                 destination: .any,
+                action: .any,
                 rosetta: .any,
                 derivedDataPath: .any,
                 resultBundlePath: .value(expectedResourceBundlePath),
@@ -1392,6 +1398,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 scheme: .any,
                 clean: .any,
                 destination: .any,
+                action: .any,
                 rosetta: .any,
                 derivedDataPath: .any,
                 resultBundlePath: .value(xcresultPath),
@@ -1453,6 +1460,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 scheme: .any,
                 clean: .any,
                 destination: .any,
+                action: .any,
                 rosetta: .any,
                 derivedDataPath: .any,
                 resultBundlePath: .value(expectedResultBundlePath),
@@ -1509,6 +1517,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 scheme: .any,
                 clean: .any,
                 destination: .any,
+                action: .any,
                 rosetta: .any,
                 derivedDataPath: .any,
                 resultBundlePath: .value(expectedResourceBundlePath),
@@ -1569,6 +1578,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 scheme: .any,
                 clean: .any,
                 destination: .any,
+                action: .any,
                 rosetta: .any,
                 derivedDataPath: .any,
                 resultBundlePath: .any,
@@ -1611,6 +1621,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 scheme: .any,
                 clean: .any,
                 destination: .any,
+                action: .any,
                 rosetta: .any,
                 derivedDataPath: .any,
                 resultBundlePath: .any,
@@ -1636,6 +1647,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 scheme: .any,
                 clean: .any,
                 destination: .any,
+                action: .any,
                 rosetta: .any,
                 derivedDataPath: .any,
                 resultBundlePath: .any,
@@ -1959,6 +1971,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 scheme: .any,
                 clean: .any,
                 destination: .any,
+                action: .any,
                 rosetta: .any,
                 derivedDataPath: .any,
                 resultBundlePath: .any,
@@ -2014,6 +2027,7 @@ final class TestServiceTests: TuistUnitTestCase {
         deviceName: String? = nil,
         platform: String? = nil,
         osVersion: String? = nil,
+        action: XcodeBuildTestAction = .test,
         rosetta: Bool = false,
         skipUiTests: Bool = false,
         resultBundlePath: AbsolutePath? = nil,
@@ -2038,6 +2052,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 deviceName: deviceName,
                 platform: platform,
                 osVersion: osVersion,
+                action: action,
                 rosetta: rosetta,
                 skipUITests: skipUiTests,
                 resultBundlePath: resultBundlePath,
