@@ -84,7 +84,7 @@ defmodule Tuist.Environment do
   def database_queue_target(secrets \\ secrets()) do
     case get([:database, :queue_target], secrets) do
       queue_target when is_binary(queue_target) -> String.to_integer(queue_target)
-      _ -> 600
+      _ -> 200
     end
   end
 
