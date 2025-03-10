@@ -8,6 +8,12 @@ public enum XcodeBuildDestination: Equatable {
     case macCatalyst
 }
 
+public enum XcodeBuildTestAction: Equatable {
+    case test
+    case build
+    case testWithoutBuilding
+}
+
 @Mockable
 public protocol XcodeBuildControlling {
     /// Returns an observable to build the given project using xcodebuild.
@@ -48,6 +54,7 @@ public protocol XcodeBuildControlling {
         scheme: String,
         clean: Bool,
         destination: XcodeBuildDestination?,
+        action: XcodeBuildTestAction,
         rosetta: Bool,
         derivedDataPath: AbsolutePath?,
         resultBundlePath: AbsolutePath?,

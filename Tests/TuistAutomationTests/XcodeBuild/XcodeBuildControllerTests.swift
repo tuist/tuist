@@ -170,6 +170,7 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
             scheme: scheme,
             clean: true,
             destination: .device("device-id"),
+            action: .test,
             rosetta: false,
             derivedDataPath: nil,
             resultBundlePath: nil,
@@ -209,6 +210,7 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
             scheme: scheme,
             clean: true,
             destination: .device("device-id"),
+            action: .test,
             rosetta: true,
             derivedDataPath: nil,
             resultBundlePath: nil,
@@ -250,6 +252,7 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
             scheme: scheme,
             clean: true,
             destination: .mac,
+            action: .test,
             rosetta: false,
             derivedDataPath: nil,
             resultBundlePath: nil,
@@ -290,6 +293,7 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
             scheme: scheme,
             clean: true,
             destination: nil,
+            action: .test,
             rosetta: false,
             derivedDataPath: nil,
             resultBundlePath: nil,
@@ -333,6 +337,7 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
             scheme: scheme,
             clean: true,
             destination: .mac,
+            action: .test,
             rosetta: false,
             derivedDataPath: derivedDataPath,
             resultBundlePath: nil,
@@ -374,9 +379,86 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
             scheme: scheme,
             clean: true,
             destination: .mac,
+            action: .test,
             rosetta: false,
             derivedDataPath: nil,
             resultBundlePath: resultBundlePath,
+            arguments: [],
+            retryCount: 0,
+            testTargets: [],
+            skipTestTargets: [],
+            testPlanConfiguration: nil,
+            passthroughXcodeBuildArguments: []
+        )
+    }
+
+    func test_test_build_only() async throws {
+        // Given
+        let path = try temporaryPath()
+        let xcworkspacePath = path.appending(component: "Project.xcworkspace")
+        let target = XcodeBuildTarget.workspace(xcworkspacePath)
+        let scheme = "Scheme"
+
+        var command = [
+            "/usr/bin/xcrun",
+            "xcodebuild",
+            "build-for-testing",
+            "-scheme",
+            scheme,
+        ]
+
+        command.append(contentsOf: target.xcodebuildArguments)
+
+        system.succeedCommand(command, output: "output")
+
+        // When
+        try await subject.test(
+            target,
+            scheme: scheme,
+            clean: false,
+            destination: nil,
+            action: .build,
+            rosetta: false,
+            derivedDataPath: nil,
+            resultBundlePath: nil,
+            arguments: [],
+            retryCount: 0,
+            testTargets: [],
+            skipTestTargets: [],
+            testPlanConfiguration: nil,
+            passthroughXcodeBuildArguments: []
+        )
+    }
+
+    func test_test_only() async throws {
+        // Given
+        let path = try temporaryPath()
+        let xcworkspacePath = path.appending(component: "Project.xcworkspace")
+        let target = XcodeBuildTarget.workspace(xcworkspacePath)
+        let scheme = "Scheme"
+
+        var command = [
+            "/usr/bin/xcrun",
+            "xcodebuild",
+            "test-without-building",
+            "-scheme",
+            scheme,
+        ]
+
+        command.append(contentsOf: target.xcodebuildArguments)
+
+        system.succeedCommand(command, output: "output")
+
+        // When
+        try await subject.test(
+            target,
+            scheme: scheme,
+            clean: false,
+            destination: nil,
+            action: .testWithoutBuilding,
+            rosetta: false,
+            derivedDataPath: nil,
+            resultBundlePath: nil,
             arguments: [],
             retryCount: 0,
             testTargets: [],
