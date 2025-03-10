@@ -6,6 +6,9 @@ defmodule TuistWeb.AppLayoutComponents do
   import TuistWeb.AppComponents, except: [icon: 1]
   import TuistWeb.Noora.Breadcrumbs
   import TuistWeb.Noora.Icon
+  import TuistWeb.Noora.Avatar
+  alias Tuist.Accounts
+  alias Tuist.Accounts.User
 
   defdelegate noora_button(assigns), to: TuistWeb.Noora.Button, as: :button
 
@@ -154,6 +157,13 @@ defmodule TuistWeb.AppLayoutComponents do
               <.book />
             </.noora_button>
           </.link>
+          <%= if not is_nil(@current_user) do %>
+            <.avatar
+              name={@current_user.account.name}
+              image_href={User.gravatar_url(@current_user)}
+              color={Accounts.avatar_color(@current_user.account)}
+            />
+          <% end %>
         </div>
       </header>
       """
@@ -226,7 +236,12 @@ defmodule TuistWeb.AppLayoutComponents do
       ~H"""
       <.breadcrumbs>
         <%= for {breadcrumb, index} <- Enum.with_index(@breadcrumbs) do %>
-          <.breadcrumb id={"app-breadcrumb-#{index}"} label={breadcrumb.label}>
+          <.breadcrumb
+            id={"app-breadcrumb-#{index}"}
+            label={breadcrumb.label}
+            show_avatar={Map.get(breadcrumb, :show_avatar, false)}
+            avatar_color={Map.get(breadcrumb, :avatar_color)}
+          >
             <:icon :if={Map.get(breadcrumb, :icon)}><.icon name={Map.get(breadcrumb, :icon)} /></:icon>
             <.breadcrumb_item
               :for={breadcrumb_item <- breadcrumb.items}
@@ -234,6 +249,8 @@ defmodule TuistWeb.AppLayoutComponents do
               label={breadcrumb_item.label}
               selected={breadcrumb_item.selected}
               href={breadcrumb_item.href}
+              show_avatar={Map.get(breadcrumb_item, :show_avatar, false)}
+              avatar_color={Map.get(breadcrumb_item, :avatar_color)}
             />
           </.breadcrumb>
         <% end %>

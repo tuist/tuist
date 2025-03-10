@@ -47,6 +47,9 @@ defmodule TuistWeb.LayoutLiveTest do
     conn = conn |> log_in_user(user)
     session = conn |> get_session()
 
+    Accounts
+    |> stub(:avatar_color, fn _ -> "gray" end)
+
     %{
       conn: conn,
       session: session,
@@ -109,19 +112,25 @@ defmodule TuistWeb.LayoutLiveTest do
                %{
                  label: organization.account.name,
                  icon: "smart_home",
+                 avatar_color: "gray",
+                 show_avatar: true,
                  items: [
                    %{
                      label: organization.account.name,
                      selected: true,
                      value: organization.account.id,
                      href: ~p"/#{organization.account.name}/projects",
-                     selected: true
+                     selected: true,
+                     avatar_color: "gray",
+                     show_avatar: true
                    },
                    %{
                      label: user.account.name,
                      value: user.account.id,
                      href: ~p"/#{user.account.name}/projects",
-                     selected: false
+                     selected: false,
+                     avatar_color: "gray",
+                     show_avatar: true
                    }
                  ]
                },
@@ -168,10 +177,14 @@ defmodule TuistWeb.LayoutLiveTest do
                      label: user.account.name,
                      selected: true,
                      href: ~p"/#{user.account.name}/projects",
-                     value: user.account.id
+                     value: user.account.id,
+                     avatar_color: "gray",
+                     show_avatar: true
                    }
                  ],
-                 label: user.account.name
+                 label: user.account.name,
+                 avatar_color: "gray",
+                 show_avatar: true
                }
              ]
 
@@ -206,16 +219,22 @@ defmodule TuistWeb.LayoutLiveTest do
                      label: organization.account.name,
                      value: organization.account.id,
                      selected: true,
-                     href: ~p"/#{organization.account.name}/projects"
+                     href: ~p"/#{organization.account.name}/projects",
+                     avatar_color: "gray",
+                     show_avatar: true
                    },
                    %{
                      label: user.account.name,
                      value: user.account.id,
                      selected: false,
-                     href: ~p"/#{user.account.name}/projects"
+                     href: ~p"/#{user.account.name}/projects",
+                     avatar_color: "gray",
+                     show_avatar: true
                    }
                  ],
-                 label: organization.account.name
+                 label: organization.account.name,
+                 avatar_color: "gray",
+                 show_avatar: true
                }
              ]
 
@@ -250,16 +269,22 @@ defmodule TuistWeb.LayoutLiveTest do
                      label: organization.account.name,
                      selected: true,
                      value: organization.account.id,
-                     href: ~p"/#{organization.account.name}/projects"
+                     href: ~p"/#{organization.account.name}/projects",
+                     avatar_color: "gray",
+                     show_avatar: true
                    },
                    %{
                      label: user.account.name,
                      selected: false,
                      value: user.account.id,
-                     href: ~p"/#{user.account.name}/projects"
+                     href: ~p"/#{user.account.name}/projects",
+                     avatar_color: "gray",
+                     show_avatar: true
                    }
                  ],
-                 label: organization.account.name
+                 label: organization.account.name,
+                 avatar_color: "gray",
+                 show_avatar: true
                }
              ]
 

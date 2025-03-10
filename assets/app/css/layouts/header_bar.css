@@ -25,6 +25,13 @@
     flex-grow: 1;
     gap: var(--noora-spacing-5);
   }
+
+  & [data-part="right-section"] {
+    display: flex;
+    flex-direction: row;
+    gap: var(--noora-spacing-8);
+    align-items: center;
+  }
 }
 
 @media (max-width: 1024px) {

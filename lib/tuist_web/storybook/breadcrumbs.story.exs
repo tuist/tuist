@@ -48,6 +48,24 @@ defmodule TuistWeb.Storybook.Breadcrumbs do
           </.breadcrumb>
           """
         ]
+      },
+      %Variation{
+        id: :with_avatar,
+        attributes: %{
+          label: "Breadcrumbs"
+        },
+        slots: [
+          """
+          <.breadcrumb id="with-avatar" label="tuist" show_avatar>
+            <:icon><.smart_home /></:icon>
+            <.breadcrumb_item value="1" label="Item 1" show_avatar />
+            <.breadcrumb_item value="2" label="Item 2" show_avatar selected={true} />
+          </.breadcrumb>
+          <.breadcrumb id="project-breadcrumb" label="tuist">
+            <.breadcrumb_item value="1" label="Item 1" />
+          </.breadcrumb>
+          """
+        ]
       }
     ]
   end

@@ -66,6 +66,8 @@ defmodule TuistWeb.LayoutLive do
      |> append_breadcrumb(%{
        label: selected_account.name,
        icon: "smart_home",
+       show_avatar: true,
+       avatar_color: Accounts.avatar_color(selected_account),
        items:
          current_user_accounts
          |> Enum.map(fn account ->
@@ -73,7 +75,9 @@ defmodule TuistWeb.LayoutLive do
              label: account.name,
              value: account.id,
              selected: account.id == selected_account.id,
-             href: ~p"/#{account.name}/projects"
+             href: ~p"/#{account.name}/projects",
+             show_avatar: true,
+             avatar_color: Accounts.avatar_color(account)
            }
          end)
      })
@@ -122,6 +126,8 @@ defmodule TuistWeb.LayoutLive do
      |> assign_current_path()
      |> append_breadcrumb(%{
        label: selected_account.name,
+       show_avatar: true,
+       avatar_color: Accounts.avatar_color(selected_account),
        items:
          current_user_accounts
          |> Enum.map(fn account ->
@@ -129,7 +135,9 @@ defmodule TuistWeb.LayoutLive do
              label: account.name,
              value: account.id,
              href: ~p"/#{account.name}/projects",
-             selected: account.id == selected_account.id
+             selected: account.id == selected_account.id,
+             show_avatar: true,
+             avatar_color: Accounts.avatar_color(account)
            }
          end)
      })

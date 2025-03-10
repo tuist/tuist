@@ -44,7 +44,7 @@
     outline: unset;
     padding: var(--noora-spacing-3) var(--noora-spacing-2);
 
-    &:not(:has([data-part="icon"])) {
+    &:not(:has([data-part="icon"], [data-part="avatar"])) {
       padding: var(--noora-spacing-3) var(--noora-spacing-2) var(--noora-spacing-3) var(--noora-spacing-4);
     }
 

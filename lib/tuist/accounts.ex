@@ -1156,4 +1156,17 @@ defmodule Tuist.Accounts do
       end)
     end
   end
+
+  def avatar_color(%Account{name: name}) do
+    index =
+      name
+      |> :erlang.phash2(Enum.count(available_avatar_colors()))
+
+    available_avatar_colors()
+    |> Enum.at(index)
+  end
+
+  defp available_avatar_colors do
+    ~w(gray red orange yellow azure blue purple pink)
+  end
 end

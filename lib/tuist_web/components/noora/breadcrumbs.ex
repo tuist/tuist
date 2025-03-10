@@ -7,6 +7,7 @@ defmodule TuistWeb.Noora.Breadcrumbs do
   import TuistWeb.Noora.Icon
   import TuistWeb.Noora.Utils
   import TuistWeb.Noora.Dropdown
+  import TuistWeb.Noora.Avatar
 
   attr :style, :string, values: ~w(slash arrow), default: "slash"
 
@@ -45,6 +46,13 @@ defmodule TuistWeb.Noora.Breadcrumbs do
     default: nil,
     doc: "Function called when an interaction happens outside the component"
 
+  attr :show_avatar, :boolean, default: false, doc: "Whether to show the avatar"
+
+  attr :avatar_color, :string,
+    values: ~w(gray red orange yellow azure blue purple pink),
+    default: "pink",
+    doc: "Color of the avatar when avatar is shown"
+
   slot :icon, doc: "Breadcrumb icon"
   slot :inner_block, doc: "Content to be rendered inside the breadcrumb menu"
 
@@ -67,7 +75,14 @@ defmodule TuistWeb.Noora.Breadcrumbs do
       data-positioning-offset-main-axis={6}
     >
       <button data-part="trigger">
-        <div :if={has_slot_content?(@icon, assigns)} data-part="icon">
+        <.avatar
+          :if={@show_avatar}
+          name={@label}
+          color={@avatar_color}
+          size="2xsmall"
+          data-part="avatar"
+        />
+        <div :if={has_slot_content?(@icon, assigns) and not @show_avatar} data-part="icon">
           {render_slot(@icon)}
         </div>
         <span data-part="label">{@label}</span>
@@ -91,15 +106,25 @@ defmodule TuistWeb.Noora.Breadcrumbs do
   attr :value, :string, required: true, doc: "Value associated with the breadcrumb item"
   attr :selected, :boolean, default: false, doc: "Whether the item is selected"
   attr :href, :string, default: nil, doc: "Standard URL for navigation"
+  attr :show_avatar, :boolean, default: false, doc: "Whether to show the avatar"
+
+  attr :avatar_color, :string,
+    values: ~w(gray red orange yellow azure blue purple pink),
+    default: "pink",
+    doc: "Color of the avatar when avatar is shown"
 
   def breadcrumb_item(assigns) do
     ~H"""
-    <.dropdown_item
-      value={@value}
-      label={@label}
-      href={@href}
-      data-selected={@selected}
-    >
+    <.dropdown_item value={@value} label={@label} href={@href} data-selected={@selected}>
+      <:left_icon>
+        <.avatar
+          :if={@show_avatar}
+          name={@label}
+          color={@avatar_color}
+          size="2xsmall"
+          data-part="avatar"
+        />
+      </:left_icon>
       <:right_icon><.check /></:right_icon>
     </.dropdown_item>
     """

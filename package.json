@@ -3,6 +3,7 @@
   "private": true,
   "dependencies": {
     "@scalar/api-reference": "^1.25.122",
+    "@zag-js/avatar": "^0.82.2",
     "@zag-js/dialog": "^0.82.2",
     "@zag-js/menu": "^0.82.2",
     "@zag-js/pin-input": "^0.82.2",

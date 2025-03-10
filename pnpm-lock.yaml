@@ -11,6 +11,9 @@ importers:
       '@scalar/api-reference':
         specifier: ^1.25.122
         version: 1.25.122(@hyperjump/browser@1.2.0)(tailwindcss@4.0.9)
+      '@zag-js/avatar':
+        specifier: ^0.82.2
+        version: 0.82.2
       '@zag-js/dialog':
         specifier: ^0.82.2
         version: 0.82.2
@@ -424,6 +427,9 @@ packages:
 
   '@zag-js/aria-hidden@0.82.2':
     resolution: {integrity: sha512-V+PjbCABKM4yxFnq9M/t3W1hvwLMVe/0Sj9VyOiAAJDICfSDudGzO+5EfJBTJt59z2Gr4r55X+wtH1uBOtTF7w==}
+
+  '@zag-js/avatar@0.82.2':
+    resolution: {integrity: sha512-rGlZno6S9lm/wWLC12sLj7nyFjUXZ/76hOvpcg5d+e2bmysu+chKz1Z08ecLBVVLWkk4JRq9M3v9Jgji0EgaDQ==}
 
   '@zag-js/core@0.82.2':
     resolution: {integrity: sha512-yj4trnU4RzO4duiZJ7uvxECg+6MPVkEbTvTwf2TynotXBYX65LGMTqvMzZP062wvdu0jvTgZ/IbCpN1gc3hmsQ==}
@@ -1796,6 +1802,14 @@ snapshots:
   '@zag-js/anatomy@0.82.2': {}
 
   '@zag-js/aria-hidden@0.82.2': {}
+
+  '@zag-js/avatar@0.82.2':
+    dependencies:
+      '@zag-js/anatomy': 0.82.2
+      '@zag-js/core': 0.82.2
+      '@zag-js/dom-query': 0.82.2
+      '@zag-js/types': 0.82.2
+      '@zag-js/utils': 0.82.2
 
   '@zag-js/core@0.82.2':
     dependencies:

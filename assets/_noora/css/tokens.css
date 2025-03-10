@@ -228,21 +228,25 @@
   --noora-font-weight-semibold: 600;
   --noora-font-weight-bold: 700;
 
-  --noora-font-heading-large: 1.25rem/1.625rem var(--noora-font-heading);
   --noora-font-display-xlarge: 2.5rem/3rem var(--noora-font-heading);
   --noora-font-display-large: 2.375rem/2.875rem var(--noora-font-heading);
   --noora-font-display-medium: 2.25rem/2.625rem var(--noora-font-heading);
   --noora-font-display-small: 2.125rem/2.5rem var(--noora-font-heading);
+  --noora-font-heading-large: 1.25rem/1.625rem var(--noora-font-heading);
+  --noora-font-heading-medium: 1.125rem/1.5rem var(--noora-font-heading);
+  --noora-font-heading-small: 1rem/1.375rem var(--noora-font-heading);
   --noora-font-body-large: 1rem/1.5rem var(--noora-font-body);
   --noora-font-body-medium: 0.875rem/1.25rem var(--noora-font-body);
   --noora-font-body-small: 0.75rem/1rem var(--noora-font-body);
   --noora-font-body-xsmall: 0.625rem/0.75rem var(--noora-font-body);
-
   @media screen and (min-width: 768px) {
     --noora-font-display-xlarge: 4.5rem/4.875rem var(--noora-font-heading);
     --noora-font-display-large: 4rem/4.375rem var(--noora-font-heading);
     --noora-font-display-medium: 3.5rem/4rem var(--noora-font-heading);
     --noora-font-display-small: 3rem/3.5rem var(--noora-font-heading);
+    --noora-font-heading-large: 1.5rem/2rem var(--noora-font-heading);
+    --noora-font-heading-medium: 1.25rem/1.625rem var(--noora-font-heading);
+    --noora-font-heading-small: 1.125rem/1.5rem var(--noora-font-heading);
   }
 
   --noora-font-color-primary: light-dark(var(--noora-neutral-light-1100), var(-noora-neutral-light-100));
