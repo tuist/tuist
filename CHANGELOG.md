@@ -1,5 +1,31 @@
 # Changelog
 
+## 4.44.0 - 2025-03-10
+
+### CLI
+
+#### Changed
+
+- Update XcodeGraph [#7376](https://github.com/tuist/tuist/pull/7376) by [@fortmarek](https://github.com/fortmarek)
+- Rename the internal `Config` model to `Tuist` and reconcile the changes in `ProjectDescription` that introduce Xcode projects [#7379](https://github.com/tuist/tuist/pull/7379) by [@pepicrft](https://github.com/pepicrft)
+
+#### Added
+
+- Make selective testing cache targets with passing tests, even if the test run ultimately failed [#7371](https://github.com/tuist/tuist/pull/7371) by [@cooksimo](https://github.com/cooksimo)
+- Add tuist inspect build command [#7340](https://github.com/tuist/tuist/pull/7340) by [@fortmarek](https://github.com/fortmarek)
+
+#### Fixed
+
+- Fix missing OTHER_SWIFT_FLAGS such as -Xfrontend when using binary cache [#7365](https://github.com/tuist/tuist/pull/7365) by [@fortmarek](https://github.com/fortmarek)
+- Fix reporting ran at date of runs [#7372](https://github.com/tuist/tuist/pull/7372) by [@fortmarek](https://github.com/fortmarek)
+- Update dependencies with known vulnerabilities [#7374](https://github.com/tuist/tuist/pull/7374) by [@pepicrft](https://github.com/pepicrft)
+- Fix ProjectAutomation.graph() method [#7383](https://github.com/tuist/tuist/pull/7383) by [@shahzadmajeed](https://github.com/shahzadmajeed)
+- Sort the targets before printing them [#7389](https://github.com/tuist/tuist/pull/7389) by [@pepicrft](https://github.com/pepicrft)
+
+### CLI (Server features)
+
+- no changes
+
 ## 4.43.2 - 2025-02-25
 
 ### CLI
