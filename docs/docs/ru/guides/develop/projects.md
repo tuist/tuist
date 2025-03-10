@@ -10,12 +10,12 @@ description: Узнайте о Tuist DSL для описания Xcode прое�
 
 ## Как это работает? {#how-does-it-work}
 
-Чтобы начать работу со сгенерированными XCode-проектами, вам нужно определить свой проект с помощью \*\*Предметно-ориентированного языка(DSL) Tuist \*\*. Это подразумевает использование манифест файлов, таких как `Workspace.swift` или `Project.swift`. If you've worked with the Swift Package Manager before, the approach is very similar.
+Чтобы начать работу со сгенерированными XCode-проектами, вам нужно определить свой проект с помощью \*\*Предметно-ориентированного языка(DSL) Tuist \*\*. Это подразумевает использование манифест файлов, таких как `Workspace.swift` или `Project.swift`. Если вы прежде работали с менеджером пакетов Swift, то подход покажется вам очень похож.
 
-Once you've defined your project, Tuist offers various workflows to manage and interact with it:
+После того как вы определили свой проект, Tuist предоставит вам различные процессы для управления и взаимодействия с ним:
 
-- **Generate:** This is a foundational workflow. Use it to create an Xcode project that's compatible with Xcode.
-- **<LocalizedLink href="/guides/develop/build">Build</LocalizedLink>:** This workflow not only generates the Xcode project but also employs `xcodebuild` to compile it.
+- **Сгенерировать:** Это основной рабочий процесс. Используйте его для генерации проекта совместимого с Xcode.
+- **<LocalizedLink href="/guides/develop/build">Построить</LocalizedLink>:** Этот рабочий процесс не только генерирует Xcode проект, но и использует `xcodebuild` для его компиляции.
 - **<LocalizedLink href="/guides/develop/test">Test</LocalizedLink>:** Operating much like the build workflow, this not only generates the Xcode project but utilizes `xcodebuild` to test it.
 
 ## Challenges with Xcode projects {#challenges-with-xcode-projects}
