@@ -19,7 +19,6 @@ final class SwiftPackageManagerGraphLoaderTests: TuistUnitTestCase {
         packageInfoMapper = MockPackageInfoMapping()
         manifestLoader = MockManifestLoading()
         subject = SwiftPackageManagerGraphLoader(
-            swiftPackageManagerController: swiftPackageManagerController,
             packageInfoMapper: packageInfoMapper,
             manifestLoader: manifestLoader,
             fileSystem: fileSystem
