@@ -410,7 +410,8 @@ final class TestService { // swiftlint:disable:this type_body_length
             }
         } catch {
             // Check the test results and store successful test hashes for any targets that passed
-            guard let resultBundlePath, let invocationRecord = xcResultService.parse(path: resultBundlePath) else { throw error }
+            guard action != .build, let resultBundlePath,
+                  let invocationRecord = xcResultService.parse(path: resultBundlePath) else { throw error }
 
             let testTargets = testActionTargets(for: schemes, testPlanConfiguration: testPlanConfiguration, graph: graph)
 
@@ -427,12 +428,14 @@ final class TestService { // swiftlint:disable:this type_body_length
             throw error
         }
 
-        try await storeSuccessfulTestHashes(
-            for: testActionTargets(for: schemes, testPlanConfiguration: testPlanConfiguration, graph: graph),
-            graph: graph,
-            mapperEnvironment: mapperEnvironment,
-            cacheStorage: uploadCacheStorage
-        )
+        if action != .build {
+            try await storeSuccessfulTestHashes(
+                for: testActionTargets(for: schemes, testPlanConfiguration: testPlanConfiguration, graph: graph),
+                graph: graph,
+                mapperEnvironment: mapperEnvironment,
+                cacheStorage: uploadCacheStorage
+            )
+        }
 
         ServiceContext.current?.alerts?.success(.alert("The project tests ran successfully"))
     }
