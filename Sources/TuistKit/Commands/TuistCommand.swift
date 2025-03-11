@@ -181,7 +181,7 @@ public struct TuistCommand: AsyncParsableCommand {
         errorAlertMessage: TerminalText? = nil,
         errorAlertNextSteps: [TerminalText]? = nil
     ) {
-        var errorAlert: ErrorAlert? = if let errorAlertMessage {
+        let errorAlert: ErrorAlert? = if let errorAlertMessage {
             .alert(errorAlertMessage, nextSteps: errorAlertNextSteps ?? [])
         } else {
             nil
