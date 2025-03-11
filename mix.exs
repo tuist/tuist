@@ -126,7 +126,7 @@ defmodule Tuist.MixProject do
       {:briefly, "~> 0.5.0"},
       {:fun_with_flags, "~> 1.12.0"},
       {:fun_with_flags_ui, "~> 1.0.0"},
-      {:esbuild, "~> 0.8"},
+      {:esbuild, "~> 0.9"},
       {:deep_merge, "~> 1.0"}
     ]
   end
