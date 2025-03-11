@@ -140,7 +140,9 @@ public struct TuistCommand: AsyncParsableCommand {
         ]
         let exitCode = exitCode(for: error).rawValue
 
-        if let clientError = error as? ClientError, let underlyingServerClientError = clientError.underlyingError as? ServerClientAuthenticationError {
+        if let clientError = error as? ClientError,
+           let underlyingServerClientError = clientError.underlyingError as? ServerClientAuthenticationError
+        {
             // swiftlint:disable:next force_cast
             errorAlertMessage = "\((clientError.underlyingError as! ServerClientAuthenticationError).description)"
         } else if let fatalError = error as? FatalError {
@@ -164,29 +166,52 @@ public struct TuistCommand: AsyncParsableCommand {
             errorAlertMessage = "\((error as CustomStringConvertible).description)"
         }
 
-        outputCompletion(logFilePath: logFilePath, shouldOutputLogFilePath: true, beforeLogsLine: {
-            if let errorAlertMessage {
-                ServiceContext.current?.ui?.error(.alert(errorAlertMessage, nextSteps: errorAlertNextSteps))
-            }
-        })
+        outputCompletion(
+            logFilePath: logFilePath,
+            shouldOutputLogFilePath: true,
+            errorAlertMessage: errorAlertMessage,
+            errorAlertNextSteps: errorAlertNextSteps
+        )
         _exit(exitCode)
     }
 
     private static func outputCompletion(
         logFilePath: AbsolutePath,
         shouldOutputLogFilePath: Bool,
-        beforeLogsLine: () -> Void = {}
+        errorAlertMessage: TerminalText? = nil,
+        errorAlertNextSteps: [TerminalText]? = nil
     ) {
-        print("\n")
-        ServiceContext.current?.alerts?.print()
-        beforeLogsLine()
-        if shouldOutputLogFilePath {
-            outputLogFilePath(logFilePath)
+        var errorAlert: ErrorAlert? = if let errorAlertMessage {
+            .alert(errorAlertMessage, nextSteps: errorAlertNextSteps ?? [])
+        } else {
+            nil
         }
-    }
+        let successAlerts = ServiceContext.current?.alerts?.success() ?? []
+        let warningAlerts = ServiceContext.current?.alerts?.warnings() ?? []
 
-    private static func outputLogFilePath(_ logFilePath: AbsolutePath) {
-        ServiceContext.current?.logger?.info("\nLogs are available at \(logFilePath.pathString)")
+        if !warningAlerts.isEmpty {
+            print("\n")
+            for warningAlert in warningAlerts {
+                ServiceContext.current?.ui?.warning(warningAlert)
+            }
+        }
+        let logsNextStep: TerminalText = "Check out the logs at \(logFilePath.pathString)"
+
+        if let errorAlert {
+            print("\n")
+            var errorAlertNextSteps = errorAlert.nextSteps
+            if shouldOutputLogFilePath {
+                errorAlertNextSteps.append(logsNextStep)
+            }
+            ServiceContext.current?.ui?.success(.alert(errorAlert.message, nextSteps: errorAlertNextSteps))
+        } else if let successAlert = successAlerts.last {
+            print("\n")
+            var successAlertNextSteps = successAlert.nextSteps
+            if shouldOutputLogFilePath {
+                successAlertNextSteps.append(logsNextStep)
+            }
+            ServiceContext.current?.ui?.success(.alert(successAlert.message, nextSteps: successAlertNextSteps))
+        }
     }
 
     private static func executeTask(with processedArguments: [String]) async throws {

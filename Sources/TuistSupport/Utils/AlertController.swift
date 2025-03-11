@@ -6,6 +6,24 @@ import ServiceContextModule
 enum Alert {
     case success(SuccessAlert)
     case warning(WarningAlert)
+
+    var warning: WarningAlert? {
+        switch self {
+        case .success:
+            return nil
+        case let .warning(alert):
+            return alert
+        }
+    }
+
+    var success: SuccessAlert? {
+        switch self {
+        case let .success(alert):
+            return alert
+        case .warning:
+            return nil
+        }
+    }
 }
 
 public final class AlertController: @unchecked Sendable {
@@ -29,6 +47,18 @@ public final class AlertController: @unchecked Sendable {
     public func flush() {
         alerts.mutate { alerts in
             alerts.removeAll()
+        }
+    }
+
+    public func warnings() -> [WarningAlert] {
+        return alerts.withValue { alerts in
+            alerts.compactMap(\.warning)
+        }
+    }
+
+    public func success() -> [SuccessAlert] {
+        return alerts.withValue { alerts in
+            alerts.compactMap(\.success)
         }
     }
 
