@@ -1,5 +1,25 @@
 # Changelog
 
+## 4.44.2 - 2025-03-11
+
+### CLI
+
+#### Changed
+
+- Improve error handling [#7391](https://github.com/tuist/tuist/pull/7391) by [@pepicrft](https://github.com/pepicrft)
+
+#### Added
+
+- Add `build-for-testing` and `test-without-building` support to `tuist test` [#7388](https://github.com/tuist/tuist/pull/7388) by [@cooksimo](https://github.com/cooksimo)
+
+#### Fixed
+
+- Fix duplicated warning alerts [#7393](https://github.com/tuist/tuist/pull/7393) by [@pepicrft](https://github.com/pepicrft)
+
+### CLI (Server features)
+
+- no changes
+
 ## 4.44.1 - 2025-03-10
 
 ### CLI
