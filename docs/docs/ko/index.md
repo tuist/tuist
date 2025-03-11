@@ -9,7 +9,7 @@ import VPFeatures from "vitepress/dist/client/theme-default/components/VPFeature
 
 # From idea to the store
 
-We are the only **integrated extension of Apple's native toolchain to build better apps faster.**
+우리는 **더 나은 앱을 더 빠르게 개발할 수 있도록 Apple의 기본 도구와 통합된 확장 도구**입니다.
 
 <br/>
 
@@ -52,7 +52,7 @@ We are the only **integrated extension of Apple's native toolchain to build bett
 
 ## Installation
 
-Install Tuist and run `tuist init` to get started:
+Tuist를 설치하고 `tuist init`을 수행해 시작합니다:
 
 ::: code-group
 
@@ -69,9 +69,9 @@ mise x tuist@latest -- tuist init
 
 :::
 
-Check out our <LocalizedLink href="/guides/quick-start/install-tuist">installation guide</LocalizedLink> for more details.
+더 자세한 내용은 <0>설치 가이드</0>를 확인하세요.
 
-## Discover more
+## 더 알아보기
 
 Try out Tuist in minutes and learn how to get the most out of Tuist.
 
