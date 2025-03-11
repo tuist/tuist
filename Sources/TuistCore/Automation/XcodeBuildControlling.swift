@@ -12,6 +12,17 @@ public enum XcodeBuildTestAction: Equatable {
     case test
     case build
     case testWithoutBuilding
+    
+    public var description: String {
+        switch self {
+        case .test:
+            "Testing"
+        case .build:
+            "Building"
+        case .testWithoutBuilding:
+            "Testing without building"
+        }
+    }
 }
 
 @Mockable
