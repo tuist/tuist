@@ -140,7 +140,7 @@ public struct TuistCommand: AsyncParsableCommand {
         ]
         let exitCode = exitCode(for: error).rawValue
 
-        if let clientError = error as? ClientError, clientError.underlyingError is ServerClientAuthenticationError {
+        if let clientError = error as? ClientError, let underlyingServerClientError = clientError.underlyingError as? ServerClientAuthenticationError {
             // swiftlint:disable:next force_cast
             errorAlertMessage = "\((clientError.underlyingError as! ServerClientAuthenticationError).description)"
         } else if let fatalError = error as? FatalError {
