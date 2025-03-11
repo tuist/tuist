@@ -139,6 +139,8 @@ public enum EnvKey: String, CaseIterable {
     case testGenerateOnly = "TUIST_TEST_GENERATE_ONLY"
     case testBinaryCache = "TUIST_TEST_BINARY_CACHE"
     case testSelectiveTesting = "TUIST_TEST_SELECTIVE_TESTING"
+    case testWithoutBuilding = "TUIST_TEST_WITHOUT_BUILDING"
+    case testBuildOnly = "TUIST_TEST_BUILD_ONLY"
 
     // ORGANIZATION BILLING
     case organizationBillingOrganizationName = "TUIST_ORGANIZATION_BILLING_ORGANIZATION_NAME"

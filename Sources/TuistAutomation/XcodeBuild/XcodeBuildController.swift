@@ -104,6 +104,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
         scheme: String,
         clean: Bool = false,
         destination: XcodeBuildDestination?,
+        action: XcodeBuildTestAction,
         rosetta: Bool,
         derivedDataPath: AbsolutePath?,
         resultBundlePath: AbsolutePath?,
@@ -121,7 +122,15 @@ public final class XcodeBuildController: XcodeBuildControlling {
         if clean {
             arguments.append("clean")
         }
-        arguments.append("test")
+        
+        switch action {
+        case .test:
+            arguments.append("test")
+        case .build:
+            arguments.append("build-for-testing")
+        case .testWithoutBuilding:
+            arguments.append("test-without-building")
+        }
 
         // Scheme
         arguments.append(contentsOf: ["-scheme", scheme])
