@@ -417,7 +417,12 @@ final class TestService { // swiftlint:disable:this type_body_length
             guard action != .build, let resultBundlePath,
                   let invocationRecord = xcResultService.parse(path: resultBundlePath) else { throw error }
 
-            let testTargets = testActionTargets(for: schemes, testPlanConfiguration: testPlanConfiguration, graph: graph, action: action)
+            let testTargets = testActionTargets(
+                for: schemes,
+                testPlanConfiguration: testPlanConfiguration,
+                graph: graph,
+                action: action
+            )
 
             let passingTestTargetNames = xcResultService.successfulTestTargets(invocationRecord: invocationRecord)
             let passingTestTargets = testTargets.filter { passingTestTargetNames.contains($0.target.name) }
@@ -586,7 +591,10 @@ final class TestService { // swiftlint:disable:this type_body_length
                     )?.testTargets.map(\.target) ?? []
             } else if let testActionTargets = scheme.testAction?.targets.map(\.target), !testActionTargets.isEmpty {
                 testActionTargets
-            } else if action == .build, let testPlanTargets = scheme.testAction?.testPlans?.flatMap({ $0.testTargets.map(\.target) }), !testPlanTargets.isEmpty {
+            } else if action == .build,
+                      let testPlanTargets = scheme.testAction?.testPlans?.flatMap({ $0.testTargets.map(\.target) }),
+                      !testPlanTargets.isEmpty
+            {
                 testPlanTargets
             } else {
                 [TargetReference]()
