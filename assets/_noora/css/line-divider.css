@@ -1,0 +1,28 @@
+.noora-line-divider {
+  --noora-content-divider-line: light-dark(var(--noora-neutral-light-400), oklch(0% 0 0 / 80%));
+  --noora-content-divider: 0px 1px 0px 0px
+    light-dark(
+      oklch(from var(--noora-neutral-light-500) l c h / 30%),
+      oklch(from var(--noora-neutral-dark-900) l c h / 35%)
+    );
+  --noora-content-divider-label: light-dark(var(--noora-neutral-light-700), var(--noora-neutral-dark-500));
+
+  align-items: center;
+  display: flex;
+  flex-direction: row;
+  width: 100%;
+
+  & [data-part="line"] {
+    background-color: var(--noora-content-divider-line);
+    box-shadow: var(--noora-content-divider);
+    height: 1px;
+    transform: translateY(-0.5px);
+    width: 100%;
+  }
+
+  & [data-part="text"] {
+    font: var(--noora-font-weight-regular) var(--noora-font-body-xsmall);
+    padding: var(--noora-spacing-0) var(--noora-spacing-2);
+    color: var(--noora-content-divider-label);
+  }
+}

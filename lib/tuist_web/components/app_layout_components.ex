@@ -6,6 +6,7 @@ defmodule TuistWeb.AppLayoutComponents do
   import TuistWeb.AppComponents, except: [icon: 1]
   import TuistWeb.Noora.Breadcrumbs
   import TuistWeb.Noora.Icon
+  import TuistWeb.Noora.LineDivider
   import TuistWeb.Noora.Avatar
   alias Tuist.Accounts
   alias Tuist.Accounts.User
@@ -166,6 +167,7 @@ defmodule TuistWeb.AppLayoutComponents do
           <% end %>
         </div>
       </header>
+      <.line_divider />
       """
     else
       ~H"""
