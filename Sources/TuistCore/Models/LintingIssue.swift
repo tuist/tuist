@@ -54,8 +54,9 @@ extension [LintingIssue] {
 
         let warningIssues = filter { $0.severity == .warning }
 
+
         for issue in warningIssues {
-            ServiceContext.current?.logger?.warning("\(issue.description)")
+            ServiceContext.current?.alerts?.warning(.alert("\(issue.description)"))
         }
     }
 }
