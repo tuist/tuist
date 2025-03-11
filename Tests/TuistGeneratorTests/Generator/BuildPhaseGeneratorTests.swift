@@ -25,12 +25,10 @@ final class BuildPhaseGenerationErrorTests: TuistUnitTestCase {
 
 final class BuildPhaseGeneratorTests: TuistUnitTestCase {
     var subject: BuildPhaseGenerator!
-    var errorHandler: MockErrorHandler!
 
     override func setUp() {
         super.setUp()
         subject = BuildPhaseGenerator()
-        errorHandler = MockErrorHandler()
 
         given(xcodeController)
             .selectedVersion()
@@ -39,7 +37,6 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
 
     override func tearDown() {
         subject = nil
-        errorHandler = nil
         super.tearDown()
     }
 
