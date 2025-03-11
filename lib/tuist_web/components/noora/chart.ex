@@ -98,9 +98,29 @@ defmodule TuistWeb.Noora.Chart do
     """
 
   attr :colors, :list,
-    default: ["#6F2CFF", "#3F85F5", "#FF462F", "#CD9C00"],
+    default: ["var:noora-chart-primary", "var:noora-chart-secondary", "var:noora-chart-tertiary", "var:noora-chart-quaternary"],
     doc: """
-    Custom colors for data series. Provide list of color strings.
+    Custom colors for data series.
+
+    The given items can either be a hex string, such as "#4C9AFF", or a CSS variable, prefixed with `var:`, but omitting the `--` prefix,
+    such as `chart-primary`.
+    The CSS variable is expected to be on the `:root` element, so the variable would be defined as such:
+
+    ```css
+    :root {
+      --chart-primary: #4C9AFF;
+    }
+    ```
+
+    In addition, the color setting supports the `light-dark()` function, which can be used to automatically resolve the appropriate color
+    based on the the color scheme. That way, the variable can be defined as such:
+
+    ```css
+    :root {
+      --chart-primary: light-dark(#4C9AFF, #36B37E);
+    }
+    ```
+
     Example: ["#4C9AFF", "#36B37E", "#FF5630", "#FFAB00", "#6554C0"]
     """
 
@@ -333,7 +353,7 @@ defmodule TuistWeb.Noora.Chart do
   # Adds custom color configuration if provided
   defp add_colors(options, colors) do
     if length(colors) > 0 do
-      Map.put(options, :color, colors)
+      Map.put(options, :colors, colors)
     else
       options
     end

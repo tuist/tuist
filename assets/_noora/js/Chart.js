@@ -1,33 +1,5 @@
 import * as echarts from "echarts";
-
-const formatValue = (value) => {
-  if (Array.isArray(value) && value.length > 0) {
-    return value[value.length - 1];
-  }
-
-  if (value !== null && typeof value === "object" && "value" in value) {
-    return value.value;
-  }
-
-  return value;
-};
-
-const tooltipSeries = ({ color, name, value }) => {
-  const displayValue = formatValue(value);
-
-  return `
-  <div data-part="series-item">
-    <span data-part="dot" style="--color: ${Array.isArray(color) ? color[0] : color}"></span>
-    <span data-part="label">${name}</span>
-    <span data-part="value">${displayValue}</span>
-  </div>
-  `;
-};
-
-const tooltipFormatter = (params) => {
-  const content = Array.isArray(params) ? params.map(tooltipSeries).join("") : tooltipSeries(params);
-  return `<div class="noora-chart-tooltip">${content}</div>`;
-};
+import { parse, formatHex } from "culori";
 
 const formatters = {
   firstAndLastDate: (el) => (value, index) => {
@@ -50,37 +22,35 @@ const formatters = {
   },
 };
 
-const theme = {
-  tooltip: {
-    trigger: "item",
-    appendTo: "body",
-    // Reset all existing styling
-    backgroundColor: "transparent",
-    borderColor: "transparent",
-    padding: 0,
-    extraCssText: "box-shadow: none",
-    textStyle: {
-      fontFamily: "Inter",
-    },
-    formatter: tooltipFormatter,
-  },
-};
-
 export default {
   mounted() {
+    this.render();
+    this.colorSchemeListener = () => this.render();
+    window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", this.colorSchemeListener);
+  },
+  render() {
+    if (this.chart) this.chart.dispose();
+
+    const option = this.option();
+    const theme = getTheme(option);
+
     echarts.registerTheme("noora", theme);
     this.chart = echarts.init(this.el.querySelector("[data-part='chart']"), "noora", { renderer: "canvas" });
-    this.chart.setOption(this.option());
+    this.chart.setOption(option);
 
-    window.addEventListener("resize", () => {
+    this.resizeListener = () => {
       this.chart.resize();
-    });
+    };
+    window.addEventListener("resize", this.resizeListener);
   },
   updated() {
-    this.chart.setOption(this.option());
+    const option = this.option();
+    this.chart.setOption(option);
   },
   destroyed() {
     this.chart.dispose();
+    window.matchMedia("(prefers-color-scheme: dark)").removeEventListener("change", this.colorSchemeListener);
+    window.removeEventListener("resize", this.resizeListener);
   },
   option() {
     let option = {};
@@ -88,8 +58,10 @@ export default {
       option = JSON.parse(this.el.querySelector("[data-part='data']").textContent);
 
       if (option.series && Array.isArray(option.series)) {
-        let largestSeriesCount = 0;
+        option.series = processSeriesColors(option.series);
 
+        // Calculate the size of the largest series which we use for later calculations.
+        let largestSeriesCount = 0;
         option.series.forEach((series) => {
           if (series.data && Array.isArray(series.data)) {
             const itemCount = series.data.length;
@@ -124,3 +96,124 @@ export default {
     return option;
   },
 };
+
+// Private helper functions
+
+// Theme
+function getTheme(option) {
+  return {
+    color: colors(option),
+    tooltip: {
+      trigger: "item",
+      appendTo: "body",
+      // Reset all existing styling
+      backgroundColor: "transparent",
+      borderColor: "transparent",
+      padding: 0,
+      extraCssText: "box-shadow: none",
+      textStyle: {
+        fontFamily: "Inter",
+      },
+      formatter: tooltipFormatter,
+    },
+    line: {
+      emphasis: {
+        lineStyle: {
+          width: "bolder",
+        },
+      },
+    },
+  };
+}
+
+function processColor(color) {
+  if (typeof color === "string" && color.startsWith("var:")) {
+    const variable = color.substring(4);
+    const value = getComputedStyle(document.documentElement).getPropertyValue(`--${variable}`).trim();
+    color = resolveLightDark(value);
+  }
+
+  // ECharts expects colors to be hex and shows unintended behavior such as broken hover states when using OKLCH, which we are generally
+  // using elsewhere.
+  return formatHex(parse(color));
+}
+
+function resolveLightDark(string) {
+  const regex = /light-dark\(\s*(.*?)\s*,\s*(.*?)\s*\)$/;
+  const match = string.match(regex);
+  if (!match) return string;
+  return window.matchMedia("(prefers-color-scheme: light)").matches ? match[1] : match[2];
+}
+
+function colors(option) {
+  if (!option.colors || !Array.isArray(option.colors)) return [];
+  return option.colors.map(processColor);
+}
+
+function processSeriesColors(series) {
+  if (!series || !Array.isArray(series)) return series;
+
+  return series.map((seriesItem) => {
+    // Process top-level color property
+    seriesItem.color = transformColorProperty(seriesItem.color);
+
+    // Process style objects with color properties
+    const styleProperties = ["itemStyle", "lineStyle", "areaStyle"];
+    styleProperties.forEach((styleProp) => {
+      if (seriesItem[styleProp] && seriesItem[styleProp].color) {
+        seriesItem[styleProp].color = processColor(seriesItem[styleProp].color);
+      }
+    });
+
+    // Process colors in data items
+    if (seriesItem.data && Array.isArray(seriesItem.data)) {
+      seriesItem.data.forEach((dataItem) => {
+        if (dataItem && typeof dataItem === "object" && dataItem.itemStyle && dataItem.itemStyle.color) {
+          dataItem.itemStyle.color = processColor(dataItem.itemStyle.color);
+        }
+      });
+    }
+
+    return seriesItem;
+  });
+}
+
+function transformColorProperty(colorProp) {
+  if (!colorProp) return colorProp;
+
+  if (Array.isArray(colorProp)) {
+    return colorProp.map((color) => processColor(color));
+  }
+
+  return processColor(colorProp);
+}
+
+// Tooltip
+function tooltipFormatter(params) {
+  const content = Array.isArray(params) ? params.map(tooltipSeries).join("") : tooltipSeries(params);
+  return `<div class="noora-chart-tooltip">${content}</div>`;
+}
+
+function tooltipSeries({ color, name, value }) {
+  const displayValue = formatTooltipValue(value);
+
+  return `
+  <div data-part="series-item">
+    <span data-part="dot" style="--color: ${Array.isArray(color) ? color[0] : color}"></span>
+    <span data-part="label">${name}</span>
+    <span data-part="value">${displayValue}</span>
+  </div>
+  `;
+}
+
+function formatTooltipValue(value) {
+  if (Array.isArray(value) && value.length > 0) {
+    return value[value.length - 1];
+  }
+
+  if (value !== null && typeof value === "object" && "value" in value) {
+    return value.value;
+  }
+
+  return value;
+}
