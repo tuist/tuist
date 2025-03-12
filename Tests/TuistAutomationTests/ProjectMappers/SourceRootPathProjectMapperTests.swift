@@ -56,7 +56,7 @@ final class SourceRootPathProjectMapperTests: TuistUnitTestCase {
                 sourceRootPath: sourceRootPath,
                 settings: Settings.test(
                     base: [
-                        "SRCROOT": SettingValue(stringLiteral: sourceRootPath.pathString),
+                        "SRCROOT": SettingValue(stringLiteral: sourceRootPath.relative(to: gotProject.path).pathString),
                     ]
                 )
             )
