@@ -41,7 +41,7 @@ import VPFeatures from "vitepress/dist/client/theme-default/components/VPFeature
         title="Registry"
         details="Cut down the size of your resolved packages and the resolution time. From minutes to seconds."
         linkText="Speed up package resolution"
-        link="/guides/share/previews"/>
+        link="/guides/develop/registry"/>
     <HomeCard
         icon="📊"
         title="Insights"
