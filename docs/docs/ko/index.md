@@ -73,7 +73,7 @@ mise x tuist@latest -- tuist init
 
 ## 더 알아보기
 
-Try out Tuist in minutes and learn how to get the most out of Tuist.
+몇 분 안에 Tuist를 사용해 보고, Tuist를 최대한 활용하는 방법을 배워봅니다.
 
 <HomeCards type="carousel">
     <HomeCard icon="⚙️"
@@ -95,15 +95,15 @@ Try out Tuist in minutes and learn how to get the most out of Tuist.
         link="https://handbook.tuist.dev"/>
 </HomeCards>
 
-## Watch our latest talks
+## 최신 내용 확인
 
-Explore our team's presentations. Stay informed and gain expertise.
+우리 팀의 발표를 확인하세요. 최신 정보를 얻고 전문성을 키워보세요.
 
 <HomeVideos :videos="[['Tuist Registry Walkthrough', '2bd2deb4-1897-4c5b-9de6-37c8acd16fb0'],['Running latest Tuist Previews', '6872527d-4225-469d-9b89-2ec562c37603'], ['Inspect implicit imports to make Xcode more reliable and its builds more deterministic', '88696ce1-aa08-48e8-b410-bc7a57726d67'], ['Clean Xcode builds with binary XCFrameworks from Tuist Cloud', '3a15bae1-a0b2-4c6e-97f2-f78457d87099']]"/>
 
-## Join the community
+## 커뮤니티 참여
 
-See the source code, connect with others, and get connected.
+소스 코드를 확인하고, 다른 사람들과 교류하며 소통하세요.
 
 <HomeCommunity>
     <HomeCommunityItem title="Forum" description="Interact with other community members in a synchronous manner" href="https://community.tuist.dev">
