@@ -168,7 +168,7 @@
   --noora-content-divider-line: light-dark(var(--noora-neutral-light-500), var(--noora-alpha-black));
 
   /* Charts */
-  --noora-chart-parimary: light-dark(var(--noora-purple-500), var(--noora-purple-400));
+  --noora-chart-primary: light-dark(var(--noora-purple-500), var(--noora-purple-400));
   --noora-chart-secondary: light-dark(var(--noora-blue-500), var(--noora-blue-400));
   --noora-chart-tertiary: light-dark(var(--noora-green-500), var(--noora-green-400));
   --noora-chart-quaternary: light-dark(var(--noora-azure-500), var(--noora-azure-400));
