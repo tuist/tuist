@@ -15,7 +15,7 @@ ServiceContext.current?.logger
 > [!NOTE]\
 > `swift-service-context`는 `Dispatch`를 사용할 때 값을 전파하지 않는 [task locals](https://developer.apple.com/documentation/swift/tasklocal)를 사용하여 인스턴스를 전달하므로, `Dispatch`를 사용하여 비동기 코드를 실행할 때는 컨텍스트에서 인스턴스를 가져와 비동기 작업에 전달해야 합니다.
 
-## {#what-to-log}
+## 무엇을 로깅하는 것이 좋을까요? {#what-to-log}
 
 로그는 CLI의 UI가 아닙니다. 로그는 이슈가 발생하였을 때 진단을 도와주는 도구입니다.
 그렇기 때문에, 많은 정보를 제공할 수록 더 좋은 결과를 얻을 수 있습니다.
