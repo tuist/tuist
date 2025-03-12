@@ -76,6 +76,7 @@ public struct TuistCommand: AsyncParsableCommand {
         } else {
             path = .current
         }
+        try await ServiceContext.current?.recentPaths?.record(path: path)
 
         let config = try await ConfigLoader().loadConfig(path: path)
         let url = try ServerURLService().url(configServerURL: config.url)
@@ -225,6 +226,8 @@ public struct TuistCommand: AsyncParsableCommand {
     }
 
     // MARK: - Helpers
+
+    // RecentPathsRecorder
 
     static func processArguments(_ arguments: [String]? = nil) -> [String]? {
         let arguments = arguments ?? Array(ProcessInfo.processInfo.arguments)
