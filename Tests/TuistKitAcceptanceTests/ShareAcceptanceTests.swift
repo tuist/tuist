@@ -29,12 +29,43 @@ final class ShareAcceptanceTests: ServerAcceptanceTestCase {
     func test_share_ios_app_with_appclip() async throws {
         try await ServiceContext.withTestingDependencies {
             try await setUpFixture(.iosAppWithAppClip)
+
+            // When: Build
             try await run(BuildCommand.self)
+
+            XCTAssertEqual(ServiceContext.current?.recordedUI(), """
+            ▌ ! Warning
+            ▌
+            ▌ Recommended action:
+            ▌  ▸ Target \'StaticFramework\' has been linked from target \'AppClip1\' and target \'AppClip1Widgets\', it is a static product so may introduce unwanted side effects.
+            ▌ ✔ Success
+            ▌ The project built successfully
+            """)
+
+            ServiceContext.current?.flushRecordedUI()
+
+            // When: Share App
             try await run(ShareCommand.self, "App")
             let shareLink = try previewLink("App")
+            XCTAssertEqual(ServiceContext.current?.recordedUI(), """
+            ▌ ! Warning
+            ▌
+            ▌ Recommended action:
+            ▌  ▸ Target \'StaticFramework\' has been linked from target \'AppClip1\' and target \'AppClip1Widgets\', it is a static product so may introduce unwanted side effects.
+            ▌ ✔ Success
+            ▌ The project built successfully
+            """)
+
+            ServiceContext.current?.flushRecordedUI()
+
+            // When: Run App on iPhone 16
             try await run(RunCommand.self, shareLink, "-destination", "iPhone 16")
             XCTAssertStandardOutput(pattern: "Installing and launching App on iPhone 16")
             XCTAssertEqual(ServiceContext.current?.recordedUI(), """
+            ▌ ! Warning
+            ▌
+            ▌ Recommended action:
+            ▌  ▸ Target \'StaticFramework\' has been linked from target \'AppClip1\' and target \'AppClip1Widgets\', it is a static product so may introduce unwanted side effects.
             ▌ ✔ Success
             ▌ The project built successfully
             ▌ ✔ Success
@@ -42,11 +73,29 @@ final class ShareAcceptanceTests: ServerAcceptanceTestCase {
             """)
             ServiceContext.current?.flushRecordedUI()
 
+            // When: Share AppClip1
             try await run(ShareCommand.self, "AppClip1")
             let appClipShareLink = try previewLink("AppClip1")
+            XCTAssertEqual(ServiceContext.current?.recordedUI(), """
+            ▌ ! Warning
+            ▌
+            ▌ Recommended action:
+            ▌  ▸ Target \'StaticFramework\' has been linked from target \'AppClip1\' and target \'AppClip1Widgets\', it is a static product so may introduce unwanted side effects.
+            ▌ ✔ Success
+            ▌ The project built successfully
+            ▌ ✔ Success
+            ▌ App was successfully launched 📲
+            """)
+            ServiceContext.current?.flushRecordedUI()
+
+            // When: Run AppClip1
             try await run(RunCommand.self, appClipShareLink, "-destination", "iPhone 16")
             XCTAssertStandardOutput(pattern: "Installing and launching AppClip1 on iPhone 16")
             XCTAssertEqual(ServiceContext.current?.recordedUI(), """
+            ▌ ! Warning
+            ▌
+            ▌ Recommended action:
+            ▌  ▸ Target \'StaticFramework\' has been linked from target \'AppClip1\' and target \'AppClip1Widgets\', it is a static product so may introduce unwanted side effects.
             ▌ ✔ Success
             ▌ The project built successfully
             ▌ ✔ Success

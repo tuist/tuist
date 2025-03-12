@@ -53,23 +53,21 @@ public final class AlertController: @unchecked Sendable {
     public func warnings() -> [WarningAlert] {
         return alerts.withValue { alerts in
             alerts.compactMap(\.warning)
-        }
+        }.sorted(by: { $0.message.plain() < $1.message.plain() })
     }
 
     public func success() -> [SuccessAlert] {
         return alerts.withValue { alerts in
             alerts.compactMap(\.success)
-        }
+        }.sorted(by: { $0.message.plain() < $1.message.plain() })
     }
 
     public func print() {
-        for alert in alerts.value {
-            switch alert {
-            case let .success(successAlert):
-                ServiceContext.current?.ui?.success(successAlert)
-            case let .warning(warningAlert):
-                ServiceContext.current?.ui?.warning(warningAlert)
-            }
+        for warning in warnings() {
+            ServiceContext.current?.ui?.warning(warning)
+        }
+        for success in success() {
+            ServiceContext.current?.ui?.success(success)
         }
     }
 }
