@@ -227,8 +227,6 @@ public struct TuistCommand: AsyncParsableCommand {
 
     // MARK: - Helpers
 
-    // RecentPathsRecorder
-
     static func processArguments(_ arguments: [String]? = nil) -> [String]? {
         let arguments = arguments ?? Array(ProcessInfo.processInfo.arguments)
         return arguments.filter { $0 != "--verbose" && $0 != "--quiet" }
