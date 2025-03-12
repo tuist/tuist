@@ -111,7 +111,7 @@ defmodule Tuist.MixProject do
       {:yaml_elixir, "~> 2.11"},
       {:reading_time, "~> 0.2.0"},
       {:plug_cowboy, "~> 2.7"},
-      {:retry, "~> 0.18"},
+      {:retry, "~> 0.19"},
       {:redirect, "~> 0.4.0"},
       {:let_me, "~> 1.2"},
       {:ua_parser, "~> 1.8"},
