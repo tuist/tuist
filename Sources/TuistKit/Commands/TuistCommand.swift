@@ -203,7 +203,7 @@ public struct TuistCommand: AsyncParsableCommand {
             if shouldOutputLogFilePath {
                 errorAlertNextSteps.append(logsNextStep)
             }
-            ServiceContext.current?.ui?.success(.alert(errorAlert.message, nextSteps: errorAlertNextSteps))
+            ServiceContext.current?.ui?.error(.alert(errorAlert.message, nextSteps: errorAlertNextSteps))
         } else if let successAlert = successAlerts.last {
             print("\n")
             var successAlertNextSteps = successAlert.nextSteps
