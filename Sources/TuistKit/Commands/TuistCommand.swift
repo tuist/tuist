@@ -1,5 +1,6 @@
 @_exported import ArgumentParser
 import Foundation
+import Noora
 import OpenAPIRuntime
 import Path
 import ServiceContextModule
@@ -15,11 +16,11 @@ public struct TuistCommand: AsyncParsableCommand {
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "tuist",
-            abstract: "Generate, build and test your Xcode projects.",
+            abstract: "Build better apps faster.",
             subcommands: [],
             groupedSubcommands: [
                 CommandGroup(
-                    name: "Start",
+                    name: "Get started",
                     subcommands: [
                         InitCommand.self,
                     ]
@@ -93,18 +94,14 @@ public struct TuistCommand: AsyncParsableCommand {
 
         try await CacheDirectoriesProvider.bootstrap()
 
-        let errorHandler = ErrorHandler()
         let executeCommand: () async throws -> Void
         let processedArguments = Array(processArguments(arguments)?.dropFirst() ?? [])
-        var parsedError: Error?
+        var parsingError: Error?
         var logFilePathDisplayStrategy: LogFilePathDisplayStrategy = .onError
 
         do {
             if processedArguments.first == ScaffoldCommand.configuration.commandName {
                 try await ScaffoldCommand.preprocess(processedArguments)
-            }
-            if processedArguments.first == InitCommand.configuration.commandName {
-                try await InitCommand.preprocess(processedArguments)
             }
             let command = try parseAsRoot(processedArguments)
             executeCommand = {
@@ -120,7 +117,7 @@ public struct TuistCommand: AsyncParsableCommand {
                 )
             }
         } catch {
-            parsedError = error
+            parsingError = error
             executeCommand = {
                 try await executeTask(with: processedArguments)
             }
@@ -129,40 +126,92 @@ public struct TuistCommand: AsyncParsableCommand {
         do {
             try await executeCommand()
             outputCompletion(logFilePath: logFilePath, shouldOutputLogFilePath: logFilePathDisplayStrategy == .always)
-        } catch let error as FatalError {
-            self.outputCompletion(logFilePath: logFilePath, shouldOutputLogFilePath: true)
-            _exit(exitCode(for: error).rawValue)
-        } catch let error as ClientError where error.underlyingError is ServerClientAuthenticationError {
-            ServiceContext.current?.ui?
-                // swiftlint:disable:next force_cast
-                .error(.alert("\((error.underlyingError as! ServerClientAuthenticationError).description)"))
-            outputCompletion(logFilePath: logFilePath, shouldOutputLogFilePath: true)
-            _exit(exitCode(for: error).rawValue)
         } catch {
-            if let parsedError {
-                handleParseError(parsedError)
-            }
+            onError(parsingError ?? error, isParsingError: parsingError != nil, logFilePath: logFilePath)
+        }
+    }
 
+    private static func onError(_ error: Error, isParsingError: Bool, logFilePath: AbsolutePath) {
+        var errorAlertMessage: TerminalText?
+        var errorAlertNextSteps: [TerminalText] = [
+            "If the error is actionable, address it",
+            "If the error is not actionable, let's discuss it in the \(.link(title: "Troubleshooting & how to", href: "https://community.tuist.dev/c/troubleshooting-how-to/6"))",
+            "If you are very certain it's a bug, \(.link(title: "file an issue", href: "https://github.com/tuist/tuist"))",
+        ]
+        let exitCode = exitCode(for: error).rawValue
+
+        if let clientError = error as? ClientError,
+           let underlyingServerClientError = clientError.underlyingError as? ServerClientAuthenticationError
+        {
+            // swiftlint:disable:next force_cast
+            errorAlertMessage = "\((clientError.underlyingError as! ServerClientAuthenticationError).description)"
+        } else if let fatalError = error as? FatalError {
+            let isSilent = fatalError.type == .abortSilent || fatalError.type == .bugSilent
+            if !fatalError.description.isEmpty, !isSilent {
+                errorAlertMessage = "\(fatalError.description)"
+            } else if fatalError.type == .bugSilent {
+                errorAlertMessage = """
+                An unexpected error happened and we believe it's a bug
+                """
+                errorAlertNextSteps = [
+                    "\(.link(title: "File an issue", href: "https://github.com/tuist/tuist")) including reproducible steps and logs.",
+                ]
+            }
+        } else if isParsingError, self.exitCode(for: error).rawValue == 0 {
             // Exit cleanly
-            if exitCode(for: error).rawValue == 0 {
-                exit(withError: error)
-            } else {
-                errorHandler.fatal(error: UnhandledError(error: error))
-                outputCompletion(logFilePath: logFilePath, shouldOutputLogFilePath: true)
-                _exit(exitCode(for: error).rawValue)
+            exit(withError: error)
+        } else if let localizedError = error as? LocalizedError {
+            errorAlertMessage = "\(localizedError.errorDescription ?? localizedError.localizedDescription)"
+        } else {
+            errorAlertMessage = "\((error as CustomStringConvertible).description)"
+        }
+
+        outputCompletion(
+            logFilePath: logFilePath,
+            shouldOutputLogFilePath: true,
+            errorAlertMessage: errorAlertMessage,
+            errorAlertNextSteps: errorAlertNextSteps
+        )
+        _exit(exitCode)
+    }
+
+    private static func outputCompletion(
+        logFilePath: AbsolutePath,
+        shouldOutputLogFilePath: Bool,
+        errorAlertMessage: TerminalText? = nil,
+        errorAlertNextSteps: [TerminalText]? = nil
+    ) {
+        let errorAlert: ErrorAlert? = if let errorAlertMessage {
+            .alert(errorAlertMessage, nextSteps: errorAlertNextSteps ?? [])
+        } else {
+            nil
+        }
+        let successAlerts = ServiceContext.current?.alerts?.success() ?? []
+        let warningAlerts = ServiceContext.current?.alerts?.warnings() ?? []
+
+        if !warningAlerts.isEmpty {
+            print("\n")
+            for warningAlert in warningAlerts {
+                ServiceContext.current?.ui?.warning(warningAlert)
             }
         }
-    }
+        let logsNextStep: TerminalText = "Check out the logs at \(logFilePath.pathString)"
 
-    private static func outputCompletion(logFilePath: AbsolutePath, shouldOutputLogFilePath: Bool) {
-        ServiceContext.current?.alerts?.print()
-        if shouldOutputLogFilePath {
-            outputLogFilePath(logFilePath)
+        if let errorAlert {
+            print("\n")
+            var errorAlertNextSteps = errorAlert.nextSteps
+            if shouldOutputLogFilePath {
+                errorAlertNextSteps.append(logsNextStep)
+            }
+            ServiceContext.current?.ui?.error(.alert(errorAlert.message, nextSteps: errorAlertNextSteps))
+        } else if let successAlert = successAlerts.last {
+            print("\n")
+            var successAlertNextSteps = successAlert.nextSteps
+            if shouldOutputLogFilePath {
+                successAlertNextSteps.append(logsNextStep)
+            }
+            ServiceContext.current?.ui?.success(.alert(successAlert.message, nextSteps: successAlertNextSteps))
         }
-    }
-
-    private static func outputLogFilePath(_ logFilePath: AbsolutePath) {
-        ServiceContext.current?.logger?.info("\nLogs are available at \(logFilePath.pathString)")
     }
 
     private static func executeTask(with processedArguments: [String]) async throws {
@@ -170,16 +219,6 @@ public struct TuistCommand: AsyncParsableCommand {
             arguments: processedArguments,
             tuistBinaryPath: processArguments()!.first!
         )
-    }
-
-    private static func handleParseError(_ error: Error) -> Never {
-        let exitCode = exitCode(for: error).rawValue
-        if exitCode == 0 {
-            ServiceContext.current?.logger?.notice("\(fullMessage(for: error))")
-        } else {
-            ServiceContext.current?.logger?.error("\(fullMessage(for: error))")
-        }
-        _exit(exitCode)
     }
 
     // MARK: - Helpers

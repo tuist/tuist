@@ -304,30 +304,9 @@ export function guidesSidebar(locale) {
         {
           text: localizedString(
             locale,
-            "sidebars.guides.items.quick-start.items.create-a-project.text",
+            "sidebars.guides.items.quick-start.items.get-started.text",
           ),
-          link: `/${locale}/guides/quick-start/create-a-project`,
-        },
-        {
-          text: localizedString(
-            locale,
-            "sidebars.guides.items.quick-start.items.add-dependencies.text",
-          ),
-          link: `/${locale}/guides/quick-start/add-dependencies`,
-        },
-        {
-          text: localizedString(
-            locale,
-            "sidebars.guides.items.quick-start.items.gather-insights.text",
-          ),
-          link: `/${locale}/guides/quick-start/gather-insights`,
-        },
-        {
-          text: localizedString(
-            locale,
-            "sidebars.guides.items.quick-start.items.optimize-workflows.text",
-          ),
-          link: `/${locale}/guides/quick-start/optimize-workflows`,
+          link: `/${locale}/guides/quick-start/get-started`,
         },
       ],
     },
@@ -586,6 +565,13 @@ export function guidesSidebar(locale) {
               link: `/${locale}/guides/develop/registry/continuous-integration`,
             },
           ],
+        },
+        {
+          text: localizedString(
+            locale,
+            "sidebars.guides.items.develop.items.insights.text",
+          ),
+          link: `/${locale}/guides/develop/insights`,
         },
       ],
     },

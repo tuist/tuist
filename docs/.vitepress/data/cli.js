@@ -133,6 +133,13 @@ export async function cliSidebar(locale) {
             ),
             link: `/${locale}/cli/logging`,
           },
+          {
+            text: localizedString(
+              locale,
+              "sidebars.cli.items.cli.items.shell-completions.text",
+            ),
+            link: `/${locale}/cli/shell-completions`,
+          },
         ],
       },
       ...sidebar.items,

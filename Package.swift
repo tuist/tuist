@@ -83,6 +83,7 @@ let targets: [Target] = [
             "TuistServer",
             "FileSystem",
             "TuistCache",
+            .product(name: "Noora", package: "Noora"),
             .product(name: "Command", package: "Command"),
             .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
             .product(name: "XcodeGraphMapper", package: "XcodeGraph"),
@@ -128,6 +129,7 @@ let targets: [Target] = [
             .product(name: "LoggingOSLog", package: "swift-log-oslog"),
             .product(name: "FileLogging", package: "swift-log-file"),
             .product(name: "ServiceContextModule", package: "swift-service-context"),
+            .product(name: "XCLogParser", package: "XCLogParser"),
         ],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
@@ -386,6 +388,7 @@ let targets: [Target] = [
     let packageSettings = PackageSettings(
         productTypes: [
             "FileSystem": .staticFramework,
+            "Noora": .staticFramework,
             "TSCBasic": .staticFramework,
             "TSCUtility": .staticFramework,
             "TSCclibc": .staticFramework,
@@ -530,8 +533,9 @@ let package = Package(
             .upToNextMajor(from: "0.2.2")
         ),
         .package(url: "https://github.com/crspybits/swift-log-file", .upToNextMajor(from: "0.1.0")),
-        .package(url: "https://github.com/tuist/Noora", .upToNextMajor(from: "0.21.3")),
+        .package(url: "https://github.com/tuist/XCLogParser", .upToNextMajor(from: "0.2.41")),
         .package(url: "https://github.com/davidahouse/XCResultKit", .upToNextMajor(from: "1.2.2")),
+        .package(url: "https://github.com/tuist/Noora", .upToNextMajor(from: "0.31.1")),
     ],
     targets: targets
 )

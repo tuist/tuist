@@ -19,8 +19,6 @@ final class ShareAcceptanceTests: ServerAcceptanceTestCase {
             XCTAssertStandardOutput(pattern: "Installing and launching App on iPhone 16 Pro")
             XCTAssertEqual(ServiceContext.current?.recordedUI(), """
             ▌ ✔ Success
-            ▌ Successfully logged in.
-            ▌ ✔ Success
             ▌ The project built successfully
             ▌ ✔ Success
             ▌ App was successfully launched 📲
@@ -38,8 +36,6 @@ final class ShareAcceptanceTests: ServerAcceptanceTestCase {
             XCTAssertStandardOutput(pattern: "Installing and launching App on iPhone 16")
             XCTAssertEqual(ServiceContext.current?.recordedUI(), """
             ▌ ✔ Success
-            ▌ Successfully logged in.
-            ▌ ✔ Success
             ▌ The project built successfully
             ▌ ✔ Success
             ▌ App was successfully launched 📲
@@ -51,8 +47,6 @@ final class ShareAcceptanceTests: ServerAcceptanceTestCase {
             try await run(RunCommand.self, appClipShareLink, "-destination", "iPhone 16")
             XCTAssertStandardOutput(pattern: "Installing and launching AppClip1 on iPhone 16")
             XCTAssertEqual(ServiceContext.current?.recordedUI(), """
-            ▌ ✔ Success
-            ▌ Successfully logged in.
             ▌ ✔ Success
             ▌ The project built successfully
             ▌ ✔ Success
@@ -86,8 +80,6 @@ final class ShareAcceptanceTests: ServerAcceptanceTestCase {
             try await run(RunCommand.self, try previewLink(), "-destination", "iPhone 16 Plus")
             XCTAssertStandardOutput(pattern: "Installing and launching App on iPhone 16 Plus")
             XCTAssertEqual(ServiceContext.current?.recordedUI(), """
-            ▌ ✔ Success
-            ▌ Successfully logged in.
             ▌ ✔ Success
             ▌ App was successfully launched 📲
             """)
@@ -125,8 +117,6 @@ final class ShareAcceptanceTests: ServerAcceptanceTestCase {
             try await run(RunCommand.self, try previewLink(), "-destination", "iPhone 15 Pro Max")
             XCTAssertStandardOutput(pattern: "Installing and launching App on iPhone 15 Pro Max")
             XCTAssertEqual(ServiceContext.current?.recordedUI(), """
-            ▌ ✔ Success
-            ▌ Successfully logged in.
             ▌ ✔ Success
             ▌ App was successfully launched 📲
             """)
