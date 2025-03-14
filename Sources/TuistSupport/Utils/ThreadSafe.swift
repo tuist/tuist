@@ -16,6 +16,22 @@ public final class ThreadSafe<T>: @unchecked Sendable {
     }
 
     /**
+     Mutates the boxed value by mapping it.
+
+     Example:
+     ```
+     let array = ThreadSafe([1,2,3])
+     array.map { $0 + [4] }
+     ```
+     - Parameter with : block used to mutate the underlying value
+     */
+    public func mapping(_ body: (T) throws -> T) rethrows {
+        os_unfair_lock_lock(_lock)
+        defer { os_unfair_lock_unlock(_lock) }
+        _value = try body(_value)
+    }
+
+    /**
      Mutates in place the value boxed by `ThreadSafe`
 
      Example:
