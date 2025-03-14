@@ -6,7 +6,7 @@ description: Узнайте, как установить Tuist в вашей с�
 
 # Начало работы {#get-started}
 
-The easiest way to get started with Tuist in any directory or in the directory of your Xcode project or workspace:
+Самый простой способ начать работу с Tuist в любом каталоге или в каталоге вашего Xcode-проекта или workspace:
 
 ```bash
 tuist init
