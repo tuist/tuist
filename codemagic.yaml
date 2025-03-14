@@ -4,12 +4,8 @@ workflows:
     max_build_duration: 60
     environment:
       xcode: 16.1
-      vars:
-        XDG_STATE_HOME: /tmp/
       groups:
         - github_credentials
-    artifacts:
-      - /tmp/tuist/logs/*.log
     scripts:
       - name: Set environment variables
         script: |
@@ -37,12 +33,8 @@ workflows:
     max_build_duration: 60
     environment:
       xcode: 16.1
-      vars:
-        XDG_STATE_HOME: /tmp/
       groups:
         - github_credentials
-    artifacts:
-      - /tmp/tuist/logs/*.log
     scripts:
       - name: Set environment variables
         script: |
@@ -60,13 +52,9 @@ workflows:
     max_build_duration: 60
     environment:
       xcode: 16.1
-      vars:
-        XDG_STATE_HOME: /tmp/
       groups:
         - tuist
         - github_credentials
-    artifacts:
-      - /tmp/tuist/logs/*.log
     scripts:
       - name: Set environment variables
         script: |
@@ -87,17 +75,13 @@ workflows:
     name: Unit tests
     max_build_duration: 60
     environment:
-        xcode: 16.1
-      vars:
-        XDG_STATE_HOME: /tmp/
+      xcode: 16.1
       groups:
         - tuist
         - github_credentials
     cache:
       cache_paths:
         - $CM_BUILD_DIR/.build
-    artifacts:
-      - /tmp/tuist/logs/*.log
     scripts:
       - name: Set environment variables
         script: |
@@ -117,16 +101,12 @@ workflows:
     max_build_duration: 60
     environment:
       xcode: 16.1
-      vars:
-        XDG_STATE_HOME: /tmp/
       groups:
         - tuist
         - github_credentials
     cache:
       cache_paths:
         - $CM_BUILD_DIR/.build
-    artifacts:
-      - /tmp/tuist/logs/*.log
     scripts:
       - name: Set environment variables
         script: |
@@ -153,13 +133,9 @@ workflows:
     max_build_duration: 60
     environment:
       xcode: 16.1
-      vars:
-        XDG_STATE_HOME: /tmp/
       groups:
         - tuist
         - github_credentials
-    artifacts:
-      - /tmp/tuist/logs/*.log
     scripts:
       - name: Set environment variables
         script: |
@@ -192,16 +168,12 @@ workflows:
     max_build_duration: 60
     environment:
       xcode: 16.1
-      vars:
-        XDG_STATE_HOME: /tmp/
       groups:
         - tuist
         - github_credentials
     cache:
       cache_paths:
         - $CM_BUILD_DIR/.build
-    artifacts:
-      - /tmp/tuist/logs/*.log
     scripts:
       - name: Set environment variables
         script: |
@@ -218,8 +190,6 @@ workflows:
         script: mise x -- tuist install
       - name: Run tests
         script: mise x -- tuist test TuistAutomationAcceptanceTests
-    artifacts:
-      - /tmp/tuist/logs/*.log
     triggering:
       <<: *branch_triggering
 
@@ -228,16 +198,12 @@ workflows:
     max_build_duration: 60
     environment:
       xcode: 16.1
-      vars:
-        XDG_STATE_HOME: /tmp/
       groups:
         - tuist
         - github_credentials
     cache:
       cache_paths:
         - $CM_BUILD_DIR/.build
-    artifacts:
-      - /tmp/tuist/logs/*.log
     scripts:
       - name: Set environment variables
         script: |
@@ -271,16 +237,12 @@ workflows:
     max_build_duration: 60
     environment:
       xcode: 16.1
-      vars:
-        XDG_STATE_HOME: /tmp/
       groups:
         - tuist
         - github_credentials
     cache:
       cache_paths:
         - $CM_BUILD_DIR/.build
-    artifacts:
-      - /tmp/tuist/logs/*.log
     scripts:
       - name: Set environment variables
         script: |
@@ -305,16 +267,12 @@ workflows:
     max_build_duration: 60
     environment:
       xcode: 16.1
-      vars:
-        XDG_STATE_HOME: /tmp/
       groups:
         - tuist
         - github_credentials
     cache:
       cache_paths:
         - $CM_BUILD_DIR/.build
-    artifacts:
-      - /tmp/tuist/logs/*.log
     scripts:
       - name: Set environment variables
         script: |
@@ -338,16 +296,12 @@ workflows:
     max_build_duration: 60
     environment:
       xcode: 16.1
-      vars:
-        XDG_STATE_HOME: /tmp/
       groups:
         - tuist
         - github_credentials
     cache:
       cache_paths:
         - $CM_BUILD_DIR/.build
-    artifacts:
-      - /tmp/tuist/logs/*.log
     scripts:
       - name: Set environment variables
         script: |
