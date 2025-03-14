@@ -175,20 +175,20 @@ struct InspectBuildCommandService {
             } else {
                 currentWorkingDirectory
             }
-            if let xcodeProjPath = try await fileSystem.glob(
+            if let workspacePath = try await fileSystem.glob(
+                directory: basePath,
+                include: ["*.xcworkspace"]
+            )
+            .collect()
+            .first {
+                return workspacePath
+            } else if let xcodeProjPath = try await fileSystem.glob(
                 directory: basePath,
                 include: ["*.xcodeproj"]
             )
             .collect()
             .first {
                 return xcodeProjPath
-            } else if let workspacePath = try await fileSystem.glob(
-                directory: basePath,
-                include: ["*.xcodeproj"]
-            )
-            .collect()
-            .first {
-                return workspacePath
             } else {
                 throw InspectBuildCommandServiceError.projectNotFound(basePath)
             }

@@ -202,6 +202,49 @@ struct InspectBuildCommandServiceTests {
     }
 
     @Test
+    func test_createsBuild_with_path_from_cli_for_xcworkspace() async throws {
+        try await fileSystem.runInTemporaryDirectory(prefix: "InspectBuildCommandServiceTests") { temporaryDirectory in
+            // Given
+            let workspacePath = temporaryDirectory.appending(component: "App.xcworkspace")
+            try await fileSystem.makeDirectory(at: workspacePath)
+            let projectPath = temporaryDirectory.appending(component: "App.xcodeproj")
+            try await fileSystem.makeDirectory(at: projectPath)
+            given(environment)
+                .workspacePath
+                .willReturn(nil)
+            let derivedDataPath = temporaryDirectory.appending(component: "derived-data")
+            given(derivedDataLocator)
+                .locate(for: .any)
+                .willReturn(derivedDataPath)
+            let buildLogsPath = derivedDataPath.appending(components: "Logs", "Build")
+            try await fileSystem.makeDirectory(at: buildLogsPath)
+            try await fileSystem.writeAsPlist(
+                LogStoreManifest(
+                    logs: [
+                        "id": ActivityLog(
+                            fileName: "id.xcactivitylog",
+                            timeStartedRecording: 10,
+                            timeStoppedRecording: 20
+                        ),
+                    ]
+                ),
+                at: buildLogsPath.appending(component: "LogStoreManifest.plist")
+            )
+            given(xcactivityParser)
+                .parse(.any)
+                .willReturn(.test())
+
+            // When
+            try await subject.run(path: temporaryDirectory.pathString)
+
+            // Then
+            verify(derivedDataLocator)
+                .locate(for: .value(workspacePath))
+                .called(1)
+        }
+    }
+
+    @Test
     func test_when_no_project_exists_at_a_given_path() async throws {
         try await fileSystem.runInTemporaryDirectory(prefix: "InspectBuildCommandServiceTests") { temporaryDirectory in
             // Given
