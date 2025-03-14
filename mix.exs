@@ -59,10 +59,7 @@ defmodule Tuist.MixProject do
       {:dns_cluster, "~> 0.2.0"},
       {:bandit, "~> 1.2"},
       {:credo, "~> 1.7.7", only: [:dev, :test], runtime: false},
-      {:appsignal, "~> 2.14"},
-      # Fix hackney version until AppSignal lifts the Hackney version to 1.13.0
-      # to address this issue https://github.com/appsignal/appsignal-elixir/issues/981
-      {:hackney, "1.21.0"},
+      {:appsignal, "~> 2.15.0"},
       {:appsignal_phoenix, "~> 2.5"},
       {:castore, "~> 1.0.12"},
       {:uniq, "~> 0.6"},
