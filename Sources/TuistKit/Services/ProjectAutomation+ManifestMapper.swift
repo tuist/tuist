@@ -54,7 +54,6 @@ extension ProjectAutomation.Project {
         return ProjectAutomation.Project(
             name: project.name,
             path: project.path.pathString,
-            isExternal: isExternal,
             packages: packages,
             targets: Array(targets.values),
             schemes: schemes
