@@ -219,7 +219,7 @@ workflows:
       - name: Run tests
         script: mise x -- tuist test TuistAutomationAcceptanceTests
     artifacts:
-
+      - /tmp/tuist/logs/*.log
     triggering:
       <<: *branch_triggering
 
