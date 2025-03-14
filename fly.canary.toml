@@ -2,7 +2,7 @@ app = "tuist-cloud-canary"
 primary_region = "atl"
 kill_signal = "SIGINT"
 kill_timeout = "5s"
-console_command = "/app/bin/rails console"
+console_command = "/app/bin/tuist remote"
 
 [experimental]
   auto_rollback = true
