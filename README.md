@@ -588,6 +588,7 @@ Thanks goes to these wonderful people:
       <td align="center" valign="top" width="14.28%"><a href="https://tdkn.dev"><img src="https://avatars.githubusercontent.com/u/1296540?v=4" width="100px;" alt=""/><br /><sub><b>Shun Tedokon</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="http://connorricks.com"><img src="https://avatars.githubusercontent.com/u/13373737?v=4" width="100px;" alt=""/><br /><sub><b>Connor Ricks</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://franciscodiaz.cl"><img src="https://avatars.githubusercontent.com/u/530662?v=4" width="100px;" alt=""/><br /><sub><b>Francisco Diaz</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/Ethan-IS"><img src="https://avatars.githubusercontent.com/u/140235921?v=4" width="100px;" alt=""/><br /><sub><b>Ethan Parker</b></sub></a></td>
     </tr>
   </tbody>
 </table>
