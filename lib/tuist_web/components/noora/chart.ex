@@ -98,7 +98,12 @@ defmodule TuistWeb.Noora.Chart do
     """
 
   attr :colors, :list,
-    default: ["var:noora-chart-primary", "var:noora-chart-secondary", "var:noora-chart-tertiary", "var:noora-chart-quaternary"],
+    default: [
+      "var:noora-chart-primary",
+      "var:noora-chart-secondary",
+      "var:noora-chart-tertiary",
+      "var:noora-chart-quaternary"
+    ],
     doc: """
     Custom colors for data series.
 

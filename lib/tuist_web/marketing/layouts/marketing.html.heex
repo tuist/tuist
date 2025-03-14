@@ -78,6 +78,13 @@
     />
     
 <!-- Analytics -->
+    <script
+      :if={Tuist.Environment.analytics_enabled?()}
+      nonce={get_csp_nonce()}
+      type="text/javascript"
+      src="https://app.getterms.io/cookie-consent/embed/c3128f33-0693-4804-bc05-fb469d27aa19/en-us"
+    >
+    </script>
     <TuistWeb.LayoutComponents.head_analytics_scripts
       :if={Tuist.Environment.analytics_enabled?()}
       {assigns}
@@ -87,7 +94,7 @@
     <script nonce={get_csp_nonce()} src="https://js.hcaptcha.com/1/api.js" async defer>
     </script>
     <!-- Chat box -->
-    <script nonce={get_csp_nonce()} type="text/plain" data-category="functionality">
+    <script nonce={get_csp_nonce()}>
       (function(d,t) {
         var BASE_URL="https://app.chatwoot.com";
         var g=d.createElement(t),s=d.getElementsByTagName(t)[0];

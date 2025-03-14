@@ -3,11 +3,14 @@ import "phoenix_html";
 import { Socket } from "phoenix";
 import { LiveSocket } from "phoenix_live_view";
 import { Hooks } from "./js/hooks.js";
-import { setupCookieConsent } from "../_shared/cookie.js";
 import "./marketing.css";
 
-let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content");
-let cspNonce = document.querySelector("meta[name='csp-nonce']").getAttribute("content");
+let csrfToken = document
+  .querySelector("meta[name='csrf-token']")
+  .getAttribute("content");
+let cspNonce = document
+  .querySelector("meta[name='csp-nonce']")
+  .getAttribute("content");
 
 let liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
@@ -36,5 +39,3 @@ window.addEventListener("phx:js-exec", ({ detail }) => {
 
 import "./js/home.js";
 import "./js/components.js";
-
-setupCookieConsent();
