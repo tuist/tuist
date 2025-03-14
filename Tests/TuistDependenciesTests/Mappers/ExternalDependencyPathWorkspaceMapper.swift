@@ -84,7 +84,7 @@ final class ExternalDependencyPathWorkspaceMapperTests: TuistUnitTestCase {
                     name: "ExternalDependency",
                     settings: Settings.test(
                         base: [
-                            "SRCROOT": .string(externalProjectPath.pathString),
+                            "SRCROOT": .string(externalProject.sourceRootPath.relative(to: externalProjectPath).pathString),
                         ]
                     ),
                     type: .external(hash: nil)

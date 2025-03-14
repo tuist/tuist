@@ -17,7 +17,7 @@ public final class SourceRootPathProjectMapper: ProjectMapping {
         var base = project.settings.base
         // Keep the value if defined by user
         if base["SRCROOT"] == nil {
-            base["SRCROOT"] = SettingValue(stringLiteral: project.sourceRootPath.pathString)
+            base["SRCROOT"] = SettingValue(stringLiteral: project.sourceRootPath.relative(to: project.path).pathString)
         }
         project.settings = project.settings.with(
             base: base
