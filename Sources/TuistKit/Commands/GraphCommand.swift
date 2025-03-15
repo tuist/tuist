@@ -1,4 +1,5 @@
 import ArgumentParser
+import FileSystem
 import Foundation
 import GraphViz
 import Path
@@ -82,10 +83,12 @@ public struct GraphCommand: AsyncParsableCommand {
     public init() {}
 
     public func run() async throws {
+        let filesystem = FileSystem()
+
         // If output path is present
         var absoluteOutputPath: AbsolutePath?
         if let outputPath {
-            absoluteOutputPath = try AbsolutePath(validating: outputPath, relativeTo: FileHandler.shared.currentPath)
+            absoluteOutputPath = try await AbsolutePath(validating: outputPath, relativeTo: filesystem.currentWorkingDirectory())
         }
 
         try await GraphService().run(
