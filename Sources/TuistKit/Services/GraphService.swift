@@ -322,9 +322,9 @@ extension GraphService {
 
 // MARK: - Helpers
 
-extension GraphFormat {
+private extension GraphFormat {
     /// Flag to indicate if an output is representable as plain text.
-    fileprivate var isTextPrintable: Bool {
+    var isTextPrintable: Bool {
         switch self {
         case .json, .svg, .dot:
             return true
