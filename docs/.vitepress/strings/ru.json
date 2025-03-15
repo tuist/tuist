@@ -85,7 +85,7 @@
         "cli": {
           "items": {
             "logging": {
-              "text": "Logging"
+              "text": "Логирование"
             },
             "shell-completions": {
               "text": "Автозавершения командной оболочки"
@@ -135,7 +135,7 @@
           "text": "CLI",
           "items": {
             "logging": {
-              "text": "Logging"
+              "text": "Логирование"
             }
           }
         }

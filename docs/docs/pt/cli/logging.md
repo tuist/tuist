@@ -31,7 +31,7 @@ name: Node CI
 on: [push]
 
 env:
-  $XDG_STATE_HOME: /tmp/tuist
+  XDG_STATE_HOME: /tmp
 
 jobs:
   build:

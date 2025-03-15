@@ -1,12 +1,12 @@
 ---
-title: Logging
+title: Логирование
 titleTemplate: :title · Интерфейс командной строки (CLI) · Tuist
-description: Learn how to enable and configure logging in Tuist.
+description: Узнайте, как включить и настроить логирование в Tuist.
 ---
 
-# Logging {#logging}
+# Логирование {#logging}
 
-The CLI logs messages internally to help you diagnose issues.
+CLI логирует сообщения внутри, чтобы помочь вам диагностировать проблемы.
 
 ## Diagnose issues using logs {#diagnose-issues-using-logs}
 
@@ -14,16 +14,16 @@ If a command invocation doesn't yield the intended results, you can diagnose the
 
 In every run, it creates a log file at `$XDG_STATE_HOME/tuist/logs/{uuid}.log` where `$XDG_STATE_HOME` takes the value `~/.local/state` if the environment variable is not set.
 
-By default, the CLI outputs the logs path when the execution exits unexpectedly. If it doesn't, you can find the logs in the path mentioned above (i.e., the most recent log file).
+По умолчанию, CLI выводит путь логов когда исполнение неожиданно завершается. Если это не так, то логи могут быть найдены в указанном выше пути (то есть в самом последнем лог-файле).
 
-> [!IMPORTANT]
-> Sensitive information is not redacted, so be cautious when sharing logs.
+> [!ВАЖНО]
+> Конфиденциальная информация - не редактируется, поэтому будьте острожно при публикации логов.
 
-### Continuous integration {#diagnose-issues-using-logs-ci}
+### Непрерывная интеграция (CI) {#diagnose-issues-using-logs-ci}
 
-In CI, where environments are disposable, you might want to configure your CI pipeline to export Tuist logs.
-Exporting artifacts is a common capability across CI services, and the configuration depends on the service you use.
-For example, in GitHub Actions, you can use the `actions/upload-artifact` action to upload the logs as an artifact:
+В CI, где окружения сбрасываемы, вы можете захотеть сконфигурировать ваш CI конвейер для экспорта логов Tuist.
+Экспорт артефактов является общей возможностью CI-служб, и их конфигурации зависят от используемой вами службы.
+Например, в GitHub Actions вы можете использовать действие `actions/upload-artifact` для выгрузки логов в качестве артефакта:
 
 ```yaml
 name: Node CI
@@ -31,7 +31,7 @@ name: Node CI
 on: [push]
 
 env:
-  $XDG_STATE_HOME: /tmp/tuist
+  XDG_STATE_HOME: /tmp
 
 jobs:
   build:
