@@ -286,25 +286,22 @@ extension ProjectAutomation.BuildConfiguration.Variant {
     }
 }
 
-enum GraphServiceError: FatalError {
+enum GraphServiceError: LocalizedError {
     case jsonNotValidForVisualExport
     case encodingError(String)
+    case outputPathMissingForVisualExport(GraphFormat)
+    case formatNotValidForStdExport(GraphFormat)
 
-    var description: String {
+    var errorDescription: String? {
         switch self {
         case .jsonNotValidForVisualExport:
             return "json format is not valid for visual export"
         case let .encodingError(format):
             return "failed to encode graph to \(format)"
-        }
-    }
-
-    var type: ErrorType {
-        switch self {
-        case .jsonNotValidForVisualExport:
-            return .abort
-        case .encodingError:
-            return .abort
+        case let .outputPathMissingForVisualExport(graphFormat):
+            return "\(graphFormat) requires an output path"
+        case let .formatNotValidForStdExport(graphFormat):
+            return "\(graphFormat) is not valid for std output"
         }
     }
 }

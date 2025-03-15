@@ -1,4 +1,5 @@
 import ArgumentParser
+import FileSystem
 import Foundation
 import GraphViz
 import Path
@@ -9,8 +10,6 @@ import XcodeGraph
 
 /// Command that generates and exports a dot graph from the workspace or project in the current directory.
 public struct GraphCommand: AsyncParsableCommand {
-    public init() {}
-
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "graph",
@@ -81,7 +80,17 @@ public struct GraphCommand: AsyncParsableCommand {
     )
     var outputPath: String?
 
+    public init() {}
+
     public func run() async throws {
+        let filesystem = FileSystem()
+
+        // If output path is present
+        var absoluteOutputPath: AbsolutePath?
+        if let outputPath {
+            absoluteOutputPath = try await AbsolutePath(validating: outputPath, relativeTo: filesystem.currentWorkingDirectory())
+        }
+
         try await GraphService().run(
             format: format,
             layoutAlgorithm: layoutAlgorithm,
@@ -91,9 +100,7 @@ public struct GraphCommand: AsyncParsableCommand {
             platformToFilter: platform,
             targetsToFilter: targets,
             path: path.map { try AbsolutePath(validating: $0) } ?? FileHandler.shared.currentPath,
-            outputPath: outputPath
-                .map { try AbsolutePath(validating: $0, relativeTo: FileHandler.shared.currentPath) } ?? FileHandler.shared
-                .currentPath
+            outputPath: absoluteOutputPath
         )
     }
 }
