@@ -106,18 +106,6 @@ enum GraphFormat: String, ExpressibleByArgument, CaseIterable {
     case dot, json, legacyJSON, png, svg
 }
 
-extension GraphFormat {
-    /// Flag to indicate if an output to stdout is allowed.
-    var allowsStdOut: Bool {
-        switch self {
-        case .json, .svg, .dot:
-            return true
-        default:
-            return false
-        }
-    }
-}
-
 extension GraphViz.LayoutAlgorithm: ArgumentParser.ExpressibleByArgument {
     public static var allValueStrings: [String] {
         [

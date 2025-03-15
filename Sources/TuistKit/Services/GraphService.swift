@@ -62,8 +62,7 @@ final class GraphService {
         path: AbsolutePath,
         outputPath: AbsolutePath?
     ) async throws {
-        // Sanity checks
-        if outputPath == nil, !format.allowsStdOut {
+        if outputPath == nil, !format.isTextPrintable {
             throw GraphServiceError.outputPathMissingForVisualExport(format)
         }
 
@@ -118,9 +117,9 @@ extension GraphService {
         switch format {
         case .svg, .dot:
             let graphVizGraph = graphVizMapper.map(graph: graph, targetsAndDependencies: targetsAndDependencies)
-            try exportGraphVizToStdOut(graph: graphVizGraph, withFormat: format, layoutAlgorithm: layoutAlgorithm)
+            try printGraphViz(graph: graphVizGraph, withFormat: format, layoutAlgorithm: layoutAlgorithm)
         case .json:
-            try exportJSONRepresentationToStdout(from: graph)
+            try printJSON(from: graph)
         default:
             throw GraphServiceError.formatNotValidForStdExport(format)
         }
@@ -131,7 +130,7 @@ extension GraphService {
     /// Export a JSON representation of a XcodeGraph graph to stdout.
     /// - Parameters:
     ///   - graph: Graph to export.
-    private func exportJSONRepresentationToStdout(
+    private func printJSON(
         from graph: XcodeGraph.Graph
     ) throws {
         let jsonString = try json(from: graph)
@@ -140,7 +139,7 @@ extension GraphService {
 
     // MARK: GraphViz Export
 
-    private func exportGraphVizToStdOut(
+    private func printGraphViz(
         graph: GraphViz.Graph,
         withFormat format: GraphFormat,
         layoutAlgorithm: LayoutAlgorithm
@@ -148,13 +147,13 @@ extension GraphService {
         switch format {
         case .svg:
             let imageData = try imageData(from: graph, layoutAlgorithm: layoutAlgorithm, format: .svg)
-            guard let string = String(data: imageData, encoding: .utf8) else {
+            guard let svgString = String(data: imageData, encoding: .utf8) else {
                 throw GraphServiceError.encodingError(GraphFormat.svg.rawValue)
             }
-            ServiceContext.current?.logger?.notice("\(string)")
+            ServiceContext.current?.ui?.message("\(svgString)")
         case .dot:
             let dotString = dotData(from: graph)
-            ServiceContext.current?.logger?.notice("\(dotString)")
+            ServiceContext.current?.ui?.message("\(dotString)")
         default:
             throw GraphServiceError.formatNotValidForStdExport(format)
         }
@@ -318,5 +317,19 @@ extension GraphService {
         var env = System.shared.env
         env["HOMEBREW_NO_AUTO_UPDATE"] = "1"
         try System.shared.runAndPrint(["brew", "install", "graphviz"], verbose: false, environment: env)
+    }
+}
+
+// MARK: - Helpers
+
+extension GraphFormat {
+    /// Flag to indicate if an output is representable as plain text.
+    fileprivate var isTextPrintable: Bool {
+        switch self {
+        case .json, .svg, .dot:
+            return true
+        case .png, .legacyJSON:
+            return false
+        }
     }
 }
