@@ -31,6 +31,7 @@ final class TestServiceTests: TuistUnitTestCase {
     private var cacheStorage: MockCacheStoring!
     private var runMetadataStorage: RunMetadataStorage!
     private var testedSchemes: [String] = []
+    private var xcResultService: MockXCResultServicing!
 
     override func setUpWithError() throws {
         try super.setUpWithError()
@@ -43,6 +44,7 @@ final class TestServiceTests: TuistUnitTestCase {
         generatorFactory = .init()
         cacheStorage = .init()
         runMetadataStorage = RunMetadataStorage()
+        xcResultService = .init()
 
         cacheStorageFactory = MockCacheStorageFactorying()
         given(cacheStorageFactory)
@@ -82,7 +84,8 @@ final class TestServiceTests: TuistUnitTestCase {
             simulatorController: simulatorController,
             contentHasher: contentHasher,
             cacheDirectoriesProvider: cacheDirectoriesProvider,
-            configLoader: configLoader
+            configLoader: configLoader,
+            xcResultService: xcResultService
         )
 
         given(simulatorController)
@@ -111,6 +114,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 scheme: .any,
                 clean: .any,
                 destination: .any,
+                action: .any,
                 rosetta: .any,
                 derivedDataPath: .any,
                 resultBundlePath: .any,
@@ -121,7 +125,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 testPlanConfiguration: .any,
                 passthroughXcodeBuildArguments: .any
             )
-            .willProduce { _, scheme, _, _, _, _, _, _, _, _, _, _, _ in
+            .willProduce { _, scheme, _, _, _, _, _, _, _, _, _, _, _, _ in
                 self.testedSchemes.append(scheme)
             }
     }
@@ -290,6 +294,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 scheme: .any,
                 clean: .any,
                 destination: .any,
+                action: .any,
                 rosetta: .value(true),
                 derivedDataPath: .any,
                 resultBundlePath: .any,
@@ -341,6 +346,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 scheme: .any,
                 clean: .any,
                 destination: .value(nil),
+                action: .any,
                 rosetta: .any,
                 derivedDataPath: .any,
                 resultBundlePath: .any,
@@ -927,6 +933,132 @@ final class TestServiceTests: TuistUnitTestCase {
         }
     }
 
+    func test_run_tests_caches_passing_targets_when_some_targets_fail() async throws {
+        // Given
+        let projectPath = try temporaryPath().appending(component: "ProjectOne")
+        givenGenerator()
+
+        let scheme = Scheme.test(
+            name: "UnitTests",
+            testAction: .test(
+                targets: [
+                    .test(target: .init(projectPath: projectPath, name: "FrameworkATests")),
+                    .test(target: .init(projectPath: projectPath, name: "FrameworkBTests")),
+                ]
+            )
+        )
+        given(buildGraphInspector)
+            .workspaceSchemes(graphTraverser: .any)
+            .willReturn(
+                [
+                    scheme,
+                ]
+            )
+
+        let graph: Graph = .test(
+            projects: [
+                projectPath: .test(
+                    path: projectPath,
+                    targets: [
+                        .test(
+                            name: "FrameworkATests",
+                            bundleId: "io.tuist.FrameworkATests"
+                        ),
+                        .test(
+                            name: "FrameworkBTests",
+                            bundleId: "io.tuist.FrameworkBTests"
+                        ),
+                    ]
+                ),
+            ]
+        )
+
+        var environment = MapperEnvironment()
+        environment.initialGraph = graph
+        environment.targetTestHashes = [
+            projectPath: [
+                "FrameworkATests": "hash-a",
+                "FrameworkBTests": "hash-b",
+            ],
+        ]
+
+        given(generator)
+            .generateWithGraph(path: .any)
+            .willProduce { path in
+                (path, graph, environment)
+            }
+
+        xcodebuildController.reset()
+
+        let xcresultPath = try temporaryPath().appending(component: "bundle.xcresult")
+        given(xcodebuildController)
+            .test(
+                .any,
+                scheme: .any,
+                clean: .any,
+                destination: .any,
+                action: .any,
+                rosetta: .any,
+                derivedDataPath: .any,
+                resultBundlePath: .value(xcresultPath),
+                arguments: .any,
+                retryCount: .any,
+                testTargets: .any,
+                skipTestTargets: .any,
+                testPlanConfiguration: .any,
+                passthroughXcodeBuildArguments: .any
+            )
+            .willProduce { _, scheme, _, _, _, _, _, _, _, _, _, _, _, _ in
+                self.testedSchemes.append(scheme)
+                throw NSError.test()
+            }
+
+        given(xcResultService)
+            .parse(path: .value(xcresultPath))
+            .willReturn(InvocationRecord(actions: [], testSummaries: []))
+
+        given(xcResultService)
+            .successfulTestTargets(invocationRecord: .any)
+            .willReturn(["FrameworkBTests"])
+
+        // When / Then
+        do {
+            try await testRun(
+                path: try temporaryPath(),
+                resultBundlePath: xcresultPath
+            )
+            XCTFail("Should throw")
+        } catch {}
+        XCTAssertEqual(
+            testedSchemes,
+            [
+                "UnitTests",
+            ]
+        )
+
+        verify(cacheStorage)
+            .store(
+                .value(
+                    [
+                        CacheStorableItem(name: "FrameworkATests", hash: "hash-a"): [],
+                    ]
+                ),
+                cacheCategory: .value(.selectiveTests)
+            )
+            .called(0)
+
+        verify(cacheStorage)
+            .store(
+                .value(
+                    [
+                        CacheStorableItem(name: "FrameworkBTests", hash: "hash-b"): [],
+                    ]
+                ),
+                cacheCategory: .value(.selectiveTests)
+            )
+            .called(1)
+    }
+
     func test_run_tests_when_part_is_cached_and_scheme_is_passed() async throws {
         try await ServiceContext.withTestingDependencies {
             // Given
@@ -1118,6 +1250,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 scheme: .any,
                 clean: .any,
                 destination: .any,
+                action: .any,
                 rosetta: .any,
                 derivedDataPath: .any,
                 resultBundlePath: .any,
@@ -1128,7 +1261,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 testPlanConfiguration: .any,
                 passthroughXcodeBuildArguments: .any
             )
-            .willProduce { _, scheme, _, _, _, _, _, _, _, _, _, _, _ in
+            .willProduce { _, scheme, _, _, _, _, _, _, _, _, _, _, _, _ in
                 self.testedSchemes.append(scheme)
                 throw NSError.test()
             }
@@ -1219,6 +1352,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 scheme: .any,
                 clean: .any,
                 destination: .any,
+                action: .any,
                 rosetta: .any,
                 derivedDataPath: .any,
                 resultBundlePath: .value(expectedResourceBundlePath),
@@ -1264,6 +1398,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 scheme: .any,
                 clean: .any,
                 destination: .any,
+                action: .any,
                 rosetta: .any,
                 derivedDataPath: .any,
                 resultBundlePath: .value(xcresultPath),
@@ -1325,6 +1460,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 scheme: .any,
                 clean: .any,
                 destination: .any,
+                action: .any,
                 rosetta: .any,
                 derivedDataPath: .any,
                 resultBundlePath: .value(expectedResultBundlePath),
@@ -1381,6 +1517,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 scheme: .any,
                 clean: .any,
                 destination: .any,
+                action: .any,
                 rosetta: .any,
                 derivedDataPath: .any,
                 resultBundlePath: .value(expectedResourceBundlePath),
@@ -1441,6 +1578,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 scheme: .any,
                 clean: .any,
                 destination: .any,
+                action: .any,
                 rosetta: .any,
                 derivedDataPath: .any,
                 resultBundlePath: .any,
@@ -1483,6 +1621,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 scheme: .any,
                 clean: .any,
                 destination: .any,
+                action: .any,
                 rosetta: .any,
                 derivedDataPath: .any,
                 resultBundlePath: .any,
@@ -1508,6 +1647,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 scheme: .any,
                 clean: .any,
                 destination: .any,
+                action: .any,
                 rosetta: .any,
                 derivedDataPath: .any,
                 resultBundlePath: .any,
@@ -1831,6 +1971,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 scheme: .any,
                 clean: .any,
                 destination: .any,
+                action: .any,
                 rosetta: .any,
                 derivedDataPath: .any,
                 resultBundlePath: .any,
@@ -1886,6 +2027,7 @@ final class TestServiceTests: TuistUnitTestCase {
         deviceName: String? = nil,
         platform: String? = nil,
         osVersion: String? = nil,
+        action: XcodeBuildTestAction = .test,
         rosetta: Bool = false,
         skipUiTests: Bool = false,
         resultBundlePath: AbsolutePath? = nil,
@@ -1910,6 +2052,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 deviceName: deviceName,
                 platform: platform,
                 osVersion: osVersion,
+                action: action,
                 rosetta: rosetta,
                 skipUITests: skipUiTests,
                 resultBundlePath: resultBundlePath,

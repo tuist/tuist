@@ -1,10 +1,17 @@
 import Mockable
 import Path
+import XcodeGraph
 
 public enum XcodeBuildDestination: Equatable {
     case device(String)
     case mac
     case macCatalyst
+}
+
+public enum XcodeBuildTestAction: Equatable {
+    case test
+    case build
+    case testWithoutBuilding
 }
 
 @Mockable
@@ -47,6 +54,7 @@ public protocol XcodeBuildControlling {
         scheme: String,
         clean: Bool,
         destination: XcodeBuildDestination?,
+        action: XcodeBuildTestAction,
         rosetta: Bool,
         derivedDataPath: AbsolutePath?,
         resultBundlePath: AbsolutePath?,
@@ -100,4 +108,7 @@ public protocol XcodeBuildControlling {
     /// Runs `xcodebuild` with passed `arguments` and formats the output
     /// - arguments: Arguments to pass to `xcodebuild`
     func run(arguments: [String]) async throws
+
+    /// - Returns: `xcodebuild` version. This version is aligned with the Xcode version.
+    func version() async throws -> Version?
 }

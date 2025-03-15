@@ -214,28 +214,6 @@ final class CommandEnvironmentVariableTests: XCTestCase {
         XCTAssertEqual(graphCommandWithArgs.outputPath, "/new/graph/output")
     }
 
-    func testInitCommandUsesEnvVars() throws {
-        setVariable(.initPlatform, value: "macos")
-        setVariable(.initName, value: "MyProject")
-        setVariable(.initTemplate, value: "MyTemplate")
-        setVariable(.initPath, value: "/path/to/init")
-
-        let initCommandWithEnvVars = try InitCommand.parse([])
-        XCTAssertEqual(initCommandWithEnvVars.name, "MyProject")
-        XCTAssertEqual(initCommandWithEnvVars.template, "MyTemplate")
-        XCTAssertEqual(initCommandWithEnvVars.path, "/path/to/init")
-
-        let initCommandWithArgs = try InitCommand.parse([
-            "--platform", "ios",
-            "--name", "NewProject",
-            "--template", "NewTemplate",
-            "--path", "/new/init/path",
-        ])
-        XCTAssertEqual(initCommandWithArgs.name, "NewProject")
-        XCTAssertEqual(initCommandWithArgs.template, "NewTemplate")
-        XCTAssertEqual(initCommandWithArgs.path, "/new/init/path")
-    }
-
     func testInstallCommandUsesEnvVars() throws {
         setVariable(.installPath, value: "/path/to/install")
         setVariable(.installUpdate, value: "true")

@@ -21,5 +21,5 @@ description: Узнайте о лучших практиках работы с T
 
 Конфигурации сборки изначально предназначены для представления различных настроек сборки, и проектам редко требуется больше, чем просто `Debug` и `Release`. Необходимость моделировать различные среды может быть удовлетворена с помощью схем:
 
-- **In Debug builds:** You can include all the configurations that should be accessible in development in the app (e.g. endpoints), and switch them at runtime. The switch can happen either using scheme launch environment variables, or with a UI within the app.
-- **In Release builds:** In case of release, you can only include the configuration that the release build is bound to, and not include the runtime logic for switching configurations by using compiler directives.
+- **В Debug сборках:** Вы можете включить все конфигурации, доступные при разработке в приложение (например, конечные точки), и переключить их во время выполнения. Переключение может происходить при помощи переменных окружения в схемах или в пользовательского интерфейсе приложения.
+- **В Release сборках:** Вы можете включить только конфигурацию, к которой привязана release-сборка, и не включать логику переключения конфигураций с помощью директив компилятора.

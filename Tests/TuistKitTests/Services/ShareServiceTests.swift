@@ -177,7 +177,7 @@ final class ShareServiceTests: TuistUnitTestCase {
                 .willReturn(graphAppTarget)
 
             given(defaultConfigurationFetcher)
-                .fetch(configuration: .any, config: .any, graph: .any)
+                .fetch(configuration: .any, defaultConfiguration: .any, graph: .any)
                 .willReturn("Debug")
 
             let iosPath = try temporaryPath()
@@ -299,7 +299,7 @@ final class ShareServiceTests: TuistUnitTestCase {
             .willReturn(graphAppTarget)
 
         given(defaultConfigurationFetcher)
-            .fetch(configuration: .any, config: .any, graph: .any)
+            .fetch(configuration: .any, defaultConfiguration: .any, graph: .any)
             .willReturn("Debug")
 
         let iosPath = try temporaryPath()
@@ -385,7 +385,7 @@ final class ShareServiceTests: TuistUnitTestCase {
                 .willReturn(graphAppTargetTwo)
 
             given(defaultConfigurationFetcher)
-                .fetch(configuration: .any, config: .any, graph: .any)
+                .fetch(configuration: .any, defaultConfiguration: .any, graph: .any)
                 .willReturn("Debug")
 
             let iosPath = try temporaryPath()
@@ -491,7 +491,7 @@ final class ShareServiceTests: TuistUnitTestCase {
                 .willReturn(graphAppTarget)
 
             given(defaultConfigurationFetcher)
-                .fetch(configuration: .any, config: .any, graph: .any)
+                .fetch(configuration: .any, defaultConfiguration: .any, graph: .any)
                 .willReturn("Debug")
 
             let iosPath = try temporaryPath()
@@ -583,7 +583,7 @@ final class ShareServiceTests: TuistUnitTestCase {
                 .willReturn(graphAppClipTarget)
 
             given(defaultConfigurationFetcher)
-                .fetch(configuration: .any, config: .any, graph: .any)
+                .fetch(configuration: .any, defaultConfiguration: .any, graph: .any)
                 .willReturn("Debug")
 
             let iosPath = try temporaryPath()

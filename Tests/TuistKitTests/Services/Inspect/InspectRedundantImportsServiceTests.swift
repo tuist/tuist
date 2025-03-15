@@ -45,7 +45,7 @@ final class LintRedundantImportsServiceTests: TuistUnitTestCase {
         try await ServiceContext.withTestingDependencies {
             // Given
             let path = try AbsolutePath(validating: "/project")
-            let config = Config.test()
+            let config = Tuist.test()
             let framework = Target.test(name: "Framework", product: .framework)
             let app = Target.test(name: "App", product: .app, dependencies: [TargetDependency.target(name: "Framework")])
             let project = Project.test(path: path, targets: [app, framework])
@@ -70,7 +70,7 @@ final class LintRedundantImportsServiceTests: TuistUnitTestCase {
     func test_run_doesntThrowAnyErrors_when_thereAreNoIssues() async throws {
         // Given
         let path = try AbsolutePath(validating: "/project")
-        let config = Config.test()
+        let config = Tuist.test()
         let framework = Target.test(name: "Framework", product: .framework)
         let app = Target.test(name: "App", product: .app, dependencies: [TargetDependency.target(name: "Framework")])
         let project = Project.test(path: path, targets: [app, framework])

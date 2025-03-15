@@ -100,6 +100,8 @@ public enum TuistAcceptanceFixtures {
     case workspaceWithFileHeaderTemplate
     case workspaceWithInlineFileHeaderTemplate
     case xcodeApp
+    case xcodeProjectWithInspectBuild
+    case xcodeProjectiOSApp
     case xcodeProjectWithRegistryAndAlamofire
     case xcodeProjectWithTests
     case xcodeProjectWithPackagesAndTests
@@ -305,6 +307,10 @@ public enum TuistAcceptanceFixtures {
             return "workspace_with_inline_file_header_template"
         case .xcodeApp:
             return "xcode_app"
+        case .xcodeProjectWithInspectBuild:
+            return "xcode_project_with_inspect_build"
+        case .xcodeProjectiOSApp:
+            return "xcode_project_ios_app"
         case .xcodeProjectWithRegistryAndAlamofire:
             return "xcode_project_with_registry_and_alamofire"
         case .xcodeProjectWithTests:
