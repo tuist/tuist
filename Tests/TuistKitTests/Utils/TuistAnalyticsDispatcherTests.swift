@@ -1,9 +1,8 @@
+import FileSystem
 import Mockable
-import MockableTest
 import TuistCore
 import TuistServer
 import TuistSupport
-import XcodeGraph
 import XCTest
 @testable import TuistAnalytics
 @testable import TuistCoreTesting
@@ -13,72 +12,69 @@ import XCTest
 final class TuistAnalyticsDispatcherTests: TuistUnitTestCase {
     private var subject: TuistAnalyticsDispatcher!
     private var createCommandEventService: MockCreateCommandEventServicing!
-    private var ciChecker: MockCIChecker!
-    private var cacheDirectoriesProviderFactory: MockCacheDirectoriesProviderFactoring!
+    private var ciChecker: MockCIChecking!
+    private var cacheDirectoriesProvider: MockCacheDirectoriesProviding!
     private var analyticsArtifactUploadService: MockAnalyticsArtifactUploadServicing!
 
     override func setUp() {
         super.setUp()
         createCommandEventService = .init()
         ciChecker = .init()
-        cacheDirectoriesProviderFactory = .init()
+        cacheDirectoriesProvider = .init()
         analyticsArtifactUploadService = .init()
+        cacheDirectoriesProvider = MockCacheDirectoriesProviding()
     }
 
     override func tearDown() {
         subject = nil
         createCommandEventService = nil
         ciChecker = nil
-        cacheDirectoriesProviderFactory = nil
+        cacheDirectoriesProvider = nil
         analyticsArtifactUploadService = nil
         super.tearDown()
     }
 
-    func testDispatch_whenCloudAnalyticsIsEnabled_sendsToCloud() throws {
+    func testDispatch_sendsToServer() throws {
         // Given
-        let projectID = "project"
-        let cloudURL = URL.test()
-        let cloud = Cloud(url: cloudURL, projectId: projectID, options: [])
-        let backend = TuistAnalyticsCloudBackend(
-            config: cloud,
+        let fullHandle = "project"
+        let url = URL.test()
+        let backend = TuistAnalyticsServerBackend(
+            fullHandle: fullHandle,
+            url: url,
             createCommandEventService: createCommandEventService,
             fileHandler: fileHandler,
             ciChecker: ciChecker,
-            cacheDirectoriesProviderFactory: cacheDirectoriesProviderFactory,
-            analyticsArtifactUploadService: analyticsArtifactUploadService
+            cacheDirectoriesProvider: cacheDirectoriesProvider,
+            analyticsArtifactUploadService: analyticsArtifactUploadService,
+            fileSystem: FileSystem()
         )
         subject = TuistAnalyticsDispatcher(
             backend: backend
         )
 
+        given(ciChecker)
+            .isCI()
+            .willReturn(false)
         given(createCommandEventService)
             .createCommandEvent(
                 commandEvent: .matching { commandEvent in
                     commandEvent.name == Self.commandEvent.name
                 },
-                projectId: .value(projectID),
-                serverURL: .value(cloudURL)
+                projectId: .value(fullHandle),
+                serverURL: .value(url)
             )
             .willReturn(.test(id: 10))
 
         given(analyticsArtifactUploadService)
             .uploadResultBundle(
                 .any,
-                targetHashes: .any,
-                graphPath: .any,
                 commandEventId: .value(10),
-                serverURL: .value(cloudURL)
+                serverURL: .value(url)
             )
             .willReturn(())
 
-        let cacheDirectoriesProvider = MockCacheDirectoriesProviding()
-
-        given(cacheDirectoriesProviderFactory)
-            .cacheDirectories()
-            .willReturn(cacheDirectoriesProvider)
-
         given(cacheDirectoriesProvider)
-            .tuistCacheDirectory(for: .value(.runs))
+            .cacheDirectory(for: .value(.runs))
             .willReturn(try temporaryPath())
 
         // When
@@ -94,7 +90,6 @@ final class TuistAnalyticsDispatcherTests: TuistUnitTestCase {
             runId: "run-id",
             name: "event",
             subcommand: nil,
-            params: [:],
             commandArguments: ["event"],
             durationInMs: 100,
             clientId: "client",
@@ -103,7 +98,15 @@ final class TuistAnalyticsDispatcherTests: TuistUnitTestCase {
             macOSVersion: "12.0",
             machineHardwareName: "arm64",
             isCI: false,
-            status: .success
+            status: .success,
+            gitCommitSHA: "26f4fda1548502c474642ce63db7630307242312",
+            gitRef: nil,
+            gitRemoteURLOrigin: "https://github.com/tuist/tuist",
+            gitBranch: "main",
+            graph: nil,
+            previewId: nil,
+            resultBundlePath: nil,
+            ranAt: Date()
         )
     }
 

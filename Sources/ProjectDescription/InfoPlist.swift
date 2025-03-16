@@ -1,5 +1,3 @@
-import Foundation
-
 // MARK: - InfoPlist
 
 /// A info plist from a file, a custom dictonary or a extended defaults.

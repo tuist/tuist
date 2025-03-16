@@ -31,21 +31,27 @@ public final class DeveloperEnvironment: DeveloperEnvironmenting {
         self.fileHandler = fileHandler
 
         derivedDataDirectoryCache = ThrowableCaching<AbsolutePath> {
-            let location: AbsolutePath
+            if let overrideLocation = try? System.shared.capture([
+                "/usr/bin/defaults",
+                "read",
+                "com.apple.dt.Xcode IDEDerivedDataPathOverride",
+            ]) {
+                return try! AbsolutePath(validating: overrideLocation.chomp()) // swiftlint:disable:this force_try
+            }
+
             if let customLocation = try? System.shared.capture([
                 "/usr/bin/defaults",
                 "read",
                 "com.apple.dt.Xcode IDECustomDerivedDataLocation",
             ]) {
-                location = try! AbsolutePath(validating: customLocation.chomp()) // swiftlint:disable:this force_try
-            } else {
-                // Default location
-                location = fileHandler.homeDirectory
-                    .appending(try! RelativePath( // swiftlint:disable:this force_try
-                        validating: "Library/Developer/Xcode/DerivedData/"
-                    ))
+                return try! AbsolutePath(validating: customLocation.chomp()) // swiftlint:disable:this force_try
             }
-            return location
+
+            // Default location
+            return fileHandler.homeDirectory
+                .appending(try! RelativePath( // swiftlint:disable:this force_try
+                    validating: "Library/Developer/Xcode/DerivedData/"
+                ))
         }
     }
 

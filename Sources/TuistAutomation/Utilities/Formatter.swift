@@ -1,5 +1,3 @@
-import Foundation
-import TuistCore
 import TuistSupport
 import XcbeautifyLib
 
@@ -10,10 +8,10 @@ protocol Formatting {
 final class Formatter: Formatting {
     private let formatter: XCBeautifier
 
-    init() {
+    init(environment: Environmenting = Environment.shared) {
         formatter = XCBeautifier(
-            colored: Environment.shared.shouldOutputBeColoured,
-            renderer: Self.renderer(),
+            colored: environment.shouldOutputBeColoured,
+            renderer: Self.renderer(for: environment),
             preserveUnbeautifiedLines: false,
             additionalLines: { nil }
         )
@@ -23,8 +21,8 @@ final class Formatter: Formatting {
         formatter.format(line: line)
     }
 
-    private static func renderer() -> Renderer {
-        if Environment.shared.isGitHubActions {
+    private static func renderer(for environment: Environmenting) -> Renderer {
+        if environment.isGitHubActions {
             return .gitHubActions
         } else {
             return .terminal

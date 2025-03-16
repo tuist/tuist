@@ -1,4 +1,4 @@
-import Path
+import Mockable
 import TuistSupport
 import XcodeGraph
 import XCTest
@@ -26,12 +26,12 @@ final class XCFrameworkLoaderErrorTests: TuistUnitTestCase {
 }
 
 final class XCFrameworkLoaderTests: TuistUnitTestCase {
-    var xcframeworkMetadataProvider: MockXCFrameworkMetadataProvider!
+    var xcframeworkMetadataProvider: MockXCFrameworkMetadataProviding!
     var subject: XCFrameworkLoader!
 
     override func setUp() {
         super.setUp()
-        xcframeworkMetadataProvider = MockXCFrameworkMetadataProvider()
+        xcframeworkMetadataProvider = MockXCFrameworkMetadataProviding()
         subject = XCFrameworkLoader(xcframeworkMetadataProvider: xcframeworkMetadataProvider)
     }
 
@@ -41,56 +41,53 @@ final class XCFrameworkLoaderTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_load_throws_when_the_xcframework_doesnt_exist() throws {
+    func test_load_throws_when_the_xcframework_doesnt_exist() async throws {
         // Given
         let path = try temporaryPath()
         let xcframeworkPath = path.appending(component: "tuist.xcframework")
 
         // Then
-        XCTAssertThrowsSpecific(
-            try subject.load(path: xcframeworkPath, status: .required),
+        await XCTAssertThrowsSpecific(
+            try await subject.load(path: xcframeworkPath, status: .required),
             XCFrameworkLoaderError.xcframeworkNotFound(xcframeworkPath)
         )
     }
 
-    func test_load_when_the_xcframework_exists() throws {
+    func test_load_when_the_xcframework_exists() async throws {
         // Given
         let path = try temporaryPath()
         let xcframeworkPath = path.appending(component: "tuist.xcframework")
-        let binaryPath = path.appending(try RelativePath(validating: "tuist.xcframework/whatever/tuist"))
         let linking: BinaryLinking = .dynamic
 
         let infoPlist = XCFrameworkInfoPlist.test()
         try FileHandler.shared.touch(xcframeworkPath)
 
-        xcframeworkMetadataProvider.loadMetadataStub = {
-            XCFrameworkMetadata(
-                path: $0,
-                infoPlist: infoPlist,
-                primaryBinaryPath: binaryPath,
-                linking: linking,
-                mergeable: false,
-                status: .required,
-                macroPath: nil
-            )
-        }
-
-        // When
-        let got = try subject.load(path: xcframeworkPath, status: .required)
-
-        // Then
-        XCTAssertEqual(
-            got,
-            .xcframework(
-                GraphDependency.XCFramework(
-                    path: xcframeworkPath,
+        given(xcframeworkMetadataProvider)
+            .loadMetadata(at: .any, status: .any)
+            .willProduce { path, _ in
+                XCFrameworkMetadata(
+                    path: path,
                     infoPlist: infoPlist,
-                    primaryBinaryPath: binaryPath,
                     linking: linking,
                     mergeable: false,
                     status: .required,
                     macroPath: nil
                 )
+            }
+
+        // When
+        let got = try await subject.load(path: xcframeworkPath, status: .required)
+
+        // Then
+        XCTAssertEqual(
+            got,
+            .testXCFramework(
+                path: xcframeworkPath,
+                infoPlist: infoPlist,
+                linking: linking,
+                mergeable: false,
+                status: .required,
+                macroPath: nil
             )
         )
     }

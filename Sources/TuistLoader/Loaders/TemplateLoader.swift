@@ -1,35 +1,48 @@
 import Foundation
+import Mockable
 import Path
 import ProjectDescription
 import TuistCore
 import TuistSupport
-import XcodeGraph
 
+@Mockable
 public protocol TemplateLoading {
-    /// Load `TuistScaffold.Template` at given `path`
+    /// Load `TuistCore.Template` at given `path`
     /// - Parameters:
     ///     - path: Path of template manifest file `name_of_template.swift`
     ///     - plugins: List of available plugins.
-    /// - Returns: Loaded `TuistScaffold.Template`
-    func loadTemplate(at path: AbsolutePath, plugins: Plugins) throws -> TuistCore.Template
+    /// - Returns: Loaded `TuistCore.Template`
+    func loadTemplate(at path: AbsolutePath, plugins: Plugins) async throws -> TuistCore.Template
 }
 
 public class TemplateLoader: TemplateLoading {
     private let manifestLoader: ManifestLoading
+    private let rootDirectoryLocator: RootDirectoryLocating
 
     /// Default constructor.
     public convenience init() {
-        self.init(manifestLoader: ManifestLoader())
+        self.init(
+            manifestLoader: ManifestLoader(),
+            rootDirectoryLocator: RootDirectoryLocator()
+        )
     }
 
-    init(manifestLoader: ManifestLoading) {
+    init(
+        manifestLoader: ManifestLoading,
+        rootDirectoryLocator: RootDirectoryLocating
+    ) {
         self.manifestLoader = manifestLoader
+        self.rootDirectoryLocator = rootDirectoryLocator
     }
 
-    public func loadTemplate(at path: AbsolutePath, plugins: Plugins) throws -> TuistCore.Template {
+    public func loadTemplate(at path: AbsolutePath, plugins: Plugins) async throws -> TuistCore.Template {
         try manifestLoader.register(plugins: plugins)
-        let template = try manifestLoader.loadTemplate(at: path)
-        let generatorPaths = GeneratorPaths(manifestDirectory: path)
+        let template = try await manifestLoader.loadTemplate(at: path)
+        let rootDirectory: AbsolutePath = try await rootDirectoryLocator.locate(from: path)
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: path,
+            rootDirectory: rootDirectory
+        )
         return try TuistCore.Template.from(
             manifest: template,
             generatorPaths: generatorPaths

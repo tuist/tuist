@@ -1,7 +1,9 @@
 import Foundation
+import Mockable
 import Path
 import XcodeGraph
 
+@Mockable
 public protocol GraphTraversing {
     /// Graph name
     var name: String { get }
@@ -74,7 +76,10 @@ public protocol GraphTraversing {
     /// - Returns: All direct and transitive target dependencies
     func allTargetDependencies(path: AbsolutePath, name: String) -> Set<GraphTarget>
 
-    /// Given a project directory and target name, it returns **all**l its direct target dependencies present in the same project.
+    /// - Returns: All direct and transitive target dependencies, traversing from the passed targets
+    func allTargetDependencies(traversingFromTargets: [GraphTarget]) -> Set<GraphTarget>
+
+    /// Given a project directory and target name, it returns **all** its direct target dependencies present in the same project.
     /// If you want only direct target dependencies present in the same project as the target, use `directLocalTargetDependencies`
     /// instead
     /// - Parameters:
@@ -149,6 +154,14 @@ public protocol GraphTraversing {
     ///   - path: Path to the directory that contains the project.
     ///   - name: Target name
     func copyProductDependencies(path: AbsolutePath, name: String) -> Set<GraphDependencyReference>
+
+    /// Given a project directory and a target name, it returns a list of dependencies that need to be included in a copy
+    /// executables build phase
+    ///
+    /// - Parameters:
+    ///   - path: Path to the directory that contains the project.
+    ///   - name: Target name
+    func executableDependencies(path: AbsolutePath, name: String) -> Set<GraphDependencyReference>
 
     /// Given a project directory and a target name, it returns the list of header folders that should be exposed to the target.
     /// - Parameters:
@@ -268,6 +281,15 @@ public protocol GraphTraversing {
     ///   - path: Path to the directory that contains the project.
     ///   - name: Target name.
     func allSwiftPluginExecutables(path: AbsolutePath, name: String) -> Set<String>
+
+    /// Given a target's project path and name, it returns all XCFramework dependencies that linked by a dynamic XCFramework.
+    /// - Parameters:
+    ///   - path: Project path.
+    ///   - name: Target name.
+    func staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies(
+        path: AbsolutePath,
+        name: String
+    ) -> Set<GraphDependency>
 }
 
 extension GraphTraversing {

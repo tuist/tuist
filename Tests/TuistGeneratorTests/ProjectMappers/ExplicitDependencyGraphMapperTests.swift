@@ -1,4 +1,5 @@
 import Foundation
+import TuistCore
 import TuistSupport
 import TuistSupportTesting
 import XcodeGraph
@@ -65,7 +66,7 @@ final class ExplicitDependencyGraphMapperTests: TuistUnitTestCase {
                     targets: [
                         externalFrameworkC,
                     ],
-                    isExternal: true
+                    type: .external(hash: nil)
                 ),
             ],
             dependencies: [
@@ -77,7 +78,7 @@ final class ExplicitDependencyGraphMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let got = try await subject.map(graph: graph)
+        let got = try await subject.map(graph: graph, environment: MapperEnvironment())
         let copyScript = """
         if [[ -d "$FILE" && ! -d "$DESTINATION_FILE" ]]; then
             ln -s "$FILE" "$DESTINATION_FILE"
@@ -274,7 +275,7 @@ final class ExplicitDependencyGraphMapperTests: TuistUnitTestCase {
                     targets: [
                         externalFrameworkB,
                     ],
-                    isExternal: true
+                    type: .external(hash: nil)
                 ),
             ],
             dependencies: [
@@ -285,7 +286,7 @@ final class ExplicitDependencyGraphMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let got = try await subject.map(graph: graph)
+        let got = try await subject.map(graph: graph, environment: MapperEnvironment())
 
         // Then
         let gotAProject = try XCTUnwrap(got.0.projects[projectAPath])

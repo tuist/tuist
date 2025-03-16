@@ -1,4 +1,3 @@
-import Foundation
 import XcodeGraph
 
 public struct WorkspaceWithProjects: Equatable {
@@ -11,7 +10,7 @@ public struct WorkspaceWithProjects: Equatable {
 }
 
 public protocol WorkspaceMapping {
-    func map(workspace: WorkspaceWithProjects) throws -> (WorkspaceWithProjects, [SideEffectDescriptor])
+    func map(workspace: WorkspaceWithProjects) async throws -> (WorkspaceWithProjects, [SideEffectDescriptor])
 }
 
 public final class SequentialWorkspaceMapper: WorkspaceMapping {
@@ -21,14 +20,19 @@ public final class SequentialWorkspaceMapper: WorkspaceMapping {
         self.mappers = mappers
     }
 
-    public func map(workspace: WorkspaceWithProjects) throws -> (WorkspaceWithProjects, [SideEffectDescriptor]) {
-        var results = (workspace: workspace, sideEffects: [SideEffectDescriptor]())
-        results = try mappers.reduce(into: results) { results, mapper in
-            let (updatedWorkspace, sideEffects) = try mapper.map(workspace: results.workspace)
-            results.workspace = updatedWorkspace
-            results.sideEffects.append(contentsOf: sideEffects)
+    public func map(workspace: WorkspaceWithProjects) async throws -> (WorkspaceWithProjects, [SideEffectDescriptor]) {
+        var workspace = workspace
+        var sideEffects: [SideEffectDescriptor] = []
+        for mapper in mappers {
+            let (mappedWorkspace, mappedSideEffects) = try await mapper.map(workspace: workspace)
+            workspace = mappedWorkspace
+            sideEffects.append(contentsOf: mappedSideEffects)
         }
-        return results
+
+        return (
+            workspace,
+            sideEffects
+        )
     }
 }
 
@@ -38,17 +42,21 @@ public final class ProjectWorkspaceMapper: WorkspaceMapping {
         self.mapper = mapper
     }
 
-    public func map(workspace: WorkspaceWithProjects) throws -> (WorkspaceWithProjects, [SideEffectDescriptor]) {
-        var results = (projects: [Project](), sideEffects: [SideEffectDescriptor]())
-        results = try workspace.projects.reduce(into: results) { results, project in
-            let (updatedProject, sideEffects) = try mapper.map(project: project)
-            results.projects.append(updatedProject)
-            results.sideEffects.append(contentsOf: sideEffects)
+    public func map(workspace: WorkspaceWithProjects) async throws -> (WorkspaceWithProjects, [SideEffectDescriptor]) {
+        var projects: [Project] = []
+        var sideEffects: [SideEffectDescriptor] = []
+        for project in workspace.projects {
+            let (mappedProject, mappedSideEffects) = try await mapper.map(project: project)
+            projects.append(mappedProject)
+            sideEffects.append(contentsOf: mappedSideEffects)
         }
-        let updatedWorkspace = WorkspaceWithProjects(
-            workspace: workspace.workspace,
-            projects: results.projects
+
+        return (
+            WorkspaceWithProjects(
+                workspace: workspace.workspace,
+                projects: projects
+            ),
+            sideEffects
         )
-        return (updatedWorkspace, results.sideEffects)
     }
 }

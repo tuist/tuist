@@ -1,6 +1,8 @@
+import FileSystem
 import Foundation
 import Path
 import ProjectDescription
+import ServiceContextModule
 import TuistCore
 import TuistSupport
 import XcodeGraph
@@ -14,44 +16,53 @@ extension XcodeGraph.ResourceFileElement {
     static func from(
         manifest: ProjectDescription.ResourceFileElement,
         generatorPaths: GeneratorPaths,
+        fileSystem: FileSysteming,
         includeFiles: @escaping (AbsolutePath) -> Bool = { _ in true }
-    ) throws -> [XcodeGraph.ResourceFileElement] {
-        func globFiles(_ path: AbsolutePath, excluding: [String]) throws -> [AbsolutePath] {
+    ) async throws -> [XcodeGraph.ResourceFileElement] {
+        func globFiles(_ path: AbsolutePath, excluding: [String]) async throws -> [AbsolutePath] {
             var excluded: Set<AbsolutePath> = []
             for path in excluding {
                 let absolute = try AbsolutePath(validating: path)
-                let globs = try AbsolutePath(validating: absolute.dirname).glob(absolute.basename)
+                let globs = try await fileSystem.glob(
+                    directory: .root,
+                    include: [String(absolute.pathString.dropFirst())]
+                )
+                .collect()
                 excluded.formUnion(globs)
             }
 
-            let files = try FileHandler.shared
-                .throwingGlob(.root, glob: String(path.pathString.dropFirst()))
-                .filter { !$0.isInOpaqueDirectory }
+            let files = try await fileSystem
+                .throwingGlob(directory: .root, include: [String(path.pathString.dropFirst())])
+                .collect()
                 .filter(includeFiles)
                 .filter { !excluded.contains($0) }
 
             if files.isEmpty {
                 if FileHandler.shared.isFolder(path) {
-                    logger.warning("'\(path.pathString)' is a directory, try using: '\(path.pathString)/**' to list its files")
+                    ServiceContext.current?.logger?
+                        .warning("'\(path.pathString)' is a directory, try using: '\(path.pathString)/**' to list its files")
                 } else {
                     // FIXME: This should be done in a linter.
-                    logger.warning("No files found at: \(path.pathString)")
+                    ServiceContext.current?.logger?.warning("No files found at: \(path.pathString)")
                 }
             }
 
             return files
+                .compactMap { $0.opaqueParentDirectory() ?? $0 }
+                .uniqued()
         }
 
-        func folderReferences(_ path: AbsolutePath) -> [AbsolutePath] {
-            guard FileHandler.shared.exists(path) else {
+        func folderReferences(_ path: AbsolutePath) async throws -> [AbsolutePath] {
+            guard try await fileSystem.exists(path) else {
                 // FIXME: This should be done in a linter.
-                logger.warning("\(path.pathString) does not exist")
+                ServiceContext.current?.logger?.warning("\(path.pathString) does not exist")
                 return []
             }
 
             guard FileHandler.shared.isFolder(path) else {
                 // FIXME: This should be done in a linter.
-                logger.warning("\(path.pathString) is not a directory - folder reference paths need to point to directories")
+                ServiceContext.current?.logger?
+                    .warning("\(path.pathString) is not a directory - folder reference paths need to point to directories")
                 return []
             }
 
@@ -62,18 +73,20 @@ extension XcodeGraph.ResourceFileElement {
         case let .glob(pattern, excluding, tags, condition):
             let resolvedPath = try generatorPaths.resolve(path: pattern)
             let excluding: [String] = try excluding.compactMap { try generatorPaths.resolve(path: $0).pathString }
-            return try globFiles(resolvedPath, excluding: excluding).map { ResourceFileElement.file(
+            return try await globFiles(resolvedPath, excluding: excluding).map { ResourceFileElement.file(
                 path: $0,
                 tags: tags,
                 inclusionCondition: condition?.asGraphCondition
             ) }
+            .sorted(by: { $0.path < $1.path })
         case let .folderReference(folderReferencePath, tags, condition):
             let resolvedPath = try generatorPaths.resolve(path: folderReferencePath)
-            return folderReferences(resolvedPath).map { ResourceFileElement.folderReference(
+            return try await folderReferences(resolvedPath).map { ResourceFileElement.folderReference(
                 path: $0,
                 tags: tags,
                 inclusionCondition: condition?.asGraphCondition
             ) }
+            .sorted(by: { $0.path < $1.path })
         }
     }
 }

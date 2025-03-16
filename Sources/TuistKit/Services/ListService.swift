@@ -1,11 +1,11 @@
 import Foundation
 import Path
+import ServiceContextModule
 import TuistCore
 import TuistLoader
 import TuistPlugin
 import TuistScaffold
 import TuistSupport
-import XcodeGraph
 
 class ListService {
     // MARK: - OutputFormat
@@ -36,14 +36,13 @@ class ListService {
         let path = try self.path(path)
 
         let plugins = try await loadPlugins(at: path)
-        let templateDirectories = try locateTemplateDirectories(at: path, plugins: plugins)
-        let templates: [PrintableTemplate] = try templateDirectories.map { path in
-            let template = try templateLoader.loadTemplate(at: path, plugins: plugins)
+        let templateDirectories = try await locateTemplateDirectories(at: path, plugins: plugins)
+        let templates: [PrintableTemplate] = try await templateDirectories.concurrentMap { path in
+            let template = try await self.templateLoader.loadTemplate(at: path, plugins: plugins)
             return PrintableTemplate(name: path.basename, description: template.description)
         }
 
-        let output = try string(for: templates, in: format)
-        logger.notice("\(output)")
+        try output(for: templates, in: format)
     }
 
     // MARK: - Helpers
@@ -56,27 +55,35 @@ class ListService {
         }
     }
 
-    private func string(
+    private func output(
         for templates: [PrintableTemplate],
         in format: ListService.OutputFormat
-    ) throws -> String {
+    ) throws {
         switch format {
         case .table:
             let textTable = TextTable<PrintableTemplate> { [
                 TextTable.Column(title: "Name", value: $0.name),
                 TextTable.Column(title: "Description", value: $0.description),
             ] }
-            return textTable.render(templates)
+            ServiceContext.current?.logger?.notice("\(textTable.render(templates))")
 
         case .json:
             let json = try templates.toJSON()
-            return json.toString(prettyPrint: true)
+            ServiceContext.current?.logger?.notice("\(json.toString(prettyPrint: true))", metadata: .json)
         }
     }
 
     private func loadPlugins(at path: AbsolutePath) async throws -> Plugins {
-        let config = try configLoader.loadConfig(path: path)
-        return try await pluginService.loadPlugins(using: config)
+        let config = try await configLoader.loadConfig(path: path)
+        if let generationOptions = config.project.generatedProject {
+            return try await pluginService.loadPlugins(using: generationOptions)
+        } else {
+            return Plugins(
+                projectDescriptionHelpers: [],
+                templatePaths: [],
+                resourceSynthesizers: []
+            )
+        }
     }
 
     /// Locates all template directories, local, system, and plugin.
@@ -85,8 +92,8 @@ class ListService {
     private func locateTemplateDirectories(
         at path: AbsolutePath,
         plugins: Plugins
-    ) throws -> [AbsolutePath] {
-        let templateRelativeDirectories = try templatesDirectoryLocator.templateDirectories(at: path)
+    ) async throws -> [AbsolutePath] {
+        let templateRelativeDirectories = try await templatesDirectoryLocator.templateDirectories(at: path)
         let templatePluginDirectories = plugins.templateDirectories
         return templateRelativeDirectories + templatePluginDirectories
     }

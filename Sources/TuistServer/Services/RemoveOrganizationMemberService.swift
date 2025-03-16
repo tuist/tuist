@@ -15,12 +15,13 @@ enum RemoveOrganizationMemberServiceError: FatalError {
     case notFound(String)
     case forbidden(String)
     case badRequest(String)
+    case unauthorized(String)
 
     var type: ErrorType {
         switch self {
         case .unknownError:
             return .bug
-        case .notFound, .forbidden, .badRequest:
+        case .notFound, .forbidden, .badRequest, .unauthorized:
             return .abort
         }
     }
@@ -28,8 +29,8 @@ enum RemoveOrganizationMemberServiceError: FatalError {
     var description: String {
         switch self {
         case let .unknownError(statusCode):
-            return "The member could not be removed due to an unknown cloud response of \(statusCode)."
-        case let .notFound(message), let .forbidden(message), let .badRequest(message):
+            return "The member could not be removed due to an unknown Tuist response of \(statusCode)."
+        case let .notFound(message), let .forbidden(message), let .badRequest(message), let .unauthorized(message):
             return message
         }
     }
@@ -43,7 +44,7 @@ public final class RemoveOrganizationMemberService: RemoveOrganizationMemberServ
         username: String,
         serverURL: URL
     ) async throws {
-        let client = Client.cloud(serverURL: serverURL)
+        let client = Client.authenticated(serverURL: serverURL)
 
         let response = try await client.removeOrganizationMember(
             .init(
@@ -73,6 +74,11 @@ public final class RemoveOrganizationMemberService: RemoveOrganizationMemberServ
             switch badRequestResponse.body {
             case let .json(error):
                 throw RemoveOrganizationMemberServiceError.badRequest(error.message)
+            }
+        case let .unauthorized(unauthorized):
+            switch unauthorized.body {
+            case let .json(error):
+                throw DeleteOrganizationServiceError.unauthorized(error.message)
             }
         }
     }

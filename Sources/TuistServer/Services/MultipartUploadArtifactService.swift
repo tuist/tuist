@@ -3,6 +3,11 @@ import Mockable
 import Path
 import TuistSupport
 
+public struct MultipartUploadArtifactPart {
+    public let number: Int
+    public let contentLength: Int
+}
+
 enum MultipartUploadArtifactServiceError: FatalError {
     case cannotCreateInputStream(AbsolutePath)
     case noURLResponse(URL?)
@@ -41,20 +46,20 @@ enum MultipartUploadArtifactServiceError: FatalError {
 public protocol MultipartUploadArtifactServicing {
     func multipartUploadArtifact(
         artifactPath: AbsolutePath,
-        generateUploadURL: @escaping (Int) async throws -> String
+        generateUploadURL: @escaping (MultipartUploadArtifactPart) async throws -> String
     ) async throws -> [(etag: String, partNumber: Int)]
 }
 
-public final class MultipartUploadArtifactService: MultipartUploadArtifactServicing {
+public struct MultipartUploadArtifactService: MultipartUploadArtifactServicing {
     private let urlSession: URLSession
 
-    public init(urlSession: URLSession = .sharedCloud) {
+    public init(urlSession: URLSession = .tuistShared) {
         self.urlSession = urlSession
     }
 
     public func multipartUploadArtifact(
         artifactPath: AbsolutePath,
-        generateUploadURL: (Int) async throws -> String
+        generateUploadURL: @escaping (MultipartUploadArtifactPart) async throws -> String
     ) async throws -> [(etag: String, partNumber: Int)] {
         let partSize = 10 * 1024 * 1024
         guard let inputStream = InputStream(url: artifactPath.url) else {
@@ -65,20 +70,29 @@ public final class MultipartUploadArtifactService: MultipartUploadArtifactServic
 
         var partNumber = 1
         var buffer = [UInt8](repeating: 0, count: partSize)
-        var parts: [(etag: String, partNumber: Int)] = []
+
+        var uploadParts: [UploadPart] = []
 
         while inputStream.hasBytesAvailable {
             let bytesRead = inputStream.read(&buffer, maxLength: partSize)
 
             if bytesRead > 0 {
                 let partData = Data(bytes: buffer, count: bytesRead)
-                let uploadURLString = try await generateUploadURL(partNumber)
+                let uploadURLString = try await generateUploadURL(MultipartUploadArtifactPart(
+                    number: partNumber,
+                    contentLength: bytesRead
+                ))
                 guard let url = URL(string: uploadURLString) else {
                     throw MultipartUploadArtifactServiceError.invalidMultipartUploadURL(uploadURLString)
                 }
-                let request = uploadRequest(url: url, fileSize: UInt64(bytesRead), data: partData)
-                let etag = try await upload(for: request)
-                parts.append((etag: etag, partNumber: Int(partNumber)))
+                uploadParts.append(
+                    UploadPart(
+                        url: url,
+                        fileSize: UInt64(bytesRead),
+                        data: partData,
+                        partNumber: partNumber
+                    )
+                )
 
                 partNumber += 1
             }
@@ -86,7 +100,14 @@ public final class MultipartUploadArtifactService: MultipartUploadArtifactServic
 
         inputStream.close()
 
-        return parts
+        return try await uploadParts
+            .concurrentMap { partUpload in
+                let initialDate = Date()
+                let request = uploadRequest(url: partUpload.url, fileSize: partUpload.fileSize, data: partUpload.data)
+                let etag = try await upload(for: request)
+                return (etag: etag, partNumber: partUpload.partNumber)
+            }
+            .sorted(by: { $0.partNumber < $1.partNumber })
     }
 
     private func upload(for request: URLRequest) async throws -> String {
@@ -108,5 +129,12 @@ public final class MultipartUploadArtifactService: MultipartUploadArtifactServic
         request.setValue("zip", forHTTPHeaderField: "Content-Encoding")
         request.httpBody = data
         return request
+    }
+
+    private struct UploadPart {
+        let url: URL
+        let fileSize: UInt64
+        let data: Data
+        let partNumber: Int
     }
 }

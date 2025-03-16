@@ -1,5 +1,3 @@
-import Foundation
-
 /// A custom Swift Package Manager configuration
 ///
 ///
@@ -25,7 +23,7 @@ import Foundation
 ///     ]
 /// )
 /// ```
-public struct PackageSettings: Codable, Equatable {
+public struct PackageSettings: Codable, Equatable, Sendable {
     /// The custom `Product` type to be used for SPM targets.
     public var productTypes: [String: Product]
 
@@ -42,7 +40,7 @@ public struct PackageSettings: Codable, Equatable {
     public var baseSettings: Settings
 
     // Additional settings to be added to targets generated from SwiftPackageManager.
-    public var targetSettings: [String: SettingsDictionary]
+    public var targetSettings: [String: Settings]
 
     /// Custom project configurations to be used for projects generated from SwiftPackageManager.
     public var projectOptions: [String: Project.Options]
@@ -58,13 +56,43 @@ public struct PackageSettings: Codable, Equatable {
         productTypes: [String: Product] = [:],
         productDestinations: [String: Destinations] = [:],
         baseSettings: Settings = .settings(),
-        targetSettings: [String: SettingsDictionary] = [:],
+        targetSettings: [String: Settings] = [:],
         projectOptions: [String: Project.Options] = [:]
     ) {
         self.productTypes = productTypes
         self.productDestinations = productDestinations
         self.baseSettings = baseSettings
         self.targetSettings = targetSettings
+        self.projectOptions = projectOptions
+        dumpIfNeeded(self)
+    }
+
+    /// Creates `PackageSettings` instance for custom Swift Package Manager configuration.
+    /// - Parameters:
+    ///     - productTypes: The custom `Product` types to be used for SPM targets.
+    ///     - productDestinations: Custom destinations to be used for SPM products.
+    ///     - baseSettings: Additional settings to be added to targets generated from SwiftPackageManager.
+    ///     - targetSettings: Additional settings to be added to targets generated from SwiftPackageManager.
+    ///     - projectOptions: Custom project configurations to be used for projects generated from SwiftPackageManager.
+    @available(
+        *,
+        deprecated,
+        renamed: "init(productTypes:productDestinations:baseSettings:targetSettings:projectOptions:)",
+        message: """
+        Consider using the 'Settings' type for parameter 'targetSettings' instead of 'SettingsDictionary'.
+        """
+    )
+    public init(
+        productTypes: [String: Product] = [:],
+        productDestinations: [String: Destinations] = [:],
+        baseSettings: Settings = .settings(),
+        targetSettings: [String: SettingsDictionary],
+        projectOptions: [String: Project.Options] = [:]
+    ) {
+        self.productTypes = productTypes
+        self.productDestinations = productDestinations
+        self.baseSettings = baseSettings
+        self.targetSettings = targetSettings.mapValues { .settings(base: $0) }
         self.projectOptions = projectOptions
         dumpIfNeeded(self)
     }

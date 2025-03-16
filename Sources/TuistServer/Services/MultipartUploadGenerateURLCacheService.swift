@@ -10,9 +10,10 @@ public protocol MultipartUploadGenerateURLCacheServicing {
         projectId: String,
         hash: String,
         name: String,
-        cacheCategory: CacheCategory.App,
+        cacheCategory: RemoteCacheCategory,
         uploadId: String,
-        partNumber: Int
+        partNumber: Int,
+        contentLength: Int
     ) async throws -> String
 }
 
@@ -21,12 +22,13 @@ public enum MultipartUploadGenerateURLCacheServiceError: FatalError, Equatable {
     case notFound(String)
     case paymentRequired(String)
     case forbidden(String)
+    case unauthorized(String)
 
     public var type: ErrorType {
         switch self {
         case .unknownError:
             return .bug
-        case .notFound, .paymentRequired, .forbidden:
+        case .notFound, .paymentRequired, .forbidden, .unauthorized:
             return .abort
         }
     }
@@ -34,8 +36,8 @@ public enum MultipartUploadGenerateURLCacheServiceError: FatalError, Equatable {
     public var description: String {
         switch self {
         case let .unknownError(statusCode):
-            return "The generation of a multi-part upload URL failed due to an unknown Tuist Cloud response of \(statusCode)."
-        case let .notFound(message), let .paymentRequired(message), let .forbidden(message):
+            return "The generation of a multi-part upload URL failed due to an unknown Tuist response of \(statusCode)."
+        case let .notFound(message), let .paymentRequired(message), let .forbidden(message), let .unauthorized(message):
             return message
         }
     }
@@ -49,13 +51,15 @@ public final class MultipartUploadGenerateURLCacheService: MultipartUploadGenera
         projectId: String,
         hash: String,
         name: String,
-        cacheCategory: CacheCategory.App,
+        cacheCategory: RemoteCacheCategory,
         uploadId: String,
-        partNumber: Int
+        partNumber: Int,
+        contentLength: Int
     ) async throws -> String {
-        let client = Client.cloud(serverURL: serverURL)
+        let client = Client.authenticated(serverURL: serverURL)
         let response = try await client.generateCacheArtifactMultipartUploadURL(.init(query: .init(
             cache_category: .init(cacheCategory),
+            content_length: contentLength,
             project_id: projectId,
             hash: hash,
             part_number: partNumber,
@@ -68,7 +72,7 @@ public final class MultipartUploadGenerateURLCacheService: MultipartUploadGenera
             case let .json(cacheArtifact):
                 return cacheArtifact.data.url
             }
-        case let .paymentRequired(paymentRequiredResponse):
+        case let .code402(paymentRequiredResponse):
             switch paymentRequiredResponse.body {
             case let .json(error):
                 throw MultipartUploadGenerateURLCacheServiceError.paymentRequired(error.message)
@@ -84,6 +88,11 @@ public final class MultipartUploadGenerateURLCacheService: MultipartUploadGenera
             switch notFoundResponse.body {
             case let .json(error):
                 throw MultipartUploadGenerateURLCacheServiceError.notFound(error.message)
+            }
+        case let .unauthorized(unauthorized):
+            switch unauthorized.body {
+            case let .json(error):
+                throw DeleteOrganizationServiceError.unauthorized(error.message)
             }
         }
     }

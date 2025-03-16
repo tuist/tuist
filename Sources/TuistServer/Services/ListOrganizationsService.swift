@@ -13,12 +13,13 @@ public protocol ListOrganizationsServicing {
 enum ListOrganizationsServiceError: FatalError {
     case unknownError(Int)
     case forbidden(String)
+    case unauthorized(String)
 
     var type: ErrorType {
         switch self {
         case .unknownError:
             return .bug
-        case .forbidden:
+        case .forbidden, .unauthorized:
             return .abort
         }
     }
@@ -26,8 +27,8 @@ enum ListOrganizationsServiceError: FatalError {
     var description: String {
         switch self {
         case let .unknownError(statusCode):
-            return "The organizations could not be listed due to an unknown cloud response of \(statusCode)."
-        case let .forbidden(message):
+            return "The organizations could not be listed due to an unknown Tuist response of \(statusCode)."
+        case let .forbidden(message), let .unauthorized(message):
             return message
         }
     }
@@ -39,13 +40,9 @@ public final class ListOrganizationsService: ListOrganizationsServicing {
     public func listOrganizations(
         serverURL: URL
     ) async throws -> [String] {
-        let client = Client.cloud(serverURL: serverURL)
+        let client = Client.authenticated(serverURL: serverURL)
 
-        let response = try await client.listOrganizations(
-            .init(
-                query: .init()
-            )
-        )
+        let response = try await client.listOrganizations()
         switch response {
         case let .ok(okResponse):
             switch okResponse.body {
@@ -56,6 +53,11 @@ public final class ListOrganizationsService: ListOrganizationsServicing {
             switch forbiddenResponse.body {
             case let .json(error):
                 throw ListOrganizationsServiceError.forbidden(error.message)
+            }
+        case let .unauthorized(unauthorized):
+            switch unauthorized.body {
+            case let .json(error):
+                throw DeleteOrganizationServiceError.unauthorized(error.message)
             }
         case let .undocumented(statusCode: statusCode, _):
             throw ListOrganizationsServiceError.unknownError(statusCode)

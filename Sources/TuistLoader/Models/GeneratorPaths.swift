@@ -4,38 +4,20 @@ import ProjectDescription
 import TuistCore
 import TuistSupport
 
-enum GeneratorPathsError: FatalError, Equatable {
-    /// Thrown when the root directory can't be located.
-    case rootDirectoryNotFound(AbsolutePath)
-
-    var type: ErrorType {
-        switch self {
-        case .rootDirectoryNotFound: return .abort
-        }
-    }
-
-    var description: String {
-        switch self {
-        case let .rootDirectoryNotFound(path):
-            return "Couldn't locate the root directory from path \(path.pathString). The root directory is the closest directory that contains a Tuist or a .git directory."
-        }
-    }
-}
-
 /// This model includes paths the manifest path can be relative to.
 public struct GeneratorPaths {
     /// Path to the directory that contains the manifest being loaded.
     let manifestDirectory: AbsolutePath
-    private let rootDirectoryLocator: RootDirectoryLocating
+    private let rootDirectory: AbsolutePath
 
     /// Creates an instance with its attributes.
     /// - Parameter manifestDirectory: Path to the directory that contains the manifest being loaded.
     public init(
         manifestDirectory: AbsolutePath,
-        rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator()
+        rootDirectory: AbsolutePath
     ) {
         self.manifestDirectory = manifestDirectory
-        self.rootDirectoryLocator = rootDirectoryLocator
+        self.rootDirectory = rootDirectory
     }
 
     /// Given a project description path, it returns the absolute path of the given path.
@@ -48,11 +30,7 @@ public struct GeneratorPaths {
         case .relativeToManifest:
             return try AbsolutePath(validating: path.pathString, relativeTo: manifestDirectory)
         case .relativeToRoot:
-            guard let rootPath = rootDirectoryLocator.locate(from: try AbsolutePath(validating: manifestDirectory.pathString))
-            else {
-                throw GeneratorPathsError.rootDirectoryNotFound(try AbsolutePath(validating: manifestDirectory.pathString))
-            }
-            return try AbsolutePath(validating: path.pathString, relativeTo: rootPath)
+            return try AbsolutePath(validating: path.pathString, relativeTo: rootDirectory)
         }
     }
 

@@ -46,9 +46,7 @@ struct SettingsMapper {
 
         return try map(
             settings: platformSettings,
-            headerSearchPaths: headerSearchPaths,
-            defines: ["SWIFT_PACKAGE": "1"],
-            swiftDefines: "SWIFT_PACKAGE"
+            headerSearchPaths: headerSearchPaths
         )
     }
 
@@ -56,7 +54,7 @@ struct SettingsMapper {
         settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting],
         headerSearchPaths: [String] = [],
         defines: [String: String] = [:],
-        swiftDefines: String = ""
+        swiftDefines: [String] = []
     ) throws -> XcodeGraph.SettingsDictionary {
         var headerSearchPaths = headerSearchPaths
         var defines = defines
@@ -70,7 +68,7 @@ struct SettingsMapper {
         for setting in settings {
             switch (setting.tool, setting.name) {
             case (.c, .headerSearchPath), (.cxx, .headerSearchPath):
-                headerSearchPaths.append("$(SRCROOT)/\(mainRelativePath.pathString)/\(setting.value[0])")
+                headerSearchPaths.append("$(SRCROOT)/\(mainRelativePath.pathString)/\(setting.value[0])".quotedIfContainsSpaces)
             case (.c, .define), (.cxx, .define):
                 let (name, value) = setting.extractDefine
                 defines[name] = value
@@ -79,23 +77,30 @@ struct SettingsMapper {
             case (.cxx, .unsafeFlags):
                 cxxFlags.append(contentsOf: setting.value)
             case (.swift, .define):
-                swiftDefines.append(" \(setting.value[0])")
+                swiftDefines.append(contentsOf: setting.value)
             case (.swift, .unsafeFlags):
                 swiftFlags.append(contentsOf: setting.value)
             case (.swift, .enableUpcomingFeature):
                 swiftFlags.append("-enable-upcoming-feature \"\(setting.value[0])\"")
             case (.swift, .enableExperimentalFeature):
                 swiftFlags.append("-enable-experimental-feature \"\(setting.value[0])\"")
+            case (.swift, .swiftLanguageMode):
+                // TODO: Use -language-mode instead of -swift-version when Xcode 15 support is removed.
+                // https://github.com/swiftlang/swift-evolution/blob/main/proposals/0441-formalize-language-mode-terminology.md#swift-compiler-option
+                swiftFlags.append("-swift-version \(setting.value[0])")
+
+                // Control the language mode for an Xcode project or target by setting the XCConfig SWIFT_VERSION
+                // https://www.swift.org/migration/documentation/swift-6-concurrency-migration-guide/swift6mode
+                settingsDictionary["SWIFT_VERSION"] = "\(setting.value[0])"
             case (.linker, .unsafeFlags):
                 linkerFlags.append(contentsOf: setting.value)
             case (.linker, .linkedFramework), (.linker, .linkedLibrary):
                 // Handled as dependency
                 continue
-
             case (.c, .linkedFramework), (.c, .linkedLibrary), (.cxx, .linkedFramework), (.cxx, .linkedLibrary),
                  (.swift, .headerSearchPath), (.swift, .linkedFramework), (.swift, .linkedLibrary),
                  (.linker, .headerSearchPath), (.linker, .define), (_, .enableUpcomingFeature),
-                 (_, .enableExperimentalFeature):
+                 (_, .enableExperimentalFeature), (_, .swiftLanguageMode):
                 throw PackageInfoMapperError.unsupportedSetting(setting.tool, setting.name)
             }
         }
@@ -113,7 +118,7 @@ struct SettingsMapper {
         }
 
         if !swiftDefines.isEmpty {
-            settingsDictionary["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] = "$(inherited) \(swiftDefines)"
+            settingsDictionary["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] = .array(["$(inherited)"] + swiftDefines)
         }
 
         if !cFlags.isEmpty {

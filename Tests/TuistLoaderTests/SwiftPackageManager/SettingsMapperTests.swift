@@ -22,12 +22,7 @@ final class SettingsMapperTests: XCTestCase {
 
         let resolvedSettings = try mapper.settingsDictionary()
 
-        XCTAssertEqual(resolvedSettings, [
-            "GCC_PREPROCESSOR_DEFINITIONS": .array(["$(inherited)",
-                                                    "SWIFT_PACKAGE=1",
-                ]),
-            "SWIFT_ACTIVE_COMPILATION_CONDITIONS": .string("$(inherited) SWIFT_PACKAGE"),
-        ])
+        XCTAssertTrue(resolvedSettings.isEmpty)
     }
 
     func test_set_GCC_PREPROCESSOR_DEFINITIONS() throws {
@@ -55,7 +50,6 @@ final class SettingsMapperTests: XCTestCase {
                 "CXX_DEFINE_2=1",
                 "C_DEFINE=C_VALUE",
                 "C_DEFINE_2=1",
-                "SWIFT_PACKAGE=1",
             ])
         )
     }
@@ -97,7 +91,7 @@ final class SettingsMapperTests: XCTestCase {
 
         XCTAssertEqual(
             resolvedSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS"],
-            .string("$(inherited) SWIFT_PACKAGE Define1 Define2")
+            .array(["$(inherited)", "Define1", "Define2"])
         )
     }
 
@@ -144,6 +138,7 @@ final class SettingsMapperTests: XCTestCase {
             .init(tool: .swift, name: .unsafeFlags, condition: nil, value: ["ArbitraryFlag"]),
             .init(tool: .swift, name: .enableUpcomingFeature, condition: nil, value: ["NewFeature"]),
             .init(tool: .swift, name: .enableExperimentalFeature, condition: nil, value: ["Experimental"]),
+            .init(tool: .swift, name: .swiftLanguageMode, condition: nil, value: ["5"]),
         ]
 
         let mapper = SettingsMapper(
@@ -161,6 +156,7 @@ final class SettingsMapperTests: XCTestCase {
                 "ArbitraryFlag",
                 "-enable-upcoming-feature \"NewFeature\"",
                 "-enable-experimental-feature \"Experimental\"",
+                "-swift-version 5",
             ])
         )
     }
@@ -187,6 +183,22 @@ final class SettingsMapperTests: XCTestCase {
         )
     }
 
+    func test_set_SWIFT_VERSION() throws {
+        let settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting] = [
+            .init(tool: .swift, name: .swiftLanguageMode, condition: nil, value: ["6"]),
+        ]
+
+        let mapper = SettingsMapper(
+            headerSearchPaths: [],
+            mainRelativePath: try RelativePath(validating: "path"),
+            settings: settings
+        )
+
+        let resolvedSettings = try mapper.settingsDictionary()
+
+        XCTAssertEqual(resolvedSettings["SWIFT_VERSION"], .string("6"))
+    }
+
     func test_set_Combined() throws {
         let settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting] = [
             .init(tool: .swift, name: .define, condition: nil, value: ["Define1"]),
@@ -208,41 +220,41 @@ final class SettingsMapperTests: XCTestCase {
 
         XCTAssertEqual(
             allPlatformSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS"],
-            .string("$(inherited) SWIFT_PACKAGE Define1")
+            .array(["$(inherited)", "Define1"])
         )
 
         let iosPlatformSettings = try mapper.settingsDictionary(for: .iOS)
 
         XCTAssertEqual(
             iosPlatformSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS"],
-            .string("$(inherited) SWIFT_PACKAGE Define1 Define2")
+            .array(["$(inherited)", "Define1", "Define2"])
         )
 
         let combinedSettings = try mapper.mapSettings()
 
         XCTAssertEqual(
             combinedSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS[sdk=iphoneos*]"],
-            .string("$(inherited) SWIFT_PACKAGE Define1 Define2")
+            .array(["$(inherited)", "Define1", "Define2"])
         )
 
         XCTAssertEqual(
             combinedSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS[sdk=iphonesimulator*]"],
-            .string("$(inherited) SWIFT_PACKAGE Define1 Define2")
+            .array(["$(inherited)", "Define1", "Define2"])
         )
 
         XCTAssertEqual(
             combinedSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS[sdk=appletvos*]"],
-            .string("$(inherited) SWIFT_PACKAGE Define1 Define2")
+            .array(["$(inherited)", "Define1", "Define2"])
         )
 
         XCTAssertEqual(
             combinedSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS[sdk=appletvsimulator*]"],
-            .string("$(inherited) SWIFT_PACKAGE Define1 Define2")
+            .array(["$(inherited)", "Define1", "Define2"])
         )
 
         XCTAssertEqual(
             combinedSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS"],
-            .string("$(inherited) SWIFT_PACKAGE Define1")
+            .array(["$(inherited)", "Define1"])
         )
     }
 
@@ -267,31 +279,31 @@ final class SettingsMapperTests: XCTestCase {
 
         XCTAssertEqual(
             allPlatformSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS"],
-            .string("$(inherited) SWIFT_PACKAGE Define1")
+            .array(["$(inherited)", "Define1"])
         )
 
         let iosPlatformSettings = try mapper.settingsDictionary(for: .iOS)
 
         XCTAssertEqual(
             iosPlatformSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS"],
-            .string("$(inherited) SWIFT_PACKAGE Define1 Define2")
+            .array(["$(inherited)", "Define1", "Define2"])
         )
 
         let combinedSettings = try mapper.mapSettings()
 
         XCTAssertEqual(
             combinedSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS[sdk=iphoneos*]"],
-            .string("$(inherited) SWIFT_PACKAGE Define1 Define2")
+            .array(["$(inherited)", "Define1", "Define2"])
         )
 
         XCTAssertEqual(
             combinedSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS[sdk=iphonesimulator*]"],
-            .string("$(inherited) SWIFT_PACKAGE Define1 Define2")
+            .array(["$(inherited)", "Define1", "Define2"])
         )
 
         XCTAssertEqual(
             combinedSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS"],
-            .string("$(inherited) SWIFT_PACKAGE Define1")
+            .array(["$(inherited)", "Define1"])
         )
     }
 }
@@ -327,11 +339,9 @@ extension XcodeGraph.SettingValue {
 }
 
 extension PackageInfo.Platform {
-    static var ios = PackageInfo.Platform(platformName: "ios", version: "11.0", options: [])
-    static var macos = PackageInfo.Platform(platformName: "macos", version: "11.0", options: [])
-    static var watchos = PackageInfo.Platform(platformName: "watchos", version: "11.0", options: [])
-    static var tvos = PackageInfo.Platform(platformName: "tvos", version: "11.0", options: [])
-    static var visionos = PackageInfo.Platform(platformName: "visionos", version: "11.0", options: [])
-    static var linux = PackageInfo.Platform(platformName: "linux", version: "11.0", options: [])
-    static var windows = PackageInfo.Platform(platformName: "windows", version: "11.0", options: [])
+    static var ios = PackageInfo.Platform(platformName: "ios", version: "12.0", options: [])
+    static var macos = PackageInfo.Platform(platformName: "macos", version: "10.13", options: [])
+    static var watchos = PackageInfo.Platform(platformName: "watchos", version: "4.0", options: [])
+    static var tvos = PackageInfo.Platform(platformName: "tvos", version: "12.0", options: [])
+    static var visionos = PackageInfo.Platform(platformName: "visionos", version: "1.0", options: [])
 }

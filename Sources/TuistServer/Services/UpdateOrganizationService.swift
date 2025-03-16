@@ -9,7 +9,7 @@ public protocol UpdateOrganizationServicing {
         organizationName: String,
         serverURL: URL,
         ssoOrganization: SSOOrganization?
-    ) async throws -> CloudOrganization
+    ) async throws -> ServerOrganization
 }
 
 enum UpdateOrganizationServiceError: FatalError {
@@ -17,12 +17,13 @@ enum UpdateOrganizationServiceError: FatalError {
     case notFound(String)
     case forbidden(String)
     case badRequest(String)
+    case unauthorized(String)
 
     var type: ErrorType {
         switch self {
         case .unknownError:
             return .bug
-        case .forbidden, .notFound, .badRequest:
+        case .forbidden, .notFound, .badRequest, .unauthorized:
             return .abort
         }
     }
@@ -30,8 +31,8 @@ enum UpdateOrganizationServiceError: FatalError {
     var description: String {
         switch self {
         case let .unknownError(statusCode):
-            return "We could not get the organization due to an unknown cloud response of \(statusCode)."
-        case let .forbidden(message), let .notFound(message), let .badRequest(message):
+            return "We could not update the organization due to an unknown Tuist response of \(statusCode)."
+        case let .forbidden(message), let .notFound(message), let .badRequest(message), let .unauthorized(message):
             return message
         }
     }
@@ -44,8 +45,8 @@ public final class UpdateOrganizationService: UpdateOrganizationServicing {
         organizationName: String,
         serverURL: URL,
         ssoOrganization: SSOOrganization?
-    ) async throws -> CloudOrganization {
-        let client = Client.cloud(serverURL: serverURL)
+    ) async throws -> ServerOrganization {
+        let client = Client.authenticated(serverURL: serverURL)
         let ssoProvider: Operations.updateOrganization
             .Input.Body.jsonPayload.sso_providerPayload
         let ssoOrganizationId: String?
@@ -54,6 +55,9 @@ public final class UpdateOrganizationService: UpdateOrganizationServicing {
             switch ssoOrganization {
             case let .google(organizationId):
                 ssoProvider = .google
+                ssoOrganizationId = organizationId
+            case let .okta(organizationId):
+                ssoProvider = .okta
                 ssoOrganizationId = organizationId
             }
         } else {
@@ -78,7 +82,7 @@ public final class UpdateOrganizationService: UpdateOrganizationServicing {
         case let .ok(okResponse):
             switch okResponse.body {
             case let .json(project):
-                return CloudOrganization(project)
+                return ServerOrganization(project)
             }
         case let .notFound(notFound):
             switch notFound.body {
@@ -89,6 +93,11 @@ public final class UpdateOrganizationService: UpdateOrganizationServicing {
             switch forbidden.body {
             case let .json(error):
                 throw UpdateOrganizationServiceError.forbidden(error.message)
+            }
+        case let .unauthorized(unauthorized):
+            switch unauthorized.body {
+            case let .json(error):
+                throw DeleteOrganizationServiceError.unauthorized(error.message)
             }
         case let .badRequest(badRequest):
             switch badRequest.body {

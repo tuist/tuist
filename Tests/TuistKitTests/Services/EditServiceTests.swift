@@ -1,8 +1,8 @@
-import MockableTest
+import Mockable
 import Path
 import TuistCore
 import TuistLoader
-import XcodeGraph
+import TuistSupport
 import XcodeProj
 import XCTest
 @testable import TuistCoreTesting
@@ -13,16 +13,15 @@ import XCTest
 
 final class EditServiceTests: XCTestCase {
     var subject: EditService!
-    var opener: MockOpener!
+    var opener: MockOpening!
     var configLoader: MockConfigLoading!
     var pluginService: MockPluginService!
     var cacheDirectoriesProvider: MockCacheDirectoriesProviding!
-    var cacheDirectoriesProviderFactory: MockCacheDirectoriesProviderFactoring!
     var projectEditor: MockProjectEditing!
 
     override func setUpWithError() throws {
         super.setUp()
-        opener = MockOpener()
+        opener = MockOpening()
         configLoader = MockConfigLoading()
         pluginService = MockPluginService()
 
@@ -30,18 +29,11 @@ final class EditServiceTests: XCTestCase {
             .loadConfig(path: .any)
             .willReturn(.default)
 
-        let mockCacheDirectoriesProvider = MockCacheDirectoriesProviding()
-        cacheDirectoriesProvider = mockCacheDirectoriesProvider
+        cacheDirectoriesProvider = MockCacheDirectoriesProviding()
 
         given(cacheDirectoriesProvider)
-            .tuistCacheDirectory(for: .value(.editProjects))
+            .cacheDirectory(for: .value(.editProjects))
             .willReturn("/Users/tuist/cache/EditProjects")
-
-        let cacheDirectoryProviderFactory = MockCacheDirectoriesProviderFactoring()
-        cacheDirectoriesProviderFactory = cacheDirectoryProviderFactory
-        given(cacheDirectoryProviderFactory)
-            .cacheDirectories()
-            .willReturn(mockCacheDirectoriesProvider)
 
         projectEditor = MockProjectEditing()
 
@@ -49,53 +41,73 @@ final class EditServiceTests: XCTestCase {
             projectEditor: projectEditor,
             opener: opener,
             configLoader: configLoader,
-            cacheDirectoryProviderFactory: cacheDirectoriesProviderFactory
+            cacheDirectoriesProvider: cacheDirectoriesProvider
         )
     }
 
     func test_edit_uses_caches_directory() async throws {
+        // Given
         let path: AbsolutePath = "/private/tmp"
-        let cacheDirectory = try cacheDirectoriesProvider.tuistCacheDirectory(for: .editProjects)
+        let cacheDirectory = try cacheDirectoriesProvider.cacheDirectory(for: .editProjects)
         let projectDirectory = cacheDirectory.appending(component: path.pathString.md5)
 
         given(projectEditor!)
             .edit(at: .any, in: .any, onlyCurrentDirectory: .any, plugins: .any)
             .willReturn(projectDirectory)
 
+        given(opener)
+            .open(path: .any, application: .any, wait: .any)
+            .willReturn()
+
+        // When
         try await subject.run(
             path: path.pathString,
             permanent: false,
             onlyCurrentDirectory: false
         )
 
-        let openArgs = try XCTUnwrap(opener.openArgs.first)
-        XCTAssertEqual(opener.openCallCount, 1)
-        XCTAssertEqual(openArgs.0, projectDirectory.pathString)
+        // Then
+        verify(opener)
+            .open(
+                path: .value(projectDirectory),
+                application: .any,
+                wait: .value(false)
+            )
+            .called(1)
 
         verify(projectEditor)
             .edit(at: .value(path), in: .value(projectDirectory), onlyCurrentDirectory: .value(false), plugins: .any)
-            .called(count: 1)
+            .called(1)
     }
 
     func test_edit_permanent_does_not_open_workspace() async throws {
+        // Given
         let path: AbsolutePath = "/private/tmp"
-        let cacheDirectory = try cacheDirectoriesProvider.tuistCacheDirectory(for: .editProjects)
+        let cacheDirectory = try cacheDirectoriesProvider.cacheDirectory(for: .editProjects)
         let projectDirectory = cacheDirectory.appending(component: path.pathString.md5)
 
         given(projectEditor!)
             .edit(at: .any, in: .any, onlyCurrentDirectory: .any, plugins: .any)
             .willReturn(projectDirectory)
 
+        // When
         try await subject.run(
             path: path.pathString,
             permanent: true,
             onlyCurrentDirectory: true
         )
 
-        XCTAssertEqual(opener.openCallCount, 0)
+        // Then
+        verify(opener)
+            .open(
+                path: .any,
+                application: .any,
+                wait: .any
+            )
+            .called(0)
 
         verify(projectEditor)
             .edit(at: .value(path), in: .value(path), onlyCurrentDirectory: .value(true), plugins: .any)
-            .called(count: 1)
+            .called(1)
     }
 }

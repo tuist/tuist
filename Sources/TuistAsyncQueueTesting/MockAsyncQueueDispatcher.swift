@@ -1,5 +1,4 @@
 import Foundation
-import TuistAsyncQueue
 import TuistCore
 
 public enum MockAsyncQueueDispatcherError: Error {
@@ -26,7 +25,7 @@ public class MockAsyncQueueDispatcher: AsyncQueueDispatching {
     public var invokedDispatchParametersEventsList = [AsyncQueueEvent]()
     public var stubbedDispatchError: Error?
 
-    public func dispatch(event: AsyncQueueEvent, completion: @escaping () throws -> Void) throws {
+    public func dispatch(event: AsyncQueueEvent, completion: @escaping () async throws -> Void) throws {
         invokedDispatch = true
         invokedDispatchCount += 1
         invokedDispatchParameterEvent = event
@@ -36,7 +35,12 @@ public class MockAsyncQueueDispatcher: AsyncQueueDispatching {
             throw error
         }
         invokedDispatchCallBack()
-        try completion()
+        let semaphore = DispatchSemaphore(value: 0)
+        Task {
+            try await completion()
+            semaphore.signal()
+        }
+        semaphore.wait()
     }
 
     public var invokedDispatchPersisted = false
@@ -46,7 +50,7 @@ public class MockAsyncQueueDispatcher: AsyncQueueDispatching {
     public var invokedDispatchPersistedParametersDataList = [Data]()
     public var stubbedDispatchPersistedError: Error?
 
-    public func dispatchPersisted(data: Data, completion: @escaping () throws -> Void) throws {
+    public func dispatchPersisted(data: Data, completion: @escaping () async throws -> Void) throws {
         invokedDispatchPersisted = true
         invokedDispatchPersistedCount += 1
         invokedDispatchPersistedDataParameter = data
@@ -56,6 +60,11 @@ public class MockAsyncQueueDispatcher: AsyncQueueDispatching {
             throw error
         }
         invokedDispatchPersistedCallBack()
-        try completion()
+        let semaphore = DispatchSemaphore(value: 0)
+        Task {
+            try await completion()
+            semaphore.signal()
+        }
+        semaphore.wait()
     }
 }

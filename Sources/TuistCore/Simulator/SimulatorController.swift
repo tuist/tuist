@@ -1,9 +1,12 @@
 import Foundation
+import Mockable
 import Path
+import ServiceContextModule
 import struct TSCUtility.Version
 import TuistSupport
 import XcodeGraph
 
+@Mockable
 public protocol SimulatorControlling {
     /// Finds first available device defined by given parameters
     /// - Parameters:
@@ -50,7 +53,7 @@ public protocol SimulatorControlling {
     ///   - bundleId: The bundle id of the app to launch.
     ///   - device: The simulator device to install the app on.
     ///   - arguments: Any additional arguments to pass the app on launch.
-    func launchApp(bundleId: String, device: SimulatorDevice, arguments: [String]) throws
+    func launchApp(bundleId: String, device: SimulatorDevice, arguments: [String]) async throws
 
     /// Finds the simulator destination for the target platform
     /// - Parameters:
@@ -64,7 +67,22 @@ public protocol SimulatorControlling {
     ) async throws -> String
 
     /// Returns the simulator destination for the macOS platform
-    func macOSDestination() -> String
+    func macOSDestination(catalyst: Bool) -> String
+
+    /// Returns the list of simulator devices that are available in the system.
+    func devices() async throws -> [SimulatorDevice]
+
+    /// Returns the list of simulator runtimes that are available in the system.
+    func devicesAndRuntimes() async throws -> [SimulatorDeviceAndRuntime]
+
+    /// Boots a simulator, if necessary
+    /// - Returns: A simulator with the updated `state`
+    func booted(device: SimulatorDevice) throws -> SimulatorDevice
+
+    /// Boots a simulator, if necessary
+    /// - Parameters:
+    ///     - forced: If `true`, booting of the simulator is forced
+    func booted(device: SimulatorDevice, forced: Bool) throws -> SimulatorDevice
 }
 
 public enum SimulatorControllerError: Equatable, FatalError {
@@ -97,13 +115,25 @@ public final class SimulatorController: SimulatorControlling {
     private let jsonDecoder = JSONDecoder()
     private let userInputReader: UserInputReading
 
-    public init(userInputReader: UserInputReading = UserInputReader()) {
+    private let system: Systeming
+    private let devEnvironment: DeveloperEnvironmenting
+    private let xcodeController: XcodeControlling
+
+    public init(
+        userInputReader: UserInputReading = UserInputReader(),
+        system: Systeming = System.shared,
+        devEnvironment: DeveloperEnvironmenting = DeveloperEnvironment.shared,
+        xcodeController: XcodeControlling = XcodeController.shared
+    ) {
         self.userInputReader = userInputReader
+        self.system = system
+        self.devEnvironment = devEnvironment
+        self.xcodeController = xcodeController
     }
 
     /// Returns the list of simulator devices that are available in the system.
-    func devices() async throws -> [SimulatorDevice] {
-        let output = try await System.shared.runAndCollectOutput(["/usr/bin/xcrun", "simctl", "list", "devices", "--json"])
+    public func devices() async throws -> [SimulatorDevice] {
+        let output = try await system.runAndCollectOutput(["/usr/bin/xcrun", "simctl", "list", "devices", "--json"])
         let data = output.standardOutput.data(using: .utf8)!
         let json = try JSONSerialization.jsonObject(with: data, options: [])
         guard let dictionary = json as? [String: Any],
@@ -125,7 +155,7 @@ public final class SimulatorController: SimulatorControlling {
 
     /// Returns the list of simulator runtimes that are available in the system.
     func runtimes() async throws -> [SimulatorRuntime] {
-        let output = try await System.shared.runAndCollectOutput(["/usr/bin/xcrun", "simctl", "list", "runtimes", "--json"])
+        let output = try await system.runAndCollectOutput(["/usr/bin/xcrun", "simctl", "list", "runtimes", "--json"])
         let data = output.standardOutput.data(using: .utf8)!
         let json = try JSONSerialization.jsonObject(with: data, options: [])
         guard let dictionary = json as? [String: Any],
@@ -143,7 +173,7 @@ public final class SimulatorController: SimulatorControlling {
     ///     - platform: Optionally filter by platform
     ///     - deviceName: Optionally filter by device name
     /// - Returns: the list of simulator devices and runtimes.
-    func devicesAndRuntimes() async throws -> [SimulatorDeviceAndRuntime] {
+    public func devicesAndRuntimes() async throws -> [SimulatorDeviceAndRuntime] {
         async let runtimesTask = runtimes()
         async let devicesTask = devices()
         let (runtimes, devices) = try await (runtimesTask, devicesTask)
@@ -203,7 +233,8 @@ public final class SimulatorController: SimulatorControlling {
             deviceName: deviceName
         )
         guard let device = availableDevices.first(where: { !$0.device.isShutdown }) ?? availableDevices.first
-        else { throw SimulatorControllerError.deviceNotFound(platform, version, deviceName, try await devicesAndRuntimes())
+        else {
+            throw SimulatorControllerError.deviceNotFound(platform, version, deviceName, try await devicesAndRuntimes())
         }
         return device
     }
@@ -228,28 +259,43 @@ public final class SimulatorController: SimulatorControlling {
                 try await devicesAndRuntimes()
             )
         }
-        if availableDevices.count == 1, let onlyOption = availableDevices.first {
+        let availableBootedDevices = availableDevices.filter { !$0.device.isShutdown }
+        if availableBootedDevices.count == 1, let onlyOption = availableBootedDevices.first {
             return onlyOption
         }
-        var prompt = "Select the simulator device where you want to run the app:\n"
-        for (index, availableDevice) in availableDevices.enumerated() {
-            prompt += "\t\(index): \(availableDevice.device.name) (\(availableDevice.device.udid))\n"
-        }
-        let choice = userInputReader.readInt(asking: prompt, maxValueAllowed: availableDevices.count)
-        return availableDevices[choice]
+        return try userInputReader.readValue(
+            asking: "Select the simulator device where you want to run the app:",
+            values: availableDevices,
+            valueDescription: { "\($0.device.name) (\($0.device.udid)" }
+        )
     }
 
     public func installApp(at path: AbsolutePath, device: SimulatorDevice) throws {
-        logger.debug("Installing app at \(path) on simulator device with id \(device.udid)")
-        let device = try device.booted()
-        try System.shared.run(["/usr/bin/xcrun", "simctl", "install", device.udid, path.pathString])
+        ServiceContext.current?.logger?.debug("Installing app at \(path) on simulator device with id \(device.udid)")
+        let device = try device.booted(using: system)
+        try system.run(["/usr/bin/xcrun", "simctl", "install", device.udid, path.pathString])
     }
 
-    public func launchApp(bundleId: String, device: SimulatorDevice, arguments: [String]) throws {
-        logger.debug("Launching app with bundle id \(bundleId) on simulator device with id \(device.udid)")
-        let device = try device.booted()
-        try System.shared.run(["/usr/bin/open", "-a", "Simulator"])
-        try System.shared.run(["/usr/bin/xcrun", "simctl", "launch", device.udid, bundleId] + arguments)
+    public func launchApp(bundleId: String, device: SimulatorDevice, arguments: [String]) async throws {
+        ServiceContext.current?.logger?
+            .debug("Launching app with bundle id \(bundleId) on simulator device with id \(device.udid)")
+        let device = try device.booted(using: system)
+        let simulator = try await xcodeController.selected().path.appending(
+            components: "Contents",
+            "Developer",
+            "Applications",
+            "Simulator.app"
+        )
+        try system.run(["/usr/bin/open", "-a", simulator.pathString])
+        try system.run(["/usr/bin/xcrun", "simctl", "launch", device.udid, bundleId] + arguments)
+    }
+
+    public func booted(device: SimulatorDevice) throws -> SimulatorDevice {
+        try device.booted(using: system)
+    }
+
+    public func booted(device: SimulatorDevice, forced: Bool) throws -> SimulatorDevice {
+        try device.booted(using: system, forced: forced)
     }
 
     /// https://www.mokacoding.com/blog/xcodebuild-destination-options/
@@ -278,24 +324,39 @@ public final class SimulatorController: SimulatorControlling {
         return "id=\(deviceAndRuntime.device.udid)"
     }
 
-    public func macOSDestination() -> String {
+    public func macOSDestination(catalyst: Bool = false) -> String {
         let arch: String
-        switch DeveloperEnvironment.shared.architecture {
+        switch devEnvironment.architecture {
         case .arm64:
             arch = "arm64"
         case .x8664:
             arch = "x86_64"
         }
-        return "platform=macOS,arch=\(arch)"
+        let destination = "platform=macOS,arch=\(arch)"
+        if catalyst {
+            return destination + ",variant=Mac Catalyst"
+        } else {
+            return destination
+        }
     }
 }
 
 extension SimulatorDevice {
     /// Attempts to boot the simulator.
     /// - returns: The `SimulatorDevice` with updated `isShutdown` field.
-    fileprivate func booted() throws -> Self {
-        guard isShutdown else { return self }
-        try System.shared.run(["/usr/bin/xcrun", "simctl", "boot", udid])
+    fileprivate func booted(using system: Systeming, forced: Bool = false) throws -> Self {
+        guard isShutdown || forced else { return self }
+        do {
+            try system.run(["/usr/bin/xcrun", "simctl", "boot", udid])
+        } catch {
+            if forced, let error = error as? FatalError,
+               error.description.contains("Unable to boot device in current state: Booted")
+            {
+                // noop
+            } else {
+                throw error
+            }
+        }
         return SimulatorDevice(
             dataPath: dataPath,
             logPath: logPath,

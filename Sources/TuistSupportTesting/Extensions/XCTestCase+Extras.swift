@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import ServiceContextModule
 import TuistSupport
 import XCTest
 
@@ -7,9 +8,13 @@ extension XCTestCase {
     // MARK: - Fixtures
 
     public func fixturePath(path: RelativePath) -> AbsolutePath {
-        try! AbsolutePath(validating: #file) // swiftlint:disable:this force_try
-            .appending(try! RelativePath(validating: "../../../../Tests/Fixtures")) // swiftlint:disable:this force_try
-            .appending(path)
+        // swiftlint:disable:next force_try
+        try! AbsolutePath(
+            validating: ProcessInfo.processInfo
+                .environment["TUIST_CONFIG_SRCROOT"]!
+        )
+        .appending(components: "Tests", "Fixtures")
+        .appending(path)
     }
 
     // MARK: - XCTAssertions
@@ -63,7 +68,14 @@ extension XCTestCase {
     }
 
     public func XCTAssertStandardOutput(pattern: String, file: StaticString = #file, line: UInt = #line) {
-        let standardOutput = TestingLogHandler.collected[.info, <=]
+        guard let testingLogHandler = ServiceContext.current?.testingLogHandler else {
+            return XCTFail(
+                "The testing log handler hasn't been set with ServiceContext.withTestingDependencies.",
+                file: file,
+                line: line
+            )
+        }
+        let standardOutput = testingLogHandler.collected[.info, <=]
 
         let message = """
         The standard output:
@@ -78,8 +90,38 @@ extension XCTestCase {
         XCTAssertTrue(standardOutput.contains(pattern), message, file: file, line: line)
     }
 
+    public func XCTAssertStandardOutputNotContains(_ pattern: String, file: StaticString = #file, line: UInt = #line) {
+        guard let testingLogHandler = ServiceContext.current?.testingLogHandler else {
+            return XCTFail(
+                "The testing log handler hasn't been set with ServiceContext.withTestingDependencies.",
+                file: file,
+                line: line
+            )
+        }
+        let standardOutput = testingLogHandler.collected[.info, <=]
+
+        let message = """
+        The standard output:
+        ===========
+        \(standardOutput)
+
+        Contains the not expected:
+        ===========
+        \(pattern)
+        """
+
+        XCTAssertFalse(standardOutput.contains(pattern), message, file: file, line: line)
+    }
+
     public func XCTAssertStandardError(pattern: String, file: StaticString = #file, line: UInt = #line) {
-        let standardError = TestingLogHandler.collected[.error, ==]
+        guard let testingLogHandler = ServiceContext.current?.testingLogHandler else {
+            return XCTFail(
+                "The testing log handler hasn't been set with ServiceContext.withTestingDependencies.",
+                file: file,
+                line: line
+            )
+        }
+        let standardError = testingLogHandler.collected[.error, <=]
 
         let message = """
         The standard error:
@@ -114,6 +156,24 @@ extension XCTestCase {
             _ = try closure()
         } catch let closureError as Error {
             XCTAssertEqual(error, closureError, file: file, line: line)
+            return
+        } catch let closureError {
+            XCTFail("\(error) is not equal to: \(closureError)", file: file, line: line)
+            return
+        }
+        XCTFail("No error was thrown", file: file, line: line)
+    }
+
+    public func XCTAssertThrowsSpecific<Error: Swift.Error & Equatable>(
+        _ closure: () async throws -> some Any,
+        _ error: Error,
+        file: StaticString = #file,
+        line: UInt = #line
+    ) async {
+        do {
+            _ = try await closure()
+        } catch let closureError as Error {
+            XCTAssertEqual(closureError, error, file: file, line: line)
             return
         } catch let closureError {
             XCTFail("\(error) is not equal to: \(closureError)", file: file, line: line)

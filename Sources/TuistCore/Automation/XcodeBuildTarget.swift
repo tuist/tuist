@@ -1,4 +1,3 @@
-import Foundation
 import Path
 
 public enum XcodeBuildTarget: Equatable {

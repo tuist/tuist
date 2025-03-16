@@ -1,4 +1,3 @@
-import Foundation
 import TuistCore
 
 /// An analytics backend  an entity (e.g. an HTTP server)

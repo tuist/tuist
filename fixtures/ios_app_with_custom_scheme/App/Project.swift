@@ -13,6 +13,7 @@ let debugScheme: Scheme = .scheme(
         [
             .testableTarget(
                 target: "AppTests",
+                parallelization: .enabled,
                 simulatedLocation: .rioDeJaneiro
             ),
         ]

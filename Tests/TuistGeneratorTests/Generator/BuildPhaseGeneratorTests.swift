@@ -1,6 +1,7 @@
 import Foundation
-import MockableTest
+import Mockable
 import Path
+import struct TSCUtility.Version
 import TuistCore
 import TuistSupport
 import XcodeGraph
@@ -24,17 +25,18 @@ final class BuildPhaseGenerationErrorTests: TuistUnitTestCase {
 
 final class BuildPhaseGeneratorTests: TuistUnitTestCase {
     var subject: BuildPhaseGenerator!
-    var errorHandler: MockErrorHandler!
 
     override func setUp() {
         super.setUp()
         subject = BuildPhaseGenerator()
-        errorHandler = MockErrorHandler()
+
+        given(xcodeController)
+            .selectedVersion()
+            .willReturn(Version(15, 0, 0))
     }
 
     override func tearDown() {
         subject = nil
-        errorHandler = nil
         super.tearDown()
     }
 
@@ -490,13 +492,13 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         ])
     }
 
-    func test_generateResourcesBuildPhase_whenLocalizedXibFiles() throws {
+    func test_generateResourcesBuildPhase_whenLocalizedXibFiles() async throws {
         // Given
         let path = try temporaryPath()
         let pbxproj = PBXProj()
         let fileElements = ProjectFileElements()
         let nativeTarget = PBXNativeTarget(name: "Test")
-        let files = try createFiles([
+        let files = try await createFiles([
             "resources/fr.lproj/Controller.strings",
             "resources/Base.lproj/Controller.xib",
             "resources/Base.lproj/Storyboard.storyboard",
@@ -539,13 +541,13 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         ])
     }
 
-    func test_generateResourcesBuildPhase_whenLocalizedIntentsFile() throws {
+    func test_generateResourcesBuildPhase_whenLocalizedIntentsFile() async throws {
         // Given
         let path = try temporaryPath()
         let pbxproj = PBXProj()
         let fileElements = ProjectFileElements()
         let nativeTarget = PBXNativeTarget(name: "Test")
-        let files = try createFiles([
+        let files = try await createFiles([
             "resources/Base.lproj/Intents.intentdefinition",
             "resources/en.lproj/Intents.strings",
             "resources/fr.lproj/Intents.strings",
@@ -1157,6 +1159,90 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         )
     }
 
+    func test_generateEmbedPluginsBuildPhase() throws {
+        // Given
+        let app = Target.test(name: "App", platform: .macOS, product: .app)
+        let embedPlugin = Target.test(name: "EmbedPlugin", platform: .macOS, product: .bundle)
+        let pbxproj = PBXProj()
+        let nativeTarget = PBXNativeTarget(name: "Test")
+        let fileElements = createProductFileElements(for: [app, embedPlugin])
+        let project = Project.test(targets: [app, embedPlugin])
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: embedPlugin.name, path: project.path): Set(),
+            .target(name: app.name, path: project.path): Set([.target(name: embedPlugin.name, path: project.path)]),
+        ]
+        let graph = Graph.test(
+            path: project.path,
+            projects: [project.path: project],
+            dependencies: dependencies
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        try subject.generateEmbedPluginsBuildPhase(
+            path: project.path,
+            target: app,
+            graphTraverser: graphTraverser,
+            pbxTarget: nativeTarget,
+            fileElements: fileElements,
+            pbxproj: pbxproj
+        )
+
+        // Then
+        let pbxBuildPhase = try XCTUnwrap(nativeTarget.buildPhases.first as? PBXCopyFilesBuildPhase)
+        XCTAssertEqual(pbxBuildPhase.files?.compactMap { $0.file?.nameOrPath }, [
+            "EmbedPlugin",
+        ])
+        XCTAssertEqual(
+            pbxBuildPhase.files?.compactMap { $0.settings as? [String: [String]] },
+            [["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]]]
+        )
+    }
+
+    func test_generateEmbedPluginsBuildPhase_macCatalystApplication() throws {
+        // Given
+        let app = Target.test(name: "App", destinations: [.iPhone, .iPad, .macCatalyst])
+        let embedPlugin = Target.test(name: "EmbedPlugin", platform: .macOS, product: .bundle)
+        let pbxproj = PBXProj()
+        let nativeTarget = PBXNativeTarget(name: "Test")
+        let fileElements = createProductFileElements(for: [app, embedPlugin])
+        let project = Project.test(targets: [app, embedPlugin])
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: embedPlugin.name, path: project.path): Set(),
+            .target(name: app.name, path: project.path): Set([.target(name: embedPlugin.name, path: project.path)]),
+        ]
+        let graph = Graph.test(
+            path: project.path,
+            projects: [project.path: project],
+            dependencies: dependencies
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        try subject.generateEmbedPluginsBuildPhase(
+            path: project.path,
+            target: app,
+            graphTraverser: graphTraverser,
+            pbxTarget: nativeTarget,
+            fileElements: fileElements,
+            pbxproj: pbxproj
+        )
+
+        // Then
+        let pbxBuildPhase = try XCTUnwrap(nativeTarget.buildPhases.first as? PBXCopyFilesBuildPhase)
+        XCTAssertEqual(pbxBuildPhase.files?.compactMap { $0.file?.nameOrPath }, [
+            "EmbedPlugin",
+        ])
+        XCTAssertEqual(
+            pbxBuildPhase.files?.compactMap { $0.settings as? [String: [String]] },
+            [["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]]]
+        )
+        XCTAssertEqual(
+            pbxBuildPhase.files?.compactMap(\.platformFilter),
+            [PlatformFilter.catalyst.xcodeprojValue]
+        )
+    }
+
     func test_generateEmbedSystemExtensionsBuildPhase() throws {
         // Given
         let app = Target.test(name: "App", platform: .macOS, product: .app)
@@ -1197,7 +1283,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         )
     }
 
-    func test_generateTarget_actions() throws {
+    func test_generateTarget_actions() async throws {
         // Given
         given(swiftVersionProvider)
             .swiftVersion()
@@ -1246,7 +1332,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         )
 
         // When
-        let pbxTarget = try TargetGenerator().generateTarget(
+        let pbxTarget = try await TargetGenerator().generateTarget(
             target: target,
             project: project,
             pbxproj: pbxproj,
@@ -1275,7 +1361,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         XCTAssertTrue(postBuildPhase.runOnlyForDeploymentPostprocessing)
     }
 
-    func test_generateTarget_action_custom_shell() throws {
+    func test_generateTarget_action_custom_shell() async throws {
         // Given
         given(swiftVersionProvider)
             .swiftVersion()
@@ -1325,7 +1411,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         )
 
         // When
-        let pbxTarget = try TargetGenerator().generateTarget(
+        let pbxTarget = try await TargetGenerator().generateTarget(
             target: target,
             project: project,
             pbxproj: pbxproj,
@@ -1344,7 +1430,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         XCTAssertEqual(postBuildPhase.shellPath, "/bin/zsh")
     }
 
-    func test_generateTarget_action_dependency_file() throws {
+    func test_generateTarget_action_dependency_file() async throws {
         // Given
         given(swiftVersionProvider)
             .swiftVersion()
@@ -1393,7 +1479,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         )
 
         // When
-        let pbxTarget = try TargetGenerator().generateTarget(
+        let pbxTarget = try await TargetGenerator().generateTarget(
             target: target,
             project: project,
             pbxproj: pbxproj,
@@ -1589,7 +1675,10 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         XCTAssertTrue(buildPhase?.inputPaths.contains("$BUILD_DIR/$CONFIGURATION/\(macroExecutable.productName)") == true)
         XCTAssertEqual(
             buildPhase?.outputPaths,
-            ["$BUILD_DIR/Debug-$EFFECTIVE_PLATFORM_NAME/\(macroExecutable.productName)"]
+            [
+                "$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/\(macroExecutable.productName)",
+                "$BUILD_DIR/Debug-$EFFECTIVE_PLATFORM_NAME/\(macroExecutable.productName)",
+            ]
         )
     }
 
@@ -1645,6 +1734,8 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
             name: "Project",
             buildConfigurationList: configList,
             compatibilityVersion: "0",
+            preferredProjectObjectVersion: nil,
+            minimizedProjectReferenceProxies: nil,
             mainGroup: mainGroup
         )
         pbxproj.add(object: pbxProject)

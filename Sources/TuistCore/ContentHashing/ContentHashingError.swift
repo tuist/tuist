@@ -1,4 +1,3 @@
-import Foundation
 import Path
 import TuistSupport
 

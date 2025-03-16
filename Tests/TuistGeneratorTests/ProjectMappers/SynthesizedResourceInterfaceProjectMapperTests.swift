@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import ServiceContextModule
 import TuistCore
 import TuistSupport
 import XcodeGraph
@@ -32,302 +33,305 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_map() throws {
-        // Given
-        var templateStrings: [String] = []
-        var parserOptionsStrings: [ResourceSynthesizer.Parser: String] = [:]
-        synthesizedResourceInterfacesGenerator.renderStub = { parser, parserOptions, templateString, _, _, paths in
-            templateStrings.append(templateString)
-            parserOptionsStrings[parser] = parserOptions.map { "\($0.key): \($0.value.value)" }.sorted().joined(separator: ", ")
-            let content = paths.map { $0.components.suffix(2).joined(separator: "/") }.joined(separator: ", ")
-            return content
-        }
+    func test_map() async throws {
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            var templateStrings: [String] = []
+            var parserOptionsStrings: [ResourceSynthesizer.Parser: String] = [:]
+            synthesizedResourceInterfacesGenerator.renderStub = { parser, parserOptions, templateString, _, _, paths in
+                templateStrings.append(templateString)
+                parserOptionsStrings[parser] = parserOptions.map { "\($0.key): \($0.value.value)" }.sorted()
+                    .joined(separator: ", ")
+                let content = paths.map { $0.components.suffix(2).joined(separator: "/") }.joined(separator: ", ")
+                return content
+            }
 
-        let projectPath = try temporaryPath()
-        let targetAPath = projectPath.appending(component: "TargetA")
-        let aAssets = targetAPath.appending(component: "a.xcassets")
-        let aAsset = aAssets.appending(component: "asset")
-        let frenchStrings = targetAPath.appending(components: "fr.lproj", "aStrings.strings")
-        let frenchStringsDict = targetAPath.appending(components: "fr.lproj", "aStrings.stringsdict")
-        let englishStrings = targetAPath.appending(components: "en.lproj", "aStrings.strings")
-        let englishStringsDict = targetAPath.appending(components: "en.lproj", "aStrings.stringsdict")
-        let environmentPlist = targetAPath.appending(component: "Environment.plist")
-        let emptyPlist = targetAPath.appending(component: "Empty.plist")
-        let ttfFont = targetAPath.appending(component: "ttfFont.ttf")
-        let otfFont = targetAPath.appending(component: "otfFont.otf")
-        let ttcFont = targetAPath.appending(component: "ttcFont.ttc")
-        let lottieFile = targetAPath.appending(component: "LottieAnimation.lottie")
-        let coreDataModelFolder = targetAPath.appending(component: "CoreDataModel.xcdatamodeld")
-        let coreDataModelVersionFile = targetAPath.appending(
-            components: "CoreDataModel.xcdatamodeld",
-            "CoreDataModel.xcdatamodel"
-        )
+            let projectPath = try temporaryPath()
+            let targetAPath = projectPath.appending(component: "TargetA")
+            let aAssets = targetAPath.appending(component: "a.xcassets")
+            let aAsset = aAssets.appending(component: "asset")
+            let frenchStrings = targetAPath.appending(components: "fr.lproj", "aStrings.strings")
+            let frenchStringsDict = targetAPath.appending(components: "fr.lproj", "aStrings.stringsdict")
+            let englishStrings = targetAPath.appending(components: "en.lproj", "aStrings.strings")
+            let englishStringsDict = targetAPath.appending(components: "en.lproj", "aStrings.stringsdict")
+            let environmentPlist = targetAPath.appending(component: "Environment.plist")
+            let emptyPlist = targetAPath.appending(component: "Empty.plist")
+            let ttfFont = targetAPath.appending(component: "ttfFont.ttf")
+            let otfFont = targetAPath.appending(component: "otfFont.otf")
+            let ttcFont = targetAPath.appending(component: "ttcFont.ttc")
+            let lottieFile = targetAPath.appending(component: "LottieAnimation.lottie")
+            let coreDataModelFolder = targetAPath.appending(component: "CoreDataModel.xcdatamodeld")
+            let coreDataModelVersionFile = targetAPath.appending(
+                components: "CoreDataModel.xcdatamodeld",
+                "CoreDataModel.xcdatamodel"
+            )
 
-        try fileHandler.createFolder(aAssets)
-        try fileHandler.touch(aAsset)
-        try fileHandler.touch(frenchStrings)
-        try fileHandler.touch(frenchStringsDict)
-        try fileHandler.touch(englishStrings)
-        try fileHandler.touch(englishStringsDict)
-        try fileHandler.touch(coreDataModelVersionFile)
-        try fileHandler.write("a", path: frenchStrings, atomically: true)
-        try fileHandler.write("a", path: frenchStringsDict, atomically: true)
-        try fileHandler.write("a", path: englishStrings, atomically: true)
-        try fileHandler.write("a", path: englishStringsDict, atomically: true)
-        try fileHandler.touch(emptyPlist)
-        try fileHandler.write("a", path: environmentPlist, atomically: true)
-        try fileHandler.write("a", path: ttfFont, atomically: true)
-        try fileHandler.write("a", path: otfFont, atomically: true)
-        try fileHandler.write("a", path: ttcFont, atomically: true)
-        let lottieTemplatePath = projectPath.appending(component: "Lottie.stencil")
-        try fileHandler.write("lottie template", path: lottieTemplatePath, atomically: true)
-        try fileHandler.write("a", path: lottieFile, atomically: true)
-        let stringsTemplatePath = projectPath.appending(component: "Strings.stencil")
-        try fileHandler.write("strings template", path: stringsTemplatePath, atomically: true)
-        let coreDataTemplatePath = projectPath.appending(component: "CoreData.stencil")
-        try fileHandler.write("core data template", path: coreDataTemplatePath, atomically: true)
-        try fileHandler.createFolder(coreDataModelFolder)
-        try fileHandler.write("a", path: coreDataModelVersionFile, atomically: true)
+            try fileHandler.createFolder(aAssets)
+            try fileHandler.touch(aAsset)
+            try fileHandler.touch(frenchStrings)
+            try fileHandler.touch(frenchStringsDict)
+            try fileHandler.touch(englishStrings)
+            try fileHandler.touch(englishStringsDict)
+            try fileHandler.touch(coreDataModelVersionFile)
+            try fileHandler.write("a", path: frenchStrings, atomically: true)
+            try fileHandler.write("a", path: frenchStringsDict, atomically: true)
+            try fileHandler.write("a", path: englishStrings, atomically: true)
+            try fileHandler.write("a", path: englishStringsDict, atomically: true)
+            try fileHandler.touch(emptyPlist)
+            try fileHandler.write("a", path: environmentPlist, atomically: true)
+            try fileHandler.write("a", path: ttfFont, atomically: true)
+            try fileHandler.write("a", path: otfFont, atomically: true)
+            try fileHandler.write("a", path: ttcFont, atomically: true)
+            let lottieTemplatePath = projectPath.appending(component: "Lottie.stencil")
+            try fileHandler.write("lottie template", path: lottieTemplatePath, atomically: true)
+            try fileHandler.write("a", path: lottieFile, atomically: true)
+            let stringsTemplatePath = projectPath.appending(component: "Strings.stencil")
+            try fileHandler.write("strings template", path: stringsTemplatePath, atomically: true)
+            let coreDataTemplatePath = projectPath.appending(component: "CoreData.stencil")
+            try fileHandler.write("core data template", path: coreDataTemplatePath, atomically: true)
+            try fileHandler.createFolder(coreDataModelFolder)
+            try fileHandler.write("a", path: coreDataModelVersionFile, atomically: true)
 
-        let targetA = Target.test(
-            name: "TargetA",
-            resources: .init(
-                [
-                    .folderReference(path: aAssets),
-                    .file(path: frenchStrings),
-                    .file(path: frenchStringsDict),
-                    .file(path: englishStrings),
-                    .file(path: englishStringsDict),
-                    .file(path: emptyPlist),
-                    .file(path: environmentPlist),
-                    .file(path: ttfFont),
-                    .file(path: otfFont),
-                    .file(path: ttcFont),
-                    .file(path: lottieFile),
+            let targetA = Target.test(
+                name: "TargetA",
+                resources: .init(
+                    [
+                        .folderReference(path: aAssets),
+                        .file(path: frenchStrings),
+                        .file(path: frenchStringsDict),
+                        .file(path: englishStrings),
+                        .file(path: englishStringsDict),
+                        .file(path: emptyPlist),
+                        .file(path: environmentPlist),
+                        .file(path: ttfFont),
+                        .file(path: otfFont),
+                        .file(path: ttcFont),
+                        .file(path: lottieFile),
+                    ]
+                ),
+                coreDataModels: [
+                    CoreDataModel(
+                        path: coreDataModelFolder,
+                        versions: [
+                            coreDataModelVersionFile,
+                        ],
+                        currentVersion: "CoreDataModel"
+                    ),
                 ]
-            ),
-            coreDataModels: [
-                CoreDataModel(
-                    path: coreDataModelFolder,
-                    versions: [
-                        coreDataModelVersionFile,
+            )
+
+            let resourceSynthesizers: [ResourceSynthesizer] = [
+                .init(
+                    parser: .assets,
+                    parserOptions: [
+                        "stringValue": "test",
+                        "intValue": 999,
+                        "boolValue": true,
+                        "doubleValue": 1.0,
                     ],
-                    currentVersion: "CoreDataModel"
+                    extensions: ["xcassets"],
+                    template: .defaultTemplate("Assets")
+                ),
+                .init(
+                    parser: .strings,
+                    parserOptions: [
+                        "stringValue": "test",
+                        "intValue": 999,
+                        "boolValue": true,
+                        "doubleValue": 1.0,
+                    ],
+                    extensions: ["strings", "stringsdict"],
+                    template: .file(stringsTemplatePath)
+                ),
+                .init(
+                    parser: .plists,
+                    parserOptions: [
+                        "stringValue": "test",
+                        "intValue": 999,
+                        "boolValue": true,
+                        "doubleValue": 1.0,
+                    ],
+                    extensions: ["plist"],
+                    template: .defaultTemplate("Plists")
+                ),
+                .init(
+                    parser: .fonts,
+                    parserOptions: [
+                        "stringValue": "test",
+                        "intValue": 999,
+                        "boolValue": true,
+                        "doubleValue": 1.0,
+                    ],
+                    extensions: ["otf", "ttc", "ttf", "woff"],
+                    template: .defaultTemplate("Fonts")
+                ),
+                .init(
+                    parser: .json,
+                    parserOptions: [
+                        "stringValue": "test",
+                        "intValue": 999,
+                        "boolValue": true,
+                        "doubleValue": 1.0,
+                    ],
+                    extensions: ["lottie"],
+                    template: .file(lottieTemplatePath)
+                ),
+                .init(
+                    parser: .coreData,
+                    parserOptions: [
+                        "stringValue": "test",
+                        "intValue": 999,
+                        "boolValue": true,
+                        "doubleValue": 1.0,
+                    ],
+                    extensions: ["xcdatamodeld"],
+                    template: .file(coreDataTemplatePath)
                 ),
             ]
-        )
 
-        let resourceSynthesizers: [ResourceSynthesizer] = [
-            .init(
-                parser: .assets,
-                parserOptions: [
-                    "stringValue": "test",
-                    "intValue": 999,
-                    "boolValue": true,
-                    "doubleValue": 1.0,
-                ],
-                extensions: ["xcassets"],
-                template: .defaultTemplate("Assets")
-            ),
-            .init(
-                parser: .strings,
-                parserOptions: [
-                    "stringValue": "test",
-                    "intValue": 999,
-                    "boolValue": true,
-                    "doubleValue": 1.0,
-                ],
-                extensions: ["strings", "stringsdict"],
-                template: .file(stringsTemplatePath)
-            ),
-            .init(
-                parser: .plists,
-                parserOptions: [
-                    "stringValue": "test",
-                    "intValue": 999,
-                    "boolValue": true,
-                    "doubleValue": 1.0,
-                ],
-                extensions: ["plist"],
-                template: .defaultTemplate("Plists")
-            ),
-            .init(
-                parser: .fonts,
-                parserOptions: [
-                    "stringValue": "test",
-                    "intValue": 999,
-                    "boolValue": true,
-                    "doubleValue": 1.0,
-                ],
-                extensions: ["otf", "ttc", "ttf"],
-                template: .defaultTemplate("Fonts")
-            ),
-            .init(
-                parser: .json,
-                parserOptions: [
-                    "stringValue": "test",
-                    "intValue": 999,
-                    "boolValue": true,
-                    "doubleValue": 1.0,
-                ],
-                extensions: ["lottie"],
-                template: .file(lottieTemplatePath)
-            ),
-            .init(
-                parser: .coreData,
-                parserOptions: [
-                    "stringValue": "test",
-                    "intValue": 999,
-                    "boolValue": true,
-                    "doubleValue": 1.0,
-                ],
-                extensions: ["xcdatamodeld"],
-                template: .file(coreDataTemplatePath)
-            ),
-        ]
-
-        let project = Project.test(
-            path: projectPath,
-            targets: [
-                targetA,
-            ],
-            resourceSynthesizers: resourceSynthesizers
-        )
-
-        // When
-        let (mappedProject, sideEffects) = try subject.map(project: project)
-
-        // Then
-        let derivedPath = projectPath
-            .appending(component: Constants.DerivedDirectory.name)
-        let derivedSourcesPath = derivedPath
-            .appending(component: Constants.DerivedDirectory.sources)
-        XCTAssertEqual(
-            sideEffects,
-            [
-                .file(
-                    FileDescriptor(
-                        path: derivedSourcesPath.appending(component: "TuistAssets+TargetA.swift"),
-                        contents: "TargetA/a.xcassets".data(using: .utf8)
-                    )
-                ),
-                .file(
-                    FileDescriptor(
-                        path: derivedSourcesPath.appending(component: "TuistStrings+TargetA.swift"),
-                        contents: "en.lproj/aStrings.strings, en.lproj/aStrings.stringsdict"
-                            .data(using: .utf8)
-                    )
-                ),
-                .file(
-                    FileDescriptor(
-                        path: derivedSourcesPath.appending(component: "TuistPlists+TargetA.swift"),
-                        contents: "TargetA/Environment.plist".data(using: .utf8)
-                    )
-                ),
-                .file(
-                    FileDescriptor(
-                        path: derivedSourcesPath.appending(component: "TuistFonts+TargetA.swift"),
-                        contents: "TargetA/otfFont.otf, TargetA/ttcFont.ttc, TargetA/ttfFont.ttf".data(using: .utf8)
-                    )
-                ),
-                .file(
-                    FileDescriptor(
-                        path: derivedSourcesPath.appending(component: "TuistLottie+TargetA.swift"),
-                        contents: "TargetA/LottieAnimation.lottie".data(using: .utf8)
-                    )
-                ),
-                .file(
-                    FileDescriptor(
-                        path: derivedSourcesPath.appending(component: "TuistCoreData+TargetA.swift"),
-                        contents: "TargetA/CoreDataModel.xcdatamodeld".data(using: .utf8)
-                    )
-                ),
-            ]
-        )
-        XCTAssertEqual(
-            mappedProject,
-            Project.test(
+            let project = Project.test(
                 path: projectPath,
                 targets: [
-                    Target.test(
-                        name: targetA.name,
-                        sources: [
-                            SourceFile(
-                                path: derivedSourcesPath
-                                    .appending(component: "TuistAssets+TargetA.swift"),
-                                compilerFlags: nil,
-                                contentHash: try contentHasher.hash("TargetA/a.xcassets".data(using: .utf8)!)
-                            ),
-                            SourceFile(
-                                path: derivedSourcesPath
-                                    .appending(component: "TuistStrings+TargetA.swift"),
-                                compilerFlags: nil,
-                                contentHash: try contentHasher.hash(
-                                    "en.lproj/aStrings.strings, en.lproj/aStrings.stringsdict".data(using: .utf8)!
-                                )
-                            ),
-                            SourceFile(
-                                path: derivedSourcesPath
-                                    .appending(component: "TuistPlists+TargetA.swift"),
-                                compilerFlags: nil,
-                                contentHash: try contentHasher.hash("TargetA/Environment.plist".data(using: .utf8)!)
-                            ),
-                            SourceFile(
-                                path: derivedSourcesPath
-                                    .appending(component: "TuistFonts+TargetA.swift"),
-                                compilerFlags: nil,
-                                contentHash: try contentHasher
-                                    .hash("TargetA/otfFont.otf, TargetA/ttcFont.ttc, TargetA/ttfFont.ttf".data(using: .utf8)!)
-                            ),
-                            SourceFile(
-                                path: derivedSourcesPath
-                                    .appending(component: "TuistLottie+TargetA.swift"),
-                                compilerFlags: nil,
-                                contentHash: try contentHasher.hash("TargetA/LottieAnimation.lottie".data(using: .utf8)!)
-                            ),
-                            SourceFile(
-                                path: derivedSourcesPath
-                                    .appending(component: "TuistCoreData+TargetA.swift"),
-                                compilerFlags: nil,
-                                contentHash: try contentHasher.hash("TargetA/CoreDataModel.xcdatamodeld".data(using: .utf8)!)
-                            ),
-                        ],
-                        resources: targetA.resources,
-                        coreDataModels: targetA.coreDataModels
-                    ),
+                    targetA,
                 ],
                 resourceSynthesizers: resourceSynthesizers
             )
-        )
-        XCTAssertEqual(
-            templateStrings,
-            [
-                SynthesizedResourceInterfaceTemplates.assetsTemplate,
-                "strings template",
-                SynthesizedResourceInterfaceTemplates.plistsTemplate,
-                SynthesizedResourceInterfaceTemplates.fontsTemplate,
-                "lottie template",
-                "core data template",
-            ]
-        )
-        [
-            ResourceSynthesizer.Parser.assets,
-            ResourceSynthesizer.Parser.strings,
-            ResourceSynthesizer.Parser.plists,
-            ResourceSynthesizer.Parser.fonts,
-            ResourceSynthesizer.Parser.json,
-            ResourceSynthesizer.Parser.coreData,
-        ].forEach { parser in
+
+            // When
+            let (mappedProject, sideEffects) = try subject.map(project: project)
+
+            // Then
+            let derivedPath = projectPath
+                .appending(component: Constants.DerivedDirectory.name)
+            let derivedSourcesPath = derivedPath
+                .appending(component: Constants.DerivedDirectory.sources)
             XCTAssertEqual(
-                parserOptionsStrings[parser],
-                "boolValue: true, doubleValue: 1.0, intValue: 999, stringValue: test"
+                sideEffects,
+                [
+                    .file(
+                        FileDescriptor(
+                            path: derivedSourcesPath.appending(component: "TuistAssets+TargetA.swift"),
+                            contents: "TargetA/a.xcassets".data(using: .utf8)
+                        )
+                    ),
+                    .file(
+                        FileDescriptor(
+                            path: derivedSourcesPath.appending(component: "TuistStrings+TargetA.swift"),
+                            contents: "en.lproj/aStrings.strings, en.lproj/aStrings.stringsdict"
+                                .data(using: .utf8)
+                        )
+                    ),
+                    .file(
+                        FileDescriptor(
+                            path: derivedSourcesPath.appending(component: "TuistPlists+TargetA.swift"),
+                            contents: "TargetA/Environment.plist".data(using: .utf8)
+                        )
+                    ),
+                    .file(
+                        FileDescriptor(
+                            path: derivedSourcesPath.appending(component: "TuistFonts+TargetA.swift"),
+                            contents: "TargetA/otfFont.otf, TargetA/ttcFont.ttc, TargetA/ttfFont.ttf".data(using: .utf8)
+                        )
+                    ),
+                    .file(
+                        FileDescriptor(
+                            path: derivedSourcesPath.appending(component: "TuistLottie+TargetA.swift"),
+                            contents: "TargetA/LottieAnimation.lottie".data(using: .utf8)
+                        )
+                    ),
+                    .file(
+                        FileDescriptor(
+                            path: derivedSourcesPath.appending(component: "TuistCoreData+TargetA.swift"),
+                            contents: "TargetA/CoreDataModel.xcdatamodeld".data(using: .utf8)
+                        )
+                    ),
+                ]
+            )
+            XCTAssertEqual(
+                mappedProject,
+                Project.test(
+                    path: projectPath,
+                    targets: [
+                        Target.test(
+                            name: targetA.name,
+                            sources: [
+                                SourceFile(
+                                    path: derivedSourcesPath
+                                        .appending(component: "TuistAssets+TargetA.swift"),
+                                    compilerFlags: nil,
+                                    contentHash: try contentHasher.hash("TargetA/a.xcassets".data(using: .utf8)!)
+                                ),
+                                SourceFile(
+                                    path: derivedSourcesPath
+                                        .appending(component: "TuistStrings+TargetA.swift"),
+                                    compilerFlags: nil,
+                                    contentHash: try contentHasher.hash(
+                                        "en.lproj/aStrings.strings, en.lproj/aStrings.stringsdict".data(using: .utf8)!
+                                    )
+                                ),
+                                SourceFile(
+                                    path: derivedSourcesPath
+                                        .appending(component: "TuistPlists+TargetA.swift"),
+                                    compilerFlags: nil,
+                                    contentHash: try contentHasher.hash("TargetA/Environment.plist".data(using: .utf8)!)
+                                ),
+                                SourceFile(
+                                    path: derivedSourcesPath
+                                        .appending(component: "TuistFonts+TargetA.swift"),
+                                    compilerFlags: nil,
+                                    contentHash: try contentHasher
+                                        .hash("TargetA/otfFont.otf, TargetA/ttcFont.ttc, TargetA/ttfFont.ttf".data(using: .utf8)!)
+                                ),
+                                SourceFile(
+                                    path: derivedSourcesPath
+                                        .appending(component: "TuistLottie+TargetA.swift"),
+                                    compilerFlags: nil,
+                                    contentHash: try contentHasher.hash("TargetA/LottieAnimation.lottie".data(using: .utf8)!)
+                                ),
+                                SourceFile(
+                                    path: derivedSourcesPath
+                                        .appending(component: "TuistCoreData+TargetA.swift"),
+                                    compilerFlags: nil,
+                                    contentHash: try contentHasher.hash("TargetA/CoreDataModel.xcdatamodeld".data(using: .utf8)!)
+                                ),
+                            ],
+                            resources: targetA.resources,
+                            coreDataModels: targetA.coreDataModels
+                        ),
+                    ],
+                    resourceSynthesizers: resourceSynthesizers
+                )
+            )
+            XCTAssertEqual(
+                templateStrings,
+                [
+                    SynthesizedResourceInterfaceTemplates.assetsTemplate,
+                    "strings template",
+                    SynthesizedResourceInterfaceTemplates.plistsTemplate,
+                    SynthesizedResourceInterfaceTemplates.fontsTemplate,
+                    "lottie template",
+                    "core data template",
+                ]
+            )
+            [
+                ResourceSynthesizer.Parser.assets,
+                ResourceSynthesizer.Parser.strings,
+                ResourceSynthesizer.Parser.plists,
+                ResourceSynthesizer.Parser.fonts,
+                ResourceSynthesizer.Parser.json,
+                ResourceSynthesizer.Parser.coreData,
+            ].forEach { parser in
+                XCTAssertEqual(
+                    parserOptionsStrings[parser],
+                    "boolValue: true, doubleValue: 1.0, intValue: 999, stringValue: test"
+                )
+            }
+            XCTAssertPrinterContains(
+                "Skipping synthesizing accessors for \(emptyPlist.pathString) because its contents are empty.",
+                at: .warning,
+                ==
             )
         }
-        XCTAssertPrinterContains(
-            "Skipping synthesizing accessors for \(emptyPlist.pathString) because its contents are empty.",
-            at: .warning,
-            ==
-        )
     }
 
     func testMap_whenDisableSynthesizedResourceAccessors() throws {
@@ -425,7 +429,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
             .init(
                 parser: .fonts,
                 parserOptions: [:],
-                extensions: ["otf", "ttc", "ttf"],
+                extensions: ["otf", "ttc", "ttf", "woff"],
                 template: .defaultTemplate("Fonts")
             ),
             .init(
@@ -568,7 +572,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
             .init(
                 parser: .fonts,
                 parserOptions: [:],
-                extensions: ["otf", "ttc", "ttf"],
+                extensions: ["otf", "ttc", "ttf", "woff"],
                 template: .defaultTemplate("Fonts")
             ),
         ]

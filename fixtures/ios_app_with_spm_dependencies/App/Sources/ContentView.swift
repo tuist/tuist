@@ -1,6 +1,6 @@
 import Buy
 import JWTKit
-import KSCrash_Installations
+import KSCrashInstallations
 import Pay
 import SwiftUI
 
@@ -10,7 +10,7 @@ struct ContentView: View {
         _ = Card.CreditCard(firstName: "", lastName: "", number: "", expiryMonth: "", expiryYear: "")
         _ = PayAddress()
         // Use KSCrash
-        _ = KSCrashInstallationStandard()
+        _ = CrashInstallationStandard()
         // Use JWTKit
         _ = JWTKit.ES256PrivateKey()
     }

@@ -7,8 +7,8 @@ import XCTest
 @testable import TuistGenerator
 @testable import TuistSupportTesting
 
-class SchemeLinterTests: TuistTestCase {
-    var subject: SchemeLinter!
+final class SchemeLinterTests: TuistUnitTestCase {
+    private var subject: SchemeLinter!
 
     override func setUp() {
         super.setUp()
@@ -20,7 +20,7 @@ class SchemeLinterTests: TuistTestCase {
         super.tearDown()
     }
 
-    func test_lint_missingConfigurations() {
+    func test_lint_missingConfigurations() async throws {
         // Given
         let settings = Settings(configurations: [
             .release("Beta"): .test(),
@@ -33,7 +33,7 @@ class SchemeLinterTests: TuistTestCase {
         let project = Project.test(settings: settings, schemes: [scheme])
 
         // When
-        let got = subject.lint(project: project)
+        let got = try await subject.lint(project: project)
 
         // Then
         XCTAssertEqual(got.first?.severity, .error)
@@ -48,7 +48,7 @@ class SchemeLinterTests: TuistTestCase {
         )
     }
 
-    func test_lint_referenceLocalTarget() {
+    func test_lint_referenceLocalTarget() async throws {
         // Given
         let project = Project.test(schemes: [
             .init(
@@ -59,13 +59,13 @@ class SchemeLinterTests: TuistTestCase {
         ])
 
         // When
-        let got = subject.lint(project: project)
+        let got = try await subject.lint(project: project)
 
         // Then
         XCTAssertTrue(got.isEmpty)
     }
 
-    func test_lint_referenceRemoteTargetBuildAction() {
+    func test_lint_referenceRemoteTargetBuildAction() async throws {
         // Given
         let project = Project.test(schemes: [
             .init(
@@ -79,7 +79,7 @@ class SchemeLinterTests: TuistTestCase {
         ])
 
         // When
-        let got = subject.lint(project: project)
+        let got = try await subject.lint(project: project)
 
         // Then
         XCTAssertEqual(got.first?.severity, .error)
@@ -89,7 +89,7 @@ class SchemeLinterTests: TuistTestCase {
         )
     }
 
-    func test_lint_referenceRemoteTargetTestAction() {
+    func test_lint_referenceRemoteTargetTestAction() async throws {
         // Given
         let settings = Settings(configurations: [
             .release("Beta"): .test(),
@@ -121,7 +121,7 @@ class SchemeLinterTests: TuistTestCase {
         )
 
         // When
-        let got = subject.lint(project: project)
+        let got = try await subject.lint(project: project)
 
         // Then
         XCTAssertEqual(got.first?.severity, .error)
@@ -131,7 +131,7 @@ class SchemeLinterTests: TuistTestCase {
         )
     }
 
-    func test_lint_referenceRemoteTargetExecutionAction() {
+    func test_lint_referenceRemoteTargetExecutionAction() async throws {
         // Given
         let project = Project.test(schemes: [
             .init(
@@ -150,7 +150,7 @@ class SchemeLinterTests: TuistTestCase {
         ])
 
         // When
-        let got = subject.lint(project: project)
+        let got = try await subject.lint(project: project)
 
         // Then
         XCTAssertEqual(got.first?.severity, .error)
@@ -160,7 +160,7 @@ class SchemeLinterTests: TuistTestCase {
         )
     }
 
-    func test_lint_missingStoreKitConfiguration() {
+    func test_lint_missingStoreKitConfiguration() async throws {
         // Given
         let project = Project.test(
             settings: Settings(configurations: [
@@ -178,7 +178,7 @@ class SchemeLinterTests: TuistTestCase {
         )
 
         // When
-        let got = subject.lint(project: project)
+        let got = try await subject.lint(project: project)
 
         // Then
         XCTAssertEqual(got.first?.severity, .error)
@@ -188,8 +188,9 @@ class SchemeLinterTests: TuistTestCase {
         )
     }
 
-    func test_lint_existingStoreKitConfiguration() {
+    func test_lint_existingStoreKitConfiguration() async throws {
         // Given
+        let storeKitConfigurationPath = try temporaryPath().appending(component: "configuration.storekit")
         let project = Project.test(
             settings: Settings(configurations: [
                 BuildConfiguration.debug: Configuration(settings: .init(), xcconfig: nil),
@@ -199,18 +200,16 @@ class SchemeLinterTests: TuistTestCase {
                     name: "Scheme",
                     shared: true,
                     runAction: .test(
-                        options: .init(storeKitConfigurationPath: "/non/existing/path/configuration.storekit")
+                        options: .init(storeKitConfigurationPath: storeKitConfigurationPath)
                     )
                 ),
             ]
         )
 
-        fileHandler.stubExists = { path in
-            path.pathString == "/non/existing/path/configuration.storekit"
-        }
+        try await fileSystem.touch(storeKitConfigurationPath)
 
         // When
-        let got = subject.lint(project: project)
+        let got = try await subject.lint(project: project)
 
         // Then
         XCTAssertEmpty(got)

@@ -5,8 +5,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/google/abseil-cpp-binary.git",
       "state" : {
-        "revision" : "7ce7be095bc3ed3c98b009532fe2d7698c132614",
-        "version" : "1.2024011601.0"
+        "revision" : "194a6706acbd25e4ef639bcaddea16e8758a3e27",
+        "version" : "1.2024011602.0"
       }
     },
     {
@@ -14,8 +14,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/google/app-check.git",
       "state" : {
-        "revision" : "3e464dad87dad2d29bb29a97836789bf0f8f67d2",
-        "version" : "10.18.1"
+        "revision" : "21fe1af9be463a359aaf8d96789ef73fc3760d09",
+        "version" : "11.0.1"
       }
     },
     {
@@ -23,8 +23,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/firebase/firebase-ios-sdk",
       "state" : {
-        "revision" : "888f0b6026e2441a69e3ee2ad5293c7a92031e62",
-        "version" : "10.23.1"
+        "revision" : "1fc52ab0e172e7c5a961f975a76c2611f4f22852",
+        "version" : "11.2.0"
       }
     },
     {
@@ -32,8 +32,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/google/GoogleAppMeasurement.git",
       "state" : {
-        "revision" : "c7a5917ebe48d69f421aadf154ef3969c8b7f12d",
-        "version" : "10.23.1"
+        "revision" : "07a2f57d147d2bf368a0d2dcb5579ff082d9e44f",
+        "version" : "11.1.0"
       }
     },
     {
@@ -41,8 +41,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/google/GoogleDataTransport.git",
       "state" : {
-        "revision" : "a637d318ae7ae246b02d7305121275bc75ed5565",
-        "version" : "9.4.0"
+        "revision" : "617af071af9aa1d6a091d59a202910ac482128f9",
+        "version" : "10.1.0"
       }
     },
     {
@@ -50,8 +50,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/google/GoogleUtilities.git",
       "state" : {
-        "revision" : "26c898aed8bed13b8a63057ee26500abbbcb8d55",
-        "version" : "7.13.1"
+        "revision" : "53156c7ec267db846e6b64c9f4c4e31ba4cf75eb",
+        "version" : "8.0.2"
       }
     },
     {
@@ -59,8 +59,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/google/grpc-binary.git",
       "state" : {
-        "revision" : "67043f6389d0e28b38fa02d1c6952afeb04d807f",
-        "version" : "1.62.1"
+        "revision" : "f56d8fc3162de9a498377c7b6cea43431f4f5083",
+        "version" : "1.65.1"
       }
     },
     {
@@ -68,8 +68,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/google/gtm-session-fetcher.git",
       "state" : {
-        "revision" : "76135c9f4e1ac85459d5fec61b6f76ac47ab3a4c",
-        "version" : "3.3.1"
+        "revision" : "a2ab612cb980066ee56d90d60d8462992c07f24b",
+        "version" : "3.5.0"
       }
     },
     {

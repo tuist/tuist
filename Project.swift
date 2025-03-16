@@ -13,6 +13,28 @@ func releaseSettings() -> SettingsDictionary {
     baseSettings
 }
 
+func launchArgumentsFor(_ module: Module) -> [LaunchArgument] {
+    switch module {
+    case .tuist:
+        return [
+            .launchArgument(name: "install", isEnabled: false),
+            .launchArgument(name: "generate", isEnabled: false),
+            .launchArgument(name: "--no-open", isEnabled: false),
+        ]
+    default:
+        return []
+    }
+}
+
+func acceptanceTestsEnvironmentVariables() -> [String: EnvironmentVariable] {
+    [
+        "TUIST_CONFIG_SRCROOT": "$(SRCROOT)",
+        "TUIST_FRAMEWORK_SEARCH_PATHS": "$(FRAMEWORK_SEARCH_PATHS)",
+        "TUIST_AUTH_EMAIL": "tuistrocks@tuist.io",
+        "TUIST_AUTH_PASSWORD": "tuistrocks",
+    ]
+}
+
 func schemes() -> [Scheme] {
     var schemes: [Scheme] = [
         .scheme(
@@ -23,10 +45,7 @@ func schemes() -> [Scheme] {
             ),
             runAction: .runAction(
                 arguments: .arguments(
-                    environmentVariables: [
-                        "TUIST_CONFIG_SRCROOT": "$(SRCROOT)",
-                        "TUIST_FRAMEWORK_SEARCH_PATHS": "$(FRAMEWORK_SEARCH_PATHS)",
-                    ]
+                    environmentVariables: acceptanceTestsEnvironmentVariables()
                 )
             )
         ),
@@ -41,10 +60,7 @@ func schemes() -> [Scheme] {
             ),
             runAction: .runAction(
                 arguments: .arguments(
-                    environmentVariables: [
-                        "TUIST_CONFIG_SRCROOT": "$(SRCROOT)",
-                        "TUIST_FRAMEWORK_SEARCH_PATHS": "$(FRAMEWORK_SEARCH_PATHS)",
-                    ]
+                    environmentVariables: acceptanceTestsEnvironmentVariables()
                 )
             )
         ),
@@ -66,6 +82,13 @@ func schemes() -> [Scheme] {
                 )
             )
         ),
+        .scheme(
+            name: "ProjectDescription",
+            buildAction: .buildAction(
+                targets: [.target(Module.projectDescription.targetName)]
+            ),
+            testAction: .targets([])
+        ),
     ]
     schemes.append(contentsOf: Module.allCases.filter(\.isRunnable).map {
         .scheme(
@@ -77,7 +100,8 @@ func schemes() -> [Scheme] {
                     environmentVariables: [
                         "TUIST_CONFIG_SRCROOT": "$(SRCROOT)",
                         "TUIST_FRAMEWORK_SEARCH_PATHS": "$(FRAMEWORK_SEARCH_PATHS)",
-                    ]
+                    ],
+                    launchArguments: launchArgumentsFor($0)
                 )
             )
         )
@@ -91,10 +115,7 @@ func schemes() -> [Scheme] {
             testAction: .targets([.testableTarget(target: .target($0))]),
             runAction: .runAction(
                 arguments: .arguments(
-                    environmentVariables: [
-                        "TUIST_CONFIG_SRCROOT": "$(SRCROOT)",
-                        "TUIST_FRAMEWORK_SEARCH_PATHS": "$(FRAMEWORK_SEARCH_PATHS)",
-                    ]
+                    environmentVariables: acceptanceTestsEnvironmentVariables()
                 )
             )
         )

@@ -1,5 +1,5 @@
 import Foundation
-import Path
+import ServiceContextModule
 import TuistCore
 import TuistSupport
 import XcodeGraph
@@ -8,14 +8,18 @@ import XcodeGraph
 public struct ExplicitDependencyGraphMapper: GraphMapping {
     public init() {}
 
-    public func map(graph: Graph) async throws -> (Graph, [SideEffectDescriptor]) {
+    public func map(
+        graph: Graph,
+        environment: MapperEnvironment
+    ) async throws -> (Graph, [SideEffectDescriptor], MapperEnvironment) {
         if !graph.packages.isEmpty {
             return (
                 graph,
-                []
+                [],
+                environment
             )
         }
-        logger.debug("Transforming graph \(graph.name): Enforcing explicit dependencies")
+        ServiceContext.current?.logger?.debug("Transforming graph \(graph.name): Enforcing explicit dependencies")
 
         let graphTraverser = GraphTraverser(graph: graph)
 
@@ -41,7 +45,7 @@ public struct ExplicitDependencyGraphMapper: GraphMapping {
 
             return (projectPath, project)
         })
-        return (graph, [])
+        return (graph, [], environment)
     }
 
     // swiftlint:disable:next function_body_length
@@ -67,7 +71,7 @@ public struct ExplicitDependencyGraphMapper: GraphMapping {
             "BUILT_PRODUCTS_DIR": "$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/$(PRODUCT_NAME)",
         ]
 
-        if graphTarget.project.isExternal {
+        if case .external = graphTarget.project.type {
             additionalSettings["FRAMEWORK_SEARCH_PATHS"] = .array(["$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)"])
         } else if !frameworkSearchPaths.isEmpty {
             additionalSettings["FRAMEWORK_SEARCH_PATHS"] = .array(frameworkSearchPaths)

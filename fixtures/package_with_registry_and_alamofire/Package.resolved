@@ -1,0 +1,14 @@
+{
+  "originHash" : "e5edee094fed41c880819653b5517597200a2c4cff2e656d5b040a53d2fb65c1",
+  "pins" : [
+    {
+      "identity" : "Alamofire.Alamofire",
+      "kind" : "registry",
+      "location" : "",
+      "state" : {
+        "version" : "5.10.2"
+      }
+    }
+  ],
+  "version" : 3
+}

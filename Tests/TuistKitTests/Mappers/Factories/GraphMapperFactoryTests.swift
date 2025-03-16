@@ -1,9 +1,6 @@
 import Foundation
-import Path
-import TuistAutomation
 import TuistCoreTesting
 import TuistLoader
-import XcodeGraph
 import XCTest
 @testable import TuistCore
 @testable import TuistGenerator
@@ -34,11 +31,7 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
     func test_default_contains_the_explicit_dependency_graph_mapper_when_explcit_dependencies_are_enforced() {
         // When
         let got = subject.default(
-            config: .test(
-                generationOptions: .test(
-                    enforceExplicitDependencies: true
-                )
-            )
+            config: .test(project: .generated(.test(generationOptions: .test(enforceExplicitDependencies: true))))
         )
 
         // Then

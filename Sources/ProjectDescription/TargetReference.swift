@@ -1,5 +1,3 @@
-import Foundation
-
 /// A target reference for a specified project.
 ///
 /// The project is specified through the path and should contain the target name.

@@ -56,13 +56,16 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
             )
         )
 
-        let project = Project.test(path: projectPath, schemes: [scheme1, scheme2])
+        let project = Project.test(
+            path: projectPath,
+            targets: [
+                target1,
+                target2,
+            ],
+            schemes: [scheme1, scheme2]
+        )
         let graph = Graph.test(
-            projects: [projectPath: project],
-            targets: [projectPath: [
-                target1.name: target1,
-                target2.name: target2,
-            ]]
+            projects: [projectPath: project]
         )
         let graphTraverser = GraphTraverser(graph: graph)
 
@@ -136,10 +139,14 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         let projectPath = path.appending(component: "Project.xcodeproj")
         let scheme = Scheme.test(buildAction: .test(targets: [.init(projectPath: projectPath, name: "Core")]))
         let target = Target.test(name: "Core")
-        let project = Project.test(path: projectPath)
+        let project = Project.test(
+            path: projectPath,
+            targets: [
+                target,
+            ]
+        )
         let graph = Graph.test(
-            projects: [projectPath: project],
-            targets: [projectPath: [target.name: target]]
+            projects: [projectPath: project]
         )
         let graphTraverser = GraphTraverser(graph: graph)
 
@@ -186,10 +193,12 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
                 targets: [TestableTarget(target: targetReference)]
             )
         )
-        let project = Project.test(path: projectPath)
+        let project = Project.test(
+            path: projectPath,
+            targets: [target]
+        )
         let graph = Graph.test(
-            projects: [projectPath: project],
-            targets: [projectPath: [target.name: target]]
+            projects: [projectPath: project]
         )
         let graphTraverser = GraphTraverser(graph: graph)
 
@@ -229,13 +238,15 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
                 testPlans: [testPlan]
             )
         )
-        let project = Project.test(path: projectPath)
+        let project = Project.test(
+            path: projectPath,
+            targets: [
+                target1,
+                target2,
+            ]
+        )
         let graph = Graph.test(
-            projects: [projectPath: project],
-            targets: [projectPath: [
-                target1.name: target1,
-                target2.name: target2,
-            ]]
+            projects: [projectPath: project]
         )
         let graphTraverser = GraphTraverser(graph: graph)
 
@@ -275,13 +286,15 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
                 testPlans: [testPlan]
             )
         )
-        let project = Project.test(path: projectPath)
+        let project = Project.test(
+            path: projectPath,
+            targets: [
+                target1,
+                target2,
+            ]
+        )
         let graph = Graph.test(
-            projects: [projectPath: project],
-            targets: [projectPath: [
-                target1.name: target1,
-                target2.name: target2,
-            ]]
+            projects: [projectPath: project]
         )
         let graphTraverser = GraphTraverser(graph: graph)
 
@@ -321,13 +334,15 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
                 testPlans: [testPlan]
             )
         )
-        let project = Project.test(path: projectPath)
+        let project = Project.test(
+            path: projectPath,
+            targets: [
+                target1,
+                target2,
+            ]
+        )
         let graph = Graph.test(
-            projects: [projectPath: project],
-            targets: [projectPath: [
-                target1.name: target1,
-                target2.name: target2,
-            ]]
+            projects: [projectPath: project]
         )
         let graphTraverser = GraphTraverser(graph: graph)
 
@@ -367,13 +382,15 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
                 testPlans: [testPlan]
             )
         )
-        let project = Project.test(path: projectPath)
+        let project = Project.test(
+            path: projectPath,
+            targets: [
+                target1,
+                target2,
+            ]
+        )
         let graph = Graph.test(
-            projects: [projectPath: project],
-            targets: [projectPath: [
-                target1.name: target1,
-                target2.name: target2,
-            ]]
+            projects: [projectPath: project]
         )
         let graphTraverser = GraphTraverser(graph: graph)
 
@@ -465,55 +482,37 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
             )
         )
         let coreTarget = Target.test(name: "Core")
-        let coreProject = Project.test(
-            path: coreProjectPath,
-            schemes: [coreScheme, coreTestsScheme]
-        )
-        let coreGraphTarget = GraphTarget.test(
-            target: coreTarget,
-            project: coreProject
-        )
         let coreTestsTarget = Target.test(
             name: "CoreTests",
             product: .unitTests,
             dependencies: [.target(name: "Core")]
         )
-        let coreTestsGraphTarget = GraphTarget.test(
-            target: coreTestsTarget,
-            project: coreProject
+        let coreProject = Project.test(
+            path: coreProjectPath,
+            targets: [
+                coreTarget,
+                coreTestsTarget,
+            ],
+            schemes: [coreScheme, coreTestsScheme]
         )
         let kitTarget = Target.test(name: "Kit", dependencies: [.target(name: "Core")])
-        let kitProject = Project.test(
-            path: projectPath,
-            schemes: [kitScheme, kitTestsScheme]
-        )
-        let kitGraphTarget = GraphTarget.test(
-            target: kitTarget,
-            project: kitProject
-        )
         let kitTestsTarget = Target.test(
             name: "KitTests",
             product: .unitTests,
             dependencies: [.target(name: "Kit")]
         )
-        let kitTestsGraphTarget = GraphTarget.test(
-            target: kitTestsTarget,
-            project: kitProject
+        let kitProject = Project.test(
+            path: projectPath,
+            targets: [
+                kitTarget,
+                kitTestsTarget,
+            ],
+            schemes: [kitScheme, kitTestsScheme]
         )
         let graph = Graph.test(
             projects: [
                 kitProject.path: kitProject,
                 coreProject.path: coreProject,
-            ],
-            targets: [
-                projectPath: [
-                    kitGraphTarget.target.name: kitGraphTarget.target,
-                    kitTestsGraphTarget.target.name: kitTestsGraphTarget.target,
-                ],
-                coreProjectPath: [
-                    coreGraphTarget.target.name: coreGraphTarget.target,
-                    coreTestsGraphTarget.target.name: coreTestsGraphTarget.target,
-                ],
             ]
         )
         let graphTraverser = GraphTraverser(graph: graph)
@@ -571,20 +570,14 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         )
         let coreProject = Project.test(
             path: coreProjectPath,
+            targets: [
+                coreTarget,
+            ],
             schemes: [coreScheme, coreTestsScheme, coreTestPlanScheme, coreTestPlanTestsScheme]
-        )
-        let coreGraphTarget = GraphTarget.test(
-            target: coreTarget,
-            project: coreProject
         )
         let graph = Graph.test(
             projects: [
                 coreProject.path: coreProject,
-            ],
-            targets: [
-                coreProject.path: [
-                    coreGraphTarget.target.name: coreGraphTarget.target,
-                ],
             ]
         )
         let graphTraverser = GraphTraverser(graph: graph)
@@ -610,21 +603,28 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
 
         let projectAPath = path.appending(component: "ProjectA.xcodeproj")
         let schemeA = Scheme.test(buildAction: .test(targets: [.init(projectPath: projectAPath, name: "A")]))
-        let projectA = Project.test(path: projectAPath, schemes: [schemeA])
         let targetA = Target.test(name: "A")
+        let projectA = Project.test(
+            path: projectAPath,
+            targets: [targetA],
+            schemes: [schemeA]
+        )
 
         let projectBPath = path.appending(component: "ProjectB.xcodeproj")
         let schemeB = Scheme.test(buildAction: .test(targets: [.init(projectPath: projectBPath, name: "B")]))
-        let projectB = Project.test(path: projectBPath, schemes: [schemeB])
         let targetB = Target.test(name: "B")
+        let projectB = Project.test(
+            path: projectBPath,
+            targets: [targetB],
+            schemes: [schemeB]
+        )
 
         let graph = Graph.test(
             workspace: Workspace.test(projects: [projectA.path]),
             projects: [
                 projectA.path: projectA,
                 projectB.path: projectB,
-            ],
-            targets: [projectAPath: [targetA.name: targetA], projectBPath: [targetB.name: targetB]]
+            ]
         )
         let graphTraverser = GraphTraverser(graph: graph)
 
@@ -635,7 +635,7 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         XCTAssertEqual(got, [schemeA])
     }
 
-    func test_workspacePath() throws {
+    func test_workspacePath() async throws {
         // Given
         let path = try temporaryPath()
         let workspacePath = path.appending(component: "App.xcworkspace")
@@ -643,26 +643,26 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         try FileHandler.shared.touch(workspacePath.appending(component: Constants.tuistGeneratedFileName))
 
         // When
-        let got = try subject.workspacePath(directory: path)
+        let got = try await subject.workspacePath(directory: path)
 
         // Then
         XCTAssertEqual(got, workspacePath)
     }
 
-    func test_workspacePath_when_no_tuist_workspace_is_present() throws {
+    func test_workspacePath_when_no_tuist_workspace_is_present() async throws {
         // Given
         let path = try temporaryPath()
         let workspacePath = path.appending(component: "App.xcworkspace")
         try FileHandler.shared.createFolder(workspacePath)
 
         // When
-        let got = try subject.workspacePath(directory: path)
+        let got = try await subject.workspacePath(directory: path)
 
         // Then
         XCTAssertNil(got)
     }
 
-    func test_workspacePath_when_multiple_workspaces_are_present() throws {
+    func test_workspacePath_when_multiple_workspaces_are_present() async throws {
         // Given
         let path = try temporaryPath()
         let nonTuistWorkspacePath = path.appending(components: "SPM.xcworkspace")
@@ -672,7 +672,7 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         try FileHandler.shared.touch(workspacePath.appending(component: Constants.tuistGeneratedFileName))
 
         // When
-        let got = try subject.workspacePath(directory: path)
+        let got = try await subject.workspacePath(directory: path)
 
         // Then
         XCTAssertEqual(got, workspacePath)

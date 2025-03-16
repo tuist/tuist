@@ -10,7 +10,7 @@ public protocol MultipartUploadStartCacheServicing {
         projectId: String,
         hash: String,
         name: String,
-        cacheCategory: CacheCategory.App
+        cacheCategory: RemoteCacheCategory
     ) async throws -> String
 }
 
@@ -19,12 +19,13 @@ public enum MultipartUploadStartCacheServiceError: FatalError, Equatable {
     case notFound(String)
     case paymentRequired(String)
     case forbidden(String)
+    case unauthorized(String)
 
     public var type: ErrorType {
         switch self {
         case .unknownError:
             return .bug
-        case .notFound, .paymentRequired, .forbidden:
+        case .notFound, .paymentRequired, .forbidden, .unauthorized:
             return .abort
         }
     }
@@ -32,8 +33,8 @@ public enum MultipartUploadStartCacheServiceError: FatalError, Equatable {
     public var description: String {
         switch self {
         case let .unknownError(statusCode):
-            return "The remote cache artifact could not be uploaded due to an unknown Tuist Cloud response of \(statusCode)."
-        case let .notFound(message), let .paymentRequired(message), let .forbidden(message):
+            return "The remote cache artifact could not be uploaded due to an unknown Tuist response of \(statusCode)."
+        case let .notFound(message), let .paymentRequired(message), let .forbidden(message), let .unauthorized(message):
             return message
         }
     }
@@ -47,9 +48,9 @@ public final class MultipartUploadStartCacheService: MultipartUploadStartCacheSe
         projectId: String,
         hash: String,
         name: String,
-        cacheCategory: CacheCategory.App
+        cacheCategory: RemoteCacheCategory
     ) async throws -> String {
-        let client = Client.cloud(serverURL: serverURL)
+        let client = Client.authenticated(serverURL: serverURL)
         let response = try await client.startCacheArtifactMultipartUpload(.init(query: .init(
             cache_category: .init(cacheCategory),
             project_id: projectId,
@@ -62,7 +63,7 @@ public final class MultipartUploadStartCacheService: MultipartUploadStartCacheSe
             case let .json(cacheArtifact):
                 return cacheArtifact.data.upload_id
             }
-        case let .paymentRequired(paymentRequiredResponse):
+        case let .code402(paymentRequiredResponse):
             switch paymentRequiredResponse.body {
             case let .json(error):
                 throw MultipartUploadStartCacheServiceError.paymentRequired(error.message)
@@ -78,6 +79,11 @@ public final class MultipartUploadStartCacheService: MultipartUploadStartCacheSe
             switch notFoundResponse.body {
             case let .json(error):
                 throw MultipartUploadStartCacheServiceError.notFound(error.message)
+            }
+        case let .unauthorized(unauthorized):
+            switch unauthorized.body {
+            case let .json(error):
+                throw DeleteOrganizationServiceError.unauthorized(error.message)
             }
         }
     }

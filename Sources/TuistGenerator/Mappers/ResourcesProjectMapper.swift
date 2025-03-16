@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import ServiceContextModule
 import TuistCore
 import TuistSupport
 import XcodeGraph
@@ -15,7 +16,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         guard !project.options.disableBundleAccessors else {
             return (project, [])
         }
-        logger.debug("Transforming project \(project.name): Generating bundles for libraries'")
+        ServiceContext.current?.logger?.debug("Transforming project \(project.name): Generating bundles for libraries'")
 
         var sideEffects: [SideEffectDescriptor] = []
         var targets: [String: Target] = [:]
@@ -55,6 +56,8 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
                 settings: Settings(
                     base: [
                         "CODE_SIGNING_ALLOWED": "NO",
+                        "SKIP_INSTALL": "YES",
+                        "GENERATE_MASTER_OBJECT_FILE": "NO",
                     ],
                     configurations: [:]
                 ),
@@ -65,7 +68,11 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
             )
             modifiedTarget.resources.resources = []
             modifiedTarget.copyFiles = []
-            modifiedTarget.dependencies.append(.target(name: bundleName, condition: .when(target.dependencyPlatformFilters)))
+            modifiedTarget.dependencies.append(.target(
+                name: bundleName,
+                status: .required,
+                condition: .when(target.dependencyPlatformFilters)
+            ))
             additionalTargets.append(resourcesTarget)
         }
 
@@ -81,10 +88,11 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
             sideEffects.append(sideEffect)
         }
 
-        if project.isExternal,
+        if case .external = project.type,
            target.supportsSources,
            target.sources.containsObjcFiles,
-           target.resources.containsBundleAccessedResources
+           target.resources.containsBundleAccessedResources,
+           !target.supportsResources
         {
             let (headerFilePath, headerData) = synthesizedObjcHeaderFile(bundleName: bundleName, target: target, project: project)
 
@@ -166,28 +174,35 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
 
     // swiftlint:disable:next function_body_length
     static func fileContent(targetName _: String, bundleName: String, target: Target, in project: Project) -> String {
-        var content = """
+        let bundleAccessor = if target.supportsResources {
+            swiftFrameworkBundleAccessorString(for: target)
+        } else {
+            swiftSPMBundleAccessorString(for: target, and: bundleName)
+        }
+
+        // Add public accessors only for non external projects
+        let publicBundleAccessor = switch project.type {
+        case .external:
+            ""
+        case .local:
+            if target.sourcesContainsPublicResourceClassName {
+                ""
+            } else {
+                publicBundleAccessorString(for: target)
+            }
+        }
+
+        return """
+        // swiftlint:disable:this file_name
         // swiftlint:disable all
         // swift-format-ignore-file
         // swiftformat:disable all
         import Foundation
-        """
-        if !target.supportsResources {
-            content += swiftSPMBundleAccessorString(for: target, and: bundleName)
-        } else {
-            content += swiftFrameworkBundleAccessorString(for: target)
-        }
-
-        // Add public accessors only for non external projects
-        if !project.isExternal, !target.sourcesContainsPublicResourceClassName {
-            content += publicBundleAccessorString(for: target)
-        }
-
-        content += """
-        // swiftlint:enable all
+        \(bundleAccessor)
+        \(publicBundleAccessor)
         // swiftformat:enable all
+        // swiftlint:enable all
         """
-        return content
     }
 
     static func objcHeaderFileContent(
@@ -218,12 +233,50 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         #import <Foundation/Foundation.h>
         #import "TuistBundle+\(targetName).h"
 
+        @interface \(targetName)BundleFinder : NSObject
+        @end
+
+        @implementation \(targetName)BundleFinder
+        @end
+
         NSBundle* \(targetName)_SWIFTPM_MODULE_BUNDLE(void) {
-            NSURL *bundleURL = [[[NSBundle mainBundle] bundleURL] URLByAppendingPathComponent:@"\(bundleName).bundle"];
+            NSString *bundleName = @"\(bundleName)";
 
-            NSBundle *bundle = [NSBundle bundleWithURL:bundleURL];
+            NSURL *bundleURL = [[NSBundle bundleForClass:\(targetName)BundleFinder.self] resourceURL];
+            NSMutableArray *candidates = [NSMutableArray arrayWithObjects:
+                                          [[NSBundle mainBundle] resourceURL],
+                                          bundleURL,
+                                          [[NSBundle mainBundle] bundleURL],
+                                          nil];
 
-            return bundle;
+            NSString* override = [[[NSProcessInfo processInfo] environment] objectForKey:@"PACKAGE_RESOURCE_BUNDLE_PATH"];
+            if (override) {
+                [candidates addObject:override];
+
+                NSString *subpaths = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:override error:nil];
+                if (subpaths) {
+                    for (NSString *subpath in subpaths) {
+                        if ([subpath hasSuffix:@".framework"]) {
+                            [candidates addObject:[NSURL fileURLWithPath:[NSString stringWithFormat:@"%@/%@", override, subpath]]];
+                        }
+                    }
+                }
+            }
+
+            #if __has_include(<XCTest/XCTest.h>)
+            [candidates addObject:[bundleURL URLByAppendingPathComponent:@".."]];
+            #endif
+
+            for (NSURL *candidate in candidates) {
+                NSURL *bundlePath = [candidate URLByAppendingPathComponent:[NSString stringWithFormat:@"%@%@", bundleName, @".bundle"]];
+                NSBundle *bundle = [NSBundle bundleWithURL:bundlePath];
+
+                if (bundle) {
+                    return bundle;
+                }
+            }
+
+            [NSException raise:@"BundleNotFound" format:nil];
         }
         """
     }
@@ -251,9 +304,10 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         ), the bundle containing the resources is copied into the final product.
         static let module: Bundle = {
             let bundleName = "\(bundleName)"
+            let bundleFinderResourceURL = Bundle(for: BundleFinder.self).resourceURL
             var candidates = [
                 Bundle.main.resourceURL,
-                Bundle(for: BundleFinder.self).resourceURL,
+                bundleFinderResourceURL,
                 Bundle.main.bundleURL,
             ]
             // This is a fix to make Previews work with bundled resources.
@@ -264,7 +318,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
                 // Deleting derived data and not rebuilding the frameworks containing resources may result in a state
                 // where the bundles are only available in the framework's directory that is actively being previewed.
                 // Since we don't know which framework this is, we also need to look in all the framework subpaths.
-                if let subpaths = try? FileManager.default.contentsOfDirectory(atPath: override) {
+                if let subpaths = try? Foundation.FileManager.default.contentsOfDirectory(atPath: override) {
                     for subpath in subpaths {
                         if subpath.hasSuffix(".framework") {
                             candidates.append(URL(fileURLWithPath: override + "/" + subpath))
@@ -272,6 +326,14 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
                     }
                 }
             }
+
+            // This is a fix to make unit tests work with bundled resources.
+            // Making this change allows unit tests to search one directory up for a bundle.
+            // More context can be found in this PR: https://github.com/tuist/tuist/pull/6895
+            #if canImport(XCTest)
+            candidates.append(bundleFinderResourceURL?.appendingPathComponent(".."))
+            #endif
+
             for candidate in candidates {
                 let bundlePath = candidate?.appendingPathComponent(bundleName + ".bundle")
                 if let bundle = bundlePath.flatMap(Bundle.init(url:)) {

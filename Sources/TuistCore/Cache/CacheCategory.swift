@@ -18,6 +18,12 @@ public enum CacheCategory: String, CaseIterable, RawRepresentable {
     /// The Tuist Runs cache
     case runs
 
+    /// The Tuist Binaries cache
+    case binaries
+
+    /// The Tuist Selective Tests cache
+    case selectiveTests
+
     public var directoryName: String {
         switch self {
         case .plugins:
@@ -32,20 +38,15 @@ public enum CacheCategory: String, CaseIterable, RawRepresentable {
             return "EditProjects"
         case .runs:
             return "Runs"
+        case .binaries:
+            return "Binaries"
+        case .selectiveTests:
+            return "SelectiveTests"
         }
     }
+}
 
-    public enum App: String, CaseIterable {
-        case binaries
-        case selectiveTests
-
-        public var directoryName: String {
-            switch self {
-            case .binaries:
-                return "BinaryCache"
-            case .selectiveTests:
-                return "SelectiveTests"
-            }
-        }
-    }
+public enum RemoteCacheCategory: Codable {
+    case binaries
+    case selectiveTests
 }

@@ -1,5 +1,5 @@
 import Foundation
-import MockableTest
+import Mockable
 import Path
 import TuistCore
 import TuistCoreTesting
@@ -233,10 +233,10 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         ])
     }
 
-    func test_addElement_lproj_multiple_files() throws {
+    func test_addElement_lproj_multiple_files() async throws {
         // Given
         let temporaryPath = try temporaryPath()
-        let resources = try createFiles([
+        let resources = try await createFiles([
             "resources/en.lproj/App.strings",
             "resources/en.lproj/App.stringsdict",
             "resources/en.lproj/Extension.strings",
@@ -281,10 +281,10 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         ])
     }
 
-    func test_addElement_lproj_variant_groups() throws {
+    func test_addElement_lproj_variant_groups() async throws {
         // Given
         let temporaryPath = try temporaryPath()
-        let resources = try createFiles([
+        let resources = try await createFiles([
             "resources/Base.lproj/Controller.xib",
             "resources/Base.lproj/Intents.intentdefinition",
             "resources/Base.lproj/Storyboard.storyboard",
@@ -335,10 +335,10 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         ])
     }
 
-    func test_addElement_lproj_knownRegions() throws {
+    func test_addElement_lproj_knownRegions() async throws {
         // Given
         let temporaryPath = try temporaryPath()
-        let resources = try createFiles([
+        let resources = try await createFiles([
             "resources/en.lproj/App.strings",
             "resources/en.lproj/Extension.strings",
             "resources/fr.lproj/App.strings",
@@ -783,7 +783,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj)
 
         let sdkPath = try temporaryPath().appending(component: "ARKit.framework")
-        let sdkStatus: SDKStatus = .required
+        let sdkStatus: LinkingStatus = .required
         let sdkSource: SDKSource = .developer
         let sdkDependency = GraphDependencyReference.sdk(
             path: sdkPath,
@@ -823,7 +823,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         )
         let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj)
 
-        let frameworkPath = try cacheDirectoriesProvider.cacheDirectory().appending(component: "Test.framework")
+        let frameworkPath = cacheDirectoriesProvider.cacheDirectory().appending(component: "Test.framework")
         let binaryPath = frameworkPath.appending(component: "Test")
 
         let frameworkDependency = GraphDependencyReference.framework(
@@ -870,7 +870,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         )
         let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj)
 
-        let frameworkPath = try cacheDirectoriesProvider.cacheDirectory().appending(component: "Test.framework")
+        let frameworkPath = cacheDirectoriesProvider.cacheDirectory().appending(component: "Test.framework")
         let binaryPath = frameworkPath.appending(component: "Test")
 
         let frameworkDependency = GraphDependencyReference.framework(
@@ -885,7 +885,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         )
 
         let sdkPath = try temporaryPath().appending(component: "ARKit.framework")
-        let sdkStatus: SDKStatus = .required
+        let sdkStatus: LinkingStatus = .required
         let sdkSource: SDKSource = .developer
         let sdkDependency = GraphDependencyReference.sdk(
             path: sdkPath,
@@ -1030,6 +1030,54 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
             GroupFileElement(path: "/gpx/C", group: filesGroup),
             GroupFileElement(path: "/gpx/D", group: filesGroup),
         ])
+    }
+
+    func test_generateDependencies_localSwiftPackageEmbedded_doNotGenerateElements() throws {
+        // Given
+        let pbxproj = PBXProj()
+        let localPackagePath = try AbsolutePath(validating: "/LocalPackages/LocalPackageA")
+        let target = Target.empty(name: "TargetA")
+        let project = Project.empty(
+            path: "/a/project",
+            targets: [target],
+            packages: [.local(path: localPackagePath)]
+        )
+        let graphTarget: GraphTarget = .test(path: project.path, target: target, project: project)
+        let groups = ProjectGroups.generate(
+            project: .test(
+                path: .root,
+                sourceRootPath: .root,
+                xcodeProjPath: AbsolutePath.root.appending(component: "Project.xcodeproj")
+            ),
+            pbxproj: pbxproj
+        )
+
+        let graph = Graph.test(
+            projects: [project.path: project],
+            packages: [
+                project.path: [
+                    "A": .local(path: localPackagePath),
+                ],
+            ],
+            dependencies: [
+                .target(name: graphTarget.target.name, path: graphTarget.path): [
+                    .packageProduct(path: project.path, product: "A", type: .runtimeEmbedded),
+                ],
+            ]
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        try subject.generateProjectFiles(
+            project: project,
+            graphTraverser: graphTraverser,
+            groups: groups,
+            pbxproj: pbxproj
+        )
+
+        // Then
+        let projectGroup = groups.sortedMain.group(named: "Project")
+        XCTAssertEqual(projectGroup?.flattenedChildren, [])
     }
 }
 

@@ -1,69 +1,50 @@
-import Foundation
+import FileSystem
 import Mockable
 import Path
 import TuistSupport
-import XcodeGraph
 
 @Mockable
 public protocol CacheDirectoriesProviding {
     /// Returns the cache directory for a Tuist cache category
-    func tuistCacheDirectory(for category: CacheCategory) throws -> AbsolutePath
-
-    func tuistCloudCacheDirectory(for category: CacheCategory.App) throws -> AbsolutePath
-    func tuistCloudSelectiveTestsDirectory() throws -> AbsolutePath
-    func tuistCloudBinaryCacheDirectory() throws -> AbsolutePath
-    func tuistCloudCacheDirectory() throws -> AbsolutePath
-
-    func cacheDirectory() throws -> AbsolutePath
+    func cacheDirectory(for category: CacheCategory) throws -> AbsolutePath
+    func cacheDirectory() -> AbsolutePath
 }
 
 public final class CacheDirectoriesProvider: CacheDirectoriesProviding {
     private let fileHandler: FileHandling
+    private let environment: Environmenting
 
-    init(fileHandler: FileHandling) {
+    init(
+        fileHandler: FileHandling,
+        environment: Environmenting
+    ) {
         self.fileHandler = fileHandler
+        self.environment = environment
     }
 
     public convenience init() {
-        self.init(fileHandler: FileHandler.shared)
+        self.init(
+            fileHandler: FileHandler.shared,
+            environment: Environment.shared
+        )
     }
 
-    public func tuistCacheDirectory(for category: CacheCategory) throws -> AbsolutePath {
-        return CacheDirectoriesProvider.tuistCacheDirectory(for: category, cacheDirectory: try cacheDirectory())
+    public func cacheDirectory(for category: CacheCategory) throws -> AbsolutePath {
+        cacheDirectory().appending(component: category.directoryName)
     }
 
-    public static func tuistCacheDirectory(for category: CacheCategory, cacheDirectory: AbsolutePath) -> AbsolutePath {
-        return cacheDirectory.appending(components: ["tuist", category.directoryName])
+    public func cacheDirectory() -> Path.AbsolutePath {
+        environment.cacheDirectory
     }
 
-    public func cacheDirectory() throws -> Path.AbsolutePath {
-        if let xdgCacheHome = ProcessInfo.processInfo.environment["XDG_CACHE_HOME"] {
-            return try AbsolutePath(validating: xdgCacheHome)
-        } else {
-            return FileHandler.shared.homeDirectory.appending(components: ".cache")
+    public static func bootstrap() async throws {
+        let fileSystem = FileSystem()
+        let provider = CacheDirectoriesProvider()
+        for category in CacheCategory.allCases {
+            let directory = try provider.cacheDirectory(for: category)
+            if try await !fileSystem.exists(directory) {
+                try await fileSystem.makeDirectory(at: directory)
+            }
         }
-    }
-
-    public static func tuistCloudCacheDirectory(for category: CacheCategory.App, cacheDirectory: AbsolutePath) -> AbsolutePath {
-        cacheDirectory.appending(components: ["tuist-cloud", category.directoryName])
-    }
-
-    public func tuistCloudCacheDirectory(for category: CacheCategory.App) throws -> AbsolutePath {
-        switch category {
-        case .binaries: return try tuistCloudBinaryCacheDirectory()
-        case .selectiveTests: return try tuistCloudSelectiveTestsDirectory()
-        }
-    }
-
-    public func tuistCloudSelectiveTestsDirectory() throws -> AbsolutePath {
-        try tuistCloudCacheDirectory().appending(component: CacheCategory.App.selectiveTests.directoryName)
-    }
-
-    public func tuistCloudBinaryCacheDirectory() throws -> AbsolutePath {
-        try tuistCloudCacheDirectory().appending(component: CacheCategory.App.binaries.directoryName)
-    }
-
-    public func tuistCloudCacheDirectory() throws -> AbsolutePath {
-        try cacheDirectory().appending(components: ["tuist-cloud"])
     }
 }

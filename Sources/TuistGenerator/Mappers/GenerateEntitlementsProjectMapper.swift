@@ -1,5 +1,5 @@
 import Foundation
-import Path
+import ServiceContextModule
 import TuistCore
 import TuistSupport
 import XcodeGraph
@@ -21,7 +21,7 @@ public final class GenerateEntitlementsProjectMapper: ProjectMapping {
     // MARK: - ProjectMapping
 
     public func map(project: Project) throws -> (Project, [SideEffectDescriptor]) {
-        logger.debug("Transforming project \(project.name): Synthesizing entitlement files'")
+        ServiceContext.current?.logger?.debug("Transforming project \(project.name): Synthesizing entitlement files'")
 
         let results = try project.targets.values
             .reduce(into: (targets: [String: Target](), sideEffects: [SideEffectDescriptor]())) { results, target in
@@ -71,7 +71,7 @@ public final class GenerateEntitlementsProjectMapper: ProjectMapping {
         entitlements: Entitlements
     ) -> [String: Any]? {
         switch entitlements {
-        case let .dictionary(content):
+        case let .dictionary(content, _):
             return content.mapValues { $0.value }
         default:
             return nil

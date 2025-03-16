@@ -1,4 +1,5 @@
 import Foundation
+import ServiceContextModule
 import TuistCore
 import XcodeGraph
 
@@ -10,8 +11,12 @@ import XcodeGraph
 public struct PruneOrphanExternalTargetsGraphMapper: GraphMapping {
     public init() {}
 
-    public func map(graph: XcodeGraph.Graph) async throws -> (XcodeGraph.Graph, [TuistCore.SideEffectDescriptor]) {
-        logger.debug("Transforming graph \(graph.name): Tree-shaking orphan external targets (e.g. test targets)")
+    public func map(
+        graph: XcodeGraph.Graph,
+        environment: MapperEnvironment
+    ) async throws -> (XcodeGraph.Graph, [TuistCore.SideEffectDescriptor], MapperEnvironment) {
+        ServiceContext.current?.logger?
+            .debug("Transforming graph \(graph.name): Tree-shaking orphan external targets (e.g. test targets)")
 
         let graphTraverser = GraphTraverser(graph: graph)
         let orphanExternalTargets = graphTraverser.allOrphanExternalTargets()
@@ -32,6 +37,6 @@ public struct PruneOrphanExternalTargetsGraphMapper: GraphMapping {
             return (projectPath, project)
         })
 
-        return (graph, [])
+        return (graph, [], environment)
     }
 }

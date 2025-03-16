@@ -1,6 +1,7 @@
 // swiftformat:disable wrap
 extension SynthesizedResourceInterfaceTemplates {
     static let assetsTemplate = """
+    // swiftlint:disable:this file_name
     // swiftlint:disable all
     // swift-format-ignore-file
     // swiftformat:disable all
@@ -74,7 +75,7 @@ extension SynthesizedResourceInterfaceTemplates {
       {% elif asset.type == "symbol" %}
       {{accessModifier}} static let {{asset.name|swiftIdentifier:"pretty"|lowerFirstWord|escapeReservedKeywords}} = {{imageType}}(name: "{{asset.value}}")
       {% elif asset.items and ( forceNamespaces == "true" or asset.isNamespaced == "true" ) %}
-      {{accessModifier}} enum {{asset.name|swiftIdentifier:"pretty"|escapeReservedKeywords}} {
+      {{accessModifier}} enum {{asset.name|swiftIdentifier:"pretty"|escapeReservedKeywords}}: Sendable {
         {% filter indent:2 %}{% call casesBlock asset.items %}{% endfilter %}
       }
       {% elif asset.items %}
@@ -95,7 +96,7 @@ extension SynthesizedResourceInterfaceTemplates {
       {% endfor %}
     {% endmacro %}
     // swiftlint:disable identifier_name line_length nesting type_body_length type_name
-    {{accessModifier}} enum {{enumName}} {
+    {{accessModifier}} enum {{enumName}}: Sendable {
       {% if catalogs.count > 1 or param.forceFileNameEnum %}
       {% for catalog in catalogs %}
       {{accessModifier}} enum {{catalog.name|swiftIdentifier:"pretty"|escapeReservedKeywords}} {
@@ -111,8 +112,8 @@ extension SynthesizedResourceInterfaceTemplates {
     // MARK: - Implementation Details
 
     {% if resourceCount.arresourcegroup > 0 %}
-    {{accessModifier}} struct {{arResourceGroupType}} {
-      {{accessModifier}} fileprivate(set) var name: String
+    {{accessModifier}} struct {{arResourceGroupType}}: Sendable {
+      {{accessModifier}} let name: String
 
       #if os(iOS)
       @available(iOS 11.3, *)
@@ -147,8 +148,8 @@ extension SynthesizedResourceInterfaceTemplates {
 
     {% endif %}
     {% if resourceCount.color > 0 %}
-    {{accessModifier}} final class {{colorType}} {
-      {{accessModifier}} fileprivate(set) var name: String
+    {{accessModifier}} final class {{colorType}}: Sendable {
+      {{accessModifier}} let name: String
 
       #if os(macOS)
       {{accessModifier}} typealias Color = NSColor
@@ -157,27 +158,17 @@ extension SynthesizedResourceInterfaceTemplates {
       #endif
 
       @available(iOS 11.0, tvOS 11.0, watchOS 4.0, macOS 10.13, visionOS 1.0, *)
-      {{accessModifier}} private(set) lazy var color: Color = {
+      {{accessModifier}} var color: Color {
         guard let color = Color(asset: self) else {
           fatalError("Unable to load color asset named \\(name).")
         }
         return color
-      }()
+      }
 
       #if canImport(SwiftUI)
-      private var _swiftUIColor: Any? = nil
       @available(iOS 13.0, tvOS 13.0, watchOS 6.0, macOS 10.15, visionOS 1.0, *)
-      {{accessModifier}} private(set) var swiftUIColor: SwiftUI.Color {
-        get {
-          if self._swiftUIColor == nil {
-            self._swiftUIColor = SwiftUI.Color(asset: self)
-          }
-
-          return self._swiftUIColor as! SwiftUI.Color
-        }
-        set {
-          self._swiftUIColor = newValue
-        }
+      {{accessModifier}} var swiftUIColor: SwiftUI.Color {
+          return SwiftUI.Color(asset: self)
       }
       #endif
 
@@ -212,8 +203,8 @@ extension SynthesizedResourceInterfaceTemplates {
 
     {% endif %}
     {% if resourceCount.data > 0 %}
-    {{accessModifier}} struct {{dataType}} {
-      {{accessModifier}} fileprivate(set) var name: String
+    {{accessModifier}} struct {{dataType}}: Sendable {
+      {{accessModifier}} let name: String
 
       #if os(iOS) || os(tvOS) || os(macOS) || os(visionOS)
       @available(iOS 9.0, macOS 10.11, visionOS 1.0, *)
@@ -242,8 +233,8 @@ extension SynthesizedResourceInterfaceTemplates {
 
     {% endif %}
     {% if resourceCount.image > 0 or resourceCount.symbol > 0 %}
-    {{accessModifier}} struct {{imageType}} {
-      {{accessModifier}} fileprivate(set) var name: String
+    {{accessModifier}} struct {{imageType}}: Sendable {
+      {{accessModifier}} let name: String
 
       #if os(macOS)
       {{accessModifier}} typealias Image = NSImage

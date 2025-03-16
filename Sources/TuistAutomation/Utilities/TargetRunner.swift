@@ -1,4 +1,6 @@
+import FileSystem
 import Path
+import ServiceContextModule
 import struct TSCUtility.Version
 import TuistCore
 import TuistSupport
@@ -63,15 +65,18 @@ public final class TargetRunner: TargetRunning {
     private let xcodeBuildController: XcodeBuildControlling
     private let xcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectoryLocating
     private let simulatorController: SimulatorControlling
+    private let fileSystem: FileSysteming
 
     public init(
         xcodeBuildController: XcodeBuildControlling = XcodeBuildController(),
         xcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectoryLocating = XcodeProjectBuildDirectoryLocator(),
-        simulatorController: SimulatorControlling = SimulatorController()
+        simulatorController: SimulatorControlling = SimulatorController(),
+        fileSystem: FileSysteming = FileSystem()
     ) {
         self.xcodeBuildController = xcodeBuildController
         self.xcodeProjectBuildDirectoryLocator = xcodeProjectBuildDirectoryLocator
         self.simulatorController = simulatorController
+        self.fileSystem = fileSystem
     }
 
     public func runTarget(
@@ -90,13 +95,13 @@ public final class TargetRunner: TargetRunning {
         let configuration = configuration ?? target.project.settings.defaultDebugBuildConfiguration()?.name ?? BuildConfiguration
             .debug.name
         let xcodeBuildDirectory = try xcodeProjectBuildDirectoryLocator.locate(
-            platform: platform,
+            destinationType: .simulator(platform),
             projectPath: workspacePath,
             derivedDataPath: nil,
             configuration: configuration
         )
         let runnablePath = xcodeBuildDirectory.appending(component: target.target.productNameWithExtension)
-        guard FileHandler.shared.exists(runnablePath) else {
+        guard try await fileSystem.exists(runnablePath) else {
             throw TargetRunnerError.runnableNotFound(path: runnablePath.pathString)
         }
 
@@ -133,8 +138,8 @@ public final class TargetRunner: TargetRunning {
     }
 
     private func runExecutable(_ executablePath: AbsolutePath, arguments: [String]) throws {
-        logger.notice("Running executable \(executablePath.basename)", metadata: .section)
-        logger.debug("Forwarding arguments: \(arguments.joined(separator: ", "))")
+        ServiceContext.current?.logger?.notice("Running executable \(executablePath.basename)", metadata: .section)
+        ServiceContext.current?.logger?.debug("Forwarding arguments: \(arguments.joined(separator: ", "))")
         try System.shared.runAndPrint([executablePath.pathString] + arguments)
     }
 
@@ -160,9 +165,10 @@ public final class TargetRunner: TargetRunning {
             deviceName: deviceName
         )
 
-        logger.debug("Running app \(appPath.pathString) with arguments [\(arguments.joined(separator: ", "))]")
-        logger.notice("Running app \(bundleId) on \(simulator.device.name)", metadata: .section)
+        ServiceContext.current?.logger?
+            .debug("Running app \(appPath.pathString) with arguments [\(arguments.joined(separator: ", "))]")
+        ServiceContext.current?.logger?.notice("Running app \(bundleId) on \(simulator.device.name)", metadata: .section)
         try simulatorController.installApp(at: appPath, device: simulator.device)
-        try simulatorController.launchApp(bundleId: bundleId, device: simulator.device, arguments: arguments)
+        try await simulatorController.launchApp(bundleId: bundleId, device: simulator.device, arguments: arguments)
     }
 }

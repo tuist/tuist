@@ -1,25 +1,27 @@
 import Foundation
-import MockableTest
+import Mockable
 import Path
 import ProjectDescription
+import TuistCore
 import TuistSupport
+import struct XcodeGraph.PackageInfo
 import XCTest
 
 @testable import TuistLoader
-@testable import TuistLoaderTesting
 @testable import TuistSupportTesting
 
 final class RecursiveManifestLoaderTests: TuistUnitTestCase {
     private var path: AbsolutePath!
-    private var manifestLoader: MockManifestLoader!
+    private var manifestLoader: MockManifestLoading!
     private var packageInfoMapper: MockPackageInfoMapping!
     private var projectManifests: [AbsolutePath: Project] = [:]
     private var workspaceManifests: [AbsolutePath: Workspace] = [:]
     private var packageManifests: [AbsolutePath: PackageInfo] = [:]
 
     private var subject: RecursiveManifestLoader!
+    private var rootDirectoryLocator: MockRootDirectoryLocating!
 
-    override func setUp() {
+    override func setUpWithError() throws {
         super.setUp()
         do {
             path = try temporaryPath()
@@ -29,10 +31,17 @@ final class RecursiveManifestLoaderTests: TuistUnitTestCase {
 
         manifestLoader = createManifestLoader()
         packageInfoMapper = MockPackageInfoMapping()
+        rootDirectoryLocator = MockRootDirectoryLocating()
+
+        given(rootDirectoryLocator)
+            .locate(from: .any)
+            .willReturn(try temporaryPath())
+
         subject = RecursiveManifestLoader(
             manifestLoader: manifestLoader,
             fileHandler: fileHandler,
-            packageInfoMapper: packageInfoMapper
+            packageInfoMapper: packageInfoMapper,
+            rootDirectoryLocator: rootDirectoryLocator
         )
     }
 
@@ -46,13 +55,13 @@ final class RecursiveManifestLoaderTests: TuistUnitTestCase {
 
     // MARK: - Tests
 
-    func test_loadProject_loadingSingleProject() throws {
+    func test_loadProject_loadingSingleProject() async throws {
         // Given
         let projectA = createProject(name: "ProjectA")
-        try stub(manifest: projectA, at: try RelativePath(validating: "Some/Path/A"))
+        try await stub(manifest: projectA, at: try RelativePath(validating: "Some/Path/A"))
 
         // When
-        let manifests = try subject.loadWorkspace(at: path.appending(try RelativePath(validating: "Some/Path/A")))
+        let manifests = try await subject.loadWorkspace(at: path.appending(try RelativePath(validating: "Some/Path/A")))
 
         // Then
         XCTAssertEqual(withRelativePaths(manifests.projects), [
@@ -60,7 +69,7 @@ final class RecursiveManifestLoaderTests: TuistUnitTestCase {
         ])
     }
 
-    func test_loadProject_projectWithDependencies() throws {
+    func test_loadProject_projectWithDependencies() async throws {
         // Given
         let projectA = createProject(
             name: "ProjectA",
@@ -83,12 +92,12 @@ final class RecursiveManifestLoaderTests: TuistUnitTestCase {
                 "TargetC": [],
             ]
         )
-        try stub(manifest: projectA, at: try RelativePath(validating: "Some/Path/A"))
-        try stub(manifest: projectB, at: try RelativePath(validating: "Some/Path/B"))
-        try stub(manifest: projectC, at: try RelativePath(validating: "Some/Path/C"))
+        try await stub(manifest: projectA, at: try RelativePath(validating: "Some/Path/A"))
+        try await stub(manifest: projectB, at: try RelativePath(validating: "Some/Path/B"))
+        try await stub(manifest: projectC, at: try RelativePath(validating: "Some/Path/C"))
 
         // When
-        let manifests = try subject.loadWorkspace(at: path.appending(try RelativePath(validating: "Some/Path/A")))
+        let manifests = try await subject.loadWorkspace(at: path.appending(try RelativePath(validating: "Some/Path/A")))
 
         // Then
         XCTAssertEqual(withRelativePaths(manifests.projects), [
@@ -98,7 +107,7 @@ final class RecursiveManifestLoaderTests: TuistUnitTestCase {
         ])
     }
 
-    func test_loadProject_projectWithTransitiveDependencies() throws {
+    func test_loadProject_projectWithTransitiveDependencies() async throws {
         // Given
         let projectA = createProject(
             name: "ProjectA",
@@ -133,14 +142,14 @@ final class RecursiveManifestLoaderTests: TuistUnitTestCase {
                 "TargetE": [],
             ]
         )
-        try stub(manifest: projectA, at: try RelativePath(validating: "Some/Path/A"))
-        try stub(manifest: projectB, at: try RelativePath(validating: "Some/Path/B"))
-        try stub(manifest: projectC, at: try RelativePath(validating: "Some/Path/C"))
-        try stub(manifest: projectD, at: try RelativePath(validating: "Some/Path/D"))
-        try stub(manifest: projectE, at: try RelativePath(validating: "Some/Path/E"))
+        try await stub(manifest: projectA, at: try RelativePath(validating: "Some/Path/A"))
+        try await stub(manifest: projectB, at: try RelativePath(validating: "Some/Path/B"))
+        try await stub(manifest: projectC, at: try RelativePath(validating: "Some/Path/C"))
+        try await stub(manifest: projectD, at: try RelativePath(validating: "Some/Path/D"))
+        try await stub(manifest: projectE, at: try RelativePath(validating: "Some/Path/E"))
 
         // When
-        let manifests = try subject.loadWorkspace(at: path.appending(try RelativePath(validating: "Some/Path/A")))
+        let manifests = try await subject.loadWorkspace(at: path.appending(try RelativePath(validating: "Some/Path/A")))
 
         // Then
         XCTAssertEqual(withRelativePaths(manifests.projects), [
@@ -152,7 +161,7 @@ final class RecursiveManifestLoaderTests: TuistUnitTestCase {
         ])
     }
 
-    func test_loadProject_missingManifest() throws {
+    func test_loadProject_missingManifest() async throws {
         // Given
         let projectA = createProject(
             name: "ProjectA",
@@ -162,16 +171,16 @@ final class RecursiveManifestLoaderTests: TuistUnitTestCase {
                 ],
             ]
         )
-        try stub(manifest: projectA, at: try RelativePath(validating: "Some/Path/A"))
+        try await stub(manifest: projectA, at: try RelativePath(validating: "Some/Path/A"))
 
         // When / Then
-        XCTAssertThrowsSpecific(
-            try subject.loadWorkspace(at: path.appending(try RelativePath(validating: "Some/Path/A"))),
+        await XCTAssertThrowsSpecific(
+            { try await self.subject.loadWorkspace(at: self.path.appending(try RelativePath(validating: "Some/Path/A"))) },
             ManifestLoaderError.manifestNotFound(.project, path.appending(try RelativePath(validating: "Some/Path/B")))
         )
     }
 
-    func test_loadWorkspace() throws {
+    func test_loadWorkspace() async throws {
         // Given
         let workspace = Workspace.test(
             name: "Workspace",
@@ -200,13 +209,13 @@ final class RecursiveManifestLoaderTests: TuistUnitTestCase {
             ]
         )
 
-        try stub(manifest: projectA, at: try RelativePath(validating: "Some/Path/A"))
-        try stub(manifest: projectB, at: try RelativePath(validating: "Some/Path/B"))
-        try stub(manifest: projectC, at: try RelativePath(validating: "Some/Path/C"))
+        try await stub(manifest: projectA, at: try RelativePath(validating: "Some/Path/A"))
+        try await stub(manifest: projectB, at: try RelativePath(validating: "Some/Path/B"))
+        try await stub(manifest: projectC, at: try RelativePath(validating: "Some/Path/C"))
         try stub(manifest: workspace, at: try RelativePath(validating: "Some/Path"))
 
         // When
-        let manifests = try subject.loadWorkspace(at: path.appending(try RelativePath(validating: "Some/Path")))
+        let manifests = try await subject.loadWorkspace(at: path.appending(try RelativePath(validating: "Some/Path")))
 
         // Then
         XCTAssertEqual(manifests.path, path.appending(try RelativePath(validating: "Some/Path")))
@@ -218,7 +227,7 @@ final class RecursiveManifestLoaderTests: TuistUnitTestCase {
         ])
     }
 
-    func test_loadWorkspace_withGlobPattern() throws {
+    func test_loadWorkspace_withGlobPattern() async throws {
         // Given
         let workspace = Workspace.test(
             name: "Workspace",
@@ -246,13 +255,13 @@ final class RecursiveManifestLoaderTests: TuistUnitTestCase {
             ]
         )
 
-        try stub(manifest: projectA, at: try RelativePath(validating: "Some/Path/A"))
-        try stub(manifest: projectB, at: try RelativePath(validating: "Some/Path/B"))
-        try stub(manifest: projectC, at: try RelativePath(validating: "Some/Path/C"))
+        try await stub(manifest: projectA, at: try RelativePath(validating: "Some/Path/A"))
+        try await stub(manifest: projectB, at: try RelativePath(validating: "Some/Path/B"))
+        try await stub(manifest: projectC, at: try RelativePath(validating: "Some/Path/C"))
         try stub(manifest: workspace, at: try RelativePath(validating: "Some/Path"))
 
         // When
-        let manifests = try subject.loadWorkspace(at: path.appending(try RelativePath(validating: "Some/Path")))
+        let manifests = try await subject.loadWorkspace(at: path.appending(try RelativePath(validating: "Some/Path")))
 
         // Then
         XCTAssertEqual(manifests.path, path.appending(try RelativePath(validating: "Some/Path")))
@@ -264,7 +273,7 @@ final class RecursiveManifestLoaderTests: TuistUnitTestCase {
         ])
     }
 
-    func test_loadWorkspace_withSameProjectName() throws {
+    func test_loadWorkspace_withSameProjectName() async throws {
         // Given
         let workspace = Workspace.test(
             name: "MyWorkspace",
@@ -283,11 +292,11 @@ final class RecursiveManifestLoaderTests: TuistUnitTestCase {
             ]
         )
 
-        try stub(manifest: projectA, at: try RelativePath(validating: "Some/Path"))
+        try await stub(manifest: projectA, at: try RelativePath(validating: "Some/Path"))
         try stub(manifest: workspace, at: try RelativePath(validating: "Some/Path"))
 
         // When
-        let manifests = try subject.loadWorkspace(at: path.appending(try RelativePath(validating: "Some/Path")))
+        let manifests = try await subject.loadWorkspace(at: path.appending(try RelativePath(validating: "Some/Path")))
 
         // Then
         XCTAssertEqual(manifests.path, path.appending(try RelativePath(validating: "Some/Path")))
@@ -297,7 +306,7 @@ final class RecursiveManifestLoaderTests: TuistUnitTestCase {
         ])
     }
 
-    func test_loadSPM_Package() throws {
+    func test_loadSPM_Package() async throws {
         // Given
         let packageA = createPackage(name: "PackageA")
         try stub(manifest: packageA, at: try RelativePath(validating: "Some/Path/A"))
@@ -306,15 +315,15 @@ final class RecursiveManifestLoaderTests: TuistUnitTestCase {
             path: .any,
             packageType: .any,
             packageSettings: .any,
-            packageToProject: .any
+            packageModuleAliases: .any
         )
         .willReturn(
             .test(name: "PackageA")
         )
 
         // When
-        var manifests = try subject.loadWorkspace(at: path.appending(try RelativePath(validating: "Some/Path/A")))
-        manifests = try subject.loadAndMergePackageProjects(in: manifests, packageSettings: .test())
+        var manifests = try await subject.loadWorkspace(at: path.appending(try RelativePath(validating: "Some/Path/A")))
+        manifests = try await subject.loadAndMergePackageProjects(in: manifests, packageSettings: .test())
 
         // Then
         XCTAssertEqual(withRelativePaths(manifests.projects), [
@@ -363,11 +372,12 @@ final class RecursiveManifestLoaderTests: TuistUnitTestCase {
     private func stub(
         manifest: Project,
         at relativePath: RelativePath
-    ) throws {
+    ) async throws {
         let manifestPath = path
             .appending(relativePath)
             .appending(component: Manifest.project.fileName(path.appending(relativePath)))
-        try fileHandler.touch(manifestPath)
+        try await fileSystem.makeDirectory(at: manifestPath.parentDirectory)
+        try await fileSystem.touch(manifestPath)
         projectManifests[manifestPath.parentDirectory] = manifest
     }
 
@@ -393,42 +403,50 @@ final class RecursiveManifestLoaderTests: TuistUnitTestCase {
         packageManifests[manifestPath.parentDirectory] = manifest
     }
 
-    private func createManifestLoader() -> MockManifestLoader {
-        let manifestLoader = MockManifestLoader()
-        manifestLoader.loadProjectStub = { [unowned self] path in
-            guard let manifest = projectManifests[path] else {
-                throw ManifestLoaderError.manifestNotFound(.project, path)
+    private func createManifestLoader() -> MockManifestLoading {
+        let manifestLoader = MockManifestLoading()
+        given(manifestLoader)
+            .loadProject(at: .any)
+            .willProduce { [unowned self] path in
+                guard let manifest = projectManifests[path] else {
+                    throw ManifestLoaderError.manifestNotFound(.project, path)
+                }
+                return manifest
             }
-            return manifest
-        }
 
-        manifestLoader.loadWorkspaceStub = { [unowned self] path in
-            guard let manifest = workspaceManifests[path] else {
-                throw ManifestLoaderError.manifestNotFound(.workspace, path)
+        given(manifestLoader)
+            .loadWorkspace(at: .any)
+            .willProduce { [unowned self] path in
+                guard let manifest = workspaceManifests[path] else {
+                    throw ManifestLoaderError.manifestNotFound(.workspace, path)
+                }
+                return manifest
             }
-            return manifest
-        }
 
-        manifestLoader.loadPackageStub = { [unowned self] path in
-            guard let manifest = packageManifests[path] else {
-                throw ManifestLoaderError.manifestNotFound(.workspace, path)
+        given(manifestLoader)
+            .loadPackage(at: .any)
+            .willProduce { [unowned self] path in
+                guard let manifest = packageManifests[path] else {
+                    throw ManifestLoaderError.manifestNotFound(.workspace, path)
+                }
+                return manifest
             }
-            return manifest
-        }
 
-        manifestLoader.manifestsAtStub = { [unowned self] path in
-            var manifests = Set<Manifest>()
-            if let _ = projectManifests[path] {
-                manifests.insert(.project)
+        given(manifestLoader)
+            .manifests(at: .any)
+            .willProduce { [unowned self] path in
+                var manifests = Set<Manifest>()
+                if let _ = projectManifests[path] {
+                    manifests.insert(.project)
+                }
+                if let _ = workspaceManifests[path] {
+                    manifests.insert(.workspace)
+                }
+                if let _ = packageManifests[path] {
+                    manifests.insert(.package)
+                }
+                return manifests
             }
-            if let _ = workspaceManifests[path] {
-                manifests.insert(.workspace)
-            }
-            if let _ = packageManifests[path] {
-                manifests.insert(.package)
-            }
-            return manifests
-        }
         return manifestLoader
     }
 }

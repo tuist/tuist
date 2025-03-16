@@ -96,6 +96,7 @@ let project = Project(
             sources: "WidgetExtension/Sources/**",
             resources: "WidgetExtension/Resources/**",
             dependencies: [
+                .target(name: "Bundle"),
                 .target(name: "StaticFramework"),
             ]
         ),
@@ -118,6 +119,13 @@ let project = Project(
                 ],
             ]),
             sources: "AppIntentExtension/Sources/**"
+        ),
+        .target(
+            name: "Bundle",
+            destinations: .iOS,
+            product: .bundle,
+            bundleId: "io.tuist.App.Bundle",
+            resources: "Bundle/**"
         ),
     ]
 )

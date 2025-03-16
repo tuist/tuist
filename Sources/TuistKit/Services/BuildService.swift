@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import ServiceContextModule
 import TuistAutomation
 import TuistCore
 import TuistLoader
@@ -70,19 +71,20 @@ public final class BuildService {
         osVersion: String?,
         rosetta: Bool,
         generateOnly: Bool,
-        generator _: ((Config) throws -> Generating)? = nil,
+        generator _: ((Tuist) throws -> Generating)? = nil,
         passthroughXcodeBuildArguments: [String]
     ) async throws {
         let graph: Graph
-        let config = try configLoader.loadConfig(path: path)
-        let cacheStorage = try cacheStorageFactory.cacheStorage(config: config)
+        let config = try await configLoader.loadConfig(path: path)
+        let cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
         let generator = generatorFactory.building(
             config: config,
             configuration: configuration,
             ignoreBinaryCache: ignoreBinaryCache,
             cacheStorage: cacheStorage
         )
-        if try (generate || buildGraphInspector.workspacePath(directory: path) == nil) {
+        let workspacePath = try await buildGraphInspector.workspacePath(directory: path)
+        if generate || workspacePath == nil {
             graph = try await generator.generateWithGraph(path: path).1
         } else {
             graph = try await generator.load(path: path)
@@ -92,7 +94,7 @@ public final class BuildService {
             return
         }
 
-        guard let workspacePath = try buildGraphInspector.workspacePath(directory: path) else {
+        guard let workspacePath = try await buildGraphInspector.workspacePath(directory: path) else {
             throw BuildServiceError.workspaceNotFound(path: path.pathString)
         }
 
@@ -106,7 +108,7 @@ public final class BuildService {
             )
         }
 
-        logger.log(
+        ServiceContext.current?.logger?.log(
             level: .debug,
             "Found the following buildable schemes: \(buildableSchemes.map(\.name).joined(separator: ", "))"
         )
@@ -179,6 +181,6 @@ public final class BuildService {
             }
         }
 
-        logger.log(level: .notice, "The project built successfully", metadata: .success)
+        ServiceContext.current?.alerts?.success(.alert("The project built successfully"))
     }
 }

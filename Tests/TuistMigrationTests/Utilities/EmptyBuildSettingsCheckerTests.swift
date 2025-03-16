@@ -1,5 +1,4 @@
 import Foundation
-import Path
 import XCTest
 @testable import TuistMigration
 @testable import TuistSupportTesting

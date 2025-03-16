@@ -1,0 +1,357 @@
+{
+  "aside": {
+    "translate": {
+      "title": {
+        "text": "翻訳 🌍"
+      },
+      "description": {
+        "text": "このページの翻訳を行ったり、改善したりすることができます。"
+      },
+      "cta": {
+        "text": "コントリビュートする"
+      }
+    }
+  },
+  "search": {
+    "placeholder": "検索",
+    "translations": {
+      "button": {
+        "button-text": "ドキュメントを検索",
+        "button-aria-label": "ドキュメントを検索"
+      },
+      "modal": {
+        "search-box": {
+          "reset-button-title": "検索キーワードを削除",
+          "reset-button-aria-label": "検索キーワードを削除",
+          "cancel-button-text": "キャンセル",
+          "cancel-button-aria-label": "キャンセル"
+        },
+        "start-screen": {
+          "recent-searches-title": "履歴を検索",
+          "no-recent-searches-text": "検索履歴はありません",
+          "save-recent-search-button-title": "検索履歴に保存",
+          "remove-recent-search-button-title": "検索履歴から削除する",
+          "favorite-searches-title": "お気に入り",
+          "remove-favorite-search-button-title": "お気に入りから削除"
+        },
+        "error-screen": {
+          "title-text": "結果を取得できませんでした",
+          "help-text": "ネットワーク接続を確認してください"
+        },
+        "footer": {
+          "select-text": "選択",
+          "navigate-text": "移動",
+          "close-text": "閉じる",
+          "search-by-text": "検索プロバイダー"
+        },
+        "no-results-screen": {
+          "no-results-text": "関連する結果が見つかりませんでした",
+          "suggested-query-text": "クエリを試してみることができます",
+          "report-missing-results-text": "このクエリには結果があると思いますか?",
+          "report-missing-results-link-text": "クリックしてフィードバックする"
+        }
+      }
+    }
+  },
+  "navbar": {
+    "guides": {
+      "text": "ガイド"
+    },
+    "cli": {
+      "text": "CLI"
+    },
+    "server": {
+      "text": "サーバー"
+    },
+    "resources": {
+      "text": "リソース",
+      "items": {
+        "references": {
+          "text": "リファレンス"
+        },
+        "contributors": {
+          "text": "コントリビューター"
+        },
+        "changelog": {
+          "text": "変更履歴"
+        }
+      }
+    }
+  },
+  "sidebars": {
+    "cli": {
+      "text": "CLI",
+      "items": {
+        "cli": {
+          "items": {
+            "logging": {
+              "text": "ロギング"
+            },
+            "shell-completions": {
+              "text": "Shell completions"
+            }
+          }
+        },
+        "commands": {
+          "text": "コマンド"
+        }
+      }
+    },
+    "references": {
+      "text": "リファレンス",
+      "items": {
+        "examples": {
+          "text": "サンプル"
+        },
+        "migrations": {
+          "text": "マイグレーション",
+          "items": {
+            "from-v3-to-v4": {
+              "text": "v3 から v4 へ"
+            }
+          }
+        }
+      }
+    },
+    "contributors": {
+      "text": "コントリビューター",
+      "items": {
+        "get-started": {
+          "text": "始め方"
+        },
+        "issue-reporting": {
+          "text": "Issue報告"
+        },
+        "code-reviews": {
+          "text": "コードレビュー"
+        },
+        "principles": {
+          "text": "原則"
+        },
+        "translate": {
+          "text": "翻訳する"
+        },
+        "cli": {
+          "text": "CLI",
+          "items": {
+            "logging": {
+              "text": "ロギング"
+            }
+          }
+        }
+      }
+    },
+    "server": {
+      "items": {
+        "introduction": {
+          "text": "はじめに",
+          "items": {
+            "why-server": {
+              "text": "なぜサーバーが必要なのか？"
+            },
+            "accounts-and-projects": {
+              "text": "アカウントとプロジェクト"
+            },
+            "authentication": {
+              "text": "認証"
+            },
+            "integrations": {
+              "text": "インテグレーション"
+            }
+          }
+        },
+        "on-premise": {
+          "text": "オンプレミス",
+          "items": {
+            "install": {
+              "text": "インストール"
+            },
+            "metrics": {
+              "text": "メトリクス"
+            }
+          }
+        },
+        "api-documentation": {
+          "text": "APIドキュメント"
+        },
+        "status": {
+          "text": "ステータス"
+        },
+        "metrics-dashboard": {
+          "text": "メトリクスダッシュボード"
+        }
+      }
+    },
+    "guides": {
+      "text": "ガイド",
+      "items": {
+        "tuist": {
+          "text": "Tuist",
+          "items": {
+            "about": {
+              "text": "Tuist について"
+            }
+          }
+        },
+        "quick-start": {
+          "text": "クイックスタート",
+          "items": {
+            "install-tuist": {
+              "text": "Tuistのインストール"
+            },
+            "get-started": {
+              "text": "はじめに"
+            }
+          }
+        },
+        "develop": {
+          "text": "開発",
+          "items": {
+            "generated-projects": {
+              "text": "プロジェクト",
+              "items": {
+                "adoption": {
+                  "text": "導入",
+                  "items": {
+                    "new-project": {
+                      "text": "新規プロジェクトの作成"
+                    },
+                    "swift-package": {
+                      "text": "Swift パッケージと使用する"
+                    },
+                    "migrate": {
+                      "text": "移行する",
+                      "items": {
+                        "xcode-project": {
+                          "text": "Xcode プロジェクト"
+                        },
+                        "swift-package": {
+                          "text": "Swift パッケージ"
+                        },
+                        "xcodegen-project": {
+                          "text": "XcodeGen プロジェクト"
+                        },
+                        "bazel-project": {
+                          "text": "Bazel プロジェクト"
+                        }
+                      }
+                    }
+                  }
+                },
+                "manifests": {
+                  "text": "マニフェスト"
+                },
+                "directory-structure": {
+                  "text": "ディレクトリ構成"
+                },
+                "editing": {
+                  "text": "編集方法"
+                },
+                "dependencies": {
+                  "text": "依存関係"
+                },
+                "code-sharing": {
+                  "text": "コードの共有"
+                },
+                "synthesized-files": {
+                  "text": "自動生成ファイル"
+                },
+                "dynamic-configuration": {
+                  "text": "動的コンフィギュレーション"
+                },
+                "templates": {
+                  "text": "テンプレート"
+                },
+                "plugins": {
+                  "text": "プラグイン"
+                },
+                "hashing": {
+                  "text": "ハッシュ"
+                },
+                "inspect": {
+                  "text": "検査",
+                  "items": {
+                    "implicit-imports": {
+                      "text": "暗黙のインポート"
+                    }
+                  }
+                },
+                "the-cost-of-convenience": {
+                  "text": "利便性の代償"
+                },
+                "tma-architecture": {
+                  "text": "モジューラーアーキテクチャ"
+                },
+                "best-practices": {
+                  "text": "ベストプラクティス"
+                }
+              }
+            },
+            "cache": {
+              "text": "キャッシュ"
+            },
+            "registry": {
+              "text": "レジストリ",
+              "items": {
+                "registry": {
+                  "text": "レジストリ"
+                },
+                "xcode-project": {
+                  "text": "Xcode プロジェクト"
+                },
+                "generated-project": {
+                  "text": "生成されたプロジェクト"
+                },
+                "xcodeproj-integration": {
+                  "text": "XcodeProj ベースの統合"
+                },
+                "swift-package": {
+                  "text": "Swift パッケージ"
+                },
+                "continuous-integration": {
+                  "text": "継続的インテグレーション"
+                }
+              }
+            },
+            "selective-testing": {
+              "text": "選択的テスト",
+              "items": {
+                "selective-testing": {
+                  "text": "選択的テスト"
+                },
+                "xcodebuild": {
+                  "text": "xcodebuild"
+                },
+                "generated-project": {
+                  "text": "生成されたプロジェクト"
+                }
+              }
+            },
+            "insights": {
+              "text": "Insights"
+            }
+          }
+        },
+        "automate": {
+          "text": "自動化",
+          "items": {
+            "continuous-integration": {
+              "text": "継続的インテグレーション"
+            },
+            "workflows": {
+              "text": "ワークフロー"
+            }
+          }
+        },
+        "share": {
+          "text": "共有",
+          "items": {
+            "previews": {
+              "text": "プレビュー機能"
+            }
+          }
+        }
+      }
+    }
+  }
+}

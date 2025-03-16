@@ -1,5 +1,4 @@
 import Foundation
-import Path
 import TuistCore
 import TuistSupport
 import TuistSupportTesting
@@ -44,7 +43,7 @@ final class ExternalDependencyPathWorkspaceMapperTests: TuistUnitTestCase {
             sourceRootPath: externalProjectPath,
             xcodeProjPath: externalProjectPath.appending(component: "ExternalDependency.xcodeproj"),
             name: "ExternalDependency",
-            isExternal: true
+            type: .external(hash: nil)
         )
 
         let workspace = Workspace.test(
@@ -88,7 +87,7 @@ final class ExternalDependencyPathWorkspaceMapperTests: TuistUnitTestCase {
                             "SRCROOT": .string(externalProjectPath.pathString),
                         ]
                     ),
-                    isExternal: true
+                    type: .external(hash: nil)
                 ),
             ]
         )

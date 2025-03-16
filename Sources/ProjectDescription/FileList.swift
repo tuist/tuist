@@ -1,5 +1,3 @@
-import Foundation
-
 /// A collection of file globs.
 ///
 /// The list of files can be initialized with a string that represents the glob pattern, or an array of strings, which represents

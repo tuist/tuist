@@ -6,7 +6,6 @@ import TuistSupport
 @Mockable
 public protocol CompleteAnalyticsArtifactsUploadsServicing {
     func completeAnalyticsArtifactsUploads(
-        modules: [CloudModule],
         commandEventId: Int,
         serverURL: URL
     ) async throws
@@ -16,12 +15,13 @@ public enum CompleteAnalyticsArtifactsUploadsServiceError: FatalError, Equatable
     case unknownError(Int)
     case notFound(String)
     case forbidden(String)
+    case unauthorized(String)
 
     public var type: ErrorType {
         switch self {
         case .unknownError:
             return .bug
-        case .notFound, .forbidden:
+        case .notFound, .forbidden, .unauthorized:
             return .abort
         }
     }
@@ -29,8 +29,8 @@ public enum CompleteAnalyticsArtifactsUploadsServiceError: FatalError, Equatable
     public var description: String {
         switch self {
         case let .unknownError(statusCode):
-            return "The analytics artifacts uploads could not get completed due to an unknown Tuist Cloud response of \(statusCode)."
-        case let .notFound(message), let .forbidden(message):
+            return "The analytics artifacts uploads could not get completed due to an unknown Tuist response of \(statusCode)."
+        case let .notFound(message), let .forbidden(message), let .unauthorized(message):
             return message
         }
     }
@@ -40,17 +40,13 @@ public final class CompleteAnalyticsArtifactsUploadsService: CompleteAnalyticsAr
     public init() {}
 
     public func completeAnalyticsArtifactsUploads(
-        modules: [CloudModule],
         commandEventId: Int,
         serverURL: URL
     ) async throws {
-        let client = Client.cloud(serverURL: serverURL)
+        let client = Client.authenticated(serverURL: serverURL)
         let response = try await client.completeAnalyticsArtifactsUploads(
             .init(
-                path: .init(run_id: commandEventId),
-                body: .json(
-                    .init(modules: .init(modules.map(Components.Schemas.Module.init)))
-                )
+                path: .init(run_id: commandEventId)
             )
         )
         switch response {
@@ -67,6 +63,11 @@ public final class CompleteAnalyticsArtifactsUploadsService: CompleteAnalyticsAr
             switch notFoundResponse.body {
             case let .json(error):
                 throw CompleteAnalyticsArtifactsUploadsServiceError.notFound(error.message)
+            }
+        case let .unauthorized(unauthorized):
+            switch unauthorized.body {
+            case let .json(error):
+                throw DeleteOrganizationServiceError.unauthorized(error.message)
             }
         }
     }

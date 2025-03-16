@@ -8,19 +8,20 @@ public protocol GetOrganizationServicing {
     func getOrganization(
         organizationName: String,
         serverURL: URL
-    ) async throws -> CloudOrganization
+    ) async throws -> ServerOrganization
 }
 
 enum GetOrganizationServiceError: FatalError {
     case unknownError(Int)
     case notFound(String)
     case forbidden(String)
+    case unauthorized(String)
 
     var type: ErrorType {
         switch self {
         case .unknownError:
             return .bug
-        case .forbidden, .notFound:
+        case .forbidden, .notFound, .unauthorized:
             return .abort
         }
     }
@@ -28,8 +29,8 @@ enum GetOrganizationServiceError: FatalError {
     var description: String {
         switch self {
         case let .unknownError(statusCode):
-            return "We could not get the organization due to an unknown cloud response of \(statusCode)."
-        case let .forbidden(message), let .notFound(message):
+            return "We could not get the organization due to an unknown Tuist response of \(statusCode)."
+        case let .forbidden(message), let .notFound(message), let .unauthorized(message):
             return message
         }
     }
@@ -41,8 +42,8 @@ public final class GetOrganizationService: GetOrganizationServicing {
     public func getOrganization(
         organizationName: String,
         serverURL: URL
-    ) async throws -> CloudOrganization {
-        let client = Client.cloud(serverURL: serverURL)
+    ) async throws -> ServerOrganization {
+        let client = Client.authenticated(serverURL: serverURL)
 
         let response = try await client.showOrganization(
             .init(
@@ -55,7 +56,7 @@ public final class GetOrganizationService: GetOrganizationServicing {
         case let .ok(okResponse):
             switch okResponse.body {
             case let .json(project):
-                return CloudOrganization(project)
+                return ServerOrganization(project)
             }
         case let .notFound(notFound):
             switch notFound.body {
@@ -66,6 +67,11 @@ public final class GetOrganizationService: GetOrganizationServicing {
             switch forbidden.body {
             case let .json(error):
                 throw GetOrganizationServiceError.forbidden(error.message)
+            }
+        case let .unauthorized(unauthorized):
+            switch unauthorized.body {
+            case let .json(error):
+                throw DeleteOrganizationServiceError.unauthorized(error.message)
             }
         case let .undocumented(statusCode: statusCode, _):
             throw GetOrganizationServiceError.unknownError(statusCode)

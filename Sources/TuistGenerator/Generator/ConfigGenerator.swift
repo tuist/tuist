@@ -10,7 +10,7 @@ protocol ConfigGenerating: AnyObject {
         project: Project,
         pbxproj: PBXProj,
         fileElements: ProjectFileElements
-    ) throws -> XCConfigurationList
+    ) async throws -> XCConfigurationList
 
     func generateTargetConfig(
         _ target: Target,
@@ -21,7 +21,7 @@ protocol ConfigGenerating: AnyObject {
         fileElements: ProjectFileElements,
         graphTraverser: GraphTraversing,
         sourceRootPath: AbsolutePath
-    ) throws
+    ) async throws
 }
 
 // swiftlint:disable:next type_body_length
@@ -44,7 +44,7 @@ final class ConfigGenerator: ConfigGenerating {
         project: Project,
         pbxproj: PBXProj,
         fileElements: ProjectFileElements
-    ) throws -> XCConfigurationList {
+    ) async throws -> XCConfigurationList {
         /// Configuration list
         let defaultConfiguration = project.settings.defaultReleaseBuildConfiguration()
             ?? project.settings.defaultDebugBuildConfiguration()
@@ -55,7 +55,7 @@ final class ConfigGenerator: ConfigGenerating {
         pbxproj.add(object: configurationList)
 
         for item in project.settings.configurations.sortedByBuildConfigurationName() {
-            try generateProjectSettingsFor(
+            try await generateProjectSettingsFor(
                 buildConfiguration: item.key,
                 configuration: item.value,
                 project: project,
@@ -77,7 +77,7 @@ final class ConfigGenerator: ConfigGenerating {
         fileElements: ProjectFileElements,
         graphTraverser: GraphTraversing,
         sourceRootPath: AbsolutePath
-    ) throws {
+    ) async throws {
         let defaultConfiguration = projectSettings.defaultReleaseBuildConfiguration()
             ?? projectSettings.defaultDebugBuildConfiguration()
         let configurationList = XCConfigurationList(
@@ -102,7 +102,7 @@ final class ConfigGenerator: ConfigGenerating {
         let nonEmptyConfigurations = !configurations.isEmpty ? configurations : Settings.default.configurations
         let orderedConfigurations = nonEmptyConfigurations.sortedByBuildConfigurationName()
         for orderedConfiguration in orderedConfigurations {
-            try generateTargetSettingsFor(
+            try await generateTargetSettingsFor(
                 target: target,
                 project: project,
                 buildConfiguration: orderedConfiguration.key,
@@ -125,9 +125,9 @@ final class ConfigGenerator: ConfigGenerating {
         fileElements: ProjectFileElements,
         pbxproj: PBXProj,
         configurationList: XCConfigurationList
-    ) throws {
+    ) async throws {
         let settingsHelper = SettingsHelper()
-        var settings = try defaultSettingsProvider.projectSettings(
+        var settings = try await defaultSettingsProvider.projectSettings(
             project: project,
             buildConfiguration: buildConfiguration
         )
@@ -160,13 +160,14 @@ final class ConfigGenerator: ConfigGenerating {
         pbxproj: PBXProj,
         configurationList: XCConfigurationList,
         sourceRootPath: AbsolutePath
-    ) throws {
+    ) async throws {
         let settingsHelper = SettingsHelper()
 
-        var settings: SettingsDictionary = try defaultSettingsProvider.targetSettings(
+        var settings: SettingsDictionary = try await defaultSettingsProvider.targetSettings(
             target: target,
             project: project,
-            buildConfiguration: buildConfiguration
+            buildConfiguration: buildConfiguration,
+            graphTraverser: graphTraverser
         )
 
         updateTargetDerived(
@@ -222,10 +223,6 @@ final class ConfigGenerator: ConfigGenerating {
                 project: project
             )
         ) { $1 }
-        settings
-            .merge(testBundleTargetDerivedSettings(target: target, graphTraverser: graphTraverser, projectPath: project.path)) {
-                $1
-            }
         settings.merge(destinationsDerivedSettings(target: target)) { $1 }
         settings.merge(deploymentTargetDerivedSettings(target: target)) { $1 }
         settings
@@ -259,7 +256,7 @@ final class ConfigGenerator: ConfigGenerating {
                 } else {
                     settings["CODE_SIGN_ENTITLEMENTS"] = .string("$(SRCROOT)/\(relativePath)")
                 }
-            } else if case let .variable(configName) = entitlements {
+            } else if case let .variable(configName, configuration: _) = entitlements {
                 settings["CODE_SIGN_ENTITLEMENTS"] = .string(configName)
             }
         }
@@ -285,33 +282,18 @@ final class ConfigGenerator: ConfigGenerating {
 
         settings["PRODUCT_NAME"] = .string(target.productName)
 
-        return settings
-    }
-
-    private func testBundleTargetDerivedSettings(
-        target: Target,
-        graphTraverser: GraphTraversing,
-        projectPath: AbsolutePath
-    ) -> SettingsDictionary {
-        guard target.product.testsBundle else {
-            return [:]
+        if target.mergeable {
+            settings["MERGEABLE_LIBRARY"] = .string("YES")
         }
 
-        let targetDependencies = graphTraverser.directLocalTargetDependencies(path: projectPath, name: target.name).sorted()
-        let appDependency = targetDependencies.first { $0.target.product.canHostTests() }
-
-        guard let app = appDependency else {
-            return [:]
-        }
-
-        var settings: SettingsDictionary = [:]
-        settings["TEST_TARGET_NAME"] = .string("\(app.target.name)")
-        if target.product == .unitTests {
-            settings["TEST_HOST"] =
-                .string(
-                    "$(BUILT_PRODUCTS_DIR)/\(app.target.productNameWithExtension)/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/\(app.target.productName)"
-                )
-            settings["BUNDLE_LOADER"] = "$(TEST_HOST)"
+        switch target.mergedBinaryType {
+        case .disabled:
+            // When `MERGED_BINARY_TYPE` is disabled, `MERGED_BINARY_TYPE` value should be left empty
+            break
+        case .automatic:
+            settings["MERGED_BINARY_TYPE"] = .string("automatic")
+        case .manual:
+            settings["MERGED_BINARY_TYPE"] = .string("manual")
         }
 
         return settings
@@ -325,7 +307,7 @@ final class ConfigGenerator: ConfigGenerating {
         let pluginExecutables = graphTraverser.allSwiftPluginExecutables(path: projectPath, name: target.name)
         var settings: SettingsDictionary = [:]
         if pluginExecutables.isEmpty { return settings }
-        let swiftCompilerFlags = pluginExecutables.flatMap { ["-load-plugin-executable", $0] }
+        let swiftCompilerFlags = pluginExecutables.sorted().flatMap { ["-load-plugin-executable", $0] }
         settings["OTHER_SWIFT_FLAGS"] = .array(swiftCompilerFlags)
         return settings
     }
@@ -338,6 +320,7 @@ final class ConfigGenerator: ConfigGenerating {
         if target.destinations.contains(.iPad) { deviceFamilyValues.append(2) }
         if target.destinations.contains(.appleTv) { deviceFamilyValues.append(3) }
         if target.destinations.contains(.appleWatch) { deviceFamilyValues.append(4) }
+        if target.destinations.contains(.macCatalyst) { deviceFamilyValues.append(6) }
         if target.destinations.contains(.appleVision) { deviceFamilyValues.append(7) }
 
         if !deviceFamilyValues.isEmpty {

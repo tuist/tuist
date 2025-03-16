@@ -1,0 +1,35 @@
+.VPLink {
+    overflow: scroll;
+    scrollbar-width: none; /* Firefox */
+
+    &::-webkit-scrollbar {
+        /* WebKit */
+        width: 0;
+        height: 0;
+    }
+}
+
+:root {
+    --vp-c-brand-1: #622ed4;
+    --vp-c-brand-2: #3c315b;
+    --vp-c-brand-3: #622ed4;
+    --vp-c-bg-soft: #fbfbfb;
+    --vp-font-family-base: "Space Grotesk", sans-serif;
+    --vp-font-family-mono: "Space Mono", sans-serif;
+
+    --vp-c-bg: #ffffff;
+    --vp-c-bg-alt: #f6f6f7;
+    --vp-c-bg-elv: #ffffff;
+    --vp-c-bg-soft: #f6f6f7;
+}
+
+.dark {
+    --vp-c-brand-1: #afa2f3;
+    --vp-c-brand-2: #2c2250;
+    --vp-c-brand-3: #3c315b;
+
+    --vp-c-bg: #1b1b1f;
+    --vp-c-bg-alt: #161618;
+    --vp-c-bg-elv: #202127;
+    --vp-c-bg-soft: #202127;
+}

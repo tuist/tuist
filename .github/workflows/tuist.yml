@@ -1,0 +1,28 @@
+name: Tuist
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  merge_group: {}
+
+concurrency:
+  group: tuist-${{ github.head_ref }}
+  cancel-in-progress: true
+
+jobs:
+  cross-platform:
+    name: Cross-platform build for ${{ matrix.os }}
+    runs-on: "ubuntu-latest"
+    strategy:
+      matrix:
+        os: ["ubuntu-latest", "windows-latest"]
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+      - uses: swift-actions/setup-swift@v2
+        with:
+          swift-version: "6.0"
+      - run: mise run build-cross-platform

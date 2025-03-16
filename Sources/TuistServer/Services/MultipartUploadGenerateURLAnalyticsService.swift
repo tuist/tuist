@@ -5,11 +5,12 @@ import TuistSupport
 @Mockable
 public protocol MultipartUploadGenerateURLAnalyticsServicing {
     func uploadAnalytics(
-        _ artifact: CloudCommandEvent.Artifact,
+        _ artifact: ServerCommandEvent.Artifact,
         commandEventId: Int,
         partNumber: Int,
         uploadId: String,
-        serverURL: URL
+        serverURL: URL,
+        contentLength: Int
     ) async throws -> String
 }
 
@@ -17,12 +18,13 @@ public enum MultipartUploadGenerateURLAnalyticsServiceError: FatalError, Equatab
     case unknownError(Int)
     case notFound(String)
     case forbidden(String)
+    case unauthorized(String)
 
     public var type: ErrorType {
         switch self {
         case .unknownError:
             return .bug
-        case .notFound, .forbidden:
+        case .notFound, .forbidden, .unauthorized:
             return .abort
         }
     }
@@ -31,7 +33,7 @@ public enum MultipartUploadGenerateURLAnalyticsServiceError: FatalError, Equatab
         switch self {
         case let .unknownError(statusCode):
             return "The generation of a multi-part upload URL failed due to an unknown Tuist response of \(statusCode)."
-        case let .notFound(message), let .forbidden(message):
+        case let .notFound(message), let .forbidden(message), let .unauthorized(message):
             return message
         }
     }
@@ -41,13 +43,14 @@ public final class MultipartUploadGenerateURLAnalyticsService: MultipartUploadGe
     public init() {}
 
     public func uploadAnalytics(
-        _ artifact: CloudCommandEvent.Artifact,
+        _ artifact: ServerCommandEvent.Artifact,
         commandEventId: Int,
         partNumber: Int,
         uploadId: String,
-        serverURL: URL
+        serverURL: URL,
+        contentLength: Int
     ) async throws -> String {
-        let client = Client.cloud(serverURL: serverURL)
+        let client = Client.authenticated(serverURL: serverURL)
         let response = try await client.generateAnalyticsArtifactMultipartUploadURL(
             .init(
                 path: .init(run_id: commandEventId),
@@ -55,6 +58,7 @@ public final class MultipartUploadGenerateURLAnalyticsService: MultipartUploadGe
                     .init(
                         command_event_artifact: .init(artifact),
                         multipart_upload_part: .init(
+                            content_length: contentLength,
                             part_number: partNumber,
                             upload_id: uploadId
                         )
@@ -79,6 +83,11 @@ public final class MultipartUploadGenerateURLAnalyticsService: MultipartUploadGe
             switch notFoundResponse.body {
             case let .json(error):
                 throw MultipartUploadGenerateURLAnalyticsServiceError.notFound(error.message)
+            }
+        case let .unauthorized(unauthorized):
+            switch unauthorized.body {
+            case let .json(error):
+                throw DeleteOrganizationServiceError.unauthorized(error.message)
             }
         }
     }

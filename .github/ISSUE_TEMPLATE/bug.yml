@@ -1,12 +1,12 @@
 name: Bug Report
-description: Create a report to help us improve
+description: Create a bug with reproducible steps.
 title: "Insert title here"
 labels: ["type:bug"]
 body:
   - type: markdown
     attributes:
       value: Thanks for taking the time to fill out this bug report!
-        
+
   - type: textarea
     id: what-happened
     attributes:

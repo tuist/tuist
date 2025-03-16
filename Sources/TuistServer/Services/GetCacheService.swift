@@ -10,8 +10,8 @@ public protocol GetCacheServicing {
         projectId: String,
         hash: String,
         name: String,
-        cacheCategory: CacheCategory.App
-    ) async throws -> CloudCacheArtifact
+        cacheCategory: RemoteCacheCategory
+    ) async throws -> ServerCacheArtifact
 }
 
 public enum GetCacheServiceError: FatalError, Equatable {
@@ -19,12 +19,13 @@ public enum GetCacheServiceError: FatalError, Equatable {
     case notFound(String)
     case paymentRequired(String)
     case forbidden(String)
+    case unauthorized(String)
 
     public var type: ErrorType {
         switch self {
         case .unknownError:
             return .bug
-        case .notFound, .paymentRequired, .forbidden:
+        case .notFound, .paymentRequired, .forbidden, .unauthorized:
             return .abort
         }
     }
@@ -32,8 +33,8 @@ public enum GetCacheServiceError: FatalError, Equatable {
     public var description: String {
         switch self {
         case let .unknownError(statusCode):
-            return "The remote cache could not be used due to an unknown Tuist Cloud response of \(statusCode)."
-        case let .notFound(message), let .paymentRequired(message), let .forbidden(message):
+            return "The remote cache could not be used due to an unknown Tuist response of \(statusCode)."
+        case let .notFound(message), let .paymentRequired(message), let .forbidden(message), let .unauthorized(message):
             return message
         }
     }
@@ -47,9 +48,9 @@ public final class GetCacheService: GetCacheServicing {
         projectId: String,
         hash: String,
         name: String,
-        cacheCategory: CacheCategory.App
-    ) async throws -> CloudCacheArtifact {
-        let client = Client.cloud(serverURL: serverURL)
+        cacheCategory: RemoteCacheCategory
+    ) async throws -> ServerCacheArtifact {
+        let client = Client.authenticated(serverURL: serverURL)
 
         let response = try await client.downloadCacheArtifact(
             .init(query: .init(cache_category: .init(cacheCategory), project_id: projectId, hash: hash, name: name))
@@ -59,9 +60,9 @@ public final class GetCacheService: GetCacheServicing {
         case let .ok(okResponse):
             switch okResponse.body {
             case let .json(cacheArtifact):
-                return try CloudCacheArtifact(cacheArtifact)
+                return try ServerCacheArtifact(cacheArtifact)
             }
-        case let .paymentRequired(paymentRequiredResponse):
+        case let .code402(paymentRequiredResponse):
             switch paymentRequiredResponse.body {
             case let .json(error):
                 throw GetCacheServiceError.paymentRequired(error.message)
@@ -77,6 +78,11 @@ public final class GetCacheService: GetCacheServicing {
             switch notFound.body {
             case let .json(error):
                 throw GetCacheServiceError.notFound(error.message)
+            }
+        case let .unauthorized(unauthorized):
+            switch unauthorized.body {
+            case let .json(error):
+                throw DeleteOrganizationServiceError.unauthorized(error.message)
             }
         }
     }

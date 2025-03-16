@@ -1,7 +1,5 @@
-import Path
 import TSCUtility
 import TuistCore
-import TuistSupport
 import XcodeGraph
 
 extension XcodeBuildDestination {
@@ -47,7 +45,9 @@ extension XcodeBuildDestination {
             )
             return .device(deviceAndRuntime.device.udid)
         case .macOS:
-            return .mac
+            // Mac Catalyst builds only support applications
+            let isCatalystApplication = target.product == .app && target.supportsCatalyst
+            return isCatalystApplication ? .macCatalyst : .mac
         }
     }
 }

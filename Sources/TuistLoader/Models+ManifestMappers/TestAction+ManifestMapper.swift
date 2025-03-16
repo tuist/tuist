@@ -1,5 +1,5 @@
+import FileSystem
 import Foundation
-import Path
 import ProjectDescription
 import TuistCore
 import TuistSupport
@@ -11,7 +11,9 @@ extension XcodeGraph.TestAction {
     /// - Parameters:
     ///   - manifest: Manifest representation of test action model.
     ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.TestAction, generatorPaths: GeneratorPaths) throws -> XcodeGraph.TestAction {
+    static func from(manifest: ProjectDescription.TestAction, generatorPaths: GeneratorPaths) async throws -> XcodeGraph
+        .TestAction
+    {
         // swiftlint:enable function_body_length
         let testPlans: [XcodeGraph.TestPlan]?
         let targets: [XcodeGraph.TestableTarget]
@@ -24,13 +26,16 @@ extension XcodeGraph.TestAction {
         let region: String?
         let preferredScreenCaptureFormat: XcodeGraph.ScreenCaptureFormat?
         let skippedTests: [String]?
+        let fileSystem = FileSystem()
 
         if let plans = manifest.testPlans {
-            testPlans = try plans.enumerated().compactMap { index, path in
-                let resolvedPath = try generatorPaths.resolve(path: path)
-                guard FileHandler.shared.exists(resolvedPath) else { return nil }
-                return try TestPlan(path: resolvedPath, isDefault: index == 0, generatorPaths: generatorPaths)
-            }
+            testPlans = try await plans.enumerated()
+                .map { $0 }
+                .concurrentCompactMap { index, path in
+                    let resolvedPath = try generatorPaths.resolve(path: path)
+                    guard try await fileSystem.exists(resolvedPath) else { return nil }
+                    return try TestPlan(path: resolvedPath, isDefault: index == 0, generatorPaths: generatorPaths)
+                }
 
             // not used when using test plans
             targets = []

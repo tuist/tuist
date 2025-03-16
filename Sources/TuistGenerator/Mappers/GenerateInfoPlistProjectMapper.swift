@@ -1,5 +1,5 @@
 import Foundation
-import Path
+import ServiceContextModule
 import TuistCore
 import TuistSupport
 import XcodeGraph
@@ -35,7 +35,7 @@ public final class GenerateInfoPlistProjectMapper: ProjectMapping {
     // MARK: - ProjectMapping
 
     public func map(project: Project) throws -> (Project, [SideEffectDescriptor]) {
-        logger.debug("Transforming project \(project.name): Synthesizing Info.plist")
+        ServiceContext.current?.logger?.debug("Transforming project \(project.name): Synthesizing Info.plist")
 
         let results = try project.targets.values
             .reduce(into: (targets: [String: Target](), sideEffects: [SideEffectDescriptor]())) { results, target in
@@ -88,9 +88,9 @@ public final class GenerateInfoPlistProjectMapper: ProjectMapping {
         target: Target
     ) -> [String: Any]? {
         switch infoPlist {
-        case let .dictionary(content):
+        case let .dictionary(content, _):
             return content.mapValues { $0.value }
-        case let .extendingDefault(extended):
+        case let .extendingDefault(extended, _):
             if let content = infoPlistContentProvider.content(
                 project: project,
                 target: target,

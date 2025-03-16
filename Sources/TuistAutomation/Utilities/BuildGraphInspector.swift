@@ -1,6 +1,7 @@
-import Foundation
+import FileSystem
 import Mockable
 import Path
+import ServiceContextModule
 import TuistCore
 import TuistSupport
 import XcodeGraph
@@ -18,7 +19,7 @@ public protocol BuildGraphInspecting {
 
     /// Given a directory, it returns the first .xcworkspace found.
     /// - Parameter path: Found .xcworkspace.
-    func workspacePath(directory: AbsolutePath) throws -> AbsolutePath?
+    func workspacePath(directory: AbsolutePath) async throws -> AbsolutePath?
 
     ///  From the list of buildable targets of the given scheme, it returns the first one.
     /// - Parameters:
@@ -64,7 +65,13 @@ public protocol BuildGraphInspecting {
 }
 
 public final class BuildGraphInspector: BuildGraphInspecting {
-    public init() {}
+    private let fileSystem: FileSysteming
+
+    public init(
+        fileSystem: FileSysteming = FileSystem()
+    ) {
+        self.fileSystem = fileSystem
+    }
 
     public func buildArguments(
         project: Project,
@@ -86,7 +93,7 @@ public final class BuildGraphInspector: BuildGraphInspecting {
             if configurations.contains(where: { $0.key.name == configuration }) {
                 arguments.append(.configuration(configuration))
             } else {
-                logger
+                ServiceContext.current?.logger?
                     .warning(
                         "The scheme's targets don't have the given configuration \(configuration). Defaulting to the scheme's default."
                     )
@@ -199,8 +206,9 @@ public final class BuildGraphInspector: BuildGraphInspecting {
             .sorted(by: { $0.name < $1.name })
     }
 
-    public func workspacePath(directory: AbsolutePath) throws -> AbsolutePath? {
-        try directory.glob("*.xcworkspace")
+    public func workspacePath(directory: AbsolutePath) async throws -> AbsolutePath? {
+        try await fileSystem.glob(directory: directory, include: ["*.xcworkspace"])
+            .collect()
             .filter {
                 try FileHandler.shared.contentsOfDirectory($0)
                     .map(\.basename)

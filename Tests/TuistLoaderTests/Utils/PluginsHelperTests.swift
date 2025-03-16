@@ -1,5 +1,4 @@
 import Foundation
-import Path
 import TuistCore
 import TuistSupport
 import XCTest
@@ -23,9 +22,9 @@ final class PluginsHelperTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_templatePath_when_plugin_not_found() throws {
-        XCTAssertThrowsSpecific(
-            try subject.templatePath(
+    func test_templatePath_when_plugin_not_found() async throws {
+        await XCTAssertThrowsSpecific(
+            try await subject.templatePath(
                 for: "A",
                 resourceName: "Strings",
                 resourceSynthesizerPlugins: [.test(name: "B"), .test(name: "C")]
@@ -34,9 +33,9 @@ final class PluginsHelperTests: TuistUnitTestCase {
         )
     }
 
-    func test_templatePath_when_template_does_not_exist() throws {
-        XCTAssertThrowsSpecific(
-            try subject.templatePath(
+    func test_templatePath_when_template_does_not_exist() async throws {
+        await XCTAssertThrowsSpecific(
+            try await subject.templatePath(
                 for: "A",
                 resourceName: "Strings",
                 resourceSynthesizerPlugins: [.test(name: "A")]
@@ -45,24 +44,27 @@ final class PluginsHelperTests: TuistUnitTestCase {
         )
     }
 
-    func test_templatePath_when_template_exists() throws {
+    func test_templatePath_when_template_exists() async throws {
         // Given
         let pluginPath = try temporaryPath()
         let templatePath = pluginPath.appending(component: "Strings.stencil")
         try fileHandler.touch(templatePath)
 
-        // When / Then
+        // When
+        let got = try await subject.templatePath(
+            for: "A",
+            resourceName: "Strings",
+            resourceSynthesizerPlugins: [
+                .test(
+                    name: "A",
+                    path: pluginPath
+                ),
+            ]
+        )
+
+        // Then
         XCTAssertEqual(
-            try subject.templatePath(
-                for: "A",
-                resourceName: "Strings",
-                resourceSynthesizerPlugins: [
-                    .test(
-                        name: "A",
-                        path: pluginPath
-                    ),
-                ]
-            ),
+            got,
             templatePath
         )
     }

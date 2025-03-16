@@ -1,5 +1,7 @@
 import Foundation
 import Logging
+import Noora
+import ServiceContextModule
 
 public struct StandardLogHandler: LogHandler {
     public var logLevel: Logger.Level
@@ -42,7 +44,7 @@ public struct StandardLogHandler: LogHandler {
                 case .error:
                     string = message.description.red()
                 case .warning:
-                    WarningController.shared.append(warning: message.description)
+                    ServiceContext.current?.alerts?.warning(.alert("\(message.description)"))
                     return
                 case .notice, .info, .debug, .trace:
                     string = message.description

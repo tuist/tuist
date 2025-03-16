@@ -219,7 +219,7 @@ class ProjectFileElements {
                     group: filesGroup,
                     sourceRootPath: sourceRootPath
                 )
-            case let .xcframework(path, _, _, _, _, _):
+            case let .xcframework(path, _, _, _):
                 try generatePrecompiledDependency(
                     path,
                     groups: groups,
@@ -257,13 +257,15 @@ class ProjectFileElements {
                     toGroup: groups.frameworks,
                     pbxproj: pbxproj
                 )
-            case let .product(target: target, productName: productName, _):
+            case let .product(target: target, productName: productName, _, _):
                 try generateProduct(
                     targetName: target,
                     productName: productName,
                     groups: groups,
                     pbxproj: pbxproj
                 )
+            case .packageProduct:
+                break
             }
         }
     }
@@ -276,7 +278,7 @@ class ProjectFileElements {
         sourceRootPath: AbsolutePath
     ) throws {
         // Pre-compiled artifact from the cache
-        let cacheDirectory = try cacheDirectoriesProvider.cacheDirectory()
+        let cacheDirectory = cacheDirectoriesProvider.cacheDirectory()
         if path.pathString.contains(cacheDirectory.pathString) {
             guard compiled[path] == nil else {
                 return

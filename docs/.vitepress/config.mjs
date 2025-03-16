@@ -1,226 +1,210 @@
 import { defineConfig } from "vitepress";
-import projectDescriptionTypesDataLoader from "../docs/reference/project-description/types.data";
-import examplesDataLoader from "../docs/reference/examples/examples.data";
-import cliDataLoader from "../docs/reference/cli/commands.data";
 import * as path from "node:path";
 import * as fs from "node:fs/promises";
+import {
+  guidesSidebar,
+  contributorsSidebar,
+  referencesSidebar,
+  serverSidebar,
+  navBar,
+} from "./bars.mjs";
+import { cliSidebar } from "./data/cli";
+import { localizedString } from "./i18n.mjs";
 
-const projectDescriptionTypesData = projectDescriptionTypesDataLoader.load();
-
-const projectDescriptionSidebar = {
-  text: "Project Description",
-  items: [],
-};
-
-function capitalize(text) {
-  return text.charAt(0).toUpperCase() + text.slice(1).toLowerCase();
+async function themeConfig(locale) {
+  const sidebar = {};
+  sidebar[`/${locale}/contributors`] = contributorsSidebar(locale);
+  sidebar[`/${locale}/guides/`] = guidesSidebar(locale);
+  sidebar[`/${locale}/server/`] = serverSidebar(locale);
+  sidebar[`/${locale}/cli/`] = await cliSidebar(locale);
+  sidebar[`/${locale}/references/`] = await referencesSidebar(locale);
+  sidebar[`/${locale}/`] = guidesSidebar(locale);
+  return {
+    nav: navBar(locale),
+    sidebar,
+  };
 }
 
-["structs", "enums", "extensions", "typealiases"].forEach((category) => {
-  if (projectDescriptionTypesData.find((item) => item.category === category)) {
-    projectDescriptionSidebar.items.push({
-      text: capitalize(category),
-      collapsed: true,
-      items: projectDescriptionTypesData
-        .filter((item) => item.category === category)
-        .map((item) => ({
-          text: item.title,
-          link: `/reference/project-description/${item.identifier}`,
-        })),
-    });
-  }
-});
-
-function generateNestedSidebarItems(items) {
-  const nestedItems = {};
-
-  items.forEach((item) => {
-    const category = item.category
-    if (!nestedItems[category]) {
-      nestedItems[category] = {
-        text: capitalize(category),
-        collapsed: true,
-        items: [],
-      };
-    }
-    nestedItems[category].items.push({ text: item.title, link: `/reference/cli/${item.command}` });
-  });
-
-  function isLinkItem(item) {
-    return typeof item.link === "string";
-  }
-
-  function convertToArray(obj) {
-    return Object.values(obj).reduce((acc, item) => {
-      if (Array.isArray(item.items) && item.items.every(isLinkItem)) {
-        acc.push(item);
-      } else {
-        acc.push({
-          text: item.text,
-          collapsed: true,
-          items: convertToArray(item.items),
-        });
-      }
-      return acc;
-    }, []);
-  }
-
-  return convertToArray(nestedItems);
+function getSearchOptionsForLocale(locale) {
+  return {
+    placeholder: localizedString(locale, "search.placeholder"),
+    translations: {
+      button: {
+        buttonText: localizedString(
+          locale,
+          "search.translations.button.buttonText",
+        ),
+        buttonAriaLabel: localizedString(
+          locale,
+          "search.translations.button.buttonAriaLabel",
+        ),
+      },
+      modal: {
+        searchBox: {
+          resetButtonTitle: localizedString(
+            locale,
+            "search.translations.modal.search-box.reset-button-title",
+          ),
+          resetButtonAriaLabel: localizedString(
+            locale,
+            "search.translations.modal.search-box.reset-button-aria-label",
+          ),
+          cancelButtonText: localizedString(
+            locale,
+            "search.translations.modal.search-box.cancel-button-text",
+          ),
+          cancelButtonAriaLabel: localizedString(
+            locale,
+            "search.translations.modal.search-box.cancel-button-aria-label",
+          ),
+        },
+        startScreen: {
+          recentSearchesTitle: localizedString(
+            locale,
+            "search.translations.modal.start-screen.recent-searches-title",
+          ),
+          noRecentSearchesText: localizedString(
+            locale,
+            "search.translations.modal.start-screen.no-recent-searches-text",
+          ),
+          saveRecentSearchButtonTitle: localizedString(
+            locale,
+            "search.translations.modal.start-screen.save-recent-search-button-title",
+          ),
+          removeRecentSearchButtonTitle: localizedString(
+            locale,
+            "search.translations.modal.start-screen.remove-recent-search-button-title",
+          ),
+          favoriteSearchesTitle: localizedString(
+            locale,
+            "search.translations.modal.start-screen.favorite-searches-title",
+          ),
+          removeFavoriteSearchButtonTitle: localizedString(
+            locale,
+            "search.translations.modal.start-screen.remove-favorite-search-button-title",
+          ),
+        },
+        errorScreen: {
+          titleText: localizedString(
+            locale,
+            "search.translations.modal.error-screen.title-text",
+          ),
+          helpText: localizedString(
+            locale,
+            "search.translations.modal.error-screen.help-text",
+          ),
+        },
+        footer: {
+          selectText: localizedString(
+            locale,
+            "search.translations.modal.footer.select-text",
+          ),
+          navigateText: localizedString(
+            locale,
+            "search.translations.modal.footer.navigate-text",
+          ),
+          closeText: localizedString(
+            locale,
+            "search.translations.modal.footer.close-text",
+          ),
+          searchByText: localizedString(
+            locale,
+            "search.translations.modal.footer.search-by-text",
+          ),
+        },
+        noResultsScreen: {
+          noResultsText: localizedString(
+            locale,
+            "search.translations.modal.no-results-screen.no-results-text",
+          ),
+          suggestedQueryText: localizedString(
+            locale,
+            "search.translations.modal.no-results-screen.suggested-query-text",
+          ),
+          reportMissingResultsText: localizedString(
+            locale,
+            "search.translations.modal.no-results-screen.report-missing-results-text",
+          ),
+          reportMissingResultsLinkText: localizedString(
+            locale,
+            "search.translations.modal.no-results-screen.report-missing-results-link-text",
+          ),
+        },
+      },
+    },
+  };
 }
 
-  
-const cliData = cliDataLoader.load();
-
-const cliSidebar = {
-  text: "CLI",
-  items: generateNestedSidebarItems(cliData),
+const searchOptionsLocales = {
+  en: getSearchOptionsForLocale("en"),
+  ko: getSearchOptionsForLocale("ko"),
+  ja: getSearchOptionsForLocale("ja"),
+  ru: getSearchOptionsForLocale("ru"),
+  es: getSearchOptionsForLocale("es"),
 };
 
-const guideSidebar = [
-  {
-    text: "Introduction",
-    items: [
-      {
-        text: "What is Tuist?",
-        link: "/",
-      },
-      {
-        text: "The cost of convenience",
-        link: "/guide/introduction/cost-of-convenience",
-      },
-      {
-        text: "Installation",
-        link: "/guide/introduction/installation",
-      },
-      {
-        text: "Adopting Tuist",
-        collapsed: true,
-        items: [
-          {
-            text: "Create a project",
-            link: "/guide/introduction/adopting-tuist/new-project",
-          },
-          {
-            text: "Use it with a Swift Package",
-            link: "/guide/introduction/adopting-tuist/swift-package",
-          },
-          {
-            text: "Migrate from .xcodeproj",
-            link: "/guide/introduction/adopting-tuist/migrate-from-xcodeproj",
-          },
-          {
-            text: "Migrate local Swift Packages",
-            link: "/guide/introduction/adopting-tuist/migrate-local-swift-packages",
-          },
-          {
-            text: "Migrate from XcodeGen",
-            link: "/guide/introduction/adopting-tuist/migrate-from-xcodegen",
-          },
-          {
-            text: "Migrate from Bazel",
-            link: "/guide/introduction/adopting-tuist/migrate-from-bazel",
-          },
-        ],
-      },
-      {
-        text: "From v3 to v4",
-        link: "/guide/introduction/from-v3-to-v4",
-      },
-    ],
-  },
-  {
-    text: "Tuist Projects",
-    items: [
-      {
-        text: "Manifests",
-        link: "/guide/project/manifests",
-      },
-      {
-        text: "Directory structure",
-        link: "/guide/project/directory-structure",
-      },
-      { text: "Editing", link: "/guide/project/editing" },
-      { text: "Dependencies", link: "/guide/project/dependencies" },
-      { text: "Code sharing", link: "/guide/project/code-sharing" },
-      {
-        text: "Synthesized files",
-        link: "/guide/project/synthesized-files",
-      },
-      {
-        text: "Dynamic configuration",
-        link: "/guide/project/dynamic-configuration",
-      },
-      {
-        text: "Templates",
-        link: "/guide/project/templates",
-      },
-      {
-        text: "Plugins",
-        link: "/guide/project/plugins",
-      },
-      {
-        text: "Commands",
-        collapsed: true,
-        items: [
-          { text: "Generate", link: "/guide/automation/generate" },
-          { text: "Build", link: "/guide/automation/build" },
-          { text: "Test", link: "/guide/automation/test" },
-          { text: "Run", link: "/guide/automation/run" },
-          { text: "Graph", link: "/guide/automation/graph" },
-          { text: "Clean", link: "/guide/automation/clean" },
-        ],
-      },
-      {
-        text: "The Modular Architecture",
-        link: "/guide/scale/tma-architecture",
-      },
-    ],
-  },
-  {
-    text: "Tuist Cloud",
-    items: [
-      {
-        text: "What is Tuist Cloud?",
-        link: "/cloud/what-is-cloud",
-      },
-      {
-        text: "Get started",
-        link: "/cloud/get-started",
-      },
-      {
-        text: "Binary caching",
-        link: "/cloud/binary-caching",
-      },
-      {
-        text: "Selective testing",
-        link: "/cloud/selective-testing",
-      },
-      {
-        text: "Hashing",
-        link: "/cloud/hashing",
-      },
-      {
-        text: "On-premise",
-        link: "/cloud/on-premise",
-      },
-    ],
-  },
-];
-
-// https://vitepress.dev/reference/site-config
 export default defineConfig({
   title: "Tuist",
   titleTemplate: ":title | Tuist",
   description: "Scale your Xcode app development",
   srcDir: "docs",
-  lastUpdated: true,
+  lastUpdated: false,
   locales: {
-    root: {
+    en: {
       label: "English",
-      lange: "en",
+      lang: "en",
+      themeConfig: await themeConfig("en"),
+    },
+    ko: {
+      label: "한국어 (Korean)",
+      lang: "ko",
+      themeConfig: await themeConfig("ko"),
+    },
+    ja: {
+      label: "日本語 (Japanese)",
+      lang: "ja",
+      themeConfig: await themeConfig("ja"),
+    },
+    ru: {
+      label: "Русский (Russian)",
+      lang: "ru",
+      themeConfig: await themeConfig("ru"),
+    },
+    es: {
+      label: "Castellano (Spanish)",
+      lang: "es",
+      themeConfig: await themeConfig("es"),
+    },
+    pt: {
+      label: "Português (Portuguese)",
+      lang: "pt",
+      themeConfig: await themeConfig("pt"),
     },
   },
+  cleanUrls: true,
   head: [
+    [
+      "meta",
+      {
+        "http-equiv": "Content-Security-Policy",
+        content: "frame-src 'self' https://videos.tuist.dev",
+      },
+      ``,
+    ],
+    [
+      "style",
+      {},
+      `
+      @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap');
+      `,
+    ],
+    [
+      "style",
+      {},
+      `
+      @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&display=swap');
+      `,
+    ],
     [
       "script",
       {},
@@ -229,12 +213,23 @@ export default defineConfig({
       posthog.init('phc_stva6NJi8LG6EmR6RA6uQcRdrmfTQcAVLoO3vGgWmNZ',{api_host:'https://eu.i.posthog.com'})
     `,
     ],
+    ["meta", { property: "og:url", content: "https://docs.tuist.io" }, ""],
+    ["meta", { property: "og:type", content: "website" }, ""],
     [
-      "script",
-      {},
-      `
-      !function(t){if(window.ko)return;window.ko=[],["identify","track","removeListeners","open","on","off","qualify","ready"].forEach(function(t){ko[t]=function(){var n=[].slice.call(arguments);return n.unshift(t),ko.push(n),ko}});var n=document.createElement("script");n.async=!0,n.setAttribute("src","https://cdn.getkoala.com/v1/pk_3f80a3529ec2914b714a3f740d10b12642b9/sdk.js"),(document.body || document.head).appendChild(n)}();
-    `,
+      "meta",
+      { property: "og:image", content: "https://docs.tuist.io/images/og.jpeg" },
+      "",
+    ],
+    ["meta", { name: "twitter:card", content: "summary" }, ""],
+    ["meta", { property: "twitter:domain", content: "docs.tuist.io" }, ""],
+    ["meta", { property: "twitter:url", content: "https://docs.tuist.io" }, ""],
+    [
+      "meta",
+      {
+        name: "twitter:image",
+        content: "https://docs.tuist.io/images/og.jpeg",
+      },
+      "",
     ],
   ],
   sitemap: {
@@ -242,7 +237,7 @@ export default defineConfig({
   },
   async buildEnd({ outDir }) {
     const redirectsPath = path.join(outDir, "_redirects");
-    const redirects = `    
+    const redirects = `
 /documentation/tuist/installation /guide/introduction/installation 301
 /documentation/tuist/project-structure /guide/project/directory-structure 301
 /documentation/tuist/command-line-interface /guide/automation/generate 301
@@ -273,76 +268,180 @@ export default defineConfig({
 /documentation/tuist/championing-projects /contributors/get-started 301
 /guide/scale/ufeatures-architecture.html /guide/scale/tma-architecture.html 301
 /guide/scale/ufeatures-architecture /guide/scale/tma-architecture 301
+/guide/introduction/cost-of-convenience /guides/develop/projects/cost-of-convenience 301
+/guide/introduction/installation /guides/quick-start/install-tuist 301
+/guide/introduction/adopting-tuist/new-project /guides/start/new-project 301
+/guide/introduction/adopting-tuist/swift-package /guides/start/swift-package 301
+/guide/introduction/adopting-tuist/migrate-from-xcodeproj /guides/start/migrate/xcode-project 301
+/guide/introduction/adopting-tuist/migrate-local-swift-packages /guides/start/migrate/swift-package 301
+/guide/introduction/adopting-tuist/migrate-from-xcodegen /guides/start/migrate/xcodegen-project 301
+/guide/introduction/adopting-tuist/migrate-from-bazel /guides/start/migrate/bazel-project 301
+/guide/introduction/from-v3-to-v4 /references/migrations/from-v3-to-v4 301
+/guide/project/manifests /guides/develop/projects/manifests 301
+/guide/project/directory-structure /guides/develop/projects/directory-structure 301
+/guide/project/editing /guides/develop/projects/editing 301
+/guide/project/dependencies /guides/develop/projects/dependencies 301
+/guide/project/code-sharing /guides/develop/projects/code-sharing 301
+/guide/project/synthesized-files /guides/develop/projects/synthesized-files 301
+/guide/project/dynamic-configuration /guides/develop/projects/dynamic-configuration 301
+/guide/project/templates /guides/develop/projects/templates 301
+/guide/project/plugins /guides/develop/projects/plugins 301
+/guide/automation/generate / 301
+/guide/automation/build /guides/develop/build 301
+/guide/automation/test /guides/develop/test 301
+/guide/automation/run / 301
+/guide/automation/graph / 301
+/guide/automation/clean / 301
+/guide/scale/tma-architecture /guides/develop/projects/tma-architecture 301
+/cloud/what-is-cloud / 301
+/cloud/get-started / 301
+/cloud/binary-caching /guides/develop/build/cache 301
+/cloud/selective-testing /guides/develop/test/smart-runner 301
+/cloud/hashing /guides/develop/projects/hashing 301
+/cloud/on-premise /guides/dashboard/on-premise/install 301
+/cloud/on-premise/metrics /guides/dashboard/on-premise/metrics 301
+/reference/project-description/* /references/project-description/:splat 301
+/reference/examples/* /references/examples/:splat 301
+/guides/develop/workflows /guides/develop/continuous-integration/workflows 301
+/guides/dashboard/on-premise/install /server/on-premise/install 301
+/guides/dashboard/on-premise/metrics /server/on-premise/metrics 301
+/:locale/references/project-description/structs/config /:locale/references/project-description/structs/tuist  301
+/:locale/guides/develop/test/smart-runner /:locale/guides/develop/test/selective-testing 301
+/:locale/guides/start/new-project /:locale/guides/develop/projects/adoption/new-project 301
+/:locale/guides/start/swift-package /:locale/guides/develop/projects/adoption/swift-package 301
+/:locale/guides/start/migrate/xcode-project /:locale/guides/develop/projects/adoption/migrate/xcode-project 301
+/:locale/guides/start/migrate/swift-package /:locale/guides/develop/projects/adoption/migrate/swift-package 301
+/:locale/guides/start/migrate/xcodegen-project /:locale/guides/develop/projects/adoption/migrate/xcodegen-project 301
+/:locale/guides/start/migrate/bazel-project /:locale/guides/develop/projects/adoption/migrate/bazel-project 301
+/:locale/guides/develop/build/cache /:locale/guides/develop/cache 301
+/:locale/guides/develop/build/registry /:locale/guides/develop/registry 301
+/:locale/guides/develop/test/selective-testing /:locale/guides/develop/selective-testing 301
+/:locale/guides/develop/inspect/implicit-dependencies /:locale/guides/develop/projects/inspect/implicit-dependencies 301
+/:locale/guides/develop/automate/continuous-integration /:locale/guides/automate/continuous-integration 301
+/:locale/guides/develop/automate/workflows /:locale/guides/automate/workflows 301
 /documentation/tuist/* / 301
+/:locale/guides/develop/build/registry /:locale/guides/develop/registry 301
+${await fs.readFile(path.join(import.meta.dirname, "locale-redirects.txt"), {
+  encoding: "utf-8",
+})}
     `;
     fs.writeFile(redirectsPath, redirects);
   },
   themeConfig: {
     logo: "/logo.png",
     search: {
-      provider: "local",
-    },
-    nav: [
-      { text: "Guide", link: "/" },
-      {
-        text: "Reference",
-        link: "/reference/project-description/structs/project",
+      provider: "algolia",
+      options: {
+        appId: "5A3L9HI9VQ",
+        apiKey: "cd45f515fb1fbb720d633cb0f1257e7a",
+        indexName: "tuist",
+        locales: searchOptionsLocales,
+        startUrls: ["https://tuist.dev/"],
+        renderJavaScript: false,
+        sitemaps: [],
+        exclusionPatterns: [],
+        ignoreCanonicalTo: false,
+        discoveryPatterns: ["https://tuist.dev/**"],
+        schedule: "at 05:10 on Saturday",
+        actions: [
+          {
+            indexName: "tuist",
+            pathsToMatch: ["https://tuist.dev/**"],
+            recordExtractor: ({ $, helpers }) => {
+              return helpers.docsearch({
+                recordProps: {
+                  lvl1: ".content h1",
+                  content: ".content p, .content li",
+                  lvl0: {
+                    selectors: "section.has-active div h2",
+                    defaultValue: "Documentation",
+                  },
+                  lvl2: ".content h2",
+                  lvl3: ".content h3",
+                  lvl4: ".content h4",
+                  lvl5: ".content h5",
+                },
+                indexHeadings: true,
+              });
+            },
+          },
+        ],
+        initialIndexSettings: {
+          vitepress: {
+            attributesForFaceting: ["type", "lang"],
+            attributesToRetrieve: ["hierarchy", "content", "anchor", "url"],
+            attributesToHighlight: ["hierarchy", "hierarchy_camel", "content"],
+            attributesToSnippet: ["content:10"],
+            camelCaseAttributes: ["hierarchy", "hierarchy_radio", "content"],
+            searchableAttributes: [
+              "unordered(hierarchy_radio_camel.lvl0)",
+              "unordered(hierarchy_radio.lvl0)",
+              "unordered(hierarchy_radio_camel.lvl1)",
+              "unordered(hierarchy_radio.lvl1)",
+              "unordered(hierarchy_radio_camel.lvl2)",
+              "unordered(hierarchy_radio.lvl2)",
+              "unordered(hierarchy_radio_camel.lvl3)",
+              "unordered(hierarchy_radio.lvl3)",
+              "unordered(hierarchy_radio_camel.lvl4)",
+              "unordered(hierarchy_radio.lvl4)",
+              "unordered(hierarchy_radio_camel.lvl5)",
+              "unordered(hierarchy_radio.lvl5)",
+              "unordered(hierarchy_radio_camel.lvl6)",
+              "unordered(hierarchy_radio.lvl6)",
+              "unordered(hierarchy_camel.lvl0)",
+              "unordered(hierarchy.lvl0)",
+              "unordered(hierarchy_camel.lvl1)",
+              "unordered(hierarchy.lvl1)",
+              "unordered(hierarchy_camel.lvl2)",
+              "unordered(hierarchy.lvl2)",
+              "unordered(hierarchy_camel.lvl3)",
+              "unordered(hierarchy.lvl3)",
+              "unordered(hierarchy_camel.lvl4)",
+              "unordered(hierarchy.lvl4)",
+              "unordered(hierarchy_camel.lvl5)",
+              "unordered(hierarchy.lvl5)",
+              "unordered(hierarchy_camel.lvl6)",
+              "unordered(hierarchy.lvl6)",
+              "content",
+            ],
+            distinct: true,
+            attributeForDistinct: "url",
+            customRanking: [
+              "desc(weight.pageRank)",
+              "desc(weight.level)",
+              "asc(weight.position)",
+            ],
+            ranking: [
+              "words",
+              "filters",
+              "typo",
+              "attribute",
+              "proximity",
+              "exact",
+              "custom",
+            ],
+            highlightPreTag:
+              '<span class="algolia-docsearch-suggestion--highlight">',
+            highlightPostTag: "</span>",
+            minWordSizefor1Typo: 3,
+            minWordSizefor2Typos: 7,
+            allowTyposOnNumericTokens: false,
+            minProximity: 1,
+            ignorePlurals: true,
+            advancedSyntax: true,
+            attributeCriteriaComputedByMinProximity: true,
+            removeWordsIfNoResults: "allOptional",
+          },
+        },
       },
-      { text: "Contributors", link: "/contributors/get-started" },
-      { text: "Changelog", link: "https://github.com/tuist/tuist/releases" },
-    ],
+    },
     editLink: {
       pattern: "https://github.com/tuist/tuist/edit/main/docs/docs/:path",
     },
-    sidebar: {
-      "/contributors": [
-        {
-          text: "Contributors",
-          items: [
-            {
-              text: "Get started",
-              link: "/contributors/get-started",
-            },
-            {
-              text: "Issue reporting",
-              link: "/contributors/issue-reporting",
-            },
-            {
-              text: "Code reviews",
-              link: "/contributors/code-reviews",
-            },
-            {
-              text: "Principles",
-              link: "/contributors/principles",
-            },
-          ],
-        },
-      ],
-      "/guide/": guideSidebar,
-      "/": guideSidebar,
-      "/reference/": [
-        {
-          text: "Reference",
-          items: [
-            cliSidebar,
-            projectDescriptionSidebar,
-            {
-              text: "Examples",
-              items: examplesDataLoader.load().map((item) => {
-                return {
-                  text: item.title,
-                  link: `/reference/examples/${item.name}`,
-                };
-              }),
-            },
-          ],
-        },
-      ],
-    },
     socialLinks: [
       { icon: "github", link: "https://github.com/tuist/tuist" },
-      { icon: "x", link: "https://x.com/tuistio" },
       { icon: "mastodon", link: "https://fosstodon.org/@tuist" },
+      { icon: "bluesky", link: "https://bsky.app/profile/tuist.dev" },
       {
         icon: "slack",
         link: "https://join.slack.com/t/tuistapp/shared_invite/zt-1y667mjbk-s2LTRX1YByb9EIITjdLcLw",

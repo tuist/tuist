@@ -10,21 +10,21 @@ public protocol CacheExistsServicing {
         projectId: String,
         hash: String,
         name: String,
-        cacheCategory: CacheCategory.App
-    ) async throws
+        cacheCategory: RemoteCacheCategory
+    ) async throws -> Bool
 }
 
 public enum CacheExistsServiceError: FatalError, Equatable {
     case unknownError(Int)
-    case notFound(String)
     case paymentRequired(String)
     case forbidden(String)
+    case unauthorized(String)
 
     public var type: ErrorType {
         switch self {
         case .unknownError:
             return .bug
-        case .notFound, .paymentRequired, .forbidden:
+        case .paymentRequired, .forbidden, .unauthorized:
             return .abort
         }
     }
@@ -32,8 +32,8 @@ public enum CacheExistsServiceError: FatalError, Equatable {
     public var description: String {
         switch self {
         case let .unknownError(statusCode):
-            return "The remote cache could not be used due to an unknown Tuist Cloud response of \(statusCode)."
-        case let .notFound(message), let .paymentRequired(message), let .forbidden(message):
+            return "The remote cache could not be used due to an unknown Tuist response of \(statusCode)."
+        case let .paymentRequired(message), let .forbidden(message), let .unauthorized(message):
             return message
         }
     }
@@ -47,9 +47,9 @@ public final class CacheExistsService: CacheExistsServicing {
         projectId: String,
         hash: String,
         name: String,
-        cacheCategory: CacheCategory.App
-    ) async throws {
-        let client = Client.cloud(serverURL: serverURL)
+        cacheCategory: RemoteCacheCategory
+    ) async throws -> Bool {
+        let client = Client.authenticated(serverURL: serverURL)
 
         let response = try await client.cacheArtifactExists(
             .init(query: .init(cache_category: .init(cacheCategory), project_id: projectId, hash: hash, name: name))
@@ -57,14 +57,10 @@ public final class CacheExistsService: CacheExistsServicing {
 
         switch response {
         case .ok:
-            // noop
-            break
-        case let .notFound(notFoundResponse):
-            switch notFoundResponse.body {
-            case let .json(body):
-                throw CacheExistsServiceError.notFound(body.error?.first?.message ?? "The remote cache artifact does not exist")
-            }
-        case let .paymentRequired(paymentRequiredResponse):
+            return true
+        case .notFound:
+            return false
+        case let .code402(paymentRequiredResponse):
             switch paymentRequiredResponse.body {
             case let .json(error):
                 throw CacheExistsServiceError.paymentRequired(error.message)
@@ -75,6 +71,11 @@ public final class CacheExistsService: CacheExistsServicing {
             switch forbiddenResponse.body {
             case let .json(error):
                 throw CacheExistsServiceError.forbidden(error.message)
+            }
+        case let .unauthorized(unauthorized):
+            switch unauthorized.body {
+            case let .json(error):
+                throw DeleteOrganizationServiceError.unauthorized(error.message)
             }
         }
     }

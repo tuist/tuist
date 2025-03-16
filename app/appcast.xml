@@ -1,0 +1,33 @@
+<?xml version="1.0" standalone="yes"?>
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+    <channel>
+        <title>Tuist</title>
+        <item>
+            <title>0.9.0</title>
+            <pubDate>Tue, 03 Dec 2024 15:37:24 +0000</pubDate>
+            <link>https://github.com/tuist/tuist/releases</link>
+            <sparkle:version>0.9.0</sparkle:version>
+            <sparkle:shortVersionString>0.9.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0.0</sparkle:minimumSystemVersion>
+            <enclosure url="https://github.com/tuist/tuist/releases/download/app@0.9.0/Tuist.dmg" length="21390680" type="application/octet-stream" sparkle:edSignature="KgvfY5Uao7pfqhOl8D/c9FcEbkTvdkRQPEdmBuJTmGSP3MSq7cQEuL+2nWF1O5j+W973oz+mkAhiaF5S5zM2BA=="/>
+        </item>
+        <item>
+            <title>0.8.1</title>
+            <pubDate>Wed, 27 Nov 2024 16:18:34 +0000</pubDate>
+            <link>https://github.com/tuist/tuist/releases</link>
+            <sparkle:version>0.8.1</sparkle:version>
+            <sparkle:shortVersionString>0.8.1</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0.0</sparkle:minimumSystemVersion>
+            <enclosure url="https://github.com/tuist/tuist/releases/download/app@0.8.1/Tuist.dmg" length="21384983" type="application/octet-stream" sparkle:edSignature="gCZt/fOdW6eIa8to4p56FGk1EBTVt7FRSVrZi9eCwi1q+p9C1/GIiXKyP2TAI4qvuDlse3SWbfHRANePB2OvAA=="/>
+        </item>
+        <item>
+            <title>0.8.0</title>
+            <pubDate>Tue, 26 Nov 2024 18:59:46 +0000</pubDate>
+            <link>https://github.com/tuist/tuist/releases</link>
+            <sparkle:version>0.8.0</sparkle:version>
+            <sparkle:shortVersionString>0.8.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0.0</sparkle:minimumSystemVersion>
+            <enclosure url="https://github.com/tuist/tuist/releases/download/app@0.8.0/Tuist.dmg" length="21378878" type="application/octet-stream" sparkle:edSignature="3UE5onNw/Z2CvrVYy0EDZ0emNzJf/dJzQnv5M1mCwVtuM7GQ1tFgD8W/A1nq2DMKJT8J2gkdXwbVhJH9rpEzCg=="/>
+        </item>
+    </channel>
+</rss>

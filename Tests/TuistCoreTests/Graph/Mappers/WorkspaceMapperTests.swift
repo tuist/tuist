@@ -7,7 +7,7 @@ import XCTest
 @testable import TuistSupportTesting
 
 final class ProjectWorkspaceMapperTests: XCTestCase {
-    func test_map_workspace() throws {
+    func test_map_workspace() async throws {
         // Given
         let projectMapper = ProjectMapper {
             var updated = $0
@@ -21,7 +21,7 @@ final class ProjectWorkspaceMapperTests: XCTestCase {
         let workspaceWithProjects = WorkspaceWithProjects(workspace: workspace, projects: [projectA, projectB])
 
         // When
-        let (updatedWorkspace, sideEffects) = try subject.map(workspace: workspaceWithProjects)
+        let (updatedWorkspace, sideEffects) = try await subject.map(workspace: workspaceWithProjects)
 
         // Then
         XCTAssertEqual(updatedWorkspace.projects.map(\.name), [
@@ -31,7 +31,7 @@ final class ProjectWorkspaceMapperTests: XCTestCase {
         XCTAssertTrue(sideEffects.isEmpty)
     }
 
-    func test_map_sideEffects() throws {
+    func test_map_sideEffects() async throws {
         // Given
         let projectMapper = ProjectMapper {
             var updated = $0
@@ -47,7 +47,7 @@ final class ProjectWorkspaceMapperTests: XCTestCase {
         let workspaceWithProjects = WorkspaceWithProjects(workspace: workspace, projects: [projectA, projectB])
 
         // When
-        let (_, sideEffects) = try subject.map(workspace: workspaceWithProjects)
+        let (_, sideEffects) = try await subject.map(workspace: workspaceWithProjects)
 
         // Then
         XCTAssertEqual(sideEffects, [
@@ -71,7 +71,7 @@ final class ProjectWorkspaceMapperTests: XCTestCase {
 }
 
 final class SequentialWorkspaceMapperTests: XCTestCase {
-    func test_map_workspace() throws {
+    func test_map_workspace() async throws {
         // Given
         let mapper1 = WorkspaceMapper {
             var updated = $0
@@ -90,7 +90,7 @@ final class SequentialWorkspaceMapperTests: XCTestCase {
         let workspaceWithProjects = WorkspaceWithProjects(workspace: workspace, projects: [])
 
         // When
-        let (updatedWorkspace, sideEffects) = try subject.map(workspace: workspaceWithProjects)
+        let (updatedWorkspace, sideEffects) = try await subject.map(workspace: workspaceWithProjects)
 
         // Then
         XCTAssertEqual(updatedWorkspace.workspace.name, "Updated2_Updated1_Workspace")
@@ -101,7 +101,7 @@ final class SequentialWorkspaceMapperTests: XCTestCase {
         XCTAssertTrue(sideEffects.isEmpty)
     }
 
-    func test_map_sideEffects() throws {
+    func test_map_sideEffects() async throws {
         // Given
         let mapper1 = WorkspaceMapper {
             ($0, [
@@ -118,7 +118,7 @@ final class SequentialWorkspaceMapperTests: XCTestCase {
         let workspaceWithProjects = WorkspaceWithProjects(workspace: workspace, projects: [])
 
         // When
-        let (_, sideEffects) = try subject.map(workspace: workspaceWithProjects)
+        let (_, sideEffects) = try await subject.map(workspace: workspaceWithProjects)
 
         // Then
         XCTAssertEqual(sideEffects, [

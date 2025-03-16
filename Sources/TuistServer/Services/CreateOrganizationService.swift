@@ -8,7 +8,7 @@ public protocol CreateOrganizationServicing {
     func createOrganization(
         name: String,
         serverURL: URL
-    ) async throws -> CloudOrganization
+    ) async throws -> ServerOrganization
 }
 
 enum CreateOrganizationServiceError: FatalError {
@@ -27,7 +27,7 @@ enum CreateOrganizationServiceError: FatalError {
     var description: String {
         switch self {
         case let .unknownError(statusCode):
-            return "The organization could not be created due to an unknown cloud response of \(statusCode)."
+            return "The organization could not be created due to an unknown Tuist response of \(statusCode)."
         case let .badRequest(message):
             return message
         }
@@ -40,8 +40,8 @@ public final class CreateOrganizationService: CreateOrganizationServicing {
     public func createOrganization(
         name: String,
         serverURL: URL
-    ) async throws -> CloudOrganization {
-        let client = Client.cloud(serverURL: serverURL)
+    ) async throws -> ServerOrganization {
+        let client = Client.authenticated(serverURL: serverURL)
 
         let response = try await client.createOrganization(
             .init(
@@ -56,7 +56,7 @@ public final class CreateOrganizationService: CreateOrganizationServicing {
         case let .ok(okResponse):
             switch okResponse.body {
             case let .json(organization):
-                return CloudOrganization(organization)
+                return ServerOrganization(organization)
             }
         case let .badRequest(badRequestResponse):
             switch badRequestResponse.body {

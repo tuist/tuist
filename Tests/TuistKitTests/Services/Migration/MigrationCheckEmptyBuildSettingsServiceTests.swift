@@ -22,20 +22,20 @@ final class MigrationCheckEmptyBuildSettingsServiceTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_run() throws {
+    func test_run() async throws {
         // Given
         let xcodeprojPath = try AbsolutePath(validating: "/test.xcodeproj")
         let target = "test"
 
         // When
-        try subject.run(xcodeprojPath: xcodeprojPath, target: target)
+        try await subject.run(xcodeprojPath: xcodeprojPath, target: target)
 
         // Then
         XCTAssertEqual(emptyBuildSettingsChecker.invokedCheckParameters?.xcodeprojPath, xcodeprojPath)
         XCTAssertEqual(emptyBuildSettingsChecker.invokedCheckParameters?.targetName, target)
     }
 
-    func test_run_rethrows_errors_thrown_by_the_checker() throws {
+    func test_run_rethrows_errors_thrown_by_the_checker() async throws {
         // Given
         let xcodeprojPath = try AbsolutePath(validating: "/test.xcodeproj")
         let target = "test"
@@ -43,6 +43,6 @@ final class MigrationCheckEmptyBuildSettingsServiceTests: TuistUnitTestCase {
         emptyBuildSettingsChecker.stubbedCheckError = error
 
         // When
-        XCTAssertThrowsSpecific(try subject.run(xcodeprojPath: xcodeprojPath, target: target), error)
+        await XCTAssertThrowsSpecific(try await subject.run(xcodeprojPath: xcodeprojPath, target: target), error)
     }
 }

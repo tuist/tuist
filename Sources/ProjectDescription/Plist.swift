@@ -1,5 +1,3 @@
-import Foundation
-
 // MARK: - Plist
 
 public enum Plist {

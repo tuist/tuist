@@ -1,5 +1,6 @@
+import FileSystem
 import Foundation
-import TSCBasic
+import Path
 import TSCUtility
 
 struct MeasureResult {
@@ -19,14 +20,14 @@ enum MeasureError: LocalizedError {
 }
 
 final class Measure {
-    private let fileHandler: FileHandler
+    private let fileSystem: FileSysteming
     private let binaryPath: AbsolutePath
 
     init(
-        fileHandler: FileHandler,
+        fileSystem: FileSysteming,
         binaryPath: AbsolutePath
     ) {
-        self.fileHandler = fileHandler
+        self.fileSystem = fileSystem
         self.binaryPath = binaryPath
     }
 
@@ -34,9 +35,9 @@ final class Measure {
         runs: Int,
         arguments: [String],
         fixturePath: AbsolutePath
-    ) throws -> MeasureResult {
-        let cold = try measureColdRuns(runs: runs, arguments: arguments, fixturePath: fixturePath)
-        let warm = try measureWarmRuns(runs: runs, arguments: arguments, fixturePath: fixturePath)
+    ) async throws -> MeasureResult {
+        let cold = try await measureColdRuns(runs: runs, arguments: arguments, fixturePath: fixturePath)
+        let warm = try await measureWarmRuns(runs: runs, arguments: arguments, fixturePath: fixturePath)
         return MeasureResult(
             fixture: fixturePath.basename,
             coldRuns: cold,
@@ -48,12 +49,11 @@ final class Measure {
         runs: Int,
         arguments: [String],
         fixturePath: AbsolutePath
-    ) throws -> [TimeInterval] {
-        try (0 ..< runs).map { _ in
-
-            try withTemporaryDirectory(removeTreeOnDeinit: true) { temporaryDirectoryPath in
+    ) async throws -> [TimeInterval] {
+        try await (0 ..< runs).serialMap { _ in
+            try await fileSystem.runInTemporaryDirectory(prefix: "Measure") { temporaryDirectoryPath in
                 let temporaryPath = temporaryDirectoryPath.appending(component: "fixture")
-                try fileHandler.copy(path: fixturePath, to: temporaryPath)
+                try await fileSystem.copy(fixturePath, to: temporaryPath)
                 return try measure {
                     try run(
                         arguments: arguments,
@@ -68,10 +68,10 @@ final class Measure {
         runs: Int,
         arguments: [String],
         fixturePath: AbsolutePath
-    ) throws -> [TimeInterval] {
-        try withTemporaryDirectory(removeTreeOnDeinit: true) { temporaryDirectoryPath in
+    ) async throws -> [TimeInterval] {
+        try await fileSystem.runInTemporaryDirectory(prefix: "Measure") { temporaryDirectoryPath in
             let temporaryPath = temporaryDirectoryPath.appending(component: "fixture")
-            try fileHandler.copy(path: fixturePath, to: temporaryPath)
+            try await fileSystem.copy(fixturePath, to: temporaryPath)
 
             // first warm up isn't included in the results
             try run(
@@ -90,7 +90,7 @@ final class Measure {
 
     private func run(arguments: [String], in path: AbsolutePath) throws {
         let process = Process()
-        process.executableURL = binaryPath.asURL
+        process.executableURL = URL(string: binaryPath.pathString)
         process.arguments = arguments
         let pipe = Pipe()
         process.standardOutput = pipe
@@ -112,5 +112,19 @@ final class Measure {
         let start = Date()
         try code()
         return Date().timeIntervalSince(start)
+    }
+}
+
+extension Sequence {
+    func serialMap<T>(
+        _ transform: (Element) async throws -> T
+    ) async rethrows -> [T] {
+        var values = [T]()
+
+        for element in self {
+            values.append(try await transform(element))
+        }
+
+        return values
     }
 }

@@ -1,5 +1,3 @@
-import Foundation
-
 /// Set of deployment destinations
 public typealias Destinations = Set<Destination>
 

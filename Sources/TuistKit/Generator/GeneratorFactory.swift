@@ -1,12 +1,10 @@
 import Foundation
 import Mockable
-import Path
 import TuistCore
 import TuistGenerator
 import TuistLoader
 import TuistServer
 import TuistSupport
-import XcodeGraph
 
 /// The protocol describes the interface of a factory that instantiates
 /// generators for different commands
@@ -14,15 +12,13 @@ import XcodeGraph
 public protocol GeneratorFactorying {
     /// Returns the generator to generate a project to run tests on.
     /// - Parameter config: The project configuration
-    /// - Parameter testsCacheDirectory: The cache directory used for tests.
     /// - Parameter skipUITests: Whether UI tests should be skipped.
     /// - Parameter ignoreBinaryCache: True to not include binaries from the cache.
     /// - Parameter ignoreSelectiveTesting: True to run all tests
     /// - Parameter cacheStorage: The cache storage instance.
     /// - Returns: A Generator instance.
     func testing(
-        config: Config,
-        testsCacheDirectory: AbsolutePath,
+        config: Tuist,
         testPlan: String?,
         includedTargets: Set<String>,
         excludedTargets: Set<String>,
@@ -41,7 +37,7 @@ public protocol GeneratorFactorying {
     /// - Parameter cacheStorage: The cache storage instance.
     /// - Returns: The generator for focused projects.
     func generation(
-        config: Config,
+        config: Tuist,
         sources: Set<String>,
         configuration: String?,
         ignoreBinaryCache: Bool,
@@ -53,7 +49,7 @@ public protocol GeneratorFactorying {
     ///     - config: The project configuration
     /// - Returns: A Generator instance
     func building(
-        config: Config,
+        config: Tuist,
         configuration: String?,
         ignoreBinaryCache: Bool,
         cacheStorage: CacheStoring
@@ -61,9 +57,11 @@ public protocol GeneratorFactorying {
 
     /// Returns the default generator.
     /// - Parameter config: The project configuration.
+    /// - Parameter sources: The list of targets whose sources should be included.
     /// - Returns: A Generator instance.
     func defaultGenerator(
-        config: Config
+        config: Tuist,
+        sources: Set<String>
     ) -> Generating
 }
 
@@ -75,8 +73,7 @@ public class GeneratorFactory: GeneratorFactorying {
     }
 
     public func testing(
-        config: Config,
-        testsCacheDirectory: AbsolutePath,
+        config: Tuist,
         testPlan: String?,
         includedTargets: Set<String>,
         excludedTargets: Set<String>,
@@ -94,7 +91,6 @@ public class GeneratorFactory: GeneratorFactorying {
 
         let graphMappers = graphMapperFactory.automation(
             config: config,
-            testsCacheDirectory: testsCacheDirectory,
             testPlan: testPlan,
             includedTargets: includedTargets,
             excludedTargets: excludedTargets
@@ -112,31 +108,39 @@ public class GeneratorFactory: GeneratorFactorying {
     }
 
     public func generation(
-        config: Config,
-        sources _: Set<String>,
+        config: Tuist,
+        sources: Set<String>,
         configuration _: String?,
         ignoreBinaryCache _: Bool,
         cacheStorage _: CacheStoring
     ) -> Generating {
-        defaultGenerator(config: config)
+        defaultGenerator(config: config, sources: sources)
     }
 
     public func building(
-        config: Config,
+        config: Tuist,
         configuration _: String?,
         ignoreBinaryCache _: Bool,
         cacheStorage _: CacheStoring
     ) -> Generating {
-        defaultGenerator(config: config)
+        defaultGenerator(config: config, sources: [])
     }
 
-    public func defaultGenerator(config: Config) -> Generating {
+    public func defaultGenerator(
+        config: Tuist,
+        sources: Set<String>
+    ) -> Generating {
         let contentHasher = ContentHasher()
         let projectMapperFactory = ProjectMapperFactory(contentHasher: contentHasher)
         let projectMappers = projectMapperFactory.default()
         let workspaceMapperFactory = WorkspaceMapperFactory(projectMapper: SequentialProjectMapper(mappers: projectMappers))
         let graphMapperFactory = GraphMapperFactory()
-        let graphMappers = graphMapperFactory.default(config: config)
+        let graphMappers = graphMapperFactory.automation(
+            config: config,
+            testPlan: nil,
+            includedTargets: sources,
+            excludedTargets: []
+        )
         let workspaceMappers = workspaceMapperFactory.default()
         let manifestLoader = ManifestLoaderFactory().createManifestLoader()
         return Generator(

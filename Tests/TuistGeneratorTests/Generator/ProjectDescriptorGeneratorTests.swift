@@ -1,5 +1,5 @@
 import Foundation
-import MockableTest
+import Mockable
 import Path
 import struct TSCUtility.Version
 import TuistCore
@@ -28,7 +28,7 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_generate_testTargetIdentity() throws {
+    func test_generate_testTargetIdentity() async throws {
         // Given
         let temporaryPath = try temporaryPath()
         let app = Target.test(
@@ -65,8 +65,12 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
         )
         let graphTraverser = GraphTraverser(graph: graph)
 
+        given(xcodeController)
+            .selectedVersion()
+            .willReturn(Version(15, 0, 0))
+
         // When
-        let generatedProject = try subject.generate(project: project, graphTraverser: graphTraverser)
+        let generatedProject = try await subject.generate(project: project, graphTraverser: graphTraverser)
 
         // Then
         let pbxproj = generatedProject.xcodeProj.pbxproj
@@ -85,8 +89,10 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
         }, "Test target is missing from target attributes.")
     }
 
-    func test_objectVersion_when_xcode11_and_spm() throws {
-        xcodeController.selectedVersionStub = .success(Version(11, 0, 0))
+    func test_objectVersion_when_xcode11_and_spm() async throws {
+        given(xcodeController)
+            .selectedVersion()
+            .willReturn(Version(11, 0, 0))
 
         // Given
         let temporaryPath = try temporaryPath()
@@ -115,7 +121,7 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let got = try subject.generate(project: project, graphTraverser: graphTraverser)
+        let got = try await subject.generate(project: project, graphTraverser: graphTraverser)
 
         // Then
         let pbxproj = got.xcodeProj.pbxproj
@@ -123,8 +129,10 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
         XCTAssertEqual(pbxproj.archiveVersion, Xcode.LastKnown.archiveVersion)
     }
 
-    func test_objectVersion_when_xcode11() throws {
-        xcodeController.selectedVersionStub = .success(Version(11, 0, 0))
+    func test_objectVersion_when_xcode11() async throws {
+        given(xcodeController)
+            .selectedVersion()
+            .willReturn(Version(11, 0, 0))
 
         // Given
         let temporaryPath = try temporaryPath()
@@ -139,7 +147,7 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let got = try subject.generate(project: project, graphTraverser: graphTraverser)
+        let got = try await subject.generate(project: project, graphTraverser: graphTraverser)
 
         // Then
         let pbxproj = got.xcodeProj.pbxproj
@@ -147,8 +155,10 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
         XCTAssertEqual(pbxproj.archiveVersion, Xcode.LastKnown.archiveVersion)
     }
 
-    func test_objectVersion_when_xcode10() throws {
-        xcodeController.selectedVersionStub = .success(Version(10, 2, 1))
+    func test_objectVersion_when_xcode10() async throws {
+        given(xcodeController)
+            .selectedVersion()
+            .willReturn(Version(10, 2, 1))
 
         // Given
         let temporaryPath = try temporaryPath()
@@ -163,7 +173,7 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let got = try subject.generate(project: project, graphTraverser: graphTraverser)
+        let got = try await subject.generate(project: project, graphTraverser: graphTraverser)
 
         // Then
         let pbxproj = got.xcodeProj.pbxproj
@@ -171,7 +181,7 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
         XCTAssertEqual(pbxproj.archiveVersion, Xcode.LastKnown.archiveVersion)
     }
 
-    func test_knownRegions() throws {
+    func test_knownRegions() async throws {
         // Given
         let path = try temporaryPath()
         let graph = Graph.test(path: path)
@@ -195,8 +205,12 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
             ]
         )
 
+        given(xcodeController)
+            .selectedVersion()
+            .willReturn(Version(15, 0, 0))
+
         // When
-        let got = try subject.generate(project: project, graphTraverser: graphTraverser)
+        let got = try await subject.generate(project: project, graphTraverser: graphTraverser)
 
         // Then
         let pbxProject = try XCTUnwrap(try got.xcodeProj.pbxproj.rootProject())
@@ -207,7 +221,7 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
         ])
     }
 
-    func test_generate_setsDefaultKnownRegions() throws {
+    func test_generate_setsDefaultKnownRegions() async throws {
         // Given
         let path = try temporaryPath()
         let graph = Graph.test(path: path)
@@ -218,7 +232,7 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
         )
 
         // When
-        let got = try subject.generate(project: project, graphTraverser: graphTraverser)
+        let got = try await subject.generate(project: project, graphTraverser: graphTraverser)
 
         // Then
         let pbxProject = try XCTUnwrap(try got.xcodeProj.pbxproj.rootProject())
@@ -228,7 +242,7 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
         ])
     }
 
-    func test_generate_setsCustomDefaultKnownRegions() throws {
+    func test_generate_setsCustomDefaultKnownRegions() async throws {
         // Given
         let path = try temporaryPath()
         let graph = Graph.test(path: path)
@@ -236,14 +250,14 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
         let project = Project.test(path: path, defaultKnownRegions: ["Base", "en-GB"], targets: [])
 
         // When
-        let got = try subject.generate(project: project, graphTraverser: graphTraverser)
+        let got = try await subject.generate(project: project, graphTraverser: graphTraverser)
 
         // Then
         let pbxProject = try XCTUnwrap(try got.xcodeProj.pbxproj.rootProject())
         XCTAssertEqual(pbxProject.knownRegions, ["Base", "en-GB"])
     }
 
-    func test_generate_setsOrganizationName() throws {
+    func test_generate_setsOrganizationName() async throws {
         // Given
         let path = try temporaryPath()
         let graph = Graph.test(path: path)
@@ -255,7 +269,7 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
         )
 
         // When
-        let got = try subject.generate(project: project, graphTraverser: graphTraverser)
+        let got = try await subject.generate(project: project, graphTraverser: graphTraverser)
 
         // Then
         let pbxProject = try XCTUnwrap(try got.xcodeProj.pbxproj.rootProject())
@@ -266,7 +280,30 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
         ])
     }
 
-    func test_generate_setsResourcesTagsName() throws {
+    func test_generate_setsClassPrefix() async throws {
+        // Given
+        let path = try temporaryPath()
+        let graph = Graph.test(path: path)
+        let graphTraverser = GraphTraverser(graph: graph)
+        let project = Project.test(
+            path: path,
+            classPrefix: "TUIST",
+            targets: []
+        )
+
+        // When
+        let got = try await subject.generate(project: project, graphTraverser: graphTraverser)
+
+        // Then
+        let pbxProject = try XCTUnwrap(try got.xcodeProj.pbxproj.rootProject())
+        let attributes = try XCTUnwrap(pbxProject.attributes as? [String: String])
+        XCTAssertEqual(attributes, [
+            "BuildIndependentTargetsInParallel": "YES",
+            "CLASSPREFIX": "TUIST",
+        ])
+    }
+
+    func test_generate_setsResourcesTagsName() async throws {
         // Given
         let path = try temporaryPath()
         let graph = Graph.test(path: path)
@@ -280,8 +317,12 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
             targets: [.test(resources: .init(resources))]
         )
 
+        given(xcodeController)
+            .selectedVersion()
+            .willReturn(Version(15, 0, 0))
+
         // When
-        let got = try subject.generate(project: project, graphTraverser: graphTraverser)
+        let got = try await subject.generate(project: project, graphTraverser: graphTraverser)
 
         // Then
         let pbxProject = try XCTUnwrap(try got.xcodeProj.pbxproj.rootProject())
@@ -292,7 +333,7 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
         ])
     }
 
-    func test_generate_setsDefaultDevelopmentRegion() throws {
+    func test_generate_setsDefaultDevelopmentRegion() async throws {
         // Given
         let path = try temporaryPath()
         let graph = Graph.test(path: path)
@@ -303,14 +344,14 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
         )
 
         // When
-        let got = try subject.generate(project: project, graphTraverser: graphTraverser)
+        let got = try await subject.generate(project: project, graphTraverser: graphTraverser)
 
         // Then
         let pbxProject = try XCTUnwrap(try got.xcodeProj.pbxproj.rootProject())
         XCTAssertEqual(pbxProject.developmentRegion, "en")
     }
 
-    func test_generate_setsDevelopmentRegion() throws {
+    func test_generate_setsDevelopmentRegion() async throws {
         // Given
         let path = try temporaryPath()
         let graph = Graph.test(path: path)
@@ -321,15 +362,19 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
             targets: []
         )
 
+        given(xcodeController)
+            .selectedVersion()
+            .willReturn(Version(15, 0, 0))
+
         // When
-        let got = try subject.generate(project: project, graphTraverser: graphTraverser)
+        let got = try await subject.generate(project: project, graphTraverser: graphTraverser)
 
         // Then
         let pbxProject = try XCTUnwrap(try got.xcodeProj.pbxproj.rootProject())
         XCTAssertEqual(pbxProject.developmentRegion, "de")
     }
 
-    func test_generate_localSwiftPackageGroup() throws {
+    func test_generate_localSwiftPackageGroup() async throws {
         // Given
         let project = Project.test(
             packages: [
@@ -341,8 +386,12 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
         let graph = Graph.test(projects: [project.path: project])
         let graphTraverser = GraphTraverser(graph: graph)
 
+        given(xcodeController)
+            .selectedVersion()
+            .willReturn(Version(15, 0, 0))
+
         // When
-        let got = try subject.generate(project: project, graphTraverser: graphTraverser)
+        let got = try await subject.generate(project: project, graphTraverser: graphTraverser)
 
         // Then
         let pbxproj = got.xcodeProj.pbxproj
@@ -352,7 +401,7 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
         XCTAssertEqual(packages.map(\.name), ["LocalPackageA", "LocalPackageB"])
     }
 
-    func test_generate_localSwiftPackagePaths() throws {
+    func test_generate_localSwiftPackagePaths() async throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/Project")
         let localPackagePath = try AbsolutePath(validating: "/LocalPackages/LocalPackageA")
@@ -380,8 +429,12 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
         )
         let graphTraverser = GraphTraverser(graph: graph)
 
+        given(xcodeController)
+            .selectedVersion()
+            .willReturn(Version(15, 0, 0))
+
         // When
-        let got = try subject.generate(project: project, graphTraverser: graphTraverser)
+        let got = try await subject.generate(project: project, graphTraverser: graphTraverser)
 
         // Then
         let pbxproj = got.xcodeProj.pbxproj
@@ -393,7 +446,7 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
         ])
     }
 
-    func test_generate_setsLastUpgradeCheck() throws {
+    func test_generate_setsLastUpgradeCheck() async throws {
         // Given
         let path = try temporaryPath()
         let graph = Graph.test(path: path)
@@ -404,8 +457,12 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
             lastUpgradeCheck: .init(12, 5, 1)
         )
 
+        given(xcodeController)
+            .selectedVersion()
+            .willReturn(Version(15, 0, 0))
+
         // When
-        let got = try subject.generate(project: project, graphTraverser: graphTraverser)
+        let got = try await subject.generate(project: project, graphTraverser: graphTraverser)
 
         // Then
         let pbxProject = try XCTUnwrap(try got.xcodeProj.pbxproj.rootProject())

@@ -1,13 +1,14 @@
-import TSCBasic
+import Mockable
+import Path
+import TuistAutomationTesting
 import TuistCore
 import TuistSupport
+import TuistSupportTesting
 import XcodeGraph
 import XCTest
 
 @testable import TuistAutomation
-@testable import TuistAutomationTesting
 @testable import TuistCoreTesting
-@testable import TuistSupportTesting
 
 final class TargetBuilderErrorTests: XCTestCase {
     func test_errorDescription() {
@@ -28,24 +29,37 @@ final class TargetBuilderErrorTests: XCTestCase {
 }
 
 final class TargetBuilderTests: TuistUnitTestCase {
-    private var buildGraphInspector: MockBuildGraphInspector!
-    private var xcodeBuildController: MockXcodeBuildController!
-    private var xcodeProjectBuildDirectoryLocator: MockXcodeProjectBuildDirectoryLocator!
-    private var simulatorController: MockSimulatorController!
+    private var buildGraphInspector: MockBuildGraphInspecting!
+    private var xcodeBuildController: MockXcodeBuildControlling!
+    private var xcodeProjectBuildDirectoryLocator: MockXcodeProjectBuildDirectoryLocating!
+    private var simulatorController: MockSimulatorControlling!
     private var subject: TargetBuilder!
 
     override func setUp() {
         super.setUp()
-        buildGraphInspector = MockBuildGraphInspector()
-        xcodeBuildController = MockXcodeBuildController()
-        xcodeProjectBuildDirectoryLocator = MockXcodeProjectBuildDirectoryLocator()
-        simulatorController = MockSimulatorController()
+        buildGraphInspector = .init()
+        xcodeBuildController = .init()
+        xcodeProjectBuildDirectoryLocator = .init()
+        simulatorController = .init()
         subject = TargetBuilder(
             buildGraphInspector: buildGraphInspector,
             xcodeBuildController: xcodeBuildController,
             xcodeProjectBuildDirectoryLocator: xcodeProjectBuildDirectoryLocator,
             simulatorController: simulatorController
         )
+
+        given(xcodeBuildController)
+            .build(
+                .any,
+                scheme: .any,
+                destination: .any,
+                rosetta: .any,
+                derivedDataPath: .any,
+                clean: .any,
+                arguments: .any,
+                passthroughXcodeBuildArguments: .any
+            )
+            .willReturn()
     }
 
     override func tearDown() {
@@ -68,30 +82,28 @@ final class TargetBuilderTests: TuistUnitTestCase {
             .sdk("iphoneos"),
         ]
         let destination = XcodeBuildDestination.device("this_is_a_udid")
-        let version = "15.2".version()
+        let version = Version("15.2")
         let rosetta = true
         let device = "iPhone 13 Pro"
 
-        simulatorController.findAvailableDeviceStub = { _, _version, _, _deviceName in
-            XCTAssertEqual(_version, version)
-            XCTAssertEqual(_deviceName, device)
-
-            return .test(device: SimulatorDevice.test(udid: "this_is_a_udid"))
-        }
-        buildGraphInspector.buildArgumentsStub = { _, _, _, _ in
-            buildArguments
-        }
-
-        xcodeBuildController
-            .buildStub = { _workspace, _scheme, _destination, _rosetta, _, _clean, _buildArguments in
-                XCTAssertEqual(_workspace.path, workspacePath)
-                XCTAssertEqual(_scheme, scheme.name)
-                XCTAssertEqual(_destination, destination)
-                XCTAssertEqual(_rosetta, rosetta)
-                XCTAssertEqual(_clean, clean)
-                XCTAssertEqual(_buildArguments, buildArguments)
-                return [.standardOutput(.init(raw: "success"))]
-            }
+        given(simulatorController)
+            .findAvailableDevice(
+                platform: .any,
+                version: .any,
+                minVersion: .any,
+                deviceName: .any
+            )
+            .willReturn(
+                .test(device: SimulatorDevice.test(udid: "this_is_a_udid"))
+            )
+        given(buildGraphInspector)
+            .buildArguments(
+                project: .any,
+                target: .any,
+                configuration: .any,
+                skipSigning: .any
+            )
+            .willReturn(buildArguments)
 
         // When
         try await subject.buildTarget(
@@ -106,8 +118,32 @@ final class TargetBuilderTests: TuistUnitTestCase {
             device: device,
             osVersion: version,
             rosetta: rosetta,
-            graphTraverser: MockGraphTraverser()
+            graphTraverser: MockGraphTraversing(),
+            passthroughXcodeBuildArguments: []
         )
+
+        // Then
+        verify(simulatorController)
+            .findAvailableDevice(
+                platform: .any,
+                version: .value("15.2".version()),
+                minVersion: .any,
+                deviceName: .value(device)
+            )
+            .called(1)
+
+        verify(xcodeBuildController)
+            .build(
+                .any,
+                scheme: .value(scheme.name),
+                destination: .value(destination),
+                rosetta: .value(rosetta),
+                derivedDataPath: .value(nil),
+                clean: .value(clean),
+                arguments: .value(buildArguments),
+                passthroughXcodeBuildArguments: .any
+            )
+            .called(1)
     }
 
     func test_copiesBuildProducts_to_outputPath_defaultConfiguration() async throws {
@@ -116,18 +152,39 @@ final class TargetBuilderTests: TuistUnitTestCase {
         let buildOutputPath = path.appending(component: ".build")
         let scheme = Scheme.test(name: "A")
         let workspacePath = try AbsolutePath(validating: "/path/to/project.xcworkspace")
-        let graphTraverser = MockGraphTraverser()
-
-        xcodeBuildController.buildStub = { _, _, _, _, _, _, _ in
-            [.standardOutput(.init(raw: "success"))]
-        }
+        let graphTraverser = MockGraphTraversing()
 
         let xcodeBuildPath = path.appending(components: "Xcode", "DerivedData", "MyProject-hash", "Debug")
-        xcodeProjectBuildDirectoryLocator.locateStub = { _, _, _, _ in xcodeBuildPath }
-        try createFiles([
+        given(xcodeProjectBuildDirectoryLocator)
+            .locate(
+                destinationType: .any,
+                projectPath: .any,
+                derivedDataPath: .any,
+                configuration: .any
+            )
+            .willReturn(xcodeBuildPath)
+        try await createFiles([
             "Xcode/DerivedData/MyProject-hash/Debug/App.app",
             "Xcode/DerivedData/MyProject-hash/Debug/App.swiftmodule",
         ])
+
+        given(buildGraphInspector)
+            .buildArguments(
+                project: .any,
+                target: .any,
+                configuration: .any,
+                skipSigning: .any
+            )
+            .willReturn([])
+
+        given(simulatorController)
+            .findAvailableDevice(
+                platform: .any,
+                version: .any,
+                minVersion: .any,
+                deviceName: .any
+            )
+            .willReturn(.test())
 
         // When
         try await subject.buildTarget(
@@ -142,7 +199,8 @@ final class TargetBuilderTests: TuistUnitTestCase {
             device: nil,
             osVersion: nil,
             rosetta: false,
-            graphTraverser: graphTraverser
+            graphTraverser: graphTraverser,
+            passthroughXcodeBuildArguments: []
         )
 
         // Then
@@ -167,15 +225,36 @@ final class TargetBuilderTests: TuistUnitTestCase {
         let scheme = Scheme.test(name: "A")
         let configuration = "TestRelease"
         let workspacePath = try AbsolutePath(validating: "/path/to/project.xcworkspace")
-        let graphTraverser = MockGraphTraverser()
+        let graphTraverser = MockGraphTraversing()
 
-        xcodeBuildController.buildStub = { _, _, _, _, _, _, _ in
-            [.standardOutput(.init(raw: "success"))]
-        }
+        given(buildGraphInspector)
+            .buildArguments(
+                project: .any,
+                target: .any,
+                configuration: .any,
+                skipSigning: .any
+            )
+            .willReturn([])
+
+        given(simulatorController)
+            .findAvailableDevice(
+                platform: .any,
+                version: .any,
+                minVersion: .any,
+                deviceName: .any
+            )
+            .willReturn(.test())
 
         let xcodeBuildPath = path.appending(components: "Xcode", "DerivedData", "MyProject-hash", configuration)
-        xcodeProjectBuildDirectoryLocator.locateStub = { _, _, _, _ in xcodeBuildPath }
-        try createFiles([
+        given(xcodeProjectBuildDirectoryLocator)
+            .locate(
+                destinationType: .any,
+                projectPath: .any,
+                derivedDataPath: .any,
+                configuration: .any
+            )
+            .willReturn(xcodeBuildPath)
+        try await createFiles([
             "Xcode/DerivedData/MyProject-hash/\(configuration)/App.app",
             "Xcode/DerivedData/MyProject-hash/\(configuration)/App.swiftmodule",
         ])
@@ -193,7 +272,8 @@ final class TargetBuilderTests: TuistUnitTestCase {
             device: nil,
             osVersion: nil,
             rosetta: false,
-            graphTraverser: graphTraverser
+            graphTraverser: graphTraverser,
+            passthroughXcodeBuildArguments: []
         )
 
         // Then

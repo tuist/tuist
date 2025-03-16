@@ -1,5 +1,3 @@
-import Foundation
-
 /// A build phase action used to copy files.
 ///
 /// Copy files actions, represented as target copy files build phases, are useful to associate project files
@@ -46,6 +44,25 @@ public struct CopyFilesAction: Codable, Equatable, Sendable {
     }
 
     // MARK: - Static initializers
+
+    /// A copy files action for an absolute path.
+    /// - Parameters:
+    ///   - name: Name of the build phase when the project gets generated.
+    ///   - subpath: Path to a folder inside the destination.
+    ///   - files: Relative paths to the files to be copied.
+    /// - Returns: Copy files action.
+    public static func absolutePath(
+        name: String,
+        subpath: String? = nil,
+        files: [CopyFileElement]
+    ) -> CopyFilesAction {
+        CopyFilesAction(
+            name: name,
+            destination: .absolutePath,
+            subpath: subpath,
+            files: files
+        )
+    }
 
     /// A copy files action for the products directory.
     /// - Parameters:

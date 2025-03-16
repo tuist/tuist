@@ -5,7 +5,6 @@ import TuistDependencies
 import TuistGenerator
 import TuistLoader
 import TuistSupport
-import XcodeGraph
 
 /// The protocol describes an interface for getting project mappers.
 protocol ProjectMapperFactorying {

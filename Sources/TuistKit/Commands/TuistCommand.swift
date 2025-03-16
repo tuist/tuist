@@ -1,8 +1,13 @@
 @_exported import ArgumentParser
 import Foundation
+import Noora
+import OpenAPIRuntime
 import Path
+import ServiceContextModule
 import TuistAnalytics
+import TuistCore
 import TuistLoader
+import TuistServer
 import TuistSupport
 
 public struct TuistCommand: AsyncParsableCommand {
@@ -11,27 +16,57 @@ public struct TuistCommand: AsyncParsableCommand {
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "tuist",
-            abstract: "Generate, build and test your Xcode projects.",
-            subcommands: [
-                BuildCommand.self,
-                CleanCommand.self,
-                DumpCommand.self,
-                EditCommand.self,
-                InstallCommand.self,
-                GenerateCommand.self,
-                GraphCommand.self,
-                InitCommand.self,
-                MigrationCommand.self,
-                PluginCommand.self,
-                RunCommand.self,
-                ScaffoldCommand.self,
-                TestCommand.self,
-                CloudCommand.self,
+            abstract: "Build better apps faster.",
+            subcommands: [],
+            groupedSubcommands: [
+                CommandGroup(
+                    name: "Get started",
+                    subcommands: [
+                        InitCommand.self,
+                    ]
+                ),
+                CommandGroup(
+                    name: "Develop",
+                    subcommands: [
+                        BuildCommand.self,
+                        CacheCommand.self,
+                        CleanCommand.self,
+                        DumpCommand.self,
+                        EditCommand.self,
+                        GenerateCommand.self,
+                        GraphCommand.self,
+                        InstallCommand.self,
+                        MigrationCommand.self,
+                        PluginCommand.self,
+                        RegistryCommand.self,
+                        RunCommand.self,
+                        ScaffoldCommand.self,
+                        TestCommand.self,
+                        InspectCommand.self,
+                        XcodeBuildCommand.self,
+                    ]
+                ),
+                CommandGroup(
+                    name: "Share",
+                    subcommands: [
+                        ShareCommand.self,
+                    ]
+                ),
+                CommandGroup(
+                    name: "Account",
+                    subcommands: [
+                        AccountCommand.self,
+                        ProjectCommand.self,
+                        OrganizationCommand.self,
+                        AuthCommand.self,
+                    ]
+                ),
             ]
         )
     }
 
     public static func main(
+        logFilePath: AbsolutePath,
         _ arguments: [String]? = nil,
         parseAsRoot: ((_ arguments: [String]?) throws -> ParsableCommand) = Self.parseAsRoot
     ) async throws {
@@ -42,87 +77,154 @@ public struct TuistCommand: AsyncParsableCommand {
             path = .current
         }
 
-        let backend: TuistAnalyticsBackend?
-        let config = try ConfigLoader().loadConfig(path: path)
-        if let cloud = config.cloud {
-            backend = TuistAnalyticsCloudBackend(
-                config: cloud
+        let config = try await ConfigLoader().loadConfig(path: path)
+        let url = try ServerURLService().url(configServerURL: config.url)
+        let backend: TuistAnalyticsServerBackend?
+        if let fullHandle = config.fullHandle {
+            let tuistAnalyticsServerBackend = TuistAnalyticsServerBackend(
+                fullHandle: fullHandle,
+                url: url
             )
+            let dispatcher = TuistAnalyticsDispatcher(backend: tuistAnalyticsServerBackend)
+            try TuistAnalytics.bootstrap(dispatcher: dispatcher)
+            backend = tuistAnalyticsServerBackend
         } else {
             backend = nil
         }
-        let dispatcher = TuistAnalyticsDispatcher(backend: backend)
-        try TuistAnalytics.bootstrap(dispatcher: dispatcher)
 
-        let errorHandler = ErrorHandler()
+        try await CacheDirectoriesProvider.bootstrap()
+
         let executeCommand: () async throws -> Void
         let processedArguments = Array(processArguments(arguments)?.dropFirst() ?? [])
-        var parsedError: Error?
+        var parsingError: Error?
+        var logFilePathDisplayStrategy: LogFilePathDisplayStrategy = .onError
+
         do {
             if processedArguments.first == ScaffoldCommand.configuration.commandName {
                 try await ScaffoldCommand.preprocess(processedArguments)
             }
-            if processedArguments.first == InitCommand.configuration.commandName {
-                try InitCommand.preprocess(processedArguments)
-            }
             let command = try parseAsRoot(processedArguments)
             executeCommand = {
+                logFilePathDisplayStrategy = (command as? LogConfigurableCommand)?
+                    .logFilePathDisplayStrategy ?? logFilePathDisplayStrategy
+
                 let trackableCommand = TrackableCommand(
                     command: command,
                     commandArguments: processedArguments
                 )
-                try await trackableCommand.run()
+                try await trackableCommand.run(
+                    backend: backend
+                )
             }
         } catch {
-            parsedError = error
+            parsingError = error
             executeCommand = {
-                try executeTask(with: processedArguments)
+                try await executeTask(with: processedArguments)
             }
         }
 
         do {
-            defer { WarningController.shared.flush() }
             try await executeCommand()
-        } catch let error as FatalError {
-            WarningController.shared.flush()
-            errorHandler.fatal(error: error)
-            _exit(exitCode(for: error).rawValue)
+            outputCompletion(logFilePath: logFilePath, shouldOutputLogFilePath: logFilePathDisplayStrategy == .always)
         } catch {
-            WarningController.shared.flush()
-            if let parsedError {
-                handleParseError(parsedError)
-            }
-            // Exit cleanly
-            if exitCode(for: error).rawValue == 0 {
-                exit(withError: error)
-            } else {
-                errorHandler.fatal(error: UnhandledError(error: error))
-                _exit(exitCode(for: error).rawValue)
-            }
+            onError(parsingError ?? error, isParsingError: parsingError != nil, logFilePath: logFilePath)
         }
     }
 
-    private static func executeTask(with processedArguments: [String]) throws {
-        try TuistService().run(
+    private static func onError(_ error: Error, isParsingError: Bool, logFilePath: AbsolutePath) {
+        var errorAlertMessage: TerminalText?
+        var errorAlertNextSteps: [TerminalText] = [
+            "If the error is actionable, address it",
+            "If the error is not actionable, let's discuss it in the \(.link(title: "Troubleshooting & how to", href: "https://community.tuist.dev/c/troubleshooting-how-to/6"))",
+            "If you are very certain it's a bug, \(.link(title: "file an issue", href: "https://github.com/tuist/tuist"))",
+        ]
+        let exitCode = exitCode(for: error).rawValue
+
+        if let clientError = error as? ClientError,
+           let underlyingServerClientError = clientError.underlyingError as? ServerClientAuthenticationError
+        {
+            // swiftlint:disable:next force_cast
+            errorAlertMessage = "\((clientError.underlyingError as! ServerClientAuthenticationError).description)"
+        } else if let fatalError = error as? FatalError {
+            let isSilent = fatalError.type == .abortSilent || fatalError.type == .bugSilent
+            if !fatalError.description.isEmpty, !isSilent {
+                errorAlertMessage = "\(fatalError.description)"
+            } else if fatalError.type == .bugSilent {
+                errorAlertMessage = """
+                An unexpected error happened and we believe it's a bug
+                """
+                errorAlertNextSteps = [
+                    "\(.link(title: "File an issue", href: "https://github.com/tuist/tuist")) including reproducible steps and logs.",
+                ]
+            }
+        } else if isParsingError, self.exitCode(for: error).rawValue == 0 {
+            // Exit cleanly
+            exit(withError: error)
+        } else if let localizedError = error as? LocalizedError {
+            errorAlertMessage = "\(localizedError.errorDescription ?? localizedError.localizedDescription)"
+        } else {
+            errorAlertMessage = "\((error as CustomStringConvertible).description)"
+        }
+
+        outputCompletion(
+            logFilePath: logFilePath,
+            shouldOutputLogFilePath: true,
+            errorAlertMessage: errorAlertMessage,
+            errorAlertNextSteps: errorAlertNextSteps
+        )
+        _exit(exitCode)
+    }
+
+    private static func outputCompletion(
+        logFilePath: AbsolutePath,
+        shouldOutputLogFilePath: Bool,
+        errorAlertMessage: TerminalText? = nil,
+        errorAlertNextSteps: [TerminalText]? = nil
+    ) {
+        let errorAlert: ErrorAlert? = if let errorAlertMessage {
+            .alert(errorAlertMessage, nextSteps: errorAlertNextSteps ?? [])
+        } else {
+            nil
+        }
+        let successAlerts = ServiceContext.current?.alerts?.success() ?? []
+        let warningAlerts = ServiceContext.current?.alerts?.warnings() ?? []
+
+        if !warningAlerts.isEmpty {
+            print("\n")
+            for warningAlert in warningAlerts {
+                ServiceContext.current?.ui?.warning(warningAlert)
+            }
+        }
+        let logsNextStep: TerminalText = "Check out the logs at \(logFilePath.pathString)"
+
+        if let errorAlert {
+            print("\n")
+            var errorAlertNextSteps = errorAlert.nextSteps
+            if shouldOutputLogFilePath {
+                errorAlertNextSteps.append(logsNextStep)
+            }
+            ServiceContext.current?.ui?.error(.alert(errorAlert.message, nextSteps: errorAlertNextSteps))
+        } else if let successAlert = successAlerts.last {
+            print("\n")
+            var successAlertNextSteps = successAlert.nextSteps
+            if shouldOutputLogFilePath {
+                successAlertNextSteps.append(logsNextStep)
+            }
+            ServiceContext.current?.ui?.success(.alert(successAlert.message, nextSteps: successAlertNextSteps))
+        }
+    }
+
+    private static func executeTask(with processedArguments: [String]) async throws {
+        try await TuistService().run(
             arguments: processedArguments,
             tuistBinaryPath: processArguments()!.first!
         )
-    }
-
-    private static func handleParseError(_ error: Error) -> Never {
-        let exitCode = exitCode(for: error).rawValue
-        if exitCode == 0 {
-            logger.notice("\(fullMessage(for: error))")
-        } else {
-            logger.error("\(fullMessage(for: error))")
-        }
-        _exit(exitCode)
     }
 
     // MARK: - Helpers
 
     static func processArguments(_ arguments: [String]? = nil) -> [String]? {
         let arguments = arguments ?? Array(ProcessInfo.processInfo.arguments)
-        return arguments.filter { $0 != "--verbose" }
+        return arguments.filter { $0 != "--verbose" && $0 != "--quiet" }
     }
 }

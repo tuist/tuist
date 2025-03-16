@@ -1,5 +1,4 @@
 import Foundation
-import Path
 import TuistCore
 import XcodeGraph
 
@@ -9,20 +8,24 @@ import XcodeGraph
 /// static products are linked multiple times.
 ///
 protocol StaticProductsGraphLinting {
-    func lint(graphTraverser: GraphTraversing, config: Config) -> [LintingIssue]
+    func lint(graphTraverser: GraphTraversing, configGeneratedProjectOptions: TuistGeneratedProjectOptions) -> [LintingIssue]
 }
 
 class StaticProductsGraphLinter: StaticProductsGraphLinting {
-    func lint(graphTraverser: GraphTraversing, config: Config) -> [LintingIssue] {
-        warnings(in: Array(graphTraverser.dependencies.keys), graphTraverser: graphTraverser, config: config)
-            .sorted()
-            .map(lintIssue)
+    func lint(graphTraverser: GraphTraversing, configGeneratedProjectOptions: TuistGeneratedProjectOptions) -> [LintingIssue] {
+        warnings(
+            in: Array(graphTraverser.dependencies.keys),
+            graphTraverser: graphTraverser,
+            configGeneratedProjectOptions: configGeneratedProjectOptions
+        )
+        .sorted()
+        .map(lintIssue)
     }
 
     private func warnings(
         in dependencies: [GraphDependency],
         graphTraverser: GraphTraversing,
-        config: Config
+        configGeneratedProjectOptions: TuistGeneratedProjectOptions
     ) -> Set<StaticDependencyWarning> {
         var warnings = Set<StaticDependencyWarning>()
         let cache = Cache()
@@ -35,11 +38,16 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
                 visiting: dependency,
                 graphTraverser: graphTraverser,
                 cache: cache,
-                config: config
+                configGeneratedProjectOptions: configGeneratedProjectOptions
             )
 
             warnings.formUnion(results.linked.flatMap {
-                staticDependencyWarning(staticProduct: $0.key, linkedBy: $0.value, graphTraverser: graphTraverser, config: config)
+                staticDependencyWarning(
+                    staticProduct: $0.key,
+                    linkedBy: $0.value,
+                    graphTraverser: graphTraverser,
+                    configGeneratedProjectOptions: configGeneratedProjectOptions
+                )
             })
         }
         return warnings
@@ -67,7 +75,7 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
         visiting dependency: GraphDependency,
         graphTraverser: GraphTraversing,
         cache: Cache,
-        config: Config
+        configGeneratedProjectOptions: TuistGeneratedProjectOptions
     ) -> StaticProducts {
         if let cachedResult = cache.results(for: dependency) {
             return cachedResult
@@ -75,8 +83,13 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
 
         // Collect dependency results traversing the graph (dfs)
         var results = dependencies(for: dependency, graphTraverser: graphTraverser).reduce(StaticProducts()) { results, dep in
-            buildStaticProductsMap(visiting: dep, graphTraverser: graphTraverser, cache: cache, config: config)
-                .merged(with: results)
+            buildStaticProductsMap(
+                visiting: dep,
+                graphTraverser: graphTraverser,
+                cache: cache,
+                configGeneratedProjectOptions: configGeneratedProjectOptions
+            )
+            .merged(with: results)
         }
 
         // Static node case
@@ -87,10 +100,14 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
         }
 
         // Linking node case
-        guard case let GraphDependency.target(targetName, targetPath) = dependency,
+        guard case let GraphDependency.target(targetName, targetPath, _) = dependency,
               let dependencyTarget = graphTraverser.target(path: targetPath, name: targetName),
               dependencyTarget.target.canLinkStaticProducts()
         else {
+            cache.cache(
+                results: results,
+                for: dependency
+            )
             return results
         }
 
@@ -110,9 +127,16 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
         staticProduct: GraphDependency,
         linkedBy: Set<GraphDependency>,
         graphTraverser: GraphTraversing,
-        config: Config
+        configGeneratedProjectOptions: TuistGeneratedProjectOptions
     ) -> [StaticDependencyWarning] {
-        if shouldSkipDependency(staticProduct, config: config) {
+        if shouldSkipDependency(staticProduct, configGeneratedProjectOptions: configGeneratedProjectOptions) {
+            return []
+        }
+
+        // Statically linking a macro does not present a problem so it should not be flagged
+        if case let .target(name, path, _) = staticProduct,
+           !graphTraverser.directSwiftMacroExecutables(path: path, name: name).isEmpty
+        {
             return []
         }
 
@@ -121,12 +145,12 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
         //
         // reference: https://github.com/tuist/tuist/pull/664
         let hosts: Set<GraphDependency> = linkedBy.filter { dependency -> Bool in
-            guard case let GraphDependency.target(targetName, targetPath) = dependency else { return false }
+            guard case let GraphDependency.target(targetName, targetPath, _) = dependency else { return false }
             guard let target = graphTraverser.target(path: targetPath, name: targetName) else { return false }
             return target.target.product.canHostTests()
         }
         let hostedTestBundles = linkedBy.filter { dependency -> Bool in
-            guard case let GraphDependency.target(targetName, targetPath) = dependency else { return false }
+            guard case let GraphDependency.target(targetName, targetPath, _) = dependency else { return false }
             guard let target = graphTraverser.target(path: targetPath, name: targetName) else { return false }
 
             let isTestsBundle = target.target.product.testsBundle
@@ -148,8 +172,11 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
         ]
     }
 
-    private func shouldSkipDependency(_ dependency: GraphDependency, config: Config) -> Bool {
-        switch config.generationOptions.staticSideEffectsWarningTargets {
+    private func shouldSkipDependency(
+        _ dependency: GraphDependency,
+        configGeneratedProjectOptions: TuistGeneratedProjectOptions
+    ) -> Bool {
+        switch configGeneratedProjectOptions.generationOptions.staticSideEffectsWarningTargets {
         case .all: return false
         case .none: return true
         case let .excluding(names): return names.contains(dependency.name)
@@ -170,10 +197,11 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
             switch type {
             // Swift package products are currently assumed to be static
             case .runtime: return true
+            case .runtimeEmbedded: return true
             case .macro: return false
             case .plugin: return false
             }
-        case let .target(name, path):
+        case let .target(name, path, _):
             guard let target = graphTraverser.target(path: path, name: name) else { return false }
             return target.target.product.isStatic
         case .sdk, .macro:
@@ -187,8 +215,8 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
     }
 
     private func canVisit(dependency: GraphDependency, from: GraphDependency, graphTraverser: GraphTraversing) -> Bool {
-        guard case let GraphDependency.target(fromTargetName, fromTargetPath) = from else { return true }
-        guard case let GraphDependency.target(toTargetName, toTargetPath) = dependency else { return true }
+        guard case let GraphDependency.target(fromTargetName, fromTargetPath, _) = from else { return true }
+        guard case let GraphDependency.target(toTargetName, toTargetPath, _) = dependency else { return true }
 
         guard let fromTarget = graphTraverser.target(path: fromTargetPath, name: fromTargetName) else { return false }
         guard let toTarget = graphTraverser.target(path: toTargetPath, name: toTargetName) else { return false }
@@ -220,7 +248,7 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
             // ExtensionKit extensions can safely link the same static products as apps
             // as they are an independent product
             return false
-        case (.app, .app), (.app, .commandLineTool):
+        case (.app, .app), (.app, .commandLineTool), (.app, .xpc):
             // macOS application target can embed other helper applications, those helper applications
             // can safely link the same static products as they are independent products
             return false

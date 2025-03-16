@@ -1,4 +1,5 @@
 import Foundation
+import Mockable
 import Path
 import XCTest
 
@@ -11,7 +12,10 @@ final class SimulatorControllerTests: TuistUnitTestCase {
 
     override func setUp() {
         super.setUp()
-        subject = SimulatorController()
+        subject = SimulatorController(
+            system: system,
+            xcodeController: xcodeController
+        )
     }
 
     override func tearDown() {
@@ -243,8 +247,11 @@ final class SimulatorControllerTests: TuistUnitTestCase {
         XCTAssertTrue(system.called(installCommand))
     }
 
-    func test_launchApp_should_bootSimulatorIfNotBooted() throws {
+    func test_launchApp_should_bootSimulatorIfNotBooted() async throws {
         // Given
+        given(xcodeController)
+            .selected()
+            .willReturn(.test())
         let deviceAndRuntime = try XCTUnwrap(createSystemStubs(devices: true, runtimes: true).first)
         let bundleId = "bundleId"
         let udid = deviceAndRuntime.device.udid
@@ -252,58 +259,67 @@ final class SimulatorControllerTests: TuistUnitTestCase {
         system.succeedCommand(bootCommand)
 
         // When
-        try? subject.launchApp(bundleId: bundleId, device: deviceAndRuntime.device, arguments: [])
+        try? await subject.launchApp(bundleId: bundleId, device: deviceAndRuntime.device, arguments: [])
 
         // Then
         XCTAssertTrue(system.called(bootCommand))
     }
 
-    func test_launchApp_should_openSimulatorApp() throws {
+    func test_launchApp_should_openSimulatorApp() async throws {
         // Given
+        given(xcodeController)
+            .selected()
+            .willReturn(.test())
         let deviceAndRuntime = try XCTUnwrap(createSystemStubs(devices: true, runtimes: true).first)
         let bundleId = "bundleId"
         let udid = deviceAndRuntime.device.udid
         system.succeedCommand(["/usr/bin/xcrun", "simctl", "boot", udid])
-        let openSimAppCommand = ["/usr/bin/open", "-a", "Simulator"]
+        let openSimAppCommand = ["/usr/bin/open", "-a", "/Applications/Xcode.app/Contents/Developer/Applications/Simulator.app"]
         system.succeedCommand(openSimAppCommand)
 
         // When
-        try? subject.launchApp(bundleId: bundleId, device: deviceAndRuntime.device, arguments: [])
+        try? await subject.launchApp(bundleId: bundleId, device: deviceAndRuntime.device, arguments: [])
 
         // Then
         XCTAssertTrue(system.called(openSimAppCommand))
     }
 
-    func test_launchApp_should_launchAppOnSimulator() throws {
+    func test_launchApp_should_launchAppOnSimulator() async throws {
         // Given
+        given(xcodeController)
+            .selected()
+            .willReturn(.test())
         let deviceAndRuntime = try XCTUnwrap(createSystemStubs(devices: true, runtimes: true).first)
         let bundleId = "bundleId"
         let udid = deviceAndRuntime.device.udid
         system.succeedCommand(["/usr/bin/xcrun", "simctl", "boot", udid])
-        system.succeedCommand(["/usr/bin/open", "-a", "Simulator"])
+        system.succeedCommand(["/usr/bin/open", "-a", "/Applications/Xcode.app/Contents/Developer/Applications/Simulator.app"])
         let launchAppCommand = ["/usr/bin/xcrun", "simctl", "launch", udid, bundleId]
         system.succeedCommand(launchAppCommand)
 
         // When
-        try subject.launchApp(bundleId: bundleId, device: deviceAndRuntime.device, arguments: [])
+        try await subject.launchApp(bundleId: bundleId, device: deviceAndRuntime.device, arguments: [])
 
         // Then
         XCTAssertTrue(system.called(launchAppCommand))
     }
 
-    func test_launchApp_should_launchAppOnSimulatorWithArguments() throws {
+    func test_launchApp_should_launchAppOnSimulatorWithArguments() async throws {
         // Given
+        given(xcodeController)
+            .selected()
+            .willReturn(.test())
         let deviceAndRuntime = try XCTUnwrap(createSystemStubs(devices: true, runtimes: true).first)
         let bundleId = "bundleId"
         let udid = deviceAndRuntime.device.udid
         let arguments = ["-arg1", "--arg2", "SomeArg"]
         system.succeedCommand(["/usr/bin/xcrun", "simctl", "boot", udid])
-        system.succeedCommand(["/usr/bin/open", "-a", "Simulator"])
+        system.succeedCommand(["/usr/bin/open", "-a", "/Applications/Xcode.app/Contents/Developer/Applications/Simulator.app"])
         let launchAppCommand = ["/usr/bin/xcrun", "simctl", "launch", udid, bundleId] + arguments
         system.succeedCommand(launchAppCommand)
 
         // When
-        try subject.launchApp(bundleId: bundleId, device: deviceAndRuntime.device, arguments: arguments)
+        try await subject.launchApp(bundleId: bundleId, device: deviceAndRuntime.device, arguments: arguments)
 
         // Then
         XCTAssertTrue(system.called(launchAppCommand))
@@ -317,11 +333,17 @@ final class SimulatorControllerTests: TuistUnitTestCase {
         let stubs = createSimulatorDevicesAndRuntimes(versions: versions)
 
         if runtimes {
-            system.stubs["/usr/bin/xcrun simctl list runtimes --json"] = (nil, stubs.runtimesJsonResponse, 0)
+            system.succeedCommand(
+                ["/usr/bin/xcrun", "simctl list runtimes", "--json"],
+                output: stubs.runtimesJsonResponse
+            )
         }
 
         if devices {
-            system.stubs["/usr/bin/xcrun simctl list devices --json"] = (nil, stubs.devicesJsonResponse, 0)
+            system.succeedCommand(
+                ["/usr/bin/xcrun", "simctl list devices", "--json"],
+                output: stubs.devicesJsonResponse
+            )
         }
 
         return stubs.simulators

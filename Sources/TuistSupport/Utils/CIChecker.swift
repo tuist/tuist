@@ -1,6 +1,8 @@
 import Foundation
+import Mockable
 
-public protocol CIChecking: AnyObject {
+@Mockable
+public protocol CIChecking: AnyObject, Sendable {
     /// Returns true when the environment in which the tuist process is running is a CI environment.
     func isCI() -> Bool
 }

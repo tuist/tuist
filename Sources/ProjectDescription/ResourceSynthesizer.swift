@@ -1,5 +1,3 @@
-import Foundation
-
 /// A resource synthesizer for given file extensions.
 ///
 /// For example to synthesize resource accessors for strings, you can use:
@@ -187,7 +185,7 @@ public struct ResourceSynthesizer: Codable, Equatable, Sendable { // swiftlint:d
             templateType: templateType,
             parser: .fonts,
             parserOptions: parserOptions,
-            extensions: ["otf", "ttc", "ttf"]
+            extensions: ["otf", "ttc", "ttf", "woff"]
         )
     }
 

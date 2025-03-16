@@ -1,7 +1,6 @@
 import Foundation
 import Path
 import TuistSupport
-import XcodeGraph
 
 // swiftlint:disable:next type_name
 public protocol ProjectDescriptionHelpersBuilderFactoring {
@@ -10,7 +9,18 @@ public protocol ProjectDescriptionHelpersBuilderFactoring {
 
 public final class ProjectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactoring {
     public init() {}
-    public func projectDescriptionHelpersBuilder(cacheDirectory: AbsolutePath) -> ProjectDescriptionHelpersBuilding {
-        ProjectDescriptionHelpersBuilder(cacheDirectory: cacheDirectory)
+
+    private var helperBuildersCache: ThreadSafe<[AbsolutePath: ProjectDescriptionHelpersBuilding]> = ThreadSafe([:])
+
+    public func projectDescriptionHelpersBuilder(cacheDirectory: AbsolutePath) -> any ProjectDescriptionHelpersBuilding {
+        return helperBuildersCache.mutate { builders in
+            if let helpersBuilder = builders[cacheDirectory] {
+                return helpersBuilder
+            } else {
+                let newBuilder = ProjectDescriptionHelpersBuilder(cacheDirectory: cacheDirectory)
+                builders[cacheDirectory] = newBuilder
+                return newBuilder
+            }
+        }
     }
 }
