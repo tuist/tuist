@@ -623,7 +623,7 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
     }
 }
 
-//extension XCBuildConfiguration {
+// extension XCBuildConfiguration {
 //    fileprivate func append(setting name: String, value: String) {
 //        guard !value.isEmpty else {
 //            return
@@ -631,7 +631,7 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
 //        let existing = (buildSettings[name] as? String) ?? "$(inherited)"
 //        buildSettings[name] = [existing, value].joined(separator: " ")
 //    }
-//}
+// }
 
 extension PBXTarget {
     func addSwiftPackageProduct(

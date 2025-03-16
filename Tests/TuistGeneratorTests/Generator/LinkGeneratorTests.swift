@@ -109,7 +109,7 @@ final class LinkGeneratorTests: XCTestCase {
         XCTAssertEqual(embedBuildPhase.files?.map(\.file), [
             wakaFile,
         ])
-        XCTAssertEqual(embedBuildPhase.files?.compactMap { $0.settings }, [
+        XCTAssertEqual(embedBuildPhase.files?.compactMap(\.settings), [
             ["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]],
         ])
     }
@@ -157,7 +157,7 @@ final class LinkGeneratorTests: XCTestCase {
         XCTAssertEqual(embedBuildPhase.files?.map(\.file), [
             wakaFile,
         ])
-        XCTAssertEqual(embedBuildPhase.files?.compactMap { $0.settings }, [
+        XCTAssertEqual(embedBuildPhase.files?.compactMap(\.settings), [
             ["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]],
         ])
     }
@@ -318,7 +318,7 @@ final class LinkGeneratorTests: XCTestCase {
         XCTAssertEqual(copyBuildPhase.name, "Embed Frameworks")
         let buildFiles = try XCTUnwrap(copyBuildPhase.files)
         XCTAssertEqual(buildFiles.map { $0.file?.path }, ["Test.xcframework"])
-        XCTAssertEqual(buildFiles.map { $0.settings }, [
+        XCTAssertEqual(buildFiles.map(\.settings), [
             ["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]],
         ])
     }
@@ -412,7 +412,7 @@ final class LinkGeneratorTests: XCTestCase {
 
         let buildFiles = try XCTUnwrap(copyBuildPhase.files)
         XCTAssertEqual(buildFiles.map { $0.product?.productName }, ["Product"])
-        XCTAssertEqual(buildFiles.map { $0.settings }, [
+        XCTAssertEqual(buildFiles.map(\.settings), [
             ["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]],
         ])
     }
@@ -464,7 +464,7 @@ final class LinkGeneratorTests: XCTestCase {
         XCTAssertEqual(copyBuildPhase.name, "Embed Frameworks")
         let buildFiles = try XCTUnwrap(copyBuildPhase.files)
         XCTAssertEqual(Set(buildFiles.map { $0.product?.productName }), ["Product", "ProductWithPlatformCondition"])
-        XCTAssertEqual(Set(buildFiles.map { $0.settings }), [
+        XCTAssertEqual(Set(buildFiles.map(\.settings)), [
             ["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]],
         ])
         XCTAssertEqual(
@@ -1044,7 +1044,7 @@ final class LinkGeneratorTests: XCTestCase {
             requiredFile,
             optionalFile,
         ])
-        XCTAssertEqual(buildPhase?.files?.map { $0.settings }, [
+        XCTAssertEqual(buildPhase?.files?.map(\.settings), [
             nil,
             ["ATTRIBUTES": ["Weak"]],
         ])

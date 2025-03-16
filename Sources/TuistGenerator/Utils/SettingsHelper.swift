@@ -135,7 +135,6 @@ final class SettingsHelper {
     }
 }
 
-
 extension BuildSetting {
     var settingValue: SettingValue {
         switch self {

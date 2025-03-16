@@ -956,7 +956,7 @@ final class GenerateAcceptanceTestiOSAppWithWeaklyLinkedFramework: TuistAcceptan
             XCTFail("App target should have a linked framework with settings")
             return
         }
-        let expected =  ["ATTRIBUTES": BuildFileSetting.array(["Weak"])]
+        let expected = ["ATTRIBUTES": BuildFileSetting.array(["Weak"])]
         XCTAssertEqualDictionaries(settings, expected)
     }
 }

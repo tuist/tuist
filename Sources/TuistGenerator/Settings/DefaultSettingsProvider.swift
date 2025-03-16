@@ -363,4 +363,3 @@ extension SettingsDictionary {
         }
     }
 }
-

@@ -1170,7 +1170,7 @@ final class DefaultSettingsProvider_MacosTests: TuistUnitTestCase {
     }
 }
 
-//final class DictionaryStringAnyExtensionTests: XCTestCase {
+// final class DictionaryStringAnyExtensionTests: XCTestCase {
 //    func testToSettings_whenOnlyStrings() throws {
 //        // Given
 //        let subject: [String: Any] = [
@@ -1241,7 +1241,7 @@ final class DefaultSettingsProvider_MacosTests: TuistUnitTestCase {
 //            XCTAssertEqual(error.type, .bug)
 //        }
 //    }
-//}
+// }
 
 extension XCTestCase {
     fileprivate func XCTAssertSettings(

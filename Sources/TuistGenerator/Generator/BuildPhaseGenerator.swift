@@ -282,7 +282,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
             }
 
             var settings: [String: BuildFileSetting] = [:]
-            
+
             if let compilerFlags = buildFile.compilerFlags {
                 settings["COMPILER_FLAGS"] = .string(compilerFlags)
             }
@@ -292,7 +292,6 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
             if let codegen = buildFile.codeGen {
                 settings["ATTRIBUTES"] = .array([codegen.rawValue])
             }
-            
 
             if buildFilesCache.contains(element.path) == false {
                 let pbxBuildFile = PBXBuildFile(file: element.element, settings: settings.isEmpty ? nil : settings)
