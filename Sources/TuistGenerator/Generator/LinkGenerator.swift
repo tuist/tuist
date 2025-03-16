@@ -386,8 +386,9 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
         let value = SettingValue
             .array(["$(inherited)"] + paths.map { $0.xcodeValue(sourceRootPath: sourceRootPath) }.uniqued().sorted())
         let newSetting = [name: value]
+        let helper = SettingsHelper()
         for configuration in configurationList.buildConfigurations {
-            try SettingsHelper().extend(buildSettings: &configuration.buildSettings, with: newSetting)
+            try helper.extend(buildSettings: &configuration.buildSettings, with: newSetting)
         }
     }
 
@@ -622,16 +623,6 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
         )
     }
 }
-
-// extension XCBuildConfiguration {
-//    fileprivate func append(setting name: String, value: String) {
-//        guard !value.isEmpty else {
-//            return
-//        }
-//        let existing = (buildSettings[name] as? String) ?? "$(inherited)"
-//        buildSettings[name] = [existing, value].joined(separator: " ")
-//    }
-// }
 
 extension PBXTarget {
     func addSwiftPackageProduct(
