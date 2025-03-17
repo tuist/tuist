@@ -138,7 +138,7 @@
   /* Background */
   --noora-surface-background-primary: light-dark(var(--noora-neutral-light-50), var(--noora-neutral-dark-1200));
   --noora-surface-background-secondary: light-dark(var(--noora-neutral-light-100), var(--noora-neutral-dark-1100));
-  --noora-surface-background-tertiary: light-dark(var(--noora-neutral-light-200), var(--noora-neutral-dark-1000));
+  --noora-surface-background-tertiary: light-dark(var(--noora-neutral-light-200), var(--noora-neutral-dark-1100));
   --noora-surface-overlay: light-dark(var(--noora-neutral-gray-24), var(--noora-neutral-gray-16));
   /* Label */
   --noora-surface-label-primary: light-dark(var(--noora-neutral-light-1200), var(--noora-neutral-light-50));
