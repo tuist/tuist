@@ -33,7 +33,7 @@ open class ServerAcceptanceTestCase: TuistAcceptanceTestCase {
             path: fixturePath.appending(components: Constants.tuistManifestFileName),
             atomically: true
         )
-        ServiceContext.current?.flushRecordedUI()
+        ServiceContext.current?.resetRecordedUI()
     }
 
     override open func tearDown() async throws {

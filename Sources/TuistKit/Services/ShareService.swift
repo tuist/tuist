@@ -226,6 +226,8 @@ struct ShareService {
                 json: json
             )
         }
+
+        ServiceContext.current?.alerts?.success(.alert("Product shared successfully"))
     }
 
     // MARK: - Helpers
