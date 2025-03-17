@@ -1,2 +1,6 @@
+▌ ! Warning
+▌
+▌ The following items may need attention:
+▌  ▸ Target 'StaticFramework' has been linked from target 'AppClip1' and target 'AppClip1Widgets', it is a static product so may introduce unwanted side effects.
 ▌ ✔ Success
 ▌ The project built successfully
