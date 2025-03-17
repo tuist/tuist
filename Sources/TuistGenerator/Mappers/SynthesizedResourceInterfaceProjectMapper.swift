@@ -208,8 +208,6 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
         switch parser {
         case .assets:
             return SynthesizedResourceInterfaceTemplates.assetsTemplate
-        case .stringsCatalog:
-            return SynthesizedResourceInterfaceTemplates.stringsCatalogTemplate
         case .strings:
             return SynthesizedResourceInterfaceTemplates.stringsTemplate
         case .plists:
