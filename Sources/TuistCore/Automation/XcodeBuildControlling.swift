@@ -23,6 +23,15 @@ public enum XcodeBuildTestAction: Equatable {
             "Testing without building"
         }
     }
+
+    public var verb: String {
+        switch self {
+        case .test, .testWithoutBuilding:
+            "ran"
+        case .build:
+            "built"
+        }
+    }
 }
 
 @Mockable

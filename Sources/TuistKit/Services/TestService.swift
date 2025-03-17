@@ -375,7 +375,7 @@ final class TestService { // swiftlint:disable:this type_body_length
         passthroughXcodeBuildArguments: [String]
     ) async throws {
         let graphTraverser = GraphTraverser(graph: graph)
-        var testSchemes = schemes
+        let testSchemes = schemes
             .filter {
                 !self.testActionTargetReferences(scheme: $0, testPlanConfiguration: testPlanConfiguration).isEmpty
             }
@@ -420,11 +420,7 @@ final class TestService { // swiftlint:disable:this type_body_length
             guard action != .build, let resultBundlePath,
                   let invocationRecord = xcResultService.parse(path: resultBundlePath) else { throw error }
 
-            let testTargets = testActionTargets(
-                for: schemes,
-                testPlanConfiguration: testPlanConfiguration,
-                graph: graph
-            )
+            let testTargets = testActionTargets(for: schemes, testPlanConfiguration: testPlanConfiguration, graph: graph)
 
             let passingTestTargetNames = xcResultService.successfulTestTargets(invocationRecord: invocationRecord)
             let passingTestTargets = testTargets.filter { passingTestTargetNames.contains($0.target.name) }
