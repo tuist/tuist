@@ -1,6 +1,7 @@
 import Foundation
 import Mockable
 import Noora
+import OrderedSet
 import ServiceContextModule
 
 enum Alert: Equatable, Hashable {
@@ -28,25 +29,26 @@ enum Alert: Equatable, Hashable {
 
 public final class AlertController: @unchecked Sendable {
     private let alertQueue = DispatchQueue(label: "io.tuist.TuistSupport.AlertController")
-    private var alerts: ThreadSafe<Set<Alert>> = ThreadSafe([])
+    private var alerts: ThreadSafe<OrderedSet<Alert>> = ThreadSafe([])
 
     public init() {}
 
     public func success(_ alert: SuccessAlert) {
-        alerts.mutate { alerts in
-            alerts.insert(.success(alert))
+        alerts.mapping { alerts in
+            return alerts.appending(.success(alert))
         }
     }
 
     public func warning(_ alert: WarningAlert) {
-        alerts.mutate { alerts in
-            alerts.insert(.warning(alert))
+        alerts.mapping { alerts in
+
+            return alerts.appending(.warning(alert))
         }
     }
 
-    public func flush() {
-        alerts.mutate { alerts in
-            alerts.removeAll()
+    public func reset() {
+        alerts.mapping { _ in
+            return []
         }
     }
 
@@ -63,13 +65,11 @@ public final class AlertController: @unchecked Sendable {
     }
 
     public func print() {
-        for alert in alerts.value {
-            switch alert {
-            case let .success(successAlert):
-                ServiceContext.current?.ui?.success(successAlert)
-            case let .warning(warningAlert):
-                ServiceContext.current?.ui?.warning(warningAlert)
-            }
+        for warning in warnings() {
+            ServiceContext.current?.ui?.warning(warning)
+        }
+        for success in success() {
+            ServiceContext.current?.ui?.success(success)
         }
     }
 }
