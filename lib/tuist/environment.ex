@@ -53,6 +53,10 @@ defmodule Tuist.Environment do
     ["1", "true", "TRUE", "yes", "YES"] |> Enum.member?(value)
   end
 
+  def database_url(secrets \\ secrets()) do
+    System.get_env("DATABASE_URL") || get([:database_url], secrets)
+  end
+
   def on_premise?() do
     not truthy?(System.get_env("TUIST_CLOUD_HOSTED", "0")) and
       not truthy?(System.get_env("TUIST_HOSTED", "0"))
@@ -66,8 +70,9 @@ defmodule Tuist.Environment do
     truthy?(System.get_env("TUIST_USE_SSL_FOR_DATABASE", "1"))
   end
 
-  def get_license_key() do
-    System.get_env("TUIST_LICENSE") || System.get_env("TUIST_LICENSE_KEY")
+  def get_license_key(secrets \\ secrets()) do
+    System.get_env("TUIST_LICENSE_KEY") ||
+      get([:license], secrets())
   end
 
   def use_ipv6?(secrets \\ secrets()) do

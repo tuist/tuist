@@ -32,7 +32,7 @@ if [:prod, :stag, :can] |> Enum.member?(env) do
   config :logger, level: Tuist.Environment.log_level()
 
   database_url =
-    System.get_env("DATABASE_URL") ||
+    Tuist.Environment.database_url(secrets) ||
       raise """
       environment variable DATABASE_URL is missing.
       For example: ecto://USER:PASS@HOST/DATABASE
