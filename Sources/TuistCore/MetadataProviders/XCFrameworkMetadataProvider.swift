@@ -13,7 +13,7 @@ enum XCFrameworkMetadataProviderError: FatalError, Equatable {
     case missingRequiredFile(AbsolutePath)
     case supportedArchitectureReferencesNotFound(AbsolutePath)
     case fileTypeNotRecognised(file: RelativePath, frameworkName: String)
-
+    case mismatchingExpectedSignature(originalSignature: XCFrameworkOriginalSignatureType, actualSignature: XCFrameworkSignatureType)
     // MARK: - FatalError
 
     var description: String {
@@ -29,13 +29,16 @@ enum XCFrameworkMetadataProviderError: FatalError, Equatable {
         case let .fileTypeNotRecognised(file, frameworkName):
             return
                 "The extension of the file `\(file)`, which was found while parsing the xcframework `\(frameworkName)`, is not supported."
+        case let .mismatchingExpectedSignature(originalSignature, actualSignature):
+            return
+                "The expected signature of the xcframework \(String(describing: originalSignature)) does not match the actual signature \(String(describing: actualSignature))"
         }
     }
 
     var type: ErrorType {
         switch self {
         case .xcframeworkNotFound, .missingRequiredFile, .supportedArchitectureReferencesNotFound,
-             .fileTypeNotRecognised:
+             .fileTypeNotRecognised, .mismatchingExpectedSignature:
             return .abort
         }
     }
@@ -58,9 +61,13 @@ public protocol XCFrameworkMetadataProviding: PrecompiledMetadataProviding {
     /// - Parameter binaryPath: Path to the binary.
     func uuids(binaryPath: AbsolutePath) throws -> Set<UUID>
 
-    /// Loads all the metadata associated with an XCFramework at the specified path
+    /// Loads all the metadata associated with an XCFramework at the specified path with the given expected signature.
     /// - Note: This performs various shell calls and disk operations
-    func loadMetadata(at path: AbsolutePath, status: LinkingStatus) async throws
+    func loadMetadata(
+        at path: AbsolutePath,
+        originalSignature: XCFrameworkOriginalSignatureType,
+        status: LinkingStatus
+    ) async throws
         -> XCFrameworkMetadata
 
     /// Returns the info.plist of the xcframework at the given path.
@@ -75,6 +82,7 @@ public final class XCFrameworkMetadataProvider: PrecompiledMetadataProvider,
 {
     private let fileHandler: FileHandling
     private let fileSystem: FileSysteming
+    private let signatureProvider: XCFrameworkSignatureProvider
 
     public init(
         fileHandler: FileHandling = FileHandler.shared,
@@ -82,16 +90,21 @@ public final class XCFrameworkMetadataProvider: PrecompiledMetadataProvider,
     ) {
         self.fileHandler = fileHandler
         self.fileSystem = fileSystem
+        self.signatureProvider = XCFrameworkSignatureProvider()
         super.init()
     }
 
     public func loadMetadata(
         at path: AbsolutePath,
+        originalSignature: XCFrameworkOriginalSignatureType,
         status: LinkingStatus
     ) async throws -> XCFrameworkMetadata {
         guard try await fileSystem.exists(path) else {
             throw XCFrameworkMetadataProviderError.xcframeworkNotFound(path)
         }
+
+        try await verifySignature(at: path, originalSignature: originalSignature)
+
         let infoPlist = try await infoPlist(xcframeworkPath: path)
         let linking = try await linking(
             xcframeworkPath: path,
@@ -105,8 +118,23 @@ public final class XCFrameworkMetadataProvider: PrecompiledMetadataProvider,
             status: status,
             macroPath: try await macroPath(xcframeworkPath: path),
             swiftModules: try await fileSystem.glob(directory: path, include: ["**/*.swiftmodule"]).collect().sorted(),
-            moduleMaps: try await fileSystem.glob(directory: path, include: ["**/*.modulemap"]).collect().sorted()
+            moduleMaps: try await fileSystem.glob(directory: path, include: ["**/*.modulemap"]).collect().sorted(),
+            expectedSignature: originalSignature.expectedSignature()
         )
+    }
+
+    private func verifySignature(
+        at path: AbsolutePath,
+        originalSignature: XCFrameworkOriginalSignatureType
+    ) async throws {
+        let actualSignature = try await signatureProvider.signingType(of: path)
+
+        guard actualSignature.isEqualTo(originalSignature: originalSignature) else {
+            throw XCFrameworkMetadataProviderError.mismatchingExpectedSignature(
+                originalSignature: originalSignature,
+                actualSignature: actualSignature
+            )
+        }
     }
 
     /**

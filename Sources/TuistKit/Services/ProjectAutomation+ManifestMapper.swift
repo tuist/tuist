@@ -118,7 +118,7 @@ extension ProjectAutomation.Target {
                 frameworkStatus = .none
             }
             return .framework(path: path.pathString, status: frameworkStatus)
-        case let .xcframework(path, status, _):
+        case let .xcframework(path, originalSignature, status, _):
             let frameworkStatus: ProjectAutomation.LinkingStatus
             switch status {
             case .optional:
@@ -128,7 +128,7 @@ extension ProjectAutomation.Target {
             case .none:
                 frameworkStatus = .none
             }
-            return .xcframework(path: path.pathString, status: frameworkStatus)
+            return .xcframework(path: path.pathString, originalSignature: originalSignature.asAutomationType, status: frameworkStatus)
         case let .library(path, publicHeaders, swiftModuleMap, _):
             return .library(
                 path: path.pathString,
@@ -305,6 +305,19 @@ enum GraphServiceError: FatalError {
             return .abort
         case .encodingError:
             return .abort
+        }
+    }
+}
+
+public extension XcodeGraph.XCFrameworkOriginalSignatureType {
+    var asAutomationType: ProjectAutomation.XCFrameworkOriginalSignatureType {
+        switch self {
+        case .notSigned:
+            return .notSigned
+        case let .selfSigned(fingerprint):
+            return .selfSigned(fingerprint: fingerprint)
+        case let .signedByApple(teamIdentifier, teamName):
+            return .signedByApple(teamIdentifier: teamIdentifier, teamName: teamName)
         }
     }
 }

@@ -6,7 +6,7 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
         switch self {
         case let .framework(_, _, _, _, _, _, _, _, condition),
              let .library(_, _, _, _, condition),
-             let .xcframework(_, _, _, condition),
+             let .xcframework(_, _, _, _, condition),
              let .bundle(_, condition),
              let .product(_, _, _, condition),
              let .sdk(_, _, _, condition),
@@ -20,6 +20,7 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
     case macro(path: AbsolutePath)
     case xcframework(
         path: AbsolutePath,
+        expectedSignature: String?,
         infoPlist: XCFrameworkInfoPlist,
         status: LinkingStatus,
         condition: PlatformCondition? = nil
@@ -80,6 +81,7 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
         case let .xcframework(xcframework):
             self = .xcframework(
                 path: xcframework.path,
+                expectedSignature: xcframework.expectedSignature,
                 infoPlist: xcframework.infoPlist,
                 status: xcframework.status,
                 condition: condition
@@ -101,7 +103,7 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
             return path
         case let .library(path, _, _, _, _):
             return path
-        case let .xcframework(path, _, _, _):
+        case let .xcframework(path, _, _, _, _):
             return path
         default:
             return nil
@@ -115,12 +117,36 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
     // Private helper type to auto-synthesize the hashable & comparable implementations
     // where only the required subset of properties are used.
     private enum Synthesized: Comparable, Hashable {
+
+        static func < (lhs: Synthesized, rhs: Synthesized) -> Bool {
+            switch (lhs, rhs) {
+            case let (.macro(lhsPath), .macro(rhsPath)):
+                return lhsPath < rhsPath
+            case let (.sdk(lhsPath, _), .sdk(rhsPath, _)):
+                return lhsPath < rhsPath
+            case let (.product(lhsTarget, lhsProduct, _), .product(rhsTarget, rhsProduct, _)):
+                return (lhsTarget, lhsProduct) < (rhsTarget, rhsProduct)
+            case let (.library(lhsPath, _), .library(rhsPath, _)):
+                return lhsPath < rhsPath
+            case let (.framework(lhsPath, _), .framework(rhsPath, _)):
+                return lhsPath < rhsPath
+            case let (.xcframework(lhsPath, lhsSig, _), .xcframework(rhsPath, rhsSig, _)):
+                return (lhsPath, lhsSig ?? "") < (rhsPath, rhsSig ?? "")
+            case let (.bundle(lhsPath, _), .bundle(rhsPath, _)):
+                return lhsPath < rhsPath
+            case let (.packageProduct(lhsProduct, _), .packageProduct(rhsProduct, _)):
+                return lhsProduct < rhsProduct
+            default:
+                return false
+            }
+        }
+        
         case macro(path: AbsolutePath)
         case sdk(path: AbsolutePath, condition: PlatformCondition?)
         case product(target: String, productName: String, condition: PlatformCondition?)
         case library(path: AbsolutePath, condition: PlatformCondition?)
         case framework(path: AbsolutePath, condition: PlatformCondition?)
-        case xcframework(path: AbsolutePath, condition: PlatformCondition?)
+        case xcframework(path: AbsolutePath, expectedSignature: String?, condition: PlatformCondition?)
         case bundle(path: AbsolutePath, condition: PlatformCondition?)
         case packageProduct(product: String, condition: PlatformCondition?)
 
@@ -130,10 +156,11 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
                 self = .macro(path: path)
             case .xcframework(
                 let path,
+                let expectedSignature,
                 infoPlist: _,
                 status: _, let condition
             ):
-                self = .xcframework(path: path, condition: condition)
+                self = .xcframework(path: path, expectedSignature:expectedSignature, condition: condition)
             case let .library(path: path, _, _, _, condition):
                 self = .library(path: path, condition: condition)
             case .framework(

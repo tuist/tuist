@@ -44,6 +44,8 @@ extension GraphDependencyReference {
     ) -> GraphDependencyReference {
         GraphDependencyReference.xcframework(
             path: path,
+            //TODO: fix when fixing tests
+            expectedSignature: "",
             infoPlist: infoPlist,
             status: status,
             condition: condition

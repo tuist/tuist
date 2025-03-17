@@ -60,7 +60,8 @@ public struct DependenciesGraph: Equatable, Codable {
             // swiftlint:disable:next force_try
             path: Path = .path(AbsolutePath.root.appending(try! RelativePath(validating: "Test.xcframework")).pathString)
         ) -> Self {
-            let externalDependencies = [name: [TargetDependency.xcframework(path: path)]]
+            //TODO: fix when fixing tests
+            let externalDependencies = [name: [TargetDependency.xcframework(path: path, originalSignature: .notSigned)]]
 
             return .init(
                 externalDependencies: externalDependencies,
@@ -417,7 +418,7 @@ public struct DependenciesGraph: Equatable, Codable {
                         "\(packageFolder.pathString)/GoogleAppMeasurementWrapper/**",
                     ],
                     dependencies: [
-                        .xcframework(path: "\(artifactsFolder.pathString)/GoogleAppMeasurement.xcframework"),
+                        .xcframework(path: "\(artifactsFolder.pathString)/GoogleAppMeasurement.xcframework", originalSignature: .notSigned),
                         .project(
                             target: "GULAppDelegateSwizzler",
                             path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")
@@ -458,7 +459,7 @@ public struct DependenciesGraph: Equatable, Codable {
                     ],
                     dependencies: [
                         .xcframework(
-                            path: "\(artifactsFolder.pathString)/GoogleAppMeasurementWithoutAdIdSupport.xcframework"
+                            path: "\(artifactsFolder.pathString)/GoogleAppMeasurementWithoutAdIdSupport.xcframework", originalSignature: .notSigned
                         ),
                         .project(
                             target: "GULAppDelegateSwizzler",
