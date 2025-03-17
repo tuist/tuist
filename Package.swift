@@ -130,6 +130,7 @@ let targets: [Target] = [
             .product(name: "FileLogging", package: "swift-log-file"),
             .product(name: "ServiceContextModule", package: "swift-service-context"),
             .product(name: "XCLogParser", package: "XCLogParser"),
+            .product(name: "OrderedSet", package: "OrderedSet")
         ],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
