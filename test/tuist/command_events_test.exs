@@ -993,7 +993,7 @@ defmodule Tuist.CommandEventsTest do
           test_case_id: test_case_one.id,
           command_event_id: command_event_one.id,
           status: :success,
-          created_at: ~N[2024-03-04 01:00:00]
+          inserted_at: ~N[2024-03-04 03:00:00]
         )
 
       CommandEventsFixtures.test_case_run_fixture(
@@ -1007,14 +1007,14 @@ defmodule Tuist.CommandEventsTest do
           test_case_id: test_case_one.id,
           command_event_id: command_event_three.id,
           status: :success,
-          created_at: ~N[2024-03-04 02:00:00]
+          inserted_at: ~N[2024-03-04 02:00:00]
         )
 
       CommandEventsFixtures.test_case_run_fixture(
         test_case_id: test_case_one.id,
         command_event_id: command_event_four.id,
         status: :success,
-        created_at: ~N[2024-03-04 03:00:00]
+        inserted_at: ~N[2024-03-04 01:00:00]
       )
 
       # When
