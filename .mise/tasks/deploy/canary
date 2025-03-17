@@ -3,4 +3,4 @@
 
 set -euo pipefail
 
-flyctl deploy -c $MISE_PROJECT_ROOT/fly.canary.toml --dockerfile $MISE_PROJECT_ROOT/Dockerfile --build-arg TUIST_HOSTED=1 --build-arg MIX_ENV=can --vm-memory=2048 --wait-timeout 600
+flyctl deploy -c fly.canary.toml --dockerfile Dockerfile --build-arg TUIST_HOSTED=1 --build-arg MIX_ENV=can --vm-memory=2048 --wait-timeout 600
