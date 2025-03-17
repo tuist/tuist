@@ -1934,7 +1934,7 @@ final class TestServiceTests: TuistUnitTestCase {
             ]
         )
     }
-    
+
     func test_build_scheme_with_test_plans_and_no_explicit_targets() async throws {
         // Given
         givenGenerator()
