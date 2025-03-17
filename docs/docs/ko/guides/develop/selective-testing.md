@@ -13,15 +13,15 @@ CI에서 테스트를 실행할 때마다 변경 사항에 관계없이 모든 �
 선택적 테스트는 모든 Xcode 프로젝트를 지원하는 `xcodebuild` 에서 작동합니다. 또한, Tuist를 사용하여 프로젝트를 만들었을 경우 <LocalizedLink href="/guides/develop/build/cache">binary cache</LocalizedLink>와 같은 추가 편의성을 제공하는 `tuist test` 명령어를 대신 사용할 수도 있습니다. 선택적 테스트를 시작하려면, 프로젝트 설정에 따른 지침을 따르세요:
 
 - <LocalizedLink href="/guides/develop/selective-testing/xcodebuild">xcodebuild</LocalizedLink>
-- <LocalizedLink href="/guides/develop/selective-testing/generated-project">Generated project</LocalizedLink>
+- <LocalizedLink href="/guides/develop/selective-testing/generated-project">생성된 프로젝트</LocalizedLink>
 
 > [!WARNING] 모듈 VS 파일 단위 세분화\
 > 테스트와 소스 코드 간의 의존성을 코드 내에서 파악할 수 없으므로 선택적 테스트의 세분화는 파일 단위에서만 가능합니다. 따라서 선택적 테스트의 이점을 극대화 하려면 파일을 작고 집중적으로 유지하길 권장합니다.
 
 ## Pull/merge request 의견 {#pullmerge-request-comments}
 
-> [!IMPORTANT] INTEGRATION WITH GIT PLATFORM REQUIRED
-> To get automatic pull/merge request comments, integrate your <LocalizedLink href="/server/introduction/accounts-and-projects">Tuist project</LocalizedLink> with a <LocalizedLink href="/server/introduction/integrations#git-platforms">Git platform</LocalizedLink>.
+> [!IMPORTANT] GIT 플랫폼 연동 필요\
+> 자동으로 pull/merge request 의견을 받으려면, <0>Tuist 프로젝트</0>를 <1>Git 플랫폼</1>과 연동해야 합니다.
 
-Once your Tuist project is connected with your Git platform such as [GitHub](https://github.com), and you start using `tuist xcodebuild test` or `tuist test` as part of your CI wortkflow, Tuist will post a comment directly in your pull/merge requests, including which tests were run and which skipped:
-![GitHub app comment with a Tuist Preview link](/images/guides/develop/github-app-comment.png)
+Tuist 프로젝트를 [GitHub](https://github.com)와 같은 Git 플랫폼과 연결하고, CI 워크플로우로 `tuist xcodebuild test`나 `tuist test`를 사용하기 시작하면, Tuist는 실행된 테스트와 건너뛴 테스트 정보를 포함하여 pull/merge request에 직접 의견을 남깁니다:
+![Tuist Preview 링크를 사용하는 GitHub 앱 의견](/images/guides/develop/selective-testing/github-app-comment.png)

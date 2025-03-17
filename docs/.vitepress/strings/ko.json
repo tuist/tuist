@@ -86,6 +86,9 @@
           "items": {
             "logging": {
               "text": "로깅"
+            },
+            "shell-completions": {
+              "text": "Shell completions"
             }
           }
         },
@@ -196,11 +199,8 @@
             "install-tuist": {
               "text": "Install Tuist"
             },
-            "create-a-project": {
-              "text": "Create a project"
-            },
-            "optimize-workflows": {
-              "text": "Optimize workflows"
+            "get-started": {
+              "text": "Get started"
             }
           }
         },
@@ -326,6 +326,9 @@
                   "text": "Generated project"
                 }
               }
+            },
+            "insights": {
+              "text": "Insights"
             }
           }
         },

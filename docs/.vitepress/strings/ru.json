@@ -86,6 +86,9 @@
           "items": {
             "logging": {
               "text": "Logging"
+            },
+            "shell-completions": {
+              "text": "Автозавершения командной оболочки"
             }
           }
         },
@@ -196,11 +199,8 @@
             "install-tuist": {
               "text": "Установка Tuist"
             },
-            "create-a-project": {
-              "text": "Создание проекта"
-            },
-            "optimize-workflows": {
-              "text": "Optimize workflows"
+            "get-started": {
+              "text": "Начало работы"
             }
           }
         },
@@ -326,6 +326,9 @@
                   "text": "Generated project"
                 }
               }
+            },
+            "insights": {
+              "text": "Insights"
             }
           }
         },

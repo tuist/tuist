@@ -1,5 +1,25 @@
 # Changelog
 
+## 4.44.3 - 2025-03-17
+
+### CLI
+
+#### Changed
+
+- Install create-dmg using the asdf plugin [#7412](https://github.com/tuist/tuist/pull/7412) by [@pepicrft](https://github.com/pepicrft)
+
+#### Fixed
+
+- [Docs] fix link to registry [#7396](https://github.com/tuist/tuist/pull/7396) by [@muukii](https://github.com/muukii)
+- Show errors using the error alert [#7397](https://github.com/tuist/tuist/pull/7397) by [@pepicrft](https://github.com/pepicrft)
+- Fix the code snippet in the CI logging documentation page [#7400](https://github.com/tuist/tuist/pull/7400) by [@pepicrft](https://github.com/pepicrft)
+- Fix `--help` error not showing [#7399](https://github.com/tuist/tuist/pull/7399) by [@pepicrft](https://github.com/pepicrft)
+- Add `Sendable` conformance to `Plugin` type in ProjectDescription [#7410](https://github.com/tuist/tuist/pull/7410) by [@liamnichols](https://github.com/liamnichols)
+
+### CLI (Server features)
+
+- no changes
+
 ## 4.44.2 - 2025-03-11
 
 ### CLI
