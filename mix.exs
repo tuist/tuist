@@ -89,7 +89,7 @@ defmodule Tuist.MixProject do
       {:timex, "~> 3.7"},
       {:prom_ex, git: "https://github.com/akoutmos/prom_ex", branch: "master"},
       {:ranch, "~> 2.2.0", override: true},
-      {:hammer, "~> 6.0"},
+      {:hammer, "~> 7.0"},
       {:guardian, "~> 2.3"},
       {:guardian_db, "~> 3.0"},
       {:uuidv7, "~> 1.0"},

@@ -106,9 +106,6 @@ config :ueberauth, Ueberauth,
     okta: {Ueberauth.Strategy.Okta, []}
   ]
 
-config :hammer,
-  backend: {Hammer.Backend.ETS, [expiry_ms: 60_000 * 60 * 4, cleanup_interval_ms: 60_000 * 10]}
-
 config :flop, repo: Tuist.Repo
 
 config :guardian, Guardian.DB,

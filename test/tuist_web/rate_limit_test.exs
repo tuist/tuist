@@ -9,8 +9,8 @@ defmodule TuistWeb.RateLimitTest do
   describe "rate_limit/2" do
     test "allows the request when the rate limit is not reached" do
       # Given
-      Hammer
-      |> expect(:check_rate, fn _ip, _window, _limit -> {:allow, 1} end)
+      Hammer.ETS.FixWindow
+      |> expect(:hit, fn _table, _ip, _window, _limit, _increment -> {:allow, 1} end)
 
       conn = build_conn()
 
@@ -23,8 +23,8 @@ defmodule TuistWeb.RateLimitTest do
 
     test "raises TooManyRequestsError when the rate limit is reached" do
       # Given
-      Hammer
-      |> expect(:check_rate, fn _ip, _window, _limit -> {:deny, 1} end)
+      Hammer.ETS.FixWindow
+      |> expect(:hit, fn _table, _ip, _window, _limit, _increment -> {:deny, 1} end)
 
       conn = build_conn()
 
@@ -36,7 +36,7 @@ defmodule TuistWeb.RateLimitTest do
 
     test "does not check rate limit when on premise" do
       # Given
-      Mimic.reject(&Hammer.check_rate/3)
+      Mimic.reject(&Hammer.ETS.FixWindow.hit/5)
 
       Environment
       |> expect(:on_premise?, fn -> true end)
