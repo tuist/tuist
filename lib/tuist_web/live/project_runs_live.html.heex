@@ -1,6 +1,6 @@
 <div class="runs page">
   <h5 class="runs__title text--extraExtraLarge font--semibold">{gettext("Runs")}</h5>
-  <.table
+  <.legacy_table
     id="command_events"
     rows={@command_events}
     row_link={
@@ -25,7 +25,7 @@
     <:col :let={command_event} label={gettext("Ran at")}>
       {Timex.from_now(Map.get(command_event, :run_at, command_event.created_at))}
     </:col>
-  </.table>
+  </.legacy_table>
   <.pagination
     uri={@uri}
     has_previous_page={@command_events_meta.has_previous_page?}

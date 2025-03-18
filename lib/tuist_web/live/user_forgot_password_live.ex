@@ -27,9 +27,9 @@ defmodule TuistWeb.UserForgotPasswordLive do
             required
           />
           <.stack gap="xl">
-            <.button type="submit" variant="primary" class="auth-form__primary-action">
+            <.legacy_button type="submit" variant="primary" class="auth-form__primary-action">
               {gettext("Reset password")}
-            </.button>
+            </.legacy_button>
           </.stack>
         </.stack>
       </.simple_form>

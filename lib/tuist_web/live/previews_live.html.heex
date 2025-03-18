@@ -1,6 +1,6 @@
 <div class="previews page">
   <h5 class="previews__title">{gettext("Previews")}</h5>
-  <.table
+  <.legacy_table
     id="previews"
     rows={@command_events}
     row_link={
@@ -28,7 +28,7 @@
     <:col :let={command_event} label={gettext("Created at")}>
       {Timex.from_now(command_event.ran_at || command_event.created_at)}
     </:col>
-  </.table>
+  </.legacy_table>
   <.pagination
     uri={@uri}
     has_previous_page={@command_events_meta.has_previous_page?}

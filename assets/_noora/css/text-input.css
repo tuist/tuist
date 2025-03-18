@@ -9,7 +9,7 @@
     align-self: stretch;
     background: var(--noora-surface-background-primary);
     border-radius: var(--noora-radius-medium);
-    box-shadow: var(--noora-light-border-default);
+    box-shadow: var(--noora-border-light-default);
     display: flex;
     gap: var(--noora-spacing-4);
     padding: var(--noora-spacing-3) var(--noora-spacing-4);
@@ -108,7 +108,7 @@
     }
 
     &:has(> input:focus) {
-      box-shadow: var(--noora-light-border-focus);
+      box-shadow: var(--noora-border-light-focus);
     }
 
     &[data-type="password"]:has(> input[type="text"]) {

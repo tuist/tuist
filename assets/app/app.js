@@ -25,6 +25,7 @@ import "./js/Chart.js";
 import "./js/Stack.js";
 import * as NooraComponents from "../_noora/noora.js";
 import "./app.css";
+import ThemeSwitcher, { observeThemeChanges } from "./js/ThemeSwitcher.js";
 
 let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content");
 let cspNonce = document.querySelector("meta[name='csp-nonce']").getAttribute("content");
@@ -70,6 +71,8 @@ Hooks.Chart = {
   },
 };
 
+observeThemeChanges();
+Hooks.ThemeSwitcher = ThemeSwitcher;
 Object.keys(NooraComponents).forEach((key) => {
   Hooks[key] = NooraComponents[key];
 });

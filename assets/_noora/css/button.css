@@ -26,6 +26,11 @@
     var(--background-base);
   box-shadow: var(--border);
   cursor: pointer;
+  outline: unset;
+
+  & [data-part="spacer"] {
+    flex-grow: 1;
+  }
 
   & > span {
     padding: 0rem var(--noora-spacing-2);
@@ -48,7 +53,7 @@
       --border: 0px 1px 1px oklch(31.8% 0.011 248.2 / 0.12), 0px 0px 0px 1px oklch(46.9% 0.27 286.9 / 0.9),
         0px 2px 3px oklch(31.8% 0.011 248.2 / 0.16), 0px 1px 0px oklch(100% 0 0 / 0.1) inset;
 
-      @media (prefers-color-scheme: dark) {
+      html[data-theme="dark"] {
         --border: 0px 1px 0px 0px oklch(100% 0 0 / 0.1) inset, 0px 1px 1px 0px oklch(20.9% 0.009 264.4 / 0.2),
           0px 0px 0px 1px oklch(46.9% 0.27 286.9 / 0.9), 0px 2px 3px 0px oklch(0% 0 0 / 0.4);
       }
@@ -87,7 +92,7 @@
       --background-gradient-start: light-dark(oklch(78.6% 0.013 248 / 0.03), oklch(100% 0 0 / 0.03));
       --background-gradient-end: light-dark(oklch(78.6% 0.013 248 / 0.13), oklch(100% 0 0 / 0));
 
-      @media (prefers-color-scheme: dark) {
+      html[data-theme="dark"] {
         --border: 0px 1px 0px 0px oklch(100% 0 0 / 0.06) inset, 0px 1px 1px 0px oklch(20.9% 0.009 264.4 / 0.8),
           0px 0px 0px 1px oklch(31.6% 0.01 260.7 / 0.9), 0px 2px 3px 0px oklch(0% 0 0 / 0.24);
       }

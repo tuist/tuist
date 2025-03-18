@@ -36,18 +36,18 @@
                     name="ran_by[user]"
                     value={not is_nil(@ran_by) and "user" in @ran_by}
                   >
-                    <.badge title={gettext("User")} kind={:brand}>
+                    <.legacy_badge title={gettext("User")} kind={:brand}>
                       <:icon><.user_icon /></:icon>
-                    </.badge>
+                    </.legacy_badge>
                   </.input>
                   <.input
                     type="checkbox"
                     name="ran_by[ci]"
                     value={not is_nil(@ran_by) and "ci" in @ran_by}
                   >
-                    <.badge title={gettext("CI")} kind={:neutral}>
+                    <.legacy_badge title={gettext("CI")} kind={:neutral}>
                       <:icon><.settings_icon /></:icon>
-                    </.badge>
+                    </.legacy_badge>
                   </.input>
                 </.stack>
               </.stack>
@@ -56,15 +56,15 @@
                 gap="lg"
                 class="analytics__header-section__controls__filter__content__footer"
               >
-                <.button
+                <.legacy_button
                   variant="secondary"
                   size="medium"
                   type="button"
                   phx-click={JS.hide(to: "#home-filter.dropdown-menu")}
                 >
                   {gettext("Cancel")}
-                </.button>
-                <.button
+                </.legacy_button>
+                <.legacy_button
                   variant="primary"
                   size="medium"
                   type="submit"
@@ -72,7 +72,7 @@
                   class="analytics__header-section__controls__filter__content__footer__apply-button"
                 >
                   {gettext("Apply")}
-                </.button>
+                </.legacy_button>
               </.stack>
             </form>
           </div>

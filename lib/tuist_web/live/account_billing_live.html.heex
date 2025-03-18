@@ -188,13 +188,13 @@
               </div>
             </.stack>
             <.link href={~p"/#{@selected_account.name}/billing/manage"} target="_blank">
-              <.button
+              <.legacy_button
                 size="large"
                 variant="secondary"
                 phx-click={show_modal("payment-method-modal")}
               >
                 {gettext("Edit")}
-              </.button>
+              </.legacy_button>
             </.link>
           </.card>
           <p
@@ -226,7 +226,7 @@
           description={plan.description}
         >
           <%= if plan.id == :air  do %>
-            <.button
+            <.legacy_button
               size="large"
               variant="primary"
               disabled={@plan == :air or @plan == :enterprise}
@@ -240,11 +240,11 @@
                 <% :enterprise -> %>
                   {gettext("Downgrade")}
               <% end %>
-            </.button>
+            </.legacy_button>
           <% end %>
 
           <%= if plan.id == :pro  do %>
-            <.button
+            <.legacy_button
               size="large"
               variant="primary"
               disabled={@plan == :pro or @plan == :enterprise}
@@ -258,18 +258,18 @@
                 <% :enterprise -> %>
                   {gettext("Downgrade")}
               <% end %>
-            </.button>
+            </.legacy_button>
           <% end %>
 
           <%= if plan.id == :enterprise do %>
             <.link href="mailto:contact@tuist.io?subject=Tuist Enterprise">
-              <.button size="large" variant="primary" disabled={@plan == :enterprise}>
+              <.legacy_button size="large" variant="primary" disabled={@plan == :enterprise}>
                 <%= if @plan == :enterprise do %>
                   {gettext("Current plan")}
                 <% else %>
                   {gettext("Contact sales")}
                 <% end %>
-              </.button>
+              </.legacy_button>
             </.link>
           <% end %>
         </.pricing_tier_card>

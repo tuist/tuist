@@ -13,35 +13,35 @@
       </p>
     </div>
     <div class="preview__header__actions">
-      <.button variant="secondary" size="medium" type="button">
+      <.legacy_button variant="secondary" size="medium" type="button">
         <:icon_start>
           <.download_icon />
         </:icon_start>
         <a href={~p"/#{@account_handle}/#{@project_handle}/previews/#{@preview.id}/download"}>
           {gettext("Download")}
         </a>
-      </.button>
+      </.legacy_button>
       <%= case @user_agent_os_family do %>
         <% "iOS" -> %>
           <%= if @preview.type == :ipa do %>
-            <.button variant="secondary" size="medium" type="button">
+            <.legacy_button variant="secondary" size="medium" type="button">
               <:icon_start>
                 <.phone_icon />
               </:icon_start>
               <a href={@preview_download_device_url}>
                 {gettext("Install")}
               </a>
-            </.button>
+            </.legacy_button>
           <% end %>
         <% _ -> %>
-          <.button variant="secondary" size="medium" type="button">
+          <.legacy_button variant="secondary" size="medium" type="button">
             <:icon_start>
               <.play_icon />
             </:icon_start>
             <a href={"tuist:open-preview?server_url=#{TuistWeb.Endpoint.url()}&preview_id=#{@preview.id}&full_handle=#{@account_handle}/#{@project_handle}"}>
               {gettext("Run")}
             </a>
-          </.button>
+          </.legacy_button>
       <% end %>
     </div>
     <%= if @user_agent_os_family != "iOS" do %>

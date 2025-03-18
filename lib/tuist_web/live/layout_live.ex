@@ -94,6 +94,7 @@ defmodule TuistWeb.LayoutLive do
            }
          end)
      })
+     |> assign_latest_app_release()
      |> assign_latest_cli_release()
      |> assign(:selected_account, selected_account)
      |> assign(:selected_project, selected_project)
@@ -145,6 +146,7 @@ defmodule TuistWeb.LayoutLive do
        :can_read_billing,
        Authorization.can(current_user, :read, selected_account, :billing)
      )
+     |> assign_latest_app_release()
      |> assign_latest_cli_release()
      |> assign(:selected_account, selected_account)
      |> assign(:current_user, current_user)
@@ -186,6 +188,23 @@ defmodule TuistWeb.LayoutLive do
       end
 
     user
+  end
+
+  def assign_latest_app_release(socket) do
+    assign_async(socket, :latest_app_release, &get_latest_app_release/0)
+  end
+
+  defp get_latest_app_release() do
+    latest_app_release = Tuist.GitHub.Releases.get_latest_app_release()
+
+    latest_app_release =
+      if not is_nil(latest_app_release) do
+        latest_app_release.assets
+        |> Enum.find(&String.ends_with?(&1.browser_download_url, "dmg"))
+        |> Map.get(:browser_download_url)
+      end
+
+    {:ok, %{latest_app_release: latest_app_release}}
   end
 
   def assign_latest_cli_release(socket) do

@@ -14,24 +14,24 @@ defmodule TuistWeb.AppCommandEventComponents do
     ~H"""
     <%= cond do %>
       <% not is_nil(@command_event.user) -> %>
-        <.badge title={@command_event.user.account.name} kind={:brand}>
+        <.legacy_badge title={@command_event.user.account.name} kind={:brand}>
           <:icon><.user_icon /></:icon>
-        </.badge>
+        </.legacy_badge>
       <% @command_event.is_ci -> %>
-        <.badge title={gettext("CI")} kind={:neutral}>
+        <.legacy_badge title={gettext("CI")} kind={:neutral}>
           <:icon><.settings_icon /></:icon>
-        </.badge>
+        </.legacy_badge>
       <% true -> %>
-        <.badge title={gettext("Unknown")} kind={:warning}>
+        <.legacy_badge title={gettext("Unknown")} kind={:warning}>
           <:icon><.user_icon /></:icon>
-        </.badge>
+        </.legacy_badge>
     <% end %>
     """
   end
 
   def command_event_status_badge(assigns) do
     ~H"""
-    <.badge
+    <.legacy_badge
       title={Atom.to_string(@command_event.status)}
       kind={
         case @command_event.status do
@@ -45,7 +45,7 @@ defmodule TuistWeb.AppCommandEventComponents do
 
   def test_case_run_status_badge(assigns) do
     ~H"""
-    <.badge
+    <.legacy_badge
       title={Atom.to_string(@test_case_run.status)}
       kind={
         case @test_case_run.status do

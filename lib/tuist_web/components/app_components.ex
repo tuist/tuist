@@ -91,7 +91,7 @@ defmodule TuistWeb.AppComponents do
   def dropdown_picker(assigns) do
     ~H"""
     <div class={"dropdown #{@class}"}>
-      <.button
+      <.legacy_button
         class="dropdown-button"
         variant="secondary"
         size="medium"
@@ -112,7 +112,7 @@ defmodule TuistWeb.AppComponents do
             <.chevron_down_icon />
           <% end %>
         </:icon>
-      </.button>
+      </.legacy_button>
 
       <div
         class={"dropdown-menu #{@menu_class}"}
@@ -131,8 +131,8 @@ defmodule TuistWeb.AppComponents do
 
   ## Examples
 
-      <.button>Send!</.button>
-      <.button phx-click="go">Send!</.button>
+      <.legacy_button>Send!</.button>
+      <.legacy_button phx-click="go">Send!</.button>
   """
   attr(:variant, :string, default: "primary")
   attr(:size, :string, default: "medium")
@@ -144,7 +144,7 @@ defmodule TuistWeb.AppComponents do
   slot(:icon_start, doc: "the slot for an icon to present at the start of the button")
   slot(:icon, doc: "the slot for an icon")
 
-  def button(assigns) do
+  def legacy_button(assigns) do
     ~H"""
     <button
       class={"button--#{@variant} button--#{@size} #{@class} #{if @loading == [], do: "button--icon-only"}"}
@@ -230,16 +230,16 @@ defmodule TuistWeb.AppComponents do
 
   ## Examples
 
-      <.modal id="confirm-modal">
+      <.legacy_modal id="confirm-modal">
         This is a modal.
-      </.modal>
+      </.legacy_modal>
 
   JS commands may be passed to the `:on_cancel` to configure
   the closing/cancel event, for example:
 
-      <.modal id="confirm" on_cancel={JS.navigate(~p"/posts")}>
+      <.legacy_modal id="confirm" on_cancel={JS.navigate(~p"/posts")}>
         This is another modal.
-      </.modal>
+      </.legacy_modal>
 
   """
   attr :id, :string, required: true
@@ -247,7 +247,7 @@ defmodule TuistWeb.AppComponents do
   attr :on_cancel, JS, default: %JS{}
   slot :inner_block, required: true
 
-  def modal(assigns) do
+  def legacy_modal(assigns) do
     ~H"""
     <div
       id={@id}
@@ -295,7 +295,7 @@ defmodule TuistWeb.AppComponents do
   attr :title, :string, required: true, doc: "the title of the badge"
   slot :icon, doc: "the slot for an icon"
 
-  def badge(assigns) do
+  def legacy_badge(assigns) do
     ~H"""
     <div class={"badge badge--#{@kind}"}>
       {render_slot(@icon)}
@@ -687,17 +687,17 @@ defmodule TuistWeb.AppComponents do
     ~H"""
     <%= if @type == :prev do %>
       <.link navigate={@uri} class="pagination-link">
-        <.button variant="secondary" size="small" disabled={@disabled?}>
+        <.legacy_button variant="secondary" size="small" disabled={@disabled?}>
           <:icon_start><.arrow_left_icon /></:icon_start>
           {gettext("Previous")}
-        </.button>
+        </.legacy_button>
       </.link>
     <% else %>
       <.link navigate={@uri} class="pagination-link">
-        <.button variant="secondary" size="small" disabled={@disabled?}>
+        <.legacy_button variant="secondary" size="small" disabled={@disabled?}>
           <:icon><.arrow_right_icon /></:icon>
           {gettext("Next")}
-        </.button>
+        </.legacy_button>
       </.link>
     <% end %>
     """
@@ -708,10 +708,10 @@ defmodule TuistWeb.AppComponents do
 
   ## Examples
 
-      <.table id="users" rows={@users}>
+      <.legacy_table id="users" rows={@users}>
         <:col :let={user} label="id"><%= user.id %></:col>
         <:col :let={user} label="username"><%= user.username %></:col>
-      </.table>
+      </.legacy_table>
   """
   attr(:id, :string, required: true)
   attr(:rows, :list, required: true)
@@ -738,7 +738,7 @@ defmodule TuistWeb.AppComponents do
   slot(:footer, doc: "the slot for a table footer with extra actions, such as pagination")
   slot(:empty_state_icon, doc: "the slot for an icon to present in the empty state")
 
-  def table(assigns) do
+  def legacy_table(assigns) do
     assigns =
       with %{rows: %Phoenix.LiveView.LiveStream{}} <- assigns do
         assign(assigns, row_id: assigns.row_id || fn {id, _item} -> id end)

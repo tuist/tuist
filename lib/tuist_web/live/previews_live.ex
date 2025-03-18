@@ -103,10 +103,10 @@ defmodule TuistWeb.PreviewsLive do
     ~H"""
     <%= supported_platforms = @preview |> Previews.get_supported_platforms_case_values()
     if is_nil(@preview) or Enum.empty?(supported_platforms) do %>
-      <.badge title={gettext("Unknown")} kind={:neutral}></.badge>
+      <.legacy_badge title={gettext("Unknown")} kind={:neutral}></.legacy_badge>
     <% else %>
       <%= for platform <- supported_platforms do %>
-        <.badge title={platform} kind={:neutral}></.badge>
+        <.legacy_badge title={platform} kind={:neutral}></.legacy_badge>
       <% end %>
     <% end %>
     """

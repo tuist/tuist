@@ -78,6 +78,7 @@ defmodule TuistWeb.Noora.Breadcrumbs do
       <button data-part="trigger">
         <.avatar
           :if={@show_avatar}
+          id={@id <> "-avatar"}
           name={@label}
           color={@avatar_color}
           size="2xsmall"
@@ -120,6 +121,7 @@ defmodule TuistWeb.Noora.Breadcrumbs do
       <:left_icon>
         <.avatar
           :if={@show_avatar}
+          id={@label <> "-avatar"}
           name={@label}
           color={@avatar_color}
           size="2xsmall"

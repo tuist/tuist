@@ -107,9 +107,9 @@ defmodule TuistWeb.ErrorHTML do
           <p class="text--medium font--semibold color--text-brand-secondary">{@error_name}</p>
           <h2 class="color--text-primary error-page__title">{@title}</h2>
           <p class="text--extraLarge font--regular color--text-tertiary">{@message}</p>
-          <.button variant="secondary" class="error-page__home-button">
+          <.legacy_button variant="secondary" class="error-page__home-button">
             <a href={~p"/"}>{gettext("Take me home")}</a>
-          </.button>
+          </.legacy_button>
         </div>
       </body>
     </html>

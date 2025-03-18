@@ -76,9 +76,9 @@ defmodule TuistWeb.UserLoginLive do
             <% end %>
             <.stack gap="xl">
               <%= if @mail_configured? do %>
-                <.button type="submit" variant="primary" class="auth-form__primary-action">
+                <.legacy_button type="submit" variant="primary" class="auth-form__primary-action">
                   {gettext("Sign in")}
-                </.button>
+                </.legacy_button>
               <% end %>
             </.stack>
           </.stack>

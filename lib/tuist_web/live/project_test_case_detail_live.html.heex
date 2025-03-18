@@ -11,7 +11,7 @@
         {gettext("Module: %{module_name}", module_name: @test_case.module_name)}
       </p>
     </.stack>
-    <.table
+    <.legacy_table
       id="test_case_runs"
       rows={@test_case_runs}
       row_link={
@@ -28,7 +28,7 @@
         <.stack direction="horizontal">
           <.test_case_run_status_badge test_case_run={test_case_run} />
           <%= if test_case_run.flaky do %>
-            <.badge title={gettext("flaky")} kind={:warning} />
+            <.legacy_badge title={gettext("flaky")} kind={:warning} />
           <% end %>
         </.stack>
       </:col>
@@ -52,6 +52,6 @@
           end_cursor={@test_case_runs_meta.end_cursor}
         />
       </:footer>
-    </.table>
+    </.legacy_table>
   </.stack>
 </div>

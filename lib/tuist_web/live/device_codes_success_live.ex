@@ -32,11 +32,11 @@ defmodule TuistWeb.DeviceCodesSuccessLive do
         }
       />
       <div>
-        <.button>
+        <.legacy_button>
           <a href={~p"/"} class="color--text-primary">
             {gettext("Dashboard")}
           </a>
-        </.button>
+        </.legacy_button>
       </div>
     </.stack>
     """

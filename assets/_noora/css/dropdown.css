@@ -7,6 +7,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--noora-spacing-2);
+  z-index: 100;
 
   & [data-part="trigger"] {
     --background-base: var(--noora-dropdown-default-background);
@@ -15,7 +16,7 @@
     --border: 0px 1px 1px 0px oklch(20.9% 0.009 264.4 / 0.05), 0px 0px 0px 1px oklch(31.8% 0.011 248.2 / 0.08),
       0px 1px 1px 0px oklch(31.8% 0.011 248.2 / 0.1);
 
-    @media (prefers-color-scheme: dark) {
+    html[data-theme="dark"] {
       --border: 0px 1px 1px 0px oklch(20.9% 0.009 264.4 / 0.3), 0px 0px 0px 1px oklch(53.1% 0.01 264.5 / 0.45),
         0px 2px 3px 0px oklch(0% 0 0 / 0.3);
     }
@@ -62,7 +63,7 @@
       --border: 0px 1px 1px 0px oklch(20.9% 0.009 264.4 / 0.05), 0px 0px 0px 1px oklch(31.8% 0.011 248.2 / 0.08),
         0px 1px 3px 0px oklch(31.8% 0.011 248.2 / 0.1), 0px 0px 0px 3px oklch(31.8% 0.011 248.2 / 0.12);
 
-      @media (prefers-color-scheme: dark) {
+      html[data-theme="dark"] {
         --border: 0px 1px 1px 0px oklch(20.9% 0.009 264.4 / 0.2), 0px 0px 0px 1px oklch(53.1% 0.01 264.5 / 0.3),
           0px 2px 3px 0px oklch(0% 0 0 / 0.3), 0px 0px 0px 3px oklch(53.1% 0.01 264.5 / 0.4);
       }

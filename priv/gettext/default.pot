@@ -287,7 +287,7 @@ msgstr ""
 msgid "Back to log in"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:59
+#: lib/tuist_web/components/app_layout_components.ex:53
 #: lib/tuist_web/live/account_billing_live.ex:64
 #: lib/tuist_web/live/account_billing_live.html.heex:9
 #, elixir-autogen, elixir-format
@@ -581,7 +581,7 @@ msgstr ""
 msgid "Custom terms"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:87
+#: lib/tuist_web/components/app_layout_components.ex:81
 #: lib/tuist_web/live/accept_invitation_live.ex:53
 #: lib/tuist_web/live/device_codes_success_live.ex:37
 #: lib/tuist_web/live/project_dashboard_live.ex:21
@@ -641,7 +641,7 @@ msgstr ""
 msgid "Docs"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:194
+#: lib/tuist_web/components/app_layout_components.ex:185
 #: lib/tuist_web/live/account_projects_live.html.heex:55
 #, elixir-autogen, elixir-format
 msgid "Documentation"
@@ -1096,7 +1096,7 @@ msgstr ""
 msgid "New password"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:190
+#: lib/tuist_web/components/app_layout_components.ex:181
 #, elixir-autogen, elixir-format
 msgid "New release:"
 msgstr ""
@@ -1260,7 +1260,7 @@ msgstr ""
 msgid "Preview your project apps in simulator or devices with one click/command."
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:124
+#: lib/tuist_web/components/app_layout_components.ex:118
 #: lib/tuist_web/live/previews_live.ex:22
 #: lib/tuist_web/live/previews_live.html.heex:2
 #, elixir-autogen, elixir-format
@@ -1310,7 +1310,7 @@ msgstr ""
 msgid "Project: %{project_name}"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:47
+#: lib/tuist_web/components/app_layout_components.ex:41
 #: lib/tuist_web/live/account_projects_live.ex:20
 #: lib/tuist_web/live/account_projects_live.html.heex:4
 #, elixir-autogen, elixir-format
@@ -1412,7 +1412,7 @@ msgstr ""
 msgid "Running tests - 4.200 tests skipped (already run)"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:99
+#: lib/tuist_web/components/app_layout_components.ex:93
 #: lib/tuist_web/live/project_runs_live.ex:21
 #: lib/tuist_web/live/project_runs_live.html.heex:2
 #, elixir-autogen, elixir-format
@@ -1466,7 +1466,7 @@ msgstr ""
 msgid "Shop"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:131
+#: lib/tuist_web/components/app_layout_components.ex:125
 #: lib/tuist_web/live/user_login_live.ex:80
 #: lib/tuist_web/live/user_registration_live.ex:91
 #, elixir-autogen, elixir-format
@@ -1707,7 +1707,7 @@ msgstr ""
 msgid "Tests"
 msgstr ""
 
-#: lib/tuist_web/live/layout_live.ex:121
+#: lib/tuist_web/live/layout_live.ex:122
 #, elixir-autogen, elixir-format
 msgid "The account you are looking for doesn't exist or has been moved."
 msgstr ""
@@ -1808,8 +1808,8 @@ msgstr ""
 msgid "Tuist Changelog"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:151
-#: lib/tuist_web/components/app_layout_components.ex:178
+#: lib/tuist_web/components/app_layout_components.ex:146
+#: lib/tuist_web/components/app_layout_components.ex:169
 #: lib/tuist_web/live/account_projects_live.html.heex:28
 #: lib/tuist_web/live/user_login_live.ex:29
 #: lib/tuist_web/live/user_registration_live.ex:15
@@ -2501,4 +2501,24 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:345
 #, elixir-autogen, elixir-format
 msgid "Tuist Registry"
+msgstr ""
+
+#: lib/tuist_web/components/account_dropdown.ex:54
+#, elixir-autogen, elixir-format
+msgid "Account settings"
+msgstr ""
+
+#: lib/tuist_web/components/account_dropdown.ex:62
+#, elixir-autogen, elixir-format
+msgid "Download macOS app"
+msgstr ""
+
+#: lib/tuist_web/components/account_dropdown.ex:76
+#, elixir-autogen, elixir-format
+msgid "Log out"
+msgstr ""
+
+#: lib/tuist_web/components/account_dropdown.ex:68
+#, elixir-autogen, elixir-format
+msgid "Switch to your preferred theme"
 msgstr ""

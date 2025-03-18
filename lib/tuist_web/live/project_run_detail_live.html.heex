@@ -9,12 +9,12 @@
       </.stack>
       <%= if @has_result_bundle.ok? && @has_result_bundle.result do %>
         <.link href={"/#{@selected_account.name}/#{@selected_project.name}/runs/#{@command_event.id}/download"}>
-          <.button variant="secondary" size="medium" type="button">
+          <.legacy_button variant="secondary" size="medium" type="button">
             <:icon_start>
               <.download_icon />
             </:icon_start>
             {gettext("Result")}
-          </.button>
+          </.legacy_button>
         </.link>
       <% end %>
     </.stack>
@@ -33,7 +33,7 @@
         colors={["--utility-success-600", "--utility-error-600"]}
       >
         <:badge :let={test_target_result}>
-          <.badge
+          <.legacy_badge
             title={Atom.to_string(test_target_result.status) |> String.capitalize()}
             kind={
               case test_target_result.status do

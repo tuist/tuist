@@ -6,6 +6,7 @@
   align-items: center;
   display: flex;
   flex-direction: row;
+  z-index: 100;
 
   & [data-part="slash"],
   & [data-part="arrow"] {
@@ -70,7 +71,7 @@
     &:hover {
       background-color: var(--noora-breadcrumb-background);
       border-radius: var(--noora-radius-medium);
-      box-shadow: var(--noora-light-border-default);
+      box-shadow: var(--noora-border-light-default);
     }
 
     /* Fixing layout shift by initially hiding the positioner */

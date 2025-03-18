@@ -270,7 +270,7 @@ defmodule TuistWeb.ProjectRunDetailLive do
             phx-hook="Chart"
           >
           </chart-l>
-          <.table
+          <.legacy_table
             class="run-detail__target-breakdown__table"
             id={@id}
             rows={@targets}
@@ -291,7 +291,7 @@ defmodule TuistWeb.ProjectRunDetailLive do
                 Map.get(target, @hash_key)
               end}
             </:col>
-          </.table>
+          </.legacy_table>
         </.stack>
       </.stack>
     </.card>
@@ -302,7 +302,7 @@ defmodule TuistWeb.ProjectRunDetailLive do
 
   def cache_hit_badge(assigns) do
     ~H"""
-    <.badge
+    <.legacy_badge
       title={Atom.to_string(@cache_hit) |> String.capitalize()}
       kind={
         case @cache_hit do

@@ -5,7 +5,7 @@ defmodule TuistWeb.Noora.Avatar do
 
   use Phoenix.Component
 
-  attr :id, :string, default: nil, doc: "The unique identifier for the avatar."
+  attr :id, :string, required: true, doc: "The unique identifier for the avatar."
 
   attr :name, :string,
     required: true,

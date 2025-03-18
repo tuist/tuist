@@ -67,8 +67,12 @@ h6:not(html[data-noora] h6) {
   color: var(--text-primary);
 }
 
-p:not(html[data-noora] p) {
-  margin: 0;
+p {
+  margin: unset;
+}
+
+a {
+  outline: unset;
 }
 
 a:not(html[data-noora] a) {

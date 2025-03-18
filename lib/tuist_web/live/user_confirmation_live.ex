@@ -19,9 +19,9 @@ defmodule TuistWeb.UserConfirmationLive do
 
       <.simple_form for={@form} id="confirmation_form" phx-submit="confirm_account" class="auth-form">
         <.input field={@form[:token]} type="hidden" />
-        <.button type="submit" variant="primary" class="auth-form__primary-action">
+        <.legacy_button type="submit" variant="primary" class="auth-form__primary-action">
           {gettext("Confirm my account")}
-        </.button>
+        </.legacy_button>
       </.simple_form>
 
       <.link href={~p"/users/log_in"} class="text--small font--semibold">

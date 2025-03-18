@@ -3,15 +3,9 @@ defmodule TuistWeb.AppLayoutComponents do
   A collection of components that are used from the layouts.
   """
   use TuistWeb, :live_component
+  use TuistWeb.Noora
   import TuistWeb.AppComponents, except: [icon: 1]
-  import TuistWeb.Noora.Breadcrumbs
-  import TuistWeb.Noora.Icon
-  import TuistWeb.Noora.LineDivider
-  import TuistWeb.Noora.Avatar
-  alias Tuist.Accounts
-  alias Tuist.Accounts.User
-
-  defdelegate noora_button(assigns), to: TuistWeb.Noora.Button, as: :button
+  import TuistWeb.AccountDropdown
 
   attr :current_path, :string, required: true
   attr :current_user, :map, required: true
@@ -127,9 +121,9 @@ defmodule TuistWeb.AppLayoutComponents do
         </ul>
         <%= if is_nil(@current_user) do %>
           <.link href={~p"/users/log_in"}>
-            <.button variant="primary" class="sidebar__sign-in-button">
+            <.legacy_button variant="primary" class="sidebar__sign-in-button">
               {gettext("Sign in")}
-            </.button>
+            </.legacy_button>
           </.link>
         <% end %>
       </nav>
@@ -140,7 +134,8 @@ defmodule TuistWeb.AppLayoutComponents do
   attr :breadcrumbs, :list, required: true
   attr :current_user, :map, required: true
   attr :selected_account, :map, required: true
-  attr :latest_cli_release, :map, required: false
+  attr :latest_cli_release, :map, required: true
+  attr :latest_app_release, :map, required: true
 
   def headerbar(assigns) do
     if FunWithFlags.enabled?(:noora) do
@@ -154,16 +149,12 @@ defmodule TuistWeb.AppLayoutComponents do
         </div>
         <div data-part="right-section">
           <.link href={Tuist.Environment.get_url(:documentation)} target="_blank">
-            <.noora_button variant="secondary" icon_only>
+            <.button variant="secondary" icon_only>
               <.book />
-            </.noora_button>
+            </.button>
           </.link>
           <%= if not is_nil(@current_user) do %>
-            <.avatar
-              name={@current_user.account.name}
-              image_href={User.gravatar_url(@current_user)}
-              color={Accounts.avatar_color(@current_user.account)}
-            />
+            <.account_dropdown latest_app_release={@latest_app_release} current_user={@current_user} />
           <% end %>
         </div>
       </header>

@@ -168,7 +168,7 @@ defmodule TuistWeb.AccountBillingLive do
 
   def change_plan_modal(assigns) do
     ~H"""
-    <.modal id={@id}>
+    <.legacy_modal id={@id}>
       <.stack gap="3xl">
         <.stack gap="xs">
           <p class="text--large font--semibold color--text-primary">
@@ -185,15 +185,15 @@ defmodule TuistWeb.AccountBillingLive do
           </p>
         </.stack>
         <.stack direction="horizontal" gap="lg" class="billing__confirm-modal__button-group">
-          <.button
+          <.legacy_button
             variant="secondary"
             size="medium"
             type="button"
             phx-click={JS.exec("data-cancel", to: "##{@id}")}
           >
             {gettext("Cancel")}
-          </.button>
-          <.button
+          </.legacy_button>
+          <.legacy_button
             variant="primary"
             size="medium"
             type="submit"
@@ -203,10 +203,10 @@ defmodule TuistWeb.AccountBillingLive do
             loading={@loading}
           >
             {gettext("Confirm")}
-          </.button>
+          </.legacy_button>
         </.stack>
       </.stack>
-    </.modal>
+    </.legacy_modal>
     """
   end
 

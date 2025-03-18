@@ -41,6 +41,7 @@ defmodule TuistWeb.Noora.Button do
       data-icon-only={@icon_only}
       {@rest}
     >
+      <div data-part="spacer" />
       <%= if @icon_left  && !@icon_only do %>
         {render_slot(@icon_left)}
       <% end %>
@@ -51,6 +52,7 @@ defmodule TuistWeb.Noora.Button do
       <%= if @icon_right && !@icon_only do %>
         {render_slot(@icon_right)}
       <% end %>
+      <div data-part="spacer" />
     </button>
     """
   end
