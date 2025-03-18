@@ -28,7 +28,7 @@ public protocol RecentPathsStoring {
     /// - Parameters:
     ///   - path: The path the user has interacted with.
     ///   - date: The date of interaction
-    func record(path: AbsolutePath, date: Date) async throws
+    func remember(path: AbsolutePath, date: Date) async throws
 
     /// Returns the list of paths the user has interacted with along with the last date of interaction.
     /// - Returns: A dictionary where the keys are the paths, and the values are the last time the user interacted with those
@@ -49,7 +49,7 @@ public struct RecentPathsStore: RecentPathsStoring {
         self.storageDirectory = storageDirectory
     }
 
-    public func record(path: AbsolutePath, date: Date) async throws {
+    public func remember(path: AbsolutePath, date: Date) async throws {
         var content = try await read()
         content[path] = date
         try await write(content, storageDirectory: storageDirectory)
@@ -72,7 +72,7 @@ public struct RecentPathsStore: RecentPathsStoring {
 }
 
 extension RecentPathsStoring {
-    public func record(path: AbsolutePath) async throws {
-        try await record(path: path, date: Date())
+    public func remember(path: AbsolutePath) async throws {
+        try await remember(path: path, date: Date())
     }
 }

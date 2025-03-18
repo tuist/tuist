@@ -4,9 +4,10 @@ import TuistCache
 import TuistCore
 import TuistHasher
 import TuistServer
+import TuistSupport
 import XcodeGraph
 
-public struct XcodeBuildCommand: AsyncParsableCommand, TrackableParsableCommand {
+public struct XcodeBuildCommand: AsyncParsableCommand, TrackableParsableCommand, RecentPathRememberableCommand {
     public static var cacheStorageFactory: CacheStorageFactorying = EmptyCacheStorageFactory()
     public static var selectiveTestingGraphHasher: SelectiveTestingGraphHashing = EmptySelectiveTestingGraphHasher()
     public static var selectiveTestingService: SelectiveTestingServicing = EmptySelectiveTestingService()

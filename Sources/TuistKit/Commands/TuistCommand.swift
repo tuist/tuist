@@ -76,7 +76,6 @@ public struct TuistCommand: AsyncParsableCommand {
         } else {
             path = .current
         }
-        try await ServiceContext.current?.recentPaths?.record(path: path)
 
         let config = try await ConfigLoader().loadConfig(path: path)
         let url = try ServerURLService().url(configServerURL: config.url)
@@ -93,6 +92,8 @@ public struct TuistCommand: AsyncParsableCommand {
             backend = nil
         }
 
+        // RecentPathRememberableCommand
+
         try await CacheDirectoriesProvider.bootstrap()
 
         let executeCommand: () async throws -> Void
@@ -105,6 +106,11 @@ public struct TuistCommand: AsyncParsableCommand {
                 try await ScaffoldCommand.preprocess(processedArguments)
             }
             let command = try parseAsRoot(processedArguments)
+
+            if command is RecentPathRememberableCommand {
+                try await ServiceContext.current?.recentPaths?.remember(path: path)
+            }
+
             executeCommand = {
                 logFilePathDisplayStrategy = (command as? LogConfigurableCommand)?
                     .logFilePathDisplayStrategy ?? logFilePathDisplayStrategy

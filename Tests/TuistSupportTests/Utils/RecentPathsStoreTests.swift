@@ -7,7 +7,7 @@ import Testing
 struct RecentPathsStoreTests {
     private let fileSystem = FileSystem()
 
-    @Test func recordPaths() async throws {
+    @Test func remember() async throws {
         try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
             // Given
             let date1 = Date()
@@ -17,8 +17,8 @@ struct RecentPathsStoreTests {
             let subject = RecentPathsStore(storageDirectory: temporaryDirectory)
 
             // When
-            try await subject.record(path: path1, date: date1)
-            try await subject.record(path: path2, date: date2)
+            try await subject.remember(path: path1, date: date1)
+            try await subject.remember(path: path2, date: date2)
 
             // Then
             let got = try await subject.read()
