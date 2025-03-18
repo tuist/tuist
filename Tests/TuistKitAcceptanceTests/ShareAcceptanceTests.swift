@@ -1,5 +1,6 @@
 import Foundation
 import ServiceContextModule
+import SnapshotTesting
 import TuistAcceptanceTesting
 import TuistCore
 import TuistSupport
@@ -10,55 +11,65 @@ import XCTest
 
 final class ShareAcceptanceTests: ServerAcceptanceTestCase {
     func test_share_ios_app_with_frameworks() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await ServiceContext.withTestingDependencies { @MainActor in
             try await setUpFixture(.iosAppWithFrameworks)
+
+            // When: Build
             try await run(BuildCommand.self, "App")
+            assertSnapshot(of: ServiceContext.current?.recordedUI() ?? "", as: .lines)
+            ServiceContext.current?.resetRecordedUI()
+
+            // When: Share
             try await run(ShareCommand.self)
+            assertSnapshot(of: ServiceContext.current?.recordedUI() ?? "", as: .lines)
+            ServiceContext.current?.resetRecordedUI()
+
+            // When: Run
             let shareLink = try previewLink()
             try await run(RunCommand.self, shareLink, "-destination", "iPhone 16 Pro")
+            assertSnapshot(of: ServiceContext.current?.recordedUI() ?? "", as: .lines)
+            ServiceContext.current?.resetRecordedUI()
             XCTAssertStandardOutput(pattern: "Installing and launching App on iPhone 16 Pro")
-            XCTAssertEqual(ServiceContext.current?.recordedUI(), """
-            ▌ ✔ Success
-            ▌ The project built successfully
-            ▌ ✔ Success
-            ▌ App was successfully launched 📲
-            """)
         }
     }
 
     func test_share_ios_app_with_appclip() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await ServiceContext.withTestingDependencies { @MainActor in
             try await setUpFixture(.iosAppWithAppClip)
+
+            // When: Build
             try await run(BuildCommand.self)
+            assertSnapshot(of: ServiceContext.current?.recordedUI() ?? "", as: .lines)
+            ServiceContext.current?.resetRecordedUI()
+
+            // When: Share App
             try await run(ShareCommand.self, "App")
             let shareLink = try previewLink("App")
+            assertSnapshot(of: ServiceContext.current?.recordedUI() ?? "", as: .lines)
+
+            ServiceContext.current?.resetRecordedUI()
+
+            // When: Run App on iPhone 16
             try await run(RunCommand.self, shareLink, "-destination", "iPhone 16")
             XCTAssertStandardOutput(pattern: "Installing and launching App on iPhone 16")
-            XCTAssertEqual(ServiceContext.current?.recordedUI(), """
-            ▌ ✔ Success
-            ▌ The project built successfully
-            ▌ ✔ Success
-            ▌ App was successfully launched 📲
-            """)
-            ServiceContext.current?.flushRecordedUI()
+            assertSnapshot(of: ServiceContext.current?.recordedUI() ?? "", as: .lines)
+            ServiceContext.current?.resetRecordedUI()
 
+            // When: Share AppClip1
             try await run(ShareCommand.self, "AppClip1")
             let appClipShareLink = try previewLink("AppClip1")
+            assertSnapshot(of: ServiceContext.current?.recordedUI() ?? "", as: .lines)
+            ServiceContext.current?.resetRecordedUI()
+
+            // When: Run AppClip1
             try await run(RunCommand.self, appClipShareLink, "-destination", "iPhone 16")
             XCTAssertStandardOutput(pattern: "Installing and launching AppClip1 on iPhone 16")
-            XCTAssertEqual(ServiceContext.current?.recordedUI(), """
-            ▌ ✔ Success
-            ▌ The project built successfully
-            ▌ ✔ Success
-            ▌ App was successfully launched 📲
-            ▌ ✔ Success
-            ▌ AppClip1 was successfully launched 📲
-            """)
+            assertSnapshot(of: ServiceContext.current?.recordedUI() ?? "", as: .lines)
         }
     }
 
     func test_share_xcode_app() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await ServiceContext.withTestingDependencies { @MainActor in
             try await setUpFixture(.xcodeApp)
             try System.shared.runAndPrint(
                 [
@@ -77,17 +88,17 @@ final class ShareAcceptanceTests: ServerAcceptanceTestCase {
                 ]
             )
             try await run(ShareCommand.self, "App", "--platforms", "ios")
+            assertSnapshot(of: ServiceContext.current?.recordedUI() ?? "", as: .lines)
+            ServiceContext.current?.resetRecordedUI()
+
             try await run(RunCommand.self, try previewLink(), "-destination", "iPhone 16 Plus")
             XCTAssertStandardOutput(pattern: "Installing and launching App on iPhone 16 Plus")
-            XCTAssertEqual(ServiceContext.current?.recordedUI(), """
-            ▌ ✔ Success
-            ▌ App was successfully launched 📲
-            """)
+            assertSnapshot(of: ServiceContext.current?.recordedUI() ?? "", as: .lines)
         }
     }
 
     func test_share_xcode_app_files() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await ServiceContext.withTestingDependencies { @MainActor in
             try await setUpFixture(.xcodeApp)
             let buildDirectory = fixturePath.appending(component: "Build")
             try System.shared.runAndPrint(
@@ -114,12 +125,9 @@ final class ShareAcceptanceTests: ServerAcceptanceTestCase {
                 buildDirectory.appending(component: "App.app").pathString,
                 "--platforms", "ios"
             )
-            try await run(RunCommand.self, try previewLink(), "-destination", "iPhone 15 Pro Max")
-            XCTAssertStandardOutput(pattern: "Installing and launching App on iPhone 15 Pro Max")
-            XCTAssertEqual(ServiceContext.current?.recordedUI(), """
-            ▌ ✔ Success
-            ▌ App was successfully launched 📲
-            """)
+            try await run(RunCommand.self, try previewLink(), "-destination", "iPhone 16 Plus")
+            XCTAssertStandardOutput(pattern: "Installing and launching App on iPhone 16 Plus")
+            assertSnapshot(of: ServiceContext.current?.recordedUI() ?? "", as: .lines)
         }
     }
 }

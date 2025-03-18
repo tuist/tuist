@@ -727,4 +727,59 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
             ]
         )
     }
+
+    func test_testableTarget_withMultipleTestPlans_noneSpecified_usesDefaultTetPlan() throws {
+        // Given
+        let path = try temporaryPath()
+        let projectPath = path.appending(component: "Project.xcodeproj")
+        let target1 = Target.test(name: "Test1")
+        let targetReference1 = TargetReference(projectPath: projectPath, name: target1.name)
+        let target2 = Target.test(name: "Test2")
+        let targetReference2 = TargetReference(projectPath: projectPath, name: target2.name)
+
+        let testPlan = TestPlan(
+            path: path.appending(component: "Test.testplan"),
+            testTargets: [
+                TestableTarget(target: targetReference1, skipped: false),
+            ],
+            isDefault: false
+        )
+
+        let testPlan2 = TestPlan(
+            path: path.appending(component: "Test2.testplan"),
+            testTargets: [
+                TestableTarget(target: targetReference2, skipped: false),
+            ],
+            isDefault: true
+        )
+        let scheme = Scheme.test(
+            testAction: .test(
+                testPlans: [testPlan, testPlan2]
+            )
+        )
+        let project = Project.test(
+            path: projectPath,
+            targets: [
+                target1,
+                target2,
+            ]
+        )
+        let graph = Graph.test(
+            projects: [projectPath: project]
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.testableTarget(
+            scheme: scheme,
+            testPlan: nil,
+            testTargets: [],
+            skipTestTargets: [],
+            graphTraverser: graphTraverser
+        )
+
+        // Then
+        XCTAssertEqual(got?.project, project)
+        XCTAssertEqual(got?.target, target2)
+    }
 }
