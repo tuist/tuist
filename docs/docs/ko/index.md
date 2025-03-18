@@ -4,8 +4,7 @@ description: Apple의 기본 도구를 확장하여 더 나은 앱을 효과적�
 ---
 
 <script setup>
-import VPFeatures from "vitepress/dist/client/theme-default/components/VPFeatures.vue"
-</script>
+import VPFeatures from "vitepress/dist/client/theme-default/components/VPFeatures.vue"</script>
 
 # From idea to the store
 
