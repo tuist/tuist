@@ -480,6 +480,7 @@ defmodule Tuist.Registry.Swift.PackagesTest do
 
     test "creates missing package releases when Package.swift includes url references with String interpolation" do
       # Given
+
       package =
         PackagesFixtures.package_fixture(
           scope: "catterwaul",
@@ -548,12 +549,117 @@ defmodule Tuist.Registry.Swift.PackagesTest do
       |> stub(:cmd, fn _, _, _ -> {"", 0} end)
 
       File
-      |> stub(:ls!, fn path ->
-        if String.ends_with?(path, ".zip") do
-          ["VideoEditorSDK"]
+      |> stub(:ls!, fn _ ->
+        ["Package.swift"]
+      end)
+
+      File
+      |> expect(:write!, fn path, content ->
+        assert String.ends_with?(path, "Package.swift")
+        assert content == package_manifest_content
+      end)
+
+      File
+      |> stub(:read!, fn path ->
+        if String.ends_with?(path, "Package.swift") do
+          package_manifest_content
         else
-          ["Package.swift"]
+          "content"
         end
+      end)
+
+      VCS
+      |> stub(:get_repository_content, fn _, _ ->
+        {:ok, [%Content{path: "File.swift", content: "content"}]}
+      end)
+
+      Base64
+      |> stub(:decode, fn "content" -> "content" end)
+
+      # When
+      got = Packages.create_missing_package_releases(%{package: package, token: "github_token"})
+
+      # Then
+      assert got |> Enum.map(& &1.version) == [
+               "5.10.2"
+             ]
+    end
+
+    test "creates missing package releases when Package.swift includes package name is referenced outside Package model" do
+      # Given
+      package =
+        PackagesFixtures.package_fixture(
+          scope: "firebase",
+          name: "firebase-ios-sdk"
+        )
+
+      Storage
+      |> stub(:put_object, fn
+        "registry/swift/firebase/firebase-ios-sdk/5.10.2/Package.swift", _ -> :ok
+        "registry/swift/firebase/firebase-ios-sdk/5.10.2/source_archive.zip", _ -> :ok
+      end)
+
+      VCS
+      |> stub(:get_tags, fn _ ->
+        [
+          %Tag{name: "5.10.2"}
+        ]
+      end)
+
+      package_manifest_content = """
+      // swift-tools-version: 6.0
+      import PackageDescription
+
+      import PackageDescription
+      import class Foundation.ProcessInfo
+
+      let firebaseVersion = "10.7.0"
+
+      let package = Package(
+        name: "Firebase",
+        dependencies: [
+          .package(
+            name: "GoogleAppMeasurement",
+            url: "https://github.com/google/GoogleAppMeasurement.git",
+            .exact("10.6.0")
+          ),
+        ],
+        targets: [
+          .target(
+            name: "FirebaseAnalyticsWrapper",
+            dependencies: [
+              .target(name: "FirebaseAnalytics", condition: .when(platforms: [.iOS, .macOS, .tvOS])),
+              .product(name: "GoogleAppMeasurement", package: "GoogleAppMeasurement"),
+            ]
+          ),
+        ]
+      )
+      if ProcessInfo.processInfo.environment["FIREBASECI_USE_LATEST_GOOGLEAPPMEASUREMENT"] != nil {
+        if let GoogleAppMeasurementIndex = package.dependencies
+          .firstIndex(where: { $0.name == "GoogleAppMeasurement" }) {
+          package.dependencies[GoogleAppMeasurementIndex] = .package(
+            name: "GoogleAppMeasurement",
+            url: "https://github.com/google/GoogleAppMeasurement.git",
+            .branch("main")
+          )
+        }
+      }
+      """
+
+      VCS
+      |> stub(:get_source_archive_by_tag_and_repository_full_handle, fn _ ->
+        {:ok, "/tmp/source_archive.zip"}
+      end)
+
+      System
+      |> stub(:cmd, fn _, _ -> {"", 0} end)
+
+      System
+      |> stub(:cmd, fn _, _, _ -> {"", 0} end)
+
+      File
+      |> stub(:ls!, fn _ ->
+        ["Package.swift"]
       end)
 
       File

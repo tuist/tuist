@@ -350,18 +350,10 @@ defmodule Tuist.Registry.Swift.Packages do
       extract_url_only_packages(package_manifest) ++ extract_named_url_packages(package_manifest)
 
     Enum.reduce(packages, package_manifest, fn package, package_manifest ->
-      package_manifest
+      replace_targets_content(package, package_manifest)
       |> String.replace(
         ~r/(?<!.product\(name: )"#{package.by_name_reference}"/is,
         "\"#{package.name}\""
-      )
-      |> String.replace(
-        ~r/(?<![package|name]: )(?<!\()"(#{package.name})"/is,
-        ".product(name: \"#{package.name}\", package: \"#{package.name}\")"
-      )
-      |> String.replace(
-        ~r/.byName\(name:\s*"(#{package.name})"\s*\)/is,
-        ".product(name: \"#{package.name}\", package: \"#{package.name}\")"
       )
       # Workaround for a bug in SwiftPM fixed in: https://github.com/swiftlang/swift-package-manager/pull/8194
       |> String.replace(
@@ -369,6 +361,64 @@ defmodule Tuist.Registry.Swift.Packages do
         "package: \"#{package.name}\""
       )
     end)
+  end
+
+  # This method replaces content only inside the targets: [..] array.
+  defp replace_targets_content(package, package_manifest) do
+    Enum.reduce(
+      Regex.scan(~r/targets:\s*\[/, package_manifest, return: :index),
+      package_manifest,
+      fn [{bracket_position, length}], package_manifest ->
+        case find_matching_bracket(package_manifest, bracket_position + length, 1) do
+          {:ok, position} ->
+            {pre_content, content} = package_manifest |> String.split_at(bracket_position)
+
+            {content_to_replace, post_content} =
+              content |> String.split_at(position - bracket_position + 1)
+
+            replaced_content =
+              content_to_replace
+              |> String.replace(
+                ~r/(?<!.product\(name: )"#{package.by_name_reference}"/is,
+                "\"#{package.name}\""
+              )
+              |> String.replace(
+                ~r/(?<![package|name]: )(?<!\()"(#{package.name})"/is,
+                ".product(name: \"#{package.name}\", package: \"#{package.name}\")"
+              )
+              |> String.replace(
+                ~r/.byName\(name:\s*"(#{package.name})"\s*\)/is,
+                ".product(name: \"#{package.name}\", package: \"#{package.name}\")"
+              )
+
+            pre_content <> replaced_content <> post_content
+
+          {:error, _} ->
+            package_manifest
+        end
+      end
+    )
+  end
+
+  defp find_matching_bracket(string, pos, count) when pos >= byte_size(string) do
+    {:error, "No matching bracket found"}
+  end
+
+  defp find_matching_bracket(string, pos, count) do
+    case String.at(string, pos) do
+      "[" ->
+        find_matching_bracket(string, pos + 1, count + 1)
+
+      "]" ->
+        if count == 1 do
+          {:ok, pos}
+        else
+          find_matching_bracket(string, pos + 1, count - 1)
+        end
+
+      _ ->
+        find_matching_bracket(string, pos + 1, count)
+    end
   end
 
   defp extract_url_only_packages(package_manifest) do
