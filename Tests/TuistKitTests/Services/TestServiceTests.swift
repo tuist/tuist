@@ -1935,6 +1935,151 @@ final class TestServiceTests: TuistUnitTestCase {
         )
     }
 
+    func test_build_scheme_with_test_plans_and_no_explicit_targets() async throws {
+        // Given
+        givenGenerator()
+        let testPlan = "TestPlan1"
+        let testPlan2 = "TestPlan2"
+        let testPlanPath = try AbsolutePath(validating: "/testPlan/\(testPlan)")
+        let testPlan2Path = try AbsolutePath(validating: "/testPlan/\(testPlan2)")
+        let projectPath = try temporaryPath().appending(component: "Project")
+        let projectTestableSchemes = [
+            Scheme.test(
+                name: "TestScheme",
+                testAction: .test(
+                    targets: [],
+                    testPlans: [
+                        .init(
+                            path: testPlanPath,
+                            testTargets: [
+                                .test(
+                                    target: TargetReference(
+                                        projectPath: projectPath,
+                                        name: "TargetA"
+                                    )
+                                ),
+                            ],
+                            isDefault: true
+                        ),
+                        .init(
+                            path: testPlan2Path,
+                            testTargets: [
+                                .test(
+                                    target: TargetReference(
+                                        projectPath: projectPath,
+                                        name: "TargetB"
+                                    )
+                                ),
+                            ],
+                            isDefault: true
+                        ),
+                    ]
+                )
+            ),
+        ]
+
+        let graph: Graph = .test(
+            workspace: .test(
+                schemes: [
+                    Scheme.test(name: "App-Workspace"),
+                ]
+            ),
+            projects: [
+                projectPath: .test(
+                    path: projectPath,
+                    targets: [
+                        .test(
+                            name: "TargetA",
+                            bundleId: "io.tuist.TargetA"
+                        ),
+                        .test(
+                            name: "TargetB",
+                            bundleId: "io.tuist.TargetB"
+                        ),
+                    ],
+                    schemes: projectTestableSchemes
+                ),
+            ]
+        )
+
+        var environment = MapperEnvironment()
+        environment.targetTestCacheItems = [
+            projectPath: [
+                "a": CacheItem.test(
+                    name: "A"
+                ),
+                "b": CacheItem.test(
+                    name: "B"
+                ),
+            ],
+        ]
+        environment.initialGraph = graph
+        environment.targetTestHashes = [
+            projectPath: [
+                "TargetA": "hash-a",
+                "TargetB": "hash-b",
+            ],
+        ]
+        given(generator)
+            .generateWithGraph(path: .any)
+            .willProduce { path in
+                (
+                    path,
+                    graph,
+                    environment
+                )
+            }
+
+        given(buildGraphInspector)
+            .testableSchemes(graphTraverser: .any)
+            .willReturn(projectTestableSchemes)
+        given(buildGraphInspector)
+            .testableTarget(
+                scheme: .any,
+                testPlan: .any,
+                testTargets: .any,
+                skipTestTargets: .any,
+                graphTraverser: .any
+            )
+            .willProduce { scheme, _, _, _, _ in
+                GraphTarget.test(
+                    target: Target.test(
+                        name: scheme.name
+                    )
+                )
+            }
+        given(buildGraphInspector)
+            .workspaceSchemes(graphTraverser: .any)
+            .willReturn([])
+
+        // When
+        try await testRun(
+            schemeName: "TestScheme",
+            path: try temporaryPath(),
+            action: .build
+        )
+
+        // Then
+        verify(xcodebuildController)
+            .test(
+                .any,
+                scheme: .value("TestScheme"),
+                clean: .any,
+                destination: .any,
+                action: .value(.build),
+                rosetta: .any,
+                derivedDataPath: .any,
+                resultBundlePath: .any,
+                arguments: .any,
+                retryCount: .any,
+                testTargets: .any,
+                skipTestTargets: .any,
+                testPlanConfiguration: .any,
+                passthroughXcodeBuildArguments: .any
+            )
+            .called(1)
+    }
+
     func test_run_test_plan_failure() async throws {
         // Given
         givenGenerator()

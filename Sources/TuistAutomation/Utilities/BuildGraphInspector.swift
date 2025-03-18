@@ -148,6 +148,10 @@ public final class BuildGraphInspector: BuildGraphInspecting {
            let target = testPlan.testTargets.first(where: { isIncluded($0) })?.target
         {
             return graphTraverser.target(path: target.projectPath, name: target.name)
+        } else if let defaultTestPlan = scheme.testAction?.testPlans?.first(where: { $0.isDefault }),
+                  let target = defaultTestPlan.testTargets.first(where: { isIncluded($0) })?.target
+        {
+            return graphTraverser.target(path: target.projectPath, name: target.name)
         } else if let testTarget = scheme.testAction?.targets.first {
             return graphTraverser.target(path: testTarget.target.projectPath, name: testTarget.target.name)
         } else {
