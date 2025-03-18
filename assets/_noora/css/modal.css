@@ -33,6 +33,7 @@
   & [data-part="content"] {
     background: var(--noora-surface-background-primary);
     border-radius: var(--noora-radius-2xlarge);
+    box-shadow: var(--noora-border-heavy);
     box-sizing: border-box;
     overflow: hidden;
   }
