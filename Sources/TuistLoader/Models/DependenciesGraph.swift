@@ -61,7 +61,7 @@ public struct DependenciesGraph: Equatable, Codable {
             path: Path = .path(AbsolutePath.root.appending(try! RelativePath(validating: "Test.xcframework")).pathString)
         ) -> Self {
             //TODO: fix when fixing tests
-            let externalDependencies = [name: [TargetDependency.xcframework(path: path, originalSignature: .notSigned)]]
+            let externalDependencies = [name: [TargetDependency.xcframework(path: path, expectedSignature: .notSigned)]]
 
             return .init(
                 externalDependencies: externalDependencies,
@@ -418,7 +418,7 @@ public struct DependenciesGraph: Equatable, Codable {
                         "\(packageFolder.pathString)/GoogleAppMeasurementWrapper/**",
                     ],
                     dependencies: [
-                        .xcframework(path: "\(artifactsFolder.pathString)/GoogleAppMeasurement.xcframework", originalSignature: .notSigned),
+                        .xcframework(path: "\(artifactsFolder.pathString)/GoogleAppMeasurement.xcframework", expectedSignature: .notSigned),
                         .project(
                             target: "GULAppDelegateSwizzler",
                             path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")
@@ -459,7 +459,7 @@ public struct DependenciesGraph: Equatable, Codable {
                     ],
                     dependencies: [
                         .xcframework(
-                            path: "\(artifactsFolder.pathString)/GoogleAppMeasurementWithoutAdIdSupport.xcframework", originalSignature: .notSigned
+                            path: "\(artifactsFolder.pathString)/GoogleAppMeasurementWithoutAdIdSupport.xcframework", expectedSignature: .notSigned
                         ),
                         .project(
                             target: "GULAppDelegateSwizzler",

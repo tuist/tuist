@@ -6,12 +6,6 @@ public enum LinkingStatus: String, Codable, Sendable {
     case none
 }
 
-public enum XCFrameworkOriginalSignatureType: Equatable, Hashable, Codable, Sendable {
-    case notSigned
-    case signedByApple(teamIdentifier: String, teamName: String)
-    case selfSigned(fingerprint: String)
-}
-
 @available(*, deprecated, renamed: "LinkingStatus")
 typealias FrameworkStatus = LinkingStatus
 
@@ -23,7 +17,7 @@ public enum TargetDependency: Equatable, Hashable, Codable, Sendable {
     case macro(name: String)
     case project(target: String, path: String, status: LinkingStatus)
     case framework(path: String, status: LinkingStatus)
-    case xcframework(path: String, originalSignature: XCFrameworkOriginalSignatureType, status: LinkingStatus)
+    case xcframework(path: String, status: LinkingStatus)
     case library(path: String, publicHeaders: String, swiftModuleMap: String?)
     case package(product: String, embedded: Bool = false)
     case packagePlugin(product: String)

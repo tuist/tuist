@@ -13,6 +13,7 @@ class TargetLinter: TargetLinting {
 
     private let settingsLinter: SettingsLinting
     private let targetScriptLinter: TargetScriptLinting
+    private let signatureProvider: XCFrameworkSignatureProvider
     private let fileSystem: FileSysteming
 
     // MARK: - Init
@@ -20,10 +21,12 @@ class TargetLinter: TargetLinting {
     init(
         settingsLinter: SettingsLinting = SettingsLinter(),
         targetScriptLinter: TargetScriptLinting = TargetScriptLinter(),
+        signatureProvider: XCFrameworkSignatureProvider = XCFrameworkSignatureProvider(),
         fileSystem: FileSysteming = FileSystem()
     ) {
         self.settingsLinter = settingsLinter
         self.targetScriptLinter = targetScriptLinter
+        self.signatureProvider = signatureProvider
         self.fileSystem = fileSystem
     }
 
@@ -41,6 +44,7 @@ class TargetLinter: TargetLinting {
         issues.append(contentsOf: lintDeploymentTarget(target: target))
         try await issues.append(contentsOf: settingsLinter.lint(target: target))
         issues.append(contentsOf: lintDuplicateDependency(target: target))
+        try await issues.append(contentsOf: lintXCFrameworkDependency(target: target))
         issues.append(contentsOf: lintValidSourceFileCodeGenAttributes(target: target))
         try await issues.append(contentsOf: validateCoreDataModelsExist(target: target))
         try await issues.append(contentsOf: validateCoreDataModelVersionsExist(target: target))
@@ -303,6 +307,27 @@ class TargetLinter: TargetLinting {
                 severity: .warning
             )
         }
+    }
+
+    private func lintXCFrameworkDependency(target: Target) async throws -> [LintingIssue] {
+        var issues: [LintingIssue] = []
+
+        for dependency in target.dependencies {
+            if case let .xcframework(path, expectedSignature, _, _) = dependency, let expectedSignature {
+                let actualSignature = try await signatureProvider.signature(of: path)
+                if expectedSignature != actualSignature {
+                    let expectedString = expectedSignature.expectedSignature() ?? "nil"
+                    let actualString = actualSignature.expectedSignature() ?? "nil"
+                    let issue = LintingIssue(
+                        reason: "Target '\(target.name)' has an XCFramwork dependency with unexpected signature at \(path.pathString). Expected signature: \(expectedString), actual signature: \(actualString)",
+                        severity: .error
+                    )
+                    issues.append(issue)
+                }
+            }
+        }
+
+        return issues
     }
 
     private func lintValidSourceFileCodeGenAttributes(target: Target) -> [LintingIssue] {

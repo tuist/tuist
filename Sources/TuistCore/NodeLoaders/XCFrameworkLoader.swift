@@ -27,9 +27,9 @@ enum XCFrameworkLoaderError: FatalError, Equatable {
 public protocol XCFrameworkLoading {
     /// Reads an existing xcframework and returns its in-memory representation, `GraphDependency.xcframework`.
     /// - Parameter path: Path to the .xcframework.
-    /// - Parameter originalSignature: expected signature if the xcframework is signed, `nil` otherwise.
+    /// - Parameter expectedSignature: expected signature if the xcframework is signed, `nil` otherwise.
     /// - Parameter status: `.optional` to weakly reference the .xcframework.
-    func load(path: AbsolutePath, originalSignature: XCFrameworkOriginalSignatureType, status: LinkingStatus) async throws -> GraphDependency
+    func load(path: AbsolutePath, expectedSignature: XCFrameworkSignature?, status: LinkingStatus) async throws -> GraphDependency
 }
 
 public final class XCFrameworkLoader: XCFrameworkLoading {
@@ -53,7 +53,7 @@ public final class XCFrameworkLoader: XCFrameworkLoading {
 
     public func load(
         path: AbsolutePath,
-        originalSignature: XCFrameworkOriginalSignatureType,
+        expectedSignature: XCFrameworkSignature?,
         status: LinkingStatus
     ) async throws -> GraphDependency {
         guard try await fileSystem.exists(path) else {
@@ -61,7 +61,7 @@ public final class XCFrameworkLoader: XCFrameworkLoading {
         }
         let metadata = try await xcframeworkMetadataProvider.loadMetadata(
             at: path,
-            originalSignature: originalSignature,
+            expectedSignature: expectedSignature?.expectedSignature(),
             status: status
         )
         let xcframework = GraphDependency.XCFramework(

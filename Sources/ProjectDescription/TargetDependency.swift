@@ -10,9 +10,8 @@ public enum LinkingStatus: String, Codable, Hashable, Sendable {
     case none
 }
 
-/// Original signature type for XCFramework, which is the expected `expectedSignature` value.
-/// Can be used to verify the authenticity of the XCFramework against the actual signature calculated from it.
-public enum XCFrameworkOriginalSignatureType: Equatable, Hashable, Codable, Sendable {
+/// Expected signature for XCFramework. Can be used to verify the authenticity of the XCFramework against the actual signature calculated from it.
+public enum XCFrameworkSignature: Equatable, Hashable, Codable, Sendable {
     /// The XCFramework is not signed.
     case notSigned
 
@@ -21,18 +20,6 @@ public enum XCFrameworkOriginalSignatureType: Equatable, Hashable, Codable, Send
 
     /// The XCFramework is signed by a self issued code signing identity.
     case selfSigned(fingerprint: String)
-
-    /// Returns the expected signature of the XCFramework, or `nil` if not signed.
-    public func expectedSignature() -> String? {
-        switch self {
-        case .notSigned:
-            return nil
-        case let .selfSigned(fingerprint: fingerprint):
-            return "SelfSigned:\(fingerprint)"
-        case let .signedByApple(teamIdentifier: teamIdentifier, teamName: teamName):
-            return "AppleDeveloperProgram:\(teamIdentifier):\(teamName)"
-        }
-    }
 }
 
 @available(*, deprecated, renamed: "LinkingStatus")
@@ -140,11 +127,11 @@ public enum TargetDependency: Codable, Hashable, Sendable {
     ///
     /// - Parameters:
     ///   - path: Relative path to the xcframework
-    ///   - originalSignature: The expected signature if the xcframework is signed.
+    ///   - expectedSignature: The expected signature if the xcframework is signed.
     ///     Used for verifying the xcframework's integrity against the actual fingerprint derived from the given xcframeowrk
     ///   - status: The dependency status (optional dependencies are weakly linked)
     ///   - condition: condition under which to use this dependency, `nil` if this should always be used
-    case xcframework(path: Path, originalSignature: XCFrameworkOriginalSignatureType, status: LinkingStatus = .required, condition: PlatformCondition? = nil)
+    case xcframework(path: Path, expectedSignature: XCFrameworkSignature?, status: LinkingStatus = .required, condition: PlatformCondition? = nil)
 
     /// Dependency on XCTest.
     case xctest

@@ -197,7 +197,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                             switch $0 {
                             case let .xcframework(path, condition):
                                 //TODO: fix
-                                return .xcframework(path: path, originalSignature: .notSigned, condition: condition)
+                                return .xcframework(path: path, expectedSignature: .notSigned, condition: condition)
                             case let .target(name, condition):
                                 let name = moduleAliases?[name] ?? name
                                 return .project(
@@ -228,7 +228,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
             let xcframeworkPath = Path
                 .relativeToRoot(xcframework.relative(to: try await rootDirectoryLocator.locate(from: path)).pathString)
             //TODO: fix
-            externalDependencies[dependencyName] = [.xcframework(path: xcframeworkPath, originalSignature: .notSigned)]
+            externalDependencies[dependencyName] = [.xcframework(path: xcframeworkPath, expectedSignature: .notSigned)]
         }
         return externalDependencies
     }
@@ -620,7 +620,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                     throw PackageInfoMapperError.missingBinaryArtifact(package: packageInfo.name, target: target.name)
                 }
                 //TODO: fix
-                return .xcframework(path: .path(artifactPath.pathString), originalSignature: .notSigned, status: .required, condition: nil)
+                return .xcframework(path: .path(artifactPath.pathString), expectedSignature: .notSigned, status: .required, condition: nil)
             }
             if let aliasedName = moduleAliases?[name] {
                 dependencyModuleAliases[name] = aliasedName
@@ -949,7 +949,7 @@ extension ProjectDescription.TargetDependency {
                 return .target(name: name, condition: condition)
             case let .xcframework(path, condition):
                 //TODO: fix
-                return .xcframework(path: path, originalSignature: .notSigned, condition: condition)
+                return .xcframework(path: path, expectedSignature: .notSigned, condition: condition)
             case let .externalTarget(project, target, condition):
                 return .project(
                     target: target,

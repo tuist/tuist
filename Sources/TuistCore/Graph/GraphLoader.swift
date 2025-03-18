@@ -160,10 +160,10 @@ public final class GraphLoader: GraphLoading {
                 cache: cache
             )
 
-        case let .xcframework(frameworkPath, originalSignature, status, _):
+        case let .xcframework(frameworkPath, expectedSignature, status, _):
             return try await loadXCFramework(
                 path: frameworkPath,
-                originalSignature: originalSignature,
+                expectedSignature: expectedSignature,
                 cache: cache,
                 status: status
             )
@@ -251,7 +251,7 @@ public final class GraphLoader: GraphLoading {
 
     private func loadXCFramework(
         path: AbsolutePath,
-        originalSignature: XCFrameworkOriginalSignatureType,
+        expectedSignature: XCFrameworkSignature?,
         cache: Cache,
         status: LinkingStatus
     ) async throws -> GraphDependency {
@@ -261,7 +261,7 @@ public final class GraphLoader: GraphLoading {
 
         let metadata = try await xcframeworkMetadataProvider.loadMetadata(
             at: path,
-            originalSignature: originalSignature,
+            expectedSignature: expectedSignature?.expectedSignature(),
             status: status
         )
         let xcframework: GraphDependency = .xcframework(GraphDependency.XCFramework(

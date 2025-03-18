@@ -86,11 +86,11 @@ extension XcodeGraph.TargetDependency {
                     condition: condition?.asGraphCondition
                 ),
             ]
-        case let .xcframework(path, originalSignature, status, condition):
+        case let .xcframework(path, expectedSignature, status, condition):
             return [
                 .xcframework(
                     path: try generatorPaths.resolve(path: path),
-                    originalSignature: originalSignature.asGraphType,
+                    expectedSignature: expectedSignature?.asGraphSignature,
                     status: .from(manifest: status),
                     condition: condition?.asGraphCondition
                 ),
@@ -164,8 +164,8 @@ extension ProjectDescription.SDKType {
     }
 }
 
-public extension ProjectDescription.XCFrameworkOriginalSignatureType {
-    var asGraphType: XcodeGraph.XCFrameworkOriginalSignatureType {
+extension ProjectDescription.XCFrameworkSignature {
+    var asGraphSignature: XcodeGraph.XCFrameworkSignature {
         switch self {
         case .notSigned:
             return .notSigned

@@ -7,7 +7,7 @@ public final class MockXCFrameworkLoader: XCFrameworkLoading {
     public init() {}
 
     var loadStub: ((AbsolutePath) throws -> GraphDependency)?
-    public func load(path: Path.AbsolutePath, originalSignature: XcodeGraph.XCFrameworkOriginalSignatureType, status: XcodeGraph.LinkingStatus) throws -> GraphDependency {
+    public func load(path: Path.AbsolutePath, expectedSignature: XcodeGraph.XCFrameworkSignature, status: XcodeGraph.LinkingStatus) throws -> GraphDependency {
         if let loadStub {
             return try loadStub(path)
         } else {
