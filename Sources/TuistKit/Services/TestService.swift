@@ -282,20 +282,17 @@ final class TestService { // swiftlint:disable:this type_body_length
             switch (
                 testPlanConfiguration?.testPlan,
                 scheme.testAction?.targets.isEmpty,
-                scheme.testAction?.testPlans?.isEmpty,
-                action
+                scheme.testAction?.testPlans?.isEmpty
             ) {
-            case (_, false, _, _):
+            case (_, false, _), (_, _, false):
                 break
-            case (_, _, false, .build):
-                break
-            case (nil, true, _, _), (nil, nil, _, _):
+            case (nil, true, _), (nil, nil, _):
                 ServiceContext.current?.logger?.log(
                     level: .info,
                     "The scheme \(schemeName)'s test action has no tests to run, finishing early."
                 )
                 return
-            case (_?, _, true, _), (_?, _, nil, _):
+            case (_?, _, true), (_?, _, nil):
                 ServiceContext.current?.logger?.log(
                     level: .info,
                     "The scheme \(schemeName)'s test action has no test plans to run, finishing early."
@@ -444,7 +441,15 @@ final class TestService { // swiftlint:disable:this type_body_length
             )
         }
 
-        ServiceContext.current?.alerts?.success(.alert("The project tests \(action.verb) successfully"))
+        let verb =
+            switch action {
+            case .test, .testWithoutBuilding:
+                "ran"
+            case .build:
+                "built"
+            }
+
+        ServiceContext.current?.alerts?.success(.alert("The project tests \(verb) successfully"))
     }
 
     private func updateTestServiceAnalytics(
@@ -578,13 +583,10 @@ final class TestService { // swiftlint:disable:this type_body_length
                     .first(
                         where: { $0.name == testPlanConfiguration.testPlan }
                     )?.testTargets.map(\.target) ?? []
+            } else if let defaultTestPlan = scheme.testAction?.testPlans?.first(where: { $0.isDefault }) {
+                defaultTestPlan.testTargets.map(\.target)
             } else if let testActionTargets = scheme.testAction?.targets.map(\.target), !testActionTargets.isEmpty {
                 testActionTargets
-            } else if let testPlanTargets = scheme.testAction?.testPlans?.flatMap({ $0.testTargets.map(\.target) }),
-                      !testPlanTargets.isEmpty
-            {
-                // If no test plan is specified, we use the targets of _all_ test plans
-                testPlanTargets
             } else {
                 [TargetReference]()
             }

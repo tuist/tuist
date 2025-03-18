@@ -147,16 +147,13 @@ public final class BuildGraphInspector: BuildGraphInspecting {
            let testPlan = scheme.testAction?.testPlans?.first(where: { $0.name == testPlanName }),
            let target = testPlan.testTargets.first(where: { isIncluded($0) })?.target
         {
-            // If a test plan is specified we use that
+            return graphTraverser.target(path: target.projectPath, name: target.name)
+        } else if let defaultTestPlan = scheme.testAction?.testPlans?.first(where: { $0.isDefault }),
+                  let target = defaultTestPlan.testTargets.first(where: { isIncluded($0) })?.target
+        {
             return graphTraverser.target(path: target.projectPath, name: target.name)
         } else if let testTarget = scheme.testAction?.targets.first {
-            // If no test plan, we check to see if there are targets directly on the testAction
             return graphTraverser.target(path: testTarget.target.projectPath, name: testTarget.target.name)
-        } else if let testPlan = scheme.testAction?.testPlans?.first,
-                  let target = testPlan.testTargets.first(where: { isIncluded($0) })?.target
-        {
-            // If no testplan and no targets directly, then we use the first test plan
-            return graphTraverser.target(path: target.projectPath, name: target.name)
         } else {
             return nil
         }
