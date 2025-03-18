@@ -178,7 +178,10 @@ defmodule TuistWeb.AppLayoutComponents do
             target="_blank"
             href={latest_cli_release.html_url}
           >
-            <.badge title={"#{gettext("New release:")} #{latest_cli_release.name}"} kind={:brand} />
+            <.legacy_badge
+              title={"#{gettext("New release:")} #{latest_cli_release.name}"}
+              kind={:brand}
+            />
           </a>
           <a class="headerbar__links__link text--small" href="https://docs.tuist.io" target="_blank">
             <.book_open_icon class="headerbar__links__icon" />

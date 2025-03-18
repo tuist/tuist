@@ -641,7 +641,7 @@ msgstr ""
 msgid "Docs"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:185
+#: lib/tuist_web/components/app_layout_components.ex:188
 #: lib/tuist_web/live/account_projects_live.html.heex:55
 #, elixir-autogen, elixir-format
 msgid "Documentation"
@@ -1096,7 +1096,7 @@ msgstr ""
 msgid "New password"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:181
+#: lib/tuist_web/components/app_layout_components.ex:182
 #, elixir-autogen, elixir-format
 msgid "New release:"
 msgstr ""
