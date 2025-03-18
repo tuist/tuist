@@ -727,7 +727,7 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
             ]
         )
     }
-    
+
     func test_testableTarget_withMultipleTestPlans_noneSpecified_usesDefaultTetPlan() throws {
         // Given
         let path = try temporaryPath()
@@ -744,7 +744,7 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
             ],
             isDefault: false
         )
-        
+
         let testPlan2 = TestPlan(
             path: path.appending(component: "Test2.testplan"),
             testTargets: [
