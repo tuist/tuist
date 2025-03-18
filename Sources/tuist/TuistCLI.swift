@@ -35,7 +35,7 @@ private enum TuistCLI {
             context.logger = Logger(label: "dev.tuist.cli", factory: loggerHandler)
             context.ui = Noora()
             context.alerts = AlertController()
-            context.recentPaths = RecentPathsRecorder(storageDirectory: Environment.shared.stateDirectory)
+            context.recentPaths = RecentPathsStore(storageDirectory: Environment.shared.stateDirectory)
 
             try await ServiceContext.withValue(context) {
                 try await TuistCommand.main(logFilePath: logFilePath)

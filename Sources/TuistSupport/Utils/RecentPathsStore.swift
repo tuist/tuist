@@ -5,11 +5,11 @@ import Path
 import ServiceContextModule
 
 private enum RecentPathsContextKey: ServiceContextKey {
-    typealias Value = RecentPathsRecording
+    typealias Value = RecentPathsStoring
 }
 
 extension ServiceContext {
-    public var recentPaths: RecentPathsRecording? {
+    public var recentPaths: RecentPathsStoring? {
         get {
             self[RecentPathsContextKey.self]
         } set {
@@ -23,7 +23,7 @@ extension ServiceContext {
 /// The information can then be used by tools like MCP servers to allow users to interact with their most recent
 /// projects.
 @Mockable
-public protocol RecentPathsRecording {
+public protocol RecentPathsStoring {
     /// Records that the user has interacted with a given path.
     /// - Parameters:
     ///   - path: The path the user has interacted with.
@@ -36,7 +36,7 @@ public protocol RecentPathsRecording {
     func read() async throws -> [AbsolutePath: Date]
 }
 
-public struct RecentPathsRecorder: RecentPathsRecording {
+public struct RecentPathsStore: RecentPathsStoring {
     private let fileSystem: FileSystem
     private let storageDirectory: AbsolutePath
 
@@ -63,10 +63,7 @@ public struct RecentPathsRecorder: RecentPathsRecording {
 
     private func write(_ content: [AbsolutePath: Date], storageDirectory: AbsolutePath) async throws {
         let recentPathsFile = recentPathsFile(storageDirectory: storageDirectory)
-        if try await fileSystem.exists(recentPathsFile) {
-            try await fileSystem.remove(recentPathsFile)
-        }
-        try await fileSystem.writeAsJSON(content, at: recentPathsFile)
+        try await fileSystem.writeAsJSON(content, at: recentPathsFile, options: Set([.overriding]))
     }
 
     private func recentPathsFile(storageDirectory: AbsolutePath) -> AbsolutePath {
@@ -74,7 +71,7 @@ public struct RecentPathsRecorder: RecentPathsRecording {
     }
 }
 
-extension RecentPathsRecording {
+extension RecentPathsStoring {
     public func record(path: AbsolutePath) async throws {
         try await record(path: path, date: Date())
     }

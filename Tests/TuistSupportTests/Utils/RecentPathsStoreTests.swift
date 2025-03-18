@@ -4,7 +4,7 @@ import Testing
 
 @testable import TuistSupport
 
-struct RecentPathsRecorderTests {
+struct RecentPathsStoreTests {
     private let fileSystem = FileSystem()
 
     @Test func recordPaths() async throws {
@@ -14,7 +14,7 @@ struct RecentPathsRecorderTests {
             let path1 = temporaryDirectory.appending(component: "path-1")
             let date2 = Date()
             let path2 = temporaryDirectory.appending(component: "path-2")
-            let subject = RecentPathsRecorder(storageDirectory: temporaryDirectory)
+            let subject = RecentPathsStore(storageDirectory: temporaryDirectory)
 
             // When
             try await subject.record(path: path1, date: date1)
