@@ -1186,65 +1186,107 @@ public class GraphTraverser: GraphTraversing {
         let targetsWithExternalDependencies = targetsWithExternalDependencies()
         var platforms: [GraphTarget: Set<Platform>] = [:]
 
-        func traverse(target: GraphTarget, parentPlatforms: Set<Platform>) {
-            let dependencies = directTargetDependencies(path: target.path, name: target.target.name)
-
-            for dependencyTargetReference in dependencies {
-                var platformsToInsert: Set<Platform>?
-                let dependencyTarget = dependencyTargetReference.graphTarget
-                let inheritedPlatforms =
-                    dependencyTarget.target.product == .macro
-                        ? Set<Platform>([.macOS]) : parentPlatforms
-                if let dependencyCondition = dependencyTargetReference.condition,
-                   let platformIntersection = PlatformCondition.when(
-                       target.target.dependencyPlatformFilters
-                   )?
-                   .intersection(dependencyCondition)
-                {
-                    switch platformIntersection {
-                    case .incompatible:
-                        break
-                    case let .condition(condition):
-                        if let condition {
-                            let dependencyPlatforms = Set(
-                                condition.platformFilters.map(\.platform)
-                                    .filter { $0 != nil }
-                                    .map { $0! }
-                            )
-                            .intersection(inheritedPlatforms)
-                            platformsToInsert = dependencyPlatforms
-                        }
-                    }
-                } else {
-                    platformsToInsert = inheritedPlatforms.intersection(
-                        dependencyTarget.target.supportedPlatforms
-                    )
-                }
-
-                if let platformsToInsert {
-                    var existingPlatforms = platforms[dependencyTarget, default: Set()]
-                    let continueTraversing = !platformsToInsert.isSubset(of: existingPlatforms)
-                    existingPlatforms.formUnion(platformsToInsert)
-                    platforms[dependencyTarget] = existingPlatforms
-
-                    if continueTraversing {
-                        traverse(
-                            target: dependencyTarget,
-                            parentPlatforms: platforms[dependencyTarget, default: Set()]
-                        )
-                    }
-                }
-            }
-        }
-
         for targetsWithExternalDependency in targetsWithExternalDependencies {
             traverse(
                 target: targetsWithExternalDependency,
-                parentPlatforms: targetsWithExternalDependency.target.supportedPlatforms
+                parentPlatforms: targetsWithExternalDependency.target.supportedPlatforms,
+                platforms: &platforms
             )
         }
         return platforms
     }
+    
+    public func allTargetSupportedPlatforms() -> [XcodeGraph.GraphTarget : Set<XcodeGraph.Platform>] {
+        let targets = allInternalTargets()
+        let targetDependencies = Set(
+            targets.flatMap {
+                directTargetDependencies(path: $0.path, name: $0.target.name).map { $0.graphTarget }
+            }
+        )
+        let rootTargets = targets.filter { !targetDependencies.contains($0) }
+        let rootTargetsWithoutTest = rootTargets.filter { !$0.target.product.testsBundle }
+        let testTargets = rootTargets.filter { $0.target.product.testsBundle }
+        
+        var platforms: [GraphTarget: Set<Platform>] = [:]
+
+        for target in rootTargetsWithoutTest {
+            traverse(
+                target: target,
+                parentPlatforms: target.target.supportedPlatforms,
+                platforms: &platforms
+            )
+        }
+        
+        for testTarget in testTargets {
+            var platformsToInsert: Set<Platform> = testTarget.target.supportedPlatforms
+            let dependencies = directTargetDependencies(path: testTarget.path, name: testTarget.target.name)
+            for dependencyTargetReference in dependencies {
+                let dependencyTarget = dependencyTargetReference.graphTarget
+                if let dependencyPlatform = platforms[dependencyTarget] {
+                    platformsToInsert.formIntersection(dependencyPlatform)
+                }
+            }
+            platforms[testTarget] = platformsToInsert
+        }
+
+        return platforms
+    }
+    
+    private func traverse(
+        target: GraphTarget,
+        parentPlatforms: Set<Platform>,
+        platforms: inout [GraphTarget: Set<Platform>]
+    ) {
+        let dependencies = directTargetDependencies(path: target.path, name: target.target.name)
+
+        for dependencyTargetReference in dependencies {
+            var platformsToInsert: Set<Platform>?
+            let dependencyTarget = dependencyTargetReference.graphTarget
+            let inheritedPlatforms =
+                dependencyTarget.target.product == .macro
+                    ? Set<Platform>([.macOS]) : parentPlatforms
+            if let dependencyCondition = dependencyTargetReference.condition,
+               let platformIntersection = PlatformCondition.when(
+                   target.target.dependencyPlatformFilters
+               )?
+               .intersection(dependencyCondition)
+            {
+                switch platformIntersection {
+                case .incompatible:
+                    break
+                case let .condition(condition):
+                    if let condition {
+                        let dependencyPlatforms = Set(
+                            condition.platformFilters.map(\ .platform)
+                                .compactMap { $0 }
+                        )
+                        .intersection(inheritedPlatforms)
+                        platformsToInsert = dependencyPlatforms
+                    }
+                }
+            } else {
+                platformsToInsert = inheritedPlatforms.intersection(
+                    dependencyTarget.target.supportedPlatforms
+                )
+            }
+
+            if let platformsToInsert {
+                var existingPlatforms = platforms[dependencyTarget, default: Set()]
+                let continueTraversing = !platformsToInsert.isSubset(of: existingPlatforms)
+                existingPlatforms.formUnion(platformsToInsert)
+                platforms[dependencyTarget] = existingPlatforms
+
+                if continueTraversing {
+                    traverse(
+                        target: dependencyTarget,
+                        parentPlatforms: platforms[dependencyTarget, default: Set()],
+                        platforms: &platforms
+                    )
+                }
+            }
+        }
+    }
+
 
     func allDependenciesSatisfy(
         from rootDependency: GraphDependency, meets: (GraphDependency) -> Bool

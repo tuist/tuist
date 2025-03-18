@@ -339,6 +339,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                     productTypes: productTypes,
                     productDestinations: packageSettings.productDestinations,
                     targetSettings: packageSettings.targetSettings,
+                    includeLocalPackageTestTargets: packageSettings.includeLocalPackageTestTargets,
                     packageModuleAliases: packageModuleAliases
                 )
             }
@@ -393,6 +394,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
         productTypes: [String: XcodeGraph.Product],
         productDestinations: [String: XcodeGraph.Destinations],
         targetSettings: [String: XcodeGraph.Settings],
+        includeLocalPackageTestTargets: Bool,
         packageModuleAliases: [String: [String: String]]
     ) async throws -> ProjectDescription.Target? {
         // Ignores or passes a target based on the `type` and the `packageType`.
@@ -400,7 +402,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
         switch target.type {
         case .regular, .system, .macro:
             break
-        case .test, .executable:
+        case .executable:
             switch packageType {
             case .external:
                 ServiceContext.current?.logger?.debug("Target \(target.name) of type \(target.type) ignored")
@@ -408,6 +410,12 @@ public final class PackageInfoMapper: PackageInfoMapping {
             case .local:
                 break
             }
+        case .test:
+            if case .local = packageType, includeLocalPackageTestTargets {
+                break
+            }
+            ServiceContext.current?.logger?.debug("Target \(target.name) of type \(target.type) ignored")
+            return nil
         default:
             ServiceContext.current?.logger?.debug("Target \(target.name) of type \(target.type) ignored")
             return nil
