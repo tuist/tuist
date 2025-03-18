@@ -150,7 +150,7 @@ public struct RecursiveManifestLoader: RecursiveManifestLoading {
                 let packageInfo = try await manifestLoader.loadPackage(at: $0)
                 return try await packageInfoMapper.map(
                     packageInfo: packageInfo,
-                    path: $0,
+                    packageFolder: $0,
                     packageType: .local,
                     packageSettings: packageSettings,
                     packageModuleAliases: [:]
