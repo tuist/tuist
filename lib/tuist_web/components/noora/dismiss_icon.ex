@@ -8,7 +8,7 @@ defmodule TuistWeb.Noora.DismissIcon do
 
   attr :size, :string, values: ~w(small large), default: "large", doc: "The size of the icon"
   attr :on_dismiss, :string, default: nil
-  attr :rest, :global
+  attr :rest, :global, include: ~w(disabled)
 
   def dismiss_icon(assigns) do
     ~H"""

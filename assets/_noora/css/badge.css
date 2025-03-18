@@ -224,7 +224,7 @@
     display: inline-flex;
     justify-content: center;
 
-    svg {
+    & svg {
       height: var(--noora-icon-size-medium);
       width: var(--noora-icon-size-medium);
     }

@@ -76,7 +76,7 @@ defmodule TuistWeb.Marketing.Localization do
     "/#{locale}"
   end
 
-  def on_mount(:default, params, %{"locale" => locale} = _session, socket) do
+  def on_mount(:default, _params, %{"locale" => locale} = _session, socket) do
     Gettext.put_locale(locale)
     {:cont, socket}
   end
@@ -109,10 +109,6 @@ defmodule TuistWeb.Marketing.Localization do
 
   defp language_to_locale(language) do
     String.replace(language, "-", "_", global: false)
-  end
-
-  defp locale_to_language(locale) do
-    String.replace(locale, "_", "-", global: false)
   end
 
   defp validate_locale(nil), do: nil

@@ -10,6 +10,7 @@ defmodule TuistWeb.Noora.Breadcrumbs do
   import TuistWeb.Noora.Avatar
 
   attr :style, :string, values: ~w(slash arrow), default: "slash"
+  slot :inner_block
 
   def breadcrumbs(assigns) do
     ~H"""
