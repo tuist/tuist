@@ -14,10 +14,10 @@ concurrency:
 jobs:
   cross-platform:
     name: Cross-platform build for ${{ matrix.os }}
-    runs-on: "ubuntu-latest"
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: ["ubuntu-latest", "windows-latest"]
+        os: ["ubuntu-latest"]
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
