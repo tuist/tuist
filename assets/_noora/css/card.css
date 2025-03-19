@@ -1,0 +1,62 @@
+.noora-card {
+  align-items: flex-start;
+  background: var(--noora-surface-background-tertiary);
+  border-radius: var(--noora-radius-2xlarge);
+  box-shadow: var(--noora-border-section);
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-5);
+  justify-section: center;
+  padding: var(--noora-spacing-4);
+  box-sizing: border-box;
+
+  & [data-part="header"] {
+    align-items: center;
+    box-sizing: border-box;
+    display: flex;
+    gap: var(--noora-spacing-3);
+    padding: var(--noora-spacing-1) var(--noora-spacing-4);
+    width: 100%;
+
+    & [data-part="icon"] {
+      background: var(--noora-surface-background-primary);
+      border-radius: var(--noora-radius-medium);
+      box-shadow: var(--noora-border-light-default);
+      color: var(--noora-surface-label-primary);
+      display: flex;
+      gap: 10px;
+      height: var(--noora-icon-size-medium);
+      padding: var(--noora-spacing-3);
+      width: var(--noora-icon-size-medium);
+
+      & svg {
+        height: 100%;
+        width: 100%;
+      }
+    }
+
+    & [data-part="title"] {
+      color: var(--noora-surface-label-primary);
+      display: inline-flex;
+      flex: 1 0 0;
+      font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+    }
+
+    & [data-part="actions"] {
+      align-items: center;
+      display: flex;
+    }
+  }
+}
+
+.noora-card__section {
+  background: var(--noora-surface-background-primary);
+  border-radius: var(--noora-radius-large);
+  box-shadow: var(--noora-border-light-default);
+  box-sizing: border-box;
+  color: var(--noora-surface-label-primary);
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-5);
+  padding: var(--noora-spacing-7);
+}
