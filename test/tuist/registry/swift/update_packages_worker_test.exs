@@ -54,6 +54,29 @@ defmodule Tuist.Registry.Swift.Workers.UpdatePackagesWorkerTest do
            }) != nil
   end
 
+  test "skips unsupported packages" do
+    # Given
+    PackagesFixtures.package_fixture(scope: "Alamofire", name: "Alamofire")
+
+    VCS
+    |> stub(:get_repository_content, fn _, _ ->
+      {:ok,
+       %Content{
+         path: "packages.json",
+         content: "[\n  \"https://github.com/monzo/nearby.git\"]"
+       }}
+    end)
+
+    # When
+    UpdatePackagesWorker.perform(%Oban.Job{})
+
+    # Then
+    assert Packages.get_package_by_scope_and_name(%{
+             scope: "monzo",
+             name: "nearby"
+           }) == nil
+  end
+
   test "removes packages no longer present in packages.json" do
     # Given
     PackagesFixtures.package_fixture(scope: "Alamofire", name: "Alamofire")

@@ -15,6 +15,12 @@ defmodule Tuist.Registry.Swift.Workers.UpdatePackagesWorker do
 
   alias Tuist.VCS
 
+  # Packages with git submodules are not supported to be automatically mirrored in our registry.
+  @unsupported_packages [
+    "monzo/nearby",
+    "awslabs/aws-crt-swift"
+  ]
+
   @impl Oban.Worker
   def perform(%Oban.Job{} = _job) do
     token = Environment.github_token_update_packages()
@@ -34,6 +40,7 @@ defmodule Tuist.Registry.Swift.Workers.UpdatePackagesWorker do
       |> Jason.decode!()
       |> Enum.map(&VCS.get_repository_full_handle_from_url/1)
       |> Enum.map(&elem(&1, 1))
+      |> Enum.filter(&(not Enum.member?(@unsupported_packages, &1)))
       |> Enum.map(&Packages.get_package_scope_and_name_from_repository_full_handle/1)
 
     remove_packages_no_longer_present(packages)
