@@ -132,8 +132,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/Noora",
       "state" : {
-        "revision" : "ab6adb693d7f980a132ca9e7bda32ebf449a729a",
-        "version" : "0.32.0"
+        "branch" : "feat/progress-bar",
+        "revision" : "ca4c95d7ce3026f796bb900b40454952f1d599ec"
       }
     },
     {

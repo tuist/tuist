@@ -88,7 +88,8 @@ final class AnalyticsArtifactUploadServiceTests: TuistTestCase {
                 generateUploadURL: .matching { callback in
                     generateUploadURLCallback = callback
                     return true
-                }
+                },
+                updateProgress: .any
             )
             .willReturn([(etag: "etag", partNumber: 1)])
 
@@ -115,7 +116,8 @@ final class AnalyticsArtifactUploadServiceTests: TuistTestCase {
         given(multipartUploadArtifactService)
             .multipartUploadArtifact(
                 artifactPath: .matching { $0.basename == "invocation_record.json" },
-                generateUploadURL: .any
+                generateUploadURL: .any,
+                updateProgress: .any
             )
             .willReturn([(etag: "etag", partNumber: 1)])
 
@@ -148,7 +150,8 @@ final class AnalyticsArtifactUploadServiceTests: TuistTestCase {
         given(multipartUploadArtifactService)
             .multipartUploadArtifact(
                 artifactPath: .matching { $0.basename == "\(testResultBundleObjectId).json" },
-                generateUploadURL: .any
+                generateUploadURL: .any,
+                updateProgress: .any
             )
             .willReturn([(etag: "etag", partNumber: 1)])
         let uploadPartURL = "https://tuist.io/upload-url"

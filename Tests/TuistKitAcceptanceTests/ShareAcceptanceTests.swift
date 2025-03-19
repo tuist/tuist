@@ -21,11 +21,15 @@ final class ShareAcceptanceTests: ServerAcceptanceTestCase {
 
             // When: Share
             try await run(ShareCommand.self)
-            assertSnapshot(of: ServiceContext.current?.recordedUI() ?? "", as: .lines)
+            XCTAssertTrue(ServiceContext.current?.recordedUI().contains("App uploaded") == true)
+            XCTAssertTrue(
+                ServiceContext.current?.recordedUI()
+                    .contains("Share App with others using the following link:") == true
+            )
+            let shareLink = try previewLink()
             ServiceContext.current?.resetRecordedUI()
 
             // When: Run
-            let shareLink = try previewLink()
             try await run(RunCommand.self, shareLink, "-destination", "iPhone 16 Pro")
             assertSnapshot(of: ServiceContext.current?.recordedUI() ?? "", as: .lines)
             ServiceContext.current?.resetRecordedUI()
@@ -45,8 +49,11 @@ final class ShareAcceptanceTests: ServerAcceptanceTestCase {
             // When: Share App
             try await run(ShareCommand.self, "App")
             let shareLink = try previewLink("App")
-            assertSnapshot(of: ServiceContext.current?.recordedUI() ?? "", as: .lines)
-
+            XCTAssertTrue(ServiceContext.current?.recordedUI().contains("App uploaded") == true)
+            XCTAssertTrue(
+                ServiceContext.current?.recordedUI()
+                    .contains("Share App with others using the following link:") == true
+            )
             ServiceContext.current?.resetRecordedUI()
 
             // When: Run App on iPhone 16
@@ -58,7 +65,11 @@ final class ShareAcceptanceTests: ServerAcceptanceTestCase {
             // When: Share AppClip1
             try await run(ShareCommand.self, "AppClip1")
             let appClipShareLink = try previewLink("AppClip1")
-            assertSnapshot(of: ServiceContext.current?.recordedUI() ?? "", as: .lines)
+            XCTAssertTrue(ServiceContext.current?.recordedUI().contains("AppClip1 uploaded") == true)
+            XCTAssertTrue(
+                ServiceContext.current?.recordedUI()
+                    .contains("Share AppClip1 with others using the following link:") == true
+            )
             ServiceContext.current?.resetRecordedUI()
 
             // When: Run AppClip1
@@ -135,9 +146,9 @@ final class ShareAcceptanceTests: ServerAcceptanceTestCase {
 extension ServerAcceptanceTestCase {
     fileprivate func previewLink(_ displayName: String = "App") throws -> String {
         try XCTUnwrap(
-            ServiceContext.current?.testingLogHandler?.collected[.notice, >=]
+            ServiceContext.current?.recordedUI()?
                 .components(separatedBy: .newlines)
-                .first(where: { $0.contains("\(displayName) uploaded – share") })?
+                .first(where: { $0.contains("Share \(displayName) with others") })?
                 .components(separatedBy: .whitespaces)
                 .last
         )
