@@ -30,11 +30,6 @@ public final class ProjectMapperFactory: ProjectMapperFactorying {
     public func automation(skipUITests: Bool) -> [ProjectMapping] {
         var mappers: [ProjectMapping] = []
         mappers += self.default()
-
-        mappers.append(
-            SourceRootPathProjectMapper()
-        )
-
         if skipUITests {
             mappers.append(
                 SkipUITestsProjectMapper()
