@@ -3,10 +3,20 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlugTest do
   alias Tuist.Repo
   alias TuistWeb.API.Authorization.AuthorizationPlug
   alias Tuist.Accounts
+  alias Tuist.Authorization
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistWeb.API.EnsureProjectPresencePlug
-  use TuistTestSupport.Cases.ConnCase
+  use TuistTestSupport.Cases.ConnCase, async: false
+  use Mimic
+
+  setup :set_mimic_global
+
+  setup do
+    cache = UUIDv7.generate() |> String.to_atom()
+    {:ok, _} = Cachex.start_link(name: cache)
+    %{cache: cache}
+  end
 
   test "returns the connection when the authenticated account can read its registry" do
     # Given
@@ -72,5 +82,32 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlugTest do
 
     # Then
     assert conn == got
+  end
+
+  describe "caching" do
+    test "caches authorization responses", %{cache: cache} do
+      # Given
+      project =
+        %{account: %{name: account_handle}} =
+        ProjectsFixtures.project_fixture() |> Repo.preload(:account)
+
+      opts = AuthorizationPlug.init(category: :cache, caching: true, cache_ttl: :timer.minutes(5))
+
+      # We check that the authorization API, which hits the DB, is onnly invoked once.
+      Authorization |> expect(:can?, 1, fn :project_cache_read, _, _ -> false end)
+
+      conn =
+        build_conn()
+        |> assign(:cache, cache)
+        |> EnsureProjectPresencePlug.put_project(project)
+        |> TuistWeb.Authentication.put_current_project(project)
+
+      # When/Then
+      for _ <- 1..10 do
+        assert json_response(conn |> AuthorizationPlug.call(opts), :forbidden) == %{
+                 "message" => "#{account_handle} is not authorized to read cache"
+               }
+      end
+    end
   end
 end

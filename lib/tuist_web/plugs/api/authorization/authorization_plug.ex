@@ -14,7 +14,11 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
   def init(:preview), do: :preview
   def init(:registry), do: :registry
 
-  def call(conn, category) do
+  def init(opts) when is_list(opts) do
+    opts
+  end
+
+  def call(conn, category) when is_atom(category) do
     case category do
       :run ->
         authorize_project(conn, :run)
@@ -27,6 +31,13 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
 
       :registry ->
         authorize_account(conn, :registry)
+    end
+  end
+
+  def call(conn, opts) do
+    case Keyword.fetch!(opts, :category) do
+      :cache ->
+        authorize_project(conn, :cache, opts)
     end
   end
 
@@ -54,7 +65,8 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
     end
   end
 
-  def authorize_project(conn, category) do
+  def authorize_project(conn, category, opts \\ []) do
+    caching = Keyword.get(opts, :caching, false)
     action = get_action(conn)
 
     project =
@@ -63,7 +75,25 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
     subject =
       Authentication.authenticated_subject(conn)
 
-    if authorize(subject, action, project, category) do
+    cache_key = [
+      "authorize",
+      "#{Atom.to_string(subject.__struct__)}-#{subject.id}",
+      "#{Atom.to_string(project.__struct__)}-#{project.id}",
+      "cache"
+    ]
+
+    authorized? =
+      if caching do
+        cached(
+          cache_key,
+          fn -> authorize(subject, action, project, category) end,
+          opts |> Keyword.put(:cache, Map.get(conn.assigns, :cache, :tuist))
+        )
+      else
+        authorize(subject, action, project, category)
+      end
+
+    if authorized? do
       conn
     else
       conn
@@ -74,6 +104,23 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
       })
       |> halt()
     end
+  end
+
+  def cached(cache_key, func, opts) do
+    cache = Keyword.fetch!(opts, :cache)
+    cache_ttl = Keyword.get(opts, :cache_ttl, :timer.minutes(1))
+
+    Cachex.transaction!(cache, cache_key, fn cache ->
+      {:ok, cached_value} = Cachex.get(cache, cache_key)
+
+      if is_nil(cached_value) do
+        value = func.()
+        Cachex.put(cache, cache_key, value, ttl: cache_ttl)
+        value
+      else
+        cached_value
+      end
+    end)
   end
 
   def authorize(subject, :read, project, :cache) do

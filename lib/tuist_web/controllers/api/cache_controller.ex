@@ -18,7 +18,13 @@ defmodule TuistWeb.API.CacheController do
   )
 
   plug(TuistWeb.API.EnsureProjectPresencePlug)
-  plug(TuistWeb.API.Authorization.AuthorizationPlug, :cache)
+
+  plug(TuistWeb.API.Authorization.AuthorizationPlug,
+    category: :cache,
+    caching: true,
+    cache_ttl: :timer.minutes(1)
+  )
+
   plug(TuistWeb.API.Authorization.BillingPlug)
 
   tags ["Cache"]

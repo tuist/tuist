@@ -8,11 +8,17 @@ defmodule TuistWeb.API.CacheControllerTest do
   alias Tuist.Accounts
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias Tuist.Storage
-  use TuistTestSupport.Cases.ConnCase, async: true
+  use TuistTestSupport.Cases.ConnCase, async: false
   use Mimic
 
+  setup do
+    cache = UUIDv7.generate() |> String.to_atom()
+    {:ok, _} = Cachex.start_link(name: cache)
+    %{cache: cache}
+  end
+
   describe "GET /api/cache" do
-    test "returns download url", %{conn: conn} do
+    test "returns download url", %{conn: conn, cache: cache} do
       # Given
       project = ProjectsFixtures.project_fixture()
       account = Accounts.get_account_by_id(project.account_id)
@@ -43,6 +49,7 @@ defmodule TuistWeb.API.CacheControllerTest do
       # When
       conn =
         conn
+        |> assign(:cache, cache)
         |> get(~p"/api/cache",
           hash: hash,
           name: name,
@@ -61,7 +68,7 @@ defmodule TuistWeb.API.CacheControllerTest do
       assert cache_event.size == 1024
     end
 
-    test "returns download url with downcased full handle", %{conn: conn} do
+    test "returns download url with downcased full handle", %{conn: conn, cache: cache} do
       # Given
       organization = AccountsFixtures.organization_fixture(name: "MyAccount", preload: [:account])
 
@@ -98,6 +105,7 @@ defmodule TuistWeb.API.CacheControllerTest do
       # When
       conn =
         conn
+        |> assign(:cache, cache)
         |> get(~p"/api/cache",
           hash: hash,
           name: name,
@@ -115,7 +123,7 @@ defmodule TuistWeb.API.CacheControllerTest do
   end
 
   describe "GET /api/projects/:account_handle/:project_handle/cache/ac/:hash" do
-    test "returns cache action item", %{conn: conn} do
+    test "returns cache action item", %{conn: conn, cache: cache} do
       # Given
       project = ProjectsFixtures.project_fixture()
       account = Accounts.get_account_by_id(project.account_id)
@@ -133,6 +141,7 @@ defmodule TuistWeb.API.CacheControllerTest do
       # When
       conn =
         conn
+        |> assign(:cache, cache)
         |> get(~p"/api/projects/#{account.name}/#{project.name}/cache/ac/hash")
 
       # Then
@@ -143,7 +152,10 @@ defmodule TuistWeb.API.CacheControllerTest do
              }
     end
 
-    test "returns not found error when the cache action item does not exist", %{conn: conn} do
+    test "returns not found error when the cache action item does not exist", %{
+      conn: conn,
+      cache: cache
+    } do
       # Given
       project = ProjectsFixtures.project_fixture()
       account = Accounts.get_account_by_id(project.account_id)
@@ -155,6 +167,7 @@ defmodule TuistWeb.API.CacheControllerTest do
       # When
       conn =
         conn
+        |> assign(:cache, cache)
         |> get(~p"/api/projects/#{account.name}/#{project.name}/cache/ac/hash")
 
       # Then
@@ -165,7 +178,7 @@ defmodule TuistWeb.API.CacheControllerTest do
   end
 
   describe "POST /api/projects/:account_handle/:project_handle/cache/:category" do
-    test "creates a cache action item", %{conn: conn} do
+    test "creates a cache action item", %{conn: conn, cache: cache} do
       # Given
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
@@ -179,6 +192,7 @@ defmodule TuistWeb.API.CacheControllerTest do
       conn =
         conn
         |> put_req_header("content-type", "application/json")
+        |> assign(:cache, cache)
         |> post(
           ~p"/api/projects/#{account.name}/#{project.name}/cache/ac",
           %{
@@ -198,7 +212,8 @@ defmodule TuistWeb.API.CacheControllerTest do
     end
 
     test "returns created with the cache action item when the CLI version is 4.28.0", %{
-      conn: conn
+      conn: conn,
+      cache: cache
     } do
       # Given
       user = AccountsFixtures.user_fixture()
@@ -219,6 +234,7 @@ defmodule TuistWeb.API.CacheControllerTest do
       conn =
         conn
         |> put_req_header("content-type", "application/json")
+        |> assign(:cache, cache)
         |> post(
           ~p"/api/projects/#{account.name}/#{project.name}/cache/ac",
           %{
@@ -237,7 +253,7 @@ defmodule TuistWeb.API.CacheControllerTest do
       assert cache_action_item.hash == response["hash"]
     end
 
-    test "returns ok if the cache action item already exists", %{conn: conn} do
+    test "returns ok if the cache action item already exists", %{conn: conn, cache: cache} do
       # Given
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
@@ -259,6 +275,7 @@ defmodule TuistWeb.API.CacheControllerTest do
       conn =
         conn
         |> put_req_header("content-type", "application/json")
+        |> assign(:cache, cache)
         |> post(
           ~p"/api/projects/#{account.name}/#{project.name}/cache/ac",
           %{
@@ -278,7 +295,7 @@ defmodule TuistWeb.API.CacheControllerTest do
   end
 
   describe "POST /api/cache/multipart/start" do
-    test "starts multipart upload", %{conn: conn} do
+    test "starts multipart upload", %{conn: conn, cache: cache} do
       # Given
       project = ProjectsFixtures.project_fixture()
       account = Accounts.get_account_by_id(project.account_id)
@@ -301,6 +318,7 @@ defmodule TuistWeb.API.CacheControllerTest do
       # When
       conn =
         conn
+        |> assign(:cache, cache)
         |> post(
           ~p"/api/cache/multipart/start?hash=#{hash}&name=#{name}&project_id=#{project_id}&cache_category=#{cache_category}"
         )
@@ -313,7 +331,7 @@ defmodule TuistWeb.API.CacheControllerTest do
     end
   end
 
-  test "POST /api/cache/multipart/generate-url", %{conn: conn} do
+  test "POST /api/cache/multipart/generate-url", %{conn: conn, cache: cache} do
     # Given
     project = ProjectsFixtures.project_fixture()
     account = Accounts.get_account_by_id(project.account_id)
@@ -341,6 +359,7 @@ defmodule TuistWeb.API.CacheControllerTest do
     # When
     conn =
       conn
+      |> assign(:cache, cache)
       |> post(
         ~p"/api/cache/multipart/generate-url?hash=#{hash}&content_length=20&name=#{name}&project_id=#{project_id}&cache_category=#{cache_category}&part_number=#{part_number}&upload_id=#{upload_id}"
       )
@@ -353,7 +372,7 @@ defmodule TuistWeb.API.CacheControllerTest do
   end
 
   describe "POST /api/cache/multipart/complete" do
-    test "completes a multipart upload", %{conn: conn} do
+    test "completes a multipart upload", %{conn: conn, cache: cache} do
       # Given
       project = ProjectsFixtures.project_fixture()
       account = Accounts.get_account_by_id(project.account_id)
@@ -390,6 +409,7 @@ defmodule TuistWeb.API.CacheControllerTest do
       conn =
         conn
         |> put_req_header("content-type", "application/json")
+        |> assign(:cache, cache)
         |> post(
           ~p"/api/cache/multipart/complete?hash=#{hash}&name=#{name}&project_id=#{project_id}&cache_category=#{cache_category}&upload_id=#{upload_id}",
           parts: parts
@@ -404,7 +424,10 @@ defmodule TuistWeb.API.CacheControllerTest do
       assert cache_event.size == 1024
     end
 
-    test "completes a multipart upload when an item was uploaded before", %{conn: conn} do
+    test "completes a multipart upload when an item was uploaded before", %{
+      conn: conn,
+      cache: cache
+    } do
       # Given
       project = ProjectsFixtures.project_fixture()
       account = Accounts.get_account_by_id(project.account_id)
@@ -442,6 +465,7 @@ defmodule TuistWeb.API.CacheControllerTest do
       conn =
         conn
         |> put_req_header("content-type", "application/json")
+        |> assign(:cache, cache)
         |> post(
           ~p"/api/cache/multipart/complete?hash=#{hash}&name=#{name}&project_id=#{project_id}&cache_category=#{cache_category}&upload_id=#{upload_id}",
           parts: parts
@@ -458,7 +482,7 @@ defmodule TuistWeb.API.CacheControllerTest do
   end
 
   describe "PUT /api/projects/:account_handle/:project_handle/cache/clean" do
-    test "given project is cleaned", %{conn: conn} do
+    test "given project is cleaned", %{conn: conn, cache: cache} do
       # Given
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
@@ -490,6 +514,7 @@ defmodule TuistWeb.API.CacheControllerTest do
       # When
       conn =
         conn
+        |> assign(:cache, cache)
         |> put(~p"/api/projects/#{account.name}/#{project.name}/cache/clean")
 
       # Then
@@ -499,7 +524,7 @@ defmodule TuistWeb.API.CacheControllerTest do
       assert CacheActionItems.get_cache_action_item(%{project: project, hash: hash}) == nil
     end
 
-    test "given organization project is cleaned", %{conn: conn} do
+    test "given organization project is cleaned", %{conn: conn, cache: cache} do
       # Given
       organization = AccountsFixtures.organization_fixture(name: "tuist-org")
       account = Accounts.get_account_from_organization(organization)
@@ -526,6 +551,7 @@ defmodule TuistWeb.API.CacheControllerTest do
       # When
       conn =
         conn
+        |> assign(:cache, cache)
         |> put(~p"/api/projects/#{account.name}/#{project.name}/cache/clean")
 
       # Then
@@ -535,7 +561,7 @@ defmodule TuistWeb.API.CacheControllerTest do
     end
 
     test "forbidden error is returned when user doesn't have permission to clean the project cache",
-         %{conn: conn} do
+         %{conn: conn, cache: cache} do
       # Given
       organization = AccountsFixtures.organization_fixture(name: "tuist-org")
       account = Accounts.get_account_from_organization(organization)
@@ -552,6 +578,7 @@ defmodule TuistWeb.API.CacheControllerTest do
       # When
       conn =
         conn
+        |> assign(:cache, cache)
         |> put(~p"/api/projects/#{account.name}/#{project.name}/cache/clean")
 
       # Then
@@ -562,7 +589,7 @@ defmodule TuistWeb.API.CacheControllerTest do
     end
 
     test "not found error is returned when project doesn't exist",
-         %{conn: conn} do
+         %{conn: conn, cache: cache} do
       # Given
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
@@ -574,6 +601,7 @@ defmodule TuistWeb.API.CacheControllerTest do
       # When
       conn =
         conn
+        |> assign(:cache, cache)
         |> put(~p"/api/projects/#{account.name}/non-existing-project/cache/clean")
 
       # Then
