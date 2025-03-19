@@ -54,7 +54,7 @@ defmodule TuistWeb.PreviewController do
         } = _params
       ) do
     {:ok, qr_code_image} =
-      url(~p"/#{account_handle}/#{project_handle}/previews/#{preview_id}/qr-code.png")
+      url(~p"/#{account_handle}/#{project_handle}/previews/#{preview_id}")
       |> QRCode.create(:low)
       |> QRCode.render()
 
@@ -72,7 +72,7 @@ defmodule TuistWeb.PreviewController do
         } = _params
       ) do
     {:ok, qr_code_image} =
-      url(~p"/#{account_handle}/#{project_handle}/previews/#{preview_id}/qr-code.png")
+      url(~p"/#{account_handle}/#{project_handle}/previews/#{preview_id}")
       |> QRCode.create(:low)
       |> QRCode.render(:png)
 

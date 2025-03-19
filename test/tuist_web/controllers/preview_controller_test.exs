@@ -92,7 +92,8 @@ defmodule TuistWeb.PreviewControllerTest do
         PreviewsFixtures.preview_fixture(type: :ipa)
 
       QRCode
-      |> stub(:create, fn _ ->
+      |> expect(:create, fn url, _ ->
+        assert url == url(~p"/tuist/ios_app_with_frameworks/previews/#{preview.id}")
         "qr-code"
       end)
 
