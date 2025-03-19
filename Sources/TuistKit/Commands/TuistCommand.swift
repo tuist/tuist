@@ -92,8 +92,6 @@ public struct TuistCommand: AsyncParsableCommand {
             backend = nil
         }
 
-        // RecentPathRememberableCommand
-
         try await CacheDirectoriesProvider.bootstrap()
 
         let executeCommand: () async throws -> Void

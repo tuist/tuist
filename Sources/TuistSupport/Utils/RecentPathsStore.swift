@@ -18,6 +18,10 @@ extension ServiceContext {
     }
 }
 
+public struct RecentPathMetadata: Hashable, Equatable, Codable {
+    let lastUpdated: Date
+}
+
 /// This is a utility to record the paths the user interacts with.
 /// This is recorded either from the working directory or the --path argument when invoking a command.
 /// The information can then be used by tools like MCP servers to allow users to interact with their most recent
@@ -33,7 +37,7 @@ public protocol RecentPathsStoring {
     /// Returns the list of paths the user has interacted with along with the last date of interaction.
     /// - Returns: A dictionary where the keys are the paths, and the values are the last time the user interacted with those
     /// paths.
-    func read() async throws -> [AbsolutePath: Date]
+    func read() async throws -> [AbsolutePath: RecentPathMetadata]
 }
 
 public struct RecentPathsStore: RecentPathsStoring {
@@ -51,19 +55,19 @@ public struct RecentPathsStore: RecentPathsStoring {
 
     public func remember(path: AbsolutePath, date: Date) async throws {
         var content = try await read()
-        content[path] = date
+        content[path] = RecentPathMetadata(lastUpdated: date)
         try await write(content, storageDirectory: storageDirectory)
     }
 
-    public func read() async throws -> [AbsolutePath: Date] {
+    public func read() async throws -> [AbsolutePath: RecentPathMetadata] {
         let recentPathsFile = recentPathsFile(storageDirectory: storageDirectory)
         guard try await fileSystem.exists(recentPathsFile) else { return [:] }
         return try await fileSystem.readJSONFile(at: recentPathsFile)
     }
 
-    private func write(_ content: [AbsolutePath: Date], storageDirectory: AbsolutePath) async throws {
+    private func write(_ content: [AbsolutePath: RecentPathMetadata], storageDirectory: AbsolutePath) async throws {
         let recentPathsFile = recentPathsFile(storageDirectory: storageDirectory)
-        try await fileSystem.writeAsJSON(content, at: recentPathsFile, options: Set([.overriding]))
+        try await fileSystem.writeAsJSON(content, at: recentPathsFile, options: Set([.overwrite]))
     }
 
     private func recentPathsFile(storageDirectory: AbsolutePath) -> AbsolutePath {

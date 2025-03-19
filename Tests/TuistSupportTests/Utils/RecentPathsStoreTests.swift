@@ -22,7 +22,7 @@ struct RecentPathsStoreTests {
 
             // Then
             let got = try await subject.read()
-            #expect(got == [path1: date1, path2: date2])
+            #expect(got == [path1: RecentPathMetadata(lastUpdated: date1), path2: RecentPathMetadata(lastUpdated: date2)])
         }
     }
 }
