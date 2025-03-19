@@ -7,7 +7,7 @@ import TuistServer
 import TuistSupport
 
 /// Command that tests a target from the project in the current directory.
-public struct TestCommand: AsyncParsableCommand, LogConfigurableCommand {
+public struct TestCommand: AsyncParsableCommand, LogConfigurableCommand, RecentPathRememberableCommand {
     public init() {}
 
     public static var generatorFactory: GeneratorFactorying = GeneratorFactory()
