@@ -13,6 +13,10 @@
   display: flex;
   flex-direction: row;
   overflow: hidden;
+
+  html[data-noora] & {
+    padding: var(--noora-spacing-5);
+  }
 }
 
 @media (max-width: 1024px) {

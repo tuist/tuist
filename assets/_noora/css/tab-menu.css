@@ -1,0 +1,33 @@
+.noora-tab-menu-vertical {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  padding: var(--noora-spacing-3) var(--noora-spacing-4);
+  gap: var(--noora-spacing-4);
+  border-radius: var(--noora-radius-medium);
+  color: var(--noora-surface-label-primary);
+
+  & [data-part="icon-left"],
+  & [data-part="icon-right"] {
+    height: 18px;
+    width: 18px;
+
+    & svg {
+      height: 100%;
+      width: 100%;
+    }
+  }
+
+  & [data-part="label"] {
+    font: var(--noora-font-body-medium);
+  }
+
+  &:hover {
+    background: var(--noora-surface-background-secondary);
+  }
+
+  &[data-selected] {
+    background: var(--noora-button-background-secondary);
+    box-shadow: var(--noora-button-border-secondary);
+  }
+}

@@ -6,6 +6,15 @@ defmodule TuistWeb.AppLayoutComponents do
   use TuistWeb.Noora
   import TuistWeb.AppComponents, except: [icon: 1]
   import TuistWeb.AccountDropdown
+  import TuistWeb.Noora.Breadcrumbs
+  import TuistWeb.Noora.Sidebar
+  import TuistWeb.Noora.Icon
+  import TuistWeb.Noora.LineDivider
+  import TuistWeb.Noora.Avatar
+  alias Tuist.Accounts
+  alias Tuist.Accounts.User
+
+  defdelegate noora_button(assigns), to: TuistWeb.Noora.Button, as: :button
 
   attr :current_path, :string, required: true
   attr :current_user, :map, required: true
@@ -59,12 +68,39 @@ defmodule TuistWeb.AppLayoutComponents do
     """
   end
 
+  def project_sidebar(assigns) do
+    ~H"""
+    <%= if FunWithFlags.enabled?(:noora) do %>
+      <.noora_project_sidebar />
+    <% else %>
+      <.legacy_project_sidebar {assigns} />
+    <% end %>
+    """
+  end
+
+  defp noora_project_sidebar(assigns) do
+    ~H"""
+    <.sidebar>
+      <.sidebar_item label="Overview" icon="smart_home" selected={true} />
+      <.sidebar_group id="tests" label="Tests" icon="subtask">
+        <.sidebar_item label="Test runs" icon="dashboard" />
+        <.sidebar_item label="Test cases" icon="exchange" />
+        <.sidebar_item label="Flaky tests" icon="progress_x" />
+      </.sidebar_group>
+      <.sidebar_group id="binary_cache" label="Binary cache" icon="database">
+        <.sidebar_item label="Cache runs" icon="schema" />
+      </.sidebar_group>
+      <.sidebar_item label="Previews" icon="devices" />
+    </.sidebar>
+    """
+  end
+
   attr :selected_project, :map, required: true
   attr :selected_account, :map, required: true
   attr :current_user, :map, required: true
   attr :current_path, :string, required: true
 
-  def project_sidebar(assigns) do
+  defp legacy_project_sidebar(assigns) do
     ~H"""
     <%= if Map.has_key?(assigns, :selected_account) and !is_nil(@selected_account) and Map.has_key?(assigns, :selected_project) and !is_nil(@selected_project) do %>
       <nav class="sidebar">

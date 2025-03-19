@@ -114,7 +114,7 @@
       }
     }
 
-    &[data-state="closed"] [data-part="indicator-up"] {
+    &:not([data-state="open"]) [data-part="indicator-up"] {
       display: none;
     }
 

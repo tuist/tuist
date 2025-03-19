@@ -1,8 +1,8 @@
 @import "./css/avatar.css";
 @import "./css/badge.css";
 @import "./css/banner.css";
-@import "./css/button.css";
 @import "./css/breadcrumbs.css";
+@import "./css/button.css";
 @import "./css/card.css";
 @import "./css/chart.css";
 @import "./css/dismiss-icon.css";
@@ -12,6 +12,8 @@
 @import "./css/line-divider.css";
 @import "./css/modal.css";
 @import "./css/shortcut-key.css";
+@import "./css/sidebar.css";
+@import "./css/tab-menu.css";
 @import "./css/table.css";
 @import "./css/tag.css";
 @import "./css/text-divider.css";

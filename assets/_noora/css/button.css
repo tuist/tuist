@@ -1,18 +1,5 @@
 .noora-button,
 .noora-link-button {
-  --noora-button-primary-background: var(--noora-purple-500);
-  --noora-button-primary-label: var(--noora-neutral-light-50);
-  --noora-button-primary-disabled-background: var(--noora-purple-300);
-  --noora-button-primary-disabled-label: var(--noora-neutral-light-200);
-  --noora-button-secondary-background: light-dark(var(--noora-neutral-light-50), var(--noora-neutral-dark-1100));
-  --noora-button-secondary-label: light-dark(var(--noora-neutral-light-1200), var(--noora-neutral-light-50));
-  --noora-button-secondary-disabled-background: var(--noora-neutral-light-100);
-  --noora-button-secondary-disabled-label: var(--noora-neutral-light-600);
-  --noora-button-destructive-background: var(--noora-red-500);
-  --noora-button-destructive-label: var(--noora-neutral-light-50);
-  --noora-button-destructive-disabled-background: var(--noora-red-300);
-  --noora-button-destructive-disabled-label: var(--noora-neutral-light-200);
-
   -webkit-appearance: button;
   align-items: center;
   border-radius: var(--noora-radius-medium);
@@ -22,9 +9,6 @@
 }
 
 .noora-button {
-  background: linear-gradient(180deg, var(--background-gradient-start) 0%, var(--background-gradient-end) 100%),
-    var(--background-base);
-  box-shadow: var(--border);
   cursor: pointer;
   outline: unset;
 
@@ -37,123 +21,67 @@
   }
 
   &[data-variant="primary"] {
-    --background-base: var(--noora-button-primary-background);
-    --background-gradient-start: oklch(100% 0 0 / 0.16);
-    --background-gradient-end: oklch(100% 0 0 / 0);
-    --border: 0px 1px 0px 0px oklch(100% 0 0 / 0.2) inset,
-      0px 1px 1px 0px light-dark(oklch(31.8% 0.011 248.2 / 0.05), oklch(20.9% 0.009 264.4 / 0.2)),
-      0px 0px 0px 1px oklch(46.9% 0.27 286.9 / 0.9),
-      0px 1px 3px 0px light-dark(oklch(31.8% 0.011 248.2 / 0.16), oklch(0% 0 0 / 0.4));
-
+    background: var(--noora-button-background-primary);
+    box-shadow: var(--noora-button-border-primary);
     color: var(--noora-button-primary-label);
 
     &:hover {
-      --background-gradient-start: oklch(100% 0 0 / 0.08);
-      --background-gradient-end: oklch(100% 0 0 / 0);
-      --border: 0px 1px 1px oklch(31.8% 0.011 248.2 / 0.12), 0px 0px 0px 1px oklch(46.9% 0.27 286.9 / 0.9),
-        0px 2px 3px oklch(31.8% 0.011 248.2 / 0.16), 0px 1px 0px oklch(100% 0 0 / 0.1) inset;
-
-      html[data-theme="dark"] {
-        --border: 0px 1px 0px 0px oklch(100% 0 0 / 0.1) inset, 0px 1px 1px 0px oklch(20.9% 0.009 264.4 / 0.2),
-          0px 0px 0px 1px oklch(46.9% 0.27 286.9 / 0.9), 0px 2px 3px 0px oklch(0% 0 0 / 0.4);
-      }
+      background: var(--noora-button-background-primary-hover);
+      box-shadow: var(--noora-button-border-primary-hover);
     }
 
     &:disabled {
-      --background-base: var(--noora-button-primary-disabled-background);
-      --background-gradient-start: light-dark(oklch(100% 0 0 / 0.16), oklch(31.8% 0.011 248.2 / 0.25));
-      --background-gradient-end: light-dark(oklch(100% 0 0 / 0), oklch(31.8% 0.011 248.2 / 0.5));
-      --border: 0px 1px 0px 0px oklch(100% 0 0 / 0.2) inset,
-        0px 1px 1px 0px light-dark(oklch(31.8% 0.011 248.2 / 0.12), oklch(20.9% 0.009 264.4 / 0.2)),
-        0px 0px 0px 1px oklch(46.9% 0.27 286.9 / 0.4),
-        0px 2px 3px 0px light-dark(oklch(31.8% 0.011 248.2 / 0.16), oklch(0% 0 0 / 0.4));
+      background: var(--noora-button-background-primary-disabled);
+      box-shadow: var(--noora-button-border-primary-disabled);
       color: var(--noora-button-primary-disabled-label);
     }
 
     &:not(:disabled):active {
-      --border: 0px 0px 0px 1px oklch(46.9% 0.27 286.9 / 0.9),
-        0px 1px 4px 0px light-dark(oklch(0% 0 0 / 0.3), oklch(0% 0 0 / 0.4)) inset;
-      background: var(--noora-button-primary-background);
+      background: var(--noora-button-background-primary-active);
+      box-shadow: var(--noora-button-border-primary-active);
     }
   }
 
   &[data-variant="secondary"] {
-    --background-base: var(--noora-button-secondary-background);
-    --background-gradient-start: light-dark(oklch(78.6% 0.013 248 / 0), oklch(100% 0 0 / 0.06));
-    --background-gradient-end: light-dark(oklch(78.6% 0.013 248 / 0.06), oklch(100% 0 0 / 0));
-    --border: 0px 1px 0px 0px light-dark(oklch(100% 0 0 / 0.9), oklch(100% 0 0 / 0.12)) inset,
-      0px 1px 1px 0px light-dark(oklch(31.8% 0.011 248.2 / 0.05), oklch(20.9% 0.009 264.4 / 0.8)),
-      0px 0px 0px 1px light-dark(oklch(31.8% 0.011 248.2 / 0.08), oklch(31.6% 0.01 260.7 / 0.9)),
-      0px 2px 3px 0px light-dark(oklch(31.8% 0.011 248.2 / 0.06), oklch(0% 0 0 / 0.24));
-
+    background: var(--noora-button-background-secondary);
+    box-shadow: var(--noora-button-border-secondary);
     color: var(--noora-button-secondary-label);
 
     &:hover {
-      --background-gradient-start: light-dark(oklch(78.6% 0.013 248 / 0.03), oklch(100% 0 0 / 0.03));
-      --background-gradient-end: light-dark(oklch(78.6% 0.013 248 / 0.13), oklch(100% 0 0 / 0));
-
-      html[data-theme="dark"] {
-        --border: 0px 1px 0px 0px oklch(100% 0 0 / 0.06) inset, 0px 1px 1px 0px oklch(20.9% 0.009 264.4 / 0.8),
-          0px 0px 0px 1px oklch(31.6% 0.01 260.7 / 0.9), 0px 2px 3px 0px oklch(0% 0 0 / 0.24);
-      }
+      background: var(--noora-button-background-secondary-hover);
     }
 
     &:disabled {
-      --background-base: var(--noora-button-secondary-disabled-background);
-      --background-gradient-start: light-dark(oklch(78.6% 0.013 248 / 0), oklch(100% 0 0 / 0.06));
-      --background-gradient-end: light-dark(oklch(78.6% 0.013 248 / 0.06), oklch(100% 0 0 / 0));
-      --border: 0px 1px 0px 0px light-dark(oklch(100% 0 0 / 0.7), oklch(100% 0 0 / 0.12)) inset,
-        0px 1px 1px 0px light-dark(oklch(31.8% 0.011 248.2 / 0.05), oklch(20.9% 0.009 264.4 / 0.8)),
-        0px 0px 0px 1px light-dark(oklch(31.8% 0.011 248.2 / 0.05), oklch(31.6% 0.01 260.7 / 0.9)),
-        0px 2px 3px 0px light-dark(oklch(31.8% 0.011 248.2 / 0.06), oklch(0% 0 0 / 0.24));
-
+      background: var(--noora-button-background-secondary-disabled);
+      box-shadow: var(--noora-button-border-secondary-disabled);
       color: var(--noora-button-secondary-disabled-label);
     }
 
     &:not(:disabled):active {
-      --background-gradient-start: light-dark(oklch(78.6% 0.013 248 / 0.03), oklch(100% 0 0 / 0.03));
-      --background-gradient-end: light-dark(oklch(78.6% 0.013 248 / 0.13), oklch(100% 0 0 / 0));
-      --border: 0px 0px 0px 1px light-dark(oklch(31.8% 0.011 248.2 / 0.08), oklch(31.6% 0.01 260.7 / 0.9)),
-        0px 1px 2px 0px light-dark(oklch(0% 0 0 / 0.05), oklch(0% 0 0 / 0.4)) inset;
+      background: var(--noora-button-background-secondary-active);
+      box-shadow: var(--noora-button-border-secondary-active);
     }
   }
 
   &[data-variant="destructive"] {
-    --background-base: var(--noora-button-destructive-background);
-    --background-gradient-start: oklch(100% 0 0 / 0.24);
-    --background-gradient-end: oklch(100% 0 0 / 0);
-    --border: 0px 1px 0px 0px oklch(100% 0 0 / 0.2) inset,
-      0px 1px 1px 0px light-dark(oklch(31.8% 0.011 248.2 / 0.12), oklch(20.9% 0.009 264.4 / 0.2)),
-      0px 0px 0px 1px oklch(51.2% 0.201 30.7 / 0.8),
-      0px 2px 3px 0px light-dark(oklch(31.8% 0.011 248.2 / 0.16), oklch(0% 0 0 / 0.4));
+    background: var(--noora-button-background-destructive);
+    box-shadow: var(--noora-button-border-destructive);
 
     color: var(--noora-button-destructive-label);
 
     &:hover {
-      --background-gradient-start: oklch(100% 0 0 / 0.06);
-      --background-gradient-end: oklch(100% 0 0 / 0);
-      --border: 0px 1px 0px 0px oklch(100% 0 0 / 0.1) inset,
-        0px 1px 1px 0px light-dark(oklch(31.8% 0.011 248.2 / 0.12), oklch(20.9% 0.009 264.4 / 0.2)),
-        0px 0px 0px 1px oklch(51.2% 0.201 30.7 / 0.8),
-        0px 2px 3px 0px light-dark(oklch(31.8% 0.011 248.2 / 0.16), oklch(0% 0 0 / 0.4));
+      background: var(--noora-button-background-destructive-hover);
+      box-shadow: var(--noora-button-border-destructive-hover);
     }
 
     &:disabled {
-      --background-base: var(--noora-button-destructive-disabled-background);
-      --background-gradient-start: light-dark(oklch(100% 0 0 / 0.32), oklch(31.8% 0.011 248.2 / 0.25));
-      --background-gradient-end: light-dark(oklch(100% 0 0 / 0), oklch(31.8% 0.011 248.2 / 0.45));
-      --border: 0px 1px 0px 0px oklch(100% 0 0 / 0.2) inset,
-        0px 1px 1px 0px light-dark(oklch(31.8% 0.011 248.2 / 0.12), oklch(20.9% 0.009 264.4 / 0.2)),
-        0px 0px 0px 1px oklch(51.2% 0.201 30.7 / 0.5),
-        0px 2px 3px 0px light-dark(oklch(31.8% 0.011 248.2 / 0.16), oklch(0% 0 0 / 0.4));
-
+      background: var(--noora-button-background-destructive-disabled);
+      box-shadow: var(--noora-button-border-destructive-disabled);
       color: var(--noora-button-destructive-disabled-label);
     }
 
     &:not(:disabled):active {
-      --border: 0px 0px 0px 1px oklch(51.2% 0.201 30.7 / 0.8),
-        0px 1px 4px 0px light-dark(oklch(0% 0 0 / 0.3), oklch(0% 0 0 / 0.4)) inset;
-
+      box-shadow: var(--noora-button-border-destructive-active);
       background: var(--noora-button-destructive-background);
     }
   }
