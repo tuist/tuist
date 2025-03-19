@@ -120,13 +120,19 @@ public final class ManifestModelConverter: ManifestModelConverting {
         let externalProjects = try await [AbsolutePath: XcodeGraph.Project](
             uniqueKeysWithValues: dependenciesGraph.externalProjects
                 .concurrentMap { path, project in
+                    let projectType: ProjectType = switch project.sourcePackageType {
+                       case .remote:
+                           .external(hash: project.hash)
+                       case .local:
+                           .local
+                    }
                     let projectPath = try AbsolutePath(validating: path.pathString)
                     var project = try await self.convert(
                         manifest: project.manifest,
                         path: projectPath,
                         plugins: .none,
                         externalDependencies: externalDependencies,
-                        type: .external(hash: project.hash)
+                        type: projectType
                     )
                     // Disable all lastUpgradeCheck related warnings on projects generated from dependencies
                     project.lastUpgradeCheck = Version(99, 9, 9)
