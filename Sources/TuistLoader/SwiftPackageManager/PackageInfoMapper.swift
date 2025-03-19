@@ -904,11 +904,20 @@ extension ProjectDescription.ResourceFileElements {
                     }
                 }
             )
-            resourceFileElements += try defaultResourcePaths(from: path) { candidateURL in
-                let candidatePath = AbsolutePath(stringLiteral: candidateURL.path)
-                let candidateNotInExcludedDirectory = excludedPaths.allSatisfy { !$0.isAncestorOfOrEqual(to: candidatePath) }
-                return candidateNotInExcludedDirectory
+            resourceFileElements += try await fileSystem.glob(
+                directory: path,
+                include: [
+                    "**/*.{\(defaultSpmResourceFileExtensions.joined(separator: ","))}",
+                ]
+            )
+            .collect()
+            .filter { candidatePath in
+                try excludedPaths.allSatisfy {
+                    try !AbsolutePath(validating: $0.pathString.lowercased())
+                        .isAncestorOfOrEqual(to: AbsolutePath(validating: candidatePath.pathString.lowercased()))
+                }
             }
+            .sorted()
             .compactMap { try handleProcessResource(resourceAbsolutePath: $0) }
         }
 
