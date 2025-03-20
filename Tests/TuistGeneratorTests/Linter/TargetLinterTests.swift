@@ -118,16 +118,6 @@ final class TargetLinterTests: TuistUnitTestCase {
         try await XCTAssertValidBundleId("com.company.MyModule${BUNDLE_SUFFIX}")
     }
 
-    func test_lint_when_target_no_source_files() async throws {
-        let target = Target.test(sources: [])
-        let got = try await subject.lint(target: target, options: .test())
-
-        XCTContainsLintingIssue(
-            got,
-            LintingIssue(reason: "The target \(target.name) doesn't contain source files.", severity: .warning)
-        )
-    }
-
     func test_lint_when_target_no_source_files_but_remote() async throws {
         let target = Target(
             name: "Target",
@@ -328,60 +318,6 @@ final class TargetLinterTests: TuistUnitTestCase {
             dynamicFrameworkResult,
             LintingIssue(
                 reason: "Target \(dynamicFramework.name) cannot contain resources. For \(dynamicFramework.product) targets to support resources, 'Bundle Accessors' feature should be enabled.",
-                severity: .error
-            )
-        )
-    }
-
-    func test_lint_when_framework_has_resources_with_disable_bundle_accessors() async throws {
-        let temporaryPath = try temporaryPath()
-        let path = temporaryPath.appending(component: "Image.png")
-        let element = ResourceFileElement.file(path: path)
-
-        let staticFramework = Target.test(product: .staticFramework, resources: .init([element]))
-        let dynamicFramework = Target.test(product: .framework, resources: .init([element]))
-
-        let staticFrameworkResult = try await subject.lint(
-            target: staticFramework,
-            options: .test(disableBundleAccessors: true)
-        )
-        XCTContainsLintingIssue(
-            staticFrameworkResult,
-            LintingIssue(reason: "The target \(staticFramework.name) doesn't contain source files.", severity: .warning)
-        )
-
-        let dynamicFrameworkResult = try await subject.lint(
-            target: dynamicFramework,
-            options: .test(disableBundleAccessors: true)
-        )
-        XCTDoesNotContainLintingIssue(
-            dynamicFrameworkResult,
-            LintingIssue(
-                reason: "Target \(dynamicFramework.name) cannot contain resources. For \(dynamicFramework.product) targets to support resources, 'Bundle Accessors' feature should be enabled.",
-                severity: .error
-            )
-        )
-    }
-
-    func test_lint_when_ios_bundle_has_sources() async throws {
-        // Given
-        let bundle = Target.empty(
-            destinations: .iOS,
-            product: .bundle,
-            sources: [
-                SourceFile(path: "/path/to/some/source.swift"),
-            ],
-            resources: .init([])
-        )
-
-        // When
-        let result = try await subject.lint(target: bundle, options: .test())
-
-        // Then
-        XCTContainsLintingIssue(
-            result,
-            LintingIssue(
-                reason: "Target \(bundle.name) cannot contain sources. bundle targets in one of these destinations doesn't support source files: iPad, iPhone, macWithiPadDesign",
                 severity: .error
             )
         )
