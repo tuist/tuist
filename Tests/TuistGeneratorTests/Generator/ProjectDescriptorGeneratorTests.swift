@@ -445,7 +445,7 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
             "../LocalPackages/LocalPackageA",
         ])
     }
-
+    
     func test_generate_setsLastUpgradeCheck() async throws {
         // Given
         let path = try temporaryPath()
@@ -470,6 +470,95 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
         XCTAssertEqual(attributes, [
             "BuildIndependentTargetsInParallel": "YES",
             "LastUpgradeCheck": "1251",
+        ])
+    }
+    
+    func test_generate_localSwiftPackages() async throws {
+        // Given
+        let projectPath = try AbsolutePath(validating: "/Project")
+        let localPackagePath = try AbsolutePath(validating: "/LocalPackages/LocalPackageA")
+        let target = Target.test(name: "A")
+        let project = Project.test(
+            path: projectPath,
+            sourceRootPath: projectPath,
+            name: "Project",
+            targets: [target, .test(name: "B", dependencies: [.package(product: "A", type: .runtime)])],
+            packages: [.local(path: localPackagePath)]
+        )
+        let graphTarget = GraphTarget(path: project.path, target: target, project: project)
+        let graph = Graph.test(
+            projects: [project.path: project],
+            packages: [
+                project.path: [
+                    "A": .local(path: localPackagePath),
+                ],
+            ],
+            dependencies: [
+                .target(name: graphTarget.target.name, path: graphTarget.path): [
+                    .packageProduct(path: project.path, product: "A", type: .runtime),
+                ],
+            ]
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        given(xcodeController)
+            .selectedVersion()
+            .willReturn(Version(15, 0, 0))
+
+        // When
+        let got = try await subject.generate(project: project, graphTraverser: graphTraverser)
+
+        // Then
+        let pbxproj = got.xcodeProj.pbxproj
+        let rootObject = try XCTUnwrap(pbxproj.rootObject)
+        let localPackagePaths = rootObject.localPackages.compactMap(\.relativePath)
+        let remotePackageNames = rootObject.remotePackages.compactMap(\.name)
+        XCTAssertEqual(localPackagePaths, [
+            "/LocalPackages/LocalPackageA",
+        ])
+        XCTAssert(remotePackageNames.isEmpty)
+    }
+    
+    func test_generate_remoteSwiftPackages() async throws {
+        given(xcodeController)
+            .selectedVersion()
+            .willReturn(Version(15, 0, 0))
+
+        // Given
+        let temporaryPath = try temporaryPath()
+        let target = Target.test(name: "A")
+        let project = Project.test(
+            path: temporaryPath,
+            name: "Project",
+            targets: [target, .test(name: "B", dependencies: [.package(product: "A", type: .runtime)])],
+            packages: [.remote(url: "A", requirement: .exact("0.1"))]
+        )
+
+        let graphTarget = GraphTarget.test(path: project.path, target: target, project: project)
+        let graph = Graph.test(
+            projects: [project.path: project],
+            packages: [
+                project.path: [
+                    "A": .remote(url: "A", requirement: .exact("0.1")),
+                ],
+            ],
+            dependencies: [
+                .target(name: graphTarget.target.name, path: graphTarget.path): [
+                    .packageProduct(path: project.path, product: "A", type: .runtime),
+                ],
+            ]
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let got = try await subject.generate(project: project, graphTraverser: graphTraverser)
+
+        // Then
+        let pbxproj = got.xcodeProj.pbxproj
+        let rootObject = try XCTUnwrap(pbxproj.rootObject)
+        let remotePackageNames = rootObject.remotePackages.compactMap(\.name)
+        XCTAssertEqual(remotePackageNames, [
+            "A",
         ])
     }
 }
