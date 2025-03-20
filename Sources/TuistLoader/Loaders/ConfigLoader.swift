@@ -85,9 +85,14 @@ public final class ConfigLoader: ConfigLoading {
     private func defaultConfig(at path: AbsolutePath) async throws -> Tuist {
         let anyXcodeProjectOrWorkspace = !(
             try await fileSystem.glob(directory: path, include: ["*.xcodeproj", "*.xcworkspace"])
-                .collect()
-        ).isEmpty
-        if anyXcodeProjectOrWorkspace {
+                .collect().isEmpty
+        )
+        let anyWorkspaceOrProjectManifest = !(try await fileSystem.glob(
+            directory: path,
+            include: ["Project.swift", "Workspace.swift"]
+        ).collect().isEmpty)
+
+        if anyXcodeProjectOrWorkspace, !anyWorkspaceOrProjectManifest {
             return Tuist(
                 project: .xcode(TuistXcodeProjectOptions()),
                 fullHandle: nil,
