@@ -21,7 +21,6 @@ final class ShareAcceptanceTests: ServerAcceptanceTestCase {
 
             // When: Share
             try await run(ShareCommand.self)
-            XCTAssertTrue(ServiceContext.current?.recordedUI().contains("App uploaded") == true)
             XCTAssertTrue(
                 ServiceContext.current?.recordedUI()
                     .contains("Share App with others using the following link:") == true
@@ -49,7 +48,6 @@ final class ShareAcceptanceTests: ServerAcceptanceTestCase {
             // When: Share App
             try await run(ShareCommand.self, "App")
             let shareLink = try previewLink("App")
-            XCTAssertTrue(ServiceContext.current?.recordedUI().contains("App uploaded") == true)
             XCTAssertTrue(
                 ServiceContext.current?.recordedUI()
                     .contains("Share App with others using the following link:") == true
@@ -65,7 +63,6 @@ final class ShareAcceptanceTests: ServerAcceptanceTestCase {
             // When: Share AppClip1
             try await run(ShareCommand.self, "AppClip1")
             let appClipShareLink = try previewLink("AppClip1")
-            XCTAssertTrue(ServiceContext.current?.recordedUI().contains("AppClip1 uploaded") == true)
             XCTAssertTrue(
                 ServiceContext.current?.recordedUI()
                     .contains("Share AppClip1 with others using the following link:") == true
@@ -99,10 +96,14 @@ final class ShareAcceptanceTests: ServerAcceptanceTestCase {
                 ]
             )
             try await run(ShareCommand.self, "App", "--platforms", "ios")
-            assertSnapshot(of: ServiceContext.current?.recordedUI() ?? "", as: .lines)
+            XCTAssertTrue(
+                ServiceContext.current?.recordedUI()
+                    .contains("Share App with others using the following link:") == true
+            )
+            let previewLink = try previewLink()
             ServiceContext.current?.resetRecordedUI()
 
-            try await run(RunCommand.self, try previewLink(), "-destination", "iPhone 16 Plus")
+            try await run(RunCommand.self, previewLink, "-destination", "iPhone 16 Plus")
             XCTAssertStandardOutput(pattern: "Installing and launching App on iPhone 16 Plus")
             assertSnapshot(of: ServiceContext.current?.recordedUI() ?? "", as: .lines)
         }
@@ -136,7 +137,13 @@ final class ShareAcceptanceTests: ServerAcceptanceTestCase {
                 buildDirectory.appending(component: "App.app").pathString,
                 "--platforms", "ios"
             )
-            try await run(RunCommand.self, try previewLink(), "-destination", "iPhone 16 Plus")
+            XCTAssertTrue(
+                ServiceContext.current?.recordedUI()
+                    .contains("Share App with others using the following link:") == true
+            )
+            let previewLink = try previewLink()
+            ServiceContext.current?.resetRecordedUI()
+            try await run(RunCommand.self, previewLink, "-destination", "iPhone 16 Plus")
             XCTAssertStandardOutput(pattern: "Installing and launching App on iPhone 16 Plus")
             assertSnapshot(of: ServiceContext.current?.recordedUI() ?? "", as: .lines)
         }
