@@ -263,6 +263,44 @@ final class ConfigLoaderTests: TuistUnitTestCase {
         ))
     }
 
+    func test_loadConfig_whenFileIsMissing_and_generatedWorkspaceExists() async throws {
+        // Given
+        let projectPath = try temporaryPath().appending(component: "project")
+        try await fileSystem.makeDirectory(at: projectPath)
+        try await fileSystem.touch(projectPath.appending(component: "Workspace.swift"))
+        try await fileSystem.touch(projectPath.appending(component: "Test.xcworkspace"))
+        stub(rootDirectory: nil)
+
+        // When
+        let result = try await subject.loadConfig(path: projectPath)
+
+        // Then
+        XCTAssertBetterEqual(result, TuistCore.Tuist(
+            project: .defaultGeneratedProject(),
+            fullHandle: nil,
+            url: Constants.URLs.production
+        ))
+    }
+
+    func test_loadConfig_whenFileIsMissing_and_generatedProjectExists() async throws {
+        // Given
+        let projectPath = try temporaryPath().appending(component: "project")
+        try await fileSystem.makeDirectory(at: projectPath)
+        try await fileSystem.touch(projectPath.appending(component: "Project.swift"))
+        try await fileSystem.touch(projectPath.appending(component: "Project.xcodeproj"))
+        stub(rootDirectory: nil)
+
+        // When
+        let result = try await subject.loadConfig(path: projectPath)
+
+        // Then
+        XCTAssertBetterEqual(result, TuistCore.Tuist(
+            project: .defaultGeneratedProject(),
+            fullHandle: nil,
+            url: Constants.URLs.production
+        ))
+    }
+
     // MARK: - Helpers
 
     private func stub(path: AbsolutePath, exists: Bool) {
