@@ -21,7 +21,7 @@ extension Target {
             return (valid: sources, invalid: [])
         }
     }
-    
+
     var shouldCoredataModelsBeSources: Bool {
         switch product {
         case .stickerPackExtension, .watch2App:
@@ -32,5 +32,4 @@ extension Target {
             return true
         }
     }
-    
 }

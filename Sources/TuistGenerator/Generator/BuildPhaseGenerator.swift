@@ -89,7 +89,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
 
         try generateSourcesBuildPhase(
             files: target.validatedSources.valid,
-            coreDataModels: target.shouldCoredataModelsBeSources ? target.coreDataModels : [],
+            coreDataModels: target.coreDataModels,
             target: target,
             pbxTarget: pbxTarget,
             fileElements: fileElements,
@@ -300,11 +300,14 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
             }
         }
 
-        pbxBuildFiles.append(contentsOf: generateCoreDataModels(
-            coreDataModels: coreDataModels,
-            fileElements: fileElements,
-            pbxproj: pbxproj
-        ))
+        if target.shouldCoredataModelsBeSources {
+            pbxBuildFiles.append(contentsOf: generateCoreDataModels(
+                coreDataModels: coreDataModels,
+                fileElements: fileElements,
+                pbxproj: pbxproj
+            ))
+        }
+
         pbxBuildFiles.forEach { pbxproj.add(object: $0) }
         sourcesBuildPhase.files = pbxBuildFiles
     }
@@ -363,7 +366,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
             fileElements: fileElements
         ))
 
-        if !target.supportsSources {
+        if !target.shouldCoredataModelsBeSources {
             // CoreData models are typically added to the sources build phase
             // and Xcode automatically bundles the models.
             // For static libraries / frameworks however, they don't support resources,
