@@ -6,8 +6,8 @@ import TuistCore
 import TuistCoreTesting
 import TuistSupport
 import XcodeGraph
-import XcodeProj
 import XCTest
+@testable import XcodeProj
 @testable import TuistGenerator
 @testable import TuistSupportTesting
 
@@ -511,12 +511,19 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
         // Then
         let pbxproj = got.xcodeProj.pbxproj
         let rootObject = try XCTUnwrap(pbxproj.rootObject)
+        let pbxobjects = try rootObject.objects()
         let localPackagePaths = rootObject.localPackages.compactMap(\.relativePath)
+        let localSwiftPackageReferencePaths = pbxobjects.localSwiftPackageReferences.values.compactMap(\.relativePath)
         let remotePackageNames = rootObject.remotePackages.compactMap(\.name)
+        let remoteSwiftPackageReferenceNames = pbxobjects.remoteSwiftPackageReferences.values.compactMap(\.name)
         XCTAssertEqual(localPackagePaths, [
             "/LocalPackages/LocalPackageA",
         ])
+        XCTAssertEqual(localSwiftPackageReferencePaths, [
+            "/LocalPackages/LocalPackageA",
+        ])
         XCTAssert(remotePackageNames.isEmpty)
+        XCTAssert(remoteSwiftPackageReferenceNames.isEmpty)
     }
     
     func test_generate_remoteSwiftPackages() async throws {
@@ -556,8 +563,17 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
         // Then
         let pbxproj = got.xcodeProj.pbxproj
         let rootObject = try XCTUnwrap(pbxproj.rootObject)
+        let pbxobjects = try rootObject.objects()
+        let localPackagePaths = rootObject.localPackages.compactMap(\.relativePath)
+        let localSwiftPackageReferencePaths = pbxobjects.localSwiftPackageReferences.values.compactMap(\.relativePath)
         let remotePackageNames = rootObject.remotePackages.compactMap(\.name)
+        let remoteSwiftPackageReferenceNames = pbxobjects.remoteSwiftPackageReferences.values.compactMap(\.name)
+        XCTAssert(localPackagePaths.isEmpty)
+        XCTAssert(localSwiftPackageReferencePaths.isEmpty)
         XCTAssertEqual(remotePackageNames, [
+            "A",
+        ])
+        XCTAssertEqual(remoteSwiftPackageReferenceNames, [
             "A",
         ])
     }
