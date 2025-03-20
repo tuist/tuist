@@ -48,7 +48,7 @@ final class ResourceSynthesizerManifestMapperTests: TuistUnitTestCase {
             .init(
                 parser: .strings,
                 parserOptions: [:],
-                extensions: ["strings", "stringsdict"],
+                extensions: ["strings", "stringsdict", "xcstrings"],
                 template: .defaultTemplate("Strings")
             )
         )
@@ -87,7 +87,7 @@ final class ResourceSynthesizerManifestMapperTests: TuistUnitTestCase {
                     "boolValue": true,
                     "doubleValue": 1.0,
                 ],
-                extensions: ["strings", "stringsdict"],
+                extensions: ["strings", "stringsdict", "xcstrings"],
                 template: .defaultTemplate("Strings")
             )
         )
@@ -120,7 +120,7 @@ final class ResourceSynthesizerManifestMapperTests: TuistUnitTestCase {
             .init(
                 parser: .strings,
                 parserOptions: [:],
-                extensions: ["strings", "stringsdict"],
+                extensions: ["strings", "stringsdict", "xcstrings"],
                 template: .file(manifestDirectory.appending(component: "Template.stencil"))
             )
         )
