@@ -82,6 +82,55 @@ defmodule TuistWeb.AnalyticsControllerTest do
       assert command_event.cacheable_targets == ["target1", "target2"]
     end
 
+    test "errors if it authentices as a project from a non-CI environment", %{
+      conn: conn,
+      user: user
+    } do
+      # Given
+      account = Accounts.get_account_from_user(user)
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+      conn =
+        conn
+        |> Authentication.put_current_project(project)
+
+      ran_at_string = "2025-02-28T15:51:12Z"
+
+      {:ok, ran_at, _} =
+        DateTime.from_iso8601(ran_at_string)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          "/api/analytics?project_id=#{account.name}/#{project.name}",
+          %{
+            name: "generate",
+            subcommand: "generate",
+            command_arguments: ["App"],
+            duration: 100,
+            tuist_version: "1.0.0",
+            swift_version: "5.0",
+            macos_version: "10.15",
+            ran_at: ran_at_string,
+            params: %{
+              cacheable_targets: ["target1", "target2"],
+              local_cache_target_hits: ["target1"],
+              remote_cache_target_hits: ["target2"]
+            },
+            is_ci: false,
+            client_id: "client-id"
+          }
+        )
+
+      # Then
+      assert json_response(conn, :bad_request) == %{
+               "message" =>
+                 "Project authentication using a project-scoped token is not supported from non-CI environments. If you are running this from a CI environment, you can use the environment variable CI=1 to indicate so."
+             }
+    end
+
     test "returns newly created command event when the date is missing", %{conn: conn, user: user} do
       # Given
       conn =

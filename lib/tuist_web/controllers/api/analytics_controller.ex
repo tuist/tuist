@@ -23,6 +23,7 @@ defmodule TuistWeb.API.AnalyticsController do
 
   plug(TuistWeb.API.EnsureProjectPresencePlug)
   plug(TuistWeb.API.Authorization.AuthorizationPlug, :run)
+  plug :bad_request_when_project_authenticated_from_non_ci_environment when action in [:create]
 
   tags ["Analytics"]
 
@@ -691,6 +692,26 @@ defmodule TuistWeb.API.AnalyticsController do
 
       "result_bundle_object" ->
         CommandEvents.get_result_bundle_object_key(command_event, name)
+    end
+  end
+
+  defp bad_request_when_project_authenticated_from_non_ci_environment(
+         %{
+           body_params: body_params
+         } = conn,
+         _opts
+       ) do
+    if is_nil(Authentication.current_project(conn)) or
+         body_params.is_ci do
+      conn
+    else
+      conn
+      |> put_status(:bad_request)
+      |> json(%{
+        message:
+          "Project authentication using a project-scoped token is not supported from non-CI environments. If you are running this from a CI environment, you can use the environment variable CI=1 to indicate so."
+      })
+      |> halt()
     end
   end
 end
