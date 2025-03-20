@@ -12,6 +12,8 @@ defmodule TuistWeb.Noora.TextInput do
 
   attr :id, :string, required: true
 
+  attr :field, Phoenix.HTML.FormField, doc: "A Phoenix form field"
+
   attr :type, :string,
     values: ~w(basic email card_number search password),
     default: "basic",
@@ -25,6 +27,8 @@ defmodule TuistWeb.Noora.TextInput do
     doc:
       "Hint text to show as tooltip at the end of the input. Takes precedence over the suffix set by `type`."
 
+  attr :name, :string, doc: "The name of the input"
+  attr :value, :string, doc: "The value of the input"
   attr :placeholder, :string, default: nil, doc: "Placeholder text to be rendered in the input."
   attr :required, :boolean, default: false, doc: "Whether the input is required."
 
@@ -38,6 +42,14 @@ defmodule TuistWeb.Noora.TextInput do
     required: false,
     doc: "Suffix to be rendered in the input. Takes precedence over `suffix_hint`."
 
+  def text_input(%{field: %Phoenix.HTML.FormField{} = field} = assigns) do
+    assigns
+    |> assign(field: nil, id: assigns.id || field.id)
+    |> assign_new(:name, fn -> field.name end)
+    |> assign_new(:value, fn -> field.value end)
+    |> text_input()
+  end
+
   def text_input(assigns) do
     ~H"""
     <div class="noora-text-input">
@@ -48,8 +60,10 @@ defmodule TuistWeb.Noora.TextInput do
         </span>
         <input
           id={@id}
-          required={@required}
+          name={@name}
+          value={@value}
           type={type(@type)}
+          required={@required}
           placeholder={if @placeholder, do: @placeholder, else: placeholder(@type)}
           {@rest}
         />
