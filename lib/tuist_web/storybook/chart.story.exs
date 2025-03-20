@@ -3,6 +3,7 @@ defmodule TuistWeb.Storybook.Chart do
   use PhoenixStorybook.Story, :component
 
   def function, do: &TuistWeb.Noora.Chart.chart/1
+  def layout, do: :one_column
 
   def variations do
     [

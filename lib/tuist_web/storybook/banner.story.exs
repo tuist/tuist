@@ -3,6 +3,7 @@ defmodule TuistWeb.Storybook.Banner do
   use PhoenixStorybook.Story, :component
 
   def function, do: &TuistWeb.Noora.Banner.banner/1
+  def layout, do: :one_column
   def imports, do: [{TuistWeb.Noora.Icon, alert_circle: 1}]
 
   def variations do

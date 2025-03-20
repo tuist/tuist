@@ -3,6 +3,7 @@ defmodule TuistWeb.Storybook.Card do
   use PhoenixStorybook.Story, :component
 
   def function, do: &TuistWeb.Noora.Card.card/1
+  def layout, do: :one_column
 
   def imports,
     do: [{TuistWeb.Noora.Card, [card_section: 1]}, {TuistWeb.Noora.Button, [button: 1]}]

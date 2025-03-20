@@ -3,6 +3,7 @@ defmodule TuistWeb.Storybook.Table do
   use PhoenixStorybook.Story, :component
 
   def function, do: &TuistWeb.Noora.Table.table/1
+  def layout, do: :one_column
 
   def imports,
     do: [
