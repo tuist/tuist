@@ -82,6 +82,7 @@ final class ShareServiceTests: TuistUnitTestCase {
                 bundleIdentifier: .any,
                 icon: .any,
                 supportedPlatforms: .any,
+                path: .any,
                 fullHandle: .any,
                 serverURL: .any
             )
@@ -243,6 +244,7 @@ final class ShareServiceTests: TuistUnitTestCase {
                     bundleIdentifier: .any,
                     icon: .any,
                     supportedPlatforms: .any,
+                    path: .any,
                     fullHandle: .value("tuist/tuist"),
                     serverURL: .value(Constants.URLs.production)
                 )
@@ -438,6 +440,7 @@ final class ShareServiceTests: TuistUnitTestCase {
                     bundleIdentifier: .value("com.tuist.app"),
                     icon: .any,
                     supportedPlatforms: .value([.simulator(.iOS)]),
+                    path: .any,
                     fullHandle: .value("tuist/tuist"),
                     serverURL: .value(Constants.URLs.production)
                 )
@@ -791,6 +794,7 @@ final class ShareServiceTests: TuistUnitTestCase {
                     bundleIdentifier: .any,
                     icon: .any,
                     supportedPlatforms: .any,
+                    path: .any,
                     fullHandle: .value("tuist/tuist"),
                     serverURL: .value(Constants.URLs.production)
                 )
@@ -926,6 +930,7 @@ final class ShareServiceTests: TuistUnitTestCase {
                     bundleIdentifier: .any,
                     icon: .value(iosIconPath),
                     supportedPlatforms: .any,
+                    path: .any,
                     fullHandle: .value("tuist/tuist"),
                     serverURL: .value(Constants.URLs.production)
                 )
@@ -997,6 +1002,7 @@ final class ShareServiceTests: TuistUnitTestCase {
                     bundleIdentifier: .value("com.tuist.app"),
                     icon: .value(iconPath),
                     supportedPlatforms: .any,
+                    path: .any,
                     fullHandle: .value("tuist/tuist"),
                     serverURL: .value(Constants.URLs.production)
                 )

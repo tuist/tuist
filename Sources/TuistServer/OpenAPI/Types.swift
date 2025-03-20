@@ -3816,6 +3816,14 @@ internal enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/requestBody/json/display_name`.
                     internal var display_name: Swift.String?
+                    /// The git branch associated with the preview.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/requestBody/json/git_branch`.
+                    internal var git_branch: Swift.String?
+                    /// The git commit SHA associated with the preview.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/requestBody/json/git_commit_sha`.
+                    internal var git_commit_sha: Swift.String?
                     /// The supported platforms of the preview.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/requestBody/json/supported_platforms`.
@@ -3840,18 +3848,24 @@ internal enum Operations {
                     /// - Parameters:
                     ///   - bundle_identifier: The bundle identifier of the preview.
                     ///   - display_name: The display name of the preview.
+                    ///   - git_branch: The git branch associated with the preview.
+                    ///   - git_commit_sha: The git commit SHA associated with the preview.
                     ///   - supported_platforms: The supported platforms of the preview.
                     ///   - _type: The type of the preview to upload.
                     ///   - version: The version of the preview.
                     internal init(
                         bundle_identifier: Swift.String? = nil,
                         display_name: Swift.String? = nil,
+                        git_branch: Swift.String? = nil,
+                        git_commit_sha: Swift.String? = nil,
                         supported_platforms: [Components.Schemas.PreviewSupportedPlatform]? = nil,
                         _type: Operations.startPreviewsMultipartUpload.Input.Body.jsonPayload._typePayload? = nil,
                         version: Swift.String? = nil
                     ) {
                         self.bundle_identifier = bundle_identifier
                         self.display_name = display_name
+                        self.git_branch = git_branch
+                        self.git_commit_sha = git_commit_sha
                         self.supported_platforms = supported_platforms
                         self._type = _type
                         self.version = version
@@ -3859,6 +3873,8 @@ internal enum Operations {
                     internal enum CodingKeys: String, CodingKey {
                         case bundle_identifier
                         case display_name
+                        case git_branch
+                        case git_commit_sha
                         case supported_platforms
                         case _type = "type"
                         case version
@@ -12864,6 +12880,57 @@ internal enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/GET/responses/400/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/GET/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.downloadPreview.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.downloadPreview.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// The request is invalid
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/get(downloadPreview)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.downloadPreview.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            internal var badRequest: Operations.downloadPreview.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
                             response: self
                         )
                     }

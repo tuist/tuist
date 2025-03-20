@@ -149,6 +149,7 @@ struct ShareService {
         if appPaths.contains(where: { $0.extension == "ipa" }) {
             try await shareIPA(
                 appPaths,
+                path: path,
                 fullHandle: fullHandle,
                 serverURL: serverURL,
                 json: json
@@ -156,6 +157,7 @@ struct ShareService {
         } else if appPaths.contains(where: { $0.extension == "app" }) {
             try await shareAppBundles(
                 appPaths,
+                path: path,
                 fullHandle: fullHandle,
                 serverURL: serverURL,
                 json: json
@@ -197,6 +199,7 @@ struct ShareService {
                 configuration: configuration,
                 app: appTarget.target.productName,
                 derivedDataPath: derivedDataPath,
+                path: path,
                 fullHandle: fullHandle,
                 serverURL: serverURL,
                 json: json
@@ -221,6 +224,7 @@ struct ShareService {
                 configuration: configuration,
                 app: app,
                 derivedDataPath: derivedDataPath,
+                path: path,
                 fullHandle: fullHandle,
                 serverURL: serverURL,
                 json: json
@@ -242,6 +246,7 @@ struct ShareService {
 
     private func shareIPA(
         _ appPaths: [AbsolutePath],
+        path: AbsolutePath,
         fullHandle: String,
         serverURL: URL,
         json: Bool
@@ -266,6 +271,7 @@ struct ShareService {
             bundleIdentifier: appBundle.infoPlist.bundleId,
             icon: iconPaths(for: appBundle).first,
             supportedPlatforms: appBundle.infoPlist.supportedPlatforms,
+            path: path,
             fullHandle: fullHandle,
             serverURL: serverURL,
             json: json
@@ -274,6 +280,7 @@ struct ShareService {
 
     private func shareAppBundles(
         _ appPaths: [AbsolutePath],
+        path: AbsolutePath,
         fullHandle: String,
         serverURL: URL,
         json: Bool
@@ -297,6 +304,7 @@ struct ShareService {
                 .concurrentFlatMap { try await iconPaths(for: $0) }
                 .first,
             supportedPlatforms: appBundles.flatMap(\.infoPlist.supportedPlatforms),
+            path: path,
             fullHandle: fullHandle,
             serverURL: serverURL,
             json: json
@@ -338,6 +346,7 @@ struct ShareService {
         configuration: String,
         app: String,
         derivedDataPath: AbsolutePath?,
+        path: AbsolutePath,
         fullHandle: String,
         serverURL: URL,
         json: Bool
@@ -384,6 +393,7 @@ struct ShareService {
                     .concurrentFlatMap { try await iconPaths(for: $0) }
                     .first,
                 supportedPlatforms: appBundles.flatMap(\.infoPlist.supportedPlatforms),
+                path: path,
                 fullHandle: fullHandle,
                 serverURL: serverURL,
                 json: json
@@ -407,6 +417,7 @@ struct ShareService {
         bundleIdentifier: String?,
         icon: AbsolutePath?,
         supportedPlatforms: [DestinationType],
+        path: AbsolutePath,
         fullHandle: String,
         serverURL: URL,
         json: Bool
@@ -419,6 +430,7 @@ struct ShareService {
             bundleIdentifier: bundleIdentifier,
             icon: icon,
             supportedPlatforms: supportedPlatforms,
+            path: path,
             fullHandle: fullHandle,
             serverURL: serverURL
         )

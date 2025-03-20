@@ -1,34 +1,29 @@
+import FileSystem
 import Foundation
 import Mockable
+import Testing
 import TuistSupport
 import TuistSupportTesting
-import XCTest
 
 @testable import TuistServer
 
-final class PreviewsUploadServiceTests: TuistUnitTestCase {
+struct PreviewsUploadServiceTests {
     private var subject: PreviewsUploadService!
 
-    private var fileArchiver: MockFileArchiving!
-    private var multipartUploadStartPreviewsService: MockMultipartUploadStartPreviewsServicing!
-    private var multipartUploadGenerateURLPreviewsService: MockMultipartUploadGenerateURLPreviewsServicing!
-    private var multipartUploadArtifactService: MockMultipartUploadArtifactServicing!
-    private var multipartUploadCompletePreviewsService: MockMultipartUploadCompletePreviewsServicing!
-    private var multipartUploadCapturedGenerateUploadURLCallback: ((MultipartUploadArtifactPart) async throws -> String)!
-    private var uploadPreviewIconService: MockUploadPreviewIconServicing!
+    private let fileSystem = FileSystem()
+    private let fileArchiver = MockFileArchiving()
+    private let multipartUploadStartPreviewsService = MockMultipartUploadStartPreviewsServicing()
+    private let multipartUploadGenerateURLPreviewsService = MockMultipartUploadGenerateURLPreviewsServicing()
+    private let multipartUploadArtifactService = MockMultipartUploadArtifactServicing()
+    private let multipartUploadCompletePreviewsService = MockMultipartUploadCompletePreviewsServicing()
+    private let uploadPreviewIconService = MockUploadPreviewIconServicing()
+    private let gitController = MockGitControlling()
 
     private let serverURL: URL = .test()
     private let shareURL: URL = .test()
 
-    override func setUp() {
-        super.setUp()
-
+    init() {
         let fileArchiverFactory = MockFileArchivingFactorying()
-        multipartUploadStartPreviewsService = .init()
-        multipartUploadGenerateURLPreviewsService = .init()
-        multipartUploadArtifactService = .init()
-        multipartUploadCompletePreviewsService = .init()
-        uploadPreviewIconService = .init()
 
         subject = PreviewsUploadService(
             fileSystem: fileSystem,
@@ -38,10 +33,10 @@ final class PreviewsUploadServiceTests: TuistUnitTestCase {
             multipartUploadGenerateURLPreviewsService: multipartUploadGenerateURLPreviewsService,
             multipartUploadArtifactService: multipartUploadArtifactService,
             multipartUploadCompletePreviewsService: multipartUploadCompletePreviewsService,
-            uploadPreviewIconService: uploadPreviewIconService
+            uploadPreviewIconService: uploadPreviewIconService,
+            gitController: gitController
         )
 
-        fileArchiver = MockFileArchiving()
         given(fileArchiverFactory)
             .makeFileArchiver(for: .any)
             .willReturn(fileArchiver)
@@ -58,16 +53,6 @@ final class PreviewsUploadServiceTests: TuistUnitTestCase {
             )
             .willReturn(.test(url: shareURL))
 
-        given(multipartUploadArtifactService)
-            .multipartUploadArtifact(
-                artifactPath: .any,
-                generateUploadURL: .matching { callback in
-                    self.multipartUploadCapturedGenerateUploadURLCallback = callback
-                    return true
-                }
-            )
-            .willReturn([(etag: "etag", partNumber: 1)])
-
         given(multipartUploadGenerateURLPreviewsService)
             .uploadPreviews(
                 .value("preview-id"),
@@ -78,133 +63,186 @@ final class PreviewsUploadServiceTests: TuistUnitTestCase {
                 contentLength: .value(20)
             )
             .willReturn("https://tuist.dev/upload-url")
-    }
 
-    override func tearDown() {
-        fileArchiver = nil
-        multipartUploadStartPreviewsService = nil
-        multipartUploadGenerateURLPreviewsService = nil
-        multipartUploadArtifactService = nil
-        multipartUploadCompletePreviewsService = nil
-
-        super.tearDown()
-    }
-
-    func test_upload_app_bundle() async throws {
-        // Given
-        let preview = try temporaryPath().appending(component: "App.app")
-        try FileHandler.shared.touch(preview)
-
-        let artifactArchivePath = preview.parentDirectory.appending(component: "previews.zip")
-
-        given(fileArchiver)
-            .zip(name: .value("previews.zip"))
-            .willReturn(artifactArchivePath)
+        given(gitController)
+            .isInGitRepository(workingDirectory: .any)
+            .willReturn(false)
 
         given(multipartUploadStartPreviewsService)
             .startPreviewsMultipartUpload(
                 type: .any,
-                displayName: .value("App"),
+                displayName: .any,
                 version: .any,
                 bundleIdentifier: .any,
-                supportedPlatforms: .value([.simulator(.iOS)]),
-                fullHandle: .value("tuist/tuist"),
-                serverURL: .value(serverURL)
+                supportedPlatforms: .any,
+                gitBranch: .any,
+                gitCommitSHA: .any,
+                fullHandle: .any,
+                serverURL: .any
             )
             .willReturn(
                 PreviewUpload(previewId: "preview-id", uploadId: "upload-id")
             )
-
-        let shareURL = URL.test()
-
-        // When
-        let got = try await subject.uploadPreviews(
-            .appBundles([preview]),
-            displayName: "App",
-            version: nil,
-            bundleIdentifier: nil,
-            icon: nil,
-            supportedPlatforms: [.simulator(.iOS)],
-            fullHandle: "tuist/tuist",
-            serverURL: serverURL
-        )
-
-        // Then
-        XCTAssertEqual(
-            got,
-            .test(
-                id: "preview-id",
-                url: shareURL
-            )
-        )
-        let gotMultipartUploadURL = try await multipartUploadCapturedGenerateUploadURLCallback(MultipartUploadArtifactPart(
-            number: 1,
-            contentLength: 20
-        ))
-        XCTAssertEqual(gotMultipartUploadURL, "https://tuist.dev/upload-url")
     }
 
-    func test_upload_ipa() async throws {
-        // Given
-        let preview = try temporaryPath().appending(component: "App.ipa")
-        try FileHandler.shared.touch(preview)
+    @Test func upload_app_bundle() async throws {
+        try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
+            // Given
+            let preview = temporaryDirectory.appending(component: "App.app")
+            try FileHandler.shared.touch(preview)
 
-        given(multipartUploadStartPreviewsService)
-            .startPreviewsMultipartUpload(
-                type: .value(.ipa),
-                displayName: .value("App"),
-                version: .value("1.0.0"),
-                bundleIdentifier: .value("com.my.app"),
-                supportedPlatforms: .value([.device(.iOS)]),
-                fullHandle: .value("tuist/tuist"),
-                serverURL: .value(serverURL)
+            let artifactArchivePath = preview.parentDirectory.appending(component: "previews.zip")
+
+            given(fileArchiver)
+                .zip(name: .value("previews.zip"))
+                .willReturn(artifactArchivePath)
+
+            var multipartUploadCapturedGenerateUploadURLCallback: ((MultipartUploadArtifactPart) async throws -> String)!
+            given(multipartUploadArtifactService)
+                .multipartUploadArtifact(
+                    artifactPath: .any,
+                    generateUploadURL: .matching { callback in
+                        multipartUploadCapturedGenerateUploadURLCallback = callback
+                        return true
+                    }
+                )
+                .willReturn([(etag: "etag", partNumber: 1)])
+
+            let shareURL = URL.test()
+
+            // When
+            let got = try await subject.uploadPreviews(
+                .appBundles([preview]),
+                displayName: "App",
+                version: nil,
+                bundleIdentifier: nil,
+                icon: nil,
+                supportedPlatforms: [.simulator(.iOS)],
+                path: temporaryDirectory,
+                fullHandle: "tuist/tuist",
+                serverURL: serverURL
             )
-            .willReturn(
-                PreviewUpload(previewId: "preview-id", uploadId: "upload-id")
+
+            // Then
+            #expect(
+                got == .test(
+                    id: "preview-id",
+                    url: shareURL
+                )
+            )
+            let gotMultipartUploadURL = try await multipartUploadCapturedGenerateUploadURLCallback(MultipartUploadArtifactPart(
+                number: 1,
+                contentLength: 20
+            ))
+            #expect(
+                gotMultipartUploadURL == "https://tuist.dev/upload-url"
+            )
+            verify(multipartUploadStartPreviewsService)
+                .startPreviewsMultipartUpload(
+                    type: .any,
+                    displayName: .value("App"),
+                    version: .any,
+                    bundleIdentifier: .any,
+                    supportedPlatforms: .value([.simulator(.iOS)]),
+                    gitBranch: .any,
+                    gitCommitSHA: .any,
+                    fullHandle: .value("tuist/tuist"),
+                    serverURL: .value(serverURL)
+                )
+                .called(1)
+        }
+    }
+
+    @Test func upload_ipa() async throws {
+        try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
+            // Given
+            let preview = temporaryDirectory.appending(component: "App.ipa")
+            try await fileSystem.touch(preview)
+
+            gitController.reset()
+            given(gitController)
+                .isInGitRepository(workingDirectory: .any)
+                .willReturn(true)
+            given(gitController)
+                .hasCurrentBranchCommits(workingDirectory: .any)
+                .willReturn(true)
+            given(gitController)
+                .currentCommitSHA(workingDirectory: .any)
+                .willReturn("commit-sha")
+            given(gitController)
+                .currentBranch(workingDirectory: .any)
+                .willReturn("main")
+
+            var multipartUploadCapturedGenerateUploadURLCallback: ((MultipartUploadArtifactPart) async throws -> String)!
+            given(multipartUploadArtifactService)
+                .multipartUploadArtifact(
+                    artifactPath: .any,
+                    generateUploadURL: .matching { callback in
+                        multipartUploadCapturedGenerateUploadURLCallback = callback
+                        return true
+                    }
+                )
+                .willReturn([(etag: "etag", partNumber: 1)])
+
+            let shareURL = URL.test()
+
+            let icon = temporaryDirectory.appending(component: "icon.png")
+            try await fileSystem.touch(icon)
+
+            given(uploadPreviewIconService)
+                .uploadPreviewIcon(.any, preview: .any, serverURL: .any, fullHandle: .any)
+                .willReturn()
+
+            // When
+            let got = try await subject.uploadPreviews(
+                .ipa(preview),
+                displayName: "App",
+                version: "1.0.0",
+                bundleIdentifier: "com.my.app",
+                icon: icon,
+                supportedPlatforms: [.device(.iOS)],
+                path: temporaryDirectory,
+                fullHandle: "tuist/tuist",
+                serverURL: serverURL
             )
 
-        let shareURL = URL.test()
-
-        let icon = try temporaryPath().appending(component: "icon.png")
-        try await fileSystem.touch(icon)
-
-        given(uploadPreviewIconService)
-            .uploadPreviewIcon(.any, preview: .any, serverURL: .any, fullHandle: .any)
-            .willReturn()
-
-        // When
-        let got = try await subject.uploadPreviews(
-            .ipa(preview),
-            displayName: "App",
-            version: "1.0.0",
-            bundleIdentifier: "com.my.app",
-            icon: icon,
-            supportedPlatforms: [.device(.iOS)],
-            fullHandle: "tuist/tuist",
-            serverURL: serverURL
-        )
-
-        // Then
-        XCTAssertEqual(
-            got,
-            .test(
-                id: "preview-id",
-                url: shareURL
+            // Then
+            #expect(
+                got == .test(
+                    id: "preview-id",
+                    url: shareURL
+                )
             )
-        )
-        let gotMultipartUploadURL = try await multipartUploadCapturedGenerateUploadURLCallback(MultipartUploadArtifactPart(
-            number: 1,
-            contentLength: 20
-        ))
-        XCTAssertEqual(gotMultipartUploadURL, "https://tuist.dev/upload-url")
-
-        verify(uploadPreviewIconService)
-            .uploadPreviewIcon(
-                .value(icon),
-                preview: .any,
-                serverURL: .any,
-                fullHandle: .any
+            let gotMultipartUploadURL = try await multipartUploadCapturedGenerateUploadURLCallback(MultipartUploadArtifactPart(
+                number: 1,
+                contentLength: 20
+            ))
+            #expect(
+                gotMultipartUploadURL == "https://tuist.dev/upload-url"
             )
-            .called(1)
+
+            verify(multipartUploadStartPreviewsService)
+                .startPreviewsMultipartUpload(
+                    type: .value(.ipa),
+                    displayName: .value("App"),
+                    version: .value("1.0.0"),
+                    bundleIdentifier: .value("com.my.app"),
+                    supportedPlatforms: .value([.device(.iOS)]),
+                    gitBranch: .value("main"),
+                    gitCommitSHA: .value("commit-sha"),
+                    fullHandle: .value("tuist/tuist"),
+                    serverURL: .value(serverURL)
+                )
+                .called(1)
+
+            verify(uploadPreviewIconService)
+                .uploadPreviewIcon(
+                    .value(icon),
+                    preview: .any,
+                    serverURL: .any,
+                    fullHandle: .any
+                )
+                .called(1)
+        }
     }
 }
