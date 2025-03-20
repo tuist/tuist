@@ -1016,6 +1016,14 @@ final class GenerateAcceptanceTestAppWithCustomScheme: TuistAcceptanceTestCase {
     }
 }
 
+final class GenerateAcceptanceTestGeneratediOSAppWithoutConfigManifest: TuistAcceptanceTestCase {
+    func test_generated_ios_app_without_config_manifest() async throws {
+        try await setUpFixture(.generatediOSAppWithoutConfigManifest)
+        try await run(InstallCommand.self)
+        try await run(BuildCommand.self)
+    }
+}
+
 final class GenerateAcceptanceTestsAppWithMetalOptions: TuistAcceptanceTestCase {
     func test_app_with_metal_options() async throws {
         try await setUpFixture(.appWithMetalOptions)
