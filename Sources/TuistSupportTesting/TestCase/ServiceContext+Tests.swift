@@ -34,6 +34,7 @@ extension ServiceContext {
         })
         context.ui = NooraMock()
         context.alerts = AlertController()
+        context.recentPaths = MockRecentPathsStoring()
         try await ServiceContext.withValue(context) {
             try await closure()
         }

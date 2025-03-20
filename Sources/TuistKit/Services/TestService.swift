@@ -279,8 +279,12 @@ final class TestService { // swiftlint:disable:this type_body_length
                 testPlanConfiguration: testPlanConfiguration
             )
 
-            switch (testPlanConfiguration?.testPlan, scheme.testAction?.targets.isEmpty, scheme.testAction?.testPlans?.isEmpty) {
-            case (_, false, _):
+            switch (
+                testPlanConfiguration?.testPlan,
+                scheme.testAction?.targets.isEmpty,
+                scheme.testAction?.testPlans?.isEmpty
+            ) {
+            case (_, false, _), (_, _, false):
                 break
             case (nil, true, _), (nil, nil, _):
                 ServiceContext.current?.logger?.log(
@@ -437,7 +441,15 @@ final class TestService { // swiftlint:disable:this type_body_length
             )
         }
 
-        ServiceContext.current?.alerts?.success(.alert("The project tests ran successfully"))
+        let verb =
+            switch action {
+            case .test, .testWithoutBuilding:
+                "ran"
+            case .build:
+                "built"
+            }
+
+        ServiceContext.current?.alerts?.success(.alert("The project tests \(verb) successfully"))
     }
 
     private func updateTestServiceAnalytics(
@@ -571,8 +583,12 @@ final class TestService { // swiftlint:disable:this type_body_length
                     .first(
                         where: { $0.name == testPlanConfiguration.testPlan }
                     )?.testTargets.map(\.target) ?? []
+            } else if let defaultTestPlan = scheme.testAction?.testPlans?.first(where: { $0.isDefault }) {
+                defaultTestPlan.testTargets.map(\.target)
+            } else if let testActionTargets = scheme.testAction?.targets.map(\.target), !testActionTargets.isEmpty {
+                testActionTargets
             } else {
-                scheme.testAction?.targets.map(\.target) ?? []
+                [TargetReference]()
             }
 
         return targets
@@ -649,7 +665,7 @@ final class TestService { // swiftlint:disable:this type_body_length
         testPlanConfiguration: TestPlanConfiguration?,
         passthroughXcodeBuildArguments: [String]
     ) async throws {
-        ServiceContext.current?.logger?.log(level: .notice, "Testing scheme \(scheme.name)", metadata: .section)
+        ServiceContext.current?.logger?.log(level: .notice, "\(action.description) scheme \(scheme.name)", metadata: .section)
         if let testPlan = testPlanConfiguration?.testPlan, let testPlans = scheme.testAction?.testPlans,
            !testPlans.contains(where: { $0.name == testPlan })
         {

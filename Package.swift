@@ -130,6 +130,7 @@ let targets: [Target] = [
             .product(name: "FileLogging", package: "swift-log-file"),
             .product(name: "ServiceContextModule", package: "swift-service-context"),
             .product(name: "XCLogParser", package: "XCLogParser"),
+            .product(name: "OrderedSet", package: "OrderedSet"),
         ],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
@@ -521,7 +522,7 @@ let package = Package(
         ),
         .package(url: "https://github.com/tuist/Path", .upToNextMajor(from: "0.3.0")),
         .package(url: "https://github.com/tuist/XcodeGraph.git", exact: "1.8.8"),
-        .package(url: "https://github.com/tuist/FileSystem.git", .upToNextMajor(from: "0.7.0")),
+        .package(url: "https://github.com/tuist/FileSystem.git", .upToNextMajor(from: "0.7.8")),
         .package(url: "https://github.com/tuist/Command.git", .upToNextMajor(from: "0.8.0")),
         .package(url: "https://github.com/sparkle-project/Sparkle.git", from: "2.6.4"),
         .package(url: "https://github.com/apple/swift-collections", .upToNextMajor(from: "1.1.4")),
@@ -535,7 +536,14 @@ let package = Package(
         .package(url: "https://github.com/crspybits/swift-log-file", .upToNextMajor(from: "0.1.0")),
         .package(url: "https://github.com/tuist/XCLogParser", .upToNextMajor(from: "0.2.41")),
         .package(url: "https://github.com/davidahouse/XCResultKit", .upToNextMajor(from: "1.2.2")),
-        .package(url: "https://github.com/tuist/Noora", .upToNextMajor(from: "0.31.1")),
+        .package(url: "https://github.com/tuist/Noora", .upToNextMajor(from: "0.32.0")),
+        .package(
+            url: "https://github.com/frazer-rbsn/OrderedSet.git", .upToNextMajor(from: "2.0.0")
+        ),
+        .package(
+            url: "https://github.com/pointfreeco/swift-snapshot-testing",
+            .upToNextMajor(from: "1.18.1")
+        ),
     ],
     targets: targets
 )

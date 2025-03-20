@@ -104,6 +104,11 @@ public struct TuistCommand: AsyncParsableCommand {
                 try await ScaffoldCommand.preprocess(processedArguments)
             }
             let command = try parseAsRoot(processedArguments)
+
+            if command is RecentPathRememberableCommand {
+                try await ServiceContext.current?.recentPaths?.remember(path: path)
+            }
+
             executeCommand = {
                 logFilePathDisplayStrategy = (command as? LogConfigurableCommand)?
                     .logFilePathDisplayStrategy ?? logFilePathDisplayStrategy
@@ -140,8 +145,11 @@ public struct TuistCommand: AsyncParsableCommand {
         ]
         let exitCode = exitCode(for: error).rawValue
 
-        if let clientError = error as? ClientError,
-           let underlyingServerClientError = clientError.underlyingError as? ServerClientAuthenticationError
+        if error.localizedDescription.contains("ArgumentParser") {
+            // Let argument parser handle the error
+            exit(withError: error)
+        } else if let clientError = error as? ClientError,
+                  let underlyingServerClientError = clientError.underlyingError as? ServerClientAuthenticationError
         {
             // swiftlint:disable:next force_cast
             errorAlertMessage = "\((clientError.underlyingError as! ServerClientAuthenticationError).description)"
@@ -158,7 +166,7 @@ public struct TuistCommand: AsyncParsableCommand {
                 ]
             }
         } else if isParsingError, self.exitCode(for: error).rawValue == 0 {
-            // Exit cleanly
+            // Let argument parser handle the error
             exit(withError: error)
         } else if let localizedError = error as? LocalizedError {
             errorAlertMessage = "\(localizedError.errorDescription ?? localizedError.localizedDescription)"

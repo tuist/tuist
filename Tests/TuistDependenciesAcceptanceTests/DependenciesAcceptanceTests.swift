@@ -16,6 +16,7 @@ final class DependenciesAcceptanceTestAppWithSPMDependencies: TuistAcceptanceTes
         try await run(BuildCommand.self, "App", "--platform", "ios")
         try await run(BuildCommand.self, "VisionOSApp")
         try await run(TestCommand.self, "AppKit")
+        try await run(TestCommand.self, "Styles", "--platform", "ios")
     }
 }
 

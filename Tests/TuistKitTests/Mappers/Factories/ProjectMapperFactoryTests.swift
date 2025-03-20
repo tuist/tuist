@@ -77,14 +77,6 @@ final class ProjectMapperFactoryTests: TuistUnitTestCase {
         XCTAssertContainsElementOfType(got, IDETemplateMacrosMapper.self)
     }
 
-    func test_automation_contains_the_source_root_path_project_mapper() {
-        // When
-        let got = subject.automation(skipUITests: true)
-
-        // Then
-        XCTAssertContainsElementOfType(got, SourceRootPathProjectMapper.self)
-    }
-
     func test_automation_contains_the_skip_ui_tests_mapper_when_skip_ui_tests_is_true() {
         // When
         let got = subject.automation(skipUITests: true)

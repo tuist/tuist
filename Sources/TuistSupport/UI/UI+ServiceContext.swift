@@ -17,8 +17,9 @@ extension ServiceContext {
 
 #if DEBUG
     extension ServiceContext {
-        public func flushRecordedUI() {
-            alerts?.flush()
+        public func resetRecordedUI() {
+            alerts?.reset()
+            (ui as? NooraMock)?.reset()
         }
 
         public func recordedUI() -> String! {
