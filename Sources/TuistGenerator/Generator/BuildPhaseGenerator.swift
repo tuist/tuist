@@ -87,27 +87,14 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
             pbxproj: pbxproj
         )
 
-        let (validSources, invalidSources) = target.validatedSources()
-
-        if !validSources.isEmpty {
-            try generateSourcesBuildPhase(
-                files: target.sources,
-                coreDataModels: target.coreDataModels,
-                target: target,
-                pbxTarget: pbxTarget,
-                fileElements: fileElements,
-                pbxproj: pbxproj
-            )
-        }
-
-        if !invalidSources.isEmpty {
-            ServiceContext.current?.alerts?
-                .warning(
-                    .alert(
-                        "The target \(target.name) contains sources that are not supported by the target: \(ListFormatter().string(from: invalidSources.map(\.path.basename)) ?? "")"
-                    )
-                )
-        }
+        try generateSourcesBuildPhase(
+            files: target.validatedSources.valid,
+            coreDataModels: target.shouldCoredataModelsBeSources ? target.coreDataModels : [],
+            target: target,
+            pbxTarget: pbxTarget,
+            fileElements: fileElements,
+            pbxproj: pbxproj
+        )
 
         try generateResourcesBuildPhase(
             path: path,
