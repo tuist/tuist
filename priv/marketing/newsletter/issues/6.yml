@@ -1,0 +1,94 @@
+date: 2025-03-07
+hero:
+  image: /marketing/images/newsletter/issues/6/artwork.jpeg
+  image_max_width: 250px;
+  alt: "UI design by Manuel Muñoz Solera"
+  subtitle: "Featured work: [Manuel Muñoz Solera](https://www.mamuso.net/)"
+title: Adding a language interface to your apps
+body: |
+  With LLM-based technologies becoming more widespread, and models getting more sophisticated and cheaper, people are getting used to a new type of interface that's not made by pixel but by language. It's still early, but there's a high possibility that many of the interactions that we know today in the context of apps (tab bars, buttons, navigation, etc.) will be replaced by natural language interactions. Can you imagine booking a flight or ordering a pizza with just a few words?
+  To enable that future, it's necessary a standard interface that eliminates the [MxN](https://www.oilshell.org/blog/2022/02/diagrams.html) problem that can emerge, where there are multiple interfaces to communicate between a chat application like [Claude](https://claude.ai) or [OpenAI](https://openai.com/), and the app itself. [Anthropic](https://www.anthropic.com/) has realized the need for it, and has gone ahead proposing a protocol, [MCP](https://www.anthropic.com/news/model-context-protocol) for this purpose. An app can share resources, tools, and prompts (among others) that the LLM can interface with. @mattt (NSHipster) [talked about it](https://nshipster.com/model-context-protocol/) recently and shared his new project [iMCP](https://github.com/loopwork-ai/iMCP) where he is building an interface between LLMs and your digital life in a macOS environment.
+
+  Despite more and more LLM-based apps like editors [adopting it](https://modelcontextprotocol.io/clients#feature-support-matrix), OpenAI remains hesitant, most likely because it's a proposal from a competitor.  But as we saw two issues ago, if an ecosystem forms around a technology, like it's currently happening with MCP, not just due to the clients that support it, but the number of integrations that are emerging and the marketplaces that are available, neglecting it or attempting to fork it is most likely a bad idea. For instance, I wonder what [Apple will do with Siri](https://9to5mac.com/2025/03/20/the-best-thing-about-apples-siri-shake-up-may-have-little-to-do-with-new-leader/). They are now on the spot for not being able to meet their promises around Apple Intelligence. Siri, like Claude and OpenAI models, interacts with users through text or voice-converted-to-text. However, while Claude suggests a standard method to maintain conversation context (MCP), Siri uses its own proprietary interface instead. Will they adopt MCP between Siri and the system? Will they disregard MCP (and its ecosystem) and continue betting on a proprietary solution? We'll see in this year's WWDC, but **it's an excellent opportunity for Apple to jump on the existing ecosystems and find ways where Apple's hardware and OS can augment the possibilities, as opposed to neglecting it.**
+
+  On the app development side, this whole trend also poses a very interesting question. If the interface becomes more text-based, and Siri (or its future evolution) takes that role across all Apple devices, and apps become a context provider, the UI of the app will become even less important. So all the heavy investment teams are doing these days in coming up with a perfect UI and an architecture that powers it might not be as relevant anymore. But even more than that, if all the application does is providing context, and many apps are presentation layers to server services, what's the point in adding the indirection of an app, if Siri could proxy directly with the server that exposes the interface. Sure, from the financial perspective it makes sense because you force developers through your marketplace rules, but it'll create unnecessary friction worsening the experience. Imagine having to install an app to just interface with your [Linear](https://linear.app/) issues (as opposed of authenticating against your Linear account using web technologies).
+
+  Who knows what the future holds, but **languages are here to stay and challenge many of the patterns and assumptions that exist since the inception of the Internet and app development.** I'm personally excited because it means new opportunities for companies and organizations, and also more accessible technologies. So if you are building an app, I'd recommend to keep an eye on what's happening and looking at the patterns that are emerging with curiosity. Sooner or later, you might need to design a language interface for your app, so that language-based apps can interface with it.
+interview:
+  interviewee: "Anastasia Petrova"
+  interviewee_role: "iOS Developer at Depop"
+  interviewee_avatar_url: /marketing/images/newsletter/issues/6/anastasia.jpg
+  interviewee_intro: |
+    Anastasia Petrova is a self-taught Ukrainian iOS Engineer based in London. She currently works at Depop, one of the largest online marketplaces for second-hand fashion. Before that, she worked on popular UK fintech apps, Monzo and Dojo. In 2024, Anastasia gave [her first conference talk](https://www.youtube.com/watch?v=cTbTZ-uShr8) at SwiftLeeds '24, where she spoke about the hidden engineering complexities of A/B testing.
+  questions:
+    - question: "An app worth installing"
+      answer: |
+        I love apps that get creative with Home Screen Widgets, and one great example is [Locket Widget](https://apps.apple.com/gb/app/locket-widget/id1600525061). It lets you share photos directly with close friends and family, which then pop up on their Home Screen widget. I use it to send cute pictures of my cats to my family ![🐈](https://fonts.gstatic.com/s/e/notoemoji/16.0/1f408/72.png). The app still needs some polish, especially with data syncing, but it’s a fun and personal alternative to corporate social media and messaging apps.
+    - question: "An open-source project worth checking out"
+      answer: |
+        I recommend keeping an eye on the open-source Swift packages that Apple publishes under the swiftlang umbrella. Just recently, I ran into a production issue that required deduplicating elements in a sorted array, and switching from `Array` to `OrderedSet` from [swift-collections](https://github.com/apple/swift-collections) turned out to be the perfect solution!
+    - question: "A developer tool worth using"
+      answer: |
+        I highly recommend bookmarking [Chris Eidhof](https://mastodon.social/@chris@m.objc.io)’s [SwiftUI Field Guide](https://www.swiftuifieldguide.com). As a visual learner, I found this interactive guide incredibly helpful for understanding the SwiftUI Layout System much faster than just reading the docs. Another great tool is [Interactful](https://apps.apple.com/gb/app/interactful/id1528095640), often use it to quickly check what Views and APIs are available in SwiftUI before diving into the documentation.
+    - question: "A developer worth following"
+      answer: |
+        I recommend following [Alex Ozun](https://www.linkedin.com/in/alex1ong/) on LinkedIn and checking out his blog at [Swiftology](https://swiftology.io/). He regularly shares insights from the trenches as a staff engineer working on a complex iOS app. That real-world experience makes his content stand out from more traditional creators who may not be working in large-scale codebases anymore.
+    - question: "A book worth reading"
+      answer: |
+        [Domain Modeling Made Functional](https://pragprog.com/titles/swdddf/domain-modeling-made-functional/) is probably the book that has influenced my Swift coding the most, which is ironic, considering it uses F# for its examples! Luckily, the book focuses on the core principles of functional domain modeling, and the choice of language isn’t all that important as long as it supports basic static type system features, which Swift absolutely does!
+
+tools:
+  - title: Codea
+    subtitle: Turning code into a visual coding tool
+    link: https://codea.io/
+    description: |
+      Codea just announced [a new version](https://mastodon.social/@simsaens/114126978313332446), 3.13, which includes a coding feature you might have never seen before: annotating your code with an Apple Pencil. How cool is that?
+  - title: Sake
+    subtitle: Manage project commands using Swift
+    link: https://sakeswift.org/
+    description: |
+      Want to automate your project tasks in Swift? Sake simplifies the process with a CLI and a DSL for defining your tasks. Pair it with [Mise](https://mise.jdx.dev/tasks/), and your automation will receive a well-deserved boost.
+  - title: Docs
+    subtitle: Collaborative writing, Simplified
+    link: https://docs.numerique.gouv.fr
+    description: |
+      More alternatives to closed-source products are emerging in Europe. Docs is the French government's proposal to replace the widely used Google Docs.
+  - title: dba
+    subtitle: Meet your database wingman.
+    link: https://www.dba.ai/
+    description: |
+      Agentic tools are gaining popularity. This one not only helps you identify performance bottlenecks but also assists in resolving them. Can you picture the same for your Xcode projects? That’s the goal with Tuist, ensuring your energy is focused on creating great products rather than troubleshooting bugs.
+  - title: Bloaty
+    subtitle: A size profiler for binaries
+    link: https://github.com/google/bloaty
+    description: |
+      An open source tool by Google to profile the size of binaries. And it works with Apple-compiled binaries. With a [simple command](https://asifmohd.github.io/ios/2022/02/03/bloaty-ios-introduction.html) you can get a detailed breakdown of your binary's size and spot opportunities for optimizations.
+
+food_for_thought:
+  - title: "JavaScript Fatigue Strikes Back"
+    subtitle: "Read"
+    link: "https://allenpike.com/2025/javascript-fatigue-ssr"
+    description: |
+      Many developers prefer Apple app development over other ecosystems because it involves less fatigue. The standard library is mature, there’s a single official toolchain, and the ecosystem is more cohesive. If you’ve never explored the web and JavaScript ecosystems, you might find this blog post about JavaScript fatigue interesting and come to appreciate Apple’s ecosystem even more.
+
+  - title: "A 10x Faster TypeScript"
+    subtitle: "Read"
+    link: "https://devblogs.microsoft.com/typescript/typescript-native-port/"
+    description: |
+      A slow compiler can hamper your productivity. Given the prevalence of large TypeScript codebases, Microsoft has opted to rewrite their compiler from TypeScript to Go to boost performance and efficiency. Apple has begun enhancing performance with their new build system, swift-build, but one question lingers: will they rewrite the Swift compiler in Swift?
+  - title: "In S3 simplicity is table stakes"
+    subtitle: "Read"
+    link: "https://www.allthingsdistributed.com/2025/03/in-s3-simplicity-is-table-stakes.html"
+    description: |
+      As an app developer, you may not interact with S3 directly, but your organization’s server likely does. S3 has become a standard for storing and accessing objects globally, with AWS placing strong emphasis on its simplicity. This straightforward design has made S3 a widely adopted solution for data storage and retrieval.
+
+  - title: "Travel Salesman Problem (TSP)"
+    subtitle: "Check out"
+    link: "https://sunbeam.city/@murilove/114178055248148200"
+    description: |
+      This art form, known as "TSP" (Travel Salesman Problem), transforms a mathematical challenge into stunning visuals, despite its rather unassuming name. The goal is to find the most efficient route to connect all points on a map. Interestingly, the solutions often resemble natural, organic structures. These prints, created from sketches using dithering and custom software, trace a single line across every black pixel in the image, resulting in pieces sized 27x27 cm and 29x29 cm.
+  - title: The future of serialization & deserialization APIs
+    subtitle: "Read"
+    link: https://forums.swift.org/t/the-future-of-serialization-deserialization-apis/78585
+    description: |
+      The widely adopted [Codable](https://developer.apple.com/documentation/swift/codable) protocol for encoding and decoding data structures in Swift has a performance limit, prompting Kevin to propose a solution inspired by Rust’s [Serde](https://serde.rs/) crate to enhance efficiency. The method involves implementing a visitor pattern with better ergonomics, leveraging Swift Macros for optimization.
