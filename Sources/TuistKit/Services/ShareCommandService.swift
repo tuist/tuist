@@ -9,7 +9,7 @@ import TuistServer
 import TuistSupport
 import XcodeGraph
 
-enum ShareCommandServiceError: Equatable, FatalError {
+enum ShareCommandServiceError: Equatable, LocalizedError {
     case projectOrWorkspaceNotFound(path: String)
     case noAppsFound(app: String, configuration: String)
     case appNotSpecified
@@ -18,7 +18,7 @@ enum ShareCommandServiceError: Equatable, FatalError {
     case fullHandleNotFound
     case appBundleInIPANotFound(AbsolutePath)
 
-    var description: String {
+    var errorDescription: String? {
         switch self {
         case let .projectOrWorkspaceNotFound(path):
             return "Workspace or project not found at \(path)"
@@ -428,7 +428,7 @@ struct ShareCommandService {
             )
         }
 
-        ServiceContext.current?.ui?
+        ServiceContext.current?.alerts?
             .success(
                 .alert(
                     "Share \(displayName) with others using the following link: \(preview.url.absoluteString)"
