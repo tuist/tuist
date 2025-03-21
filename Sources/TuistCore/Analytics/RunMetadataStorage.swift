@@ -27,7 +27,7 @@ public actor RunMetadataStorage {
         self.selectiveTestingCacheItems = selectiveTestingCacheItems
     }
 
-    /// Preview ID associated with the current run
+    /// Preview associated with the current run
     public private(set) var previewId: String?
     public func update(previewId: String?) {
         self.previewId = previewId

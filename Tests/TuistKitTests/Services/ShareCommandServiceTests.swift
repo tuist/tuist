@@ -1,6 +1,7 @@
 import Foundation
 import Mockable
 import ServiceContextModule
+import SnapshotTesting
 import TuistAutomation
 import TuistCore
 import TuistLoader
@@ -11,8 +12,8 @@ import XcodeGraph
 
 @testable import TuistKit
 
-final class ShareServiceTests: TuistUnitTestCase {
-    private var subject: ShareService!
+final class ShareCommandServiceTests: TuistUnitTestCase {
+    private var subject: ShareCommandService!
     private var xcodeProjectBuildDirectoryLocator: MockXcodeProjectBuildDirectoryLocating!
     private var buildGraphInspector: MockBuildGraphInspecting!
     private var previewsUploadService: MockPreviewsUploadServicing!
@@ -46,7 +47,7 @@ final class ShareServiceTests: TuistUnitTestCase {
             .makeFileUnarchiver(for: .any)
             .willReturn(fileUnarchiver)
 
-        subject = ShareService(
+        subject = ShareCommandService(
             fileHandler: fileHandler,
             fileSystem: fileSystem,
             xcodeProjectBuildDirectoryLocator: xcodeProjectBuildDirectoryLocator,
@@ -84,7 +85,8 @@ final class ShareServiceTests: TuistUnitTestCase {
                 supportedPlatforms: .any,
                 path: .any,
                 fullHandle: .any,
-                serverURL: .any
+                serverURL: .any,
+                updateProgress: .any
             )
             .willReturn(.test(url: shareURL))
 
@@ -124,12 +126,12 @@ final class ShareServiceTests: TuistUnitTestCase {
                 derivedDataPath: nil,
                 json: false
             ),
-            ShareServiceError.multipleAppsSpecified(["AppOne", "AppTwo"])
+            ShareCommandServiceError.multipleAppsSpecified(["AppOne", "AppTwo"])
         )
     }
 
     func test_share_tuist_project() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await ServiceContext.withTestingDependencies { @MainActor in
             // Given
             given(configLoader)
                 .loadConfig(path: .any)
@@ -246,13 +248,12 @@ final class ShareServiceTests: TuistUnitTestCase {
                     supportedPlatforms: .any,
                     path: .any,
                     fullHandle: .value("tuist/tuist"),
-                    serverURL: .value(Constants.URLs.production)
+                    serverURL: .value(Constants.URLs.production),
+                    updateProgress: .any
                 )
                 .called(1)
 
-            XCTAssertStandardOutput(
-                pattern: "App uploaded – share it with others using the following link: \(shareURL.absoluteString)"
-            )
+            assertSnapshot(of: ServiceContext.current?.recordedUI() ?? "", as: .lines)
         }
     }
 
@@ -336,12 +337,12 @@ final class ShareServiceTests: TuistUnitTestCase {
                 derivedDataPath: nil,
                 json: false
             ),
-            ShareServiceError.noAppsFound(app: "App", configuration: "Debug")
+            ShareCommandServiceError.noAppsFound(app: "App", configuration: "Debug")
         )
     }
 
     func test_share_tuist_project_with_a_specified_app() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await ServiceContext.withTestingDependencies { @MainActor in
             // Given
             given(configLoader)
                 .loadConfig(path: .any)
@@ -442,13 +443,12 @@ final class ShareServiceTests: TuistUnitTestCase {
                     supportedPlatforms: .value([.simulator(.iOS)]),
                     path: .any,
                     fullHandle: .value("tuist/tuist"),
-                    serverURL: .value(Constants.URLs.production)
+                    serverURL: .value(Constants.URLs.production),
+                    updateProgress: .any
                 )
                 .called(1)
 
-            XCTAssertStandardOutput(
-                pattern: "AppTwo uploaded – share it with others using the following link: \(shareURL.absoluteString)"
-            )
+            assertSnapshot(of: ServiceContext.current?.recordedUI() ?? "", as: .lines)
         }
     }
 
@@ -542,7 +542,7 @@ final class ShareServiceTests: TuistUnitTestCase {
     }
 
     func test_share_tuist_project_with_a_specified_appclip() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await ServiceContext.withTestingDependencies { @MainActor in
             // Given
             given(configLoader)
                 .loadConfig(path: .any)
@@ -623,9 +623,7 @@ final class ShareServiceTests: TuistUnitTestCase {
             )
 
             // Then
-            XCTAssertStandardOutput(
-                pattern: "AppClip uploaded – share it with others using the following link: \(shareURL.absoluteString)"
-            )
+            assertSnapshot(of: ServiceContext.current?.recordedUI() ?? "", as: .lines)
         }
     }
 
@@ -651,7 +649,7 @@ final class ShareServiceTests: TuistUnitTestCase {
                 derivedDataPath: nil,
                 json: false
             ),
-            ShareServiceError.appNotSpecified
+            ShareCommandServiceError.appNotSpecified
         )
     }
 
@@ -677,7 +675,7 @@ final class ShareServiceTests: TuistUnitTestCase {
                 derivedDataPath: nil,
                 json: false
             ),
-            ShareServiceError.multipleAppsSpecified(["AppOne", "AppTwo"])
+            ShareCommandServiceError.multipleAppsSpecified(["AppOne", "AppTwo"])
         )
     }
 
@@ -703,7 +701,7 @@ final class ShareServiceTests: TuistUnitTestCase {
                 derivedDataPath: nil,
                 json: false
             ),
-            ShareServiceError.platformsNotSpecified
+            ShareCommandServiceError.platformsNotSpecified
         )
     }
 
@@ -731,12 +729,12 @@ final class ShareServiceTests: TuistUnitTestCase {
                 derivedDataPath: nil,
                 json: false
             ),
-            ShareServiceError.projectOrWorkspaceNotFound(path: path.pathString)
+            ShareCommandServiceError.projectOrWorkspaceNotFound(path: path.pathString)
         )
     }
 
     func test_share_xcode_app() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await ServiceContext.withTestingDependencies { @MainActor in
             // Given
             given(configLoader)
                 .loadConfig(path: .any)
@@ -796,13 +794,11 @@ final class ShareServiceTests: TuistUnitTestCase {
                     supportedPlatforms: .any,
                     path: .any,
                     fullHandle: .value("tuist/tuist"),
-                    serverURL: .value(Constants.URLs.production)
+                    serverURL: .value(Constants.URLs.production),
+                    updateProgress: .any
                 )
                 .called(1)
-
-            XCTAssertStandardOutput(
-                pattern: "App uploaded – share it with others using the following link: \(shareURL.absoluteString)"
-            )
+            assertSnapshot(of: ServiceContext.current?.recordedUI() ?? "", as: .lines)
         }
     }
 
@@ -838,7 +834,7 @@ final class ShareServiceTests: TuistUnitTestCase {
                 derivedDataPath: nil,
                 json: false
             ),
-            ShareServiceError.multipleAppsSpecified(["AppOne", "AppTwo"])
+            ShareCommandServiceError.multipleAppsSpecified(["AppOne", "AppTwo"])
         )
     }
 
@@ -865,7 +861,7 @@ final class ShareServiceTests: TuistUnitTestCase {
                 derivedDataPath: nil,
                 json: false
             ),
-            ShareServiceError.multipleAppsSpecified([
+            ShareCommandServiceError.multipleAppsSpecified([
                 ipaPath.pathString,
                 currentPath.appending(component: "AppTarget").pathString,
             ])
@@ -873,7 +869,7 @@ final class ShareServiceTests: TuistUnitTestCase {
     }
 
     func test_share_app_bundles() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await ServiceContext.withTestingDependencies { @MainActor in
             // Given
             given(configLoader)
                 .loadConfig(path: .any)
@@ -932,18 +928,17 @@ final class ShareServiceTests: TuistUnitTestCase {
                     supportedPlatforms: .any,
                     path: .any,
                     fullHandle: .value("tuist/tuist"),
-                    serverURL: .value(Constants.URLs.production)
+                    serverURL: .value(Constants.URLs.production),
+                    updateProgress: .any
                 )
                 .called(1)
 
-            XCTAssertStandardOutput(
-                pattern: "App uploaded – share it with others using the following link: \(shareURL.absoluteString)"
-            )
+            assertSnapshot(of: ServiceContext.current?.recordedUI() ?? "", as: .lines)
         }
     }
 
     func test_share_ipa() async throws {
-        try await ServiceContext.withTestingDependencies {
+        try await ServiceContext.withTestingDependencies { @MainActor in
             // Given
             given(configLoader)
                 .loadConfig(path: .any)
@@ -1004,13 +999,12 @@ final class ShareServiceTests: TuistUnitTestCase {
                     supportedPlatforms: .any,
                     path: .any,
                     fullHandle: .value("tuist/tuist"),
-                    serverURL: .value(Constants.URLs.production)
+                    serverURL: .value(Constants.URLs.production),
+                    updateProgress: .any
                 )
                 .called(1)
 
-            XCTAssertStandardOutput(
-                pattern: "App uploaded – share it with others using the following link: \(shareURL.absoluteString)"
-            )
+            assertSnapshot(of: ServiceContext.current?.recordedUI() ?? "", as: .lines)
         }
     }
 
@@ -1040,7 +1034,7 @@ final class ShareServiceTests: TuistUnitTestCase {
                 derivedDataPath: nil,
                 json: false
             ),
-            ShareServiceError.appBundleInIPANotFound(ipaPath)
+            ShareCommandServiceError.appBundleInIPANotFound(ipaPath)
         )
     }
 
@@ -1068,7 +1062,7 @@ final class ShareServiceTests: TuistUnitTestCase {
                 derivedDataPath: nil,
                 json: false
             ),
-            ShareServiceError.multipleAppsSpecified([ipaPath.pathString, watchOSIpaPath.pathString])
+            ShareCommandServiceError.multipleAppsSpecified([ipaPath.pathString, watchOSIpaPath.pathString])
         )
     }
 }
