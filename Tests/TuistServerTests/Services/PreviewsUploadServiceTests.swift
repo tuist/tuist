@@ -53,17 +53,6 @@ struct PreviewsUploadServiceTests {
             )
             .willReturn(.test(url: shareURL))
 
-        given(multipartUploadArtifactService)
-            .multipartUploadArtifact(
-                artifactPath: .any,
-                generateUploadURL: .matching { callback in
-                    self.multipartUploadCapturedGenerateUploadURLCallback = callback
-                    return true
-                },
-                updateProgress: .any
-            )
-            .willReturn([(etag: "etag", partNumber: 1)])
-
         given(multipartUploadGenerateURLPreviewsService)
             .uploadPreviews(
                 .value("preview-id"),
@@ -94,35 +83,6 @@ struct PreviewsUploadServiceTests {
             .willReturn(
                 PreviewUpload(previewId: "preview-id", uploadId: "upload-id")
             )
-
-        let shareURL = URL.test()
-
-        // When
-        let got = try await subject.uploadPreviews(
-            .appBundles([preview]),
-            displayName: "App",
-            version: nil,
-            bundleIdentifier: nil,
-            icon: nil,
-            supportedPlatforms: [.simulator(.iOS)],
-            fullHandle: "tuist/tuist",
-            serverURL: serverURL,
-            updateProgress: { _ in }
-        )
-
-        // Then
-        XCTAssertEqual(
-            got,
-            .test(
-                id: "preview-id",
-                url: shareURL
-            )
-        )
-        let gotMultipartUploadURL = try await multipartUploadCapturedGenerateUploadURLCallback(MultipartUploadArtifactPart(
-            number: 1,
-            contentLength: 20
-        ))
-        XCTAssertEqual(gotMultipartUploadURL, "https://tuist.dev/upload-url")
     }
 
     @Test func upload_app_bundle() async throws {
@@ -144,7 +104,8 @@ struct PreviewsUploadServiceTests {
                     generateUploadURL: .matching { callback in
                         multipartUploadCapturedGenerateUploadURLCallback = callback
                         return true
-                    }
+                    },
+                    updateProgress: .any
                 )
                 .willReturn([(etag: "etag", partNumber: 1)])
 
@@ -160,7 +121,8 @@ struct PreviewsUploadServiceTests {
                 supportedPlatforms: [.simulator(.iOS)],
                 path: temporaryDirectory,
                 fullHandle: "tuist/tuist",
-                serverURL: serverURL
+                serverURL: serverURL,
+                updateProgress: { _ in }
             )
 
             // Then
@@ -220,7 +182,8 @@ struct PreviewsUploadServiceTests {
                     generateUploadURL: .matching { callback in
                         multipartUploadCapturedGenerateUploadURLCallback = callback
                         return true
-                    }
+                    },
+                    updateProgress: .any
                 )
                 .willReturn([(etag: "etag", partNumber: 1)])
 
@@ -243,7 +206,8 @@ struct PreviewsUploadServiceTests {
                 supportedPlatforms: [.device(.iOS)],
                 path: temporaryDirectory,
                 fullHandle: "tuist/tuist",
-                serverURL: serverURL
+                serverURL: serverURL,
+                updateProgress: { _ in }
             )
 
             // Then
