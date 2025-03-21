@@ -590,6 +590,9 @@ Thanks goes to these wonderful people:
       <td align="center" valign="top" width="14.28%"><a href="https://franciscodiaz.cl"><img src="https://avatars.githubusercontent.com/u/530662?v=4" width="100px;" alt=""/><br /><sub><b>Francisco Diaz</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/Ethan-IS"><img src="https://avatars.githubusercontent.com/u/140235921?v=4" width="100px;" alt=""/><br /><sub><b>Ethan Parker</b></sub></a></td>
     </tr>
+    <tr>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/lukevanin"><img src="https://avatars.githubusercontent.com/u/550579?v=4" width="100px;" alt=""/><br /><sub><b>Luke Van In</b></sub></a></td>
+    </tr>
   </tbody>
 </table>
 

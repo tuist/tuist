@@ -32,7 +32,7 @@ extension ServiceContext {
         context.logger = Logger(label: label, factory: { _ in
             return testingLogHandler
         })
-        context.ui = NooraMock()
+        context.ui = NooraMock(terminal: Terminal(isInteractive: false))
         context.alerts = AlertController()
         context.recentPaths = MockRecentPathsStoring()
         try await ServiceContext.withValue(context) {
