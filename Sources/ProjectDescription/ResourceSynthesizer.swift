@@ -85,7 +85,7 @@ public struct ResourceSynthesizer: Codable, Equatable, Sendable { // swiftlint:d
             templateType: templateType,
             parser: .strings,
             parserOptions: parserOptions,
-            extensions: ["strings", "stringsdict"]
+            extensions: ["strings", "stringsdict", "xcstrings"]
         )
     }
 
