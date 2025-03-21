@@ -22,7 +22,6 @@ public enum TuistAcceptanceFixtures {
     case appWithSBTUITestTunnel
     case appWithSpmDependencies
     case appWithSpmModuleAliases
-
     case appWithSpmXcframeworkDependency
     case appWithSwiftCMark
     case appWithLocalSPMModuleWithRemoteDependencies
@@ -38,6 +37,7 @@ public enum TuistAcceptanceFixtures {
     case frameworkWithNativeSwiftMacro
     case frameworkWithSwiftMacro
     case frameworkWithSPMBundle
+    case generatedBunleWithMetalFiles
     case generatediOSAppWithoutConfigManifest
     case invalidManifest
     case invalidWorkspaceManifestName
@@ -184,6 +184,8 @@ public enum TuistAcceptanceFixtures {
             return "framework_with_swift_macro"
         case .frameworkWithSPMBundle:
             return "framework_with_spm_bundle"
+        case .generatedBunleWithMetalFiles:
+            return "generated_bundle_with_metal_files"
         case .generatediOSAppWithoutConfigManifest:
             return "generated_ios_app_without_config_manifest"
         case .invalidManifest:
