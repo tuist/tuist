@@ -370,7 +370,7 @@ final class ManifestModelConverterTests: TuistUnitTestCase {
         let model = try await subject.convert(dependenciesGraph: manifest, path: temporaryPath)
 
         // Then
-        XCTAssertEqual(model.externalProjects.values.first?.type, .external(hash: nil))
+        XCTAssertEqual(model.externalProjects.values.first?.type, .local)
     }
 }
 
