@@ -109,7 +109,7 @@ final class LinkGeneratorTests: XCTestCase {
         XCTAssertEqual(embedBuildPhase.files?.map(\.file), [
             wakaFile,
         ])
-        XCTAssertEqual(embedBuildPhase.files?.compactMap { $0.settings as? [String: [String]] }, [
+        XCTAssertEqual(embedBuildPhase.files?.compactMap(\.settings), [
             ["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]],
         ])
     }
@@ -157,7 +157,7 @@ final class LinkGeneratorTests: XCTestCase {
         XCTAssertEqual(embedBuildPhase.files?.map(\.file), [
             wakaFile,
         ])
-        XCTAssertEqual(embedBuildPhase.files?.compactMap { $0.settings as? [String: [String]] }, [
+        XCTAssertEqual(embedBuildPhase.files?.compactMap(\.settings), [
             ["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]],
         ])
     }
@@ -318,7 +318,7 @@ final class LinkGeneratorTests: XCTestCase {
         XCTAssertEqual(copyBuildPhase.name, "Embed Frameworks")
         let buildFiles = try XCTUnwrap(copyBuildPhase.files)
         XCTAssertEqual(buildFiles.map { $0.file?.path }, ["Test.xcframework"])
-        XCTAssertEqual(buildFiles.map { $0.settings as? [String: [String]] }, [
+        XCTAssertEqual(buildFiles.map(\.settings), [
             ["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]],
         ])
     }
@@ -412,7 +412,7 @@ final class LinkGeneratorTests: XCTestCase {
 
         let buildFiles = try XCTUnwrap(copyBuildPhase.files)
         XCTAssertEqual(buildFiles.map { $0.product?.productName }, ["Product"])
-        XCTAssertEqual(buildFiles.map { $0.settings as? [String: [String]] }, [
+        XCTAssertEqual(buildFiles.map(\.settings), [
             ["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]],
         ])
     }
@@ -464,7 +464,7 @@ final class LinkGeneratorTests: XCTestCase {
         XCTAssertEqual(copyBuildPhase.name, "Embed Frameworks")
         let buildFiles = try XCTUnwrap(copyBuildPhase.files)
         XCTAssertEqual(Set(buildFiles.map { $0.product?.productName }), ["Product", "ProductWithPlatformCondition"])
-        XCTAssertEqual(Set(buildFiles.map { $0.settings as? [String: [String]] }), [
+        XCTAssertEqual(Set(buildFiles.map(\.settings)), [
             ["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]],
         ])
         XCTAssertEqual(
@@ -481,7 +481,7 @@ final class LinkGeneratorTests: XCTestCase {
         ].shuffled()
         let sourceRootPath = try AbsolutePath(validating: "/path")
         let xcodeprojElements = createXcodeprojElements()
-        xcodeprojElements.config.buildSettings["LD_RUNPATH_SEARCH_PATHS"] = "my/custom/path"
+        xcodeprojElements.config.buildSettings["LD_RUNPATH_SEARCH_PATHS"] = .array(["my/custom/path"])
         let target = Target.test()
         let path = try AbsolutePath(validating: "/path/")
         let graphTraverser = MockGraphTraversing()
@@ -500,7 +500,7 @@ final class LinkGeneratorTests: XCTestCase {
 
         // Then
         let config = xcodeprojElements.config
-        XCTAssertEqual(config.buildSettings["LD_RUNPATH_SEARCH_PATHS"] as? [String], [
+        XCTAssertEqual(config.buildSettings["LD_RUNPATH_SEARCH_PATHS"]?.arrayValue, [
             "$(inherited)",
             "my/custom/path",
             "$(SRCROOT)/Dependencies/Frameworks",
@@ -541,7 +541,7 @@ final class LinkGeneratorTests: XCTestCase {
 
         // Then
         let config = xcodeprojElements.config
-        XCTAssertEqual(config.buildSettings["FRAMEWORK_SEARCH_PATHS"] as? [String], [
+        XCTAssertEqual(config.buildSettings["FRAMEWORK_SEARCH_PATHS"]?.arrayValue, [
             "$(inherited)",
             "my/custom/path",
             "$(PLATFORM_DIR)/Developer/Library/Frameworks",
@@ -583,7 +583,7 @@ final class LinkGeneratorTests: XCTestCase {
         )
 
         let expected = ["$(inherited)", "$(SRCROOT)/headers"]
-        XCTAssertEqual(config.buildSettings["HEADER_SEARCH_PATHS"] as? [String], expected)
+        XCTAssertEqual(config.buildSettings["HEADER_SEARCH_PATHS"]?.arrayValue, expected)
     }
 
     func test_setupHeadersSearchPaths_extendCustomSettings() throws {
@@ -613,7 +613,7 @@ final class LinkGeneratorTests: XCTestCase {
 
         // Then
         let config = xcodeprojElements.config
-        XCTAssertEqual(config.buildSettings["HEADER_SEARCH_PATHS"] as? [String], [
+        XCTAssertEqual(config.buildSettings["HEADER_SEARCH_PATHS"]?.arrayValue, [
             "$(inherited)",
             "my/custom/path",
             "$(SRCROOT)/to/libraries",
@@ -648,7 +648,7 @@ final class LinkGeneratorTests: XCTestCase {
 
         // Then
         let config = xcodeprojElements.config
-        XCTAssertEqual(config.buildSettings["HEADER_SEARCH_PATHS"] as? [String], [
+        XCTAssertEqual(config.buildSettings["HEADER_SEARCH_PATHS"]?.arrayValue, [
             "$(inherited)",
             "$(SRCROOT)/to/libraries",
         ])
@@ -706,7 +706,7 @@ final class LinkGeneratorTests: XCTestCase {
         // Then
         let config = xcodeprojElements.config
         let expected = ["$(inherited)", "$(SRCROOT)/to/libraries", "$(SRCROOT)/to/other/libraries"]
-        XCTAssertEqual(config.buildSettings["LIBRARY_SEARCH_PATHS"] as? [String], expected)
+        XCTAssertEqual(config.buildSettings["LIBRARY_SEARCH_PATHS"]?.arrayValue, expected)
     }
 
     func test_setupLibrarySearchPaths_noPaths() throws {
@@ -762,7 +762,7 @@ final class LinkGeneratorTests: XCTestCase {
         // Then
         let config = xcodeprojElements.config
         let expected = ["$(inherited)", "$(SRCROOT)/to/libraries", "$(SRCROOT)/to/other/libraries"]
-        XCTAssertEqual(config.buildSettings["SWIFT_INCLUDE_PATHS"] as? [String], expected)
+        XCTAssertEqual(config.buildSettings["SWIFT_INCLUDE_PATHS"]?.arrayValue, expected)
     }
 
     func test_setupSwiftIncludePaths_noPaths() throws {
@@ -904,7 +904,7 @@ final class LinkGeneratorTests: XCTestCase {
         let buildPhase = try pbxTarget.frameworksBuildPhase()
 
         let testBuildFile: PBXBuildFile? = buildPhase?.files?.first
-        let attributes: [String]? = testBuildFile?.settings?["ATTRIBUTES"] as? [String]
+        let attributes: [String]? = testBuildFile?.settings?["ATTRIBUTES"]?.arrayValue
         XCTAssertEqual(attributes, ["Weak"])
     }
 
@@ -942,7 +942,7 @@ final class LinkGeneratorTests: XCTestCase {
         let buildPhase = try pbxTarget.frameworksBuildPhase()
 
         let testBuildFile: PBXBuildFile? = buildPhase?.files?.last
-        let attributes: [String]? = testBuildFile?.settings?["ATTRIBUTES"] as? [String]
+        let attributes: [String]? = testBuildFile?.settings?["ATTRIBUTES"]?.arrayValue
         XCTAssertEqual(attributes, ["Weak"])
     }
 
@@ -1044,9 +1044,9 @@ final class LinkGeneratorTests: XCTestCase {
             requiredFile,
             optionalFile,
         ])
-        XCTAssertEqual(buildPhase?.files?.map { $0.settings?.description }, [
+        XCTAssertEqual(buildPhase?.files?.map(\.settings), [
             nil,
-            "[\"ATTRIBUTES\": [\"Weak\"]]",
+            ["ATTRIBUTES": ["Weak"]],
         ])
     }
 

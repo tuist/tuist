@@ -80,7 +80,7 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
         let appTarget = nativeTargets.first(where: { $0.name == "App" })
         XCTAssertTrue(attributes.contains { attribute in
 
-            guard let testTargetID = attribute.value["TestTargetID"] as? PBXNativeTarget else {
+            guard case let .targetReference(testTargetID) = attribute.value["TestTargetID"] else {
                 return false
             }
 
@@ -273,7 +273,7 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
 
         // Then
         let pbxProject = try XCTUnwrap(try got.xcodeProj.pbxproj.rootProject())
-        let attributes = try XCTUnwrap(pbxProject.attributes as? [String: String])
+        let attributes = try XCTUnwrap(pbxProject.attributes)
         XCTAssertEqual(attributes, [
             "BuildIndependentTargetsInParallel": "YES",
             "ORGANIZATIONNAME": "tuist",
@@ -296,7 +296,7 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
 
         // Then
         let pbxProject = try XCTUnwrap(try got.xcodeProj.pbxproj.rootProject())
-        let attributes = try XCTUnwrap(pbxProject.attributes as? [String: String])
+        let attributes = try XCTUnwrap(pbxProject.attributes)
         XCTAssertEqual(attributes, [
             "BuildIndependentTargetsInParallel": "YES",
             "CLASSPREFIX": "TUIST",
@@ -326,10 +326,10 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
 
         // Then
         let pbxProject = try XCTUnwrap(try got.xcodeProj.pbxproj.rootProject())
-        let attributes = try XCTUnwrap(pbxProject.attributes as? [String: AnyHashable])
+        let attributes = try XCTUnwrap(pbxProject.attributes)
         XCTAssertEqual(attributes, [
             "BuildIndependentTargetsInParallel": "YES",
-            "KnownAssetTags": ["fileTag", "folderTag", "commonTag"].sorted(),
+            "KnownAssetTags": .array(["fileTag", "folderTag", "commonTag"].sorted()),
         ])
     }
 
@@ -466,7 +466,7 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
 
         // Then
         let pbxProject = try XCTUnwrap(try got.xcodeProj.pbxproj.rootProject())
-        let attributes = try XCTUnwrap(pbxProject.attributes as? [String: String])
+        let attributes = try XCTUnwrap(pbxProject.attributes)
         XCTAssertEqual(attributes, [
             "BuildIndependentTargetsInParallel": "YES",
             "LastUpgradeCheck": "1251",
