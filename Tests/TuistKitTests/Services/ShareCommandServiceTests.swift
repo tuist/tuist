@@ -83,6 +83,7 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
                 bundleIdentifier: .any,
                 icon: .any,
                 supportedPlatforms: .any,
+                path: .any,
                 fullHandle: .any,
                 serverURL: .any,
                 updateProgress: .any
@@ -245,6 +246,7 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
                     bundleIdentifier: .any,
                     icon: .any,
                     supportedPlatforms: .any,
+                    path: .any,
                     fullHandle: .value("tuist/tuist"),
                     serverURL: .value(Constants.URLs.production),
                     updateProgress: .any
@@ -439,6 +441,7 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
                     bundleIdentifier: .value("com.tuist.app"),
                     icon: .any,
                     supportedPlatforms: .value([.simulator(.iOS)]),
+                    path: .any,
                     fullHandle: .value("tuist/tuist"),
                     serverURL: .value(Constants.URLs.production),
                     updateProgress: .any
@@ -789,6 +792,7 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
                     bundleIdentifier: .any,
                     icon: .any,
                     supportedPlatforms: .any,
+                    path: .any,
                     fullHandle: .value("tuist/tuist"),
                     serverURL: .value(Constants.URLs.production),
                     updateProgress: .any
@@ -922,6 +926,7 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
                     bundleIdentifier: .any,
                     icon: .value(iosIconPath),
                     supportedPlatforms: .any,
+                    path: .any,
                     fullHandle: .value("tuist/tuist"),
                     serverURL: .value(Constants.URLs.production),
                     updateProgress: .any
@@ -992,6 +997,7 @@ final class ShareCommandServiceTests: TuistUnitTestCase {
                     bundleIdentifier: .value("com.tuist.app"),
                     icon: .value(iconPath),
                     supportedPlatforms: .any,
+                    path: .any,
                     fullHandle: .value("tuist/tuist"),
                     serverURL: .value(Constants.URLs.production),
                     updateProgress: .any
