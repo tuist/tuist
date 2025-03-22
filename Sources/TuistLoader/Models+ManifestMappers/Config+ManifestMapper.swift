@@ -47,7 +47,8 @@ extension TuistCore.Tuist {
             let generatorPaths = GeneratorPaths(manifestDirectory: path, rootDirectory: rootDirectory)
             let generationOptions = try TuistCore.TuistGeneratedProjectOptions.GenerationOptions.from(
                 manifest: generationOptions,
-                generatorPaths: generatorPaths
+                generatorPaths: generatorPaths,
+                fullHandle: manifest.fullHandle
             )
             let compatibleXcodeVersions = TuistCore.CompatibleXcodeVersions.from(manifest: compatibleXcodeVersions)
             let plugins = try plugins.map { try PluginLocation.from(manifest: $0, generatorPaths: generatorPaths) }
