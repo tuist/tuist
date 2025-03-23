@@ -248,7 +248,7 @@
   --noora-button-border-destructive-active: 0px 0px 0px 1px oklch(51.2% 0.201 30.7 / 0.8),
     0px 1px 4px 0px light-dark(oklch(0% 0 0 / 0.3), oklch(0% 0 0 / 0.4)) inset;
 
-  @media (prefers-color-scheme: dark) {
+  &[data-theme="dark"] {
     --noora-button-border-primary-hover: 0px 1px 0px 0px oklch(100% 0 0 / 0.1) inset,
       0px 1px 1px 0px oklch(20.9% 0.009 264.4 / 0.2), 0px 0px 0px 1px oklch(46.9% 0.27 286.9 / 0.9),
       0px 2px 3px 0px oklch(0% 0 0 / 0.4);
@@ -256,6 +256,7 @@
       0px 1px 1px 0px oklch(20.9% 0.009 264.4 / 0.8), 0px 0px 0px 1px oklch(31.6% 0.01 260.7 / 0.9),
       0px 2px 3px 0px oklch(0% 0 0 / 0.24);
   }
+
   /* Borders */
   --noora-surface-border-primary: light-dark(var(--noora-neutral-light-500), var(--noora-neutral-dark-800));
   --noora-light-border-default: 0px 1px 1px 0px oklch(20.9% 0.009 264.4 / 0.05),
@@ -265,7 +266,7 @@
     0px 0px 0px 1px oklch(31.8% 0.011 248.2 / 0.08), 0px 1px 3px 0px oklch(31.8% 0.011 248.2 / 0.1),
     0px 0px 0px 3px oklch(31.8% 0.011 248.2 / 0.12);
 
-  @media (prefers-color-scheme: dark) {
+  &[data-theme="dark"] {
     --noora-light-border-default: 0px 1px 1px 0px oklch(20.9% 0.009 264.4 / 0.3),
       0px 0px 0px 1px oklch(53.1% 0.01 264.5 / 0.45), 0px 2px 3px 0px oklch(0% 0 0 / 0.3);
 
@@ -276,6 +277,53 @@
 
   /* Table */
   --noora-surface-table-header: light-dark(var(--noora-neutral-light-200), var(--noora-neutral-dark-1000));
+
+  /* Choice Selector */
+  --noora-choice-selector-uncheck-background: linear-gradient(
+      180deg,
+      oklch(78.6% 0.013 248 / 0) 0%,
+      oklch(78.6% 0.013 248 / 0.06) 100%
+    ),
+    var(--noora-neutral-light-50);
+  --noora-choice-selector-uncheck-background-hover: linear-gradient(
+      180deg,
+      oklch(78.6% 0.013 248 / 0.05) 0%,
+      oklch(78.6% 0.013 248 / 0.19) 100%
+    ),
+    var(--noora-neutral-light-50);
+  --noora-choice-selector-check-background: linear-gradient(
+      180deg,
+      oklch(100% 0 0 / 0.16) 0%,
+      oklch(100% 0 0 / 0) 100%
+    ),
+    var(--noora-purple-500);
+  --noora-choice-selector-check-background-hover: linear-gradient(
+      180deg,
+      oklch(100% 0 0 / 0.12) 0%,
+      oklch(100% 0 0 / 0) 100%
+    ),
+    var(--noora-purple-500);
+  --noora-choice-selector-disabled-background: light-dark(
+    var(--noora-neutral-light-400),
+    var(--noora-neutral-dark-900)
+  );
+  --noora-choice-selector-label: oklch(99.4% 0 0);
+
+  &[data-theme="dark"] {
+    --noora-choice-selector-uncheck-background: linear-gradient(
+        180deg,
+        oklch(100% 0 0 / 0.05) 0%,
+        oklch(100% 0 0 / 0) 100%
+      ),
+      var(--noora-neutral-dark-1100);
+
+    --noora-choice-selector-uncheck-background-hover: linear-gradient(
+        180deg,
+        oklch(100% 0 0 / 0.03) 0%,
+        oklch(100% 0 0 / 0) 100%
+      ),
+      var(--noora-neutral-dark-1100);
+  }
 
   /* Divider */
   --noora-content-divider-line: light-dark(var(--noora-neutral-light-500), var(--noora-alpha-black));

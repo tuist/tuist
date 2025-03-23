@@ -14,6 +14,9 @@ importers:
       '@zag-js/avatar':
         specifier: ^0.82.2
         version: 0.82.2
+      '@zag-js/checkbox':
+        specifier: '0.82'
+        version: 0.82.2
       '@zag-js/collapsible':
         specifier: '0.82'
         version: 0.82.2
@@ -436,6 +439,9 @@ packages:
 
   '@zag-js/avatar@0.82.2':
     resolution: {integrity: sha512-rGlZno6S9lm/wWLC12sLj7nyFjUXZ/76hOvpcg5d+e2bmysu+chKz1Z08ecLBVVLWkk4JRq9M3v9Jgji0EgaDQ==}
+
+  '@zag-js/checkbox@0.82.2':
+    resolution: {integrity: sha512-9gE4P21YsrY+sFJaJOGG84jW64aAxl7M9S+wsmRruKmzNAwri30bOviMV11qZH2isJ44HxPuJ3iezXsLMN+Thg==}
 
   '@zag-js/collapsible@0.82.2':
     resolution: {integrity: sha512-SWOy9ANjO8vbkYwX8AvEOntkPOAXiT9b4Cg3YT5QALPEB2UMUk0CzxJXw+ilbDoRMWWus2nqgx2g6D+IAabjLQ==}
@@ -1821,6 +1827,15 @@ snapshots:
       '@zag-js/anatomy': 0.82.2
       '@zag-js/core': 0.82.2
       '@zag-js/dom-query': 0.82.2
+      '@zag-js/types': 0.82.2
+      '@zag-js/utils': 0.82.2
+
+  '@zag-js/checkbox@0.82.2':
+    dependencies:
+      '@zag-js/anatomy': 0.82.2
+      '@zag-js/core': 0.82.2
+      '@zag-js/dom-query': 0.82.2
+      '@zag-js/focus-visible': 0.82.2
       '@zag-js/types': 0.82.2
       '@zag-js/utils': 0.82.2
 
