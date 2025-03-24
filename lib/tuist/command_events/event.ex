@@ -16,31 +16,9 @@ defmodule Tuist.CommandEvents.Event do
       :name,
       :git_commit_sha,
       :git_ref,
-      :git_branch,
-      :preview_display_name,
-      :preview_bundle_identifier,
-      :preview_id
+      :git_branch
     ],
-    sortable: [:created_at],
-    adapter_opts: [
-      join_fields: [
-        preview_id: [
-          binding: :preview,
-          field: :id,
-          ecto_type: :uuid
-        ],
-        preview_display_name: [
-          binding: :preview,
-          field: :display_name,
-          ecto_type: :string
-        ],
-        preview_bundle_identifier: [
-          binding: :preview,
-          field: :bundle_identifier,
-          ecto_type: :string
-        ]
-      ]
-    ]
+    sortable: [:created_at]
   }
 
   schema "command_events" do

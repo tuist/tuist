@@ -178,7 +178,9 @@ defmodule TuistWeb.PreviewsControllerTest do
           display_name: "preview-name",
           type: "ipa",
           version: "1.0.0",
-          bundle_identifier: "com.tuist.app"
+          bundle_identifier: "com.tuist.app",
+          git_branch: "main",
+          git_commit_sha: "commit-sha"
         )
 
       # Then
@@ -187,10 +189,25 @@ defmodule TuistWeb.PreviewsControllerTest do
       response_data = response["data"]
       assert response_data["upload_id"] == upload_id
       preview = Repo.all(Preview) |> hd()
-      assert preview |> Map.get(:display_name) == "preview-name"
-      assert preview |> Map.get(:type) == :ipa
-      assert preview |> Map.get(:version) == "1.0.0"
-      assert preview |> Map.get(:bundle_identifier) == "com.tuist.app"
+
+      assert preview
+             |> Map.take([
+               :display_name,
+               :type,
+               :version,
+               :bundle_identifier,
+               :git_branch,
+               :git_commit_sha,
+               :ran_by_account_id
+             ]) == %{
+               display_name: "preview-name",
+               type: :ipa,
+               version: "1.0.0",
+               bundle_identifier: "com.tuist.app",
+               git_branch: "main",
+               git_commit_sha: "commit-sha",
+               ran_by_account_id: account.id
+             }
     end
 
     test "returns error when project doesn't exist", %{
@@ -662,65 +679,37 @@ defmodule TuistWeb.PreviewsControllerTest do
       account: account
     } do
       # Given
-      preview_one =
+      _preview_one =
         PreviewsFixtures.preview_fixture(
           project: project,
-          display_name: "App"
-        )
-
-      _command_event_one =
-        CommandEventsFixtures.command_event_fixture(
-          name: "share",
-          project_id: project.id,
-          preview_id: preview_one.id,
-          created_at: ~N[2021-01-01 00:00:00]
+          display_name: "App",
+          inserted_at: ~N[2021-01-01 00:00:00]
         )
 
       preview_two =
         PreviewsFixtures.preview_fixture(
           project: project,
           display_name: "App",
-          bundle_identifier: "com.tuist.app"
-        )
-
-      _command_event_two =
-        CommandEventsFixtures.command_event_fixture(
-          name: "share",
-          project_id: project.id,
-          preview_id: preview_two.id,
-          created_at: ~N[2021-01-01 01:00:00],
+          bundle_identifier: "com.tuist.app",
           git_branch: "main",
-          git_commit_sha: "commit-sha-two"
+          git_commit_sha: "commit-sha-two",
+          inserted_at: ~N[2021-01-01 01:00:00]
         )
 
-      preview_three =
+      _preview_three =
         PreviewsFixtures.preview_fixture(
           project: project,
-          display_name: "App"
+          display_name: "App",
+          git_branch: "feature-branch",
+          inserted_at: ~N[2021-01-01 02:00:00]
         )
 
-      _command_event_three =
-        CommandEventsFixtures.command_event_fixture(
-          name: "share",
-          project_id: project.id,
-          preview_id: preview_three.id,
-          created_at: ~N[2021-01-01 02:00:00],
-          git_branch: "feature-branch"
-        )
-
-      preview_four =
+      _preview_four =
         PreviewsFixtures.preview_fixture(
           project: project,
-          display_name: "AppTwo"
-        )
-
-      _command_event_four =
-        CommandEventsFixtures.command_event_fixture(
-          name: "share",
-          project_id: project.id,
-          preview_id: preview_four.id,
-          created_at: ~N[2021-01-01 02:30:00],
-          git_branch: "main"
+          display_name: "AppTwo",
+          git_branch: "main",
+          inserted_at: ~N[2021-01-01 03:00:00]
         )
 
       conn =
@@ -821,18 +810,12 @@ defmodule TuistWeb.PreviewsControllerTest do
       account: account
     } do
       # Given
-      preview_one =
+      _preview_one =
         PreviewsFixtures.preview_fixture(
           project: project,
-          display_name: "preview-one"
-        )
-
-      _command_event_one =
-        CommandEventsFixtures.command_event_fixture(
-          name: "share",
-          project_id: project.id,
-          preview_id: preview_one.id,
-          created_at: ~N[2021-01-01 00:00:00]
+          display_name: "preview-one",
+          inserted_at: ~N[2021-01-01 00:00:00],
+          git_branch: "feature"
         )
 
       conn =
@@ -1027,30 +1010,14 @@ defmodule TuistWeb.PreviewsControllerTest do
       preview_one =
         PreviewsFixtures.preview_fixture(
           project: project,
-          display_name: "preview-one"
-        )
-
-      _command_event_one =
-        CommandEventsFixtures.command_event_fixture(
-          name: "share",
-          project_id: project.id,
-          preview_id: preview_one.id,
-          created_at: ~N[2021-01-01 01:00:00],
+          display_name: "preview-one",
           git_branch: "feature-branch"
         )
 
-      preview_two =
+      _preview_two =
         PreviewsFixtures.preview_fixture(
           project: project,
-          display_name: "preview-one"
-        )
-
-      _command_event_two =
-        CommandEventsFixtures.command_event_fixture(
-          name: "share",
-          project_id: project.id,
-          preview_id: preview_two.id,
-          created_at: ~N[2021-01-01 02:00:00],
+          display_name: "preview-one",
           git_branch: "main"
         )
 
@@ -1084,31 +1051,17 @@ defmodule TuistWeb.PreviewsControllerTest do
       preview_one =
         PreviewsFixtures.preview_fixture(
           project: project,
-          display_name: "preview-one"
+          display_name: "preview-one",
+          git_commit_sha: "36fa9d5c3cb9f1dd45f194035a665444ea2d316f",
+          inserted_at: ~N[2021-01-01 00:00:00]
         )
 
-      _command_event_one =
-        CommandEventsFixtures.command_event_fixture(
-          name: "share",
-          project_id: project.id,
-          preview_id: preview_one.id,
-          created_at: ~N[2021-01-01 01:00:00],
-          git_commit_sha: "36fa9d5c3cb9f1dd45f194035a665444ea2d316f"
-        )
-
-      preview_two =
+      _preview_two =
         PreviewsFixtures.preview_fixture(
           project: project,
-          display_name: "preview-one"
-        )
-
-      _command_event_two =
-        CommandEventsFixtures.command_event_fixture(
-          name: "share",
-          project_id: project.id,
-          preview_id: preview_two.id,
-          created_at: ~N[2021-01-01 02:00:00],
-          git_commit_sha: "a8169b2276adc2a4fb8c41030e5c640541b46ef9"
+          display_name: "preview-one",
+          git_commit_sha: "a8169b2276adc2a4fb8c41030e5c640541b46ef9",
+          inserted_at: ~N[2021-01-01 01:00:00]
         )
 
       conn =
@@ -1141,43 +1094,22 @@ defmodule TuistWeb.PreviewsControllerTest do
       preview_one =
         PreviewsFixtures.preview_fixture(
           project: project,
-          display_name: "preview-one"
-        )
-
-      _command_event_one =
-        CommandEventsFixtures.command_event_fixture(
-          name: "share",
-          project_id: project.id,
-          preview_id: preview_one.id,
-          created_at: ~N[2021-01-01 00:00:00]
+          display_name: "preview-one",
+          inserted_at: ~N[2021-01-01 00:00:00]
         )
 
       preview_two =
         PreviewsFixtures.preview_fixture(
           project: project,
-          display_name: "preview-one"
-        )
-
-      _command_event_two =
-        CommandEventsFixtures.command_event_fixture(
-          name: "share",
-          project_id: project.id,
-          preview_id: preview_two.id,
-          created_at: ~N[2021-01-01 01:00:00]
+          display_name: "preview-one",
+          inserted_at: ~N[2021-01-01 01:00:00]
         )
 
       preview_three =
         PreviewsFixtures.preview_fixture(
           project: project,
-          display_name: "preview-one"
-        )
-
-      _command_event_three =
-        CommandEventsFixtures.command_event_fixture(
-          name: "share",
-          project_id: project.id,
-          preview_id: preview_three.id,
-          created_at: ~N[2021-01-01 02:00:00]
+          display_name: "preview-one",
+          inserted_at: ~N[2021-01-01 02:00:00]
         )
 
       conn =

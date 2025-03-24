@@ -2,38 +2,39 @@
   <h5 class="previews__title">{gettext("Previews")}</h5>
   <.legacy_table
     id="previews"
-    rows={@command_events}
+    rows={@previews}
     row_link={
-      fn command_event ->
-        ~p"/#{@selected_account.name}/#{@selected_project.name}/previews/#{command_event.preview.id}"
+      fn preview ->
+        ~p"/#{@selected_account.name}/#{@selected_project.name}/previews/#{preview.id}"
       end
     }
     empty_state_title={gettext("No previews")}
   >
-    <:col :let={command_event} label={gettext("Name")}>
-      {command_event.preview.display_name}
+    <:col :let={preview} label={gettext("Name")}>
+      {preview.display_name}
     </:col>
-    <:col :let={command_event} label={gettext("Supported platforms")}>
-      <.supported_platforms_badges preview={command_event.preview} />
+    <:col :let={preview} label={gettext("Supported platforms")}>
+      <.supported_platforms_badges preview={preview} />
     </:col>
-    <:col :let={command_event} label={gettext("Ran by")}>
-      <.command_event_ran_by_badge command_event={command_event} />
+    <:col :let={preview} label={gettext("Ran by")}>
+      <.preview_ran_by_badge preview={preview} />
     </:col>
-    <:col :let={command_event} label={gettext("Branch")}>
-      {command_event.git_branch || "None"}
+    <:col :let={preview} label={gettext("Branch")}>
+      {preview.git_branch || preview.command_event.git_branch || "None"}
     </:col>
-    <:col :let={command_event} label={gettext("Commit SHA")}>
-      {(command_event.git_commit_sha || "None") |> String.slice(0, 7)}
+    <:col :let={preview} label={gettext("Commit SHA")}>
+      {(preview.git_commit_sha || preview.command_event.git_commit_sha || "None")
+      |> String.slice(0, 7)}
     </:col>
-    <:col :let={command_event} label={gettext("Created at")}>
-      {Timex.from_now(command_event.ran_at || command_event.created_at)}
+    <:col :let={preview} label={gettext("Created at")}>
+      {Timex.from_now(preview.inserted_at)}
     </:col>
   </.legacy_table>
   <.pagination
     uri={@uri}
-    has_previous_page={@command_events_meta.has_previous_page?}
-    has_next_page={@command_events_meta.has_next_page?}
-    start_cursor={@command_events_meta.start_cursor}
-    end_cursor={@command_events_meta.end_cursor}
+    has_previous_page={@previews_meta.has_previous_page?}
+    has_next_page={@previews_meta.has_next_page?}
+    start_cursor={@previews_meta.start_cursor}
+    end_cursor={@previews_meta.end_cursor}
   />
 </div>

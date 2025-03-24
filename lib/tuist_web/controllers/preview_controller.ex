@@ -1,5 +1,4 @@
 defmodule TuistWeb.PreviewController do
-  alias Tuist.CommandEvents
   alias Tuist.Projects
   alias TuistWeb.Authorization
   alias Tuist.Storage
@@ -31,11 +30,10 @@ defmodule TuistWeb.PreviewController do
     with project when not is_nil(project) <-
            Projects.get_project_by_account_and_project_handles(account_handle, project_handle),
          latest_share_command_event when not is_nil(latest_share_command_event) <-
-           CommandEvents.get_latest_share_command_event(project) do
+           Previews.get_latest_preview(project) do
       conn
       |> redirect(
-        to:
-          ~p"/#{account_handle}/#{project_handle}/previews/#{latest_share_command_event.preview.id}"
+        to: ~p"/#{account_handle}/#{project_handle}/previews/#{latest_share_command_event.id}"
       )
       |> halt()
     else

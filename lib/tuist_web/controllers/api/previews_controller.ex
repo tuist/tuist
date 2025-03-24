@@ -1,7 +1,8 @@
 defmodule TuistWeb.API.PreviewsController do
+  alias Tuist.Accounts.User
+  alias Tuist.Accounts.AuthenticatedAccount
   alias TuistWeb.API.Schemas.ArtifactUploadURL
   alias TuistWeb.API.Schemas
-  alias Tuist.CommandEvents
   alias TuistWeb.API.Schemas.PreviewSupportedPlatform
   alias TuistWeb.API.EnsureProjectPresencePlug
   alias Tuist.Previews
@@ -76,6 +77,14 @@ defmodule TuistWeb.API.PreviewsController do
              type: :array,
              items: PreviewSupportedPlatform,
              description: "The supported platforms of the preview."
+           },
+           git_branch: %Schema{
+             type: :string,
+             description: "The git branch associated with the preview."
+           },
+           git_commit_sha: %Schema{
+             type: :string,
+             description: "The git commit SHA associated with the preview."
            }
          }
        }},
@@ -118,6 +127,13 @@ defmodule TuistWeb.API.PreviewsController do
     project =
       EnsureProjectPresencePlug.get_project(conn)
 
+    account_id =
+      case conn |> Authentication.authenticated_subject() do
+        %Project{} = project -> project.account.id
+        %User{} = user -> user.account.id
+        %AuthenticatedAccount{account: account} -> account.id
+      end
+
     %Preview{id: preview_id} =
       Previews.create_preview(%{
         project: project,
@@ -125,7 +141,10 @@ defmodule TuistWeb.API.PreviewsController do
         display_name: Map.get(body_params, :display_name),
         bundle_identifier: Map.get(body_params, :bundle_identifier),
         version: Map.get(body_params, :version),
-        supported_platforms: Map.get(body_params, :supported_platforms, [])
+        supported_platforms: Map.get(body_params, :supported_platforms, []),
+        git_branch: Map.get(body_params, :git_branch),
+        git_commit_sha: Map.get(body_params, :git_commit_sha),
+        ran_by_account_id: account_id
       })
 
     upload_id = Storage.multipart_start(get_object_key(conn, preview_id))
@@ -522,39 +541,39 @@ defmodule TuistWeb.API.PreviewsController do
     distinct =
       case Map.get(params, :distinct_field) do
         nil -> []
-        field -> [preview: [field |> String.to_atom()]]
+        field -> [field |> String.to_atom()]
       end
 
-    {command_events, _meta} =
-      CommandEvents.list_command_events(
+    {previews, _meta} =
+      Previews.list_previews(
         %{
           page: page,
           page_size: page_size,
           filters: filters,
-          order_by: [:created_at],
+          order_by: [:inserted_at],
           order_directions: [:desc]
         },
-        preload: [:preview],
         distinct: distinct,
-        preview_supported_platforms: Map.get(params, :supported_platforms)
+        supported_platforms: Map.get(params, :supported_platforms),
+        preload: [:command_event]
       )
 
     conn
     |> json(%{
       previews:
-        command_events
+        previews
         |> Enum.map(
           &%{
-            id: &1.preview.id,
-            url: url(~p"/#{account_handle}/#{project_handle}/previews/#{&1.preview.id}"),
+            id: &1.id,
+            url: url(~p"/#{account_handle}/#{project_handle}/previews/#{&1.id}"),
             qr_code_url:
-              url(~p"/#{account_handle}/#{project_handle}/previews/#{&1.preview.id}/qr-code.png"),
-            icon_url:
-              url(~p"/#{account_handle}/#{project_handle}/previews/#{&1.preview.id}/icon.png"),
-            bundle_identifier: &1.preview.bundle_identifier,
-            display_name: &1.preview.display_name,
-            git_commit_sha: &1.git_commit_sha,
-            git_branch: &1.git_branch
+              url(~p"/#{account_handle}/#{project_handle}/previews/#{&1.id}/qr-code.png"),
+            icon_url: url(~p"/#{account_handle}/#{project_handle}/previews/#{&1.id}/icon.png"),
+            bundle_identifier: &1.bundle_identifier,
+            display_name: &1.display_name,
+            git_commit_sha:
+              &1.git_commit_sha || (&1.command_event && &1.command_event.git_commit_sha),
+            git_branch: &1.git_branch || (&1.command_event && &1.command_event.git_branch)
           }
         )
     })
@@ -565,9 +584,7 @@ defmodule TuistWeb.API.PreviewsController do
 
     filters = [
       %{field: :project_id, op: :==, value: project.id},
-      %{field: :name, op: :==, value: "share"},
-      %{field: :preview_id, op: :not_empty, value: true},
-      %{field: :preview_bundle_identifier, op: :not_empty, value: true}
+      %{field: :bundle_identifier, op: :not_empty, value: true}
     ]
 
     specifier_filters =
@@ -583,7 +600,7 @@ defmodule TuistWeb.API.PreviewsController do
     filters =
       case Map.get(params, :display_name) do
         nil -> filters
-        display_name -> [%{field: :preview_display_name, op: :==, value: display_name} | filters]
+        display_name -> [%{field: :display_name, op: :==, value: display_name} | filters]
       end
 
     filters

@@ -29,6 +29,26 @@ defmodule TuistWeb.AppCommandEventComponents do
     """
   end
 
+  attr(:preview, :map, required: true)
+
+  def preview_ran_by_badge(assigns) do
+    ~H"""
+    <%= if is_nil(@preview.ran_by_account) do %>
+      <.command_event_ran_by_badge command_event={@preview.command_event} />
+    <% else %>
+      <%= if is_nil(@preview.ran_by_account.user_id) do %>
+        <.legacy_badge title={gettext("CI")} kind={:neutral}>
+          <:icon><.settings_icon /></:icon>
+        </.legacy_badge>
+      <% else %>
+        <.legacy_badge title={@preview.ran_by_account.name} kind={:brand}>
+          <:icon><.user_icon /></:icon>
+        </.legacy_badge>
+      <% end %>
+    <% end %>
+    """
+  end
+
   def command_event_status_badge(assigns) do
     ~H"""
     <.legacy_badge

@@ -65,19 +65,22 @@
       title={gettext("Created at")}
       value={Timex.format!(@preview.inserted_at, "{Mshort} {D}, {YYYY}, {h12}:{m} {AM}")}
     />
-    <%= if not is_nil(@preview.command_event) do %>
-      <%= if not is_nil(@preview.command_event.git_branch) do %>
-        <.preview_metadata_item
-          title={gettext("Branch")}
-          value={@preview.command_event.git_branch || "None"}
-        />
-      <% end %>
-      <%= if not is_nil(@preview.command_event.git_commit_sha) do %>
-        <.preview_metadata_item
-          title={gettext("Commit SHA")}
-          value={(@preview.command_event.git_commit_sha || "None") |> String.slice(0, 7)}
-        />
-      <% end %>
+    <% git_branch =
+      @preview.git_branch || (@preview.command_event && @preview.command_event.git_branch)
+
+    git_commit_sha =
+      @preview.git_commit_sha || (@preview.command_event && @preview.command_event.git_commit_sha) %>
+    <%= if not is_nil(git_branch) do %>
+      <.preview_metadata_item title={gettext("Branch")} value={git_branch || "None"} />
+    <% end %>
+    <%= if not is_nil(git_commit_sha) do %>
+      <.preview_metadata_item
+        title={gettext("Commit SHA")}
+        value={
+          (git_commit_sha || "None")
+          |> String.slice(0, 7)
+        }
+      />
     <% end %>
   </div>
   <%= if @preview.type == :ipa do %>

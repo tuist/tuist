@@ -343,7 +343,7 @@ msgstr ""
 msgid "Blog posts by the Tuist team."
 msgstr ""
 
-#: lib/tuist_web/live/preview_live.html.heex:71
+#: lib/tuist_web/live/preview_live.html.heex:74
 #: lib/tuist_web/live/previews_live.html.heex:22
 #, elixir-autogen, elixir-format
 msgid "Branch"
@@ -355,6 +355,7 @@ msgid "Bundle identifier"
 msgstr ""
 
 #: lib/tuist_web/components/app_command_event_components.ex:21
+#: lib/tuist_web/components/app_command_event_components.ex:40
 #: lib/tuist_web/live/project_dashboard_live.html.heex:48
 #, elixir-autogen, elixir-format
 msgid "CI"
@@ -448,7 +449,7 @@ msgstr ""
 msgid "Command"
 msgstr ""
 
-#: lib/tuist_web/live/preview_live.html.heex:77
+#: lib/tuist_web/live/preview_live.html.heex:78
 #: lib/tuist_web/live/previews_live.html.heex:25
 #, elixir-autogen, elixir-format
 msgid "Commit SHA"
@@ -552,7 +553,7 @@ msgid "Create your plan or self-host your instance."
 msgstr ""
 
 #: lib/tuist_web/live/preview_live.html.heex:65
-#: lib/tuist_web/live/previews_live.html.heex:28
+#: lib/tuist_web/live/previews_live.html.heex:29
 #, elixir-autogen, elixir-format
 msgid "Created at"
 msgstr ""
@@ -1322,7 +1323,7 @@ msgstr ""
 msgid "Pulling cache binaries..."
 msgstr ""
 
-#: lib/tuist_web/live/preview_live.html.heex:88
+#: lib/tuist_web/live/preview_live.html.heex:91
 #, elixir-autogen, elixir-format
 msgid "QR code"
 msgstr ""
@@ -1429,7 +1430,7 @@ msgstr ""
 msgid "Scale your Swift App development"
 msgstr ""
 
-#: lib/tuist_web/live/preview_live.html.heex:91
+#: lib/tuist_web/live/preview_live.html.heex:94
 #, elixir-autogen, elixir-format
 msgid "Scan QR code to install the app on your device"
 msgstr ""
@@ -1891,7 +1892,7 @@ msgstr ""
 
 #: lib/tuist_web/components/app_command_event_components.ex:25
 #: lib/tuist_web/live/preview_live.ex:66
-#: lib/tuist_web/live/previews_live.ex:106
+#: lib/tuist_web/live/previews_live.ex:102
 #: lib/tuist_web/live/project_run_detail_live.ex:289
 #: lib/tuist_web/live/project_test_case_detail_live.html.heex:40
 #, elixir-autogen, elixir-format

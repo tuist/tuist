@@ -54,7 +54,7 @@ defmodule TuistWeb.PreviewLiveTest do
   } do
     # Given
     preview =
-      PreviewsFixtures.preview_fixture(project: project)
+      PreviewsFixtures.preview_fixture(project: project, git_branch: nil)
 
     # When
     {:ok, lv, _html} =
@@ -71,15 +71,7 @@ defmodule TuistWeb.PreviewLiveTest do
     project: project
   } do
     # Given
-    preview = PreviewsFixtures.preview_fixture(project: project, type: :ipa)
-
-    _command_event =
-      CommandEventsFixtures.command_event_fixture(
-        name: "share",
-        project_id: project.id,
-        preview_id: preview.id,
-        git_branch: nil
-      )
+    preview = PreviewsFixtures.preview_fixture(project: project, type: :ipa, git_branch: nil)
 
     # When
     {:ok, lv, _html} =

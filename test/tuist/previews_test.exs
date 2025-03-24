@@ -217,4 +217,208 @@ defmodule Tuist.PreviewsTest do
       assert result == []
     end
   end
+
+  describe "get_latest_preview/1" do
+    test "returns latest preview" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      _preview_one =
+        PreviewsFixtures.preview_fixture(
+          project: project,
+          display_name: "App",
+          git_branch: "main",
+          inserted_at: ~N[2021-01-01 00:00:00]
+        )
+
+      preview_two =
+        PreviewsFixtures.preview_fixture(
+          project: project,
+          display_name: "App",
+          git_branch: "main",
+          inserted_at: ~N[2021-01-01 01:00:00]
+        )
+
+      # When
+      got = Previews.get_latest_preview(project)
+
+      # Then
+      assert got.id == preview_two.id
+    end
+
+    test "returns nil when no latest preview exists" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      _preview_one =
+        PreviewsFixtures.preview_fixture(
+          project: project,
+          display_name: "App",
+          git_branch: "other"
+        )
+
+      # When
+      got = Previews.get_latest_preview(project)
+
+      # Then
+      assert got == nil
+    end
+  end
+
+  describe "list_previews/1" do
+    test "returns previews" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      project_two = ProjectsFixtures.project_fixture()
+
+      preview_one =
+        PreviewsFixtures.preview_fixture(
+          project: project,
+          display_name: "App One",
+          inserted_at: ~U[2024-03-04 01:00:00Z]
+        )
+
+      PreviewsFixtures.preview_fixture(
+        project: project_two,
+        display_name: "App Two",
+        inserted_at: ~N[2024-03-05 02:00:00]
+      )
+
+      preview_two =
+        PreviewsFixtures.preview_fixture(
+          project: project,
+          display_name: "App Two",
+          inserted_at: ~U[2024-03-05 03:00:00Z]
+        )
+
+      preview_three =
+        PreviewsFixtures.preview_fixture(
+          project: project,
+          display_name: "App Three",
+          inserted_at: ~U[2024-03-05 04:00:00Z]
+        )
+
+      preview_four =
+        PreviewsFixtures.preview_fixture(
+          project: project,
+          display_name: "App Four",
+          inserted_at: ~U[2024-03-05 05:00:00Z]
+        )
+
+      preview_five =
+        PreviewsFixtures.preview_fixture(
+          project: project,
+          display_name: "App Five",
+          inserted_at: ~U[2024-03-05 06:00:00Z]
+        )
+
+      # When
+      {got_previews_first_page, got_meta_first_page} =
+        Previews.list_previews(%{
+          page: 1,
+          page_size: 2,
+          filters: [%{field: :project_id, op: :==, value: project.id}],
+          order_by: [:inserted_at],
+          order_directions: [:desc]
+        })
+
+      {got_previews_second_page, got_meta_second_page} =
+        Previews.list_previews(Flop.to_next_page(got_meta_first_page.flop))
+
+      {got_previews_third_page, _meta} =
+        Previews.list_previews(Flop.to_next_page(got_meta_second_page.flop))
+
+      # Then
+      assert got_previews_first_page == [preview_five, preview_four]
+      assert got_previews_second_page == [preview_three, preview_two]
+      assert got_previews_third_page == [preview_one]
+    end
+
+    test "returns previews with filtered supported_platforms" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      preview_one =
+        PreviewsFixtures.preview_fixture(
+          project: project,
+          display_name: "App",
+          supported_platforms: [:ios, :watchos],
+          inserted_at: ~N[2021-01-01 00:00:00]
+        )
+
+      _preview_two =
+        PreviewsFixtures.preview_fixture(
+          project: project,
+          display_name: "App",
+          supported_platforms: [:macos, :watchos],
+          inserted_at: ~N[2021-01-01 01:00:00]
+        )
+
+      # When
+      {got_previews_page, _got_meta_page} =
+        Previews.list_previews(
+          %{
+            first: 20,
+            filters: [%{field: :project_id, op: :==, value: project.id}],
+            order_by: [:inserted_at],
+            order_directions: [:desc]
+          },
+          supported_platforms: [:ios, :visionos]
+        )
+
+      # Then
+      assert got_previews_page |> Enum.map(& &1.id) == [
+               preview_one.id
+             ]
+    end
+
+    test "returns previews with distinct bundle identifiers" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      preview_one =
+        PreviewsFixtures.preview_fixture(
+          project: project,
+          bundle_identifier: "com.example.app-one",
+          inserted_at: ~U[2021-01-01 01:00:00Z]
+        )
+
+      _preview_two =
+        PreviewsFixtures.preview_fixture(
+          project: project,
+          bundle_identifier: "com.example.app-one",
+          inserted_at: ~U[2021-01-01 02:00:00Z]
+        )
+
+      preview_three =
+        PreviewsFixtures.preview_fixture(
+          project: project,
+          bundle_identifier: "com.example.app-two",
+          inserted_at: ~U[2021-01-01 03:00:00Z]
+        )
+
+      # When
+      {got_previews_page, got_meta_page} =
+        Previews.list_previews(
+          %{
+            first: 20,
+            filters: [%{field: :project_id, op: :==, value: project.id}],
+            order_by: [:inserted_at],
+            order_directions: [:desc]
+          },
+          distinct: [:bundle_identifier]
+        )
+
+      # Then
+      assert got_previews_page |> Enum.map(& &1.id) == [
+               preview_three.id,
+               preview_one.id
+             ]
+
+      assert got_previews_page |> Enum.map(& &1.bundle_identifier) == [
+               "com.example.app-two",
+               "com.example.app-one"
+             ]
+    end
+  end
 end

@@ -3,15 +3,15 @@ defmodule TuistWeb.PreviewsLive do
   use TuistWeb, :live_view
 
   alias Tuist.Projects
-  alias Tuist.CommandEvents
+  alias Tuist.Previews
 
   def mount(params, _session, %{assigns: %{selected_project: project}} = socket) do
     uri =
       ("?" <> URI.encode_query(Map.take(params, ["after", "before"])))
       |> URI.new!()
 
-    {command_events, command_events_meta} =
-      list_share_command_events(project.id, first: 20, preload: [:preview])
+    {previews, previews_meta} =
+      list_previews(project.id, first: 20)
 
     slug = Projects.get_project_slug_from_id(project.id)
 
@@ -21,59 +21,55 @@ defmodule TuistWeb.PreviewsLive do
       |> assign(:uri, uri)
       |> assign(:head_title, "#{gettext("Previews")} · #{slug} · Tuist")
       |> assign(
-        :command_events,
-        command_events
+        :previews,
+        previews
       )
       |> assign(
-        :command_events_meta,
-        command_events_meta
+        :previews,
+        previews_meta
       )
     }
   end
 
   def handle_params(params, _uri, %{assigns: %{selected_project: project}} = socket) do
-    {next_command_events, next_command_events_meta} =
+    {next_previews, next_previews_meta} =
       cond do
         !is_nil(params["after"]) ->
-          list_share_command_events(project.id,
+          list_previews(project.id,
             first: 20,
-            after: params["after"],
-            preload: [:preview]
+            after: params["after"]
           )
 
         !is_nil(params["before"]) ->
-          list_share_command_events(project.id,
+          list_previews(project.id,
             last: 20,
-            before: params["before"],
-            preload: [:preview]
+            before: params["before"]
           )
 
         true ->
-          list_share_command_events(project.id, first: 20, preload: [:preview])
+          list_previews(project.id, first: 20)
       end
 
     {
       :noreply,
       socket
       |> assign(
-        :command_events,
-        next_command_events
+        :previews,
+        next_previews
       )
       |> assign(
-        :command_events_meta,
-        next_command_events_meta
+        :previews_meta,
+        next_previews_meta
       )
     }
   end
 
-  defp list_share_command_events(project_id, attrs) do
+  defp list_previews(project_id, attrs) do
     options = %{
       filters: [
-        %{field: :project_id, op: :==, value: project_id},
-        %{field: :preview_id, op: :not_empty, value: true},
-        %{field: :name, op: :in, value: ["share"]}
+        %{field: :project_id, op: :==, value: project_id}
       ],
-      order_by: [:created_at],
+      order_by: [:inserted_at],
       order_directions: [:desc]
     }
 
@@ -94,7 +90,7 @@ defmodule TuistWeb.PreviewsLive do
           |> Map.put(:first, 20)
       end
 
-    CommandEvents.list_command_events(options, preload: [:preview])
+    Previews.list_previews(options, preload: [:ran_by_account, command_event: [user: [:account]]])
   end
 
   attr(:preview, :map, required: true)
