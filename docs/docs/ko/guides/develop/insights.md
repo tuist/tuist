@@ -38,7 +38,19 @@ eval "$($HOME/.local/bin/mise activate -C $SRCROOT bash --shims)"
 tuist inspect build
 ```
 
-<details><summary>생성된 프로젝트에서 빌드 검사 후속 작업 설정</summary>
+이제 Tuist 계정에 로그인된 상태에서는 로컬 빌드가 추적됩니다. 이제 Tuist 대시보드에서 빌드 시간을 확인하고 시간이 지남에 따라 어떻게 변하는지 살펴볼 수 있습니다:
+
+> [!TIP]\
+> 대시보드에 빠르게 접근하려면, CLI에서 `tuist project show-web` 명령어를 수행하세요.
+
+![빌드 인사이트 대시보드](/images/guides/develop/insights/builds-dashboard.png)
+
+## Projects {#projects}
+
+> [!NOTE]
+> Auto-generated schemes automatically include the `tuist inspect build` post-action.
+>
+> If you are not interested in tracking build insights in your auto-generated schemes, disable them using the <LocalizedLink href="references/project-description/structs/tuist.generationoptions#buildinsightsdisabled">buildInsightsDisabled</LocalizedLink> generation option.
 
 생성된 프로젝트를 사용하면, 다음과 같이 커스텀 스킴을 사용하여 커스텀 <0>빌드 후속 작업</0>을 설정할 수 있습니다:
 
@@ -79,16 +91,7 @@ Mise를 사용하지 않는다면, 스크립트를 다음과 같이 간단하게
 )
 ```
 
-</details>
-
-이제 Tuist 계정에 로그인된 상태에서는 로컬 빌드가 추적됩니다. 이제 Tuist 대시보드에서 빌드 시간을 확인하고 시간이 지남에 따라 어떻게 변하는지 살펴볼 수 있습니다:
-
-> [!TIP]\
-> 대시보드에 빠르게 접근하려면, CLI에서 `tuist project show-web` 명령어를 수행하세요.
-
-![빌드 인사이트 대시보드](/images/guides/develop/insights/builds-dashboard.png)
-
-### Continuous integration {#continuous-integration}
+## Continuous integration {#continuous-integration}
 
 CI에서 빌드 시간을 추적하려면, CI가 <LocalizedLink href="/guides/automate/continuous-integration#authentication">인증</LocalizedLink>되었는지 확인해야 합니다.
 
