@@ -80,7 +80,7 @@ defmodule TuistWeb.API.EnsureProjectPresencePlug do
       case Map.get(conn.assigns, :caching, false) do
         true ->
           Tuist.Cache.get_value(
-            [__MODULE__, :project, project_slug],
+            [Atom.to_string(__MODULE__), "project", project_slug],
             [
               ttl: Map.get(conn.assigns, :cache_ttl, :timer.minutes(1)),
               cache: Map.get(conn.assigns, :cache, :tuist)

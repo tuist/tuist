@@ -42,7 +42,7 @@ defmodule TuistWeb.AuthenticationPlug do
   end
 
   defp get_authenticated_subject(conn, token) do
-    cache_key = [__MODULE__, :authenticated_subject, token]
+    cache_key = [Atom.to_string(__MODULE__), "authenticated_subject", token]
 
     cache_opts = [
       ttl: Map.get(conn.assigns, :cache_ttl, :timer.minutes(1)),

@@ -43,7 +43,11 @@ defmodule TuistWeb.API.Authorization.BillingPlug do
       case Map.get(conn.assigns, :caching, false) do
         true ->
           Tuist.Cache.get_value(
-            [__MODULE__, :subscription_data, EnsureProjectPresencePlug.get_project(conn).id],
+            [
+              Atom.to_string(__MODULE__),
+              "subscription_data",
+              EnsureProjectPresencePlug.get_project(conn).id
+            ],
             [
               ttl: Map.get(conn.assigns, :cache_ttl, :timer.minutes(1)),
               cache: Map.get(conn.assigns, :cache, :tuist)
