@@ -32,7 +32,7 @@ struct BuildInsightsActionMapper: BuildInsightsActionMapping {
         var buildAction = buildAction
         buildAction.postActions.append(
             ExecutionAction(
-                title: "Build insights",
+                title: "Push build insights",
                 scriptText: "\(environment.tuistExecutablePath?.pathString ?? "tuist") inspect build",
                 target: nil,
                 shellPath: nil
