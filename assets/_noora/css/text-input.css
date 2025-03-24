@@ -2,7 +2,7 @@
   align-self: stretch;
   display: flex;
   flex-direction: column;
-  gap: var(--noora-spacing-2);
+  gap: var(--noora-spacing-3);
 
   & [data-part="wrapper"] {
     align-items: center;
