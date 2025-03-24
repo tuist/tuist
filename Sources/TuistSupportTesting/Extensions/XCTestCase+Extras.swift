@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import ServiceContextModule
 import TuistSupport
 import XCTest
 
@@ -67,7 +68,14 @@ extension XCTestCase {
     }
 
     public func XCTAssertStandardOutput(pattern: String, file: StaticString = #file, line: UInt = #line) {
-        let standardOutput = TestingLogHandler.collected[.info, <=]
+        guard let testingLogHandler = ServiceContext.current?.testingLogHandler else {
+            return XCTFail(
+                "The testing log handler hasn't been set with ServiceContext.withTestingDependencies.",
+                file: file,
+                line: line
+            )
+        }
+        let standardOutput = testingLogHandler.collected[.info, <=]
 
         let message = """
         The standard output:
@@ -83,7 +91,14 @@ extension XCTestCase {
     }
 
     public func XCTAssertStandardOutputNotContains(_ pattern: String, file: StaticString = #file, line: UInt = #line) {
-        let standardOutput = TestingLogHandler.collected[.info, <=]
+        guard let testingLogHandler = ServiceContext.current?.testingLogHandler else {
+            return XCTFail(
+                "The testing log handler hasn't been set with ServiceContext.withTestingDependencies.",
+                file: file,
+                line: line
+            )
+        }
+        let standardOutput = testingLogHandler.collected[.info, <=]
 
         let message = """
         The standard output:
@@ -99,7 +114,14 @@ extension XCTestCase {
     }
 
     public func XCTAssertStandardError(pattern: String, file: StaticString = #file, line: UInt = #line) {
-        let standardError = TestingLogHandler.collected[.error, ==]
+        guard let testingLogHandler = ServiceContext.current?.testingLogHandler else {
+            return XCTFail(
+                "The testing log handler hasn't been set with ServiceContext.withTestingDependencies.",
+                file: file,
+                line: line
+            )
+        }
+        let standardError = testingLogHandler.collected[.error, <=]
 
         let message = """
         The standard error:

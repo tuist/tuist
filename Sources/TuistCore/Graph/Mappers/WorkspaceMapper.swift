@@ -1,4 +1,3 @@
-import Foundation
 import XcodeGraph
 
 public struct WorkspaceWithProjects: Equatable {

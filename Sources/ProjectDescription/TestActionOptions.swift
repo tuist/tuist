@@ -1,5 +1,3 @@
-import Foundation
-
 /// The type `TestActionOptions` represents a set of options for a test action.
 public struct TestActionOptions: Equatable, Codable, Sendable {
     /// Language used to run the tests.

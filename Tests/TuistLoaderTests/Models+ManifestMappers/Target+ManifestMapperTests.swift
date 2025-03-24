@@ -82,7 +82,8 @@ final class TargetManifestMapperTests: TuistUnitTestCase {
                 rootDirectory: rootDirectory
             ),
             externalDependencies: [:],
-            fileSystem: fileSystem
+            fileSystem: fileSystem,
+            type: .local
         )
 
         // Then
@@ -121,7 +122,8 @@ final class TargetManifestMapperTests: TuistUnitTestCase {
                     rootDirectory: rootDirectory
                 ),
                 externalDependencies: [:],
-                fileSystem: fileSystem
+                fileSystem: fileSystem,
+                type: .local
             ),
             TargetManifestMapperError.nonSpecificGeneratedResource(targetName: "Target", generatedSource: sourcePath)
         )

@@ -1,6 +1,5 @@
 import Foundation
 import Mockable
-import Path
 import TSCUtility
 import TuistCore
 import TuistCoreTesting
@@ -15,7 +14,7 @@ import XCTest
 
 final class PackageSettingsLoaderTests: TuistUnitTestCase {
     private var manifestLoader: MockManifestLoading!
-    private var swiftPackageManagerController: MockSwiftPackageManagerController!
+    private var swiftPackageManagerController: MockSwiftPackageManagerControlling!
     private var manifestFilesLocator: MockManifestFilesLocating!
     private var rootDirectoryLocator: MockRootDirectoryLocating!
     private var subject: PackageSettingsLoader!
@@ -24,7 +23,7 @@ final class PackageSettingsLoaderTests: TuistUnitTestCase {
         super.setUp()
 
         manifestLoader = .init()
-        swiftPackageManagerController = MockSwiftPackageManagerController()
+        swiftPackageManagerController = MockSwiftPackageManagerControlling()
         manifestFilesLocator = MockManifestFilesLocating()
         rootDirectoryLocator = MockRootDirectoryLocating()
 
@@ -65,9 +64,9 @@ final class PackageSettingsLoaderTests: TuistUnitTestCase {
             .loadPackageSettings(at: .any)
             .willReturn(.test())
 
-        swiftPackageManagerController.getToolsVersionStub = { _ in
-            TSCUtility.Version("5.4.9")
-        }
+        given(swiftPackageManagerController)
+            .getToolsVersion(at: .any)
+            .willReturn("5.4.9")
 
         // When
         let got = try await subject.loadPackageSettings(at: temporaryPath, with: plugins)
@@ -85,7 +84,8 @@ final class PackageSettingsLoaderTests: TuistUnitTestCase {
                 ],
                 defaultSettings: .recommended
             ),
-            targetSettings: [:]
+            targetSettings: [:],
+            includeLocalPackageTestTargets: true
         )
         verify(manifestLoader)
             .register(plugins: .any)

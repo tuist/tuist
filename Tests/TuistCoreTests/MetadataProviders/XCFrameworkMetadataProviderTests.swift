@@ -1,4 +1,5 @@
 import Path
+import ServiceContextModule
 import XCTest
 
 @testable import TuistCore
@@ -262,64 +263,66 @@ final class XCFrameworkMetadataProviderTests: TuistUnitTestCase {
     }
 
     func test_loadMetadata_frameworkMissingArchitecture() async throws {
-        // Given
-        let frameworkPath = fixturePath(
-            path: try RelativePath(validating: "MyFrameworkMissingArch.xcframework")
-        )
-
-        // When
-        let metadata = try await subject.loadMetadata(at: frameworkPath, status: .required)
-
-        // Then
-        let expectedInfoPlist = XCFrameworkInfoPlist(libraries: [
-            XCFrameworkInfoPlist.Library(
-                identifier: "ios-x86_64-simulator", // Not present on disk
-                path: try RelativePath(validating: "MyFrameworkMissingArch.framework"),
-                mergeable: false,
-                platform: .iOS,
-                architectures: [.x8664]
-            ),
-            XCFrameworkInfoPlist.Library(
-                identifier: "ios-arm64",
-                path: try RelativePath(validating: "MyFrameworkMissingArch.framework"),
-                mergeable: false,
-                platform: .iOS,
-                architectures: [.arm64]
-            ),
-        ])
-        XCTAssertEqual(
-            metadata,
-            XCFrameworkMetadata(
-                path: frameworkPath,
-                infoPlist: expectedInfoPlist,
-                linking: .dynamic,
-                mergeable: false,
-                status: .required,
-                macroPath: nil,
-                swiftModules: [
-                    frameworkPath.appending(
-                        components: "ios-arm64",
-                        "MyFrameworkMissingArch.framework",
-                        "Modules",
-                        "MyFramework.swiftmodule"
-                    ),
-                ],
-                moduleMaps: [
-                    frameworkPath.appending(
-                        components: "ios-arm64",
-                        "MyFrameworkMissingArch.framework",
-                        "Modules",
-                        "module.modulemap"
-                    ),
-                ]
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            let frameworkPath = fixturePath(
+                path: try RelativePath(validating: "MyFrameworkMissingArch.xcframework")
             )
-        )
 
-        XCTAssertPrinterOutputContains(
-            """
-            MyFrameworkMissingArch.xcframework is missing architecture ios-x86_64-simulator/MyFrameworkMissingArch.framework/MyFrameworkMissingArch defined in the Info.plist
-            """
-        )
+            // When
+            let metadata = try await subject.loadMetadata(at: frameworkPath, status: .required)
+
+            // Then
+            let expectedInfoPlist = XCFrameworkInfoPlist(libraries: [
+                XCFrameworkInfoPlist.Library(
+                    identifier: "ios-x86_64-simulator", // Not present on disk
+                    path: try RelativePath(validating: "MyFrameworkMissingArch.framework"),
+                    mergeable: false,
+                    platform: .iOS,
+                    architectures: [.x8664]
+                ),
+                XCFrameworkInfoPlist.Library(
+                    identifier: "ios-arm64",
+                    path: try RelativePath(validating: "MyFrameworkMissingArch.framework"),
+                    mergeable: false,
+                    platform: .iOS,
+                    architectures: [.arm64]
+                ),
+            ])
+            XCTAssertEqual(
+                metadata,
+                XCFrameworkMetadata(
+                    path: frameworkPath,
+                    infoPlist: expectedInfoPlist,
+                    linking: .dynamic,
+                    mergeable: false,
+                    status: .required,
+                    macroPath: nil,
+                    swiftModules: [
+                        frameworkPath.appending(
+                            components: "ios-arm64",
+                            "MyFrameworkMissingArch.framework",
+                            "Modules",
+                            "MyFramework.swiftmodule"
+                        ),
+                    ],
+                    moduleMaps: [
+                        frameworkPath.appending(
+                            components: "ios-arm64",
+                            "MyFrameworkMissingArch.framework",
+                            "Modules",
+                            "module.modulemap"
+                        ),
+                    ]
+                )
+            )
+
+            XCTAssertPrinterOutputContains(
+                """
+                MyFrameworkMissingArch.xcframework is missing architecture ios-x86_64-simulator/MyFrameworkMissingArch.framework/MyFrameworkMissingArch defined in the Info.plist
+                """
+            )
+        }
     }
 
     func test_loadMetadata_when_containsMacros() async throws {

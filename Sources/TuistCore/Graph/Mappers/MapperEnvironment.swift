@@ -1,5 +1,3 @@
-import Foundation
-
 public protocol MapperEnvironmentKey<Value>: Hashable {
     associatedtype Value
     static var defaultValue: Self.Value { get }

@@ -60,6 +60,7 @@ public enum EnvKey: String, CaseIterable {
     case initName = "TUIST_INIT_NAME"
     case initTemplate = "TUIST_INIT_TEMPLATE"
     case initPath = "TUIST_INIT_PATH"
+    case initAnswers = "TUIST_INIT_ANSWERS"
 
     // MIGRATION
     case migrationSettingsToXcconfigXcodeprojPath = "TUIST_MIGRATION_SETTINGS_TO_XCCONFIG_XCODEPROJ_PATH"
@@ -88,6 +89,12 @@ public enum EnvKey: String, CaseIterable {
 
     // LINT
     case lintImplicitDependenciesPath = "TUIST_LINT_IMPLICIT_DEPENDENCIES_PATH"
+
+    // Redundant
+    case lintRedundantDependenciesPath = "TUIST_LINT_REDUNDANT_DEPENDENCIES_PATH"
+
+    // BUILD
+    case inspectBuildPath = "TUIST_INSPECT_BUILD_PATH"
 
     // RUN
     case runBuildTests = "TUIST_RUN_BUILD_TESTS"
@@ -132,6 +139,8 @@ public enum EnvKey: String, CaseIterable {
     case testGenerateOnly = "TUIST_TEST_GENERATE_ONLY"
     case testBinaryCache = "TUIST_TEST_BINARY_CACHE"
     case testSelectiveTesting = "TUIST_TEST_SELECTIVE_TESTING"
+    case testWithoutBuilding = "TUIST_TEST_WITHOUT_BUILDING"
+    case testBuildOnly = "TUIST_TEST_BUILD_ONLY"
 
     // ORGANIZATION BILLING
     case organizationBillingOrganizationName = "TUIST_ORGANIZATION_BILLING_ORGANIZATION_NAME"
@@ -207,13 +216,22 @@ public enum EnvKey: String, CaseIterable {
     case organizationUpdateMemberRole = "TUIST_ORGANIZATION_UPDATE_MEMBER_ROLE"
     case organizationUpdateMemberPath = "TUIST_ORGANIZATION_UPDATE_MEMBER_PATH"
 
+    // REGISTRY LOGIN
+    case registryLoginPath = "TUIST_REGISTRY_LOGIN_PATH"
+
+    // REGISTRY LOGOUT
+    case registryLogoutPath = "TUIST_REGISTRY_LOGOUT_PATH"
+
+    // REGISTRY SETUP
+    case registrySetUpPath = "TUIST_REGISTRY_SETUP_PATH"
+
     // AUTH
     case authPath = "TUIST_AUTH_PATH"
     case authEmail = "TUIST_AUTH_EMAIL"
     case authPassword = "TUIST_AUTH_PASSWORD"
 
     // SESSION
-    case sessionPath = "TUIST_SESSION_PATH"
+    case whoamiPath = "TUIST_WHOAMI_PATH"
 
     // LOGOUT
     case logoutPath = "TUIST_LOGOUT_PATH"
@@ -227,6 +245,14 @@ public enum EnvKey: String, CaseIterable {
     case sharePlatform = "TUIST_SHARE_PLATFORM"
     case shareJSON = "TUIST_SHARE_JSON"
     case shareDerivedDataPath = "TUIST_SHARE_DERIVED_DATA_PATH"
+
+    // CACHE
+    case cacheExternalOnly = "TUIST_CACHE_EXTERNAL_ONLY"
+    case cacheGenerateOnly = "TUIST_CACHE_GENERATE_ONLY"
+    case cachePrintHashes = "TUIST_CACHE_PRINT_HASHES"
+    case cacheConfiguration = "TUIST_CACHE_CONFIGURATION"
+    case cachePath = "TUIST_CACHE_PATH"
+    case cacheTargets = "TUIST_CACHE_TARGETS"
 }
 
 extension EnvKey {

@@ -42,8 +42,8 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
 
         let debugConfig: XCBuildConfiguration = configurationList.buildConfigurations[2]
         XCTAssertEqual(debugConfig.name, "Debug")
-        XCTAssertEqual(debugConfig.buildSettings["Debug"] as? String, "Debug")
-        XCTAssertEqual(debugConfig.buildSettings["Base"] as? String, "Base")
+        XCTAssertEqual(debugConfig.buildSettings["Debug"], .string("Debug"))
+        XCTAssertEqual(debugConfig.buildSettings["Base"], .string("Base"))
     }
 
     func test_generateProjectConfig_whenRelease() async throws {
@@ -54,14 +54,14 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
 
         let releaseConfig: XCBuildConfiguration = configurationList.buildConfigurations[3]
         XCTAssertEqual(releaseConfig.name, "Release")
-        XCTAssertEqual(releaseConfig.buildSettings["Release"] as? String, "Release")
-        XCTAssertEqual(releaseConfig.buildSettings["Base"] as? String, "Base")
-        XCTAssertEqual(releaseConfig.buildSettings["MTL_ENABLE_DEBUG_INFO"] as? String, "NO")
+        XCTAssertEqual(releaseConfig.buildSettings["Release"], .string("Release"))
+        XCTAssertEqual(releaseConfig.buildSettings["Base"], .string("Base"))
+        XCTAssertEqual(releaseConfig.buildSettings["MTL_ENABLE_DEBUG_INFO"], .string("NO"))
 
         let customReleaseConfig: XCBuildConfiguration = configurationList.buildConfigurations[1]
         XCTAssertEqual(customReleaseConfig.name, "CustomRelease")
-        XCTAssertEqual(customReleaseConfig.buildSettings["Base"] as? String, "Base")
-        XCTAssertEqual(customReleaseConfig.buildSettings["MTL_ENABLE_DEBUG_INFO"] as? String, "NO")
+        XCTAssertEqual(customReleaseConfig.buildSettings["Base"], .string("Base"))
+        XCTAssertEqual(customReleaseConfig.buildSettings["MTL_ENABLE_DEBUG_INFO"], .string("NO"))
     }
 
     func test_generateTargetConfig() async throws {
@@ -511,7 +511,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         let releaseConfig = configurationList?.configuration(name: "Release")
 
         let expectedSettings: SettingsDictionary = [
-            "TARGETED_DEVICE_FAMILY": "1,2",
+            "TARGETED_DEVICE_FAMILY": "1,2,6",
             "IPHONEOS_DEPLOYMENT_TARGET": "13.1",
             "SUPPORTS_MACCATALYST": "YES",
             "DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER": "YES",
@@ -688,8 +688,8 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
             "SDKROOT": "auto",
             "TARGETED_DEVICE_FAMILY": "1,2",
             "SUPPORTED_PLATFORMS": "iphoneos iphonesimulator macosx",
-            "LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]": ["$(inherited)", "@executable_path/../Frameworks"],
             "LD_RUNPATH_SEARCH_PATHS": ["$(inherited)", "@executable_path/Frameworks"],
+            "LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]": ["$(inherited)", "@executable_path/../Frameworks"],
         ]
 
         assert(config: debugConfig, contains: expectedSettings)
@@ -1353,9 +1353,9 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         line: UInt = #line
     ) {
         let matches = settings.filter {
-            if let stringValue = config?.buildSettings[$0.key] as? String {
+            if let stringValue = config?.buildSettings[$0.key]?.stringValue {
                 return $0.value == .string(stringValue)
-            } else if let arrayValue = config?.buildSettings[$0.key] as? [String] {
+            } else if let arrayValue = config?.buildSettings[$0.key]?.arrayValue {
                 return $0.value == .array(arrayValue)
             } else {
                 return false

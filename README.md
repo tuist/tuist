@@ -2,9 +2,10 @@
   <div>
     <a href="https://tuist.io" target="_blank"><img src="assets/header.jpg" alt="header"/></a>
   </div>
-  <img src="https://github.com/tuist/tuist/workflows/Tuist/badge.svg" alt="CI status">
+  <img src="https://api.codemagic.io/apps/65ca555c190cfbe9f5dd792f/unit_tests/status_badge.svg" alt="CI status">
   <img src="https://img.shields.io/github/commit-activity/w/tuist/tuist?style=flat-square&label=commits" alt="Commit Activity">
-  <a href="https://twitter.com/tuistio"><img src="https://img.shields.io/badge/tuist-gray.svg?logo=x" alt="Twitter Followers"></a>
+  <a href="https://fosstodon.org/@tuist"><img src="https://img.shields.io/badge/tuist-gray.svg?logo=mastodon&logoColor=f5f5f5" alt="Mastodon badge"></a>
+  <a href="https://bsky.app/profile/tuist.dev"><img src="https://img.shields.io/badge/tuist-gray.svg?logo=bluesky" alt="Bluesky badge"></a>
   <a href="https://join.slack.com/t/tuistapp/shared_invite/zt-1lqw355mp-zElRwLeoZ2EQsgGEkyaFgg"><img src="https://img.shields.io/badge/tuist-gray.svg?logo=slack" alt="Slack Workspace"></a>
   <a href="https://t.me/tuist"><img src="https://img.shields.io/badge/tuist-gray.svg?logo=telegram" alt="Slack Workspace"></a>
   <div>
@@ -45,6 +46,14 @@ You can check out [the project documentation](https://docs.tuist.io).
 ### 🔬 Sample projects
 
 You can find some sample projects in the [fixtures folder](fixtures) or the [awesome Tuist repo](https://github.com/tuist/awesome-tuist)! 🎉
+
+## ✅ CI Sponsor
+
+<a href="https://www.codemagic.io?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&utm_term=tuist" target="_blank">
+  <img width="140" src="assets/companies/codemagic.svg" alt="codemagic_logo"/>
+</a>
+
+[Codemagic](https://codemagic.io), a CI/CD tool for building world-class mobile apps, supports the development of Tuist by providing fast and reliable CI environments.
 
 ## 💰 Sponsors
 
@@ -110,14 +119,6 @@ The financial sustainability of the project is possible thanks to the ongoing co
         </a>
       </td>
       <td><a href="https://www.emergetools.com">Emerge Tools</a> is a suite of revolutionary products designed to supercharge mobile apps and the teams that build them.</td>
-    </tr>
-    <tr>
-      <td width="30%" align="center">
-        <a href="https://www.codemagic.io?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&utm_term=tuist" target="_blank">
-          <img width="140" src="assets/companies/codemagic.svg" alt="codemagic_logo"/>
-        </a>
-      </td>
-      <td><a href="https://codemagic.io">Codemagic</a> is a CI/CD tool for building world-class mobile apps.</td>
     </tr>
   </tbody>
 </table>
@@ -569,6 +570,28 @@ Thanks goes to these wonderful people:
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/pierrerodgers"><img src="https://avatars.githubusercontent.com/u/48193278?v=4" width="100px;" alt=""/><br /><sub><b>pierrerodgers</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/honghoker"><img src="https://avatars.githubusercontent.com/u/50417461?v=4" width="100px;" alt=""/><br /><sub><b>eunpyo hong</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://medium.com/@dbstj169"><img src="https://avatars.githubusercontent.com/u/65678579?v=4" width="100px;" alt=""/><br /><sub><b>Yunseo Kang</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/ilia3546"><img src="https://avatars.githubusercontent.com/u/4445510?v=4" width="100px;" alt=""/><br /><sub><b>Ilya Kharlamov</b></sub></a></td>
+    </tr>
+    <tr>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/brianvar"><img src="https://avatars.githubusercontent.com/u/115399684?v=4" width="100px;" alt=""/><br /><sub><b>brianvar</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/HossamYoussof"><img src="https://avatars.githubusercontent.com/u/6381926?v=4" width="100px;" alt=""/><br /><sub><b>Hossam Youssof</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/devMinseok"><img src="https://avatars.githubusercontent.com/u/51021614?v=4" width="100px;" alt=""/><br /><sub><b>Minseok Kang</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/alpanyukov"><img src="https://avatars.githubusercontent.com/u/36258478?v=4" width="100px;" alt=""/><br /><sub><b>Alexander</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/sanghyeok-kim"><img src="https://avatars.githubusercontent.com/u/57667738?v=4" width="100px;" alt=""/><br /><sub><b>Loyle</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/vvisionnn"><img src="https://avatars.githubusercontent.com/u/24761186?v=4" width="100px;" alt=""/><br /><sub><b>Ydna</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="http://brucemcrooster.dev"><img src="https://avatars.githubusercontent.com/u/53529192?v=4" width="100px;" alt=""/><br /><sub><b>Evan</b></sub></a></td>
+    </tr>
+    <tr>
+      <td align="center" valign="top" width="14.28%"><a href="https://www.snipnotes.de"><img src="https://avatars.githubusercontent.com/u/5102728?v=4" width="100px;" alt=""/><br /><sub><b>Felix Lisczyk</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/lukaswuerzburger"><img src="https://avatars.githubusercontent.com/u/10812458?v=4" width="100px;" alt=""/><br /><sub><b>Lukas Würzburger</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/GetToSet"><img src="https://avatars.githubusercontent.com/u/8158163?v=4" width="100px;" alt=""/><br /><sub><b>Ethan Wong</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://tdkn.dev"><img src="https://avatars.githubusercontent.com/u/1296540?v=4" width="100px;" alt=""/><br /><sub><b>Shun Tedokon</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="http://connorricks.com"><img src="https://avatars.githubusercontent.com/u/13373737?v=4" width="100px;" alt=""/><br /><sub><b>Connor Ricks</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://franciscodiaz.cl"><img src="https://avatars.githubusercontent.com/u/530662?v=4" width="100px;" alt=""/><br /><sub><b>Francisco Diaz</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/Ethan-IS"><img src="https://avatars.githubusercontent.com/u/140235921?v=4" width="100px;" alt=""/><br /><sub><b>Ethan Parker</b></sub></a></td>
+    </tr>
+    <tr>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/lukevanin"><img src="https://avatars.githubusercontent.com/u/550579?v=4" width="100px;" alt=""/><br /><sub><b>Luke Van In</b></sub></a></td>
     </tr>
   </tbody>
 </table>

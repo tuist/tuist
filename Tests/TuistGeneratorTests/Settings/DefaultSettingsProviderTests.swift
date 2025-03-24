@@ -1027,7 +1027,57 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(got, multiplatformFrameworkTargetEssentialDebugSettings)
+        XCTAssertBetterEqual(got, multiplatformFrameworkTargetEssentialDebugSettings)
+    }
+
+    func testTargetSettings_whenDebug_iOSWithCatalyst() async throws {
+        // Given
+        let buildConfiguration: BuildConfiguration = .debug
+        let project = Project.test()
+        let target = Target.test(destinations: [.iPad, .macCatalyst], product: .app)
+        let graph = Graph.test(path: project.path)
+
+        given(xcodeController)
+            .selectedVersion()
+            .willReturn(Version(15, 0, 0))
+
+        // When
+        let got = try await subject.targetSettings(
+            target: target,
+            project: project,
+            buildConfiguration: buildConfiguration,
+            graphTraverser: GraphTraverser(graph: graph)
+        )
+
+        // Then
+        XCTAssertSettings(got, containsAll: [
+            "CODE_SIGN_IDENTITY[sdk=macosx*]": "-",
+        ])
+    }
+
+    func testTargetSettings_whenRelease_iOSUnitTestWithCatalyst() async throws {
+        // Given
+        let buildConfiguration: BuildConfiguration = .release
+        let project = Project.test()
+        let target = Target.test(destinations: [.iPad, .macCatalyst], product: .unitTests)
+        let graph = Graph.test(path: project.path)
+
+        given(xcodeController)
+            .selectedVersion()
+            .willReturn(Version(15, 0, 0))
+
+        // When
+        let got = try await subject.targetSettings(
+            target: target,
+            project: project,
+            buildConfiguration: buildConfiguration,
+            graphTraverser: GraphTraverser(graph: graph)
+        )
+
+        // Then
+        XCTAssertSettings(got, containsAll: [
+            "CODE_SIGN_IDENTITY[sdk=macosx*]": "-",
+        ])
     }
 }
 
@@ -1117,79 +1167,6 @@ final class DefaultSettingsProvider_MacosTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(got, macroTargetEssentialReleaseSettings)
-    }
-}
-
-final class DictionaryStringAnyExtensionTests: XCTestCase {
-    func testToSettings_whenOnlyStrings() throws {
-        // Given
-        let subject: [String: Any] = [
-            "A": "A_VALUE",
-            "B": "B_VALUE",
-        ]
-
-        // When
-        let got = try subject.toSettings()
-
-        // Then
-        XCTAssertEqual(got, [
-            "A": .string("A_VALUE"),
-            "B": .string("B_VALUE"),
-        ])
-    }
-
-    func testToSettings_whenStringsAndArray() throws {
-        // Given
-        let subject: [String: Any] = [
-            "A": "A_VALUE",
-            "B": "B_VALUE",
-            "C": ["C_1", "C_2"],
-            "D": ["D_1", "D_2"],
-        ]
-
-        // When
-        let got = try subject.toSettings()
-
-        // Then
-        XCTAssertEqual(got, [
-            "A": .string("A_VALUE"),
-            "B": .string("B_VALUE"),
-            "C": .array(["C_1", "C_2"]),
-            "D": .array(["D_1", "D_2"]),
-        ])
-    }
-
-    func testToSettings_whenArraysOnly() throws {
-        // Given
-        let subject: [String: Any] = [
-            "A": ["A_1", "A_2"],
-            "B": ["B_1", "B_2"],
-        ]
-
-        // When
-        let got = try subject.toSettings()
-
-        // Then
-        XCTAssertEqual(got, [
-            "A": .array(["A_1", "A_2"]),
-            "B": .array(["B_1", "B_2"]),
-        ])
-    }
-
-    func testToSettings_whenInvaludContent() throws {
-        // Given
-        let subject: [String: Any] = ["A": ["A_1": ["A_2": "A_3"]]]
-
-        // When
-        XCTAssertThrowsError(try subject.toSettings()) { error in
-            // Then
-            guard let error = error as? BuildSettingsError else {
-                XCTFail("Unexpected error type")
-                return
-            }
-            XCTAssertEqual(error.description, "Cannot convert \"[\"A_1\": [\"A_2\": \"A_3\"]]\" to SettingValue type")
-            XCTAssertEqual(error.type, .bug)
-        }
     }
 }
 

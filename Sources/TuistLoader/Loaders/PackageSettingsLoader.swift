@@ -1,11 +1,9 @@
-import FileSystem
 import Foundation
 import Path
 import ProjectDescription
 import TSCUtility
 import TuistCore
 import TuistSupport
-import XcodeGraph
 
 /// Entity responsible for providing `PackageSettings`.
 public protocol PackageSettingsLoading {
@@ -24,10 +22,7 @@ public final class PackageSettingsLoader: PackageSettingsLoading {
 
     public init(
         manifestLoader: ManifestLoading = ManifestLoader(),
-        swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(
-            system: System.shared,
-            fileSystem: FileSystem()
-        ),
+        swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(),
         manifestFilesLocator: ManifestFilesLocating = ManifestFilesLocator(),
         rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator()
     ) {

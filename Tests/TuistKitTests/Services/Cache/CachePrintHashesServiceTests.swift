@@ -1,6 +1,7 @@
 import Foundation
 import Mockable
 import Path
+import ServiceContextModule
 import TuistCache
 import TuistCore
 import TuistLoader
@@ -63,7 +64,7 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
         )
         let fullPath = FileHandler.shared.currentPath.pathString + "/full/path"
         given(cacheGraphContentHasher)
-            .contentHashes(for: .any, configuration: .any, config: .any, excludedTargets: .any)
+            .contentHashes(for: .any, configuration: .any, defaultConfiguration: .any, excludedTargets: .any)
             .willReturn([:])
         given(generator)
             .load(path: .any)
@@ -87,7 +88,7 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
             configLoader: configLoader
         )
         given(cacheGraphContentHasher)
-            .contentHashes(for: .any, configuration: .any, config: .any, excludedTargets: .any)
+            .contentHashes(for: .any, configuration: .any, defaultConfiguration: .any, excludedTargets: .any)
             .willReturn([:])
         given(generator)
             .load(path: .any)
@@ -111,7 +112,7 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
             configLoader: configLoader
         )
         given(cacheGraphContentHasher)
-            .contentHashes(for: .any, configuration: .any, config: .any, excludedTargets: .any)
+            .contentHashes(for: .any, configuration: .any, defaultConfiguration: .any, excludedTargets: .any)
             .willReturn([:])
         given(generator)
             .load(path: .any)
@@ -135,7 +136,7 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
             configLoader: configLoader
         )
         given(cacheGraphContentHasher)
-            .contentHashes(for: .any, configuration: .any, config: .any, excludedTargets: .any)
+            .contentHashes(for: .any, configuration: .any, defaultConfiguration: .any, excludedTargets: .any)
             .willReturn([:])
         given(generator)
             .load(path: .any)
@@ -164,7 +165,7 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
             .willReturn(graph)
 
         given(cacheGraphContentHasher)
-            .contentHashes(for: .value(graph), configuration: .any, config: .any, excludedTargets: .any)
+            .contentHashes(for: .value(graph), configuration: .any, defaultConfiguration: .any, excludedTargets: .any)
             .willReturn([:])
 
         // When / Then
@@ -172,36 +173,38 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
     }
 
     func test_run_outputs_correct_hashes() async throws {
-        // Given
-        let target1 = GraphTarget.test(target: .test(name: "ShakiOne"))
-        let target2 = GraphTarget.test(target: .test(name: "ShakiTwo"))
-        given(cacheGraphContentHasher)
-            .contentHashes(for: .any, configuration: .any, config: .any, excludedTargets: .any)
-            .willReturn([target1: "hash1", target2: "hash2"])
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            let target1 = GraphTarget.test(target: .test(name: "ShakiOne"))
+            let target2 = GraphTarget.test(target: .test(name: "ShakiTwo"))
+            given(cacheGraphContentHasher)
+                .contentHashes(for: .any, configuration: .any, defaultConfiguration: .any, excludedTargets: .any)
+                .willReturn([target1: "hash1", target2: "hash2"])
 
-        given(generator)
-            .load(path: .any)
-            .willReturn(.test())
+            given(generator)
+                .load(path: .any)
+                .willReturn(.test())
 
-        subject = CachePrintHashesService(
-            generatorFactory: generatorFactory,
-            cacheGraphContentHasher: cacheGraphContentHasher,
-            clock: clock,
-            configLoader: configLoader
-        )
+            subject = CachePrintHashesService(
+                generatorFactory: generatorFactory,
+                cacheGraphContentHasher: cacheGraphContentHasher,
+                clock: clock,
+                configLoader: configLoader
+            )
 
-        // When
-        _ = try await subject.run(path: path, configuration: nil)
+            // When
+            _ = try await subject.run(path: path, configuration: nil)
 
-        // Then
-        XCTAssertPrinterOutputContains("ShakiOne - hash1")
-        XCTAssertPrinterOutputContains("ShakiTwo - hash2")
+            // Then
+            XCTAssertPrinterOutputContains("ShakiOne - hash1")
+            XCTAssertPrinterOutputContains("ShakiTwo - hash2")
+        }
     }
 
     func test_run_gives_correct_configuration_type_to_hasher() async throws {
         // Given
         given(cacheGraphContentHasher)
-            .contentHashes(for: .any, configuration: .value("Debug"), config: .any, excludedTargets: .any)
+            .contentHashes(for: .any, configuration: .value("Debug"), defaultConfiguration: .any, excludedTargets: .any)
             .willReturn([:])
 
         given(generator)

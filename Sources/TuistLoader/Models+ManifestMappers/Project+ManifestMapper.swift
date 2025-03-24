@@ -1,6 +1,5 @@
 import FileSystem
 import Foundation
-import Path
 import ProjectDescription
 import TuistCore
 import XcodeGraph
@@ -14,7 +13,7 @@ extension XcodeGraph.Project {
     ///   - plugins: Configured plugins.
     ///   - externalDependencies: External dependencies graph.
     ///   - resourceSynthesizerPathLocator: Resource synthesizer locator.
-    ///   - isExternal: Indicates whether the project is imported through `Dependencies.swift`.
+    ///   - type: A type that indicates where the project is coming from.
     static func from(
         manifest: ProjectDescription.Project,
         generatorPaths: GeneratorPaths,
@@ -32,13 +31,18 @@ extension XcodeGraph.Project {
         let developmentRegion = manifest.options.developmentRegion
         let options = XcodeGraph.Project.Options.from(manifest: manifest.options)
         let settings = try manifest.settings.map { try XcodeGraph.Settings.from(manifest: $0, generatorPaths: generatorPaths) }
+        let targetType: TargetType = switch type {
+        case .local: .local
+        case .external: .remote
+        }
 
         let targets = try await manifest.targets.concurrentMap {
             try await XcodeGraph.Target.from(
                 manifest: $0,
                 generatorPaths: generatorPaths,
                 externalDependencies: externalDependencies,
-                fileSystem: fileSystem
+                fileSystem: fileSystem,
+                type: targetType
             )
         }
 

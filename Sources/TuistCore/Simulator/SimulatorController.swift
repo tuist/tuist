@@ -1,6 +1,7 @@
 import Foundation
 import Mockable
 import Path
+import ServiceContextModule
 import struct TSCUtility.Version
 import TuistSupport
 import XcodeGraph
@@ -66,7 +67,7 @@ public protocol SimulatorControlling {
     ) async throws -> String
 
     /// Returns the simulator destination for the macOS platform
-    func macOSDestination() -> String
+    func macOSDestination(catalyst: Bool) -> String
 
     /// Returns the list of simulator devices that are available in the system.
     func devices() async throws -> [SimulatorDevice]
@@ -270,21 +271,22 @@ public final class SimulatorController: SimulatorControlling {
     }
 
     public func installApp(at path: AbsolutePath, device: SimulatorDevice) throws {
-        logger.debug("Installing app at \(path) on simulator device with id \(device.udid)")
+        ServiceContext.current?.logger?.debug("Installing app at \(path) on simulator device with id \(device.udid)")
         let device = try device.booted(using: system)
         try system.run(["/usr/bin/xcrun", "simctl", "install", device.udid, path.pathString])
     }
 
     public func launchApp(bundleId: String, device: SimulatorDevice, arguments: [String]) async throws {
-        logger.debug("Launching app with bundle id \(bundleId) on simulator device with id \(device.udid)")
+        ServiceContext.current?.logger?
+            .debug("Launching app with bundle id \(bundleId) on simulator device with id \(device.udid)")
         let device = try device.booted(using: system)
-        let simulator = try await xcodeController.selected()?.path.appending(
+        let simulator = try await xcodeController.selected().path.appending(
             components: "Contents",
             "Developer",
             "Applications",
             "Simulator.app"
         )
-        try system.run(["/usr/bin/open", "-a", simulator?.pathString ?? "Simulator"])
+        try system.run(["/usr/bin/open", "-a", simulator.pathString])
         try system.run(["/usr/bin/xcrun", "simctl", "launch", device.udid, bundleId] + arguments)
     }
 
@@ -322,7 +324,7 @@ public final class SimulatorController: SimulatorControlling {
         return "id=\(deviceAndRuntime.device.udid)"
     }
 
-    public func macOSDestination() -> String {
+    public func macOSDestination(catalyst: Bool = false) -> String {
         let arch: String
         switch devEnvironment.architecture {
         case .arm64:
@@ -330,7 +332,12 @@ public final class SimulatorController: SimulatorControlling {
         case .x8664:
             arch = "x86_64"
         }
-        return "platform=macOS,arch=\(arch)"
+        let destination = "platform=macOS,arch=\(arch)"
+        if catalyst {
+            return destination + ",variant=Mac Catalyst"
+        } else {
+            return destination
+        }
     }
 }
 

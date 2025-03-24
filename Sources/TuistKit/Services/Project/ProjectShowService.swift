@@ -1,6 +1,7 @@
 import Foundation
 import Mockable
 import Path
+import ServiceContextModule
 import TuistLoader
 import TuistServer
 import TuistSupport
@@ -30,7 +31,7 @@ struct ProjectShowService {
 
     init(
         opener: Opening = Opener(),
-        configLoader: ConfigLoading = ConfigLoader(warningController: WarningController.shared),
+        configLoader: ConfigLoading = ConfigLoader(),
         serverURLService: ServerURLServicing = ServerURLService(),
         getProjectService: GetProjectServicing = GetProjectService()
     ) {
@@ -72,8 +73,9 @@ struct ProjectShowService {
             }
 
             projectInfo.append("Default branch: \(project.defaultBranch)")
+            projectInfo.append("Visibility: \(project.visibility.rawValue)")
 
-            logger.info("\(projectInfo.joined(separator: "\n"))")
+            ServiceContext.current?.logger?.info("\(projectInfo.joined(separator: "\n"))")
         }
     }
 

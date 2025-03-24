@@ -14,6 +14,7 @@ typealias SDKStatus = LinkingStatus
 
 public enum TargetDependency: Equatable, Hashable, Codable, Sendable {
     case target(name: String, status: LinkingStatus)
+    case macro(name: String)
     case project(target: String, path: String, status: LinkingStatus)
     case framework(path: String, status: LinkingStatus)
     case xcframework(path: String, status: LinkingStatus)

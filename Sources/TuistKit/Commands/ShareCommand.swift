@@ -2,11 +2,8 @@ import ArgumentParser
 import Foundation
 import XcodeGraph
 
-public struct ShareCommand: AsyncParsableCommand, HasTrackableParameters, TrackableParsableCommand {
-    public static var analyticsDelegate: TrackableParametersDelegate?
-    public var runId = UUID().uuidString
-
-    public var analyticsRequired: Bool { true }
+public struct ShareCommand: AsyncParsableCommand, TrackableParsableCommand {
+    public var analyticsRequired: Bool { false }
 
     public init() {}
 
@@ -58,7 +55,7 @@ public struct ShareCommand: AsyncParsableCommand, HasTrackableParameters, Tracka
     var json: Bool = false
 
     public func run() async throws {
-        try await ShareService().run(
+        try await ShareCommandService().run(
             path: path,
             apps: apps,
             configuration: configuration,

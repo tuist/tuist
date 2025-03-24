@@ -1,3 +1,4 @@
+import ServiceContextModule
 import TuistSupportTesting
 import XCTest
 @testable import TuistSupport
@@ -85,31 +86,33 @@ class UserInputReaderTests: TuistUnitTestCase {
         )
     }
 
-    func test_read_value_when_multiple_values_provided() throws {
-        // Given
-        var fakeReadLine = StringReader(input: "1")
-        let reader: UserInputReader = .init { _ in
-            fakeReadLine.readLine()
+    func test_read_value_when_multiple_values_provided() async throws {
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            var fakeReadLine = StringReader(input: "1")
+            let reader: UserInputReader = .init { _ in
+                fakeReadLine.readLine()
+            }
+            let valueOne = Value(name: "value-one")
+            let valueTwo = Value(name: "value-two")
+
+            // When
+            let got = try reader.readValue(
+                asking: "Choose value:",
+                values: [valueOne, valueTwo],
+                valueDescription: \.name
+            )
+
+            // Then
+            XCTAssertEqual(got, valueTwo)
+            XCTAssertStandardOutput(
+                pattern: """
+                Choose value:
+                \t0: value-one
+                \t1: value-two
+                """
+            )
         }
-        let valueOne = Value(name: "value-one")
-        let valueTwo = Value(name: "value-two")
-
-        // When
-        let got = try reader.readValue(
-            asking: "Choose value:",
-            values: [valueOne, valueTwo],
-            valueDescription: \.name
-        )
-
-        // Then
-        XCTAssertEqual(got, valueTwo)
-        XCTAssertStandardOutput(
-            pattern: """
-            Choose value:
-            \t0: value-one
-            \t1: value-two
-            """
-        )
     }
 }
 

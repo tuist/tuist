@@ -19,6 +19,7 @@ let project = Project(
             sources: ["App/Sources/**"],
             dependencies: [
                 .target(name: "MyFramework", status: .none),
+                .target(name: "ThyFramework"),
             ]
         ),
         .target(
@@ -28,6 +29,13 @@ let project = Project(
             bundleId: "io.tuist.MyFramework",
             sources: ["MyFramework/Sources/**"],
             dependencies: []
+        ),
+        .target(
+            name: "ThyFramework",
+            destinations: .iOS,
+            product: .staticFramework,
+            bundleId: "io.tuist.ThyFramework",
+            sources: ["ThyFramework/Sources/**"]
         ),
     ]
 )

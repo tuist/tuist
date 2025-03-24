@@ -1,5 +1,5 @@
 import Foundation
-import Path
+import ServiceContextModule
 import TuistCore
 import TuistSupport
 import XcodeGraph
@@ -12,7 +12,7 @@ public final class GeneratePrivacyManifestProjectMapper: ProjectMapping {
     // MARK: - ProjectMapping
 
     public func map(project: Project) throws -> (Project, [SideEffectDescriptor]) {
-        logger.debug("Transforming project \(project.name): Synthesizing privacy manifest files'")
+        ServiceContext.current?.logger?.debug("Transforming project \(project.name): Synthesizing privacy manifest files'")
 
         let results = try project.targets.values
             .reduce(into: (targets: [String: Target](), sideEffects: [SideEffectDescriptor]())) { results, target in

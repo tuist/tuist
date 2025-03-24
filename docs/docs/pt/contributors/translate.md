@@ -4,7 +4,7 @@ titleTemplate: :title · Contributors · Tuist
 description: This document describes the principles that guide the development of Tuist.
 ---
 
-# Translate #{#translate}
+# Translate {#translate}
 
 Languages can be barriers to understanding. We want to make sure that Tuist is accessible to as many people as possible. If you speak a language that Tuist doesn't support, you can help us by translating the various surfaces of Tuist.
 
@@ -23,6 +23,7 @@ Since maintaining translations is a continuous effort, we add languages as we se
 We use [Crowdin](https://crowdin.com/) to manage the translations. First, go to the project that you want to contribute to:
 
 - [Documentation](https://crowdin.com/project/tuist-documentation)
+- [Website](https://crowdin.com/project/tuist-documentation)
 
 You'll need an account to start translating. You can sign in with GitHub. Once you have access, you can start translating. You'll see the list of resources that are available for translation. When you click on a resource, the editor will open, and you'll see a split view with the resource in the source language on the left and the translation on the right. Translate the text on the right and save your changes.
 

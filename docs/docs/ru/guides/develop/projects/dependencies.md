@@ -1,13 +1,13 @@
 ---
-title: Dependencies
-titleTemplate: :title · Projects · Develop · Guides · Tuist
-description: Learn how to declare dependencies in your Tuist project.
+title: Зависимости
+titleTemplate: :title · Проекты · Разработка · Руководства · Tuist
+description: Узнайте, как объявлять зависимости в вашем Tuist проекте.
 ---
 
-# Dependencies {#dependencies}
+# Зависимости {#dependencies}
 
-When a project grows, it's common to split it into multiple targets to share code, define boundaries, and improve build times.
-Multiple targets means defining dependencies between them forming a **dependency graph**, which might include external dependencies as well.
+Когда проект растет, обычная практика – разделить проект на несколько модулей, чтобы переиспользовать код, определить границы и улучшить время сборки.
+Многомодульность означает определение зависимостей между ними, формируя **граф зависимостей**, который также может включать и внешние зависимости.
 
 ## XcodeProj-codified graphs {#xcodeprojcodified-graphs}
 
@@ -64,7 +64,7 @@ You can integrate them using Xcode's default integration mechanism or using Tuis
 Xcode's default integration while being the most convenient one,
 lacks flexibility and control that's required for medium and large projects.
 To overcome this, Tuist offers an XcodeProj-based integration that allows you to integrate Swift Packages in your project using XcodeProj's targets.
-Thanks to that, we can not only give you more control over the integration but also make it compatible with workflows like <LocalizedLink href="/guides/develop/build/cache">caching</LocalizedLink> and <LocalizedLink href="/guides/develop/test/smart-runner">smart test runs</LocalizedLink>.
+Thanks to that, we can not only give you more control over the integration but also make it compatible with workflows like <LocalizedLink href="/guides/develop/build/cache">caching</LocalizedLink> and <LocalizedLink href="/guides/develop/test/selective-testing">smart test runs</LocalizedLink>.
 
 XcodeProj's integration is more likely to take more time to support new Swift Package features or handle more package configurations. However, the mapping logic between Swift Packages and XcodeProj targets is open-source and can be contributed to by the community. This is contrary to Xcode's default integration, which is closed-source and maintained by Apple.
 
@@ -92,7 +92,13 @@ let package = Package(
     name: "PackageName",
     dependencies: [
         .package(url: "https://github.com/Alamofire/Alamofire", from: "5.0.0"),
-
+    ],
+    targets: [
+        .binaryTarget(
+            name: "Sentry",
+            url: "https://github.com/getsentry/sentry-cocoa/releases/download/8.40.1/Sentry.xcframework.zip",
+            checksum: "db928e6fdc30de1aa97200576d86d467880df710cf5eeb76af23997968d7b2c7"
+        ),
     ]
 )
 ```
@@ -272,7 +278,7 @@ Note that Tuist <LocalizedLink href="/guides/develop/projects/cost-of-convenienc
 There are some scenarios where setting the linking entirely to static or dynamic is not feasible or a good idea. The following is a non-exhaustive list of scenarios where you might need to mix static and dynamic linking:
 
 - **Apps with extensions:** Since apps and their extensions need to share code, you might need to make those targets dynamic. Otherwise, you'll end up with the same code duplicated in both the app and the extension, causing the binary size to increase.
-- **Pre-compiled external dependencies:** Sometimes you are provided with pre-compiled binaries that are either static or dynamic. Static can binaries can be wrapped in dynamic frameworks or libraries to be linked dynamically.
+- **Pre-compiled external dependencies:** Sometimes you are provided with pre-compiled binaries that are either static or dynamic. Static binaries can be wrapped in dynamic frameworks or libraries to be linked dynamically.
 
 When making changes to the graph, Tuist will analyze it and display a warning if it detects a "static side effect". This warning is meant to help you identify issues that might arise from linking a target statically that depends transitively on a static target through dynamic targets. These side effects often manifest as increased binary size or, in the worst cases, runtime crashes.
 

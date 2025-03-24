@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import ServiceContextModule
 import TuistLoader
 import TuistServer
 import TuistSupport
@@ -21,7 +22,7 @@ final class OrganizationUpdateMemberService: OrganizationUpdateMemberServicing {
     init(
         updateOrganizationMemberService: UpdateOrganizationMemberServicing = UpdateOrganizationMemberService(),
         serverURLService: ServerURLServicing = ServerURLService(),
-        configLoader: ConfigLoading = ConfigLoader(warningController: WarningController.shared)
+        configLoader: ConfigLoading = ConfigLoader()
     ) {
         self.updateOrganizationMemberService = updateOrganizationMemberService
         self.serverURLService = serverURLService
@@ -50,6 +51,6 @@ final class OrganizationUpdateMemberService: OrganizationUpdateMemberServicing {
             serverURL: serverURL
         )
 
-        logger.info("The member \(username) role was successfully updated to \(member.role.rawValue).")
+        ServiceContext.current?.logger?.info("The member \(username) role was successfully updated to \(member.role.rawValue).")
     }
 }

@@ -34,6 +34,7 @@ extension XcodeGraph.TargetScript {
             generatorPaths: generatorPaths,
             fileSystem: fileSystem
         )
+        .map(\.pathString)
         let outputPaths = try await absolutePaths(
             for: manifest.outputPaths,
             generatorPaths: generatorPaths,
@@ -45,6 +46,7 @@ extension XcodeGraph.TargetScript {
             generatorPaths: generatorPaths,
             fileSystem: fileSystem
         )
+        .map(\.pathString)
         let basedOnDependencyAnalysis = manifest.basedOnDependencyAnalysis
         let runForInstallBuildsOnly = manifest.runForInstallBuildsOnly
         let shellPath = manifest.shellPath

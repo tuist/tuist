@@ -5,10 +5,12 @@ public struct DependenciesGraph: Equatable, Codable {
     public struct ExternalProject: Equatable, Codable {
         public var manifest: ProjectDescription.Project
         public var hash: String?
+        public let sourcePackageType: PackageType
 
-        public init(manifest: ProjectDescription.Project, hash: String?) {
+        public init(manifest: ProjectDescription.Project, hash: String?, sourcePackageType: PackageType) {
             self.manifest = manifest
             self.hash = hash
+            self.sourcePackageType = sourcePackageType
         }
     }
 
@@ -162,7 +164,7 @@ public struct DependenciesGraph: Equatable, Codable {
                             disableSynthesizedResourceAccessors: true,
                             textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
                         ),
-                        settings: Self.spmProjectSettings(
+                        settings: Self.swiftpmProjectSettings(
                             packageName: "tuist",
                             baseSettings: .settings(
                                 base: [
@@ -176,7 +178,7 @@ public struct DependenciesGraph: Equatable, Codable {
                         ),
                         targets: targets,
                         resourceSynthesizers: .default
-                    ), hash: nil),
+                    ), hash: nil, sourcePackageType: .local),
                 ]
             )
         }
@@ -246,7 +248,7 @@ public struct DependenciesGraph: Equatable, Codable {
                             disableSynthesizedResourceAccessors: true,
                             textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
                         ),
-                        settings: Self.spmProjectSettings(
+                        settings: Self.swiftpmProjectSettings(
                             packageName: "a-dependency",
                             baseSettings: .settings(
                                 configurations: [
@@ -257,7 +259,7 @@ public struct DependenciesGraph: Equatable, Codable {
                         ),
                         targets: targets,
                         resourceSynthesizers: .default
-                    ), hash: nil),
+                    ), hash: nil, sourcePackageType: .local),
                 ]
             )
         }
@@ -304,7 +306,7 @@ public struct DependenciesGraph: Equatable, Codable {
                             disableSynthesizedResourceAccessors: true,
                             textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
                         ),
-                        settings: Self.spmProjectSettings(
+                        settings: Self.swiftpmProjectSettings(
                             packageName: "another-dependency",
                             baseSettings: .settings(
                                 configurations: [
@@ -315,7 +317,7 @@ public struct DependenciesGraph: Equatable, Codable {
                         ),
                         targets: targets,
                         resourceSynthesizers: .default
-                    ), hash: nil),
+                    ), hash: nil, sourcePackageType: .local),
                 ]
             )
         }
@@ -370,13 +372,13 @@ public struct DependenciesGraph: Equatable, Codable {
                             disableSynthesizedResourceAccessors: true,
                             textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
                         ),
-                        settings: Self.spmProjectSettings(
+                        settings: Self.swiftpmProjectSettings(
                             packageName: "Alamofire",
                             baseSettings: .settings(base: ["SWIFT_VERSION": "5.0.0"])
                         ),
                         targets: targets,
                         resourceSynthesizers: .default
-                    ), hash: nil),
+                    ), hash: nil, sourcePackageType: .remote(artifactPaths: [:])),
                 ]
             )
         }
@@ -500,7 +502,7 @@ public struct DependenciesGraph: Equatable, Codable {
                             disableSynthesizedResourceAccessors: true,
                             textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
                         ),
-                        settings: Self.spmProjectSettings(
+                        settings: Self.swiftpmProjectSettings(
                             packageName: "GoogleAppMeasurement",
                             baseSettings: .settings(
                                 base: [
@@ -515,7 +517,7 @@ public struct DependenciesGraph: Equatable, Codable {
                         ),
                         targets: targets,
                         resourceSynthesizers: .default
-                    ), hash: nil),
+                    ), hash: nil, sourcePackageType: .local),
                 ]
             )
         }
@@ -622,7 +624,7 @@ public struct DependenciesGraph: Equatable, Codable {
                             disableSynthesizedResourceAccessors: true,
                             textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
                         ),
-                        settings: Self.spmProjectSettings(
+                        settings: Self.swiftpmProjectSettings(
                             packageName: "GoogleUtilities",
                             baseSettings: .settings(
                                 configurations: [
@@ -633,7 +635,7 @@ public struct DependenciesGraph: Equatable, Codable {
                         ),
                         targets: targets,
                         resourceSynthesizers: .default
-                    ), hash: nil),
+                    ), hash: nil, sourcePackageType: .local),
                 ]
             )
         }
@@ -680,7 +682,7 @@ public struct DependenciesGraph: Equatable, Codable {
                             disableSynthesizedResourceAccessors: true,
                             textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
                         ),
-                        settings: Self.spmProjectSettings(
+                        settings: Self.swiftpmProjectSettings(
                             packageName: "nanopb",
                             baseSettings: .settings(
                                 configurations: [
@@ -691,7 +693,7 @@ public struct DependenciesGraph: Equatable, Codable {
                         ),
                         targets: targets,
                         resourceSynthesizers: .default
-                    ), hash: nil),
+                    ), hash: nil, sourcePackageType: .local),
                 ]
             )
         }
@@ -706,7 +708,7 @@ public struct DependenciesGraph: Equatable, Codable {
             Path("\(spmFolder.pathString)/checkouts/\(packageName)")
         }
 
-        public static func spmProjectSettings(
+        public static func swiftpmProjectSettings(
             packageName: String,
             baseSettings: Settings = .settings(),
             with customSettings: SettingsDictionary = [:]

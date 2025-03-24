@@ -53,10 +53,6 @@
       }
     }
   },
-  "badges": {
-    "coming-soon": "Coming soon",
-    "xcodeproj-compatible": "XcodeProj-compatible"
-  },
   "navbar": {
     "guides": {
       "text": "Guides"
@@ -86,6 +82,16 @@
     "cli": {
       "text": "CLI",
       "items": {
+        "cli": {
+          "items": {
+            "logging": {
+              "text": "Логирование"
+            },
+            "shell-completions": {
+              "text": "Автозавершения командной оболочки"
+            }
+          }
+        },
         "commands": {
           "text": "Commands"
         }
@@ -111,7 +117,7 @@
       "text": "Contributors",
       "items": {
         "get-started": {
-          "text": "Get started"
+          "text": "Начало работы"
         },
         "issue-reporting": {
           "text": "Issue reporting"
@@ -124,6 +130,14 @@
         },
         "translate": {
           "text": "Translate"
+        },
+        "cli": {
+          "text": "CLI",
+          "items": {
+            "logging": {
+              "text": "Логирование"
+            }
+          }
         }
       }
     },
@@ -171,54 +185,59 @@
     "guides": {
       "text": "Guides",
       "items": {
+        "tuist": {
+          "text": "Tuist",
+          "items": {
+            "about": {
+              "text": "About Tuist"
+            }
+          }
+        },
         "quick-start": {
           "text": "Quick start",
           "items": {
             "install-tuist": {
               "text": "Установка Tuist"
             },
-            "create-a-project": {
-              "text": "Create a project"
-            },
-            "optimize-workflows": {
-              "text": "Optimize workflows"
-            }
-          }
-        },
-        "start": {
-          "text": "Start",
-          "items": {
-            "new-project": {
-              "text": "Create a new project"
-            },
-            "swift-package": {
-              "text": "Try with a Swift Package"
-            },
-            "migrate": {
-              "text": "Migrate",
-              "items": {
-                "xcode-project": {
-                  "text": "An Xcode project"
-                },
-                "swift-package": {
-                  "text": "A Swift package"
-                },
-                "xcodegen-project": {
-                  "text": "An XcodeGen project"
-                },
-                "bazel-project": {
-                  "text": "A Bazel project"
-                }
-              }
+            "get-started": {
+              "text": "Начало работы"
             }
           }
         },
         "develop": {
           "text": "Develop",
           "items": {
-            "projects": {
-              "text": "Projects",
+            "generated-projects": {
+              "text": "Generated projects",
               "items": {
+                "adoption": {
+                  "text": "Adoption",
+                  "items": {
+                    "new-project": {
+                      "text": "Создание нового проекта"
+                    },
+                    "swift-package": {
+                      "text": "Try with a Swift Package"
+                    },
+                    "migrate": {
+                      "text": "Migrate",
+                      "items": {
+                        "xcode-project": {
+                          "text": "An Xcode project"
+                        },
+                        "swift-package": {
+                          "text": "A Swift package"
+                        },
+                        "xcodegen-project": {
+                          "text": "An XcodeGen project"
+                        },
+                        "bazel-project": {
+                          "text": "A Bazel project"
+                        }
+                      }
+                    }
+                  }
+                },
                 "manifests": {
                   "text": "Manifests"
                 },
@@ -229,7 +248,7 @@
                   "text": "Editing"
                 },
                 "dependencies": {
-                  "text": "Dependencies"
+                  "text": "Зависимости"
                 },
                 "code-sharing": {
                   "text": "Code sharing"
@@ -249,6 +268,14 @@
                 "hashing": {
                   "text": "Hashing"
                 },
+                "inspect": {
+                  "text": "Inspect",
+                  "items": {
+                    "implicit-imports": {
+                      "text": "Неявные импорты"
+                    }
+                  }
+                },
                 "the-cost-of-convenience": {
                   "text": "The cost of convenience"
                 },
@@ -260,43 +287,59 @@
                 }
               }
             },
-            "build": {
-              "text": "Build",
-              "items": {
-                "cache": {
-                  "text": "Cache"
-                }
-              }
+            "cache": {
+              "text": "Cache"
             },
-            "test": {
-              "text": "Test",
+            "registry": {
+              "text": "Registry",
               "items": {
-                "smart-runner": {
-                  "text": "Smart runner"
+                "registry": {
+                  "text": "Registry"
                 },
-                "flakiness": {
-                  "text": "Flakiness"
-                }
-              }
-            },
-            "inspect": {
-              "text": "Inspect",
-              "items": {
-                "implicit-imports": {
-                  "text": "Неявные импорты"
-                }
-              }
-            },
-            "automate": {
-              "text": "Automate",
-              "items": {
+                "xcode-project": {
+                  "text": "Xcode project"
+                },
+                "generated-project": {
+                  "text": "Generated project"
+                },
+                "xcodeproj-integration": {
+                  "text": "XcodeProj-based integration"
+                },
+                "swift-package": {
+                  "text": "Swift package"
+                },
                 "continuous-integration": {
                   "text": "Continuous integration"
-                },
-                "workflows": {
-                  "text": "Workflows"
                 }
               }
+            },
+            "selective-testing": {
+              "text": "Selective testing",
+              "items": {
+                "selective-testing": {
+                  "text": "Selective testing"
+                },
+                "xcodebuild": {
+                  "text": "xcodebuild"
+                },
+                "generated-project": {
+                  "text": "Generated project"
+                }
+              }
+            },
+            "insights": {
+              "text": "Insights"
+            }
+          }
+        },
+        "automate": {
+          "text": "Automate",
+          "items": {
+            "continuous-integration": {
+              "text": "Continuous integration"
+            },
+            "workflows": {
+              "text": "Workflows"
             }
           }
         },

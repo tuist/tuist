@@ -1,11 +1,11 @@
 import Foundation
 import Path
+import ServiceContextModule
 import TuistCore
 import TuistGenerator
 import TuistLoader
 import TuistPlugin
 import TuistSupport
-import XcodeGraph
 
 enum EditServiceError: FatalError {
     case xcodeNotSelected
@@ -35,7 +35,7 @@ final class EditService {
     init(
         projectEditor: ProjectEditing = ProjectEditor(),
         opener: Opening = Opener(),
-        configLoader: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader(), warningController: WarningController.shared),
+        configLoader: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader()),
         pluginService: PluginServicing = PluginService(),
         cacheDirectoriesProvider: CacheDirectoriesProviding = CacheDirectoriesProvider()
     ) {
@@ -58,17 +58,14 @@ final class EditService {
             let cacheDirectory = try cacheDirectoriesProvider.cacheDirectory(for: .editProjects)
             let cachedManifestDirectory = cacheDirectory.appending(component: path.pathString.md5)
 
-            guard let selectedXcode = try await XcodeController.shared.selected() else {
-                throw EditServiceError.xcodeNotSelected
-            }
-
+            let selectedXcode = try await XcodeController.shared.selected()
             let workspacePath = try await projectEditor.edit(
                 at: path,
                 in: cachedManifestDirectory,
                 onlyCurrentDirectory: onlyCurrentDirectory,
                 plugins: plugins
             )
-            logger.notice("Opening Xcode to edit the project.", metadata: .pretty)
+            ServiceContext.current?.logger?.notice("Opening Xcode to edit the project.", metadata: .pretty)
             try opener.open(path: workspacePath, application: selectedXcode.path, wait: false)
 
         } else {
@@ -78,7 +75,7 @@ final class EditService {
                 onlyCurrentDirectory: onlyCurrentDirectory,
                 plugins: plugins
             )
-            logger.notice("Xcode project generated at \(workspacePath.pathString)", metadata: .success)
+            ServiceContext.current?.alerts?.success(.alert("Xcode project generated at \(workspacePath.pathString)"))
         }
     }
 
@@ -94,15 +91,20 @@ final class EditService {
 
     private func loadPlugins(at path: AbsolutePath) async -> Plugins {
         guard let config = try? await configLoader.loadConfig(path: path) else {
-            logger
+            ServiceContext.current?.logger?
                 .warning(
                     "Unable to load \(Constants.tuistManifestFileName), fix any compiler errors and re-run for plugins to be loaded."
                 )
             return .none
         }
 
-        guard let plugins = try? await pluginService.loadPlugins(using: config) else {
-            logger.warning("Unable to load Plugin.swift manifest, fix and re-run in order to use plugin(s).")
+        guard let generatedProjectOptions = config.project.generatedProject else {
+            return .none
+        }
+
+        guard let plugins = try? await pluginService.loadPlugins(using: generatedProjectOptions) else {
+            ServiceContext.current?.logger?
+                .warning("Unable to load Plugin.swift manifest, fix and re-run in order to use plugin(s).")
             return .none
         }
 

@@ -2,6 +2,7 @@ import FileSystem
 import Foundation
 import Path
 import PathKit
+import ServiceContextModule
 import TuistSupport
 import XcodeProj
 
@@ -65,7 +66,8 @@ public class EmptyBuildSettingsChecker: EmptyBuildSettingsChecking {
         let nonEmptyBuildSettings = buildConfigurations.compactMap { config -> String? in
             if config.buildSettings.isEmpty { return nil }
             for (key, _) in config.buildSettings {
-                logger.notice("The build setting '\(key)' of build configuration '\(config.name)' is not empty.")
+                ServiceContext.current?.logger?
+                    .notice("The build setting '\(key)' of build configuration '\(config.name)' is not empty.")
             }
             return config.name
         }

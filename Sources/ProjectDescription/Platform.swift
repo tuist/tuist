@@ -1,5 +1,3 @@
-import Foundation
-
 // MARK: - Platform
 
 /// A supported platform representation.

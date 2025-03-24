@@ -1,5 +1,6 @@
 import Foundation
 import Mockable
+import ServiceContextModule
 import TuistSupport
 
 @Mockable
@@ -47,7 +48,7 @@ enum ServerAuthenticationControllerError: FatalError {
     var description: String {
         switch self {
         case let .invalidJWT(token):
-            return "The access token \(token) is invalid. Try to reauthenticate by running `tuist auth`."
+            return "The access token \(token) is invalid. Try to reauthenticate by running 'tuist auth login'."
         }
     }
 
@@ -79,7 +80,7 @@ public final class ServerAuthenticationController: ServerAuthenticationControlli
             if let configToken = environment.tuistVariables[Constants.EnvironmentVariables.token] {
                 return .project(configToken)
             } else if let deprecatedToken = environment.tuistVariables[Constants.EnvironmentVariables.deprecatedToken] {
-                logger
+                ServiceContext.current?.logger?
                     .warning(
                         "Use `TUIST_CONFIG_TOKEN` environment variable instead of `TUIST_CONFIG_CLOUD_TOKEN` to authenticate on the CI"
                     )
@@ -100,7 +101,8 @@ public final class ServerAuthenticationController: ServerAuthenticationControlli
                         refreshToken: try parseJWT(refreshToken)
                     )
                 } else {
-                    logger.warning("You are using a deprecated user token. Please, reauthenticate by running `tuist auth`.")
+                    ServiceContext.current?.logger?
+                        .warning("You are using a deprecated user token. Please, reauthenticate by running 'tuist auth login'.")
                     return .user(
                         legacyToken: $0.token,
                         accessToken: nil,
@@ -143,11 +145,16 @@ public final class ServerAuthenticationController: ServerAuthenticationControlli
 
         return JWT(
             token: jwt,
-            expiryDate: Date(timeIntervalSince1970: TimeInterval(payload.exp))
+            expiryDate: Date(timeIntervalSince1970: TimeInterval(payload.exp)),
+            email: payload.email,
+            preferredUsername: payload.preferred_username
         )
     }
 
     private struct JWTPayload: Codable {
         let exp: Int
+        let email: String?
+        // swiftlint:disable:next identifier_name
+        let preferred_username: String?
     }
 }

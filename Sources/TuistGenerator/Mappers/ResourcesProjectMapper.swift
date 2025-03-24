@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import ServiceContextModule
 import TuistCore
 import TuistSupport
 import XcodeGraph
@@ -15,7 +16,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         guard !project.options.disableBundleAccessors else {
             return (project, [])
         }
-        logger.debug("Transforming project \(project.name): Generating bundles for libraries'")
+        ServiceContext.current?.logger?.debug("Transforming project \(project.name): Generating bundles for libraries'")
 
         var sideEffects: [SideEffectDescriptor] = []
         var targets: [String: Target] = [:]
@@ -88,7 +89,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
             sideEffects.append(sideEffect)
         }
 
-        if project.isExternal,
+        if case .external = project.type,
            target.supportsSources,
            target.sources.containsObjcFiles,
            target.resources.containsBundleAccessedResources,
@@ -181,13 +182,19 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         }
 
         // Add public accessors only for non external projects
-        let publicBundleAccessor = if project.isExternal || target.sourcesContainsPublicResourceClassName {
+        let publicBundleAccessor = switch project.type {
+        case .external:
             ""
-        } else {
-            publicBundleAccessorString(for: target)
+        case .local:
+            if target.sourcesContainsPublicResourceClassName {
+                ""
+            } else {
+                publicBundleAccessorString(for: target)
+            }
         }
 
         return """
+        // swiftlint:disable:this file_name
         // swiftlint:disable all
         // swift-format-ignore-file
         // swiftformat:disable all
@@ -227,12 +234,50 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         #import <Foundation/Foundation.h>
         #import "TuistBundle+\(targetName).h"
 
+        @interface \(targetName)BundleFinder : NSObject
+        @end
+
+        @implementation \(targetName)BundleFinder
+        @end
+
         NSBundle* \(targetName)_SWIFTPM_MODULE_BUNDLE(void) {
-            NSURL *bundleURL = [[[NSBundle mainBundle] bundleURL] URLByAppendingPathComponent:@"\(bundleName).bundle"];
+            NSString *bundleName = @"\(bundleName)";
 
-            NSBundle *bundle = [NSBundle bundleWithURL:bundleURL];
+            NSURL *bundleURL = [[NSBundle bundleForClass:\(targetName)BundleFinder.self] resourceURL];
+            NSMutableArray *candidates = [NSMutableArray arrayWithObjects:
+                                          [[NSBundle mainBundle] resourceURL],
+                                          bundleURL,
+                                          [[NSBundle mainBundle] bundleURL],
+                                          nil];
 
-            return bundle;
+            NSString* override = [[[NSProcessInfo processInfo] environment] objectForKey:@"PACKAGE_RESOURCE_BUNDLE_PATH"];
+            if (override) {
+                [candidates addObject:override];
+
+                NSString *subpaths = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:override error:nil];
+                if (subpaths) {
+                    for (NSString *subpath in subpaths) {
+                        if ([subpath hasSuffix:@".framework"]) {
+                            [candidates addObject:[NSURL fileURLWithPath:[NSString stringWithFormat:@"%@/%@", override, subpath]]];
+                        }
+                    }
+                }
+            }
+
+            #if __has_include(<XCTest/XCTest.h>)
+            [candidates addObject:[bundleURL URLByAppendingPathComponent:@".."]];
+            #endif
+
+            for (NSURL *candidate in candidates) {
+                NSURL *bundlePath = [candidate URLByAppendingPathComponent:[NSString stringWithFormat:@"%@%@", bundleName, @".bundle"]];
+                NSBundle *bundle = [NSBundle bundleWithURL:bundlePath];
+
+                if (bundle) {
+                    return bundle;
+                }
+            }
+
+            [NSException raise:@"BundleNotFound" format:nil];
         }
         """
     }
@@ -274,7 +319,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
                 // Deleting derived data and not rebuilding the frameworks containing resources may result in a state
                 // where the bundles are only available in the framework's directory that is actively being previewed.
                 // Since we don't know which framework this is, we also need to look in all the framework subpaths.
-                if let subpaths = try? FileManager.default.contentsOfDirectory(atPath: override) {
+                if let subpaths = try? Foundation.FileManager.default.contentsOfDirectory(atPath: override) {
                     for subpath in subpaths {
                         if subpath.hasSuffix(".framework") {
                             candidates.append(URL(fileURLWithPath: override + "/" + subpath))

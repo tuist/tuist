@@ -1,5 +1,5 @@
 ---
-title: {params.command.fullCommand}
+editLink: false
 titleTemplate: :title · CLI · Tuist
 ---
 

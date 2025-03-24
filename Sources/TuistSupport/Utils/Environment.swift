@@ -1,9 +1,12 @@
 import Darwin
+import FileSystem
 import Foundation
+import Mockable
 import Path
 
 /// Protocol that defines the interface of a local environment controller.
 /// It manages the local directory where tuistenv stores the tuist versions and user settings.
+@Mockable
 public protocol Environmenting: AnyObject, Sendable {
     /// Returns true if the output of Tuist should be coloured.
     var shouldOutputBeColoured: Bool { get }
@@ -24,6 +27,9 @@ public protocol Environmenting: AnyObject, Sendable {
     /// Returns the path to the cache directory. Configurable via the `XDG_CACHE_HOME` environment variable
     var cacheDirectory: AbsolutePath { get }
 
+    /// Returns the path to the state directory. Configurable via the `XDG_STATE_HOME` environment variable
+    var stateDirectory: AbsolutePath { get }
+
     /// Returns the path to the directory where the async queue events are persisted.
     var queueDirectory: AbsolutePath { get }
 
@@ -32,6 +38,14 @@ public protocol Environmenting: AnyObject, Sendable {
 
     /// Returns true if the environment is a GitHub Actions environment
     var isGitHubActions: Bool { get }
+
+    /// Represents path stored in the `WORKSPACE_PATH` environment variable. This variable is defined in Xcode build actions and
+    /// can be used for further processing of a given Xcode project.
+    var workspacePath: AbsolutePath? { get }
+
+    /// Represents scheme name stored in the `SCHEME_NAME` environment variable. This variable is defined in Xcode build actions
+    /// and can be used for further processing.
+    var schemeName: String? { get }
 }
 
 /// Local environment controller.
@@ -67,16 +81,18 @@ public final class Environment: Environmenting {
 
     /// Returns true if the output of Tuist should be coloured.
     public var shouldOutputBeColoured: Bool {
-        let noColor = if let noColorEnvVariable = ProcessInfo.processInfo.environment["NO_COLOR"] {
-            Constants.trueValues.contains(noColorEnvVariable)
-        } else {
-            false
-        }
-        let ciColorForce = if let ciColorForceEnvVariable = ProcessInfo.processInfo.environment["CLICOLOR_FORCE"] {
-            Constants.trueValues.contains(ciColorForceEnvVariable)
-        } else {
-            false
-        }
+        let noColor =
+            if let noColorEnvVariable = ProcessInfo.processInfo.environment["NO_COLOR"] {
+                Constants.trueValues.contains(noColorEnvVariable)
+            } else {
+                false
+            }
+        let ciColorForce =
+            if let ciColorForceEnvVariable = ProcessInfo.processInfo.environment["CLICOLOR_FORCE"] {
+                Constants.trueValues.contains(ciColorForceEnvVariable)
+            } else {
+                false
+            }
         if noColor {
             return false
         } else if ciColorForce {
@@ -106,12 +122,18 @@ public final class Environment: Environmenting {
     }
 
     public var isVerbose: Bool {
-        guard let variable = ProcessInfo.processInfo.environment[Constants.EnvironmentVariables.verbose] else { return false }
+        guard let variable = ProcessInfo.processInfo.environment[
+            Constants.EnvironmentVariables.verbose
+        ]
+        else { return false }
         return Constants.trueValues.contains(variable)
     }
 
     public var isStatsEnabled: Bool {
-        guard let variable = ProcessInfo.processInfo.environment[Constants.EnvironmentVariables.statsOptOut] else { return true }
+        guard let variable = ProcessInfo.processInfo.environment[
+            Constants.EnvironmentVariables.statsOptOut
+        ]
+        else { return true }
         let userOptedOut = Constants.trueValues.contains(variable)
         return !userOptedOut
     }
@@ -123,10 +145,27 @@ public final class Environment: Environmenting {
         {
             baseCacheDirectory = cacheDirectory
         } else {
-            baseCacheDirectory = FileHandler.shared.homeDirectory.appending(components: ".cache")
+            // swiftlint:disable:next force_try
+            let homeDirectory = try! Path.AbsolutePath(validating: NSHomeDirectory())
+            baseCacheDirectory = homeDirectory.appending(components: ".cache")
         }
 
         return baseCacheDirectory.appending(component: "tuist")
+    }
+
+    public var stateDirectory: AbsolutePath {
+        let baseStateDirectory: AbsolutePath
+        if let stateDirectoryPathString = ProcessInfo.processInfo.environment["XDG_STATE_HOME"],
+           let stateDirectory = try? AbsolutePath(validating: stateDirectoryPathString)
+        {
+            baseStateDirectory = stateDirectory
+        } else {
+            // swiftlint:disable:next force_try
+            let homeDirectory = try! Path.AbsolutePath(validating: NSHomeDirectory())
+            baseStateDirectory = homeDirectory.appending(components: [".local", "state"])
+        }
+
+        return baseStateDirectory.appending(component: "tuist")
     }
 
     public var automationPath: AbsolutePath? {
@@ -135,7 +174,9 @@ public final class Environment: Environmenting {
     }
 
     public var queueDirectory: AbsolutePath {
-        if let envVariable = ProcessInfo.processInfo.environment[Constants.EnvironmentVariables.queueDirectory] {
+        if let envVariable = ProcessInfo.processInfo.environment[
+            Constants.EnvironmentVariables.queueDirectory
+        ] {
             return try! AbsolutePath(validating: envVariable) // swiftlint:disable:this force_try
         } else {
             return cacheDirectory.appending(component: Constants.AsyncQueue.directoryName)
@@ -155,5 +196,17 @@ public final class Environment: Environmenting {
             allowedVariableKeys.contains($0.key)
         }
         return tuistVariables.merging(allowedVariables, uniquingKeysWith: { $1 })
+    }
+
+    public var workspacePath: AbsolutePath? {
+        if let pathString = ProcessInfo.processInfo.environment["WORKSPACE_PATH"] {
+            return try? AbsolutePath(validating: pathString)
+        } else {
+            return nil
+        }
+    }
+
+    public var schemeName: String? {
+        ProcessInfo.processInfo.environment["SCHEME_NAME"]
     }
 }

@@ -1,4 +1,3 @@
-import AnyCodable
 import ArgumentParser
 import Foundation
 import Mockable
@@ -6,6 +5,7 @@ import Path
 import TuistAnalytics
 import TuistAsyncQueue
 import TuistCore
+import TuistServer
 import TuistSupport
 import XCTest
 
@@ -66,42 +66,14 @@ final class TrackableCommandTests: TuistTestCase {
 
     // MARK: - Tests
 
-    func test_whenParamsHaveFlagTrue_dispatchesEventWithExpectedParameters() async throws {
-        // Given
-        makeSubject(flag: true)
-        let expectedParams: [String: AnyCodable] = ["flag": true]
-
-        // When
-        try await subject.run(analyticsEnabled: true)
-
-        // Then
-        verify(asyncQueue)
-            .dispatch(event: Parameter<CommandEvent>.matching { event in
-                event.name == "test" && event.params == expectedParams
-            })
-            .called(1)
-    }
-
-    func test_whenParamsHaveFlagFalse_dispatchesEventWithExpectedParameters() async throws {
-        // Given
-        makeSubject(flag: false)
-        let expectedParams: [String: AnyCodable] = ["flag": false]
-        // When
-        try await subject.run(analyticsEnabled: true)
-
-        // Then
-        verify(asyncQueue)
-            .dispatch(event: Parameter<CommandEvent>.matching { event in
-                event.name == "test" && event.params == expectedParams
-            })
-            .called(1)
-    }
-
     func test_whenCommandFails_dispatchesEventWithExpectedInfo() async throws {
         // Given
         makeSubject(flag: false, shouldFail: true)
         // When
-        await XCTAssertThrowsSpecific(try await subject.run(analyticsEnabled: true), TestCommand.TestError.commandFailed)
+        await XCTAssertThrowsSpecific(
+            try await subject.run(backend: TuistAnalyticsServerBackend(fullHandle: "", url: .test())),
+            TestCommand.TestError.commandFailed
+        )
 
         // Then
         verify(asyncQueue)
@@ -116,7 +88,7 @@ final class TrackableCommandTests: TuistTestCase {
         makeSubject(commandArguments: ["cache", "warm", "--path", "/my-path"])
 
         // When
-        try await subject.run(analyticsEnabled: true)
+        try await subject.run(backend: TuistAnalyticsServerBackend(fullHandle: "", url: .test()))
 
         // Then
         verify(asyncQueue)
@@ -127,12 +99,12 @@ final class TrackableCommandTests: TuistTestCase {
             .called(1)
     }
 
-    func test_whenPathIsInArguments_and_analytics_are_disabled() async throws {
+    func test_whenPathIsInArguments_and_no_backend_is_set() async throws {
         // Given
         makeSubject(commandArguments: ["cache", "warm", "--path", "/my-path"])
 
         // When
-        try await subject.run(analyticsEnabled: false)
+        try await subject.run(backend: nil)
 
         // Then
         verify(asyncQueue)
@@ -148,7 +120,7 @@ final class TrackableCommandTests: TuistTestCase {
         makeSubject(commandArguments: ["cache", "warm"])
 
         // When
-        try await subject.run(analyticsEnabled: true)
+        try await subject.run(backend: TuistAnalyticsServerBackend(fullHandle: "", url: .test()))
 
         // Then
         verify(asyncQueue)
@@ -169,16 +141,16 @@ final class TrackableCommandTests: TuistTestCase {
         )
 
         // When
-        try await subject.run(analyticsEnabled: true)
+        try await subject.run(backend: MockTuistServerAnalyticsBackend(fullHandle: "", url: .test()))
 
         // Then
         verify(asyncQueue)
             .wait()
-            .called(1)
+            .called(0)
     }
 }
 
-private struct TestCommand: ParsableCommand, HasTrackableParameters, TrackableParsableCommand {
+private struct TestCommand: TrackableParsableCommand, ParsableCommand {
     enum TestError: FatalError, Equatable {
         case commandFailed
 
@@ -202,13 +174,15 @@ private struct TestCommand: ParsableCommand, HasTrackableParameters, TrackablePa
     var shouldFail: Bool = false
     var analyticsRequired: Bool = false
 
-    static var analyticsDelegate: TrackableParametersDelegate?
-    var runId = ""
-
     func run() throws {
         if shouldFail {
             throw TestError.commandFailed
         }
-        TestCommand.analyticsDelegate?.addParameters(["flag": AnyCodable(flag)])
+    }
+}
+
+final class MockTuistServerAnalyticsBackend: TuistAnalyticsServerBackend {
+    override func send(commandEvent _: CommandEvent) async throws -> ServerCommandEvent {
+        return .test()
     }
 }

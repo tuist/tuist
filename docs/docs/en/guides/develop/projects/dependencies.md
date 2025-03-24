@@ -64,7 +64,7 @@ You can integrate them using Xcode's default integration mechanism or using Tuis
 Xcode's default integration while being the most convenient one,
 lacks flexibility and control that's required for medium and large projects.
 To overcome this, Tuist offers an XcodeProj-based integration that allows you to integrate Swift Packages in your project using XcodeProj's targets.
-Thanks to that, we can not only give you more control over the integration but also make it compatible with workflows like <LocalizedLink href="/guides/develop/build/cache">caching</LocalizedLink> and <LocalizedLink href="/guides/develop/test/smart-runner">smart test runs</LocalizedLink>.
+Thanks to that, we can not only give you more control over the integration but also make it compatible with workflows like <LocalizedLink href="/guides/develop/build/cache">caching</LocalizedLink> and <LocalizedLink href="/guides/develop/test/selective-testing">smart test runs</LocalizedLink>.
 
 XcodeProj's integration is more likely to take more time to support new Swift Package features or handle more package configurations. However, the mapping logic between Swift Packages and XcodeProj targets is open-source and can be contributed to by the community. This is contrary to Xcode's default integration, which is closed-source and maintained by Apple.
 
@@ -91,7 +91,13 @@ let package = Package(
     name: "PackageName",
     dependencies: [
         .package(url: "https://github.com/Alamofire/Alamofire", from: "5.0.0"),
-
+    ],
+    targets: [
+        .binaryTarget(
+            name: "Sentry",
+            url: "https://github.com/getsentry/sentry-cocoa/releases/download/8.40.1/Sentry.xcframework.zip",
+            checksum: "db928e6fdc30de1aa97200576d86d467880df710cf5eeb76af23997968d7b2c7"
+        ),
     ]
 )
 ```

@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import ServiceContextModule
 import TuistLoader
 import TuistServer
 import TuistSupport
@@ -20,7 +21,7 @@ final class OrganizationInviteService: OrganizationInviteServicing {
     init(
         createOrganizationInviteService: CreateOrganizationInviteServicing = CreateOrganizationInviteService(),
         serverURLService: ServerURLServicing = ServerURLService(),
-        configLoader: ConfigLoading = ConfigLoader(warningController: WarningController.shared)
+        configLoader: ConfigLoading = ConfigLoader()
     ) {
         self.createOrganizationInviteService = createOrganizationInviteService
         self.serverURLService = serverURLService
@@ -52,7 +53,7 @@ final class OrganizationInviteService: OrganizationInviteServicing {
             .appendingPathComponent("invitations")
             .appendingPathComponent(invitation.token)
 
-        logger.info("""
+        ServiceContext.current?.logger?.info("""
         \(invitation.inviteeEmail) was successfully invited to the \(organizationName) organization 🎉
 
         You can also share with them the invite link directly: \(invitationURL.absoluteString)

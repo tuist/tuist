@@ -2,6 +2,7 @@ import FileSystem
 import Foundation
 import Path
 import ProjectDescription
+import ServiceContextModule
 import TuistDependencies
 import TuistLoader
 import TuistSupport
@@ -14,10 +15,7 @@ final class PluginArchiveService {
     private let fileSystem: FileSystem
 
     init(
-        swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(
-            system: System.shared,
-            fileSystem: FileSystem()
-        ),
+        swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(),
         packageInfoLoader: PackageInfoLoading = PackageInfoLoader(),
         manifestLoader: ManifestLoading = ManifestLoader(),
         fileArchiverFactory: FileArchivingFactorying = FileArchivingFactory(),
@@ -47,7 +45,7 @@ final class PluginArchiveService {
             .filter { $0.hasPrefix("tuist-") }
 
         if taskProducts.isEmpty {
-            logger
+            ServiceContext.current?.logger?
                 .warning("No tasks found - make sure you have executable products with `tuist-` prefix defined in your manifest.")
             return
         }
@@ -82,7 +80,7 @@ final class PluginArchiveService {
     ) async throws {
         let artifactsPath = temporaryDirectory.appending(component: "artifacts")
         for product in taskProducts {
-            logger.notice("Building \(product)...")
+            ServiceContext.current?.logger?.notice("Building \(product)...")
             try await swiftPackageManagerController.buildFatReleaseBinary(
                 packagePath: path,
                 product: product,
@@ -106,9 +104,11 @@ final class PluginArchiveService {
         )
         try await archiver.delete()
 
-        logger.notice(
-            "Plugin was successfully archived. Create a new Github release and attach the file \(zipPath.pathString) as an artifact.",
-            metadata: .success
-        )
+        ServiceContext.current?.alerts?
+            .success(
+                .alert(
+                    "Plugin was successfully archived. Create a new Github release and attach the file \(zipPath.pathString) as an artifact."
+                )
+            )
     }
 }

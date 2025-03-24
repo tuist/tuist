@@ -1,6 +1,4 @@
-import FileSystem
 import Mockable
-import Path
 import struct TSCUtility.Version
 import TuistAutomationTesting
 import TuistCore

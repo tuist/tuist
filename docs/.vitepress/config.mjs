@@ -8,7 +8,7 @@ import {
   serverSidebar,
   navBar,
 } from "./bars.mjs";
-import { loadData as loadCLIData } from "./data/cli";
+import { cliSidebar } from "./data/cli";
 import { localizedString } from "./i18n.mjs";
 
 async function themeConfig(locale) {
@@ -16,9 +16,9 @@ async function themeConfig(locale) {
   sidebar[`/${locale}/contributors`] = contributorsSidebar(locale);
   sidebar[`/${locale}/guides/`] = guidesSidebar(locale);
   sidebar[`/${locale}/server/`] = serverSidebar(locale);
-  sidebar[`/${locale}/`] = guidesSidebar(locale);
-  sidebar[`/${locale}/cli/`] = await loadCLIData(locale);
+  sidebar[`/${locale}/cli/`] = await cliSidebar(locale);
   sidebar[`/${locale}/references/`] = await referencesSidebar(locale);
+  sidebar[`/${locale}/`] = guidesSidebar(locale);
   return {
     nav: navBar(locale),
     sidebar,
@@ -148,7 +148,7 @@ export default defineConfig({
   titleTemplate: ":title | Tuist",
   description: "Scale your Xcode app development",
   srcDir: "docs",
-  lastUpdated: true,
+  lastUpdated: false,
   locales: {
     en: {
       label: "English",
@@ -184,18 +184,33 @@ export default defineConfig({
   cleanUrls: true,
   head: [
     [
-      "script",
+      "meta",
+      {
+        "http-equiv": "Content-Security-Policy",
+        content: "frame-src 'self' https://videos.tuist.dev",
+      },
+      ``,
+    ],
+    [
+      "style",
       {},
       `
-      !function(t,e){var o,n,p,r;e.__SV||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}(p=t.createElement("script")).type="text/javascript",p.async=!0,p.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r);var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],u.toString=function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e},u.people.toString=function(){return u.toString(1)+".people (stub)"},o="capture identify alias people.set people.set_once set_config register register_once unregister opt_out_capturing has_opted_out_capturing opt_in_capturing reset isFeatureEnabled onFeatureFlags getFeatureFlag getFeatureFlagPayload reloadFeatureFlags group updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures getActiveMatchingSurveys getSurveys onSessionId".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
-      posthog.init('phc_stva6NJi8LG6EmR6RA6uQcRdrmfTQcAVLoO3vGgWmNZ',{api_host:'https://eu.i.posthog.com'})
-    `,
+      @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap');
+      `,
+    ],
+    [
+      "style",
+      {},
+      `
+      @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&display=swap');
+      `,
     ],
     [
       "script",
       {},
       `
-      !function(t){if(window.ko)return;window.ko=[],["identify","track","removeListeners","open","on","off","qualify","ready"].forEach(function(t){ko[t]=function(){var n=[].slice.call(arguments);return n.unshift(t),ko.push(n),ko}});var n=document.createElement("script");n.async=!0,n.setAttribute("src","https://cdn.getkoala.com/v1/pk_3f80a3529ec2914b714a3f740d10b12642b9/sdk.js"),(document.body || document.head).appendChild(n)}();
+      !function(t,e){var o,n,p,r;e.__SV||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}(p=t.createElement("script")).type="text/javascript",p.async=!0,p.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r);var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],u.toString=function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e},u.people.toString=function(){return u.toString(1)+".people (stub)"},o="capture identify alias people.set people.set_once set_config register register_once unregister opt_out_capturing has_opted_out_capturing opt_in_capturing reset isFeatureEnabled onFeatureFlags getFeatureFlag getFeatureFlagPayload reloadFeatureFlags group updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures getActiveMatchingSurveys getSurveys onSessionId".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
+      posthog.init('phc_stva6NJi8LG6EmR6RA6uQcRdrmfTQcAVLoO3vGgWmNZ',{api_host:'https://eu.i.posthog.com'})
     `,
     ],
     ["meta", { property: "og:url", content: "https://docs.tuist.io" }, ""],
@@ -291,7 +306,21 @@ export default defineConfig({
 /guides/dashboard/on-premise/install /server/on-premise/install 301
 /guides/dashboard/on-premise/metrics /server/on-premise/metrics 301
 /:locale/references/project-description/structs/config /:locale/references/project-description/structs/tuist  301
+/:locale/guides/develop/test/smart-runner /:locale/guides/develop/test/selective-testing 301
+/:locale/guides/start/new-project /:locale/guides/develop/projects/adoption/new-project 301
+/:locale/guides/start/swift-package /:locale/guides/develop/projects/adoption/swift-package 301
+/:locale/guides/start/migrate/xcode-project /:locale/guides/develop/projects/adoption/migrate/xcode-project 301
+/:locale/guides/start/migrate/swift-package /:locale/guides/develop/projects/adoption/migrate/swift-package 301
+/:locale/guides/start/migrate/xcodegen-project /:locale/guides/develop/projects/adoption/migrate/xcodegen-project 301
+/:locale/guides/start/migrate/bazel-project /:locale/guides/develop/projects/adoption/migrate/bazel-project 301
+/:locale/guides/develop/build/cache /:locale/guides/develop/cache 301
+/:locale/guides/develop/build/registry /:locale/guides/develop/registry 301
+/:locale/guides/develop/test/selective-testing /:locale/guides/develop/selective-testing 301
+/:locale/guides/develop/inspect/implicit-dependencies /:locale/guides/develop/projects/inspect/implicit-dependencies 301
+/:locale/guides/develop/automate/continuous-integration /:locale/guides/automate/continuous-integration 301
+/:locale/guides/develop/automate/workflows /:locale/guides/automate/workflows 301
 /documentation/tuist/* / 301
+/:locale/guides/develop/build/registry /:locale/guides/develop/registry 301
 ${await fs.readFile(path.join(import.meta.dirname, "locale-redirects.txt"), {
   encoding: "utf-8",
 })}
@@ -301,9 +330,109 @@ ${await fs.readFile(path.join(import.meta.dirname, "locale-redirects.txt"), {
   themeConfig: {
     logo: "/logo.png",
     search: {
-      provider: "local",
+      provider: "algolia",
       options: {
+        appId: "5A3L9HI9VQ",
+        apiKey: "cd45f515fb1fbb720d633cb0f1257e7a",
+        indexName: "tuist",
         locales: searchOptionsLocales,
+        startUrls: ["https://tuist.dev/"],
+        renderJavaScript: false,
+        sitemaps: [],
+        exclusionPatterns: [],
+        ignoreCanonicalTo: false,
+        discoveryPatterns: ["https://tuist.dev/**"],
+        schedule: "at 05:10 on Saturday",
+        actions: [
+          {
+            indexName: "tuist",
+            pathsToMatch: ["https://tuist.dev/**"],
+            recordExtractor: ({ $, helpers }) => {
+              return helpers.docsearch({
+                recordProps: {
+                  lvl1: ".content h1",
+                  content: ".content p, .content li",
+                  lvl0: {
+                    selectors: "section.has-active div h2",
+                    defaultValue: "Documentation",
+                  },
+                  lvl2: ".content h2",
+                  lvl3: ".content h3",
+                  lvl4: ".content h4",
+                  lvl5: ".content h5",
+                },
+                indexHeadings: true,
+              });
+            },
+          },
+        ],
+        initialIndexSettings: {
+          vitepress: {
+            attributesForFaceting: ["type", "lang"],
+            attributesToRetrieve: ["hierarchy", "content", "anchor", "url"],
+            attributesToHighlight: ["hierarchy", "hierarchy_camel", "content"],
+            attributesToSnippet: ["content:10"],
+            camelCaseAttributes: ["hierarchy", "hierarchy_radio", "content"],
+            searchableAttributes: [
+              "unordered(hierarchy_radio_camel.lvl0)",
+              "unordered(hierarchy_radio.lvl0)",
+              "unordered(hierarchy_radio_camel.lvl1)",
+              "unordered(hierarchy_radio.lvl1)",
+              "unordered(hierarchy_radio_camel.lvl2)",
+              "unordered(hierarchy_radio.lvl2)",
+              "unordered(hierarchy_radio_camel.lvl3)",
+              "unordered(hierarchy_radio.lvl3)",
+              "unordered(hierarchy_radio_camel.lvl4)",
+              "unordered(hierarchy_radio.lvl4)",
+              "unordered(hierarchy_radio_camel.lvl5)",
+              "unordered(hierarchy_radio.lvl5)",
+              "unordered(hierarchy_radio_camel.lvl6)",
+              "unordered(hierarchy_radio.lvl6)",
+              "unordered(hierarchy_camel.lvl0)",
+              "unordered(hierarchy.lvl0)",
+              "unordered(hierarchy_camel.lvl1)",
+              "unordered(hierarchy.lvl1)",
+              "unordered(hierarchy_camel.lvl2)",
+              "unordered(hierarchy.lvl2)",
+              "unordered(hierarchy_camel.lvl3)",
+              "unordered(hierarchy.lvl3)",
+              "unordered(hierarchy_camel.lvl4)",
+              "unordered(hierarchy.lvl4)",
+              "unordered(hierarchy_camel.lvl5)",
+              "unordered(hierarchy.lvl5)",
+              "unordered(hierarchy_camel.lvl6)",
+              "unordered(hierarchy.lvl6)",
+              "content",
+            ],
+            distinct: true,
+            attributeForDistinct: "url",
+            customRanking: [
+              "desc(weight.pageRank)",
+              "desc(weight.level)",
+              "asc(weight.position)",
+            ],
+            ranking: [
+              "words",
+              "filters",
+              "typo",
+              "attribute",
+              "proximity",
+              "exact",
+              "custom",
+            ],
+            highlightPreTag:
+              '<span class="algolia-docsearch-suggestion--highlight">',
+            highlightPostTag: "</span>",
+            minWordSizefor1Typo: 3,
+            minWordSizefor2Typos: 7,
+            allowTyposOnNumericTokens: false,
+            minProximity: 1,
+            ignorePlurals: true,
+            advancedSyntax: true,
+            attributeCriteriaComputedByMinProximity: true,
+            removeWordsIfNoResults: "allOptional",
+          },
+        },
       },
     },
     editLink: {
@@ -311,8 +440,8 @@ ${await fs.readFile(path.join(import.meta.dirname, "locale-redirects.txt"), {
     },
     socialLinks: [
       { icon: "github", link: "https://github.com/tuist/tuist" },
-      { icon: "x", link: "https://x.com/tuistio" },
       { icon: "mastodon", link: "https://fosstodon.org/@tuist" },
+      { icon: "bluesky", link: "https://bsky.app/profile/tuist.dev" },
       {
         icon: "slack",
         link: "https://join.slack.com/t/tuistapp/shared_invite/zt-1y667mjbk-s2LTRX1YByb9EIITjdLcLw",

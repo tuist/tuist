@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import ServiceContextModule
 import TuistLoader
 import TuistServer
 import TuistSupport
@@ -20,7 +21,7 @@ final class ProjectTokensRevokeService: ProjectTokensRevokeServicing {
     init(
         revokeProjectTokenService: RevokeProjectTokenServicing = RevokeProjectTokenService(),
         serverURLService: ServerURLServicing = ServerURLService(),
-        configLoader: ConfigLoading = ConfigLoader(warningController: WarningController.shared)
+        configLoader: ConfigLoading = ConfigLoader()
     ) {
         self.revokeProjectTokenService = revokeProjectTokenService
         self.serverURLService = serverURLService
@@ -47,6 +48,6 @@ final class ProjectTokensRevokeService: ProjectTokensRevokeServicing {
             serverURL: serverURL
         )
 
-        logger.info("The project token \(projectTokenId) was successfully revoked.")
+        ServiceContext.current?.logger?.info("The project token \(projectTokenId) was successfully revoked.")
     }
 }

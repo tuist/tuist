@@ -21,8 +21,6 @@ Plugin은 Tuist의 기능을 확장하기 위한 간단한 방법으로 설계�
 
 더 많은 유연성이 필요하다면, 도구에 대한 기능 제안을 하거나 Tuist의 생성 프레임워크인 [`TuistGenerator`](https://github.com/tuist/tuist/tree/main/Sources/TuistGenerator)를 기반으로 자체 솔루션을 구축하는 것을 고려해 보세요.
 
-> [!WARNING] Plugin 인프라는 현재 관리되지 않습니다. 우리는 이를 개선하는 데 도움을 줄 기여자를 찾고 있습니다. 관심이 있으시면 [Slack](https://slack.tuist.io/)을 통해 저희에게 연락해 주세요.
-
 ## Plugin types {#plugin-types}
 
 ### Project description helper plugin {#project-description-helper-plugin}
@@ -93,6 +91,9 @@ let project = Project(resourceSynthesizers: [.strings(plugin: "MyPlugin")])
 
 ### Task plugin <Badge type="warning" text="deprecated" /> {#task-plugin-badge-typewarning-textdeprecated-}
 
+> [!WARNING] DEPRECATED
+> Task plugins are deprecated and we are working on a more flexible and powerful solution, <LocalizedLink href="/en/guides/develop/automate/workflows">workflows</LocalizedLink>. We recommend not developing new plugins until the new solution is available.
+
 Tasks는 `tuist--<task-name>` 명명 규칙을 따를 경우 `tuist` 명령을 통해 호출할 수 있는 `$PATH` 실행 파일입니다. 이전 버전에서 Tuist는 Swift 패키지에서 실행 파일로 구성된 `build`, `run`, `test` 및 `archive` 작업에 `tuist plugin`에 따라 몇 가지 약한 규칙과 도구를 제공했지만, 유지 관리 부담과 도구의 복잡성을 증가시키기 때문에 이 기능은 더 이상 지원되지 않습니다.
 
 Tuist를 tasks 배포에 사용하고 있었다면, 자체 솔루션을 구축할 것을 권장합니다.
@@ -106,7 +107,7 @@ Tuist를 tasks 배포에 사용하고 있었다면, 자체 솔루션을 구축�
 
 ## Using plugins {#using-plugins}
 
-To use a plugin, you'll have to add it to your project's <LocalizedLink href="/references/project-description/structs/tuist">`Tuist.swift`</LocalizedLink> manifest file:
+plugin을 사용하려면, 프로젝트의 <LocalizedLink href="/references/project-description/structs/tuist">`Tuist.swift`</LocalizedLink> manifest 파일에 추가해야 합니다:
 
 ```swift
 import ProjectDescription

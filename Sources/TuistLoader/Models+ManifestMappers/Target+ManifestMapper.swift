@@ -33,7 +33,8 @@ extension XcodeGraph.Target {
         manifest: ProjectDescription.Target,
         generatorPaths: GeneratorPaths,
         externalDependencies: [String: [XcodeGraph.TargetDependency]],
-        fileSystem: FileSysteming
+        fileSystem: FileSysteming,
+        type: TargetType
     ) async throws -> XcodeGraph.Target {
         let name = manifest.name
         let destinations = try XcodeGraph.Destination.from(destinations: manifest.destinations)
@@ -168,7 +169,8 @@ extension XcodeGraph.Target {
             mergedBinaryType: mergedBinaryType,
             mergeable: manifest.mergeable,
             onDemandResourcesTags: onDemandResourcesTags,
-            metadata: metadata
+            metadata: metadata,
+            type: type
         )
     }
 

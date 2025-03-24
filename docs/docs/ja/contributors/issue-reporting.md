@@ -1,13 +1,12 @@
 ---
-title: Issue報告
-titleTemplate: :title · Contributors · Tuist
+title: Issue の報告
+titleTemplate: :title · コントリビューター · Tuist
 description: バグを報告してTuist に貢献する方法を学ぶ
 ---
 
 # Issue の報告 {#issue-reporting}
 
 Tuist のユーザーとして、バグや予期しない動作に遭遇することがあるかもしれません。
-その場合は、ぜひ報告してください。私たちが修正に取り組みます。
 その場合は、ぜひ報告してください。私たちが修正に取り組みます。
 
 ## GitHub Issues は当プロジェクトのチケット管理プラットフォームです {#github-issues-is-our-ticketing-platform}
@@ -16,37 +15,37 @@ Tuist のユーザーとして、バグや予期しない動作に遭遇する�
 
 ## 背景情報が鍵 {#context-is-crucial}
 
-背景情報が不十分な課題は不完全と見なされ、作成者は追加の情報を要求されます。 もし背景情報が提供されない場合、 Issue はクローズされます。 逆に言えば、背景情報を多く提供するほど、私たちが問題を理解し、解決するのが容易になります。 そのため、Issue を解決してほしい場合は、できるだけ詳しい情報を提供してください。 次の質問に答える形で情報を記載してください。
+背景情報が不十分な課題は不完全と見なされ、作成者は追加の情報を要求されます。 もし背景情報が提供されない場合、 Issue はクローズされます。 逆に言えば、コンテキストを多く提供するほど、私たちが問題を理解し、解決するのが容易になります。 そのため、Issue を解決してほしい場合は、できるだけ詳しい情報を提供してください。 次の質問に答える形で情報を記載してください。
 
 - 試したことは何か？
 - プロジェクトの依存関係の状態はどうなっているのか？
 - 使用している Tuist のバージョンは？
-- この問題が作業の妨げになっているか
+- その問題はあなたの作業をブロックしているのか？
 
 また、最小限の**再現可能なプロジェクト**の提供もお願いしています。
 
 ## 再現可能なプロジェクト {#reproducible-project}
 
-### 再現可能なプロジェクトとは？ 再現可能なプロジェクトとは?
+### 再現可能なプロジェクトとは？ {#what-is-a-reproducible-project}
 
-A reproducible project is a small Tuist project to demonstrate a problem - often this problem is caused by a bug in Tuist. Your reproducible project should contain the bare minimum features needed to clearly demonstrate the bug.
+再現可能なプロジェクトは、問題を実証するための小さなTuistプロジェクトです - 多くの場合、この問題はTuistのバグによって引き起こされます。 再現可能なプロジェクトには、バグを明確に示すために必要な最小限の機能が含まれている必要があります。
 
-### Why should you create a reproducible test case? {#why-should-you-create-a-reproducible-test-case}
+### なぜ再現可能なテストケースを作成する必要がありますか？ {#why-should-you-create-a-reproducible-test-case}
 
-A reproducible projects lets us isolate the cause of a problem, which is the first step towards fixing it! The most important part of any bug report is to describe the exact steps needed to reproduce the bug.
+再現性のあるプロジェクトでは、問題の原因を特定することができます。これは、問題を解決するための最初のステップです！ バグレポートの最も重要な部分は、バグを再現するために必要な正確なステップを記述することです。
 
-A reproducible project is a great way to share a specific environment that causes a bug. Your reproducible project is the best way to help people that want to help you.
+再現可能なプロジェクトは、バグを引き起こす特定の環境を共有するのに最適な方法です。 あなたの再現可能なプロジェクトは、あなたを助けたい人々を助けるための最善の方法です。
 
-### Steps to create a reproducible project {#steps-to-create-a-reproducible-project}
+### 再現可能なプロジェクトを作成する手順 {#steps-to-create-a-reproducible-project}
 
-- Create a new git repository.
-- Initialize a project using `tuist init` in the repository directory.
-- Add the code needed to recreate the error you’ve seen.
-- Publish the code (your GitHub account is a good place to do this) and then link to it when creating an issue.
+- 新しい git リポジトリを作成します。
+- リポジトリのディレクトリで `tuist init` を使用してプロジェクトを初期化します。
+- あなたが見たエラーを再現するために必要なコードを追加してください。
+- コードを公開(GitHubアカウントはこれを行うのに適した場所です)して、Issue を作成する際にリンクを掲載してください。
 
-### Benefits of reproducible projects {#benefits-of-reproducible-projects}
+### 再現可能なプロジェクトの利点 {#benefits-of-reproducible-projects}
 
-- **Smaller surface area:** By removing everything but the error, you don’t have to dig to find the bug.
-- **No need to publish secret code:** You might not be able to publish your main site (for many reasons). Remaking a small part of it as a reproducible test case allows you to publicly demonstrate a problem without exposing any secret code.
-- **Proof of the bug:** Sometimes a bug is caused by some combination of settings on your machine. A reproducible test case allows contributors to pull down your build and test it on their machines as well. This helps verify and narrow down the cause of a problem.
-- **Get help with fixing your bug:** If someone else can reproduce your problem, they often have a good chance of fixing the problem. It’s almost impossible to fix a bug without first being able to reproduce it.
+- **最小限の範囲:** エラー部分以外をすべて取り除くことで、どこにバグがあるのかを探るために余計な部分を深く調べる必要がなくなります。
+- **秘密のコードを公開する必要はありません:** メインサイトを公開できない場合があります (多くの理由で)。 再現可能なテストケースとしてその小さな部分を再現することで、秘密のコードを公開せずに問題を公開することができます。
+- **バグの証拠：** 時々バグはあなたのマシンの設定を組み合わせることによって引き起こされます。 再現可能なテストケースは、コントリビューターがあなたのビルドをダウンロードして彼らのマシンでテストすることを可能にします。 これは問題の原因を検証し、絞り込むのに役立ちます。
+- **バグ修正のサポートを得る**: 他の人があなたの問題を再現できる場合、彼らが問題を解決する可能性は高いです。 バグを修正するためには、まずそれを再現できなければほとんど不可能です。

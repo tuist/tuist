@@ -145,7 +145,7 @@ final class ConfigGenerator: ConfigGenerating {
                 variantBuildConfiguration.baseConfiguration = fileReference
             }
         }
-        variantBuildConfiguration.buildSettings = settings.toAny()
+        variantBuildConfiguration.buildSettings = settings.toBuildSettings()
         pbxproj.add(object: variantBuildConfiguration)
         configurationList.buildConfigurations.append(variantBuildConfiguration)
     }
@@ -204,7 +204,7 @@ final class ConfigGenerator: ConfigGenerating {
             variantBuildConfiguration.baseConfiguration = fileReference
         }
 
-        variantBuildConfiguration.buildSettings = settings.toAny()
+        variantBuildConfiguration.buildSettings = settings.toBuildSettings()
         pbxproj.add(object: variantBuildConfiguration)
         configurationList.buildConfigurations.append(variantBuildConfiguration)
     }
@@ -256,7 +256,7 @@ final class ConfigGenerator: ConfigGenerating {
                 } else {
                     settings["CODE_SIGN_ENTITLEMENTS"] = .string("$(SRCROOT)/\(relativePath)")
                 }
-            } else if case let .variable(configName) = entitlements {
+            } else if case let .variable(configName, configuration: _) = entitlements {
                 settings["CODE_SIGN_ENTITLEMENTS"] = .string(configName)
             }
         }
@@ -320,6 +320,7 @@ final class ConfigGenerator: ConfigGenerating {
         if target.destinations.contains(.iPad) { deviceFamilyValues.append(2) }
         if target.destinations.contains(.appleTv) { deviceFamilyValues.append(3) }
         if target.destinations.contains(.appleWatch) { deviceFamilyValues.append(4) }
+        if target.destinations.contains(.macCatalyst) { deviceFamilyValues.append(6) }
         if target.destinations.contains(.appleVision) { deviceFamilyValues.append(7) }
 
         if !deviceFamilyValues.isEmpty {

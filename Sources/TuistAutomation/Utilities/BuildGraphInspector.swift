@@ -1,7 +1,7 @@
 import FileSystem
-import Foundation
 import Mockable
 import Path
+import ServiceContextModule
 import TuistCore
 import TuistSupport
 import XcodeGraph
@@ -93,7 +93,7 @@ public final class BuildGraphInspector: BuildGraphInspecting {
             if configurations.contains(where: { $0.key.name == configuration }) {
                 arguments.append(.configuration(configuration))
             } else {
-                logger
+                ServiceContext.current?.logger?
                     .warning(
                         "The scheme's targets don't have the given configuration \(configuration). Defaulting to the scheme's default."
                     )
@@ -146,6 +146,10 @@ public final class BuildGraphInspector: BuildGraphInspecting {
         if let testPlanName = testPlan,
            let testPlan = scheme.testAction?.testPlans?.first(where: { $0.name == testPlanName }),
            let target = testPlan.testTargets.first(where: { isIncluded($0) })?.target
+        {
+            return graphTraverser.target(path: target.projectPath, name: target.name)
+        } else if let defaultTestPlan = scheme.testAction?.testPlans?.first(where: { $0.isDefault }),
+                  let target = defaultTestPlan.testTargets.first(where: { isIncluded($0) })?.target
         {
             return graphTraverser.target(path: target.projectPath, name: target.name)
         } else if let testTarget = scheme.testAction?.targets.first {

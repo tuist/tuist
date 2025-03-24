@@ -12,6 +12,7 @@ extension ProjectAutomation.Graph {
         // generate targets projects only
         let projects = targetsAndDependencies
             .map(\.key.project)
+            .uniqued()
             .reduce(into: [String: ProjectAutomation.Project]()) {
                 $0[$1.path.pathString] = ProjectAutomation.Project.from($1)
             }
@@ -37,14 +38,22 @@ extension ProjectAutomation.Project {
         let packages = project.packages
             .reduce(into: [ProjectAutomation.Package]()) { $0.append(ProjectAutomation.Package.from($1)) }
         let schemes = project.schemes.reduce(into: [ProjectAutomation.Scheme]()) { $0.append(ProjectAutomation.Scheme.from($1)) }
+
+        var dependenciesCache = [XcodeGraph.TargetDependency: ProjectAutomation.TargetDependency]()
         let targets = project.targets.mapValues { target in
-            ProjectAutomation.Target.from(target)
+            ProjectAutomation.Target.from(target, dependenciesCache: &dependenciesCache)
+        }
+
+        let isExternal = switch project.type {
+        case .external:
+            true
+        case .local:
+            false
         }
 
         return ProjectAutomation.Project(
             name: project.name,
             path: project.path.pathString,
-            isExternal: project.isExternal,
             packages: packages,
             targets: Array(targets.values),
             schemes: schemes
@@ -64,8 +73,20 @@ extension ProjectAutomation.Package {
 }
 
 extension ProjectAutomation.Target {
-    static func from(_ target: XcodeGraph.Target) -> ProjectAutomation.Target {
-        let dependencies = target.dependencies.map { Self.from($0) }
+    static func from(
+        _ target: XcodeGraph.Target,
+        dependenciesCache: inout [XcodeGraph.TargetDependency: ProjectAutomation.TargetDependency]
+    )
+        -> ProjectAutomation.Target
+    {
+        let dependencies = target.dependencies.map {
+            if let foundDependency = dependenciesCache[$0] {
+                return foundDependency
+            }
+            let target = Self.from($0)
+            dependenciesCache[$0] = target
+            return target
+        }
         return ProjectAutomation.Target(
             name: target.name,
             product: target.product.rawValue,

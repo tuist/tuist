@@ -1,5 +1,3 @@
-import Foundation
-
 /// A cloud configuration, used for remote caching.
 public struct Cloud: Codable, Equatable, Sendable {
     /// Options for cloud configuration.

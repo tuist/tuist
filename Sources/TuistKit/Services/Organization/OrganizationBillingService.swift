@@ -19,7 +19,7 @@ final class OrganizationBillingService: OrganizationBillingServicing {
     init(
         serverURLService: ServerURLServicing = ServerURLService(),
         opener: Opening = Opener(),
-        configLoader: ConfigLoading = ConfigLoader(warningController: WarningController.shared)
+        configLoader: ConfigLoading = ConfigLoader()
     ) {
         self.serverURLService = serverURLService
         self.opener = opener

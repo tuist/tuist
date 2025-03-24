@@ -11,15 +11,12 @@ import XcodeGraph
 enum SimulatorsViewModelError: FatalError, Equatable {
     case noSelectedSimulator
     case invalidDeeplink(String)
-    case invalidDownloadURL(String)
     case appNotFound(Device, [Platform])
 
     var description: String {
         switch self {
         case .noSelectedSimulator:
             return "To run a preview, you must have a simulator selected."
-        case let .invalidDownloadURL(url):
-            return "The preview download url \(url) is invalid."
         case let .appNotFound(device, platforms):
             let name: String
             let platform: String
@@ -39,8 +36,6 @@ enum SimulatorsViewModelError: FatalError, Equatable {
 
     var type: ErrorType {
         switch self {
-        case .invalidDownloadURL:
-            return .bug
         case .noSelectedSimulator, .appNotFound, .invalidDeeplink:
             return .abort
         }

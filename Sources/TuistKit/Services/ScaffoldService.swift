@@ -1,10 +1,10 @@
 import Path
+import ServiceContextModule
 import TuistCore
 import TuistLoader
 import TuistPlugin
 import TuistScaffold
 import TuistSupport
-import XcodeGraph
 
 enum ScaffoldServiceError: FatalError, Equatable {
     var type: ErrorType {
@@ -44,7 +44,7 @@ final class ScaffoldService {
         templateLoader: TemplateLoading = TemplateLoader(),
         templatesDirectoryLocator: TemplatesDirectoryLocating = TemplatesDirectoryLocator(),
         templateGenerator: TemplateGenerating = TemplateGenerator(),
-        configLoader: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader(), warningController: WarningController.shared),
+        configLoader: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader()),
         pluginService: PluginServicing = PluginService()
     ) {
         self.templateLoader = templateLoader
@@ -106,7 +106,7 @@ final class ScaffoldService {
             attributes: parsedAttributes
         )
 
-        logger.notice("Template \(templateName) was successfully generated", metadata: .success)
+        ServiceContext.current?.alerts?.success(.alert("Template \(templateName) was successfully generated"))
     }
 
     // MARK: - Helpers
@@ -121,7 +121,11 @@ final class ScaffoldService {
 
     private func loadPlugins(at path: AbsolutePath) async throws -> Plugins {
         let config = try await configLoader.loadConfig(path: path)
-        return try await pluginService.loadPlugins(using: config)
+        if let configGeneratedProjectOptions = config.project.generatedProject {
+            return try await pluginService.loadPlugins(using: configGeneratedProjectOptions)
+        } else {
+            return Plugins(projectDescriptionHelpers: [], templatePaths: [], resourceSynthesizers: [])
+        }
     }
 
     /// Parses all `attributes` from `template`

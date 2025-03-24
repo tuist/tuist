@@ -115,6 +115,7 @@ public enum Module: String, CaseIterable {
     fileprivate var sharedDependencies: [TargetDependency] {
         return [
             .external(name: "Path"),
+            .external(name: "ServiceContextModule"),
             .external(name: "SystemPackage"),
         ]
     }
@@ -199,7 +200,9 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.acceptanceTesting.targetName),
                     .target(name: Module.support.testingTargetName!),
                     .target(name: Module.support.targetName),
+                    .target(name: Module.kit.targetName),
                     .external(name: "XcodeProj"),
+                    .external(name: "Command"),
                 ]
             case .kit:
                 [
@@ -214,7 +217,7 @@ public enum Module: String, CaseIterable {
             default:
                 []
             }
-        return dependencies + sharedDependencies
+        return dependencies + [.external(name: "SnapshotTesting")] + sharedDependencies
     }
 
     public var strictConcurrencySetting: String? {
@@ -252,6 +255,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "GraphViz"),
                     .external(name: "ArgumentParser"),
                     .external(name: "SwiftToolsSupport"),
+                    .external(name: "Noora"),
                 ]
             case .tuistBenchmark:
                 [
@@ -278,6 +282,12 @@ public enum Module: String, CaseIterable {
                     .external(name: "Logging"),
                     .external(name: "ZIPFoundation"),
                     .external(name: "Difference"),
+                    .external(name: "Command"),
+                    .external(name: "FileLogging"),
+                    .external(name: "LoggingOSLog"),
+                    .external(name: "Noora"),
+                    .external(name: "XCLogParser"),
+                    .external(name: "OrderedSet"),
                 ]
             case .kit:
                 [
@@ -300,10 +310,13 @@ public enum Module: String, CaseIterable {
                     .external(name: "FileSystem"),
                     .external(name: "SwiftToolsSupport"),
                     .external(name: "XcodeGraph"),
+                    .external(name: "XcodeGraphMapper"),
                     .external(name: "ArgumentParser"),
                     .external(name: "GraphViz"),
                     .external(name: "AnyCodable"),
                     .external(name: "OpenAPIRuntime"),
+                    .external(name: "XCResultKit"),
+                    .external(name: "Noora"),
                 ]
             case .core:
                 [
@@ -348,6 +361,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "FileSystem"),
                     .external(name: "XcodeProj"),
                     .external(name: "SwiftToolsSupport"),
+                    .external(name: "_NIOFileSystem"),
                 ]
             case .asyncQueue:
                 [
@@ -451,6 +465,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "XcodeGraph"),
                     .external(name: "SwiftToolsSupport"),
                     .external(name: "FileSystem"),
+                    .external(name: "Command"),
                 ]
             case .projectDescription:
                 [
@@ -528,6 +543,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "SwiftToolsSupport"),
                     .external(name: "FileSystem"),
                     .external(name: "XcodeGraph"),
+                    .external(name: "_NIOFileSystem"),
                 ]
             case .asyncQueue:
                 [
@@ -612,7 +628,7 @@ public enum Module: String, CaseIterable {
             }
         dependencies =
             dependencies + sharedDependencies + [
-                .target(name: targetName), .external(name: "Mockable"),
+                .target(name: targetName), .external(name: "Mockable"), .external(name: "SnapshotTesting"),
             ]
         if let testingTargetName {
             dependencies.append(.target(name: testingTargetName))
@@ -647,6 +663,8 @@ public enum Module: String, CaseIterable {
                     .external(name: "Difference"),
                     .external(name: "SwiftToolsSupport"),
                     .external(name: "FileSystem"),
+                    .external(name: "Command"),
+                    .external(name: "Logging"),
                 ]
             case .kit:
                 []
@@ -857,6 +875,22 @@ public enum Module: String, CaseIterable {
                 configurations: [
                     .debug(name: "Debug", settings: [:], xcconfig: nil),
                     .release(name: "Release", settings: [:], xcconfig: nil),
+                ]
+            )
+        case .projectDescription, .projectAutomation:
+            return .settings(
+                base: ["BUILD_LIBRARY_FOR_DISTRIBUTION": "YES"],
+                configurations: [
+                    .debug(
+                        name: "Debug",
+                        settings: [:],
+                        xcconfig: nil
+                    ),
+                    .release(
+                        name: "Release",
+                        settings: [:],
+                        xcconfig: nil
+                    ),
                 ]
             )
         default:

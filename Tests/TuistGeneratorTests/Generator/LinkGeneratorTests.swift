@@ -109,7 +109,7 @@ final class LinkGeneratorTests: XCTestCase {
         XCTAssertEqual(embedBuildPhase.files?.map(\.file), [
             wakaFile,
         ])
-        XCTAssertEqual(embedBuildPhase.files?.compactMap { $0.settings as? [String: [String]] }, [
+        XCTAssertEqual(embedBuildPhase.files?.compactMap(\.settings), [
             ["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]],
         ])
     }
@@ -157,7 +157,7 @@ final class LinkGeneratorTests: XCTestCase {
         XCTAssertEqual(embedBuildPhase.files?.map(\.file), [
             wakaFile,
         ])
-        XCTAssertEqual(embedBuildPhase.files?.compactMap { $0.settings as? [String: [String]] }, [
+        XCTAssertEqual(embedBuildPhase.files?.compactMap(\.settings), [
             ["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]],
         ])
     }
@@ -318,7 +318,7 @@ final class LinkGeneratorTests: XCTestCase {
         XCTAssertEqual(copyBuildPhase.name, "Embed Frameworks")
         let buildFiles = try XCTUnwrap(copyBuildPhase.files)
         XCTAssertEqual(buildFiles.map { $0.file?.path }, ["Test.xcframework"])
-        XCTAssertEqual(buildFiles.map { $0.settings as? [String: [String]] }, [
+        XCTAssertEqual(buildFiles.map(\.settings), [
             ["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]],
         ])
     }
@@ -412,7 +412,7 @@ final class LinkGeneratorTests: XCTestCase {
 
         let buildFiles = try XCTUnwrap(copyBuildPhase.files)
         XCTAssertEqual(buildFiles.map { $0.product?.productName }, ["Product"])
-        XCTAssertEqual(buildFiles.map { $0.settings as? [String: [String]] }, [
+        XCTAssertEqual(buildFiles.map(\.settings), [
             ["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]],
         ])
     }
@@ -421,13 +421,25 @@ final class LinkGeneratorTests: XCTestCase {
         // Given
         var dependencies: Set<GraphDependencyReference> = []
         dependencies.insert(GraphDependencyReference.testPackageProduct())
+        dependencies.insert(
+            GraphDependencyReference.testPackageProduct(
+                product: "ProductWithPlatformCondition",
+                condition: .when([.catalyst])
+            )
+        )
+
         let pbxproj = PBXProj()
         let (pbxTarget, target) = createTargets(product: .framework)
         let sourceRootPath = try AbsolutePath(validating: "/")
 
         let productDependency = XCSwiftPackageProductDependency(productName: "Product", isPlugin: false)
-        let buildFile = PBXBuildFile(product: productDependency)
-        pbxproj.add(object: buildFile)
+        pbxproj.add(object: PBXBuildFile(product: productDependency))
+
+        let productDependencyWithPlatformCondition = XCSwiftPackageProductDependency(
+            productName: "ProductWithPlatformCondition",
+            isPlugin: false
+        )
+        pbxproj.add(object: PBXBuildFile(product: productDependencyWithPlatformCondition))
 
         let fileElements = ProjectFileElements()
         let path = try AbsolutePath(validating: "/path/")
@@ -451,10 +463,14 @@ final class LinkGeneratorTests: XCTestCase {
         let copyBuildPhase = try XCTUnwrap(pbxTarget.embedFrameworksBuildPhases().first)
         XCTAssertEqual(copyBuildPhase.name, "Embed Frameworks")
         let buildFiles = try XCTUnwrap(copyBuildPhase.files)
-        XCTAssertEqual(buildFiles.map { $0.product?.productName }, ["Product"])
-        XCTAssertEqual(buildFiles.map { $0.settings as? [String: [String]] }, [
+        XCTAssertEqual(Set(buildFiles.map { $0.product?.productName }), ["Product", "ProductWithPlatformCondition"])
+        XCTAssertEqual(Set(buildFiles.map(\.settings)), [
             ["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]],
         ])
+        XCTAssertEqual(
+            buildFiles.reduce(into: [String: String]()) { $0[$1.product?.productName] = $1.platformFilter },
+            ["ProductWithPlatformCondition": "maccatalyst"]
+        )
     }
 
     func test_setupRunPathSearchPath() throws {
@@ -465,7 +481,7 @@ final class LinkGeneratorTests: XCTestCase {
         ].shuffled()
         let sourceRootPath = try AbsolutePath(validating: "/path")
         let xcodeprojElements = createXcodeprojElements()
-        xcodeprojElements.config.buildSettings["LD_RUNPATH_SEARCH_PATHS"] = "my/custom/path"
+        xcodeprojElements.config.buildSettings["LD_RUNPATH_SEARCH_PATHS"] = .array(["my/custom/path"])
         let target = Target.test()
         let path = try AbsolutePath(validating: "/path/")
         let graphTraverser = MockGraphTraversing()
@@ -484,7 +500,7 @@ final class LinkGeneratorTests: XCTestCase {
 
         // Then
         let config = xcodeprojElements.config
-        XCTAssertEqual(config.buildSettings["LD_RUNPATH_SEARCH_PATHS"] as? [String], [
+        XCTAssertEqual(config.buildSettings["LD_RUNPATH_SEARCH_PATHS"]?.arrayValue, [
             "$(inherited)",
             "my/custom/path",
             "$(SRCROOT)/Dependencies/Frameworks",
@@ -525,7 +541,7 @@ final class LinkGeneratorTests: XCTestCase {
 
         // Then
         let config = xcodeprojElements.config
-        XCTAssertEqual(config.buildSettings["FRAMEWORK_SEARCH_PATHS"] as? [String], [
+        XCTAssertEqual(config.buildSettings["FRAMEWORK_SEARCH_PATHS"]?.arrayValue, [
             "$(inherited)",
             "my/custom/path",
             "$(PLATFORM_DIR)/Developer/Library/Frameworks",
@@ -567,7 +583,7 @@ final class LinkGeneratorTests: XCTestCase {
         )
 
         let expected = ["$(inherited)", "$(SRCROOT)/headers"]
-        XCTAssertEqual(config.buildSettings["HEADER_SEARCH_PATHS"] as? [String], expected)
+        XCTAssertEqual(config.buildSettings["HEADER_SEARCH_PATHS"]?.arrayValue, expected)
     }
 
     func test_setupHeadersSearchPaths_extendCustomSettings() throws {
@@ -597,7 +613,7 @@ final class LinkGeneratorTests: XCTestCase {
 
         // Then
         let config = xcodeprojElements.config
-        XCTAssertEqual(config.buildSettings["HEADER_SEARCH_PATHS"] as? [String], [
+        XCTAssertEqual(config.buildSettings["HEADER_SEARCH_PATHS"]?.arrayValue, [
             "$(inherited)",
             "my/custom/path",
             "$(SRCROOT)/to/libraries",
@@ -632,7 +648,7 @@ final class LinkGeneratorTests: XCTestCase {
 
         // Then
         let config = xcodeprojElements.config
-        XCTAssertEqual(config.buildSettings["HEADER_SEARCH_PATHS"] as? [String], [
+        XCTAssertEqual(config.buildSettings["HEADER_SEARCH_PATHS"]?.arrayValue, [
             "$(inherited)",
             "$(SRCROOT)/to/libraries",
         ])
@@ -690,7 +706,7 @@ final class LinkGeneratorTests: XCTestCase {
         // Then
         let config = xcodeprojElements.config
         let expected = ["$(inherited)", "$(SRCROOT)/to/libraries", "$(SRCROOT)/to/other/libraries"]
-        XCTAssertEqual(config.buildSettings["LIBRARY_SEARCH_PATHS"] as? [String], expected)
+        XCTAssertEqual(config.buildSettings["LIBRARY_SEARCH_PATHS"]?.arrayValue, expected)
     }
 
     func test_setupLibrarySearchPaths_noPaths() throws {
@@ -746,7 +762,7 @@ final class LinkGeneratorTests: XCTestCase {
         // Then
         let config = xcodeprojElements.config
         let expected = ["$(inherited)", "$(SRCROOT)/to/libraries", "$(SRCROOT)/to/other/libraries"]
-        XCTAssertEqual(config.buildSettings["SWIFT_INCLUDE_PATHS"] as? [String], expected)
+        XCTAssertEqual(config.buildSettings["SWIFT_INCLUDE_PATHS"]?.arrayValue, expected)
     }
 
     func test_setupSwiftIncludePaths_noPaths() throws {
@@ -888,7 +904,7 @@ final class LinkGeneratorTests: XCTestCase {
         let buildPhase = try pbxTarget.frameworksBuildPhase()
 
         let testBuildFile: PBXBuildFile? = buildPhase?.files?.first
-        let attributes: [String]? = testBuildFile?.settings?["ATTRIBUTES"] as? [String]
+        let attributes: [String]? = testBuildFile?.settings?["ATTRIBUTES"]?.arrayValue
         XCTAssertEqual(attributes, ["Weak"])
     }
 
@@ -926,7 +942,7 @@ final class LinkGeneratorTests: XCTestCase {
         let buildPhase = try pbxTarget.frameworksBuildPhase()
 
         let testBuildFile: PBXBuildFile? = buildPhase?.files?.last
-        let attributes: [String]? = testBuildFile?.settings?["ATTRIBUTES"] as? [String]
+        let attributes: [String]? = testBuildFile?.settings?["ATTRIBUTES"]?.arrayValue
         XCTAssertEqual(attributes, ["Weak"])
     }
 
@@ -1028,9 +1044,9 @@ final class LinkGeneratorTests: XCTestCase {
             requiredFile,
             optionalFile,
         ])
-        XCTAssertEqual(buildPhase?.files?.map { $0.settings?.description }, [
+        XCTAssertEqual(buildPhase?.files?.map(\.settings), [
             nil,
-            "[\"ATTRIBUTES\": [\"Weak\"]]",
+            ["ATTRIBUTES": ["Weak"]],
         ])
     }
 
@@ -1210,56 +1226,6 @@ final class LinkGeneratorTests: XCTestCase {
         let buildFiles = copyProductsPhase?.files?.compactMap { $0.file?.path }
         XCTAssertEqual(buildFiles, [
             "ResourceBundle.bundle",
-        ])
-    }
-
-    func test_generateCopyExecutablesBuildPhase() throws {
-        // Given
-        let mainApp = Target.test(name: "App", product: .app)
-        let localExecutable = Target.test(name: "LocalExecutable", product: .app)
-        let nonLocalExecutable = Target.test(name: "NonLocalExecutable", product: .app)
-        let mainProject = Project.test(path: "/mainProject", targets: [mainApp, localExecutable])
-        let otherProject = Project.test(path: "/otherProject", targets: [nonLocalExecutable])
-
-        let appDependency = GraphDependency.target(name: mainApp.name, path: mainProject.path)
-        let localExecutableDependencyTarget = GraphDependency.target(name: localExecutable.name, path: mainProject.path)
-        let nonLocalExecutableDependencyTarget = GraphDependency.target(name: nonLocalExecutable.name, path: otherProject.path)
-
-        let dependencies: [GraphDependency: Set<GraphDependency>] = [
-            appDependency: Set([localExecutableDependencyTarget, nonLocalExecutableDependencyTarget]),
-        ]
-
-        // Given: Value Graph
-        let graph = Graph.test(
-            path: mainProject.path,
-            projects: [mainProject.path: mainProject, otherProject.path: otherProject],
-            dependencies: dependencies
-        )
-        let graphTraverser = GraphTraverser(graph: graph)
-        let fileElements = createProjectFileElements(for: [nonLocalExecutable])
-        let xcodeProjElements = createXcodeprojElements()
-
-        // When
-        try subject.generateCopyExecutablesBuildPhase(
-            path: mainProject.path,
-            target: mainApp,
-            graphTraverser: graphTraverser,
-            pbxTarget: xcodeProjElements.pbxTarget,
-            pbxproj: xcodeProjElements.pbxproj,
-            fileElements: fileElements
-        )
-
-        // Then
-        let copyExecutablePhase = xcodeProjElements
-            .pbxTarget
-            .buildPhases
-            .compactMap { $0 as? PBXCopyFilesBuildPhase }
-            .first(where: { $0.name() == "Executable Dependencies" })
-        XCTAssertEqual(copyExecutablePhase?.dstSubfolderSpec, .executables)
-
-        let buildFiles = copyExecutablePhase?.files?.compactMap { $0.file?.path }
-        XCTAssertEqual(buildFiles, [
-            nonLocalExecutable.productNameWithExtension,
         ])
     }
 

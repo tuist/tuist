@@ -2,6 +2,7 @@ import Foundation
 import Mockable
 import Path
 import ProjectDescription
+import ServiceContextModule
 import TuistCore
 import TuistDependencies
 import TuistLoader
@@ -46,7 +47,7 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
         graphMapper: GraphMapping
     ) {
         self.init(
-            configLoader: ConfigLoader(manifestLoader: manifestLoader, warningController: WarningController.shared),
+            configLoader: ConfigLoader(manifestLoader: manifestLoader),
             manifestLoader: manifestLoader,
             recursiveManifestLoader: RecursiveManifestLoader(manifestLoader: manifestLoader),
             converter: ManifestModelConverter(
@@ -115,10 +116,14 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
         if let packagePath = try await manifestFilesLocator.locatePackageManifest(at: path),
            isSPMProjectOnly || hasExternalDependencies
         {
-            let loadedPackageSettings = try await packageSettingsLoader.loadPackageSettings(
+            var loadedPackageSettings = try await packageSettingsLoader.loadPackageSettings(
                 at: packagePath.parentDirectory,
                 with: plugins
             )
+
+            if isSPMProjectOnly {
+                loadedPackageSettings.includeLocalPackageTestTargets = true
+            }
 
             let manifestsDependencyGraph = try await swiftPackageManagerGraphLoader.load(
                 packagePath: packagePath,
@@ -173,6 +178,10 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
             projects: updatedModels.projects
         )
 
+        if await ServiceContext.current?.runMetadataStorage?.graph == nil {
+            await ServiceContext.current?.runMetadataStorage?.update(graph: graph)
+        }
+
         // Apply graph mappers
         let (mappedGraph, graphMapperSideEffects, environment) = try await graphMapper.map(
             graph: graph,
@@ -207,8 +216,12 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
     @discardableResult
     func loadPlugins(at path: AbsolutePath) async throws -> Plugins {
         let config = try await configLoader.loadConfig(path: path)
-        let plugins = try await pluginsService.loadPlugins(using: config)
-        try manifestLoader.register(plugins: plugins)
-        return plugins
+        if let configGeneratedProjectOptions = config.project.generatedProject {
+            let plugins = try await pluginsService.loadPlugins(using: configGeneratedProjectOptions)
+            try manifestLoader.register(plugins: plugins)
+            return plugins
+        } else {
+            return Plugins(projectDescriptionHelpers: [], templatePaths: [], resourceSynthesizers: [])
+        }
     }
 }

@@ -1,50 +1,41 @@
-import AnyCodable
 import ArgumentParser
 import Foundation
+import OpenAPIRuntime
 import Path
+import ServiceContextModule
 import TuistAnalytics
 import TuistAsyncQueue
 import TuistCache
 import TuistCore
+import TuistServer
 import TuistSupport
-
-public struct SelectiveTestsAnalytics: Equatable {
-    let testTargets: [String]
-    let localTestTargetHits: [String]
-    let remoteTestTargetHits: [String]
-}
+import XcodeGraph
 
 /// `TrackableCommandInfo` contains the information to report the execution of a command
 public struct TrackableCommandInfo {
     let runId: String
     let name: String
     let subcommand: String?
-    let parameters: [String: AnyCodable]
     let commandArguments: [String]
     let durationInMs: Int
     let status: CommandEvent.Status
-    let targetHashes: [CommandEventGraphTarget: String]?
-    let graphPath: AbsolutePath?
-    let cacheableTargets: [String]
-    let cacheItems: [CacheItem]
-    let selectiveTestsAnalytics: SelectiveTestsAnalytics?
+    let graph: Graph?
+    let binaryCacheItems: [AbsolutePath: [String: CacheItem]]
+    let selectiveTestingCacheItems: [AbsolutePath: [String: CacheItem]]
+    let previewId: String?
+    let resultBundlePath: AbsolutePath?
+    let ranAt: Date
 }
 
 /// A `TrackableCommand` wraps a `ParsableCommand` and reports its execution to an analytics provider
-public class TrackableCommand: TrackableParametersDelegate {
-    public var targetHashes: [CommandEventGraphTarget: String]?
-    public var graphPath: AbsolutePath?
-    public var cacheableTargets: [String] = []
-    public var cacheItems: [CacheItem] = []
-    public var selectiveTestsAnalytics: SelectiveTestsAnalytics?
-
+public class TrackableCommand {
     private var command: ParsableCommand
     private let clock: Clock
-    private var trackedParameters: [String: AnyCodable] = [:]
     private let commandArguments: [String]
     private let commandEventFactory: CommandEventFactory
     private let asyncQueue: AsyncQueuing
     private let fileHandler: FileHandling
+    private let ciChecker: CIChecking
 
     public init(
         command: ParsableCommand,
@@ -52,7 +43,8 @@ public class TrackableCommand: TrackableParametersDelegate {
         clock: Clock = WallClock(),
         commandEventFactory: CommandEventFactory = CommandEventFactory(),
         asyncQueue: AsyncQueuing = AsyncQueue.sharedInstance,
-        fileHandler: FileHandling = FileHandler.shared
+        fileHandler: FileHandling = FileHandler.shared,
+        ciChecker: CIChecking = CIChecker()
     ) {
         self.command = command
         self.commandArguments = commandArguments
@@ -60,20 +52,14 @@ public class TrackableCommand: TrackableParametersDelegate {
         self.commandEventFactory = commandEventFactory
         self.asyncQueue = asyncQueue
         self.fileHandler = fileHandler
+        self.ciChecker = ciChecker
     }
 
     public func run(
-        analyticsEnabled: Bool
+        backend: TuistAnalyticsServerBackend?
     ) async throws {
-        let runId: String
         let timer = clock.startTimer()
-        if let command = command as? HasTrackableParameters & ParsableCommand {
-            type(of: command).analyticsDelegate = self
-            runId = command.runId
-            self.command = command
-        } else {
-            runId = UUID().uuidString
-        }
+        let ranAt = clock.now
         let pathIndex = commandArguments.firstIndex(of: "--path")
         let path: AbsolutePath
         if let pathIndex, commandArguments.endIndex > pathIndex + 1 {
@@ -81,30 +67,41 @@ public class TrackableCommand: TrackableParametersDelegate {
         } else {
             path = fileHandler.currentPath
         }
-        do {
-            if var asyncCommand = command as? AsyncParsableCommand {
-                try await asyncCommand.run()
-            } else {
-                try command.run()
+        let runMetadataStorage = RunMetadataStorage()
+        var context = ServiceContext.current ?? ServiceContext.topLevel
+        context.runMetadataStorage = runMetadataStorage
+        try await ServiceContext.withValue(context) {
+            do {
+                if var asyncCommand = command as? AsyncParsableCommand {
+                    try await asyncCommand.run()
+                } else {
+                    try command.run()
+                }
+                if let backend {
+                    try await dispatchCommandEvent(
+                        timer: timer,
+                        status: .success,
+                        runId: runMetadataStorage.runId,
+                        path: path,
+                        runMetadataStorage: runMetadataStorage,
+                        backend: backend,
+                        ranAt: ranAt
+                    )
+                }
+            } catch {
+                if let backend {
+                    try await dispatchCommandEvent(
+                        timer: timer,
+                        status: .failure("\(error)"),
+                        runId: await runMetadataStorage.runId,
+                        path: path,
+                        runMetadataStorage: runMetadataStorage,
+                        backend: backend,
+                        ranAt: ranAt
+                    )
+                }
+                throw error
             }
-            if analyticsEnabled {
-                try dispatchCommandEvent(
-                    timer: timer,
-                    status: .success,
-                    runId: runId,
-                    path: path
-                )
-            }
-        } catch {
-            if analyticsEnabled {
-                try dispatchCommandEvent(
-                    timer: timer,
-                    status: .failure("\(error)"),
-                    runId: runId,
-                    path: path
-                )
-            }
-            throw error
         }
     }
 
@@ -112,43 +109,50 @@ public class TrackableCommand: TrackableParametersDelegate {
         timer: any ClockTimer,
         status: CommandEvent.Status,
         runId: String,
-        path: AbsolutePath
-    ) throws {
+        path: AbsolutePath,
+        runMetadataStorage: RunMetadataStorage,
+        backend: TuistAnalyticsServerBackend,
+        ranAt: Date
+    ) async throws {
         let durationInSeconds = timer.stop()
         let durationInMs = Int(durationInSeconds * 1000)
         let configuration = type(of: command).configuration
         let (name, subcommand) = extractCommandName(from: configuration)
-        let info = TrackableCommandInfo(
+        let info = await TrackableCommandInfo(
             runId: runId,
             name: name,
             subcommand: subcommand,
-            parameters: trackedParameters,
             commandArguments: commandArguments,
             durationInMs: durationInMs,
             status: status,
-            targetHashes: targetHashes,
-            graphPath: graphPath,
-            cacheableTargets: cacheableTargets,
-            cacheItems: cacheItems,
-            selectiveTestsAnalytics: selectiveTestsAnalytics
+            graph: runMetadataStorage.graph,
+            binaryCacheItems: runMetadataStorage.binaryCacheItems,
+            selectiveTestingCacheItems: runMetadataStorage.selectiveTestingCacheItems,
+            previewId: runMetadataStorage.previewId,
+            resultBundlePath: runMetadataStorage.resultBundlePath,
+            ranAt: Date()
         )
         let commandEvent = try commandEventFactory.make(
             from: info,
             path: path
         )
-        try asyncQueue.dispatch(event: commandEvent)
-        if let command = command as? TrackableParsableCommand, command.analyticsRequired {
-            asyncQueue.wait()
+        if (command as? TrackableParsableCommand)?.analyticsRequired == true || ciChecker.isCI() {
+            ServiceContext.current?.logger?.info("Uploading run metadata...")
+            do {
+                let serverCommandEvent: ServerCommandEvent = try await backend.send(commandEvent: commandEvent)
+                ServiceContext.current?.logger?
+                    .info(
+                        "You can view a detailed run report at: \(serverCommandEvent.url.absoluteString)"
+                    )
+            } catch let error as ClientError {
+                ServiceContext.current?.logger?
+                    .warning("Failed to upload run metadata: \(String(describing: error.underlyingError))")
+            } catch {
+                ServiceContext.current?.logger?.warning("Failed to upload run metadata: \(String(describing: error))")
+            }
         } else {
-            asyncQueue.waitIfCI()
+            try asyncQueue.dispatch(event: commandEvent)
         }
-    }
-
-    public func addParameters(_ parameters: [String: AnyCodable]) {
-        trackedParameters.merge(
-            parameters,
-            uniquingKeysWith: { _, newKey in newKey }
-        )
     }
 
     private func extractCommandName(from configuration: CommandConfiguration) -> (name: String, subcommand: String?) {

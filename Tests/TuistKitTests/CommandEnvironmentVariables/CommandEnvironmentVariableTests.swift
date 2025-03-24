@@ -3,7 +3,6 @@ import Difference
 import Foundation
 import TSCUtility
 import XCTest
-@testable import Path
 @testable import TuistCore
 @testable import TuistKit
 @testable import TuistSupport
@@ -213,28 +212,6 @@ final class CommandEnvironmentVariableTests: XCTestCase {
         XCTAssertEqual(graphCommandWithArgs.targets, ["Target3", "Target4"])
         XCTAssertEqual(graphCommandWithArgs.path, "/new/graph/path")
         XCTAssertEqual(graphCommandWithArgs.outputPath, "/new/graph/output")
-    }
-
-    func testInitCommandUsesEnvVars() throws {
-        setVariable(.initPlatform, value: "macos")
-        setVariable(.initName, value: "MyProject")
-        setVariable(.initTemplate, value: "MyTemplate")
-        setVariable(.initPath, value: "/path/to/init")
-
-        let initCommandWithEnvVars = try InitCommand.parse([])
-        XCTAssertEqual(initCommandWithEnvVars.name, "MyProject")
-        XCTAssertEqual(initCommandWithEnvVars.template, "MyTemplate")
-        XCTAssertEqual(initCommandWithEnvVars.path, "/path/to/init")
-
-        let initCommandWithArgs = try InitCommand.parse([
-            "--platform", "ios",
-            "--name", "NewProject",
-            "--template", "NewTemplate",
-            "--path", "/new/init/path",
-        ])
-        XCTAssertEqual(initCommandWithArgs.name, "NewProject")
-        XCTAssertEqual(initCommandWithArgs.template, "NewTemplate")
-        XCTAssertEqual(initCommandWithArgs.path, "/new/init/path")
     }
 
     func testInstallCommandUsesEnvVars() throws {
@@ -848,25 +825,25 @@ final class CommandEnvironmentVariableTests: XCTestCase {
         XCTAssertEqual(commandWithArgs.path, "/new/member/path")
     }
 
-    func testAuthCommandUsesEnvVars() throws {
+    func testLoginCommandUsesEnvVars() throws {
         setVariable(.authPath, value: "/path/to/auth")
 
-        let commandWithEnvVars = try AuthCommand.parse([])
+        let commandWithEnvVars = try LoginCommand.parse([])
         XCTAssertEqual(commandWithEnvVars.path, "/path/to/auth")
 
-        let commandWithArgs = try AuthCommand.parse([
+        let commandWithArgs = try LoginCommand.parse([
             "--path", "/new/auth/path",
         ])
         XCTAssertEqual(commandWithArgs.path, "/new/auth/path")
     }
 
-    func testSessionCommandUsesEnvVars() throws {
-        setVariable(.sessionPath, value: "/path/to/session")
+    func testWhoamiCommandUsesEnvVars() throws {
+        setVariable(.whoamiPath, value: "/path/to/session")
 
-        let commandWithEnvVars = try SessionCommand.parse([])
+        let commandWithEnvVars = try WhoamiCommand.parse([])
         XCTAssertEqual(commandWithEnvVars.path, "/path/to/session")
 
-        let commandWithArgs = try SessionCommand.parse([
+        let commandWithArgs = try WhoamiCommand.parse([
             "--path", "/new/session/path",
         ])
         XCTAssertEqual(commandWithArgs.path, "/new/session/path")
@@ -882,5 +859,38 @@ final class CommandEnvironmentVariableTests: XCTestCase {
             "--path", "/new/logout/path",
         ])
         XCTAssertEqual(commandWithArgs.path, "/new/logout/path")
+    }
+
+    func testCacheCommandUsesEnvVars() throws {
+        setVariable(.cacheExternalOnly, value: "true")
+        setVariable(.cacheGenerateOnly, value: "true")
+        setVariable(.cachePrintHashes, value: "true")
+        setVariable(.cacheConfiguration, value: "CacheConfig")
+        setVariable(.cachePath, value: "/cache/path")
+        setVariable(.cacheTargets, value: "Fmk1,Fmk2")
+
+        let commandWithEnvVars = try CacheCommand.parse([])
+        XCTAssertEqual(commandWithEnvVars.externalOnly, true)
+        XCTAssertEqual(commandWithEnvVars.generateOnly, true)
+        XCTAssertEqual(commandWithEnvVars.printHashes, true)
+        XCTAssertEqual(commandWithEnvVars.configuration, "CacheConfig")
+        XCTAssertEqual(commandWithEnvVars.path, "/cache/path")
+        XCTAssertEqual(commandWithEnvVars.targets, ["Fmk1", "Fmk2"])
+
+        let commandWithArgs = try CacheCommand.parse([
+            "--external-only",
+            "--generate-only",
+            "--print-hashes",
+            "--configuration", "CacheConfig",
+            "--path", "/cache/path",
+            "--",
+            "Fmk1", "Fmk2",
+        ])
+        XCTAssertEqual(commandWithArgs.externalOnly, true)
+        XCTAssertEqual(commandWithArgs.generateOnly, true)
+        XCTAssertEqual(commandWithArgs.printHashes, true)
+        XCTAssertEqual(commandWithArgs.configuration, "CacheConfig")
+        XCTAssertEqual(commandWithArgs.path, "/cache/path")
+        XCTAssertEqual(commandWithArgs.targets, ["Fmk1", "Fmk2"])
     }
 }

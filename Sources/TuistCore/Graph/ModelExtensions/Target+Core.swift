@@ -1,5 +1,4 @@
 import FileSystem
-import Foundation
 import Path
 import TuistSupport
 import XcodeGraph
@@ -141,5 +140,9 @@ extension Target {
         }
 
         return Array(sourceFiles.values)
+    }
+
+    public var containsResources: Bool {
+        !resources.resources.isEmpty || !coreDataModels.isEmpty
     }
 }

@@ -151,6 +151,17 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
             pbxproj: pbxproj
         )
 
+        if target.canEmbedPlugins() {
+            try generateEmbedPluginsBuildPhase(
+                path: path,
+                target: target,
+                graphTraverser: graphTraverser,
+                pbxTarget: pbxTarget,
+                fileElements: fileElements,
+                pbxproj: pbxproj
+            )
+        }
+
         if target.canEmbedSystemExtensions() {
             try generateEmbedSystemExtensionBuildPhase(
                 path: path,
@@ -196,10 +207,8 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                     .map {
                         (try? AbsolutePath(validating: $0))?.relative(to: sourceRootPath).pathString ?? $0
                     },
-                inputFileListPaths: script.inputFileListPaths.map { $0.relative(to: sourceRootPath).pathString },
-
-                outputFileListPaths: script.outputFileListPaths.map { $0.relative(to: sourceRootPath).pathString },
-
+                inputFileListPaths: script.inputFileListPaths,
+                outputFileListPaths: script.outputFileListPaths,
                 shellPath: script.shellPath,
                 shellScript: script.shellScript(sourceRootPath: sourceRootPath),
                 runOnlyForDeploymentPostprocessing: script.runForInstallBuildsOnly,
@@ -272,25 +281,20 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                 element = (group, path)
             }
 
-            var settings: [String: Any]?
+            var settings: [String: BuildFileSetting] = [:]
+
             if let compilerFlags = buildFile.compilerFlags {
-                settings = [
-                    "COMPILER_FLAGS": compilerFlags,
-                ]
+                settings["COMPILER_FLAGS"] = .string(compilerFlags)
             }
 
             /// Source file ATTRIBUTES
             /// example: `settings = {ATTRIBUTES = (codegen, )`}
             if let codegen = buildFile.codeGen {
-                var settingsCopy = settings ?? [:]
-                var attributes = settingsCopy["ATTRIBUTES"] as? [String] ?? []
-                attributes.append(codegen.rawValue)
-                settingsCopy["ATTRIBUTES"] = attributes
-                settings = settingsCopy
+                settings["ATTRIBUTES"] = .array([codegen.rawValue])
             }
 
             if buildFilesCache.contains(element.path) == false {
-                let pbxBuildFile = PBXBuildFile(file: element.element, settings: settings)
+                let pbxBuildFile = PBXBuildFile(file: element.element, settings: settings.isEmpty ? nil : settings)
                 pbxBuildFile.applyCondition(buildFile.compilationCondition, applicableTo: target)
                 pbxBuildFiles.append(pbxBuildFile)
                 buildFilesCache.insert(element.path)
@@ -320,8 +324,8 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
             guard let fileReference = fileElements.file(path: path) else {
                 throw BuildPhaseGenerationError.missingFileReference(path)
             }
-            let settings: [String: [String]]? = accessLevel.map {
-                ["ATTRIBUTES": [$0.capitalized]]
+            let settings: [String: BuildFileSetting]? = accessLevel.map {
+                ["ATTRIBUTES": .array([$0.capitalized])]
             }
             return PBXBuildFile(file: fileReference, settings: settings)
         }
@@ -410,16 +414,12 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                     throw BuildPhaseGenerationError.missingFileReference(filePath)
                 }
 
-                var settings: [String: Any]?
+                var settings: [String: BuildFileSetting]?
 
                 /// File ATTRIBUTES
                 /// example: `settings = {ATTRIBUTES = (Codesign, )`}
                 if file.codeSignOnCopy {
-                    var settingsCopy = settings ?? [:]
-                    var attributes = settingsCopy["ATTRIBUTES"] as? [String] ?? []
-                    attributes.append("CodeSignOnCopy")
-                    settingsCopy["ATTRIBUTES"] = attributes
-                    settings = settingsCopy
+                    settings = ["ATTRIBUTES": ["CodeSignOnCopy"]]
                 }
 
                 if buildFilesCache.contains(filePath) == false {
@@ -518,7 +518,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
             }
             if let element, buildFilesCache.contains(element.path) == false {
                 let tags = resource.tags.sorted()
-                let settings: [String: Any]? = !tags.isEmpty ? ["ASSET_TAGS": tags] : nil
+                let settings: [String: BuildFileSetting]? = !tags.isEmpty ? ["ASSET_TAGS": .array(tags)] : nil
 
                 let pbxBuildFile = PBXBuildFile(file: element.element, settings: settings)
                 pbxBuildFile.applyCondition(resource.inclusionCondition, applicableTo: target)
@@ -713,6 +713,42 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
 
         pbxBuildFiles.forEach { pbxproj.add(object: $0) }
         embedXPCServicesBuildPhase.files = pbxBuildFiles
+    }
+
+    func generateEmbedPluginsBuildPhase(
+        path: AbsolutePath,
+        target: Target,
+        graphTraverser: GraphTraversing,
+        pbxTarget: PBXTarget,
+        fileElements: ProjectFileElements,
+        pbxproj: PBXProj
+    ) throws {
+        let targetDependencies = graphTraverser.directLocalTargetDependencies(path: path, name: target.name).sorted()
+        let plugins = targetDependencies.filter { $0.target.isEmbeddablePlugin() }
+        guard !plugins.isEmpty else { return }
+
+        let embedPluginsBuildPhase = PBXCopyFilesBuildPhase(
+            dstSubfolderSpec: .plugins,
+            name: "Embed PlugIns"
+        )
+        pbxproj.add(object: embedPluginsBuildPhase)
+        pbxTarget.buildPhases.append(embedPluginsBuildPhase)
+
+        let pbxBuildFiles: [PBXBuildFile] = plugins.compactMap { graphTarget in
+            guard let fileReference = fileElements.product(target: graphTarget.target.name) else { return nil }
+
+            let pbxBuildFile = PBXBuildFile(
+                file: fileReference,
+                settings: ["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]]
+            )
+            if target.supportsCatalyst {
+                pbxBuildFile.applyPlatformFilters([.catalyst])
+            }
+            return pbxBuildFile
+        }
+
+        pbxBuildFiles.forEach { pbxproj.add(object: $0) }
+        embedPluginsBuildPhase.files = pbxBuildFiles
     }
 
     func generateEmbedSystemExtensionBuildPhase(

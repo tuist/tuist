@@ -5,19 +5,22 @@ import SwiftUI
 
 struct MenuBarView: View {
     @State var isExpanded = false
+    @State var canCheckForUpdates = false
     private let errorHandling: ErrorHandling
     private let deviceService: DeviceService
-    private let viewModel: MenuBarViewModel
+    @EnvironmentObject
+    private var appCredentialsService: AppCredentialsService
+    @State var viewModel: MenuBarViewModel
     private var cancellables = Set<AnyCancellable>()
     private let taskStatusReporter: TaskStatusReporter
+    private let updater: SPUUpdater
 
     init(
         appDelegate: AppDelegate,
         updaterController: SPUStandardUpdaterController
     ) {
-        viewModel = MenuBarViewModel(
-            updater: updaterController.updater
-        )
+        let viewModel = MenuBarViewModel()
+        self.viewModel = viewModel
         let taskStatusRepoter = TaskStatusReporter()
         taskStatusReporter = taskStatusRepoter
 
@@ -51,14 +54,27 @@ struct MenuBarView: View {
                 errorHandling.handle(error: error)
             }
         }
+
+        updater = updaterController.updater
+
+        updaterController.updater.publisher(for: \.canCheckForUpdates)
+            .sink {
+                viewModel.canCheckForUpdatesValueChanged($0)
+            }
+            .store(in: &cancellables)
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            MenuHeader()
+            MenuHeader(
+                accountHandle: appCredentialsService.accountHandle
+            )
 
             AppPreviews(
-                viewModel: AppPreviewsViewModel(deviceService: deviceService)
+                viewModel: AppPreviewsViewModel(
+                    appCredentialsService: appCredentialsService,
+                    deviceService: deviceService
+                )
             )
             .padding(.horizontal, 8)
             .padding(.top, 4)
@@ -72,11 +88,29 @@ struct MenuBarView: View {
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
 
-            Button("Check for updates", action: viewModel.checkForUpdates)
-                .disabled(!viewModel.canCheckForUpdates)
-                .padding(.vertical, 2)
-                .menuItemStyle()
-                .padding(.horizontal, 8)
+            Group {
+                switch appCredentialsService.authenticationState {
+                case .loggedIn:
+                    Button("Log out") {
+                        errorHandling.fireAndHandleError(appCredentialsService.logout)
+                    }
+                case .loggedOut:
+                    Button("Log in") {
+                        errorHandling.fireAndHandleError(appCredentialsService.login)
+                    }
+                }
+            }
+            .padding(.vertical, 2)
+            .menuItemStyle()
+            .padding(.horizontal, 8)
+
+            Button("Check for updates", action: {
+                updater.checkForUpdates()
+            })
+            .disabled(!viewModel.canCheckForUpdates)
+            .padding(.vertical, 2)
+            .menuItemStyle()
+            .padding(.horizontal, 8)
 
             Button("Quit Tuist") {
                 NSApplication.shared.terminate(nil)
@@ -89,5 +123,9 @@ struct MenuBarView: View {
         .environmentObject(errorHandling)
         .environmentObject(deviceService)
         .environmentObject(taskStatusReporter)
+        .onAppear {
+            appCredentialsService.loadCredentials()
+            errorHandling.fireAndHandleError(appCredentialsService.updateAuthenticationState)
+        }
     }
 }

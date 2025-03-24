@@ -3,7 +3,6 @@ import Path
 import TuistCore
 import TuistLoader
 import TuistSupport
-import XcodeGraph
 import XcodeProj
 import XCTest
 @testable import TuistCoreTesting

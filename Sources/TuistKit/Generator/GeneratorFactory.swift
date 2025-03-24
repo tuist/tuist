@@ -1,13 +1,10 @@
 import Foundation
 import Mockable
-import Path
-import TuistAutomation
 import TuistCore
 import TuistGenerator
 import TuistLoader
 import TuistServer
 import TuistSupport
-import XcodeGraph
 
 /// The protocol describes the interface of a factory that instantiates
 /// generators for different commands
@@ -21,7 +18,7 @@ public protocol GeneratorFactorying {
     /// - Parameter cacheStorage: The cache storage instance.
     /// - Returns: A Generator instance.
     func testing(
-        config: Config,
+        config: Tuist,
         testPlan: String?,
         includedTargets: Set<String>,
         excludedTargets: Set<String>,
@@ -40,7 +37,7 @@ public protocol GeneratorFactorying {
     /// - Parameter cacheStorage: The cache storage instance.
     /// - Returns: The generator for focused projects.
     func generation(
-        config: Config,
+        config: Tuist,
         sources: Set<String>,
         configuration: String?,
         ignoreBinaryCache: Bool,
@@ -52,7 +49,7 @@ public protocol GeneratorFactorying {
     ///     - config: The project configuration
     /// - Returns: A Generator instance
     func building(
-        config: Config,
+        config: Tuist,
         configuration: String?,
         ignoreBinaryCache: Bool,
         cacheStorage: CacheStoring
@@ -63,7 +60,7 @@ public protocol GeneratorFactorying {
     /// - Parameter sources: The list of targets whose sources should be included.
     /// - Returns: A Generator instance.
     func defaultGenerator(
-        config: Config,
+        config: Tuist,
         sources: Set<String>
     ) -> Generating
 }
@@ -76,7 +73,7 @@ public class GeneratorFactory: GeneratorFactorying {
     }
 
     public func testing(
-        config: Config,
+        config: Tuist,
         testPlan: String?,
         includedTargets: Set<String>,
         excludedTargets: Set<String>,
@@ -111,7 +108,7 @@ public class GeneratorFactory: GeneratorFactorying {
     }
 
     public func generation(
-        config: Config,
+        config: Tuist,
         sources: Set<String>,
         configuration _: String?,
         ignoreBinaryCache _: Bool,
@@ -121,7 +118,7 @@ public class GeneratorFactory: GeneratorFactorying {
     }
 
     public func building(
-        config: Config,
+        config: Tuist,
         configuration _: String?,
         ignoreBinaryCache _: Bool,
         cacheStorage _: CacheStoring
@@ -130,7 +127,7 @@ public class GeneratorFactory: GeneratorFactorying {
     }
 
     public func defaultGenerator(
-        config: Config,
+        config: Tuist,
         sources: Set<String>
     ) -> Generating {
         let contentHasher = ContentHasher()

@@ -33,7 +33,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         let basePath = try temporaryPath()
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Sources/Target_1")))
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Sources/Target_2")))
-        let resolvedDependencies = try subject.resolveExternalDependencies(
+        let resolvedDependencies = try await subject.resolveExternalDependencies(
+            path: basePath,
             packageInfos: [
                 "Package": .test(
                     name: "Package",
@@ -70,7 +71,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         let basePath = try temporaryPath()
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Sources/Target_1")))
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Sources/Target_2")))
-        let resolvedDependencies = try subject.resolveExternalDependencies(
+        let resolvedDependencies = try await subject.resolveExternalDependencies(
+            path: basePath,
             packageInfos: [
                 "Package": .test(
                     name: "Package",
@@ -107,7 +109,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         let basePath = try temporaryPath()
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Sources/Target_1")))
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Sources/Target_2")))
-        let resolvedDependencies = try subject.resolveExternalDependencies(
+        let resolvedDependencies = try await subject.resolveExternalDependencies(
+            path: basePath,
             packageInfos: [
                 "Package": .test(
                     name: "Package",
@@ -147,7 +150,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         let basePath = try temporaryPath()
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Sources/Target_1")))
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Sources/Target_2")))
-        let resolvedDependencies = try subject.resolveExternalDependencies(
+        let resolvedDependencies = try await subject.resolveExternalDependencies(
+            path: basePath,
             packageInfos: [
                 "Package": .test(
                     name: "Package",
@@ -185,7 +189,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/Target_1")))
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/Target_2")))
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package2/Sources/Target_2")))
-        let resolvedDependencies = try subject.resolveExternalDependencies(
+        let resolvedDependencies = try await subject.resolveExternalDependencies(
+            path: basePath,
             packageInfos: [
                 "Package": .test(
                     name: "Package",
@@ -257,7 +262,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         let basePath = try temporaryPath()
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/Target_1")))
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package2/Sources/Target_2")))
-        let resolvedDependencies = try subject.resolveExternalDependencies(
+        let resolvedDependencies = try await subject.resolveExternalDependencies(
+            path: basePath,
             packageInfos: [
                 "Package": .test(
                     name: "Package",
@@ -335,7 +341,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/Target_1")))
         try fileHandler
             .createFolder(basePath.appending(try RelativePath(validating: "com.example.dep-1/Sources/com.example.dep-1")))
-        let resolvedDependencies = try subject.resolveExternalDependencies(
+        let resolvedDependencies = try await subject.resolveExternalDependencies(
+            path: basePath,
             packageInfos: [
                 "Package": .test(
                     name: "Package",
@@ -408,7 +415,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/Target_1")))
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/Dependency_1")))
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package/Sources/Dependency_2")))
-        let resolvedDependencies = try subject.resolveExternalDependencies(
+        let resolvedDependencies = try await subject.resolveExternalDependencies(
+            path: basePath,
             packageInfos: [
                 "Package": .test(
                     name: "Package",
@@ -458,7 +466,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package_1/Sources/Target_1")))
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package_2/Sources/Target_2")))
         try fileHandler.createFolder(basePath.appending(try RelativePath(validating: "Package_2/Sources/Target_3")))
-        let resolvedDependencies = try subject.resolveExternalDependencies(
+        let resolvedDependencies = try await subject.resolveExternalDependencies(
+            path: basePath,
             packageInfos: [
                 "Package_1": .test(
                     name: "Package_1",
@@ -903,6 +912,9 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                                 // Not escaped
                                 "FOO3=3",
                             ],
+                            "OTHER_SWIFT_FLAGS": [
+                                "$(inherited)",
+                            ],
                         ]
                     ),
                 ]
@@ -1231,19 +1243,16 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
 
     func testMap_whenHasAlreadyIncludedDefaultResources() async throws {
         let basePath = try temporaryPath()
-        let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
-        let resourcesPath = sourcesPath.appending(try RelativePath(validating: "Resources"))
-        let defaultResourcePath = resourcesPath.appending(try RelativePath(validating: "file.xib"))
-        try fileHandler.createFolder(sourcesPath)
-        fileHandler.stubFiles = { _, excludedPaths, _, _ in
-            if excludedPaths == nil {
-                [defaultResourcePath]
-            } else {
-                []
-            }
-        }
+        let sourcesPath = basePath.appending(components: "Package", "Sources", "Target1")
+        let resourcesPath = sourcesPath.appending(component: "Resources")
+        let defaultResourcePath = resourcesPath.appending(component: "file.xib")
         try await fileSystem.makeDirectory(at: resourcesPath)
         try await fileSystem.touch(defaultResourcePath)
+        let targetTwoSourcesPath = basePath.appending(components: "Package", "Sources", "Target2")
+        let targetTwoResourcesPath = targetTwoSourcesPath.appending(component: "Resources")
+        let targetTwoFileXib = targetTwoResourcesPath.appending(component: "file.xib")
+        try await fileSystem.makeDirectory(at: targetTwoResourcesPath)
+        try await fileSystem.touch(targetTwoFileXib)
 
         let project = try await subject.map(
             package: "Package",
@@ -1252,13 +1261,19 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 "Package": .test(
                     name: "Package",
                     products: [
-                        .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target1", "Target2"]),
                     ],
                     targets: [
                         .test(
                             name: "Target1",
                             resources: [
                                 .init(rule: .process, path: "Resources"),
+                            ]
+                        ),
+                        .test(
+                            name: "Target2",
+                            resources: [
+                                .init(rule: .process, path: "resources/file.xib"),
                             ]
                         ),
                     ],
@@ -1285,6 +1300,17 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                             ),
                         ]
                     ),
+                    .test(
+                        "Target2",
+                        basePath: basePath,
+                        resources: [
+                            .glob(
+                                pattern: .path(targetTwoSourcesPath.appending(components: "resources", "file.xib").pathString),
+                                excluding: [],
+                                tags: []
+                            ),
+                        ]
+                    ),
                 ]
             )
         )
@@ -1293,18 +1319,21 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
     func testMap_whenHasDefaultResources() async throws {
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
-        let defaultResourcePaths = try Set([
-            "xib",
+        let defaultResourcePaths = try [
+            "metal",
             "storyboard",
+            "strings",
+            "xcassets",
             "xcdatamodeld",
             "xcmappingmodel",
-            "xcassets",
-            "strings",
-            "metal",
-        ].map { sourcesPath.appending(try RelativePath(validating: "Resouces/file.\($0)")) })
-        try fileHandler.createFolder(sourcesPath)
-        fileHandler.stubFiles = { _, _, _, _ in
-            return defaultResourcePaths
+            "xib",
+        ]
+        .map { sourcesPath.appending(try RelativePath(validating: "Resources/file.\($0)")) }
+
+        try await fileSystem.makeDirectory(at: sourcesPath)
+        try await fileSystem.makeDirectory(at: sourcesPath.appending(component: "Resources"))
+        for resourcePath in defaultResourcePaths {
+            try await fileSystem.touch(resourcePath)
         }
 
         let project = try await subject.map(
@@ -1387,8 +1416,65 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                             "HEADER_SEARCH_PATHS": ["$(inherited)", "$(SRCROOT)/Sources/Target1/include"],
                             "DEFINES_MODULE": "NO",
                             "OTHER_CFLAGS": .array(["$(inherited)", "-fmodule-name=Target1"]),
+                            "OTHER_SWIFT_FLAGS": [
+                                "$(inherited)",
+                            ],
                         ],
                         moduleMap: "$(SRCROOT)/Sources/Target1/include/module.modulemap"
+                    ),
+                ]
+            )
+        )
+    }
+
+    func testMap_whenHasHeadersWithCustomModuleMapAndTargetWithDashes() async throws {
+        let basePath = try temporaryPath()
+        let headersPath = basePath.appending(try RelativePath(validating: "Package/Sources/target-with-dashes/include"))
+        let moduleMapPath = headersPath.appending(component: "module.modulemap")
+        let headerPath = headersPath.appending(component: "AnHeader.h")
+        try await fileSystem.makeDirectory(at: headersPath)
+        try fileHandler.write("", path: moduleMapPath, atomically: true)
+        try fileHandler.write("", path: headerPath, atomically: true)
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "target-with-dashes", type: .library(.automatic), targets: ["target-with-dashes"]),
+                    ],
+                    targets: [
+                        .test(
+                            name: "target-with-dashes"
+                        ),
+                    ],
+                    platforms: [.ios],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ]
+        )
+        XCTAssertBetterEqual(
+            project,
+            .testWithDefaultConfigs(
+                name: "Package",
+                targets: [
+                    .test(
+                        "target-with-dashes",
+                        basePath: basePath,
+                        customProductName: "target_with_dashes",
+                        customSettings: [
+                            "HEADER_SEARCH_PATHS": ["$(inherited)", "$(SRCROOT)/Sources/target-with-dashes/include"],
+                            "DEFINES_MODULE": "NO",
+                            "OTHER_CFLAGS": .array(["$(inherited)", "-fmodule-name=target_with_dashes"]),
+                            "OTHER_SWIFT_FLAGS": [
+                                "$(inherited)",
+                            ],
+                        ],
+                        moduleMap: "$(SRCROOT)/Sources/target-with-dashes/include/module.modulemap"
                     ),
                 ]
             )
@@ -1437,6 +1523,9 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         customSettings: [
                             "DEFINES_MODULE": "NO",
                             "OTHER_CFLAGS": .array(["$(inherited)", "-fmodule-name=Target1"]),
+                            "OTHER_SWIFT_FLAGS": [
+                                "$(inherited)",
+                            ],
                         ],
                         moduleMap: "$(SRCROOT)/Sources/Target1/module.modulemap"
                     ),
@@ -1524,6 +1613,9 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                             "MODULEMAP_FILE": .string("$(SRCROOT)/Derived/Target1.modulemap"),
                             "DEFINES_MODULE": "NO",
                             "OTHER_CFLAGS": .array(["$(inherited)", "-fmodule-name=Target1"]),
+                            "OTHER_SWIFT_FLAGS": [
+                                "$(inherited)",
+                            ],
                         ]
                     ),
                 ]
@@ -1589,6 +1681,9 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                             ],
                             "DEFINES_MODULE": "NO",
                             "OTHER_CFLAGS": .array(["$(inherited)", "-fmodule-name=Target1"]),
+                            "OTHER_SWIFT_FLAGS": [
+                                "$(inherited)",
+                            ],
                         ],
                         moduleMap: "$(SRCROOT)/Sources/Target1/include/module.modulemap"
                     ),
@@ -1603,6 +1698,9 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                             ],
                             "DEFINES_MODULE": "NO",
                             "OTHER_CFLAGS": .array(["$(inherited)", "-fmodule-name=Dependency1"]),
+                            "OTHER_SWIFT_FLAGS": [
+                                "$(inherited)",
+                            ],
                         ],
                         moduleMap: "$(SRCROOT)/Sources/Dependency1/include/module.modulemap"
                     ),
@@ -1616,6 +1714,9 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                             ],
                             "DEFINES_MODULE": "NO",
                             "OTHER_CFLAGS": .array(["$(inherited)", "-fmodule-name=Dependency2"]),
+                            "OTHER_SWIFT_FLAGS": [
+                                "$(inherited)",
+                            ],
                         ],
                         moduleMap: "$(SRCROOT)/Sources/Dependency2/include/module.modulemap"
                     ),
@@ -1708,6 +1809,9 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                             ],
                             "DEFINES_MODULE": "NO",
                             "OTHER_CFLAGS": .array(["$(inherited)", "-fmodule-name=Target1"]),
+                            "OTHER_SWIFT_FLAGS": [
+                                "$(inherited)",
+                            ],
                         ],
                         moduleMap: "$(SRCROOT)/Sources/Target1/include/module.modulemap"
                     ),
@@ -1782,6 +1886,9 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                             "HEADER_SEARCH_PATHS": ["$(inherited)", "$(SRCROOT)/Custom/Headers"],
                             "DEFINES_MODULE": "NO",
                             "OTHER_CFLAGS": .array(["$(inherited)", "-fmodule-name=Target1"]),
+                            "OTHER_SWIFT_FLAGS": [
+                                "$(inherited)",
+                            ],
                         ],
                         moduleMap: "$(SRCROOT)/Custom/Headers/module.modulemap"
                     ),
@@ -1842,6 +1949,9 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                             "HEADER_SEARCH_PATHS": ["$(inherited)", "$(SRCROOT)/Sources/Dependency1/include"],
                             "DEFINES_MODULE": "NO",
                             "OTHER_CFLAGS": .array(["$(inherited)", "-fmodule-name=Dependency1"]),
+                            "OTHER_SWIFT_FLAGS": [
+                                "$(inherited)",
+                            ],
                         ],
                         moduleMap: "$(SRCROOT)/Derived/Dependency1.modulemap"
                     ),
@@ -1995,11 +2105,16 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     .test(
                         "Target1",
                         basePath: basePath,
-                        customSettings: ["HEADER_SEARCH_PATHS": [
-                            "$(inherited)",
-                            "$(SRCROOT)/Sources/Target1/value",
-                            "\"$(SRCROOT)/Sources/Target1/White Space Folder/value\"",
-                        ]]
+                        customSettings: [
+                            "HEADER_SEARCH_PATHS": [
+                                "$(inherited)",
+                                "$(SRCROOT)/Sources/Target1/value",
+                                "\"$(SRCROOT)/Sources/Target1/White Space Folder/value\"",
+                            ],
+                            "OTHER_SWIFT_FLAGS": [
+                                "$(inherited)",
+                            ],
+                        ]
                     ),
                 ]
             )
@@ -2040,10 +2155,15 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     .test(
                         "Target1",
                         basePath: basePath,
-                        customSettings: ["HEADER_SEARCH_PATHS": [
-                            "$(inherited)",
-                            "$(SRCROOT)/Sources/Target1/value",
-                        ]]
+                        customSettings: [
+                            "HEADER_SEARCH_PATHS": [
+                                "$(inherited)",
+                                "$(SRCROOT)/Sources/Target1/value",
+                            ],
+                            "OTHER_SWIFT_FLAGS": [
+                                "$(inherited)",
+                            ],
+                        ]
                     ),
                 ]
             )
@@ -2088,7 +2208,12 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     .test(
                         "Target1",
                         basePath: basePath,
-                        customSettings: ["GCC_PREPROCESSOR_DEFINITIONS": ["$(inherited)", "key1=1", "key2=value", "key3="]]
+                        customSettings: [
+                            "GCC_PREPROCESSOR_DEFINITIONS": ["$(inherited)", "key1=1", "key2=value", "key3="],
+                            "OTHER_SWIFT_FLAGS": [
+                                "$(inherited)",
+                            ],
+                        ]
                     ),
                 ]
             )
@@ -2132,7 +2257,12 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     .test(
                         "Target1",
                         basePath: basePath,
-                        customSettings: ["GCC_PREPROCESSOR_DEFINITIONS": ["$(inherited)", "key1=1", "key2=value"]]
+                        customSettings: [
+                            "GCC_PREPROCESSOR_DEFINITIONS": ["$(inherited)", "key1=1", "key2=value"],
+                            "OTHER_SWIFT_FLAGS": [
+                                "$(inherited)",
+                            ],
+                        ]
                     ),
                 ]
             )
@@ -2177,6 +2307,9 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         basePath: basePath,
                         customSettings: [
                             "SWIFT_ACTIVE_COMPILATION_CONDITIONS": ["$(inherited)", "key"],
+                            "OTHER_SWIFT_FLAGS": [
+                                "$(inherited)",
+                            ],
                         ]
                     ),
                 ]
@@ -2221,7 +2354,12 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     .test(
                         "Target1",
                         basePath: basePath,
-                        customSettings: ["OTHER_CFLAGS": ["$(inherited)", "key1", "key2", "key3"]]
+                        customSettings: [
+                            "OTHER_CFLAGS": ["$(inherited)", "key1", "key2", "key3"],
+                            "OTHER_SWIFT_FLAGS": [
+                                "$(inherited)",
+                            ],
+                        ]
                     ),
                 ]
             )
@@ -2265,7 +2403,12 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     .test(
                         "Target1",
                         basePath: basePath,
-                        customSettings: ["OTHER_CPLUSPLUSFLAGS": ["$(inherited)", "key1", "key2", "key3"]]
+                        customSettings: [
+                            "OTHER_CPLUSPLUSFLAGS": ["$(inherited)", "key1", "key2", "key3"],
+                            "OTHER_SWIFT_FLAGS": [
+                                "$(inherited)",
+                            ],
+                        ]
                     ),
                 ]
             )
@@ -2438,7 +2581,10 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     .test(
                         "Target1",
                         basePath: basePath,
-                        customSettings: ["OTHER_SWIFT_FLAGS": ["$(inherited)", "-swift-version 5"]]
+                        customSettings: [
+                            "OTHER_SWIFT_FLAGS": ["$(inherited)", "-swift-version 5"],
+                            "SWIFT_VERSION": "5",
+                        ]
                     ),
                 ]
             )
@@ -2483,7 +2629,12 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     .test(
                         "Target1",
                         basePath: basePath,
-                        customSettings: ["OTHER_LDFLAGS": ["$(inherited)", "key1", "key2", "key3"]]
+                        customSettings: [
+                            "OTHER_LDFLAGS": ["$(inherited)", "key1", "key2", "key3"],
+                            "OTHER_SWIFT_FLAGS": [
+                                "$(inherited)",
+                            ],
+                        ]
                     ),
                 ]
             )
@@ -2577,6 +2728,9 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         deploymentTargets: .iOS("12.0"),
                         customSettings: [
                             "OTHER_LDFLAGS": ["$(inherited)", "key1", "key2", "key3"],
+                            "OTHER_SWIFT_FLAGS": [
+                                "$(inherited)",
+                            ],
                         ]
                     ),
                 ]
@@ -2729,6 +2883,9 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                                 "$(inherited)",
                                 "$(SRCROOT)/Sources/Target1/value",
                                 "$(SRCROOT)/Sources/Target1/otherValue",
+                            ],
+                            "OTHER_SWIFT_FLAGS": [
+                                "$(inherited)",
                             ],
                         ]
                     ),
@@ -3501,7 +3658,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 targets: [
                     .test("RxSwift", basePath: basePath, product: .framework),
                 ] + testTargets.map {
-                    let customSettings: ProjectDescription.SettingsDictionary
+                    var customSettings: ProjectDescription.SettingsDictionary
                     var customProductName: String?
                     switch $0 {
                     case "Nimble":
@@ -3515,6 +3672,9 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     default:
                         customSettings = ["ENABLE_TESTING_SEARCH_PATHS": "YES"]
                     }
+                    customSettings["OTHER_SWIFT_FLAGS"] = [
+                        "$(inherited)",
+                    ]
 
                     return .test(
                         $0,
@@ -3723,13 +3883,62 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenSwiftPackageHasTestTarget() async throws {
+    func testMap_whenRemoteSwiftPackageHasTestTargets() async throws {
+        // Given
+        let basePath = try temporaryPath()
+        try await fileSystem.makeDirectory(at: basePath.appending(components: ["Package", "Sources", "Target1"]))
+        try await fileSystem.makeDirectory(at: basePath.appending(components: ["Package", "Sources", "Target2"]))
+        try await fileSystem.makeDirectory(at: basePath.appending(components: ["Package", "Tests", "Target1Tests"]))
+        try await fileSystem.makeDirectory(at: basePath.appending(components: ["Package", "Tests", "Target2Tests"]))
+
+        // When
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageType: .remote(artifactPaths: [:]),
+            packageInfos: [
+                "Package": .test(
+                    products: [
+                        .init(name: "Product", type: .library(.automatic), targets: ["Target1", "Target2"]),
+                    ],
+                    targets: [
+                        .test(name: "Target1"),
+                        .test(name: "Target2"),
+                        .test(
+                            name: "Target1Tests",
+                            type: .test,
+                            dependencies: [.target(name: "Target1", condition: nil)]
+                        ),
+                        .test(
+                            name: "Target2Tests",
+                            type: .test,
+                            dependencies: [.target(name: "Target2", condition: nil)]
+                        ),
+                    ]
+                ),
+            ]
+        )
+
+        // Then
+        XCTAssertBetterEqual(
+            project,
+            .testWithDefaultConfigs(
+                name: "Package",
+                targets: [
+                    .test("Target1", basePath: basePath),
+                    .test("Target2", basePath: basePath),
+                ]
+            )
+        )
+    }
+
+    func testMap_whenLocalSwiftPackageHasTestTargetWithNotIncludeLocalPackageTestTargets() async throws {
         // Given
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(components: ["Package", "Sources", "Target"])
-        try fileHandler.createFolder(sourcesPath)
+        try await fileSystem.makeDirectory(at: sourcesPath)
         let testsPath = basePath.appending(components: ["Package", "Tests", "TargetTests"])
-        try fileHandler.createFolder(testsPath)
+        try await fileSystem.makeDirectory(at: testsPath)
 
         // When
         let project = try await subject.map(
@@ -3749,13 +3958,57 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                             type: .test,
                             dependencies: [.target(name: "Target", condition: nil)]
                         ),
-                    ],
-                    platforms: [.ios],
-                    cLanguageStandard: nil,
-                    cxxLanguageStandard: nil,
-                    swiftLanguageVersions: nil
+                    ]
                 ),
-            ]
+            ],
+            packageSettings: .test(includeLocalPackageTestTargets: false)
+        )
+
+        // Then
+        XCTAssertBetterEqual(
+            project,
+            .testWithDefaultConfigs(
+                name: "Package",
+                options: .options(
+                    automaticSchemesOptions: .enabled(),
+                    disableSynthesizedResourceAccessors: true
+                ),
+                targets: [
+                    .test("Target", basePath: basePath),
+                ]
+            )
+        )
+    }
+
+    func testMap_whenLocalSwiftPackageHasTestTarget() async throws {
+        // Given
+        let basePath = try temporaryPath()
+        let sourcesPath = basePath.appending(components: ["Package", "Sources", "Target"])
+        try await fileSystem.makeDirectory(at: sourcesPath)
+        let testsPath = basePath.appending(components: ["Package", "Tests", "TargetTests"])
+        try await fileSystem.makeDirectory(at: testsPath)
+
+        // When
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageType: .local,
+            packageInfos: [
+                "Package": .test(
+                    products: [
+                        .init(name: "Product", type: .library(.automatic), targets: ["Target"]),
+                    ],
+                    targets: [
+                        .test(name: "Target"),
+                        .test(
+                            name: "TargetTests",
+                            type: .test,
+                            dependencies: [.target(name: "Target", condition: nil)]
+                        ),
+                    ]
+                ),
+            ],
+            packageSettings: .test()
         )
 
         // Then
@@ -3810,11 +4063,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                             type: .test,
                             dependencies: [.target(name: "Target", condition: nil)]
                         ),
-                    ],
-                    platforms: [.ios, .macos],
-                    cLanguageStandard: nil,
-                    cxxLanguageStandard: nil,
-                    swiftLanguageVersions: nil
+                    ]
                 ),
             ],
             packageSettings: .test(
@@ -3906,11 +4155,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                                 .target(name: "CommonTarget", condition: nil),
                             ]
                         ),
-                    ],
-                    platforms: [.ios, .macos],
-                    cLanguageStandard: nil,
-                    cxxLanguageStandard: nil,
-                    swiftLanguageVersions: nil
+                    ]
                 ),
             ],
             packageSettings: .test(
@@ -3999,7 +4244,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         ),
                     ]
                 ),
-            ]
+            ],
+            packageSettings: .test()
         )
 
         // Then
@@ -4103,7 +4349,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         dependencies: [
                             .target(name: "Package2Product", condition: nil),
                         ],
-                        customSettings: ["OTHER_SWIFT_FLAGS": ["-module-alias", "Product=Package2Product"]]
+                        customSettings: ["OTHER_SWIFT_FLAGS": ["$(inherited)", "-module-alias", "Product=Package2Product"]]
                     ),
                 ]
             )
@@ -4161,7 +4407,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         // Then
         XCTAssertBetterEqual(
             project?.targets.first?.settings?.base["OTHER_SWIFT_FLAGS"],
-            nil
+            ["$(inherited)"]
         )
     }
 
@@ -4253,8 +4499,8 @@ extension PackageInfoMapping {
 
         return try await map(
             packageInfo: packageInfos[package]!,
-            path: basePath.appending(component: package),
-            packageType: packageType ?? .external(artifactPaths: packageToTargetsToArtifactPaths[package]!),
+            packageFolder: basePath.appending(component: package),
+            packageType: packageType ?? .remote(artifactPaths: packageToTargetsToArtifactPaths[package]!),
             packageSettings: packageSettings,
             packageModuleAliases: packageModuleAliases
         )
@@ -4292,7 +4538,7 @@ extension PackageInfo.Target {
 
 extension ProjectDescription.Project {
     fileprivate static func test(
-        name: String,
+        name: String = "Package",
         options: Options = .options(
             automaticSchemesOptions: .disabled,
             disableBundleAccessors: false,
@@ -4329,7 +4575,7 @@ extension ProjectDescription.Project {
         Project.test(
             name: name,
             options: options,
-            settings: DependenciesGraph.spmProjectSettings(
+            settings: DependenciesGraph.swiftpmProjectSettings(
                 packageName: name,
                 baseSettings: settings,
                 with: customSettings
@@ -4365,7 +4611,9 @@ extension ProjectDescription.Target {
         headers: ProjectDescription.Headers? = nil,
         dependencies: [ProjectDescription.TargetDependency] = [],
         baseSettings: ProjectDescription.Settings = .settings(),
-        customSettings: ProjectDescription.SettingsDictionary = [:],
+        customSettings: ProjectDescription.SettingsDictionary = [
+            "OTHER_SWIFT_FLAGS": ["$(inherited)"],
+        ],
         moduleMap: String? = nil
     ) -> Self {
         let sources: SourceFilesList?

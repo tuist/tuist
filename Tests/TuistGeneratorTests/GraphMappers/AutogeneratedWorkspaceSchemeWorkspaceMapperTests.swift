@@ -1,5 +1,4 @@
 import Foundation
-import Path
 import TuistCore
 import XcodeGraph
 import XCTest

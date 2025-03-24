@@ -1,5 +1,5 @@
 // swift-tools-version: 6.0
-@preconcurrency import PackageDescription
+import PackageDescription
 
 #if TUIST
     import ProjectDescription
@@ -21,7 +21,6 @@
             "LocalSwiftPackage": .options(disableSynthesizedResourceAccessors: false),
         ]
     )
-
 #endif
 
 let package = Package(
@@ -30,7 +29,6 @@ let package = Package(
         .package(url: "https://github.com/ZipArchive/ZipArchive", .upToNextMajor(from: "2.5.5")),
         .package(url: "https://github.com/jpsim/Yams", .upToNextMajor(from: "5.0.6")),
         .package(url: "https://github.com/google/GoogleSignIn-iOS", .upToNextMajor(from: "7.0.0")),
-        .package(url: "https://github.com/getsentry/sentry-cocoa", .upToNextMajor(from: "8.32.0")),
         .package(
             url: "https://github.com/CocoaLumberjack/CocoaLumberjack", .upToNextMajor(from: "3.8.4")
         ),
@@ -57,5 +55,12 @@ let package = Package(
         .package(url: "https://github.com/QMUI/LookinServer", from: "1.2.8"),
         // Has XCTest API in a non-test target. Tuist will add Test Search path to support it
         .package(url: "https://github.com/Brightify/Cuckoo.git", exact: "1.10.4"),
+    ],
+    targets: [
+        .binaryTarget(
+            name: "Sentry",
+            url: "https://github.com/getsentry/sentry-cocoa/releases/download/8.40.1/Sentry.xcframework.zip",
+            checksum: "db928e6fdc30de1aa97200576d86d467880df710cf5eeb76af23997968d7b2c7"
+        ),
     ]
 )

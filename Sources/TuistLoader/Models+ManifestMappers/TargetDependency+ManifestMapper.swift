@@ -1,5 +1,4 @@
 import Foundation
-import Path
 import ProjectDescription
 import TuistCore
 import TuistSupport
@@ -37,6 +36,12 @@ extension XcodeGraph.TargetDependency {
                 name: name,
                 status: .from(manifest: status),
                 condition: condition?.asGraphCondition
+            )]
+        case let .macro(name: name):
+            return [.target(
+                name: name,
+                status: .required,
+                condition: nil
             )]
         case let .project(target, projectPath, status, condition):
             return [.project(

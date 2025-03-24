@@ -1,11 +1,14 @@
 import Foundation
 import Mockable
 import Path
+import ServiceContextModule
 import TuistCore
 import TuistSupport
+import XcodeGraph
 import XCTest
 
 @testable import ProjectDescription
+@testable import TuistCoreTesting
 @testable import TuistLoader
 @testable import TuistLoaderTesting
 @testable import TuistSupportTesting
@@ -13,6 +16,7 @@ import XCTest
 final class ManifestModelConverterTests: TuistUnitTestCase {
     typealias WorkspaceManifest = ProjectDescription.Workspace
     typealias ProjectManifest = ProjectDescription.Project
+    typealias DependenciesGraphManifest = TuistLoader.DependenciesGraph
     typealias TargetManifest = ProjectDescription.Target
     typealias SettingsManifest = ProjectDescription.Settings
     typealias ConfigurationManifest = ProjectDescription.Configuration
@@ -302,25 +306,77 @@ final class ManifestModelConverterTests: TuistUnitTestCase {
     }
 
     func test_loadWorkspace_withInvalidProjectsPaths() async throws {
-        // Given
-        let temporaryPath = try temporaryPath()
-        let manifest = WorkspaceManifest.test(name: "SomeWorkspace", projects: ["A", "B"])
-        let manifestLoader = makeManifestLoader(with: [
-            temporaryPath: manifest,
-        ])
-        let subject = makeSubject(with: manifestLoader)
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            let temporaryPath = try temporaryPath()
+            let rootDirectory = temporaryPath
+            let generatorPaths = GeneratorPaths(
+                manifestDirectory: temporaryPath,
+                rootDirectory: rootDirectory
+            )
 
-        // When
-        let model = try await subject.convert(manifest: manifest, path: temporaryPath)
+            try await fileSystem.makeDirectory(at: rootDirectory.appending(component: "Resources"))
 
-        // Then
-        XCTAssertPrinterOutputContains("No projects found at: A")
-        XCTAssertPrinterOutputContains("No projects found at: B")
-        XCTAssertEqual(model.projects, [])
+            let manifest = ProjectDescription.ResourceFileElement.glob(pattern: "Resources/**")
+
+            // When
+            let model = try await XcodeGraph.ResourceFileElement.from(
+                manifest: manifest,
+                generatorPaths: generatorPaths,
+                fileSystem: fileSystem
+            )
+
+            // Then
+            XCTAssertPrinterOutputContains(
+                "No files found at: \(rootDirectory.appending(components: "Resources", "**"))"
+            )
+            XCTAssertEqual(model, [])
+        }
     }
 
-    // MARK: - Helpers
+    func test_loadDependenciesGraph_withExternalSPM() async throws {
+        // Given
+        let temporaryPath = try temporaryPath()
+        try await fileSystem.makeDirectory(at: temporaryPath.appending(components: ["checkouts", "Alamofire", "Source"]))
+        let manifest = DependenciesGraphManifest.alamofire(spmFolder: .path(temporaryPath.pathString))
+        let subject = makeSubject(with: makeManifestLoader())
 
+        // When
+        let model = try await subject.convert(dependenciesGraph: manifest, path: temporaryPath)
+
+        // Then
+        XCTAssertEqual(model.externalProjects.values.first?.type, .external(hash: nil))
+    }
+
+    func test_loadDependenciesGraph_withLocalSPM() async throws {
+        // Given
+        let temporaryPath = try temporaryPath()
+        try await fileSystem.makeDirectory(at: temporaryPath.appending(components: [
+            "checkouts",
+            "ADependency",
+            "Sources",
+            "ALibrary",
+        ]))
+        try await fileSystem.makeDirectory(at: temporaryPath.appending(components: [
+            "checkouts",
+            "ADependency",
+            "Sources",
+            "ALibraryUtils",
+        ]))
+        let manifest = DependenciesGraphManifest.aDependency(spmFolder: .path(temporaryPath.pathString))
+        let subject = makeSubject(with: makeManifestLoader())
+
+        // When
+        let model = try await subject.convert(dependenciesGraph: manifest, path: temporaryPath)
+
+        // Then
+        XCTAssertEqual(model.externalProjects.values.first?.type, .external(hash: nil))
+    }
+}
+
+// MARK: - Helpers
+
+extension ManifestModelConverterTests {
     func makeSubject(with manifestLoader: ManifestLoading) -> ManifestModelConverter {
         ManifestModelConverter(
             manifestLoader: manifestLoader,
@@ -329,7 +385,7 @@ final class ManifestModelConverterTests: TuistUnitTestCase {
     }
 
     func makeManifestLoader(
-        with projects: [AbsolutePath: ProjectDescription.Project],
+        with projects: [AbsolutePath: ProjectDescription.Project] = [:],
         configs: [AbsolutePath: ProjectDescription.Config] = [:]
     ) -> ManifestLoading {
         let manifestLoader = MockManifestLoading()

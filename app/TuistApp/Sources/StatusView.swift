@@ -13,20 +13,23 @@ struct StatusView: View {
                 .animation(.easeInOut, value: mainStatusText)
 
             Group {
-                if let newestTaskStatus {
-                    if case let .running(_, progress) = newestTaskStatus.state,
-                       case let .determinate(totalUnitCount, pendingUnitCount) = progress
-                    {
+                switch newestTaskStatus?.state {
+                case .preparing:
+                    MainProgressView(strokeContent: .tertiary, taskCount: taskCount)
+                case let .running(_, progress):
+                    switch progress {
+                    case .indeterminate:
+                        MainProgressView(strokeContent: .tertiary, taskCount: taskCount)
+                    case let .determinate(totalUnitCount, pendingUnitCount):
                         MainProgressView(
                             strokeContent: .tertiary,
                             totalUnitCount: totalUnitCount,
                             pendingUnitCount: pendingUnitCount,
                             taskCount: taskCount
                         )
-
-                    } else if newestTaskStatus.state != .done || taskCount > 1 {
-                        MainProgressView(strokeContent: .tertiary, taskCount: taskCount)
                     }
+                case .none, .done:
+                    EmptyView()
                 }
             }
             .contentShape(Circle())
@@ -47,8 +50,8 @@ struct StatusView: View {
             return newestTaskStatus.displayName
         case let .running(message: message, progress: _):
             return message
-        case .done:
-            return "Finished"
+        case let .done(message: message):
+            return message ?? "Finished"
         }
     }
 

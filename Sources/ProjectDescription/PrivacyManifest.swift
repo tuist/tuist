@@ -1,5 +1,3 @@
-import Foundation
-
 /// Describe the data your app or third-party SDK collects and the reasons required APIs it uses.
 public struct PrivacyManifest: Codable, Equatable, Sendable {
     /// A Boolean that indicates whether your app or third-party SDK uses data for tracking as defined under the App

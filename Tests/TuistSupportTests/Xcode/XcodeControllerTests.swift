@@ -22,11 +22,11 @@ final class XcodeControllerTests: TuistUnitTestCase {
         // Given
         system.errorCommand(["xcode-select", "-p"])
 
-        // When
-        let xcode = try await subject.selected()
-
-        // Then
-        XCTAssertNil(xcode)
+        // When / Then
+        do {
+            _ = try await subject.selected()
+            XCTFail("Should have failed")
+        } catch {}
     }
 
     func test_selected_is_cached() async throws {
@@ -70,14 +70,6 @@ final class XcodeControllerTests: TuistUnitTestCase {
 
         // Then
         XCTAssertNotNil(xcode)
-    }
-
-    func test_selectedVersion_when_xcodeSelectDoesntReturnThePath() async throws {
-        // Given
-        system.errorCommand(["xcode-select", "-p"])
-
-        // Then
-        await XCTAssertThrowsSpecific(try await subject.selectedVersion(), XcodeController.XcodeVersionError.noXcode)
     }
 
     func test_selectedVersion_when_xcodeSelectReturnsThePath() async throws {

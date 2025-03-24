@@ -1,5 +1,6 @@
 import Foundation
 import Mockable
+import ServiceContextModule
 import TuistLoader
 import TuistServer
 import TuistSupport
@@ -31,6 +32,16 @@ final class ProjectUpdateServiceTests: TuistUnitTestCase {
         given(serverURLService)
             .url(configServerURL: .any)
             .willReturn(Constants.URLs.production)
+
+        given(updateProjectService)
+            .updateProject(
+                fullHandle: .any,
+                serverURL: .any,
+                defaultBranch: .any,
+                repositoryURL: .any,
+                visibility: .any
+            )
+            .willReturn(.test())
     }
 
     override func tearDown() {
@@ -43,41 +54,36 @@ final class ProjectUpdateServiceTests: TuistUnitTestCase {
     }
 
     func test_run_when_full_handle_is_not_provided() async throws {
-        // Given
-        given(configLoader)
-            .loadConfig(path: .any)
-            .willReturn(
-                .test(
-                    fullHandle: "tuist/tuist"
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            given(configLoader)
+                .loadConfig(path: .any)
+                .willReturn(
+                    .test(
+                        fullHandle: "tuist/tuist"
+                    )
                 )
-            )
-        given(updateProjectService)
-            .updateProject(
-                fullHandle: .any,
-                serverURL: .any,
-                defaultBranch: .any,
-                repositoryURL: .any
-            )
-            .willReturn(.test())
 
-        // When
-        try await subject.run(
-            fullHandle: nil,
-            defaultBranch: "new-default-branch",
-            repositoryURL: "https://github.com/tuist/tuist",
-            path: nil
-        )
-
-        // Then
-        verify(updateProjectService)
-            .updateProject(
-                fullHandle: .value("tuist/tuist"),
-                serverURL: .any,
-                defaultBranch: .value("new-default-branch"),
-                repositoryURL: .value("https://github.com/tuist/tuist")
+            // When
+            try await subject.run(
+                fullHandle: nil,
+                defaultBranch: "new-default-branch",
+                repositoryURL: "https://github.com/tuist/tuist",
+                visibility: .public,
+                path: nil
             )
-            .called(1)
-        XCTAssertStandardOutput(pattern: "The project tuist/tuist was successfully updated 🎉")
+
+            // Then
+            verify(updateProjectService)
+                .updateProject(
+                    fullHandle: .value("tuist/tuist"),
+                    serverURL: .any,
+                    defaultBranch: .value("new-default-branch"),
+                    repositoryURL: .value("https://github.com/tuist/tuist"),
+                    visibility: .value(.public)
+                )
+                .called(1)
+        }
     }
 
     func test_run_when_full_handle_is_not_provided_and_is_not_in_config() async throws {
@@ -89,14 +95,6 @@ final class ProjectUpdateServiceTests: TuistUnitTestCase {
                     fullHandle: nil
                 )
             )
-        given(updateProjectService)
-            .updateProject(
-                fullHandle: .any,
-                serverURL: .any,
-                defaultBranch: .any,
-                repositoryURL: .any
-            )
-            .willReturn(.test())
 
         // When / Then
         await XCTAssertThrowsSpecific(
@@ -104,6 +102,7 @@ final class ProjectUpdateServiceTests: TuistUnitTestCase {
                 fullHandle: nil,
                 defaultBranch: "new-default-branch",
                 repositoryURL: nil,
+                visibility: nil,
                 path: nil
             ),
             ProjectUpdateServiceError.missingFullHandle
@@ -111,36 +110,31 @@ final class ProjectUpdateServiceTests: TuistUnitTestCase {
     }
 
     func test_run_when_full_handle_is_provided() async throws {
-        // Given
-        given(configLoader)
-            .loadConfig(path: .any)
-            .willReturn(.test())
-        given(updateProjectService)
-            .updateProject(
-                fullHandle: .any,
-                serverURL: .any,
-                defaultBranch: .any,
-                repositoryURL: .any
-            )
-            .willReturn(.test())
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            given(configLoader)
+                .loadConfig(path: .any)
+                .willReturn(.test())
 
-        // When
-        try await subject.run(
-            fullHandle: "tuist/tuist",
-            defaultBranch: "new-default-branch",
-            repositoryURL: nil,
-            path: nil
-        )
-
-        // Then
-        verify(updateProjectService)
-            .updateProject(
-                fullHandle: .value("tuist/tuist"),
-                serverURL: .any,
-                defaultBranch: .value("new-default-branch"),
-                repositoryURL: .value(nil)
+            // When
+            try await subject.run(
+                fullHandle: "tuist/tuist",
+                defaultBranch: "new-default-branch",
+                repositoryURL: nil,
+                visibility: nil,
+                path: nil
             )
-            .called(1)
-        XCTAssertStandardOutput(pattern: "The project tuist/tuist was successfully updated 🎉")
+
+            // Then
+            verify(updateProjectService)
+                .updateProject(
+                    fullHandle: .value("tuist/tuist"),
+                    serverURL: .any,
+                    defaultBranch: .value("new-default-branch"),
+                    repositoryURL: .value(nil),
+                    visibility: .value(nil)
+                )
+                .called(1)
+        }
     }
 }

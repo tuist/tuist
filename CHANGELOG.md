@@ -1,5 +1,319 @@
 # Changelog
 
+## 4.44.3 - 2025-03-17
+
+### CLI
+
+#### Changed
+
+- Install create-dmg using the asdf plugin [#7412](https://github.com/tuist/tuist/pull/7412) by [@pepicrft](https://github.com/pepicrft)
+
+#### Fixed
+
+- [Docs] fix link to registry [#7396](https://github.com/tuist/tuist/pull/7396) by [@muukii](https://github.com/muukii)
+- Show errors using the error alert [#7397](https://github.com/tuist/tuist/pull/7397) by [@pepicrft](https://github.com/pepicrft)
+- Fix the code snippet in the CI logging documentation page [#7400](https://github.com/tuist/tuist/pull/7400) by [@pepicrft](https://github.com/pepicrft)
+- Fix `--help` error not showing [#7399](https://github.com/tuist/tuist/pull/7399) by [@pepicrft](https://github.com/pepicrft)
+- Add `Sendable` conformance to `Plugin` type in ProjectDescription [#7410](https://github.com/tuist/tuist/pull/7410) by [@liamnichols](https://github.com/liamnichols)
+
+### CLI (Server features)
+
+- no changes
+
+## 4.44.2 - 2025-03-11
+
+### CLI
+
+#### Changed
+
+- Improve error handling [#7391](https://github.com/tuist/tuist/pull/7391) by [@pepicrft](https://github.com/pepicrft)
+
+#### Added
+
+- Add `build-for-testing` and `test-without-building` support to `tuist test` [#7388](https://github.com/tuist/tuist/pull/7388) by [@cooksimo](https://github.com/cooksimo)
+
+#### Fixed
+
+- Fix duplicated warning alerts [#7393](https://github.com/tuist/tuist/pull/7393) by [@pepicrft](https://github.com/pepicrft)
+
+### CLI (Server features)
+
+- no changes
+
+## 4.44.1 - 2025-03-10
+
+### CLI
+
+- no changes
+
+### CLI (Server features)
+
+- no changes
+
+## 4.44.0 - 2025-03-10
+
+### CLI
+
+#### Changed
+
+- Update XcodeGraph [#7376](https://github.com/tuist/tuist/pull/7376) by [@fortmarek](https://github.com/fortmarek)
+- Rename the internal `Config` model to `Tuist` and reconcile the changes in `ProjectDescription` that introduce Xcode projects [#7379](https://github.com/tuist/tuist/pull/7379) by [@pepicrft](https://github.com/pepicrft)
+
+#### Added
+
+- Make selective testing cache targets with passing tests, even if the test run ultimately failed [#7371](https://github.com/tuist/tuist/pull/7371) by [@cooksimo](https://github.com/cooksimo)
+- Add tuist inspect build command [#7340](https://github.com/tuist/tuist/pull/7340) by [@fortmarek](https://github.com/fortmarek)
+
+#### Fixed
+
+- Fix missing OTHER_SWIFT_FLAGS such as -Xfrontend when using binary cache [#7365](https://github.com/tuist/tuist/pull/7365) by [@fortmarek](https://github.com/fortmarek)
+- Fix reporting ran at date of runs [#7372](https://github.com/tuist/tuist/pull/7372) by [@fortmarek](https://github.com/fortmarek)
+- Update dependencies with known vulnerabilities [#7374](https://github.com/tuist/tuist/pull/7374) by [@pepicrft](https://github.com/pepicrft)
+- Fix ProjectAutomation.graph() method [#7383](https://github.com/tuist/tuist/pull/7383) by [@shahzadmajeed](https://github.com/shahzadmajeed)
+- Sort the targets before printing them [#7389](https://github.com/tuist/tuist/pull/7389) by [@pepicrft](https://github.com/pepicrft)
+
+### CLI (Server features)
+
+- no changes
+
+## 4.43.2 - 2025-02-25
+
+### CLI
+
+#### Changed
+
+- Improve error message on unhandled errors [#7344](https://github.com/tuist/tuist/pull/7344) by [@fortmarek](https://github.com/fortmarek)
+
+#### Added
+
+- #7345 Add command lint tool as valid target for unit tests on macOS. [#7347](https://github.com/tuist/tuist/pull/7347) by [@connor-ricks](https://github.com/connor-ricks)
+
+#### Fixed
+
+- Explicitly use `Foundation.FileManager` to negotiate conflicting `FileManager` symbol in module itself in synthesized resource accessors [#7338](https://github.com/tuist/tuist/pull/7338) by [@Scvairy](https://github.com/Scvairy)
+- Remove duplicates for some settings when using binary cache [#7346](https://github.com/tuist/tuist/pull/7346) by [@fortmarek](https://github.com/fortmarek)
+- Fix selective testing of projects with aggregate targets [#7352](https://github.com/tuist/tuist/pull/7352) by [@fortmarek](https://github.com/fortmarek)
+
+### CLI (Server features)
+
+- no changes
+
+## 4.43.1 - 2025-02-21
+
+### CLI
+
+#### Fixed
+
+- Fix duplicated framework search paths [#7341](https://github.com/tuist/tuist/pull/7341) by [@fortmarek](https://github.com/fortmarek)
+
+### CLI (Server features)
+
+- no changes
+
+## 4.43.0 - 2025-02-19
+
+### CLI
+
+#### Changed
+
+- Remove default subcommand of tuist auth in favor of calling tuist auth login explicitly [#7328](https://github.com/tuist/tuist/pull/7328) by [@fortmarek](https://github.com/fortmarek)
+
+#### Added
+
+- Add valid link to support macOS frameworks in macOS bundles [#7314](https://github.com/tuist/tuist/pull/7314) by [@lukaswuerzburger](https://github.com/lukaswuerzburger)
+- Add tuist graph support for non-generated Xcode projects [#7322](https://github.com/tuist/tuist/pull/7322) by [@fortmarek](https://github.com/fortmarek)
+- Add support for selective testing for Xcode projects with local packages [#7317](https://github.com/tuist/tuist/pull/7317) by [@fortmarek](https://github.com/fortmarek)
+
+#### Fixed
+
+- Fix inspect implicit imports in large projects [#7324](https://github.com/tuist/tuist/pull/7324) by [@fortmarek](https://github.com/fortmarek)
+- Fix generate projects with external dependencies that have core data models [#7323](https://github.com/tuist/tuist/pull/7323) by [@fortmarek](https://github.com/fortmarek)
+- Apply platform conditions for embedded SPM dependencies. [#7327](https://github.com/tuist/tuist/pull/7327) by [@GetToSet](https://github.com/GetToSet)
+- Fix compiling Package.swift without @preconcurrency import modifier in project generated by tuist edit [#7333](https://github.com/tuist/tuist/pull/7333) by [@fortmarek](https://github.com/fortmarek)
+
+### CLI (Server features)
+
+- no changes
+
+## 4.42.0 - 2025-02-13
+
+### CLI
+
+#### Changed
+
+- Improve the debugging experience by persisting logs in the file system for every run [#7261](https://github.com/tuist/tuist/pull/7261) by [@pepicrft](https://github.com/pepicrft)
+
+#### Added
+
+- Add support for selective testing for Xcode non-generated projects [#7287](https://github.com/tuist/tuist/pull/7287) by [@fortmarek](https://github.com/fortmarek)
+- Upload and show run detail link for long-running commands like tuist xcodebuild [#7303](https://github.com/tuist/tuist/pull/7303) by [@fortmarek](https://github.com/fortmarek)
+
+#### Fixed
+
+- Gracefully handle suffix grouping when target has the same name as suffix [#7305](https://github.com/tuist/tuist/pull/7305) by [@fortmarek](https://github.com/fortmarek)
+
+### CLI (Server features)
+
+- no changes
+
+## 4.41.0 - 2025-02-05
+
+### CLI
+
+#### Changed
+
+- Change tuist graph --format json output to XcodeGraph. Use tuist graph --format legacyJSON for legacy output. [#7245](https://github.com/tuist/tuist/pull/7245) by [@fortmarek](https://github.com/fortmarek)
+- Mark plugins as deprecated in the docs [#7227](https://github.com/tuist/tuist/pull/7227) by [@pepicrft](https://github.com/pepicrft)
+
+#### Added
+
+- Add support for binary targets in Package.swift [#7028](https://github.com/tuist/tuist/pull/7028) by [@danieleformichelli](https://github.com/danieleformichelli)
+- Upload binary cache and selective testing hashes to the server [#7278](https://github.com/tuist/tuist/pull/7278) by [@fortmarek](https://github.com/fortmarek)
+
+#### Fixed
+
+- fix: link status .none shouldn't block other dependencies from linking [#7273](https://github.com/tuist/tuist/pull/7273) by [@rgnns](https://github.com/rgnns)
+- Fix default settings for multiplatform targets [#7295](https://github.com/tuist/tuist/pull/7295) by [@fortmarek](https://github.com/fortmarek)
+
+### CLI (Server features)
+
+- no changes
+
+## 4.40.0 - 2025-01-22
+
+### CLI
+
+#### Changed
+
+- Rename .mise.toml to mise.toml in the project created by tuist init [#7237](https://github.com/tuist/tuist/pull/7237) by [@dxmvsh](https://github.com/dxmvsh)
+- Add registry keychain entry on the CI for projects using the Xcode default integration [#7249](https://github.com/tuist/tuist/pull/7249) by [@fortmarek](https://github.com/fortmarek)
+
+#### Fixed
+
+- Fix issue where schemes with testplans and no explicit targets did not run any tests [#7187](https://github.com/tuist/tuist/pull/7187) by [@cooksimo](https://github.com/cooksimo)
+- Fix backwards compatibility of tuist graph --format json output [#7238](https://github.com/tuist/tuist/pull/7238) by [@fortmarek](https://github.com/fortmarek)
+- Fix false positive warning for external targets without sources [#7241](https://github.com/tuist/tuist/pull/7241) by [@vvisionnn](https://github.com/vvisionnn)
+- Fix broken `xcodebuild` output [#7259](https://github.com/tuist/tuist/pull/7259) by [@pepicrft](https://github.com/pepicrft)
+
+### CLI (Server features)
+
+- no changes
+
+## 4.39.0 - 2025-01-08
+
+### CLI
+
+#### Changed
+
+- Update deprecation warning message to PackageSettings initializer [#7201](https://github.com/tuist/tuist/pull/7201) by [@sanghyeok-kim](https://github.com/sanghyeok-kim)
+- Temporarily comment out secrets to unblock PRs from forks [#7212](https://github.com/tuist/tuist/pull/7212) by [@fortmarek](https://github.com/fortmarek)
+- Embed static frameworks with bundled resources instead of generating a new bundle [#7006](https://github.com/tuist/tuist/pull/7006) by [@vldalx](https://github.com/vldalx)
+- Allow [.]mise.toml in directories targeted by 'tuist init' [#7186](https://github.com/tuist/tuist/pull/7186) by [@stevelandeyasana](https://github.com/stevelandeyasana)
+- Improve performance of tuist graph command [#7129](https://github.com/tuist/tuist/pull/7129) by [@pavel-trafimuk](https://github.com/pavel-trafimuk)
+- Update outdated note about having to use SPM to run tuist [#7216](https://github.com/tuist/tuist/pull/7216) by [@cschmatzler](https://github.com/cschmatzler)
+- Revert "Temporarily remove comment out secrets to unblock PRs from forks (#7212) [#7224](https://github.com/tuist/tuist/pull/7224) by [@fortmarek](https://github.com/fortmarek)
+- Remove unncessary Foundation imports from ProjectDescription and make the required ones @_implementationOnly [#7207](https://github.com/tuist/tuist/pull/7207) by [@pepicrft](https://github.com/pepicrft)
+
+#### Added
+
+- Add TUIST_CACHE_EXTERNAL_ONLY environment value for `tuist cache` [#7183](https://github.com/tuist/tuist/pull/7183) by [@nathansalaun-sofia](https://github.com/nathansalaun-sofia)
+- Update install-tuist.md, added fish completions docs [#7208](https://github.com/tuist/tuist/pull/7208) by [@EmranMR](https://github.com/EmranMR)
+- Add TestableTarget.parallelization property [#7200](https://github.com/tuist/tuist/pull/7200) by [@fortmarek](https://github.com/fortmarek)
+- Add registry support for Xcode integration of packages in Tuist Projects [#7225](https://github.com/tuist/tuist/pull/7225) by [@fortmarek](https://github.com/fortmarek)
+- Add ability to change account username [#7209](https://github.com/tuist/tuist/pull/7209) by [@cschmatzler](https://github.com/cschmatzler)
+
+#### Fixed
+
+- Fix inspect implicit-imports false positives for external targets [#7213](https://github.com/tuist/tuist/pull/7213) by [@ffittschen](https://github.com/ffittschen)
+- Fix tuist generate for local SPM packages does not respect swift language mode for generated projects  [#7211](https://github.com/tuist/tuist/pull/7211) by [@mihaicris](https://github.com/mihaicris)
+- Fix race condition when running multiple tuist dump commands in parallel [#7222](https://github.com/tuist/tuist/pull/7222) by [@danibachar](https://github.com/danibachar)
+- Embed prebuilt frameworks in unit test target without a host app [#7229](https://github.com/tuist/tuist/pull/7229) by [@fortmarek](https://github.com/fortmarek)
+
+### CLI (Server features)
+
+- no changes
+
+## 4.38.2 - 2024-12-24
+
+### CLI
+
+#### Changed
+
+- Document how to verify the authenticity of binaries [#7184](https://github.com/tuist/tuist/pull/7184) by [@pepicrft](https://github.com/pepicrft)
+
+#### Fixed
+
+- docs: Fix configuration name in xcode-project.md [#7177](https://github.com/tuist/tuist/pull/7177) by [@fortmarek](https://github.com/fortmarek)
+
+### CLI (Server features)
+
+- no changes
+
+## 4.38.1 - 2024-12-18
+
+### CLI
+
+- no changes
+
+### CLI (Server features)
+
+- no changes
+
+## 4.37.0 - 2024-12-11
+
+### CLI
+
+#### Changed
+
+- Update vitepress [#7102](https://github.com/tuist/tuist/pull/7102) by [@fortmarek](https://github.com/fortmarek)
+
+#### Added
+
+- Document new accounts, previews, and projects metrics [#7141](https://github.com/tuist/tuist/pull/7141) by [@pepicrft](https://github.com/pepicrft)
+- Add support for building Mac Catalyst apps [#7134](https://github.com/tuist/tuist/pull/7134) by [@foyoodo](https://github.com/foyoodo)
+
+#### Fixed
+
+- Remove duplicate Path dependency to fix warning. [#7131](https://github.com/tuist/tuist/pull/7131) by [@michaelmcguire](https://github.com/michaelmcguire)
+- Documentation: Fix typo, remove duplicated import [#7135](https://github.com/tuist/tuist/pull/7135) by [@mikeger](https://github.com/mikeger)
+- Fix bundle access synthesized interface for static libraries with Objective-C code [#7147](https://github.com/tuist/tuist/pull/7147) by [@brianvar](https://github.com/brianvar)
+- Remove unnecessary Copy Executables build phase. [#7136](https://github.com/tuist/tuist/pull/7136) by [@TamarMilchtaich](https://github.com/TamarMilchtaich)
+- Fix not hashing additional strings such as configuration [#7154](https://github.com/tuist/tuist/pull/7154) by [@fortmarek](https://github.com/fortmarek)
+
+### CLI (Server features)
+
+- no changes
+
+## 4.36.0 - 2024-11-27
+
+### CLI
+
+- no changes
+
+### CLI (Server features)
+
+- no changes
+
+## 4.35.0 - 2024-11-21
+
+### CLI
+
+#### Changed
+
+- Align ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES with the Xcode default [#7038](https://github.com/tuist/tuist/pull/7038) by [@yungu0010](https://github.com/yungu0010)
+- Change behavior of --no-selective-testing to still run all tests, but store the results [#7080](https://github.com/tuist/tuist/pull/7080) by [@fortmarek](https://github.com/fortmarek)
+- Disable "file_name" SwiftLint rule in synthesized resources [#7074](https://github.com/tuist/tuist/pull/7074) by [@ilia3546](https://github.com/ilia3546)
+
+#### Fixed
+
+- Fix data race when refreshing an access token [#7082](https://github.com/tuist/tuist/pull/7082) by [@fortmarek](https://github.com/fortmarek)
+- fix: honor platform-specific package settings [#7083](https://github.com/tuist/tuist/pull/7083) by [@fortmarek](https://github.com/fortmarek)
+- fix: when hashing packages, hash should include extra metadata like Swift compiler version [#7087](https://github.com/tuist/tuist/pull/7087) by [@fortmarek](https://github.com/fortmarek)
+
+### CLI (Server features)
+
+- no changes
+
 ## 4.34.2 - 2024-11-15
 
 ### CLI

@@ -13,7 +13,7 @@ description: CLI에서 Tuist 서버에 인증하는 방법을 배워봅니다.
 로컬에서 CLI를 사용할 때 사용자로 인증하는 것을 권장합니다. 사용자로 인증하기 위해 다음의 명령어를 수행해야 합니다:
 
 ```bash
-tuist auth
+tuist auth login
 ```
 
 이 명령어는 웹 기반 인증 절차를 안내합니다. 인증을 완료하면, CLI는 `~/.config/tuist/credentials`에 오래 지속되는 리프레시 토큰과 일시적인 접근 토큰을 저장합니다. 디렉토리에 각 파일은 인증한 도메인을 나타내며 기본값은 `cloud.tuist.io.json` 이어야 합니다. 해당 디렉토리에 저장된 정보는 민감한 정보이므로 **안전하게 보관해야 합니다**.
@@ -34,8 +34,7 @@ On-premise 고객이 Okta를 설정한 경우, Google과 동일한 동작으로 
 tuist organization update sso my-organization --provider okta --organization-id my-okta-domain.com
 ```
 
-> [!IMPORTANT].
-> 조직의 도메인을 설정하려면 해당 조직에 연결된 이메일을 사용하여 Google에 인증되어 있어야 합니다.
+> [!IMPORTANT]. 조직의 도메인을 설정하려면 해당 조직에 연결된 이메일을 사용하여 Google에 인증되어 있어야 합니다.
 
 ## 프로젝트로 인증 {#as-a-project}
 

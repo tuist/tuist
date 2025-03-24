@@ -4,7 +4,6 @@ import FileSystem
 import Path
 import TuistCore
 @_exported import TuistKit
-import XcodeGraph
 import XcodeProj
 import XCTest
 
@@ -31,10 +30,6 @@ open class TuistAcceptanceTestCase: XCTestCase {
         try await super.setUp()
 
         fileSystem = FileSystem()
-
-        DispatchQueue.once(token: "io.tuist.test.logging") {
-            LoggingSystem.bootstrap { AcceptanceTestCaseLogHandler(label: $0) }
-        }
 
         derivedDataDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
         fixtureTemporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
@@ -87,18 +82,6 @@ open class TuistAcceptanceTestCase: XCTestCase {
     }
 
     public func run(_ command: InitCommand.Type, _ arguments: String...) async throws {
-        try await run(command, arguments)
-    }
-
-    public func run(_ command: InitCommand.Type, _ arguments: [String] = []) async throws {
-        fixturePath = fixtureTemporaryDirectory.path.appending(
-            component: arguments[arguments.firstIndex(where: { $0 == "--name" })! + 1]
-        )
-
-        let arguments = [
-            "--path", fixturePath.pathString,
-        ] + arguments
-
         let parsedCommand = try command.parse(arguments)
         try await parsedCommand.run()
     }
@@ -201,6 +184,15 @@ open class TuistAcceptanceTestCase: XCTestCase {
             .first(where: { $0.extension == "xcodeproj" })
         workspacePath = try FileHandler.shared.contentsOfDirectory(fixturePath)
             .first(where: { $0.extension == "xcworkspace" })
+    }
+
+    public func run(_ command: XcodeBuildCommand.Type, _ arguments: String...) async throws {
+        try await run(command, arguments)
+    }
+
+    public func run(_ command: XcodeBuildCommand.Type, _ arguments: [String] = []) async throws {
+        let parsedCommand = try command.parse(arguments)
+        try await parsedCommand.run()
     }
 
     public func run(_ command: (some AsyncParsableCommand).Type, _ arguments: String...) async throws {

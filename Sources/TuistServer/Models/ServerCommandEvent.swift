@@ -1,7 +1,7 @@
 import Foundation
 
 /// Server command event
-public struct ServerCommandEvent: Codable {
+public struct ServerCommandEvent: Codable, Equatable {
     public let id: Int
     public let name: String
     public let url: URL

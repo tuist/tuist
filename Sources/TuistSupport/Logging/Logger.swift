@@ -1,7 +1,25 @@
-import class Foundation.ProcessInfo
+import FileLogging
 @_exported import Logging
+import LoggingOSLog
+import Path
+import ServiceContextModule
 
-let logger = Logger(label: "io.tuist.support")
+import class Foundation.ProcessInfo
+
+private enum LoggerServiceContextKey: ServiceContextKey {
+    typealias Value = Logger
+}
+
+extension ServiceContext {
+    public var logger: Logger? {
+        get {
+            self[LoggerServiceContextKey.self]
+        }
+        set {
+            self[LoggerServiceContextKey.self] = newValue
+        }
+    }
+}
 
 public struct LoggingConfig {
     public init(loggerType: LoggerType, verbose: Bool) {
@@ -19,6 +37,59 @@ public struct LoggingConfig {
 
     public var loggerType: LoggerType
     public var verbose: Bool
+}
+
+extension Logger {
+    public static func defaultLoggerHandler(
+        config: LoggingConfig = .default,
+        logFilePath: AbsolutePath
+    ) throws -> @Sendable (String) -> any LogHandler {
+        let handler: VerboseLogHandler.Type
+
+        switch config.loggerType {
+        case .osLog:
+            handler = OSLogHandler.self
+        case .detailed:
+            handler = DetailedLogHandler.self
+        case .console:
+            handler = StandardLogHandler.self
+        case .json:
+            handler = JSONLogHandler.self
+        case .quiet:
+            return quietLogHandler
+        }
+
+        let fileLogger = try FileLogging(to: logFilePath.url)
+
+        let baseLoggers = { (label: String) -> [any LogHandler] in
+            var loggers: [any LogHandler] = [
+                FileLogHandler(label: label, fileLogger: fileLogger),
+            ]
+
+            // OSLog is not needed in development.
+            // If we include it, the Xcode console will show duplicated logs, making it harder for contributors to debug the
+            // execution
+            // within Xcode.
+            // When run directly from a terminal, logs are not duplicated.
+            #if RELEASE
+                loggers.append(LoggingOSLog(label: label))
+            #endif
+            return loggers
+        }
+        if config.verbose {
+            return { label in
+                var loggers = baseLoggers(label)
+                loggers.append(handler.verbose(label: label))
+                return MultiplexLogHandler(loggers)
+            }
+        } else {
+            return { label in
+                var loggers = baseLoggers(label)
+                loggers.append(handler.init(label: label))
+                return MultiplexLogHandler(loggers)
+            }
+        }
+    }
 }
 
 extension LoggingConfig {
@@ -42,38 +113,10 @@ extension LoggingConfig {
     }
 }
 
-public enum LogOutput {
-    static var environment = ProcessInfo.processInfo.environment
-
-    public static func bootstrap(config: LoggingConfig = .default) {
-        let handler: VerboseLogHandler.Type
-
-        switch config.loggerType {
-        case .osLog:
-            handler = OSLogHandler.self
-        case .detailed:
-            handler = DetailedLogHandler.self
-        case .console:
-            handler = StandardLogHandler.self
-        case .json:
-            handler = JSONLogHandler.self
-        case .quiet:
-            LoggingSystem.bootstrap(quietLogHandler)
-            return
-        }
-
-        if config.verbose {
-            LoggingSystem.bootstrap(handler.verbose)
-        } else {
-            LoggingSystem.bootstrap(handler.init)
-        }
-    }
-}
-
 // A `VerboseLogHandler` allows for a LogHandler to be initialised with the `debug` logLevel.
 protocol VerboseLogHandler: LogHandler {
-    static func verbose(label: String) -> LogHandler
-    init(label: String)
+    @Sendable static func verbose(label: String) -> LogHandler
+    @Sendable init(label: String)
 }
 
 extension DetailedLogHandler: VerboseLogHandler {
@@ -100,6 +143,6 @@ extension JSONLogHandler: VerboseLogHandler {
     }
 }
 
-private func quietLogHandler(label: String) -> LogHandler {
+@Sendable private func quietLogHandler(label: String) -> LogHandler {
     return StandardLogHandler(label: label, logLevel: .notice)
 }

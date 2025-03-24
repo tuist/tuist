@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import ServiceContextModule
 import TuistCache
 import TuistCore
 import TuistGenerator
@@ -7,7 +8,6 @@ import TuistLoader
 import TuistPlugin
 import TuistServer
 import TuistSupport
-import XcodeGraph
 
 final class GenerateService {
     private let opener: Opening
@@ -25,7 +25,7 @@ final class GenerateService {
         timeTakenLoggerFormatter: TimeTakenLoggerFormatting = TimeTakenLoggerFormatter(),
         opener: Opening = Opener(),
         pluginService: PluginServicing = PluginService(),
-        configLoader: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader(), warningController: WarningController.shared)
+        configLoader: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader())
     ) {
         self.generatorFactory = generatorFactory
         self.cacheStorageFactory = cacheStorageFactory
@@ -41,8 +41,7 @@ final class GenerateService {
         sources: Set<String>,
         noOpen: Bool,
         configuration: String?,
-        ignoreBinaryCache: Bool,
-        analyticsDelegate: TrackableParametersDelegate?
+        ignoreBinaryCache: Bool
     ) async throws {
         let timer = clock.startTimer()
         let path = try self.path(path)
@@ -56,14 +55,11 @@ final class GenerateService {
             cacheStorage: cacheStorage
         )
         let (workspacePath, _, environment) = try await generator.generateWithGraph(path: path)
-        analyticsDelegate?.cacheableTargets = environment.cacheableTargets
-        analyticsDelegate?.cacheItems = environment.targetCacheItems.values.flatMap(\.values)
-            .sorted(by: { $0.name < $1.name })
         if !noOpen {
             try await opener.open(path: workspacePath)
         }
-        logger.notice("Project generated.", metadata: .success)
-        logger.notice(timeTakenLoggerFormatter.timeTakenMessage(for: timer))
+        ServiceContext.current?.alerts?.success(.alert("Project generated."))
+        ServiceContext.current?.logger?.notice(timeTakenLoggerFormatter.timeTakenMessage(for: timer))
     }
 
     // MARK: - Helpers

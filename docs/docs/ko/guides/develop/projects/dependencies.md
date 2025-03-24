@@ -61,7 +61,7 @@ Xcode의 기본 통합 메커니즘을 사용하거나 Tuist의 XcodeProj 기반
 
 Xcode의 기본 통합이 가장 편리하긴 하지만, 중간 규모 및 대형 프로젝트에서 필요한 유연성과 제어 기능이 부족합니다.
 이를 극복하기 위해 Tuist는 XcodeProj 기반 통합을 제공하여 XcodeProj의 target을 사용해 프로젝트에 Swift 패키지를 통합할 수 있도록 합니다.
-덕분에 통합을 더 잘 제어할 수 있을 뿐만 아니라, <LocalizedLink href="/guides/develop/build/cache">caching</LocalizedLink> 및 <LocalizedLink href="/guides/develop/test/smart-runner">smart test runs</LocalizedLink>과 같은 워크플로우와도 호환되도록 만들 수 있습니다.
+덕분에 통합에 대한 더 많은 제어를 제공할 뿐만 아니라, <LocalizedLink href="/guides/develop/build/cache">캐싱</LocalizedLink>과 <LocalizedLink href="/guides/develop/test/selective-testing">스마트 테스트 수행</LocalizedLink>과 같은 워크플로우와도 호환될 수 있습니다.
 
 XcodeProj의 통합은 새로운 Swift Package 기능을 지원하거나 더 많은 Package 구성을 처리하는데 시간이 더 걸릴 가능성이 큽니다. 하지만 Swift Packages와 XcodeProj target 간의 매핑 로직은 오픈소스이며, 커뮤니티에서 기여할 수 있습니다. 이는 Apple이 관리하는 비공개 소스인 Xcode의 기본 통합 방식과는 대조됩니다.
 
@@ -89,7 +89,13 @@ let package = Package(
     name: "PackageName",
     dependencies: [
         .package(url: "https://github.com/Alamofire/Alamofire", from: "5.0.0"),
-
+    ],
+    targets: [
+        .binaryTarget(
+            name: "Sentry",
+            url: "https://github.com/getsentry/sentry-cocoa/releases/download/8.40.1/Sentry.xcframework.zip",
+            checksum: "db928e6fdc30de1aa97200576d86d467880df710cf5eeb76af23997968d7b2c7"
+        ),
     ]
 )
 ```
@@ -240,11 +246,11 @@ pod install
 
 ## Static or dynamic {#static-or-dynamic}
 
-Framework와 Library는 정적(static) 또는 동적(dynamic)으로 링크할 수 있으며, **이는 앱 크기와 실행 시간과 같은 부분에 크게 영향을 미칩니다.** 이것은 중요한 결정임에도 불구하고, 대부분은 깊이 고려되지 않고 선택됩니다.
+Framework와 Library는 정적(static) 또는 동적(dynamic)으로 링크할 수 있으며, **이는 앱 크기와 실행 시간과 같은 부분에 크게 영향을 미칩니다.** 이것은 중요한 결정임에도 불구하고, 대부분은 깊이 고려되지 않고 선택됩니다. 이것은 중요한 결정임에도 불구하고, 대부분은 깊이 고려되지 않고 선택됩니다.
 
 **일반적인 규칙**은 빠른 실행 시간을 위해 릴리즈 빌드에서는 최대한 많은 항목을 정적으로 링크하고, 빠른 반복 작업을 위해 디버그 빌드에서는 최대한 많은 항목을 동적으로 링크하는 것입니다.
 
-Xcode에서 프로젝트 그래프의 링크 방식(static <-> dynamic)을 변경하는 것은 전체 그래프에 영향을 미치기 때문에 간단하지 않습니다 (예: 라이브러리는 리소스를 포함할 수 없고, 정적 프레임워크는 임베드가 불필요함).  Apple은 Swift Package Manager의 정적 및 동적 링크 자동 결정이나 [Mergeable Libraries](https://developer.apple.com/documentation/xcode/configuring-your-project-to-use-mergeable-libraries)와 같은 컴파일 타임 솔루션을 통해 이 문제를 해결하려고 했습니다. 그러나, 이는 컴파일 그래프에 새로운 동적 변수들을 추가하여 비결정적 요소를 증가시키며, Swift Previews와 같이 컴파일 그래프에 의존하는 기능들이 불안정해질 가능성을 높입니다.
+Xcode에서 프로젝트 그래프의 링크 방식(static <-> dynamic)을 변경하는 것은 전체 그래프에 영향을 미치기 때문에 간단하지 않습니다 (예: 라이브러리는 리소스를 포함할 수 없고, 정적 프레임워크는 임베드가 불필요함). Apple은 Swift Package Manager의 정적 및 동적 링크 자동 결정이나 [Mergeable Libraries](https://developer.apple.com/documentation/xcode/configuring-your-project-to-use-mergeable-libraries)와 같은 컴파일 타임 솔루션을 통해 이 문제를 해결하려고 했습니다. 그러나, 이는 컴파일 그래프에 새로운 동적 변수들을 추가하여 비결정적 요소를 증가시키며, Swift Previews와 같이 컴파일 그래프에 의존하는 기능들이 불안정해질 가능성을 높입니다.
 
 다행히도, Tuist는 정적 및 동적 링크 간의 변경과 관련된 복잡성을 개념적으로 단순화하고, 링크 타입과 관계없이 표준화된 <LocalizedLink href="/guides/develop/projects/synthesized-files#bundle-accessors">bundle accessors</LocalizedLink>를 생성합니다. <LocalizedLink href="/guides/develop/projects/dynamic-configuration">환경 변수를 통한 동적 구성</LocalizedLink>과 함께 사용하면 호출 시점에 링크 타입을 전달할 수 있으며, 이 값을 manifest에서 사용해 target의 product 타입을 설정할 수 있습니다.
 
@@ -269,7 +275,7 @@ Tuist는 <LocalizedLink href="/guides/develop/projects/cost-of-convenience">비�
 링크 방식을 전부 정적 또는 동적으로만 설정하는 것이 불가능하거나 적절하지 않은 경우가 있습니다. 다음은 정적 및 동적 링크를 혼합해야 할 수 있는 상황들의 예입니다:
 
 - **확장 기능이 포함된 앱:** 앱과 확장 기능이 코드를 공유해야 하기 때문에, target들을 동적으로 만들어야할 수 있습니다. 그렇지 않으면, 동일한 코드가 앱과 확장 기능 모두에 중복되어 바이너리 크기가 커지게 됩니다.
-- **사전에 컴파일된 외부 의존성**: 때로는 정적 또는 동적으로 미리 컴파일된 바이너리가 제공되기도 합니다. 정적 바이너리는 동적 프레임워크나 라이브러리로 감싸서 동적으로 링크될 수 있습니다.
+- **사전에 컴파일된 외부 의존성**: 때로는 정적 또는 동적으로 미리 컴파일된 바이너리가 제공되기도 합니다. 정적 바이너리는 동적으로 링크하기 위해 동적 프레임워크나 라이브러리로 감쌀 수 있습니다.
 
 그래프를 변경할 때, Tuist는 이를 분석하여 "static side effect"를 감지하면 경고를 표시합니다. 이 경고는 동적 target을 통해 정적 target에 전이적으로 의존하는 target을 정적으로 링크할 때 발생할 수 있는 문제를 식별하는 데 도움을 줍니다. 이러한 side effect는 종종 바이너리 크기 증가로 나타나거나, 최악의 경우 런타임 크래시가 발생할 수 있습니다.
 

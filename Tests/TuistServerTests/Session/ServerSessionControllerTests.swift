@@ -1,6 +1,6 @@
 import Foundation
 import Mockable
-import Path
+import ServiceContextModule
 import TuistSupport
 import XCTest
 
@@ -67,133 +67,162 @@ final class ServerSessionControllerTests: TuistUnitTestCase {
             .willReturn()
 
         // When
-        try await subject.authenticate(serverURL: serverURL)
+        var authURLOpened: URL?
+        try await subject.authenticate(
+            serverURL: serverURL,
+            deviceCodeType: .cli,
+            onOpeningBrowser: { authURLOpened = $0 },
+            onAuthWaitBegin: {}
+        )
 
         // Then
-        XCTAssertPrinterOutputContains("""
-        Opening \(authURL().absoluteString) to start the authentication flow
-        Press CTRL + C once to cancel the process.
-        Credentials stored successfully
-        """)
+        XCTAssertEqual(authURLOpened, authURL())
     }
 
-    func test_printSession_when_legacyUserToken() async throws {
-        // When
-        given(serverAuthenticationController)
-            .authenticationToken(serverURL: .value(serverURL))
-            .willReturn(
-                .user(legacyToken: "legacy-token", accessToken: nil, refreshToken: nil)
-            )
-        try await subject.printSession(serverURL: serverURL)
-
-        // Then
-        XCTAssertPrinterOutputContains("""
-        Requests against \(serverURL.absoluteString) will be authenticated as a user using the following token:
-        legacy-token
-        """)
-    }
-
-    func test_printSession_when_userToken() async throws {
-        // When
+    func test_whoami_when_logged_in() async throws {
+        // Given
         given(serverAuthenticationController)
             .authenticationToken(serverURL: .value(serverURL))
             .willReturn(
                 .user(
                     legacyToken: nil,
-                    accessToken: .test(token: "access-token"),
-                    refreshToken: .test(token: "refresh-token")
+                    accessToken: .test(
+                        email: "tuist@tuist.io",
+                        preferredUsername: "tuist"
+                    ),
+                    refreshToken: .test(
+                        email: "tuist@tuist.io",
+                        preferredUsername: "tuist"
+                    )
                 )
             )
-        try await subject.printSession(serverURL: serverURL)
 
-        // Then
-        XCTAssertPrinterOutputContains("""
-        Requests against \(serverURL.absoluteString) will be authenticated as a user using the following token:
-        access-token
-        """)
-    }
-
-    func test_printSession_when_projectToken() async throws {
         // When
-        given(serverAuthenticationController).authenticationToken(serverURL: .value(serverURL)).willReturn(.project("token"))
-        try await subject.printSession(serverURL: serverURL)
+        let got = try await subject.whoami(serverURL: serverURL)
 
         // Then
-        XCTAssertPrinterOutputContains("""
-        Requests against \(serverURL.absoluteString) will be authenticated as a project using the following token:
-        token
-        """)
+        XCTAssertEqual(got, "tuist")
     }
 
-    func test_printSession_when_credentialsDontExist() async throws {
+    func test_whoami_when_logged_out() async throws {
         // Given
-        given(serverAuthenticationController).authenticationToken(serverURL: .value(serverURL)).willReturn(nil)
+        given(serverAuthenticationController)
+            .authenticationToken(serverURL: .value(serverURL))
+            .willReturn(
+                .user(legacyToken: nil, accessToken: nil, refreshToken: nil)
+            )
 
         // When
-        try await subject.printSession(serverURL: serverURL)
+        let got = try await subject.whoami(serverURL: serverURL)
 
         // Then
-        XCTAssertPrinterOutputContains("""
-        There are no sessions for the server with URL \(serverURL.absoluteString)
-        """)
+        XCTAssertEqual(got, nil)
+    }
+
+    func test_whoami_when_logged_in_with_legacy_token() async throws {
+        // Given
+        given(serverAuthenticationController)
+            .authenticationToken(serverURL: .value(serverURL))
+            .willReturn(
+                .user(legacyToken: "legacy-token", accessToken: nil, refreshToken: nil)
+            )
+
+        // When
+        let got = try await subject.whoami(serverURL: serverURL)
+
+        // Then
+        XCTAssertEqual(got, nil)
+    }
+
+    func test_get_authenticated_handle_when_logged_in() async throws {
+        // Given
+        given(serverAuthenticationController)
+            .authenticationToken(serverURL: .value(serverURL))
+            .willReturn(
+                .user(
+                    legacyToken: nil,
+                    accessToken: .test(
+                        email: "tuist@tuist.io",
+                        preferredUsername: "tuist"
+                    ),
+                    refreshToken: .test(
+                        email: "tuist@tuist.io",
+                        preferredUsername: "tuist"
+                    )
+                )
+            )
+
+        // When
+        let got = try await subject.whoami(serverURL: serverURL)
+
+        // Then
+        XCTAssertEqual(got, "tuist")
+    }
+
+    func test_get_authenticated_handle_when_logged_out() async throws {
+        given(serverAuthenticationController)
+            .authenticationToken(serverURL: .value(serverURL))
+            .willReturn(
+                .user(legacyToken: nil, accessToken: nil, refreshToken: nil)
+            )
+
+        // Then
+        await XCTAssertThrowsSpecific(
+            try await subject.authenticatedHandle(serverURL: serverURL),
+            ServerSessionControllerError.unauthenticated
+        )
     }
 
     func test_logout_deletesLegacyCredentials() async throws {
-        // Given
-        let credentials = ServerCredentials(
-            token: "token",
-            accessToken: nil,
-            refreshToken: nil
-        )
-        given(credentialsStore)
-            .store(credentials: .value(credentials), serverURL: .value(serverURL))
-            .willReturn()
-        try await credentialsStore.store(credentials: credentials, serverURL: serverURL)
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            let credentials = ServerCredentials(
+                token: "token",
+                accessToken: nil,
+                refreshToken: nil
+            )
+            given(credentialsStore)
+                .store(credentials: .value(credentials), serverURL: .value(serverURL))
+                .willReturn()
+            try await credentialsStore.store(credentials: credentials, serverURL: serverURL)
 
-        given(credentialsStore)
-            .delete(serverURL: .value(serverURL))
-            .willReturn()
+            given(credentialsStore)
+                .delete(serverURL: .value(serverURL))
+                .willReturn()
 
-        // When
-        try await subject.logout(serverURL: serverURL)
-
-        // Then
-        XCTAssertPrinterOutputContains("""
-        Removing session for server with URL \(serverURL.absoluteString)
-        Session deleted successfully
-        """)
+            // When
+            try await subject.logout(serverURL: serverURL)
+        }
     }
 
     func test_logout_deletesCredentials() async throws {
-        // Given
-        let credentials = ServerCredentials(
-            token: nil,
-            accessToken: "access-token",
-            refreshToken: "refresh-token"
-        )
-        given(credentialsStore)
-            .store(credentials: .value(credentials), serverURL: .value(serverURL))
-            .willReturn()
-        try await credentialsStore.store(credentials: credentials, serverURL: serverURL)
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            let credentials = ServerCredentials(
+                token: nil,
+                accessToken: "access-token",
+                refreshToken: "refresh-token"
+            )
+            given(credentialsStore)
+                .store(credentials: .value(credentials), serverURL: .value(serverURL))
+                .willReturn()
+            try await credentialsStore.store(credentials: credentials, serverURL: serverURL)
 
-        given(credentialsStore)
-            .delete(serverURL: .value(serverURL))
-            .willReturn()
+            given(credentialsStore)
+                .delete(serverURL: .value(serverURL))
+                .willReturn()
 
-        // When
-        try await subject.logout(serverURL: serverURL)
-
-        // Then
-        XCTAssertPrinterOutputContains("""
-        Removing session for server with URL \(serverURL.absoluteString)
-        Session deleted successfully
-        """)
+            // When
+            try await subject.logout(serverURL: serverURL)
+        }
     }
 
     fileprivate func authURL() -> URL {
         var components = URLComponents(url: serverURL, resolvingAgainstBaseURL: false)!
-        components.path = "/auth/cli/\(uniqueIDGenerator.uniqueID())"
-        components.queryItems = nil
+        components.path = "/auth/device_codes/\(uniqueIDGenerator.uniqueID())"
+        components.queryItems = [
+            URLQueryItem(name: "type", value: "cli"),
+        ]
         return components.url!
     }
 }

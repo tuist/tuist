@@ -183,6 +183,22 @@ final class SettingsMapperTests: XCTestCase {
         )
     }
 
+    func test_set_SWIFT_VERSION() throws {
+        let settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting] = [
+            .init(tool: .swift, name: .swiftLanguageMode, condition: nil, value: ["6"]),
+        ]
+
+        let mapper = SettingsMapper(
+            headerSearchPaths: [],
+            mainRelativePath: try RelativePath(validating: "path"),
+            settings: settings
+        )
+
+        let resolvedSettings = try mapper.settingsDictionary()
+
+        XCTAssertEqual(resolvedSettings["SWIFT_VERSION"], .string("6"))
+    }
+
     func test_set_Combined() throws {
         let settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting] = [
             .init(tool: .swift, name: .define, condition: nil, value: ["Define1"]),

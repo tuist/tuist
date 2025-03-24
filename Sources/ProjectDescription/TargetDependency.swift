@@ -1,5 +1,3 @@
-import Foundation
-
 /// Dependency status used by dependencies
 public enum LinkingStatus: String, Codable, Hashable, Sendable {
     /// Required dependency
@@ -59,6 +57,12 @@ public enum TargetDependency: Codable, Hashable, Sendable {
     ///   - status: The dependency status (optional dependencies are weakly linked)
     ///   - condition: condition under which to use this dependency, `nil` if this should always be used
     case target(name: String, status: LinkingStatus = .required, condition: PlatformCondition? = nil)
+
+    /// Dependency on a macro target within the same project
+    ///
+    /// - Parameters:
+    ///   - name: Name of the target to depend on
+    case macro(name: String)
 
     /// Dependency on a target within another project
     ///
@@ -149,6 +153,8 @@ public enum TargetDependency: Codable, Hashable, Sendable {
         switch self {
         case .target:
             return "target"
+        case .macro:
+            return "macro"
         case .project:
             return "project"
         case .framework:

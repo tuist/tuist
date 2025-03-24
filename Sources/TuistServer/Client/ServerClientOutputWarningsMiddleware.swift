@@ -1,6 +1,7 @@
 import Foundation
 import HTTPTypes
 import OpenAPIRuntime
+import ServiceContextModule
 import TuistSupport
 
 enum CloudClientOutputWarningsMiddlewareError: FatalError {
@@ -29,12 +30,6 @@ enum CloudClientOutputWarningsMiddlewareError: FatalError {
 /// A middleware that gets any warning returned in a "x-cloud-warning" header
 /// and outputs it to the user.
 struct ServerClientOutputWarningsMiddleware: ClientMiddleware {
-    let warningController: WarningControlling
-
-    init(warningController: WarningControlling = WarningController.shared) {
-        self.warningController = warningController
-    }
-
     func intercept(
         _ request: HTTPRequest,
         body: HTTPBody?,
@@ -57,7 +52,8 @@ struct ServerClientOutputWarningsMiddleware: ClientMiddleware {
             throw CloudClientOutputWarningsMiddlewareError.invalidSchema
         }
 
-        json.forEach { logger.warning("\($0)") }
+        let logger = ServiceContext.$current.get()?.logger
+        json.forEach { logger?.warning("\($0)") }
 
         return (response, body)
     }

@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import ServiceContextModule
 import TuistAutomation
 import TuistCore
 import TuistLoader
@@ -46,7 +47,7 @@ public final class BuildService {
         cacheStorageFactory: CacheStorageFactorying,
         buildGraphInspector: BuildGraphInspecting = BuildGraphInspector(),
         targetBuilder: TargetBuilding = TargetBuilder(),
-        configLoader: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader(), warningController: WarningController.shared)
+        configLoader: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader())
     ) {
         self.generatorFactory = generatorFactory
         self.cacheStorageFactory = cacheStorageFactory
@@ -70,7 +71,7 @@ public final class BuildService {
         osVersion: String?,
         rosetta: Bool,
         generateOnly: Bool,
-        generator _: ((Config) throws -> Generating)? = nil,
+        generator _: ((Tuist) throws -> Generating)? = nil,
         passthroughXcodeBuildArguments: [String]
     ) async throws {
         let graph: Graph
@@ -107,7 +108,7 @@ public final class BuildService {
             )
         }
 
-        logger.log(
+        ServiceContext.current?.logger?.log(
             level: .debug,
             "Found the following buildable schemes: \(buildableSchemes.map(\.name).joined(separator: ", "))"
         )
@@ -180,6 +181,6 @@ public final class BuildService {
             }
         }
 
-        logger.log(level: .notice, "The project built successfully", metadata: .success)
+        ServiceContext.current?.alerts?.success(.alert("The project built successfully"))
     }
 }

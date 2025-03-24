@@ -6,11 +6,11 @@ description: Xcode 프로젝트를 정의하는 Tuist의 DSL에 대해 배워봅
 
 # Projects {#projects}
 
-Tuist Project는 복잡성과 비용을 적절하게 유지하면서 문제를 해결하는데 도움이 되는 해결책입니다. 이것은 Xcode 프로젝트를 기본 요소로 고려하여 Xcode 업데이트를 대응하고, Xcode 프로젝트 생성을 활용하여 팀에게 모듈화 중심의 선언적 API를 제공합니다. Tuist는 프로젝트 선언을 사용하여 모듈화\*\*의 복잡성을 단순화하고, 여러 환경에서의 빌드나 테스트와 같은 워크플로우를 최적화하고, Xcode 프로젝트의 발전과 관리에 대한 접근성을 넓힙니다.
+Generated는 복잡성과 비용을 적절하게 유지하면서 문제를 해결하는데 도움이 되는 해결책입니다. 이것은 Xcode 프로젝트를 기본 요소로 고려하여 Xcode 업데이트를 대응하고, Xcode 프로젝트 생성을 활용하여 팀에게 모듈화 중심의 선언적 API를 제공합니다. Tuist는 프로젝트 선언을 사용하여 모듈화\*\*의 복잡성을 단순화하고, 여러 환경에서의 빌드나 테스트와 같은 워크플로우를 최적화하고, Xcode 프로젝트의 발전과 관리에 대한 접근성을 넓힙니다.
 
 ## 어떻게 동작하나요? {#how-does-it-work}
 
-Tuist Project를 시작하려면 \*\*Tuist's Domain Specific Language (DSL)\*\*를 사용하여 프로젝터를 정의하면 됩니다. 여기에서 `Workspace.swift` 또는 `Project.swift`와 같은 매니페스트 파일을 사용하여 프로젝트를 정의합니다. 이전에 Swift Package Manager를 사용해본 적이 있다면 그 접근 방식과 유사합니다.
+생성된 프로젝트를 시작하려면 \*\*Tuist의 Domain Specific Language(DSL)\*\*을 사용하여 프로젝트를 정의하면 됩니다. 여기에서 `Workspace.swift` 또는 `Project.swift`와 같은 매니페스트 파일을 사용하여 프로젝트를 정의합니다. 이전에 Swift Package Manager를 사용해본 적이 있다면 그 접근 방식과 유사합니다.
 
 프로젝트를 정의한 후, Tuist는 프로젝트를 관리하고 상호 작용할 수 있는 다양한 워크플로우를 제공합니다:
 

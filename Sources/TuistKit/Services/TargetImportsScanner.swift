@@ -28,7 +28,7 @@ final class TargetImportsScanner: TargetImportsScanning {
             filesToScan.append(contentsOf: headers.project)
         }
         var imports = Set(
-            try await filesToScan.concurrentMap { file in
+            try await filesToScan.concurrentMap(maxConcurrentTasks: 100) { file in
                 try await self.matchPattern(at: file)
             }
             .flatMap { $0 }

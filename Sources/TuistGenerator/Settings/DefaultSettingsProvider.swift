@@ -146,7 +146,18 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
                 let filteredSettings = platformSetting
                     .filter { !DefaultSettingsProvider.multiplatformExcludedSettingsKeys.contains($0.key) }
 
-                settings.overlay(with: filteredSettings, for: platform)
+                for (key, newValue) in filteredSettings {
+                    if settings[key] == nil {
+                        settings[key] = newValue
+                    } else if settings[key] != newValue {
+                        let newKey = "\(key)[sdk=\(platform.xcodeSdkRoot)*]"
+                        settings[newKey] = newValue
+                        if platform.hasSimulators, let simulatorSDK = platform.xcodeSimulatorSDK {
+                            let newKey = "\(key)[sdk=\(simulatorSDK)*]"
+                            settings[newKey] = newValue
+                        }
+                    }
+                }
             }
         } else if let platform = target.supportedPlatforms.first {
             settings = try await targetSettings(
@@ -156,6 +167,11 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
                 buildConfiguration: buildConfiguration,
                 graphTraverser: graphTraverser
             )
+        }
+
+        /// This allows running the project directly withou specifying CODE_SIGN_IDENTITY
+        if target.supportsCatalyst {
+            settings.overlay(with: ["CODE_SIGN_IDENTITY": "-"], for: .macOS)
         }
 
         return settings
@@ -323,15 +339,26 @@ enum BuildSettingsError: FatalError {
 }
 
 extension BuildSettings {
-    func toSettings() throws -> SettingsDictionary {
-        try mapValues { value in
+    func toSettings() -> SettingsDictionary {
+        mapValues { value in
             switch value {
-            case let value as String:
+            case let .string(value):
                 return .string(value)
-            case let value as [String]:
+            case let .array(value):
                 return .array(value)
-            default:
-                throw BuildSettingsError.invalidValue(value)
+            }
+        }
+    }
+}
+
+extension SettingsDictionary {
+    func toBuildSettings() -> BuildSettings {
+        mapValues { value in
+            switch value {
+            case let .string(value):
+                return .string(value)
+            case let .array(value):
+                return .array(value)
             }
         }
     }

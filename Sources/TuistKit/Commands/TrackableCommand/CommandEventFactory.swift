@@ -5,6 +5,7 @@ import TuistAnalytics
 import TuistAsyncQueue
 import TuistCore
 import TuistSupport
+import XcodeGraph
 
 /// `CommandEventTagger` builds a `CommandEvent` by grouping information
 /// from different sources and tells `analyticsTagger` to send the event to a provider
@@ -43,11 +44,18 @@ public final class CommandEventFactory {
 
             gitBranch = try gitController.currentBranch(workingDirectory: path)
         }
+        let graph = info.graph.map {
+            map(
+                $0,
+                binaryCacheItems: info.binaryCacheItems,
+                selectiveTestingCacheItems: info.selectiveTestingCacheItems
+            )
+        }
+
         let commandEvent = CommandEvent(
             runId: info.runId,
             name: info.name,
             subcommand: info.subcommand,
-            params: info.parameters,
             commandArguments: info.commandArguments,
             durationInMs: Int(info.durationInMs),
             clientId: machineEnvironment.clientId,
@@ -61,19 +69,72 @@ public final class CommandEventFactory {
             gitRef: gitController.ref(environment: environment),
             gitRemoteURLOrigin: gitRemoteURLOrigin,
             gitBranch: gitBranch,
-            targetHashes: info.targetHashes,
-            graphPath: info.graphPath,
-            cacheableTargets: info.cacheableTargets,
-            localCacheTargetHits: info.cacheItems
-                .filter { $0.source == .local && $0.cacheCategory == .binaries }
-                .map(\.name),
-            remoteCacheTargetHits: info.cacheItems
-                .filter { $0.source == .remote && $0.cacheCategory == .binaries }
-                .map(\.name),
-            testTargets: info.selectiveTestsAnalytics?.testTargets ?? [],
-            localTestTargetHits: info.selectiveTestsAnalytics?.localTestTargetHits ?? [],
-            remoteTestTargetHits: info.selectiveTestsAnalytics?.remoteTestTargetHits ?? []
+            graph: graph,
+            previewId: info.previewId,
+            resultBundlePath: info.resultBundlePath,
+            ranAt: info.ranAt
         )
         return commandEvent
+    }
+
+    private func map(
+        _ graph: Graph,
+        binaryCacheItems: [AbsolutePath: [String: CacheItem]],
+        selectiveTestingCacheItems: [AbsolutePath: [String: CacheItem]]
+    ) -> RunGraph {
+        RunGraph(
+            name: graph.name,
+            projects: graph.projects.map { project in
+                RunProject(
+                    name: project.value.name,
+                    path: project.value.path.relative(to: graph.path),
+                    targets: project.value.targets.map { target in
+                        let binaryCacheMetadata: RunCacheTargetMetadata?
+                        if let cacheItem = binaryCacheItems[project.value.path]?[target.value.name] {
+                            let hit: RunCacheHit = switch cacheItem.source {
+                            case .miss:
+                                .miss
+                            case .local:
+                                .local
+                            case .remote:
+                                .remote
+                            }
+
+                            binaryCacheMetadata = RunCacheTargetMetadata(
+                                hash: cacheItem.hash,
+                                hit: hit
+                            )
+                        } else {
+                            binaryCacheMetadata = nil
+                        }
+                        let selectiveTestingMetadata: RunCacheTargetMetadata?
+                        if let cacheItem = selectiveTestingCacheItems[project.value.path]?[target.value.name] {
+                            let hit: RunCacheHit = switch cacheItem.source {
+                            case .miss:
+                                .miss
+                            case .local:
+                                .local
+                            case .remote:
+                                .remote
+                            }
+
+                            selectiveTestingMetadata = RunCacheTargetMetadata(
+                                hash: cacheItem.hash,
+                                hit: hit
+                            )
+                        } else {
+                            selectiveTestingMetadata = nil
+                        }
+
+                        return RunTarget(
+                            name: target.value.name,
+                            binaryCacheMetadata: binaryCacheMetadata,
+                            selectiveTestingMetadata: selectiveTestingMetadata
+                        )
+                    }
+                    .sorted(by: { $0.name < $1.name })
+                )
+            }
+        )
     }
 }

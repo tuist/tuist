@@ -1,4 +1,5 @@
 import Foundation
+import Mockable
 import TuistSupport
 
 enum FullHandleServiceError: FatalError, Equatable {
@@ -18,12 +19,15 @@ enum FullHandleServiceError: FatalError, Equatable {
     }
 }
 
-protocol FullHandleServicing {
+@Mockable
+public protocol FullHandleServicing {
     func parse(_ fullHandle: String) throws -> (accountHandle: String, projectHandle: String)
 }
 
-final class FullHandleService: FullHandleServicing {
-    func parse(_ fullHandle: String) throws -> (accountHandle: String, projectHandle: String) {
+public final class FullHandleService: FullHandleServicing {
+    public init() {}
+
+    public func parse(_ fullHandle: String) throws -> (accountHandle: String, projectHandle: String) {
         let components = fullHandle.components(separatedBy: "/")
         guard components.count == 2
         else {

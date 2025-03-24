@@ -1,12 +1,11 @@
 import Mockable
-import Path
+import ServiceContextModule
 import TuistCore
 import TuistLoader
 import TuistLoaderTesting
 import TuistPluginTesting
 import TuistScaffold
 import TuistSupportTesting
-import XcodeGraph
 import XCTest
 
 @testable import TuistKit
@@ -38,95 +37,101 @@ final class ListServiceTests: TuistUnitTestCase {
     }
 
     func test_lists_available_templates_table_format() async throws {
-        // Given
-        let expectedTemplates = ["template", "customTemplate"]
-        let expectedOutput = """
-        Name            Description
-        ──────────────  ───────────
-        template        description
-        customTemplate  description
-        """
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            let expectedTemplates = ["template", "customTemplate"]
+            let expectedOutput = """
+            Name            Description
+            ──────────────  ───────────
+            template        description
+            customTemplate  description
+            """
 
-        given(templatesDirectoryLocator)
-            .templateDirectories(at: .any)
-            .willReturn(try expectedTemplates.map(temporaryPath().appending))
+            given(templatesDirectoryLocator)
+                .templateDirectories(at: .any)
+                .willReturn(try expectedTemplates.map(temporaryPath().appending))
 
-        given(templateLoader)
-            .loadTemplate(at: .any, plugins: .any)
-            .willReturn(
-                Template(description: "description", items: [])
-            )
+            given(templateLoader)
+                .loadTemplate(at: .any, plugins: .any)
+                .willReturn(
+                    Template(description: "description", items: [])
+                )
 
-        // When
-        try await subject.run(path: nil, outputFormat: .table)
+            // When
+            try await subject.run(path: nil, outputFormat: .table)
 
-        // Then
-        XCTAssertPrinterContains(expectedOutput, at: .notice, ==)
+            // Then
+            XCTAssertPrinterContains(expectedOutput, at: .notice, ==)
+        }
     }
 
     func test_lists_available_templates_json_format() async throws {
-        // Given
-        let expectedTemplates = ["template", "customTemplate"]
-        let expectedOutput = """
-        [
-          {
-            "description": "description",
-            "name": "template"
-          },
-          {
-            "description": "description",
-            "name": "customTemplate"
-          }
-        ]
-        """
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            let expectedTemplates = ["template", "customTemplate"]
+            let expectedOutput = """
+            [
+              {
+                "description": "description",
+                "name": "template"
+              },
+              {
+                "description": "description",
+                "name": "customTemplate"
+              }
+            ]
+            """
 
-        given(templatesDirectoryLocator)
-            .templateDirectories(at: .any)
-            .willReturn(try expectedTemplates.map(temporaryPath().appending))
+            given(templatesDirectoryLocator)
+                .templateDirectories(at: .any)
+                .willReturn(try expectedTemplates.map(temporaryPath().appending))
 
-        given(templateLoader)
-            .loadTemplate(at: .any, plugins: .any)
-            .willReturn(
-                Template(description: "description", items: [])
-            )
+            given(templateLoader)
+                .loadTemplate(at: .any, plugins: .any)
+                .willReturn(
+                    Template(description: "description", items: [])
+                )
 
-        // When
-        try await subject.run(path: nil, outputFormat: .json)
+            // When
+            try await subject.run(path: nil, outputFormat: .json)
 
-        // Then
-        XCTAssertPrinterContains(expectedOutput, at: .notice, ==)
+            // Then
+            XCTAssertPrinterContains(expectedOutput, at: .notice, ==)
+        }
     }
 
     func test_lists_available_templates_with_plugins() async throws {
-        // Given
-        let expectedTemplates = ["template", "customTemplate", "pluginTemplate"]
-        let expectedOutput = """
-        Name            Description
-        ──────────────  ───────────
-        template        description
-        customTemplate  description
-        pluginTemplate  description
-        """
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            let expectedTemplates = ["template", "customTemplate", "pluginTemplate"]
+            let expectedOutput = """
+            Name            Description
+            ──────────────  ───────────
+            template        description
+            customTemplate  description
+            pluginTemplate  description
+            """
 
-        let pluginTemplatePath = try temporaryPath().appending(component: "PluginTemplate")
-        pluginService.loadPluginsStub = { _ in
-            Plugins.test(templatePaths: [pluginTemplatePath])
+            let pluginTemplatePath = try temporaryPath().appending(component: "PluginTemplate")
+            pluginService.loadPluginsStub = { _ in
+                Plugins.test(templatePaths: [pluginTemplatePath])
+            }
+
+            given(templatesDirectoryLocator)
+                .templateDirectories(at: .any)
+                .willReturn(try expectedTemplates.map(temporaryPath().appending))
+
+            given(templateLoader)
+                .loadTemplate(at: .any, plugins: .any)
+                .willReturn(
+                    Template(description: "description", items: [])
+                )
+
+            // When
+            try await subject.run(path: nil, outputFormat: .table)
+
+            // Then
+            XCTAssertPrinterContains(expectedOutput, at: .notice, ==)
         }
-
-        given(templatesDirectoryLocator)
-            .templateDirectories(at: .any)
-            .willReturn(try expectedTemplates.map(temporaryPath().appending))
-
-        given(templateLoader)
-            .loadTemplate(at: .any, plugins: .any)
-            .willReturn(
-                Template(description: "description", items: [])
-            )
-
-        // When
-        try await subject.run(path: nil, outputFormat: .table)
-
-        // Then
-        XCTAssertPrinterContains(expectedOutput, at: .notice, ==)
     }
 }

@@ -1,10 +1,9 @@
 import ArgumentParser
 import Foundation
-import Path
 import TuistGenerator
 import TuistSupport
 
-public struct EditCommand: AsyncParsableCommand {
+public struct EditCommand: AsyncParsableCommand, RecentPathRememberableCommand {
     public init() {}
 
     public static var configuration: CommandConfiguration {

@@ -1,9 +1,11 @@
 import Foundation
+import Mockable
 import Path
 import TuistCore
 import TuistSupport
 import XcodeGraph
 
+@Mockable
 public protocol TargetContentHashing {
     func contentHash(
         for target: GraphTarget,
@@ -96,8 +98,26 @@ public final class TargetContentHasher: TargetContentHashing {
         case let .external(hash: hash): hash
         case .local: nil
         }
+        let settingsHash: String?
+        if let settings = graphTarget.target.settings {
+            settingsHash = try await settingsContentHasher.hash(settings: settings)
+        } else {
+            settingsHash = nil
+        }
+
+        let destinations = graphTarget.target.destinations.map(\.rawValue).sorted()
+
         if let projectHash {
-            return TargetContentHash(hash: projectHash, hashedPaths: [:])
+            return TargetContentHash(
+                hash: try contentHasher.hash(
+                    [
+                        projectHash,
+                        graphTarget.target.product.rawValue,
+                        settingsHash,
+                    ].compactMap { $0 } + destinations + additionalStrings
+                ),
+                hashedPaths: [:]
+            )
         }
         var hashedPaths = hashedPaths
         let sourcesHash = try await sourceFilesContentHasher.hash(identifier: "sources", sources: graphTarget.target.sources).hash
@@ -129,7 +149,7 @@ public final class TargetContentHasher: TargetContentHashing {
             coreDataModelHash,
             targetScriptsHash,
             environmentHash,
-        ]
+        ] + destinations + additionalStrings
 
         stringsToHash.append(contentsOf: graphTarget.target.destinations.map(\.rawValue).sorted())
 
@@ -149,11 +169,10 @@ public final class TargetContentHasher: TargetContentHashing {
             let entitlementsHash = try await plistContentHasher.hash(plist: .entitlements(entitlements))
             stringsToHash.append(entitlementsHash)
         }
-        if let settings = graphTarget.target.settings {
-            let settingsHash = try await settingsContentHasher.hash(settings: settings)
+
+        if let settingsHash {
             stringsToHash.append(settingsHash)
         }
-        stringsToHash += additionalStrings
 
         return TargetContentHash(
             hash: try contentHasher.hash(stringsToHash),

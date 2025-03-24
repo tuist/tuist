@@ -1,4 +1,3 @@
-import Foundation
 import Path
 import TuistSupport
 import XcodeGraph
@@ -42,10 +41,7 @@ extension Project {
     }
 
     public func derivedDirectoryPath(for target: Target) -> AbsolutePath {
-        if isExternal,
-           path.pathString
-           .contains("\(Constants.SwiftPackageManager.packageBuildDirectoryName)/checkouts")
-        {
+        if case .remote = target.type {
             return path
                 // Leads to SPM's .build directory
                 .parentDirectory.parentDirectory

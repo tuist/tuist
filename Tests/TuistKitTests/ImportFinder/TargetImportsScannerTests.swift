@@ -1,5 +1,4 @@
 import FileSystem
-import Path
 import TuistSupport
 import TuistSupportTesting
 import XcodeGraph

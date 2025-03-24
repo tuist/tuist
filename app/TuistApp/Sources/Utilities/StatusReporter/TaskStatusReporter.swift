@@ -27,15 +27,25 @@ final class TaskStatusReporter: TaskStatusReporting {
     @MainActor func add(status: TaskStatus) {
         var cancellable: AnyCancellable?
         cancellable = status.$state
-            .sink { [weak self] taskState in
+            .sink { taskState in
                 _ = cancellable
 
-                if taskState == .done {
-                    self?.remove(status: status, withDelay: true)
+                switch taskState {
+                case .done:
                     cancellable = nil
+                case .preparing, .running:
+                    break
                 }
             }
 
+        statuses = statuses.filter {
+            switch $0.state {
+            case .done:
+                return false
+            case .preparing, .running:
+                return true
+            }
+        }
         statuses.append(status)
     }
 

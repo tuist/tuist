@@ -121,15 +121,6 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
             pbxproj: pbxproj,
             fileElements: fileElements
         )
-
-        try generateCopyExecutablesBuildPhase(
-            path: path,
-            target: target,
-            graphTraverser: graphTraverser,
-            pbxTarget: pbxTarget,
-            pbxproj: pbxproj,
-            fileElements: fileElements
-        )
     }
 
     private func setupSearchAndIncludePaths(
@@ -248,7 +239,7 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
                 buildFile.applyCondition(condition, applicableTo: target)
                 pbxproj.add(object: buildFile)
                 embedPhase.files?.append(buildFile)
-            case let .packageProduct(product, _):
+            case let .packageProduct(product, condition):
                 guard let productRef = productRefs.first(where: { $0.productName == product }) else {
                     break
                 }
@@ -257,6 +248,7 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
                     product: productRef,
                     settings: ["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]]
                 )
+                buildFile.applyCondition(condition, applicableTo: target)
                 pbxproj.add(object: buildFile)
                 embedPhase.files?.append(buildFile)
             case .library, .bundle, .sdk, .macro:
@@ -423,7 +415,7 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
             guard let fileRef = fileElements.file(path: path) else {
                 throw LinkGeneratorError.missingReference(path: path)
             }
-            var settings: [String: Any]?
+            var settings: [String: BuildFileSetting]?
             if status == .optional {
                 settings = ["ATTRIBUTES": ["Weak"]]
             }
@@ -444,17 +436,17 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
             case .bundle, .macro, .packageProduct:
                 break
             case let .product(dependencyTarget, _, status, condition):
-                guard status != .none else { return }
+                guard status != .none else { continue }
                 guard let fileRef = fileElements.product(target: dependencyTarget) else {
                     throw LinkGeneratorError.missingProduct(name: dependencyTarget)
                 }
-                let settings = status == .optional ? ["ATTRIBUTES": ["Weak"]] : nil
+                let settings: [String: BuildFileSetting]? = status == .optional ? ["ATTRIBUTES": ["Weak"]] : nil
                 let buildFile = PBXBuildFile(file: fileRef, settings: settings)
                 buildFile.applyCondition(condition, applicableTo: target)
                 pbxproj.add(object: buildFile)
                 buildPhase.files?.append(buildFile)
             case let .sdk(sdkPath, sdkStatus, _, condition):
-                guard sdkStatus != .none else { return }
+                guard sdkStatus != .none else { continue }
                 guard let fileRef = fileElements.sdk(path: sdkPath) else {
                     throw LinkGeneratorError.missingReference(path: sdkPath)
                 }
@@ -519,27 +511,6 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
             pbxTarget: pbxTarget,
             pbxproj: pbxproj,
             target: target,
-            fileElements: fileElements
-        )
-    }
-
-    func generateCopyExecutablesBuildPhase(
-        path: AbsolutePath,
-        target: Target,
-        graphTraverser: GraphTraversing,
-        pbxTarget: PBXTarget,
-        pbxproj: PBXProj,
-        fileElements: ProjectFileElements
-    ) throws {
-        let dependencies = graphTraverser.executableDependencies(path: path, name: target.name).sorted()
-
-        try generateDependenciesBuildPhase(
-            dependencies: dependencies,
-            dstSubfolderSpec: .executables,
-            buildPhaseName: "Executable Dependencies",
-            target: target,
-            pbxTarget: pbxTarget,
-            pbxproj: pbxproj,
             fileElements: fileElements
         )
     }
@@ -642,7 +613,7 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
     }
 
     func createSDKBuildFile(for fileReference: PBXFileReference, status: LinkingStatus) -> PBXBuildFile {
-        var settings: [String: Any]?
+        var settings: [String: BuildFileSetting]?
         if status == .optional {
             settings = ["ATTRIBUTES": ["Weak"]]
         }
@@ -650,16 +621,6 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
             file: fileReference,
             settings: settings
         )
-    }
-}
-
-extension XCBuildConfiguration {
-    fileprivate func append(setting name: String, value: String) {
-        guard !value.isEmpty else {
-            return
-        }
-        let existing = (buildSettings[name] as? String) ?? "$(inherited)"
-        buildSettings[name] = [existing, value].joined(separator: " ")
     }
 }
 

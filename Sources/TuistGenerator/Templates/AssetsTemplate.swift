@@ -1,6 +1,7 @@
 // swiftformat:disable wrap
 extension SynthesizedResourceInterfaceTemplates {
     static let assetsTemplate = """
+    // swiftlint:disable:this file_name
     // swiftlint:disable all
     // swift-format-ignore-file
     // swiftformat:disable all

@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Mockable
 import Path
@@ -23,17 +24,31 @@ public protocol GraphContentHashing {
 /// is responsible for computing an hash that uniquely identifies a Tuist `Graph`.
 /// It considers only targets that are considered cacheable: frameworks without dependencies on XCTest or on non-cacheable targets
 public struct GraphContentHasher: GraphContentHashing {
+    private let contentHasher: ContentHashing
     private let targetContentHasher: TargetContentHashing
+    private let fileSystem: FileSysteming
+    private let rootDirectoryLocator: RootDirectoryLocating
 
     // MARK: - Init
 
     public init(contentHasher: ContentHashing) {
         let targetContentHasher = TargetContentHasher(contentHasher: contentHasher)
-        self.init(targetContentHasher: targetContentHasher)
+        self.init(
+            contentHasher: contentHasher,
+            targetContentHasher: targetContentHasher
+        )
     }
 
-    public init(targetContentHasher: TargetContentHashing) {
+    public init(
+        contentHasher: ContentHashing,
+        targetContentHasher: TargetContentHashing,
+        fileSystem: FileSysteming = FileSystem(),
+        rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator()
+    ) {
+        self.contentHasher = contentHasher
         self.targetContentHasher = targetContentHasher
+        self.fileSystem = fileSystem
+        self.rootDirectoryLocator = rootDirectoryLocator
     }
 
     // MARK: - GraphContentHashing
@@ -48,8 +63,13 @@ public struct GraphContentHasher: GraphContentHashing {
         let hashedTargets: ThreadSafe<[GraphHashedTarget: String]> = ThreadSafe([:])
         let hashedPaths: ThreadSafe<[AbsolutePath: String]> = ThreadSafe([:])
 
-        let sortedCacheableTargets = try graphTraverser.allTargetsTopologicalSorted()
+        var additionalStrings = additionalStrings
 
+        if let lockFileHash = try await lockFileHash(for: graph) {
+            additionalStrings.append(lockFileHash)
+        }
+
+        let sortedCacheableTargets = try graphTraverser.allTargetsTopologicalSorted()
         let hashableTargets = sortedCacheableTargets.compactMap { target -> GraphTarget? in
             if isHashable(
                 target,
@@ -111,5 +131,37 @@ public struct GraphContentHasher: GraphContentHashing {
         }
         visited[target] = allTargetDependenciesAreHashable
         return allTargetDependenciesAreHashable
+    }
+
+    private func lockFileHash(
+        for graph: Graph
+    ) async throws -> String? {
+        if let lockFilePath = try await rootDirectoryLocator.locate(from: graph.path)
+            .map({ $0.appending(component: ".package.resolved") }),
+            try await fileSystem.exists(lockFilePath)
+        {
+            return try await contentHasher.hash(
+                path: lockFilePath
+            )
+        }
+        if let workspacePath = try await fileSystem.glob(directory: graph.path, include: ["*.xcworkspace"]).collect().first {
+            let lockFilePath = workspacePath.appending(components: "xcshareddata", "swiftpm", "Package.resolved")
+            if try await fileSystem.exists(lockFilePath) {
+                return try await contentHasher.hash(path: lockFilePath)
+            }
+        } else if let projectPath = try await fileSystem.glob(directory: graph.path, include: ["*.xcodeproj"]).collect().first {
+            let lockFilePath = projectPath.appending(
+                components: [
+                    "project.xcworkspace",
+                    "xcshareddata",
+                    "swiftpm",
+                    "Package.resolved",
+                ]
+            )
+            if try await fileSystem.exists(lockFilePath) {
+                return try await contentHasher.hash(path: lockFilePath)
+            }
+        }
+        return nil
     }
 }

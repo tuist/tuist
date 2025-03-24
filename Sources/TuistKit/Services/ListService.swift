@@ -1,11 +1,11 @@
 import Foundation
 import Path
+import ServiceContextModule
 import TuistCore
 import TuistLoader
 import TuistPlugin
 import TuistScaffold
 import TuistSupport
-import XcodeGraph
 
 class ListService {
     // MARK: - OutputFormat
@@ -21,7 +21,7 @@ class ListService {
     private let templateLoader: TemplateLoading
 
     init(
-        configLoader: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader(), warningController: WarningController.shared),
+        configLoader: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader()),
         pluginService: PluginServicing = PluginService(),
         templatesDirectoryLocator: TemplatesDirectoryLocating = TemplatesDirectoryLocator(),
         templateLoader: TemplateLoading = TemplateLoader()
@@ -65,17 +65,25 @@ class ListService {
                 TextTable.Column(title: "Name", value: $0.name),
                 TextTable.Column(title: "Description", value: $0.description),
             ] }
-            logger.notice("\(textTable.render(templates))")
+            ServiceContext.current?.logger?.notice("\(textTable.render(templates))")
 
         case .json:
             let json = try templates.toJSON()
-            logger.notice("\(json.toString(prettyPrint: true))", metadata: .json)
+            ServiceContext.current?.logger?.notice("\(json.toString(prettyPrint: true))", metadata: .json)
         }
     }
 
     private func loadPlugins(at path: AbsolutePath) async throws -> Plugins {
         let config = try await configLoader.loadConfig(path: path)
-        return try await pluginService.loadPlugins(using: config)
+        if let generationOptions = config.project.generatedProject {
+            return try await pluginService.loadPlugins(using: generationOptions)
+        } else {
+            return Plugins(
+                projectDescriptionHelpers: [],
+                templatePaths: [],
+                resourceSynthesizers: []
+            )
+        }
     }
 
     /// Locates all template directories, local, system, and plugin.

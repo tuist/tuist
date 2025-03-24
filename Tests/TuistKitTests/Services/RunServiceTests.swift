@@ -46,7 +46,7 @@ final class RunServiceTests: TuistUnitTestCase {
     private var targetBuilder: MockTargetBuilder!
     private var targetRunner: MockTargetRunner!
     private var configLoader: MockConfigLoading!
-    private var downloadPreviewService: MockDownloadPreviewServicing!
+    private var getPreviewService: MockGetPreviewServicing!
     private var listPreviewsService: MockListPreviewsServicing!
     private var serverURLService: MockServerURLServicing!
     private var appRunner: MockAppRunning!
@@ -68,7 +68,7 @@ final class RunServiceTests: TuistUnitTestCase {
         targetBuilder = MockTargetBuilder()
         targetRunner = MockTargetRunner()
         configLoader = .init()
-        downloadPreviewService = .init()
+        getPreviewService = .init()
         listPreviewsService = .init()
         appRunner = .init()
         remoteArtifactDownloader = .init()
@@ -80,7 +80,7 @@ final class RunServiceTests: TuistUnitTestCase {
             targetBuilder: targetBuilder,
             targetRunner: targetRunner,
             configLoader: configLoader,
-            downloadPreviewService: downloadPreviewService,
+            getPreviewService: getPreviewService,
             listPreviewsService: listPreviewsService,
             fileHandler: fileHandler,
             fileSystem: FileSystem(),
@@ -96,7 +96,7 @@ final class RunServiceTests: TuistUnitTestCase {
         buildGraphInspector = nil
         targetBuilder = nil
         targetRunner = nil
-        downloadPreviewService = nil
+        getPreviewService = nil
         listPreviewsService = nil
         subject = nil
         generatorFactory = nil
@@ -268,32 +268,15 @@ final class RunServiceTests: TuistUnitTestCase {
         await fulfillment(of: [expectation], timeout: 1)
     }
 
-    func test_run_share_link_when_download_url_is_invalid() async throws {
-        // Given
-        given(downloadPreviewService)
-            .downloadPreview(
-                .any,
-                fullHandle: .any,
-                serverURL: .any
-            )
-            .willReturn("https://example com/page")
-
-        // When / Then
-        await XCTAssertThrowsSpecific(
-            try await subject.run(runnable: .url(URL(string: "https://tuist.io/tuist/tuist/preview/some-id")!)),
-            RunServiceError.invalidDownloadBuildURL("https://example com/page")
-        )
-    }
-
     func test_run_share_link_when_app_build_artifact_not_found() async throws {
         // Given
-        given(downloadPreviewService)
-            .downloadPreview(
+        given(getPreviewService)
+            .getPreview(
                 .any,
                 fullHandle: .any,
                 serverURL: .any
             )
-            .willReturn("https://example.com")
+            .willReturn(.test(url: .test()))
 
         given(remoteArtifactDownloader)
             .download(url: .any)
@@ -319,13 +302,13 @@ final class RunServiceTests: TuistUnitTestCase {
 
     func test_run_share_link_runs_app() async throws {
         // Given
-        given(downloadPreviewService)
-            .downloadPreview(
+        given(getPreviewService)
+            .getPreview(
                 .any,
                 fullHandle: .any,
                 serverURL: .any
             )
-            .willReturn("https://example.com")
+            .willReturn(.test())
 
         let downloadedArchive = try temporaryPath().appending(component: "archive")
 
@@ -374,13 +357,13 @@ final class RunServiceTests: TuistUnitTestCase {
 
     func test_run_preview_with_specifier_runs_app() async throws {
         // Given
-        given(downloadPreviewService)
-            .downloadPreview(
+        given(getPreviewService)
+            .getPreview(
                 .any,
                 fullHandle: .any,
                 serverURL: .any
             )
-            .willReturn("https://example.com")
+            .willReturn(.test())
 
         let downloadedArchive = try temporaryPath().appending(component: "archive")
 
@@ -489,13 +472,13 @@ final class RunServiceTests: TuistUnitTestCase {
 
     func test_run_share_link_runs_ipa() async throws {
         // Given
-        given(downloadPreviewService)
-            .downloadPreview(
+        given(getPreviewService)
+            .getPreview(
                 .any,
                 fullHandle: .any,
                 serverURL: .any
             )
-            .willReturn("https://example.com")
+            .willReturn(.test())
 
         let downloadedArchive = try temporaryPath().appending(component: "archive")
 
@@ -545,13 +528,13 @@ final class RunServiceTests: TuistUnitTestCase {
 
     func test_run_share_link_runs_with_destination_and_version() async throws {
         // Given
-        given(downloadPreviewService)
-            .downloadPreview(
+        given(getPreviewService)
+            .getPreview(
                 .any,
                 fullHandle: .any,
                 serverURL: .any
             )
-            .willReturn("https://example.com")
+            .willReturn(.test())
 
         let downloadedArchive = try temporaryPath().appending(component: "archive")
 

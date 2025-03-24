@@ -1,5 +1,3 @@
-import Foundation
-
 /// A resource synthesizer for given file extensions.
 ///
 /// For example to synthesize resource accessors for strings, you can use:

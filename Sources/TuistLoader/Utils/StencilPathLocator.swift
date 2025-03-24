@@ -3,7 +3,6 @@ import Foundation
 import Path
 import TuistCore
 import TuistSupport
-import XcodeGraph
 
 public protocol StencilPathLocating {
     func locate(at: AbsolutePath) async throws -> AbsolutePath?

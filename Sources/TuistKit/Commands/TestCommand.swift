@@ -1,20 +1,17 @@
-import AnyCodable
 import ArgumentParser
 import Foundation
 import Path
+import ServiceContextModule
 import TuistCore
 import TuistServer
 import TuistSupport
-import XcodeGraph
 
 /// Command that tests a target from the project in the current directory.
-public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
+public struct TestCommand: AsyncParsableCommand, LogConfigurableCommand, RecentPathRememberableCommand {
     public init() {}
 
-    public static var analyticsDelegate: TrackableParametersDelegate?
     public static var generatorFactory: GeneratorFactorying = GeneratorFactory()
     public static var cacheStorageFactory: CacheStorageFactorying = EmptyCacheStorageFactory()
-    public var runId = UUID().uuidString
 
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
@@ -22,6 +19,8 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
             abstract: "Tests a project"
         )
     }
+
+    var logFilePathDisplayStrategy: LogFilePathDisplayStrategy = .always
 
     @Argument(
         help: "The scheme to be tested. By default it tests all the testable targets of the project in the current directory.",
@@ -161,7 +160,7 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
     var binaryCache: Bool = true
 
     @Flag(
-        help: "Run all tests instead of selectively test only those that have changed since the last successful test run.",
+        help: "When --no-selective-testing is passed, tuist runs all tests without using selective testing.",
         envKey: .testSelectiveTesting
     )
     var selectiveTesting: Bool = true
@@ -173,6 +172,20 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
     )
     var generateOnly: Bool = false
 
+    @Flag(
+        name: .long,
+        help: "When passed, run the tests without building.",
+        envKey: .testWithoutBuilding
+    )
+    var withoutBuilding: Bool = false
+
+    @Flag(
+        name: .long,
+        help: "When passed, build the tests, but don't run them",
+        envKey: .testBuildOnly
+    )
+    var buildOnly: Bool = false
+
     @Argument(
         parsing: .postTerminator,
         help: "xcodebuild arguments that will be passthrough"
@@ -180,6 +193,10 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
     var passthroughXcodeBuildArguments: [String] = []
 
     public func validate() throws {
+        if withoutBuilding, buildOnly {
+            throw TestServiceError.actionInvalid
+        }
+
         try TestService.validateParameters(
             testTargets: testTargets,
             skipTestTargets: skipTestTargets
@@ -207,13 +224,13 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
 
         // Suggest the user to use passthrough arguments if already supported by xcodebuild
         if let derivedDataPath {
-            logger
+            ServiceContext.current?.logger?
                 .warning(
                     "--derivedDataPath is deprecated please use -derivedDataPath \(derivedDataPath) after the terminator (--) instead to passthrough parameters to xcodebuild"
                 )
         }
         if retryCount > 0 {
-            logger
+            ServiceContext.current?.logger?
                 .warning(
                     "--retryCount is deprecated please use -retry-tests-on-failure -test-iterations \(retryCount + 1) after the terminator (--) instead to passthrough parameters to xcodebuild"
                 )
@@ -225,22 +242,19 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
             FileHandler.shared.currentPath
         }
 
-        defer {
-            var parameters: [String: AnyCodable] = [
-                "no_binary_cache": AnyCodable(!binaryCache),
-                "no_selective_testing": AnyCodable(!selectiveTesting),
-            ]
-
-            TestCommand.analyticsDelegate?.addParameters(
-                parameters
-            )
+        let action: XcodeBuildTestAction = if buildOnly {
+            .build
+        } else if withoutBuilding {
+            .testWithoutBuilding
+        } else {
+            .test
         }
 
         try await TestService(
             generatorFactory: Self.generatorFactory,
             cacheStorageFactory: Self.cacheStorageFactory
         ).run(
-            runId: runId,
+            runId: ServiceContext.current?.runMetadataStorage?.runId ?? UUID().uuidString,
             schemeName: scheme,
             clean: clean,
             noUpload: noUpload,
@@ -249,6 +263,7 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
             deviceName: device,
             platform: platform,
             osVersion: os,
+            action: action,
             rosetta: rosetta,
             skipUITests: skipUITests,
             resultBundlePath: resultBundlePath.map {
@@ -272,8 +287,7 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
             ignoreBinaryCache: !binaryCache,
             ignoreSelectiveTesting: !selectiveTesting,
             generateOnly: generateOnly,
-            passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
-            analyticsDelegate: TestCommand.analyticsDelegate
+            passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
         )
     }
 }

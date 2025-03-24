@@ -1,6 +1,6 @@
 ---
 title: Gather insights
-titleTemplate: :title · Quick-start · Guides · Tuist
+titleTemplate: :title · Начало · Руководства · Tuist
 description: Learn how to gather insights about your project.
 ---
 
@@ -11,10 +11,10 @@ Tuist can integrate with a server to extend its capabilities. One of those capab
 First of all, you'll need to authenticate by running:
 
 ```bash
-tuist auth
+tuist auth login
 ```
 
-## Create a project {#create-a-project}
+## Создание проекта {#create-a-project}
 
 You can then create a project by running:
 

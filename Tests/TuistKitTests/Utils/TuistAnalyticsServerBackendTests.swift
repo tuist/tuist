@@ -1,11 +1,11 @@
 import FileSystem
 import Mockable
+import ServiceContextModule
 import TuistAnalytics
 import TuistCore
 import TuistCoreTesting
 import TuistServer
 import TuistSupport
-import XcodeGraph
 import XCTest
 @testable import TuistKit
 @testable import TuistSupportTesting
@@ -47,107 +47,103 @@ final class TuistAnalyticsServerBackendTests: TuistUnitTestCase {
     }
 
     func test_send_when_is_not_ci() async throws {
-        // Given
-        given(cacheDirectoriesProvider)
-            .cacheDirectory(for: .value(.runs))
-            .willReturn(try temporaryPath())
-        given(ciChecker)
-            .isCI()
-            .willReturn(false)
-        let event = CommandEvent.test()
-        given(createCommandEventService)
-            .createCommandEvent(
-                commandEvent: .value(event),
-                projectId: .value(fullHandle),
-                serverURL: .value(Constants.URLs.production)
-            )
-            .willReturn(
-                .test(
-                    id: 10,
-                    url: URL(string: "https://tuist.dev/tuist-org/tuist/runs/10")!
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            given(cacheDirectoriesProvider)
+                .cacheDirectory(for: .value(.runs))
+                .willReturn(try temporaryPath())
+            given(ciChecker)
+                .isCI()
+                .willReturn(false)
+            let event = CommandEvent.test()
+            given(createCommandEventService)
+                .createCommandEvent(
+                    commandEvent: .value(event),
+                    projectId: .value(fullHandle),
+                    serverURL: .value(Constants.URLs.production)
                 )
-            )
+                .willReturn(
+                    .test(
+                        id: 10,
+                        url: URL(string: "https://tuist.dev/tuist-org/tuist/runs/10")!
+                    )
+                )
 
-        // When
-        try await subject.send(commandEvent: event)
+            // When
+            let _: ServerCommandEvent = try await subject.send(commandEvent: event)
 
-        // Then
-        XCTAssertPrinterOutputNotContains("You can view a detailed report at: https://tuist.dev/tuist-org/tuist/runs/10")
+            // Then
+            XCTAssertPrinterOutputNotContains("You can view a detailed report at: https://tuist.dev/tuist-org/tuist/runs/10")
+        }
     }
 
     func test_send_when_is_ci() async throws {
-        // Given
-        given(cacheDirectoriesProvider)
-            .cacheDirectory(for: .value(.runs))
-            .willReturn(try temporaryPath())
-        given(ciChecker)
-            .isCI()
-            .willReturn(true)
-        let event = CommandEvent.test()
-        given(createCommandEventService)
-            .createCommandEvent(
-                commandEvent: .value(event),
-                projectId: .value(fullHandle),
-                serverURL: .value(Constants.URLs.production)
-            )
-            .willReturn(
-                .test(
-                    id: 10,
-                    url: URL(string: "https://tuist.dev/tuist-org/tuist/runs/10")!
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            given(cacheDirectoriesProvider)
+                .cacheDirectory(for: .value(.runs))
+                .willReturn(try temporaryPath())
+            given(ciChecker)
+                .isCI()
+                .willReturn(true)
+            let event = CommandEvent.test()
+            let serverCommandEvent: ServerCommandEvent = .test(id: 10)
+            given(createCommandEventService)
+                .createCommandEvent(
+                    commandEvent: .value(event),
+                    projectId: .value(fullHandle),
+                    serverURL: .value(Constants.URLs.production)
                 )
-            )
+                .willReturn(serverCommandEvent)
 
-        // When
-        try await subject.send(commandEvent: event)
+            // When
+            let got: ServerCommandEvent = try await subject.send(commandEvent: event)
 
-        // Then
-        XCTAssertStandardOutput(pattern: "You can view a detailed report at: https://tuist.dev/tuist-org/tuist/runs/10")
+            // Then
+            XCTAssertEqual(got, serverCommandEvent)
+        }
     }
 
     func test_send_when_is_ci_and_result_bundle_exists() async throws {
-        // Given
-        given(ciChecker)
-            .isCI()
-            .willReturn(true)
-        let event = CommandEvent.test()
-        given(createCommandEventService)
-            .createCommandEvent(
-                commandEvent: .value(event),
-                projectId: .value(fullHandle),
-                serverURL: .value(Constants.URLs.production)
-            )
-            .willReturn(
-                .test(
-                    id: 10,
-                    url: URL(string: "https://tuist.dev/tuist-org/tuist/runs/10")!
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            given(ciChecker)
+                .isCI()
+                .willReturn(true)
+            let event = CommandEvent.test()
+            let serverCommandEvent: ServerCommandEvent = .test(id: 11)
+            given(createCommandEventService)
+                .createCommandEvent(
+                    commandEvent: .value(event),
+                    projectId: .value(fullHandle),
+                    serverURL: .value(Constants.URLs.production)
                 )
-            )
+                .willReturn(serverCommandEvent)
 
-        given(cacheDirectoriesProvider)
-            .cacheDirectory(for: .value(.runs))
-            .willReturn(try temporaryPath())
+            given(cacheDirectoriesProvider)
+                .cacheDirectory(for: .value(.runs))
+                .willReturn(try temporaryPath())
 
-        let resultBundle = try cacheDirectoriesProvider
-            .cacheDirectory(for: .runs)
-            .appending(components: event.runId, "\(Constants.resultBundleName).xcresult")
-        try fileHandler.createFolder(resultBundle)
+            let resultBundle = try cacheDirectoriesProvider
+                .cacheDirectory(for: .runs)
+                .appending(components: event.runId, "\(Constants.resultBundleName).xcresult")
+            try fileHandler.createFolder(resultBundle)
 
-        given(analyticsArtifactUploadService)
-            .uploadResultBundle(
-                .value(resultBundle),
-                targetHashes: .any,
-                graphPath: .any,
-                commandEventId: .value(10),
-                serverURL: .value(Constants.URLs.production)
-            )
-            .willReturn(())
+            given(analyticsArtifactUploadService)
+                .uploadResultBundle(
+                    .value(resultBundle),
+                    commandEventId: .value(11),
+                    serverURL: .value(Constants.URLs.production)
+                )
+                .willReturn(())
 
-        // When
-        try await subject.send(commandEvent: event)
+            // When
+            let got: ServerCommandEvent = try await subject.send(commandEvent: event)
 
-        // Then
-        XCTAssertStandardOutput(pattern: "You can view a detailed report at: https://tuist.dev/tuist-org/tuist/runs/10")
-        let exists = try await fileSystem.exists(resultBundle)
-        XCTAssertFalse(exists)
+            // Then
+            XCTAssertEqual(got, serverCommandEvent)
+            let exists = try await fileSystem.exists(resultBundle)
+            XCTAssertFalse(exists)
+        }
     }
 }

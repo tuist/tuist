@@ -3,6 +3,7 @@ import Foundation
 import Mockable
 import Path
 import ProjectDescription
+import ServiceContextModule
 import TSCUtility
 import TuistCore
 import TuistSupport
@@ -88,11 +89,6 @@ enum PackageInfoMapperError: FatalError, Equatable {
     }
 }
 
-public enum PackageType {
-    case local
-    case external(artifactPaths: [String: AbsolutePath])
-}
-
 // MARK: - PackageInfo Mapper
 
 /// Protocol that allows to map a `PackageInfo` to a `ProjectDescription.Project`.
@@ -101,17 +97,18 @@ public protocol PackageInfoMapping {
     /// Resolves external SwiftPackageManager dependencies.
     /// - Returns: Mapped project
     func resolveExternalDependencies(
+        path: AbsolutePath,
         packageInfos: [String: PackageInfo],
         packageToFolder: [String: AbsolutePath],
         packageToTargetsToArtifactPaths: [String: [String: AbsolutePath]],
         packageModuleAliases: [String: [String: String]]
-    ) throws -> [String: [ProjectDescription.TargetDependency]]
+    ) async throws -> [String: [ProjectDescription.TargetDependency]]
 
     /// Maps a `PackageInfo` to a `ProjectDescription.Project`.
     /// - Returns: Mapped project
     func map(
         packageInfo: PackageInfo,
-        path: AbsolutePath,
+        packageFolder: AbsolutePath,
         packageType: PackageType,
         packageSettings: TuistCore.PackageSettings,
         packageModuleAliases: [String: [String: String]]
@@ -126,13 +123,16 @@ public final class PackageInfoMapper: PackageInfoMapping {
     fileprivate static let predefinedTestDirectories = ["Tests", "Sources", "Source", "src", "srcs"]
     private let moduleMapGenerator: SwiftPackageManagerModuleMapGenerating
     private let fileSystem: FileSysteming
+    private let rootDirectoryLocator: RootDirectoryLocating
 
     public init(
         moduleMapGenerator: SwiftPackageManagerModuleMapGenerating = SwiftPackageManagerModuleMapGenerator(),
-        fileSystem: FileSysteming = FileSystem()
+        fileSystem: FileSysteming = FileSystem(),
+        rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator()
     ) {
         self.moduleMapGenerator = moduleMapGenerator
         self.fileSystem = fileSystem
+        self.rootDirectoryLocator = rootDirectoryLocator
     }
 
     /// Resolves all SwiftPackageManager dependencies.
@@ -142,11 +142,12 @@ public final class PackageInfoMapper: PackageInfoMapping {
     ///   - packageToTargetsToArtifactPaths: Mapping from a package name its targets' names to artifacts' paths
     /// - Returns: Mapped project
     public func resolveExternalDependencies(
+        path: AbsolutePath,
         packageInfos: [String: PackageInfo],
         packageToFolder: [String: AbsolutePath],
         packageToTargetsToArtifactPaths: [String: [String: AbsolutePath]],
         packageModuleAliases: [String: [String: String]]
-    ) throws -> [String: [ProjectDescription.TargetDependency]] {
+    ) async throws -> [String: [ProjectDescription.TargetDependency]] {
         let targetDependencyToFramework: [String: Path] = try packageInfos.reduce(into: [:]) { result, packageInfo in
             try packageInfo.value.targets.forEach { target in
                 guard target.type == .binary else { return }
@@ -177,7 +178,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
             }
         }
 
-        return try packageInfos
+        var externalDependencies: [String: [ProjectDescription.TargetDependency]] = try packageInfos
             .reduce(into: [:]) { result, packageInfo in
                 let moduleAliases = packageModuleAliases[packageInfo.value.name]
                 for product in packageInfo.value.products {
@@ -209,6 +210,20 @@ public final class PackageInfoMapper: PackageInfoMapping {
                     }
                 }
             }
+        // Include dependencies added as binary targets
+        let remoteXcframeworksPath = path.appending(components: [
+            "artifacts",
+            path.removingLastComponent().url.lastPathComponent.lowercased(),
+        ])
+        let remoteXcframeworks = try await fileSystem.glob(directory: remoteXcframeworksPath, include: ["**/*.xcframework"])
+            .collect()
+        for xcframework in remoteXcframeworks {
+            let dependencyName = xcframework.relative(to: remoteXcframeworksPath).basenameWithoutExt
+            let xcframeworkPath = Path
+                .relativeToRoot(xcframework.relative(to: try await rootDirectoryLocator.locate(from: path)).pathString)
+            externalDependencies[dependencyName] = [.xcframework(path: xcframeworkPath)]
+        }
+        return externalDependencies
     }
 
     /**
@@ -263,7 +278,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
     // swiftlint:disable:next function_body_length
     public func map(
         packageInfo: PackageInfo,
-        path: AbsolutePath,
+        packageFolder: AbsolutePath,
         packageType: PackageType,
         packageSettings: TuistCore.PackageSettings,
         packageModuleAliases: [String: [String: String]]
@@ -314,10 +329,9 @@ public final class PackageInfoMapper: PackageInfoMapping {
                     targetToProducts: targetToProducts,
                     packageInfo: packageInfo,
                     packageType: packageType,
-                    path: path,
-                    packageFolder: path,
+                    packageFolder: packageFolder,
                     productTypes: productTypes,
-                    productDestinations: packageSettings.productDestinations,
+                    packageSettings: packageSettings,
                     targetSettings: packageSettings.targetSettings,
                     packageModuleAliases: packageModuleAliases
                 )
@@ -333,7 +347,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
         } else {
             let automaticSchemesOptions: ProjectDescription.Project.Options.AutomaticSchemesOptions
             switch packageType {
-            case .external:
+            case .remote:
                 automaticSchemesOptions = .disabled
             case .local:
                 automaticSchemesOptions = .enabled()
@@ -348,9 +362,9 @@ public final class PackageInfoMapper: PackageInfoMapping {
             name: packageInfo.name,
             options: options,
             settings: packageInfo.projectSettings(
-                packageFolder: path,
+                packageFolder: packageFolder,
                 baseSettings: packageSettings.baseSettings,
-                swiftToolsVersion: .init(packageInfo.toolsVersion.description)
+                swiftToolsVersion: Version(stringLiteral: packageInfo.toolsVersion.description)
             ),
             targets: targets,
             resourceSynthesizers: .default
@@ -368,10 +382,9 @@ public final class PackageInfoMapper: PackageInfoMapping {
         targetToProducts: [String: Set<PackageInfo.Product>],
         packageInfo: PackageInfo,
         packageType: PackageType,
-        path: AbsolutePath,
         packageFolder: AbsolutePath,
         productTypes: [String: XcodeGraph.Product],
-        productDestinations: [String: XcodeGraph.Destinations],
+        packageSettings: TuistCore.PackageSettings,
         targetSettings: [String: XcodeGraph.Settings],
         packageModuleAliases: [String: [String: String]]
     ) async throws -> ProjectDescription.Target? {
@@ -380,16 +393,27 @@ public final class PackageInfoMapper: PackageInfoMapping {
         switch target.type {
         case .regular, .system, .macro:
             break
-        case .test, .executable:
+        case .executable:
             switch packageType {
-            case .external:
-                logger.debug("Target \(target.name) of type \(target.type) ignored")
+            case .remote:
+                ServiceContext.current?.logger?.debug("Target \(target.name) of type \(target.type) ignored")
                 return nil
             case .local:
                 break
             }
+        case .test:
+            switch packageType {
+            case .remote:
+                ServiceContext.current?.logger?.debug("Target \(target.name) of type \(target.type) is ignored.")
+                return nil
+            case .local:
+                if !packageSettings.includeLocalPackageTestTargets {
+                    ServiceContext.current?.logger?.debug("Target \(target.name) of type \(target.type) is ignored")
+                    return nil
+                }
+            }
         default:
-            logger.debug("Target \(target.name) of type \(target.type) ignored")
+            ServiceContext.current?.logger?.debug("Target \(target.name) of type \(target.type) ignored")
             return nil
         }
 
@@ -402,7 +426,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
             productTypes: productTypes
         )
         else {
-            logger.debug("Target \(target.name) ignored by product type")
+            ServiceContext.current?.logger?.debug("Target \(target.name) ignored by product type")
             return nil
         }
 
@@ -413,7 +437,8 @@ public final class PackageInfoMapper: PackageInfoMapping {
         case .system:
             /// System library targets assume the module map is located at the source directory root
             /// https://github.com/apple/swift-package-manager/blob/main/Sources/PackageLoading/ModuleMapGenerator.swift
-            let packagePath = try await target.basePath(packageFolder: path)
+
+            let packagePath = try await target.basePath(packageFolder: packageFolder)
             let moduleMapPath = packagePath.appending(component: ModuleMap.filename)
 
             guard try await fileSystem.exists(moduleMapPath), !FileHandler.shared.isFolder(moduleMapPath) else {
@@ -427,9 +452,9 @@ public final class PackageInfoMapper: PackageInfoMapping {
             moduleMap = ModuleMap.custom(moduleMapPath, umbrellaHeaderPath: nil)
         case .regular:
             moduleMap = try await moduleMapGenerator.generate(
-                packageDirectory: path,
+                packageDirectory: packageFolder,
                 moduleName: target.name,
-                publicHeadersPath: target.publicHeadersPath(packageFolder: path)
+                publicHeadersPath: target.publicHeadersPath(packageFolder: packageFolder)
             )
         default:
             moduleMap = nil
@@ -443,7 +468,10 @@ public final class PackageInfoMapper: PackageInfoMapping {
             var testDestinations = Set(XcodeGraph.Destination.allCases)
             for dependencyTarget in target.dependencies {
                 if let dependencyProducts = targetToProducts[dependencyTarget.name] {
-                    let dependencyDestinations = unionDestinationsOfProducts(dependencyProducts, in: productDestinations)
+                    let dependencyDestinations = unionDestinationsOfProducts(
+                        dependencyProducts,
+                        in: packageSettings.productDestinations
+                    )
                     testDestinations.formIntersection(dependencyDestinations)
                 }
             }
@@ -451,9 +479,9 @@ public final class PackageInfoMapper: PackageInfoMapping {
         default:
             switch packageType {
             case .local:
-                let productDestinations = unionDestinationsOfProducts(products, in: productDestinations)
+                let productDestinations = unionDestinationsOfProducts(products, in: packageSettings.productDestinations)
                 destinations = ProjectDescription.Destinations.from(destinations: productDestinations)
-            case .external:
+            case .remote:
                 destinations = Set(Destination.allCases)
             }
         }
@@ -546,8 +574,14 @@ public final class PackageInfoMapper: PackageInfoMapping {
             }
         }
 
+        let targetName = packageModuleAliases[packageInfo.name]?[target.name] ?? target.name
+        let productName = PackageInfoMapper
+            .sanitize(targetName: targetName)
+            .replacingOccurrences(of: "-", with: "_")
+
         let settings = try await Settings.from(
             target: target,
+            productName: productName,
             packageFolder: packageFolder,
             settings: target.settings,
             moduleMap: moduleMap,
@@ -555,15 +589,11 @@ public final class PackageInfoMapper: PackageInfoMapping {
             dependencyModuleAliases: dependencyModuleAliases
         )
 
-        let targetName = packageModuleAliases[packageInfo.name]?[target.name] ?? target.name
-
         return .target(
             name: PackageInfoMapper.sanitize(targetName: targetName),
             destinations: destinations,
             product: product,
-            productName: PackageInfoMapper
-                .sanitize(targetName: targetName)
-                .replacingOccurrences(of: "-", with: "_"),
+            productName: productName,
             bundleId: targetName
                 .replacingOccurrences(of: "_", with: ".").replacingOccurrences(of: "/", with: "."),
             deploymentTargets: deploymentTargets,
@@ -590,8 +620,9 @@ public final class PackageInfoMapper: PackageInfoMapping {
         } catch {
             return nil
         }
+
         if let target = packageInfo.targets.first(where: { $0.name == name }) {
-            if target.type == .binary, case let .external(artifactPaths: artifactPaths) = packageType {
+            if target.type == .binary, case let .remote(artifactPaths: artifactPaths) = packageType {
                 guard let artifactPath = artifactPaths[target.name] else {
                     throw PackageInfoMapperError.missingBinaryArtifact(package: packageInfo.name, target: target.name)
                 }
@@ -873,11 +904,20 @@ extension ProjectDescription.ResourceFileElements {
                     }
                 }
             )
-            resourceFileElements += try defaultResourcePaths(from: path) { candidateURL in
-                let candidatePath = AbsolutePath(stringLiteral: candidateURL.path)
-                let candidateNotInExcludedDirectory = excludedPaths.allSatisfy { !$0.isAncestorOfOrEqual(to: candidatePath) }
-                return candidateNotInExcludedDirectory
+            resourceFileElements += try await fileSystem.glob(
+                directory: path,
+                include: [
+                    "**/*.{\(defaultSpmResourceFileExtensions.joined(separator: ","))}",
+                ]
+            )
+            .collect()
+            .filter { candidatePath in
+                try excludedPaths.allSatisfy {
+                    try !AbsolutePath(validating: $0.pathString.lowercased())
+                        .isAncestorOfOrEqual(to: AbsolutePath(validating: candidatePath.pathString.lowercased()))
+                }
             }
+            .sorted()
             .compactMap { try handleProcessResource(resourceAbsolutePath: $0) }
         }
 
@@ -982,6 +1022,7 @@ extension ProjectDescription.Settings {
     // swiftlint:disable:next function_body_length
     fileprivate static func from(
         target: PackageInfo.Target,
+        productName: String,
         packageFolder: AbsolutePath,
         settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting],
         moduleMap: ModuleMap?,
@@ -1006,7 +1047,9 @@ extension ProjectDescription.Settings {
             settings: settings
         )
 
-        var settingsDictionary: XcodeGraph.SettingsDictionary = [:]
+        var settingsDictionary: XcodeGraph.SettingsDictionary = [
+            "OTHER_SWIFT_FLAGS": ["$(inherited)"],
+        ]
 
         // Force enable testing search paths
         let forceEnabledTestingSearchPath: Set<String> = [
@@ -1026,6 +1069,8 @@ extension ProjectDescription.Settings {
             "MockableTest", // https://github.com/Kolos65/Mockable.git
             "Testing", // https://github.com/apple/swift-testing
             "Cuckoo", // https://github.com/Brightify/Cuckoo
+            "_SwiftSyntaxTestSupport", // https://github.com/swiftlang/swift-syntax
+            "SwiftSyntaxMacrosTestSupport", // https://github.com/swiftlang/swift-syntax
         ]
 
         let resolvedSettings = try mapper.mapSettings()
@@ -1047,10 +1092,10 @@ extension ProjectDescription.Settings {
                 settingsDictionary["DEFINES_MODULE"] = "NO"
                 switch settingsDictionary["OTHER_CFLAGS"] ?? .array(["$(inherited)"]) {
                 case let .array(values):
-                    settingsDictionary["OTHER_CFLAGS"] = .array(values + ["-fmodule-name=\(target.name)"])
+                    settingsDictionary["OTHER_CFLAGS"] = .array(values + ["-fmodule-name=\(productName)"])
                 case let .string(value):
                     settingsDictionary["OTHER_CFLAGS"] = .array(
-                        value.split(separator: " ").map(String.init) + ["-fmodule-name=\(target.name)"]
+                        value.split(separator: " ").map(String.init) + ["-fmodule-name=\(productName)"]
                     )
                 }
             case .none:
@@ -1271,7 +1316,7 @@ extension PackageInfo {
     fileprivate func projectSettings(
         packageFolder: AbsolutePath,
         baseSettings: XcodeGraph.Settings,
-        swiftToolsVersion: TSCUtility.Version?
+        swiftToolsVersion: XcodeGraph.Version?
     ) -> ProjectDescription.Settings? {
         var settingsDictionary: ProjectDescription.SettingsDictionary = [
             // Xcode settings configured by SPM by default
@@ -1335,7 +1380,7 @@ extension PackageInfo {
         }
     }
 
-    private func swiftVersion(for configuredSwiftVersion: TSCUtility.Version?) -> String? {
+    private func swiftVersion(for configuredSwiftVersion: XcodeGraph.Version?) -> String? {
         /// Take the latest swift version compatible with the configured one
         let maxAllowedSwiftLanguageVersion = swiftLanguageVersions?
             .filter {

@@ -57,7 +57,7 @@ Tuist 4 이전에는 `Dependencies.swift` 파일에서 종속성을 정의할 �
 
 Tuist 4 이전에는 Tuist/Config.swift에 캐시 구성을 포함한 caching profiles를 정의할 수 있었습니다. 이 기능은 다른 프로필을 사용하여 프로젝트를 생성할 때 혼란을 초래할 수 있기 때문에 제거하기로 결정했습니다. 게다가, 이 기능은 사용자가 디버그 프로필을 사용하여 앱의 릴리스 버전을 빌드하는 상황을 초래할 수 있어, 예상치 못한 결과를 발생시킬 수 있습니다. 그 대신, 프로젝트를 생성할 때 사용할 구성을 지정할 수 있는 `--configuration` 옵션을 도입했습니다. caching profiles을 사용하고 있었다면, 이제 `--configuration` 옵션을 대신 사용하도록 프로젝트를 업데이트해야 합니다.
 
-### `--skip-cache` 옵션은 더 이상 사용되지 않으며, 대신 arguments를 사용하도록 변경되었습니다. {#removed-skipcache-in-favor-of-arguments}
+### {#removed-skipcache-in-favor-of-arguments}
 
 `generate` 명령에서 `--skip-cache` 플래그를 제거하고, 대신 arguments를 사용하여 바이너리 캐시를 건너뛰어야 할 대상을 제어하도록 변경되었습니다. `--skip-cache` 플래그를 사용하고 있었다면, 이제 arguments를 사용하도록 프로젝트를 업데이트해야 합니다.
 
@@ -87,7 +87,6 @@ tuist generate Foo
 
 Tuist 4 이전에는 Carthage 의존성을 `Dependencies.swift` 파일에 정의할 수 있었으며, 사용자는 `tuist fetch` 명령을 실행하여 이를 가져올 수 있었습니다. 우리는 또한 이것이 Tuist의 추가 목표라고 생각했으며, 특히 앞으로 Swift Package Manager가 의존성을 관리하는 기본적인 방법이 될 것이라는 점을 고려했습니다. 만약 Carthage 의존성을 사용하고 있었다면, 이제 `Carthage`를 직접 사용하여 미리 컴파일된 프레임워크와 XCFramework를 Carthage의 표준 디렉토리로 가져온 후, `TargetDependency.xcframework`와 `TargetDependency.framework` 케이스를 사용하여 해당 바이너리를 타겟에서 참조해야 합니다.
 
-> [!NOTE] Carthage는 여전히 지원됩니다.
 > 일부 사용자들은 우리가 Carthage 지원을 중단했다고 이해했습니다. 우리는 그렇지 않았습니다. Tuist와 Carthage의 출력 간의 계약은 시스템에 저장된 프레임워크와 XCFramework에 관한 것입니다. 변경된 유일한 점은 의존성을 가져오는 책임이 누구에게 있는지입니다. 이전에는 Tuist가 Carthage를 통해 의존성을 가져왔지만, 이제는 Carthage가 직접 의존성을 가져옵니다.
 
 ### `TargetDependency.packagePlugin` API가 제거되었습니다. {#dropped-the-targetdependencypackageplugin-api}

@@ -1,6 +1,7 @@
 import Foundation
 import Mockable
 import Queuer
+import ServiceContextModule
 import TuistCore
 import TuistSupport
 
@@ -73,7 +74,8 @@ public class AsyncQueue: AsyncQueuing {
 
     public func dispatch(event: some AsyncQueueEvent) throws {
         guard let dispatcher = dispatchers[event.dispatcherId] else {
-            logger.debug("Couldn't find dispatcher with id: \(event.dispatcherId), skipping dispatching \(event.id)")
+            ServiceContext.current?.logger?
+                .debug("Couldn't find dispatcher with id: \(event.dispatcherId), skipping dispatching \(event.id)")
             return
         }
 
@@ -89,7 +91,8 @@ public class AsyncQueue: AsyncQueuing {
 
     private func liveDispatchOperation(event: some AsyncQueueEvent, dispatcher: AsyncQueueDispatching) -> Operation {
         AsyncConcurrentOperation(name: event.id.uuidString) { operation in
-            logger.debug("Dispatching event with ID '\(event.id.uuidString)' to '\(dispatcher.identifier)'")
+            ServiceContext.current?.logger?
+                .debug("Dispatching event with ID '\(event.id.uuidString)' to '\(dispatcher.identifier)'")
             do {
                 try dispatcher.dispatch(event: event) {
                     try await self.persistor.delete(event: event)
@@ -108,7 +111,8 @@ public class AsyncQueue: AsyncQueuing {
     private func dispatchPersisted(eventTuple: AsyncQueueEventTuple) async throws {
         guard let dispatcher = dispatchers.first(where: { $0.key == eventTuple.dispatcherId })?.value else {
             try await deletePersistedEvent(filename: eventTuple.filename)
-            logger.error("Couldn't find dispatcher for persisted event with id: \(eventTuple.dispatcherId)")
+            ServiceContext.current?.logger?
+                .error("Couldn't find dispatcher for persisted event with id: \(eventTuple.dispatcherId)")
             return
         }
 
@@ -122,12 +126,14 @@ public class AsyncQueue: AsyncQueuing {
     ) -> Operation {
         ConcurrentOperation(name: event.id.uuidString) { _ in
             do {
-                logger.debug("Dispatching persisted event with ID '\(event.id.uuidString)' to '\(dispatcher.identifier)'")
+                ServiceContext.current?.logger?
+                    .debug("Dispatching persisted event with ID '\(event.id.uuidString)' to '\(dispatcher.identifier)'")
                 try dispatcher.dispatchPersisted(data: event.data) {
                     try await self.deletePersistedEvent(filename: event.filename)
                 }
             } catch {
-                logger.debug("Failed to dispatch persisted event with ID '\(event.id.uuidString)' to '\(dispatcher.identifier)'")
+                ServiceContext.current?.logger?
+                    .debug("Failed to dispatch persisted event with ID '\(event.id.uuidString)' to '\(dispatcher.identifier)'")
             }
         }
     }
@@ -139,7 +145,7 @@ public class AsyncQueue: AsyncQueuing {
                 try await dispatchPersisted(eventTuple: event)
             }
         } catch {
-            logger.debug("Error loading persisted events: \(error)")
+            ServiceContext.current?.logger?.debug("Error loading persisted events: \(error)")
         }
     }
 

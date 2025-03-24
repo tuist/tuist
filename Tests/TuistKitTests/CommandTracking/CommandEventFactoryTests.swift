@@ -1,6 +1,7 @@
 import ArgumentParser
 import Foundation
 import Mockable
+import Path
 import TuistAnalytics
 import TuistCore
 import TuistSupport
@@ -41,45 +42,84 @@ final class CommandEventFactoryTests: TuistUnitTestCase {
     func test_tagCommand_tagsExpectedCommand() throws {
         // Given
         let path = try temporaryPath()
+        let projectPath = path.appending(component: "Project")
+        let ranAt = Date()
         let info = TrackableCommandInfo(
             runId: "run-id",
             name: "cache",
             subcommand: "warm",
-            parameters: ["foo": "bar"],
             commandArguments: ["cache", "warm"],
             durationInMs: 5000,
             status: .failure("Failed!"),
-            targetHashes: nil,
-            graphPath: path,
-            cacheableTargets: ["A", "B", "C"],
-            cacheItems: [
-                .test(
-                    name: "A",
-                    source: .local,
-                    cacheCategory: .binaries
-                ),
-                .test(
-                    name: "A",
-                    source: .local,
-                    cacheCategory: .selectiveTests
-                ),
-                .test(
-                    name: "B",
-                    source: .remote,
-                    cacheCategory: .binaries
-                ),
+            graph: .test(
+                name: "Graph",
+                path: path,
+                projects: [
+                    projectPath: .test(
+                        path: projectPath,
+                        targets: [
+                            .test(
+                                name: "A"
+                            ),
+                            .test(
+                                name: "B"
+                            ),
+                            .test(
+                                name: "C"
+                            ),
+                            .test(
+                                name: "ATests"
+                            ),
+                            .test(
+                                name: "BTests"
+                            ),
+                            .test(
+                                name: "CTests"
+                            ),
+                        ]
+                    ),
+                ]
+            ),
+            binaryCacheItems: [
+                projectPath: [
+                    "A": .test(
+                        hash: "hash-a",
+                        source: .local
+                    ),
+                    "B": .test(
+                        hash: "hash-b",
+                        source: .remote
+                    ),
+                    "C": .test(
+                        hash: "hash-c",
+                        source: .miss
+                    ),
+                ],
             ],
-            selectiveTestsAnalytics: SelectiveTestsAnalytics(
-                testTargets: ["ATests", "BTests", "CTests"],
-                localTestTargetHits: ["ATests"],
-                remoteTestTargetHits: ["BTests"]
-            )
+            selectiveTestingCacheItems: [
+                projectPath: [
+                    "ATests": .test(
+                        hash: "hash-a-tests",
+                        source: .local
+                    ),
+                    "BTests": .test(
+                        hash: "hash-b-tests",
+                        source: .remote
+                    ),
+                    "CTests": .test(
+                        hash: "hash-c-tests",
+                        source: .miss
+                    ),
+                ],
+            ],
+            previewId: nil,
+            resultBundlePath: nil,
+            ranAt: ranAt
         )
         let expectedEvent = CommandEvent(
             runId: "run-id",
             name: "cache",
             subcommand: "warm",
-            params: ["foo": "bar"],
             commandArguments: ["cache", "warm"],
             durationInMs: 5000,
             clientId: "123",
@@ -93,15 +133,70 @@ final class CommandEventFactoryTests: TuistUnitTestCase {
             gitRef: "github-ref",
             gitRemoteURLOrigin: "https://github.com/tuist/tuist",
             gitBranch: "main",
-            targetHashes: nil,
-            graphPath: path,
-            cacheableTargets: ["A", "B", "C"],
-            localCacheTargetHits: ["A"],
-            remoteCacheTargetHits: ["B"],
-            testTargets: ["ATests", "BTests", "CTests"],
-            localTestTargetHits: ["ATests"],
-            remoteTestTargetHits: ["BTests"]
+            graph: RunGraph(
+                name: "Graph",
+                projects: [
+                    RunProject(
+                        name: "Project",
+                        path: try RelativePath(validating: "Project"),
+                        targets: [
+                            RunTarget(
+                                name: "A",
+                                binaryCacheMetadata: RunCacheTargetMetadata(
+                                    hash: "hash-a",
+                                    hit: .local
+                                ),
+                                selectiveTestingMetadata: nil
+                            ),
+                            RunTarget(
+                                name: "ATests",
+                                binaryCacheMetadata: nil,
+                                selectiveTestingMetadata: RunCacheTargetMetadata(
+                                    hash: "hash-a-tests",
+                                    hit: .local
+                                )
+                            ),
+                            RunTarget(
+                                name: "B",
+                                binaryCacheMetadata: RunCacheTargetMetadata(
+                                    hash: "hash-b",
+                                    hit: .remote
+                                ),
+                                selectiveTestingMetadata: nil
+                            ),
+                            RunTarget(
+                                name: "BTests",
+                                binaryCacheMetadata: nil,
+                                selectiveTestingMetadata: RunCacheTargetMetadata(
+                                    hash: "hash-b-tests",
+                                    hit: .remote
+                                )
+                            ),
+                            RunTarget(
+                                name: "C",
+                                binaryCacheMetadata: RunCacheTargetMetadata(
+                                    hash: "hash-c",
+                                    hit: .miss
+                                ),
+                                selectiveTestingMetadata: nil
+                            ),
+                            RunTarget(
+                                name: "CTests",
+                                binaryCacheMetadata: nil,
+                                selectiveTestingMetadata: RunCacheTargetMetadata(
+                                    hash: "hash-c-tests",
+                                    hit: .miss
+                                )
+                            ),
+                        ]
+                    ),
+                ]
+            ),
+            previewId: nil,
+            resultBundlePath: nil,
+            ranAt: ranAt
         )
+
         given(gitController)
             .currentCommitSHA(workingDirectory: .value(path))
             .willReturn("commit-sha")
@@ -139,7 +234,6 @@ final class CommandEventFactoryTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(event.name, expectedEvent.name)
         XCTAssertEqual(event.subcommand, expectedEvent.subcommand)
-        XCTAssertEqual(event.params, expectedEvent.params)
         XCTAssertEqual(event.durationInMs, expectedEvent.durationInMs)
         XCTAssertEqual(event.clientId, expectedEvent.clientId)
         XCTAssertEqual(event.tuistVersion, expectedEvent.tuistVersion)
@@ -150,14 +244,10 @@ final class CommandEventFactoryTests: TuistUnitTestCase {
         XCTAssertEqual(event.gitCommitSHA, expectedEvent.gitCommitSHA)
         XCTAssertEqual(event.gitRemoteURLOrigin, expectedEvent.gitRemoteURLOrigin)
         XCTAssertEqual(event.gitRef, expectedEvent.gitRef)
-        XCTAssertEqual(event.targetHashes, expectedEvent.targetHashes)
-        XCTAssertEqual(event.graphPath, expectedEvent.graphPath)
-        XCTAssertEqual(event.cacheableTargets, expectedEvent.cacheableTargets)
-        XCTAssertEqual(event.localCacheTargetHits, expectedEvent.localCacheTargetHits)
-        XCTAssertEqual(event.remoteCacheTargetHits, expectedEvent.remoteCacheTargetHits)
-        XCTAssertEqual(event.testTargets, expectedEvent.testTargets)
-        XCTAssertEqual(event.localTestTargetHits, expectedEvent.localTestTargetHits)
-        XCTAssertEqual(event.remoteTestTargetHits, expectedEvent.remoteTestTargetHits)
+        XCTAssertBetterEqual(
+            event.graph,
+            expectedEvent.graph
+        )
     }
 
     func test_make_when_is_not_in_git_repository() throws {
@@ -167,19 +257,15 @@ final class CommandEventFactoryTests: TuistUnitTestCase {
             runId: "run-id",
             name: "cache",
             subcommand: "warm",
-            parameters: ["foo": "bar"],
             commandArguments: ["cache", "warm"],
             durationInMs: 5000,
             status: .failure("Failed!"),
-            targetHashes: nil,
-            graphPath: nil,
-            cacheableTargets: [],
-            cacheItems: [],
-            selectiveTestsAnalytics: SelectiveTestsAnalytics(
-                testTargets: [],
-                localTestTargetHits: [],
-                remoteTestTargetHits: []
-            )
+            graph: nil,
+            binaryCacheItems: [:],
+            selectiveTestingCacheItems: [:],
+            previewId: nil,
+            resultBundlePath: nil,
+            ranAt: Date()
         )
 
         given(gitController)
@@ -209,19 +295,15 @@ final class CommandEventFactoryTests: TuistUnitTestCase {
             runId: "run-id",
             name: "cache",
             subcommand: "warm",
-            parameters: ["foo": "bar"],
             commandArguments: ["cache", "warm"],
             durationInMs: 5000,
             status: .failure("Failed!"),
-            targetHashes: nil,
-            graphPath: nil,
-            cacheableTargets: [],
-            cacheItems: [],
-            selectiveTestsAnalytics: SelectiveTestsAnalytics(
-                testTargets: [],
-                localTestTargetHits: [],
-                remoteTestTargetHits: []
-            )
+            graph: nil,
+            binaryCacheItems: [:],
+            selectiveTestingCacheItems: [:],
+            previewId: nil,
+            resultBundlePath: nil,
+            ranAt: Date()
         )
 
         given(gitController)
@@ -267,19 +349,15 @@ final class CommandEventFactoryTests: TuistUnitTestCase {
             runId: "run-id",
             name: "cache",
             subcommand: "warm",
-            parameters: ["foo": "bar"],
             commandArguments: ["cache", "warm"],
             durationInMs: 5000,
             status: .failure("Failed!"),
-            targetHashes: nil,
-            graphPath: nil,
-            cacheableTargets: [],
-            cacheItems: [],
-            selectiveTestsAnalytics: SelectiveTestsAnalytics(
-                testTargets: [],
-                localTestTargetHits: [],
-                remoteTestTargetHits: []
-            )
+            graph: nil,
+            binaryCacheItems: [:],
+            selectiveTestingCacheItems: [:],
+            previewId: nil,
+            resultBundlePath: nil,
+            ranAt: Date()
         )
 
         given(gitController)
@@ -321,4 +399,7 @@ private final class MockMachineEnvironment: MachineEnvironmentRetrieving {
     var swiftVersion: String { "5.1" }
     var hardwareName: String { "arm64" }
     var isCI: Bool { false }
+    func modelIdentifier() -> String? {
+        nil
+    }
 }

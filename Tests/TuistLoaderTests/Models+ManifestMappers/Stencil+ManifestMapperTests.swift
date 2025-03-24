@@ -4,7 +4,6 @@ import ProjectDescription
 import TuistCore
 import TuistLoaderTesting
 import TuistSupportTesting
-import XcodeGraph
 import XCTest
 
 @testable import TuistLoader

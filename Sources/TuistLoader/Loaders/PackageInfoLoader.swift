@@ -4,6 +4,7 @@ import Mockable
 import Path
 import TSCUtility
 import TuistSupport
+import XcodeGraph
 
 /// Protocol that defines an interface to interact with the Swift Package Manager.
 @Mockable
@@ -41,7 +42,7 @@ public final class PackageInfoLoader: PackageInfoLoading {
             try system.run(command)
     }
 
-    public func setToolsVersion(at path: AbsolutePath, to version: Version) throws {
+    public func setToolsVersion(at path: AbsolutePath, to version: TSCUtility.Version) throws {
         let extraArguments = ["tools-version", "--set", "\(version.major).\(version.minor)"]
 
         let command = buildSwiftPackageCommand(packagePath: path, extraArguments: extraArguments)
@@ -49,7 +50,7 @@ public final class PackageInfoLoader: PackageInfoLoading {
         try system.run(command)
     }
 
-    public func getToolsVersion(at path: AbsolutePath) throws -> Version {
+    public func getToolsVersion(at path: AbsolutePath) throws -> TSCUtility.Version {
         let extraArguments = ["tools-version"]
 
         let command = buildSwiftPackageCommand(packagePath: path, extraArguments: extraArguments)

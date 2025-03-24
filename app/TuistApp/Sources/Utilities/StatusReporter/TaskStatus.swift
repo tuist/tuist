@@ -29,8 +29,10 @@ final class TaskStatus: Identifiable, ObservableObject {
     }
 
     /// Convenience for setting the state of the task to ``TaskState/done``.
-    @MainActor func markAsDone() {
-        update(state: .done)
+    @MainActor func markAsDone(
+        message: String? = nil
+    ) {
+        update(state: .done(message: message))
     }
 }
 

@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import ServiceContextModule
 import TuistCore
 import TuistLoader
 import TuistPlugin
@@ -16,8 +17,7 @@ final class TuistService: NSObject {
     init(
         pluginService: PluginServicing = PluginService(),
         configLoader: ConfigLoading = ConfigLoader(
-            manifestLoader: CachedManifestLoader(),
-            warningController: WarningController.shared
+            manifestLoader: CachedManifestLoader()
         )
     ) {
         self.pluginService = pluginService
@@ -44,12 +44,16 @@ final class TuistService: NSObject {
 
         let config = try await configLoader.loadConfig(path: path)
 
-        var pluginPaths = try await pluginService.remotePluginPaths(using: config)
-            .compactMap(\.releasePath)
+        var pluginPaths: [AbsolutePath] = if let configGeneratedProjectOptions = config.project.generatedProject {
+            try await pluginService.remotePluginPaths(using: configGeneratedProjectOptions)
+                .compactMap(\.releasePath)
+        } else {
+            []
+        }
 
         if let pluginPath: String = ProcessInfo.processInfo.environment["TUIST_CONFIG_PLUGIN_BINARY_PATH"] {
             let absolutePath = try AbsolutePath(validating: pluginPath)
-            logger.debug("Using plugin absolutePath \(absolutePath.description)", metadata: .subsection)
+            ServiceContext.current?.logger?.debug("Using plugin absolutePath \(absolutePath.description)", metadata: .subsection)
             pluginPaths.append(absolutePath)
         }
 

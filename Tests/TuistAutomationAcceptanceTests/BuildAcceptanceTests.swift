@@ -1,4 +1,6 @@
+import FileSystem
 import Path
+import ServiceContextModule
 import TuistAcceptanceTesting
 import TuistSupport
 import XCTest
@@ -8,43 +10,81 @@ import XCTest
 /// Build projects using Tuist build
 final class BuildAcceptanceTestWithTemplates: TuistAcceptanceTestCase {
     func test_with_templates() async throws {
-        try await run(InitCommand.self, "--platform", "ios", "--name", "MyApp")
-        try await run(InstallCommand.self)
-        try await run(GenerateCommand.self)
-        try await run(BuildCommand.self)
-        try await run(BuildCommand.self, "MyApp")
-        try await run(BuildCommand.self, "MyApp", "--configuration", "Debug")
-        try await run(BuildCommand.self, "MyApp", "--", "-parallelizeTargets", "-enableAddressSanitizer", "YES")
+        try await ServiceContext.withTestingDependencies {
+            try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
+                let initAnswers = InitPromptAnswers(
+                    workflowType: .createGeneratedProject,
+                    integrateWithServer: false,
+                    generatedProjectPlatform: "ios",
+                    generatedProjectName: "MyApp",
+                    accountType: .createOrganizationAccount,
+                    newOrganizationAccountHandle: "organization"
+                )
+                try await run(
+                    InitCommand.self,
+                    "--answers",
+                    initAnswers.base64EncodedJSONString(),
+                    "--path",
+                    temporaryDirectory.pathString
+                )
+                self.fixturePath = temporaryDirectory.appending(component: "MyApp")
+                try await run(InstallCommand.self)
+                try await run(GenerateCommand.self)
+                try await run(BuildCommand.self)
+                try await run(BuildCommand.self, "MyApp")
+                try await run(BuildCommand.self, "MyApp", "--configuration", "Debug")
+                try await run(BuildCommand.self, "MyApp", "--", "-parallelizeTargets", "-enableAddressSanitizer", "YES")
+            }
+        }
     }
 }
 
 final class BuildAcceptanceTestInvalidArguments: TuistAcceptanceTestCase {
     func test_with_invalid_arguments() async throws {
-        try await run(InitCommand.self, "--platform", "ios", "--name", "MyApp")
-        try await run(InstallCommand.self)
-        try await run(GenerateCommand.self)
-        await XCTAssertThrowsSpecific(
-            try await run(BuildCommand.self, "MyApp", "--", "-scheme", "MyApp"),
-            XcodeBuildPassthroughArgumentError.alreadyHandled("-scheme")
-        )
-        await XCTAssertThrowsSpecific(
-            try await run(BuildCommand.self, "MyApp", "--", "-project", "MyApp"),
-            XcodeBuildPassthroughArgumentError.alreadyHandled("-project")
-        )
-        await XCTAssertThrowsSpecific(
-            try await run(BuildCommand.self, "MyApp", "--", "-workspace", "MyApp"),
-            XcodeBuildPassthroughArgumentError.alreadyHandled("-workspace")
-        )
-        // SystemError is verbose and would lead to flakyness
-        // xcodebuild: error: The flag -addressSanitizerEnabled must be supplied with an argument YES or NO
-        await XCTAssertThrows(
-            try await run(BuildCommand.self, "MyApp", "--", "-parallelizeTargets", "YES", "-enableAddressSanitizer")
-        )
-        // xcodebuild: error: option '-configuration' may only be provided once
-        // Usage: xcodebuild [-project <projectname>] ...
-        await XCTAssertThrows(
-            try await run(BuildCommand.self, "MyApp", "--configuration", "Debug", "--", "-configuration", "Debug")
-        )
+        try await ServiceContext.withTestingDependencies {
+            try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
+                let initAnswers = InitPromptAnswers(
+                    workflowType: .createGeneratedProject,
+                    integrateWithServer: false,
+                    generatedProjectPlatform: "ios",
+                    generatedProjectName: "MyApp",
+                    accountType: .createOrganizationAccount,
+                    newOrganizationAccountHandle: "organization"
+                )
+                try await run(
+                    InitCommand.self,
+                    "--answers",
+                    initAnswers.base64EncodedJSONString(),
+                    "--path",
+                    temporaryDirectory.pathString
+                )
+                self.fixturePath = temporaryDirectory.appending(component: "MyApp")
+                try await run(InstallCommand.self)
+                try await run(GenerateCommand.self)
+                await XCTAssertThrowsSpecific(
+                    try await run(BuildCommand.self, "MyApp", "--", "-scheme", "MyApp"),
+                    XcodeBuildPassthroughArgumentError.alreadyHandled("-scheme")
+                )
+                await XCTAssertThrowsSpecific(
+                    try await run(BuildCommand.self, "MyApp", "--", "-project", "MyApp"),
+                    XcodeBuildPassthroughArgumentError.alreadyHandled("-project")
+                )
+                await XCTAssertThrowsSpecific(
+                    try await run(BuildCommand.self, "MyApp", "--", "-workspace", "MyApp"),
+                    XcodeBuildPassthroughArgumentError.alreadyHandled("-workspace")
+                )
+                // SystemError is verbose and would lead to flakyness
+                // xcodebuild: error: The flag -addressSanitizerEnabled must be supplied with an argument YES or NO
+                await XCTAssertThrows(
+                    try await run(BuildCommand.self, "MyApp", "--", "-parallelizeTargets", "YES", "-enableAddressSanitizer")
+                )
+                // xcodebuild: error: option '-configuration' may only be provided once
+                // Usage: xcodebuild [-project <projectname>] ...
+                await XCTAssertThrows(
+                    try await run(BuildCommand.self, "MyApp", "--configuration", "Debug", "--", "-configuration", "Debug")
+                )
+            }
+        }
     }
 }
 
@@ -53,7 +93,7 @@ final class BuildAcceptanceTestAppWithPreviews: TuistAcceptanceTestCase {
         try await setUpFixture(.appWithPreviews)
         try await run(InstallCommand.self)
         try await run(GenerateCommand.self)
-        try await run(BuildCommand.self)
+        try await run(BuildCommand.self, "--platform", "ios")
     }
 }
 
@@ -126,7 +166,7 @@ final class BuildAcceptanceTestFrameworkWithSwiftMacroIntegratedWithStandardMeth
     func test_framework_with_swift_macro_integrated_with_standard_method() async throws {
         try await setUpFixture(.frameworkWithSwiftMacro)
         try await run(GenerateCommand.self)
-        try await run(BuildCommand.self, "Framework")
+        try await run(BuildCommand.self, "Framework", "--", "-skipMacroValidation")
     }
 }
 

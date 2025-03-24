@@ -1,5 +1,4 @@
 import Foundation
-import TuistAsyncQueue
 import TuistCore
 
 public enum MockAsyncQueueDispatcherError: Error {

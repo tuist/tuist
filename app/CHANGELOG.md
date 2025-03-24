@@ -1,3 +1,31 @@
+## What's Changed in app@0.9.0
+* feat: keep message of installed preview with its commit sha by @fortmarek in [#7113](https://github.com/tuist/tuist/pull/7113)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/app@0.8.1...app@0.9.0
+
+## What's Changed in app@0.8.1
+* fix: error on menu bar startup when logged out by @fortmarek in [#7110](https://github.com/tuist/tuist/pull/7110)
+
+## New Contributors
+* @tuistit made their first contribution
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/app@0.8.0...app@0.8.1
+
+## What's Changed in app@0.8.0
+* feat: add support for logging in directly through the app, improve auth-related commands structure by @fortmarek in [#7105](https://github.com/tuist/tuist/pull/7105)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/app@0.7.0...app@0.8.0
+
+## What's Changed in app@0.7.0
+* feat: focus Tuist menu bar window when running Tuist Preview deeplink by @fortmarek in [#7098](https://github.com/tuist/tuist/pull/7098)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/app@0.6.1...app@0.7.0
+
+## What's Changed in app@0.6.1
+* fix: be less aggresive truncating longer app names by @fortmarek in [#7091](https://github.com/tuist/tuist/pull/7091)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/app@0.6.0...app@0.6.1
+
 ## What's Changed in app@0.6.0
 * feat: when running latest preview, filter supported platforms by @fortmarek in [#7077](https://github.com/tuist/tuist/pull/7077)
 

@@ -13,6 +13,7 @@ func tuistAppDependencies() -> [TargetDependency] {
         .external(name: "FileSystem"),
         .external(name: "Mockable"),
         .external(name: "Collections"),
+        .external(name: "OpenAPIRuntime"),
     ]
 }
 
@@ -47,8 +48,8 @@ let project = Project(
                     "SUPublicEDKey": "ObyvL/hvYnFyAypkWwYaoeqE/iqB0LK6ioI3SA/Y1+k=",
                     "SUFeedURL":
                         "https://raw.githubusercontent.com/tuist/tuist/main/app/appcast.xml",
-                    "CFBundleShortVersionString": "0.6.0",
-                    "CFBundleVersion": "0.6.0",
+                    "CFBundleShortVersionString": "0.9.0",
+                    "CFBundleVersion": "0.9.0",
                 ]
             ),
             sources: ["TuistApp/Sources/**"],

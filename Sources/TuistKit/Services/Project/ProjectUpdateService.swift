@@ -1,6 +1,7 @@
 import Foundation
 import Mockable
 import Path
+import ServiceContextModule
 import TuistLoader
 import TuistServer
 import TuistSupport
@@ -30,7 +31,7 @@ struct ProjectUpdateService {
 
     init(
         opener: Opening = Opener(),
-        configLoader: ConfigLoading = ConfigLoader(warningController: WarningController.shared),
+        configLoader: ConfigLoading = ConfigLoader(),
         serverURLService: ServerURLServicing = ServerURLService(),
         updateProjectService: UpdateProjectServicing = UpdateProjectService()
     ) {
@@ -44,6 +45,7 @@ struct ProjectUpdateService {
         fullHandle: String?,
         defaultBranch: String?,
         repositoryURL: String?,
+        visibility: ServerProject.Visibility?,
         path: String?
     ) async throws {
         let path = try self.path(path)
@@ -57,10 +59,11 @@ struct ProjectUpdateService {
             fullHandle: fullHandle,
             serverURL: serverURL,
             defaultBranch: defaultBranch,
-            repositoryURL: repositoryURL
+            repositoryURL: repositoryURL,
+            visibility: visibility
         )
 
-        logger.notice("The project \(fullHandle) was successfully updated 🎉", metadata: .success)
+        ServiceContext.current?.alerts?.success(.alert("The project \(fullHandle) was successfully updated 🎉"))
     }
 
     // MARK: - Helpers

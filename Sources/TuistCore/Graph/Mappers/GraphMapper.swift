@@ -1,5 +1,3 @@
-import Foundation
-import Path
 import XcodeGraph
 
 /// A protocol that defines an interface to map dependency graphs.

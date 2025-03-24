@@ -3,6 +3,7 @@ import Foundation
 import Mockable
 import Path
 import ProjectDescription
+import ServiceContextModule
 import TuistCore
 import TuistDependencies
 import TuistGenerator
@@ -38,7 +39,6 @@ public class Generator: Generating {
         sideEffectDescriptorExecutor = SideEffectDescriptorExecutor()
         configLoader = ConfigLoader(
             manifestLoader: manifestLoader,
-            warningController: WarningController.shared,
             rootDirectoryLocator: RootDirectoryLocator(),
             fileSystem: FileSystem()
         )
@@ -57,7 +57,10 @@ public class Generator: Generating {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // Lint
-        try await lint(graphTraverser: graphTraverser)
+        // When mutating the graph to use cache, we currently end up double linking some frameworks.
+        // To workaround those false positive warnings, we lint the graph before we replace source modules with xcframeworks
+        // And assume the changes in the mapper are correct.
+        try await lint(graphTraverser: GraphTraverser(graph: environment.initialGraphWithSources ?? graph))
 
         // Generate
         let workspaceDescriptor = try await generator.generateWorkspace(graphTraverser: graphTraverser)
@@ -84,8 +87,8 @@ public class Generator: Generating {
     }
 
     func load(path: AbsolutePath) async throws -> (Graph, [SideEffectDescriptor], MapperEnvironment) {
-        logger.notice("Loading and constructing the graph", metadata: .section)
-        logger.notice("It might take a while if the cache is empty")
+        ServiceContext.current?.logger?.notice("Loading and constructing the graph", metadata: .section)
+        ServiceContext.current?.logger?.notice("It might take a while if the cache is empty")
 
         let (graph, sideEffectDescriptors, environment, issues) = try await manifestGraphLoader.load(path: path)
 
@@ -94,24 +97,35 @@ public class Generator: Generating {
     }
 
     private func lint(graphTraverser: GraphTraversing) async throws {
-        let config = try await configLoader.loadConfig(path: graphTraverser.path)
+        guard let configGeneratedProjectOptions = (try await configLoader.loadConfig(path: graphTraverser.path)).project
+            .generatedProject
+        else {
+            return
+        }
 
-        let environmentIssues = try await environmentLinter.lint(config: config)
+        let environmentIssues = try await environmentLinter.lint(configGeneratedProjectOptions: configGeneratedProjectOptions)
         try environmentIssues.printAndThrowErrorsIfNeeded()
         lintingIssues.append(contentsOf: environmentIssues)
 
-        let graphIssues = try await graphLinter.lint(graphTraverser: graphTraverser, config: config)
+        let graphIssues = try await graphLinter.lint(
+            graphTraverser: graphTraverser,
+            configGeneratedProjectOptions: configGeneratedProjectOptions
+        )
         try graphIssues.printAndThrowErrorsIfNeeded()
         lintingIssues.append(contentsOf: graphIssues)
     }
 
     private func postGenerationActions(graphTraverser: GraphTraversing, workspaceName: String) async throws {
-        let config = try await configLoader.loadConfig(path: graphTraverser.path)
+        guard let configGeneratedProjectOptions = (try await configLoader.loadConfig(path: graphTraverser.path)).project
+            .generatedProject
+        else {
+            return
+        }
 
         try await swiftPackageManagerInteractor.install(
             graphTraverser: graphTraverser,
             workspaceName: workspaceName,
-            config: config
+            configGeneratedProjectOptions: configGeneratedProjectOptions
         )
     }
 

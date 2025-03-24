@@ -1,5 +1,3 @@
-import Foundation
-
 /// It represents an output from the xcodebuild command.
 public struct XcodeBuildOutput: Equatable {
     /// Output as xcodebuild returns it.

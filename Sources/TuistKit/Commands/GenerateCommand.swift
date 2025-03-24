@@ -1,17 +1,14 @@
-import AnyCodable
 import ArgumentParser
 import Foundation
 import TuistCore
 import TuistServer
 import TuistSupport
 
-public struct GenerateCommand: AsyncParsableCommand, HasTrackableParameters {
+public struct GenerateCommand: AsyncParsableCommand, RecentPathRememberableCommand {
     public init() {}
 
-    public static var analyticsDelegate: TrackableParametersDelegate?
     public static var generatorFactory: GeneratorFactorying = GeneratorFactory()
     public static var cacheStorageFactory: CacheStorageFactorying = EmptyCacheStorageFactory()
-    public var runId = UUID().uuidString
 
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
@@ -56,15 +53,6 @@ public struct GenerateCommand: AsyncParsableCommand, HasTrackableParameters {
     var configuration: String?
 
     public func run() async throws {
-        defer {
-            GenerateCommand.analyticsDelegate?.addParameters(
-                [
-                    "no_open": AnyCodable(!open),
-                    "no_binary_cache": AnyCodable(!binaryCache),
-                    "n_targets": AnyCodable(sources.count),
-                ]
-            )
-        }
         try await GenerateService(
             cacheStorageFactory: Self.cacheStorageFactory,
             generatorFactory: Self.generatorFactory
@@ -73,8 +61,7 @@ public struct GenerateCommand: AsyncParsableCommand, HasTrackableParameters {
             sources: Set(sources),
             noOpen: !open,
             configuration: configuration,
-            ignoreBinaryCache: !binaryCache,
-            analyticsDelegate: GenerateCommand.analyticsDelegate
+            ignoreBinaryCache: !binaryCache
         )
     }
 }

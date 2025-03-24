@@ -18,7 +18,11 @@ description: Tuist에서 계정과 프로젝트를 생성하고 관리하는 방
 > [!NOTE] CLI-FIRST\
 > 계정과 프로젝트를 관리하기 위한 동작은 대부분 CLI를 통해서 수행됩니다. 우리는 계정과 프로젝트를 쉽게 관리하기 위한 웹 인터페이스를 개발 중입니다.
 
-<LocalizedLink href="/cli/organization">`tuist organization`</LocalizedLink> 하위 명령어를 통해 조직을 관리할 수 있습니다.
+<LocalizedLink href="/cli/organization">`tuist organization`</LocalizedLink> 하위 명령어를 통해 조직을 관리할 수 있습니다. 새로운 조직 계정을 생성하기 위해 다음과 같이 수행합니다:
+
+```bash
+tuist organization create {account-handle}
+```
 
 ## 프로젝트 {#projects}
 

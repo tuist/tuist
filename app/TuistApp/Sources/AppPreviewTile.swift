@@ -17,6 +17,8 @@ struct AppPreviewTile: View {
                 .font(.caption)
                 .lineLimit(1)
                 .truncationMode(.tail)
+                .frame(maxWidth: 60)
+                .fixedSize()
         }
     }
 }

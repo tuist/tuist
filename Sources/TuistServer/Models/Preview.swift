@@ -7,6 +7,8 @@ public struct Preview: Equatable, Codable, Identifiable {
     public let iconURL: URL
     public let bundleIdentifier: String?
     public var displayName: String?
+    public let gitCommitSHA: String?
+    public let gitBranch: String?
 }
 
 extension Preview {
@@ -21,6 +23,8 @@ extension Preview {
         self.iconURL = iconURL
         bundleIdentifier = preview.bundle_identifier
         displayName = preview.display_name
+        gitCommitSHA = preview.git_commit_sha
+        gitBranch = preview.git_branch
     }
 }
 
@@ -37,7 +41,9 @@ extension Preview {
                 URL(string: "https://cloud.tuist.io/tuist/tuist/previews/preview-id/icon.png")!,
             // swiftlint:disable:this force_try
             bundleIdentifier: String? = "com.tuist.app",
-            displayName: String? = "App"
+            displayName: String? = "App",
+            gitCommitSHA: String? = nil,
+            gitBranch: String? = nil
         ) -> Self {
             .init(
                 id: id,
@@ -45,7 +51,9 @@ extension Preview {
                 qrCodeURL: qrCodeURL,
                 iconURL: iconURL,
                 bundleIdentifier: bundleIdentifier,
-                displayName: displayName
+                displayName: displayName,
+                gitCommitSHA: gitCommitSHA,
+                gitBranch: gitBranch
             )
         }
     }

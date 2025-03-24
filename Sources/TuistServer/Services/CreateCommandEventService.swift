@@ -66,7 +66,7 @@ public final class CreateCommandEventService: CreateCommandEventServicing {
                     .init(
                         client_id: commandEvent.clientId,
                         command_arguments: commandEvent.commandArguments,
-                        duration: Double(commandEvent.durationInMs),
+                        duration: commandEvent.durationInMs,
                         error_message: errorMessage,
                         git_branch: commandEvent.gitBranch,
                         git_commit_sha: commandEvent.gitCommitSHA,
@@ -75,19 +75,13 @@ public final class CreateCommandEventService: CreateCommandEventServicing {
                         is_ci: commandEvent.isCI,
                         macos_version: commandEvent.macOSVersion,
                         name: commandEvent.name,
-                        params: .init(
-                            cacheable_targets: commandEvent.cacheableTargets,
-                            local_cache_target_hits: commandEvent.localCacheTargetHits,
-                            local_test_target_hits: commandEvent.localTestTargetHits,
-                            remote_cache_target_hits: commandEvent.remoteCacheTargetHits,
-                            remote_test_target_hits: commandEvent.remoteTestTargetHits,
-                            test_targets: commandEvent.testTargets
-                        ),
-                        preview_id: commandEvent.params["preview_id"]?.value as? String,
+                        preview_id: commandEvent.previewId,
+                        ran_at: commandEvent.ranAt.ISO8601Format(),
                         status: status,
                         subcommand: commandEvent.subcommand,
                         swift_version: commandEvent.swiftVersion,
-                        tuist_version: commandEvent.tuistVersion
+                        tuist_version: commandEvent.tuistVersion,
+                        xcode_graph: commandEvent.graph.map { map(graph: $0) }
                     )
                 )
             )
@@ -111,5 +105,60 @@ public final class CreateCommandEventService: CreateCommandEventServicing {
                 throw DeleteOrganizationServiceError.unauthorized(error.message)
             }
         }
+    }
+
+    private func map(graph: RunGraph) -> Operations.createCommandEvent.Input.Body.jsonPayload.xcode_graphPayload {
+        .init(
+            name: graph.name,
+            projects: graph.projects.map { project in
+                .init(
+                    name: project.name,
+                    path: project.path.pathString,
+                    targets: project.targets.map { target in
+                        .init(
+                            binary_cache_metadata: target.binaryCacheMetadata
+                                .map { binaryCacheMetadata in
+                                    let hit: Operations.createCommandEvent.Input.Body.jsonPayload
+                                        .xcode_graphPayload.projectsPayloadPayload.targetsPayloadPayload
+                                        .binary_cache_metadataPayload
+                                        .hitPayload = switch binaryCacheMetadata.hit
+                                    {
+                                    case .local:
+                                        .local
+                                    case .remote:
+                                        .remote
+                                    case .miss:
+                                        .miss
+                                    }
+                                    return .init(
+                                        hash: binaryCacheMetadata.hash,
+                                        hit: hit
+                                    )
+                                },
+                            name: target.name,
+                            selective_testing_metadata: target.selectiveTestingMetadata
+                                .map { selectiveTestingMetadata in
+                                    let hit: Operations.createCommandEvent.Input.Body.jsonPayload
+                                        .xcode_graphPayload.projectsPayloadPayload.targetsPayloadPayload
+                                        .selective_testing_metadataPayload
+                                        .hitPayload = switch selectiveTestingMetadata.hit
+                                    {
+                                    case .local:
+                                        .local
+                                    case .remote:
+                                        .remote
+                                    case .miss:
+                                        .miss
+                                    }
+                                    return .init(
+                                        hash: selectiveTestingMetadata.hash,
+                                        hit: hit
+                                    )
+                                }
+                        )
+                    }
+                )
+            }
+        )
     }
 }

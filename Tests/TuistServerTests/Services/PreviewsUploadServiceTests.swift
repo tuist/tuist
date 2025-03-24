@@ -2,7 +2,6 @@ import Foundation
 import Mockable
 import TuistSupport
 import TuistSupportTesting
-import XcodeGraph
 import XCTest
 
 @testable import TuistServer
@@ -65,7 +64,8 @@ final class PreviewsUploadServiceTests: TuistUnitTestCase {
                 generateUploadURL: .matching { callback in
                     self.multipartUploadCapturedGenerateUploadURLCallback = callback
                     return true
-                }
+                },
+                updateProgress: .any
             )
             .willReturn([(etag: "etag", partNumber: 1)])
 
@@ -127,7 +127,8 @@ final class PreviewsUploadServiceTests: TuistUnitTestCase {
             icon: nil,
             supportedPlatforms: [.simulator(.iOS)],
             fullHandle: "tuist/tuist",
-            serverURL: serverURL
+            serverURL: serverURL,
+            updateProgress: { _ in }
         )
 
         // Then
@@ -182,7 +183,8 @@ final class PreviewsUploadServiceTests: TuistUnitTestCase {
             icon: icon,
             supportedPlatforms: [.device(.iOS)],
             fullHandle: "tuist/tuist",
-            serverURL: serverURL
+            serverURL: serverURL,
+            updateProgress: { _ in }
         )
 
         // Then

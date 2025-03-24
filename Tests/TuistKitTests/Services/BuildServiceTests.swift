@@ -1,6 +1,7 @@
 import Foundation
 import Mockable
 import Path
+import ServiceContextModule
 import TSCUtility
 import TuistAutomation
 import TuistCore
@@ -299,34 +300,36 @@ final class BuildServiceTests: TuistUnitTestCase {
     }
 
     func test_run_lists_schemes() async throws {
-        // Given
-        let path = try temporaryPath()
-        let workspacePath = path.appending(component: "App.xcworkspace")
-        let graph = Graph.test()
-        let schemeA = Scheme.test(name: "A")
-        let schemeB = Scheme.test(name: "B")
-        given(generator)
-            .load(path: .value(path))
-            .willReturn(graph)
-        given(buildGraphInspector)
-            .workspacePath(directory: .value(path))
-            .willReturn(workspacePath)
-        given(buildGraphInspector)
-            .buildableSchemes(graphTraverser: .any)
-            .willReturn(
-                [
-                    schemeA,
-                    schemeB,
-                ]
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            let path = try temporaryPath()
+            let workspacePath = path.appending(component: "App.xcworkspace")
+            let graph = Graph.test()
+            let schemeA = Scheme.test(name: "A")
+            let schemeB = Scheme.test(name: "B")
+            given(generator)
+                .load(path: .value(path))
+                .willReturn(graph)
+            given(buildGraphInspector)
+                .workspacePath(directory: .value(path))
+                .willReturn(workspacePath)
+            given(buildGraphInspector)
+                .buildableSchemes(graphTraverser: .any)
+                .willReturn(
+                    [
+                        schemeA,
+                        schemeB,
+                    ]
+                )
+
+            // When
+            try await subject.testRun(
+                path: path
             )
 
-        // When
-        try await subject.testRun(
-            path: path
-        )
-
-        // Then
-        XCTAssertPrinterContains("Found the following buildable schemes: A, B", at: .debug, ==)
+            // Then
+            XCTAssertPrinterContains("Found the following buildable schemes: A, B", at: .debug, ==)
+        }
     }
 }
 

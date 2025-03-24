@@ -4,7 +4,6 @@ import Mockable
 import Path
 import TuistCore
 import TuistSupport
-import XcodeGraph
 
 public enum PreviewUploadType: Equatable {
     case ipa(AbsolutePath)
@@ -21,7 +20,8 @@ public protocol PreviewsUploadServicing {
         icon: AbsolutePath?,
         supportedPlatforms: [DestinationType],
         fullHandle: String,
-        serverURL: URL
+        serverURL: URL,
+        updateProgress: @escaping (Double) -> Void
     ) async throws -> Preview
 }
 
@@ -78,7 +78,8 @@ public struct PreviewsUploadService: PreviewsUploadServicing {
         icon: AbsolutePath?,
         supportedPlatforms: [DestinationType],
         fullHandle: String,
-        serverURL: URL
+        serverURL: URL,
+        updateProgress: @escaping (Double) -> Void
     ) async throws -> Preview {
         let previewType: PreviewType
         let buildPath: AbsolutePath
@@ -91,6 +92,8 @@ public struct PreviewsUploadService: PreviewsUploadServicing {
             previewType = .appBundle
         }
 
+        updateProgress(0.1)
+
         let preview = try await retryProvider.runWithRetries {
             let previewUpload = try await multipartUploadStartPreviewsService.startPreviewsMultipartUpload(
                 type: previewType,
@@ -101,6 +104,8 @@ public struct PreviewsUploadService: PreviewsUploadServicing {
                 fullHandle: fullHandle,
                 serverURL: serverURL
             )
+
+            updateProgress(0.2)
 
             let parts = try await multipartUploadArtifactService.multipartUploadArtifact(
                 artifactPath: buildPath,
@@ -113,6 +118,9 @@ public struct PreviewsUploadService: PreviewsUploadServicing {
                         serverURL: serverURL,
                         contentLength: part.contentLength
                     )
+                },
+                updateProgress: {
+                    updateProgress(0.2 + $0 * 0.7)
                 }
             )
 

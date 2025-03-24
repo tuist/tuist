@@ -1,4 +1,5 @@
-import Path
+import Command
+import Mockable
 import TSCUtility
 import TuistCore
 import TuistSupportTesting
@@ -8,13 +9,16 @@ import XCTest
 
 final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
     private var subject: SwiftPackageManagerController!
+    private var commandRunner: MockCommandRunning!
 
     override func setUp() {
         super.setUp()
 
+        commandRunner = MockCommandRunning()
         subject = SwiftPackageManagerController(
             system: system,
-            fileSystem: fileSystem
+            fileSystem: fileSystem,
+            commandRunner: commandRunner
         )
     }
 
@@ -129,5 +133,73 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
         // Then
         // Assert that `outputPath` was created
         XCTAssertTrue(fileHandler.isFolder(outputPath))
+    }
+
+    func test_package_registry_login() async throws {
+        // Given
+        given(commandRunner)
+            .run(
+                arguments: .any,
+                environment: .any,
+                workingDirectory: .any
+            )
+            .willReturn(AsyncThrowingStream(unfolding: { nil }))
+
+        // When
+        try await subject.packageRegistryLogin(
+            token: "package-token",
+            registryURL: .test()
+        )
+
+        // Then
+        verify(commandRunner)
+            .run(
+                arguments: .value(
+                    [
+                        "/usr/bin/swift",
+                        "package-registry",
+                        "login",
+                        URL.test().appending(path: "login").absoluteString,
+                        "--token",
+                        "package-token",
+                        "--no-confirm",
+                    ]
+                ),
+                environment: .any,
+                workingDirectory: .any
+            )
+            .called(1)
+    }
+
+    func test_package_registry_logout() async throws {
+        // Given
+        given(commandRunner)
+            .run(
+                arguments: .any,
+                environment: .any,
+                workingDirectory: .any
+            )
+            .willReturn(AsyncThrowingStream(unfolding: { nil }))
+
+        // When
+        try await subject.packageRegistryLogout(
+            registryURL: .test()
+        )
+
+        // Then
+        verify(commandRunner)
+            .run(
+                arguments: .value(
+                    [
+                        "/usr/bin/swift",
+                        "package-registry",
+                        "logout",
+                        URL.test().appending(path: "logout").absoluteString,
+                    ]
+                ),
+                environment: .any,
+                workingDirectory: .any
+            )
+            .called(1)
     }
 }

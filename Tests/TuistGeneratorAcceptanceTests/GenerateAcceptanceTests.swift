@@ -1,4 +1,5 @@
 import Path
+import ServiceContextModule
 import TuistAcceptanceTesting
 import TuistSupport
 import TuistSupportTesting
@@ -10,6 +11,14 @@ final class GenerateAcceptanceTestAppWithFrameworkAndTests: TuistAcceptanceTestC
         try await setUpFixture(.appWithFrameworkAndTests)
         try await run(GenerateCommand.self)
         try XCTAssertFrameworkNotEmbedded("Framework", by: "AppExtension")
+    }
+}
+
+final class GenerateAcceptanceTestAppWithExponeaSDK: TuistAcceptanceTestCase {
+    func test_app_with_exponea_sdk() async throws {
+        try await setUpFixture(.appWithExponeaSDK)
+        try await run(InstallCommand.self)
+        try await run(GenerateCommand.self)
     }
 }
 
@@ -106,6 +115,14 @@ final class GenerateAcceptanceTestiOSAppWithFrameworkAndResources: TuistAcceptan
             "resource_without_extension",
             "StaticFrameworkResources.bundle",
             "StaticFramework2Resources.bundle",
+        ] {
+            try await XCTAssertProductWithDestinationContainsResource(
+                "App.app",
+                destination: "Debug-iphonesimulator",
+                resource: resource
+            )
+        }
+        for resource in [
             "StaticFramework3_StaticFramework3.bundle",
             "StaticFramework4_StaticFramework4.bundle",
         ] {
@@ -179,7 +196,7 @@ final class GenerateAcceptanceTestiOSAppWithOnDemandResources: TuistAcceptanceTe
         let data = try Data(contentsOf: pbxprojPath.url)
         let pbxProj = try PBXProj(data: data)
         let attributes = try XCTUnwrap(pbxProj.projects.first?.attributes)
-        let knownAssetTags = try XCTUnwrap(attributes["KnownAssetTags"] as? [String])
+        let knownAssetTags = try XCTUnwrap(attributes["KnownAssetTags"]?.arrayValue)
         let givenTags = [
             "ar-resource-group",
             "cube-texture",
@@ -320,6 +337,22 @@ final class GenerateAcceptanceTestsiOSAppWithCustomScheme: TuistAcceptanceTestCa
 
         let xcodeprojPath = fixturePath.appending(components: ["App", "MainApp.xcodeproj"])
 
+        let xcodeproj = try XcodeProj(pathString: xcodeprojPath.pathString)
+
+        let scheme = try XCTUnwrap(
+            xcodeproj.sharedData?.schemes
+                .filter { $0.name == "App-Debug" }
+                .first
+        )
+
+        let testableTarget = try XCTUnwrap(
+            scheme.testAction?.testables
+                .filter { $0.buildableReference.blueprintName == "AppTests" }
+                .first
+        )
+
+        XCTAssertEqual(testableTarget.parallelization, .all)
+
         try XCTAssertContainsSimulatedLocation(
             xcodeprojPath: xcodeprojPath,
             scheme: "App-Debug",
@@ -388,18 +421,20 @@ final class GenerateAcceptanceTestiOSAppWithMultiConfigs: TuistAcceptanceTestCas
 
 final class GenerateAcceptanceTestiOSAppWithIncompatibleXcode: TuistAcceptanceTestCase {
     func test_ios_app_with_incompatible_xcode() async throws {
-        try await setUpFixture(.iosAppWithIncompatibleXcode)
-        do {
-            try await run(GenerateCommand.self)
-            XCTFail("Generate should have failed")
-        } catch {
-            XCTAssertStandardError(
-                pattern: "which is not compatible with this project's Xcode version requirement of 3.2.1."
-            )
-            XCTAssertEqual(
-                (error as? FatalError)?.description,
-                "Fatal linting issues found"
-            )
+        try await ServiceContext.withTestingDependencies {
+            try await setUpFixture(.iosAppWithIncompatibleXcode)
+            do {
+                try await run(GenerateCommand.self)
+                XCTFail("Generate should have failed")
+            } catch {
+                XCTAssertStandardError(
+                    pattern: "which is not compatible with this project's Xcode version requirement of 3.2.1."
+                )
+                XCTAssertEqual(
+                    (error as? FatalError)?.description,
+                    "Fatal linting issues found"
+                )
+            }
         }
     }
 }
@@ -730,9 +765,11 @@ final class GenerateAcceptanceTestmacOSAppWithCopyFiles: TuistAcceptanceTestCase
 
 final class GenerateAcceptanceTestManifestWithLogs: TuistAcceptanceTestCase {
     func test_manifest_with_logs() async throws {
-        try await setUpFixture(.manifestWithLogs)
-        try await run(GenerateCommand.self)
-        XCTAssertStandardOutput(pattern: "Target name - App")
+        try await ServiceContext.withTestingDependencies {
+            try await setUpFixture(.manifestWithLogs)
+            try await run(GenerateCommand.self)
+            XCTAssertStandardOutput(pattern: "Target name - App")
+        }
     }
 }
 
@@ -746,7 +783,7 @@ final class GenerateAcceptanceTestsProjectWithClassPrefix: TuistAcceptanceTestCa
         )
         let attributes = try xcodeproj.pbxproj.rootProject()?.attributes
 
-        XCTAssertEqual(attributes?["CLASSPREFIX"] as? String, "TUIST")
+        XCTAssertEqual(attributes?["CLASSPREFIX"]?.stringValue, "TUIST")
     }
 }
 
@@ -886,12 +923,18 @@ final class GenerateAcceptanceTestiOSAppWithNoneLinkingStatusFramework: TuistAcc
             pathString: xcodeprojPath.pathString
         )
         let target = try XCTUnwrapTarget("App", in: xcodeproj)
-        let frameworksBuildPhase = try target.frameworksBuildPhase()
-        guard let frameworkFiles = frameworksBuildPhase?.files else {
-            XCTFail("A linking dependencies phase should exist even though empty")
+        guard try target.frameworksBuildPhase()?.files?
+            .contains(where: { $0.file?.nameOrPath == "MyFramework.framework" }) == false
+        else {
+            XCTFail("App shouldn't link MyFramework.framework")
             return
         }
-        XCTAssertEmpty(frameworkFiles)
+        guard try target.frameworksBuildPhase()?.files?
+            .contains(where: { $0.file?.nameOrPath == "ThyFramework.framework" }) == true
+        else {
+            XCTFail("App doesn't link ThyFramework.framework")
+            return
+        }
     }
 }
 
@@ -913,7 +956,23 @@ final class GenerateAcceptanceTestiOSAppWithWeaklyLinkedFramework: TuistAcceptan
             XCTFail("App target should have a linked framework with settings")
             return
         }
-        XCTAssertEqualDictionaries(settings, ["ATTRIBUTES": ["Weak"]])
+        let expected = ["ATTRIBUTES": BuildFileSetting.array(["Weak"])]
+        XCTAssertEqualDictionaries(settings, expected)
+    }
+}
+
+final class GenerateAcceptanceTestiOSAppWithCatalyst: TuistAcceptanceTestCase {
+    func test_ios_app_with_catalyst() async throws {
+        try await setUpFixture(.iosAppWithCatalyst)
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self, "App", "--platform", "macos")
+        try await run(BuildCommand.self, "App", "--platform", "ios")
+
+        try await XCTAssertProductWithDestinationContainsResource(
+            "App.app",
+            destination: "Debug-maccatalyst",
+            resource: "Info.plist"
+        )
     }
 }
 
@@ -958,6 +1017,39 @@ final class GenerateAcceptanceTestAppWithCustomScheme: TuistAcceptanceTestCase {
     }
 }
 
+final class GenerateAcceptanceTestGeneratediOSAppWithoutConfigManifest: TuistAcceptanceTestCase {
+    func test_generated_ios_app_without_config_manifest() async throws {
+        try await setUpFixture(.generatediOSAppWithoutConfigManifest)
+        try await run(InstallCommand.self)
+        try await run(BuildCommand.self)
+    }
+}
+
+final class GenerateAcceptanceTestsAppWithMetalOptions: TuistAcceptanceTestCase {
+    func test_app_with_metal_options() async throws {
+        try await setUpFixture(.appWithMetalOptions)
+        try await run(GenerateCommand.self)
+
+        try XCTAssertContainsMetalOptions(
+            xcodeprojPath: xcodeprojPath,
+            scheme: "CustomMetalConfig",
+            apiValidation: false,
+            shaderValidation: true,
+            showGraphicsOverview: true,
+            logGraphicsOverview: true
+        )
+
+        try XCTAssertContainsMetalOptions(
+            xcodeprojPath: xcodeprojPath,
+            scheme: "DefaultMetalConfig",
+            apiValidation: true,
+            shaderValidation: false,
+            showGraphicsOverview: false,
+            logGraphicsOverview: false
+        )
+    }
+}
+
 final class GenerateAcceptanceTestAppWithGoogleMaps: TuistAcceptanceTestCase {
     func test_app_with_google_maps() async throws {
         try await setUpFixture(.appWithGoogleMaps)
@@ -987,6 +1079,15 @@ final class GenerateAcceptanceTestFrameworkWithMacroAndPluginPackages: TuistAcce
 final class GenerateAcceptanceTestAppWithRevenueCat: TuistAcceptanceTestCase {
     func test_app_with_revenue_cat() async throws {
         try await setUpFixture(.appWithRevenueCat)
+        try await run(InstallCommand.self)
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self)
+    }
+}
+
+final class GenerateAcceptanceTestAppWithSwiftCMark: TuistAcceptanceTestCase {
+    func test_app_with_swift_cmark() async throws {
+        try await setUpFixture(.appWithSwiftCMark)
         try await run(InstallCommand.self)
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self)
@@ -1023,7 +1124,8 @@ final class GenerateAcceptanceTestAppWithNonLocalAppDependencies: TuistAcceptanc
         try await setUpFixture(.appWithExecutableNonLocalDependencies)
         try await run(InstallCommand.self)
         try await run(GenerateCommand.self)
-        try await run(BuildCommand.self, "MainApp")
+        try await run(BuildCommand.self, "TestHost")
+        try await run(BuildCommand.self, "App-Workspace")
 
         let xcodeproj = try XcodeProj(
             pathString: fixturePath.appending(components: "MainApp", "MainApp.xcodeproj").pathString
@@ -1035,7 +1137,7 @@ final class GenerateAcceptanceTestAppWithNonLocalAppDependencies: TuistAcceptanc
 
         let dependenciesBuildPhase = buildPhases.first(where: { $0.name() == "Dependencies" }) as? PBXCopyFilesBuildPhase
         let targetFileNames = dependenciesBuildPhase?.files?.compactMap { $0.file?.nameOrPath }.sorted()
-        let expectedTargetFileNames = ["AppExtension.appex", "WatchApp.app"]
+        let expectedTargetFileNames = ["AppExtension.appex"]
         XCTAssertEqual(targetFileNames, expectedTargetFileNames)
 
         let testTarget = try XCTUnwrapTarget("MainAppTests", in: xcodeproj)
@@ -1073,6 +1175,60 @@ final class GenerateAcceptanceTestAppWithGeneratedSources: TuistAcceptanceTestCa
             "Sources/AppDelegate.swift",
         ]
         XCTAssertEqual(sourceFilesNames, expectedPathsWithParents)
+    }
+}
+
+final class GenerateAcceptanceTestAppWithMacBundle: TuistAcceptanceTestCase {
+    func test_app_with_mac_bundle() async throws {
+        try await setUpFixture(.appWithMacBundle)
+        try await run(InstallCommand.self)
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self, "App", "--platform", "macos")
+        try await run(BuildCommand.self, "App", "--platform", "ios")
+
+        try await XCTAssertProductWithDestinationContainsResource(
+            "App.app",
+            destination: "Debug-maccatalyst",
+            resource: "Resources/ResourcesFramework_ResourcesFramework.bundle"
+        )
+        try await XCTAssertProductWithDestinationDoesNotContainResource(
+            "App.app",
+            destination: "Debug-maccatalyst",
+            resource: "Resources/MacPlugin.bundle"
+        )
+        try await XCTAssertProductWithDestinationContainsResource(
+            "App.app",
+            destination: "Debug-maccatalyst",
+            resource: "PlugIns/MacPlugin.bundle"
+        )
+        try await XCTAssertProductWithDestinationDoesNotContainResource(
+            "App.app",
+            destination: "Debug-iphonesimulator",
+            resource: "Resources/MacPlugin.bundle"
+        )
+        try await XCTAssertProductWithDestinationDoesNotContainResource(
+            "App.app",
+            destination: "Debug-iphonesimulator",
+            resource: "PlugIns/MacPlugin.bundle"
+        )
+    }
+
+    func test_macos_app_with_mac_bundle() async throws {
+        try await setUpFixture(.appWithMacBundle)
+        try await run(InstallCommand.self)
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self, "App-macOS")
+
+        try await XCTAssertProductWithDestinationContainsResource(
+            "App_macOS.app",
+            destination: "Debug",
+            resource: "PlugIns/MacPlugin.bundle"
+        )
+        try await XCTAssertProductWithDestinationDoesNotContainResource(
+            "App_macOS.app",
+            destination: "Debug",
+            resource: "Resources/MacPlugin.bundle"
+        )
     }
 }
 

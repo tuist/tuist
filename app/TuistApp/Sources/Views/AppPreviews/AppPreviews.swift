@@ -4,6 +4,7 @@ struct AppPreviews: View {
     private let columns = Array(repeating: GridItem(.fixed(44), spacing: 14), count: 5)
     @State var viewModel: AppPreviewsViewModel
     @EnvironmentObject var errorHandling: ErrorHandling
+    @EnvironmentObject var appCredentialsService: AppCredentialsService
 
     init(
         viewModel: AppPreviewsViewModel
@@ -20,12 +21,8 @@ struct AppPreviews: View {
                     LazyVGrid(columns: columns, alignment: .leading, spacing: 14) {
                         ForEach(viewModel.appPreviews) { appPreview in
                             Button {
-                                Task {
-                                    do {
-                                        try await viewModel.launchAppPreview(appPreview)
-                                    } catch {
-                                        errorHandling.handle(error: error)
-                                    }
+                                errorHandling.fireAndHandleError {
+                                    try await viewModel.launchAppPreview(appPreview)
                                 }
                             } label: {
                                 AppPreviewTile(appPreview: appPreview)
@@ -41,14 +38,12 @@ struct AppPreviews: View {
         }
         .onAppear {
             viewModel.loadAppPreviewsFromCache()
-
-            Task {
-                do {
-                    try await viewModel.onAppear()
-                } catch {
-                    errorHandling.handle(error: error)
-                }
-            }
+            errorHandling.fireAndHandleError(viewModel.onAppear)
+        }
+        .onChange(
+            of: appCredentialsService.authenticationState
+        ) {
+            errorHandling.fireAndHandleError(viewModel.onAuthenticationStateChanged)
         }
     }
 }

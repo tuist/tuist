@@ -1,4 +1,3 @@
-import FileSystem
 import Foundation
 import Mockable
 import Path
@@ -558,5 +557,44 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
             gotGraph
         )
         XCTAssertEmpty(gotSideEffects)
+    }
+
+    func test_removeOtherSwithDuplicates() {
+        // Given
+        let settings: SettingsDictionary = [
+            "OTHER_SWIFT_FLAGS": .array(
+                [
+                    "value-one",
+                    "-Xcc", "value-two",
+                    "-Xcc", "value-three",
+                    "-Xcc", "value-two",
+                    "-Xfrontend", "value-five",
+                    "-Xfrontend", "value-five",
+                    "-Xfrontend", "value-two",
+                    "value-four",
+                    "value-one",
+                ]
+            ),
+        ]
+
+        // When
+        let got = settings.removeOtherSwiftFlagsDuplicates()
+
+        // Then
+        XCTAssertEqual(
+            got,
+            [
+                "OTHER_SWIFT_FLAGS": .array(
+                    [
+                        "value-one",
+                        "-Xcc", "value-two",
+                        "-Xcc", "value-three",
+                        "-Xfrontend", "value-five",
+                        "-Xfrontend", "value-two",
+                        "value-four",
+                    ]
+                ),
+            ]
+        )
     }
 }

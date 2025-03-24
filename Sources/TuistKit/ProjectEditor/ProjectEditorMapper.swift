@@ -1,6 +1,7 @@
 import FileSystem
 import Foundation
 import Path
+import ServiceContextModule
 import TuistCore
 import TuistLoader
 import TuistSupport
@@ -32,10 +33,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
     private let fileSystem: FileSysteming
 
     init(
-        swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(
-            system: System.shared,
-            fileSystem: FileSystem()
-        ),
+        swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(),
         fileSystem: FileSysteming = FileSystem()
     ) {
         self.swiftPackageManagerController = swiftPackageManagerController
@@ -60,7 +58,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         stencils: [AbsolutePath],
         projectDescriptionSearchPath: AbsolutePath
     ) async throws -> Graph {
-        logger.notice("Building the editable project graph")
+        ServiceContext.current?.logger?.notice("Building the editable project graph")
         let swiftVersion = try SwiftVersionProvider.shared.swiftVersion()
 
         let pluginsProject = try await mapPluginsProject(
@@ -246,15 +244,16 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         let helperAndPluginDependencies = helperTargetDependencies + editablePluginTargetDependencies
 
         let packagesTarget: Target? = try await {
-            guard let packageManifestPath,
-                  let xcode = try await XcodeController.shared.selected()
-            else { return nil }
+            guard let packageManifestPath else { return nil }
+            let xcode = try await XcodeController.shared.selected()
             let packageVersion = try swiftPackageManagerController.getToolsVersion(at: packageManifestPath.parentDirectory)
 
             var packagesSettings = targetBaseSettings(
                 projectFrameworkPath: projectDescriptionPath,
                 pluginHelperLibraryPaths: pluginProjectDescriptionHelpersModule.map(\.path),
-                swiftVersion: swiftVersion
+                // We have no use of strict concurrency in the Packages targets, so we're opting into the Swift 5 language mode.
+                // Otherwise, `PackageDescription` must be imported with the `@preconcurrency` modifier
+                swiftVersion: Version(5, 0, 0).description
             )
             packagesSettings.merge(
                 [
@@ -324,7 +323,8 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             executable: nil,
             filePath: tuistPath,
             arguments: arguments,
-            diagnosticsOptions: SchemeDiagnosticsOptions()
+            diagnosticsOptions: SchemeDiagnosticsOptions(),
+            metalOptions: MetalOptions()
         )
         let scheme = Scheme(name: projectName, shared: true, buildAction: buildAction, runAction: runAction)
         let projectSettings = Settings(
@@ -358,7 +358,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             additionalFiles: [],
             resourceSynthesizers: [],
             lastUpgradeCheck: nil,
-            isExternal: false
+            type: .local
         )
     }
 
@@ -455,7 +455,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             additionalFiles: [],
             resourceSynthesizers: [],
             lastUpgradeCheck: nil,
-            isExternal: false
+            type: .local
         )
     }
 

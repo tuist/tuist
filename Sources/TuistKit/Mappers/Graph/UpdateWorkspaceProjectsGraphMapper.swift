@@ -1,4 +1,5 @@
 import Foundation
+import ServiceContextModule
 import TuistCore
 import XcodeGraph
 
@@ -8,7 +9,7 @@ public final class UpdateWorkspaceProjectsGraphMapper: GraphMapping {
     public init() {}
 
     public func map(graph: Graph, environment: MapperEnvironment) throws -> (Graph, [SideEffectDescriptor], MapperEnvironment) {
-        logger.debug("Transforming graph \(graph.name): Aligning workspace projects with the graph's")
+        ServiceContext.current?.logger?.debug("Transforming graph \(graph.name): Aligning workspace projects with the graph's")
 
         var graph = graph
         let graphProjects = Set(graph.projects.map(\.key))

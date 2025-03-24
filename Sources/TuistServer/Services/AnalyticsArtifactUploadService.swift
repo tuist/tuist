@@ -1,23 +1,21 @@
+import FileSystem
 import Foundation
 import Mockable
 import Path
 import TuistCore
 import TuistSupport
-import XcodeGraph
 
 @Mockable
 public protocol AnalyticsArtifactUploadServicing {
     func uploadResultBundle(
         _ resultBundle: AbsolutePath,
-        targetHashes: [CommandEventGraphTarget: String],
-        graphPath: AbsolutePath,
         commandEventId: Int,
         serverURL: URL
     ) async throws
 }
 
 public final class AnalyticsArtifactUploadService: AnalyticsArtifactUploadServicing {
-    private let fileHandler: FileHandling
+    private let fileSystem: FileSysteming
     private let xcresultToolController: XCResultToolControlling
     private let fileArchiver: FileArchivingFactorying
     private let retryProvider: RetryProviding
@@ -29,7 +27,7 @@ public final class AnalyticsArtifactUploadService: AnalyticsArtifactUploadServic
 
     public convenience init() {
         self.init(
-            fileHandler: FileHandler.shared,
+            fileSystem: FileSystem(),
             xcresultToolController: XCResultToolController(),
             fileArchiver: FileArchivingFactory(),
             retryProvider: RetryProvider(),
@@ -44,7 +42,7 @@ public final class AnalyticsArtifactUploadService: AnalyticsArtifactUploadServic
     }
 
     init(
-        fileHandler: FileHandling,
+        fileSystem: FileSysteming,
         xcresultToolController: XCResultToolControlling,
         fileArchiver: FileArchivingFactorying,
         retryProvider: RetryProviding,
@@ -54,7 +52,7 @@ public final class AnalyticsArtifactUploadService: AnalyticsArtifactUploadServic
         multipartUploadCompleteAnalyticsService: MultipartUploadCompleteAnalyticsServicing,
         completeAnalyticsArtifactsUploadsService: CompleteAnalyticsArtifactsUploadsServicing
     ) {
-        self.fileHandler = fileHandler
+        self.fileSystem = fileSystem
         self.xcresultToolController = xcresultToolController
         self.fileArchiver = fileArchiver
         self.retryProvider = retryProvider
@@ -67,8 +65,6 @@ public final class AnalyticsArtifactUploadService: AnalyticsArtifactUploadServic
 
     public func uploadResultBundle(
         _ resultBundle: AbsolutePath,
-        targetHashes: [CommandEventGraphTarget: String],
-        graphPath: AbsolutePath,
         commandEventId: Int,
         serverURL: URL
     ) async throws {
@@ -81,57 +77,49 @@ public final class AnalyticsArtifactUploadService: AnalyticsArtifactUploadServic
             serverURL: serverURL
         )
 
-        let invocationRecordString = try await xcresultToolController.resultBundleObject(resultBundle)
-        let invocationRecordPath = resultBundle.parentDirectory.appending(component: "invocation_record.json")
-        try fileHandler.write(invocationRecordString, path: invocationRecordPath, atomically: true)
+        try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryPath in
+            let invocationRecordString = try await xcresultToolController.resultBundleObject(resultBundle)
+            let invocationRecordPath = temporaryPath.appending(component: "invocation_record.json")
+            try await fileSystem.writeText(invocationRecordString, at: invocationRecordPath)
 
-        let decoder = JSONDecoder()
-        let invocationRecord = try decoder.decode(InvocationRecord.self, from: invocationRecordString.data(using: .utf8)!)
-        for testActionRecord in invocationRecord.actions._values
-            .filter({ $0.schemeCommandName._value == "Test" })
-        {
-            guard let id = testActionRecord.actionResult.testsRef?.id._value else { continue }
-            let resultBundleObjectString = try await xcresultToolController.resultBundleObject(
-                resultBundle,
-                id: id
-            )
-            let filename = "\(id).json"
-            let resultBundleObjectPath = resultBundle.parentDirectory.appending(component: filename)
-            try fileHandler.write(resultBundleObjectString, path: resultBundleObjectPath, atomically: true)
+            let decoder = JSONDecoder()
+            let invocationRecord = try decoder.decode(InvocationRecord.self, from: invocationRecordString.data(using: .utf8)!)
+            for testActionRecord in invocationRecord.actions._values
+                .filter({ $0.schemeCommandName._value == "Test" })
+            {
+                guard let id = testActionRecord.actionResult.testsRef?.id._value else { continue }
+                let resultBundleObjectString = try await xcresultToolController.resultBundleObject(
+                    resultBundle,
+                    id: id
+                )
+                let filename = "\(id).json"
+                let resultBundleObjectPath = temporaryPath.appending(component: filename)
+                try await fileSystem.writeText(resultBundleObjectString, at: resultBundleObjectPath)
+                try await uploadAnalyticsArtifact(
+                    ServerCommandEvent.Artifact(
+                        type: .resultBundleObject,
+                        name: id
+                    ),
+                    artifactPath: resultBundleObjectPath,
+                    commandEventId: commandEventId,
+                    serverURL: serverURL
+                )
+            }
+
             try await uploadAnalyticsArtifact(
                 ServerCommandEvent.Artifact(
-                    type: .resultBundleObject,
-                    name: id
+                    type: .invocationRecord
                 ),
-                artifactPath: resultBundleObjectPath,
+                artifactPath: invocationRecordPath,
+                commandEventId: commandEventId,
+                serverURL: serverURL
+            )
+
+            try await completeAnalyticsArtifactsUploadsService.completeAnalyticsArtifactsUploads(
                 commandEventId: commandEventId,
                 serverURL: serverURL
             )
         }
-
-        try await uploadAnalyticsArtifact(
-            ServerCommandEvent.Artifact(
-                type: .invocationRecord
-            ),
-            artifactPath: invocationRecordPath,
-            commandEventId: commandEventId,
-            serverURL: serverURL
-        )
-
-        let modules = targetHashes.map { key, value in
-            ServerModule(
-                hash: value,
-                projectRelativePath:
-                key.project.xcodeProjPath.relative(to: graphPath),
-                name: key.target.name
-            )
-        }
-
-        try await completeAnalyticsArtifactsUploadsService.completeAnalyticsArtifactsUploads(
-            modules: modules,
-            commandEventId: commandEventId,
-            serverURL: serverURL
-        )
     }
 
     private func uploadAnalyticsArtifact(
@@ -170,7 +158,8 @@ public final class AnalyticsArtifactUploadService: AnalyticsArtifactUploadServic
                         serverURL: serverURL,
                         contentLength: part.contentLength
                     )
-                }
+                },
+                updateProgress: { _ in }
             )
 
             try await multipartUploadCompleteAnalyticsService.uploadAnalyticsArtifact(

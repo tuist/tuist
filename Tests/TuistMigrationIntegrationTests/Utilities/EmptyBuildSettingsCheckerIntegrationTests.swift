@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import ServiceContextModule
 import TuistSupport
 import XCTest
 
@@ -31,28 +32,34 @@ final class EmptyBuildSettingsCheckerIntegrationTests: TuistTestCase {
     }
 
     func test_check_when_non_empty_target_build_settings() async throws {
-        // Given
-        let xcodeprojPath = fixturePath(path: try RelativePath(validating: "Frameworks/Frameworks.xcodeproj"))
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            let xcodeprojPath = fixturePath(path: try RelativePath(validating: "Frameworks/Frameworks.xcodeproj"))
 
-        // Then
-        await XCTAssertThrowsSpecific(try await subject.check(
-            xcodeprojPath: xcodeprojPath,
-            targetName: "iOS"
-        ), EmptyBuildSettingsCheckerError.nonEmptyBuildSettings(["Debug", "Release"]))
-        XCTAssertPrinterOutputContains("The build setting 'DYLIB_CURRENT_VERSION' of build configuration 'Debug' is not empty.")
+            // Then
+            await XCTAssertThrowsSpecific(try await subject.check(
+                xcodeprojPath: xcodeprojPath,
+                targetName: "iOS"
+            ), EmptyBuildSettingsCheckerError.nonEmptyBuildSettings(["Debug", "Release"]))
+            XCTAssertPrinterOutputContains(
+                "The build setting 'DYLIB_CURRENT_VERSION' of build configuration 'Debug' is not empty."
+            )
+        }
     }
 
     func test_check_when_non_empty_project_build_settings() async throws {
-        // Given
-        let xcodeprojPath = fixturePath(path: try RelativePath(validating: "Frameworks/Frameworks.xcodeproj"))
+        try await ServiceContext.withTestingDependencies {
+            // Given
+            let xcodeprojPath = fixturePath(path: try RelativePath(validating: "Frameworks/Frameworks.xcodeproj"))
 
-        // Then
-        await XCTAssertThrowsSpecific(try await subject.check(
-            xcodeprojPath: xcodeprojPath,
-            targetName: nil
-        ), EmptyBuildSettingsCheckerError.nonEmptyBuildSettings(["Debug", "Release"]))
-        XCTAssertPrinterOutputContains(
-            "The build setting 'GCC_WARN_UNUSED_VARIABLE' of build configuration 'Debug' is not empty."
-        )
+            // Then
+            await XCTAssertThrowsSpecific(try await subject.check(
+                xcodeprojPath: xcodeprojPath,
+                targetName: nil
+            ), EmptyBuildSettingsCheckerError.nonEmptyBuildSettings(["Debug", "Release"]))
+            XCTAssertPrinterOutputContains(
+                "The build setting 'GCC_WARN_UNUSED_VARIABLE' of build configuration 'Debug' is not empty."
+            )
+        }
     }
 }

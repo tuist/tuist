@@ -1,5 +1,3 @@
-import Foundation
-
 /// An action that builds products.
 ///
 /// It's initialized with the `.buildAction` static method.

@@ -1,4 +1,3 @@
-import AnyCodable
 import Foundation
 import Path
 
@@ -7,7 +6,6 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
     public let runId: String
     public let name: String
     public let subcommand: String?
-    public let params: [String: AnyCodable]
     public let commandArguments: [String]
     public let durationInMs: Int
     public let clientId: String
@@ -21,28 +19,26 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
     public let gitRef: String?
     public let gitRemoteURLOrigin: String?
     public let gitBranch: String?
-    public let targetHashes: [CommandEventGraphTarget: String]?
-    public let graphPath: AbsolutePath?
-    public let cacheableTargets: [String]
-    public let localCacheTargetHits: [String]
-    public let remoteCacheTargetHits: [String]
-    public let testTargets: [String]
-    public let localTestTargetHits: [String]
-    public let remoteTestTargetHits: [String]
+    public let graph: RunGraph?
+    public let previewId: String?
+    public let resultBundlePath: AbsolutePath?
+    public let ranAt: Date
 
     public enum Status: Codable, Equatable {
         case success, failure(String)
     }
 
     public let id = UUID()
-    public let date = Date()
+    public var date: Date {
+        ranAt
+    }
+
     public let dispatcherId = "TuistAnalytics"
 
     private enum CodingKeys: String, CodingKey {
         case runId
         case name
         case subcommand
-        case params
         case commandArguments
         case durationInMs = "duration"
         case clientId
@@ -56,21 +52,16 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
         case gitRef
         case gitRemoteURLOrigin
         case gitBranch
-        case targetHashes
-        case graphPath
-        case cacheableTargets
-        case localCacheTargetHits
-        case remoteCacheTargetHits
-        case testTargets
-        case localTestTargetHits
-        case remoteTestTargetHits
+        case graph
+        case previewId
+        case resultBundlePath
+        case ranAt
     }
 
     public init(
         runId: String,
         name: String,
         subcommand: String?,
-        params: [String: AnyCodable],
         commandArguments: [String],
         durationInMs: Int,
         clientId: String,
@@ -84,19 +75,14 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
         gitRef: String?,
         gitRemoteURLOrigin: String?,
         gitBranch: String?,
-        targetHashes: [CommandEventGraphTarget: String]?,
-        graphPath: AbsolutePath?,
-        cacheableTargets: [String],
-        localCacheTargetHits: [String],
-        remoteCacheTargetHits: [String],
-        testTargets: [String],
-        localTestTargetHits: [String],
-        remoteTestTargetHits: [String]
+        graph: RunGraph?,
+        previewId: String?,
+        resultBundlePath: AbsolutePath?,
+        ranAt: Date
     ) {
         self.runId = runId
         self.name = name
         self.subcommand = subcommand
-        self.params = params
         self.commandArguments = commandArguments
         self.durationInMs = durationInMs
         self.clientId = clientId
@@ -110,14 +96,10 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
         self.gitRef = gitRef
         self.gitRemoteURLOrigin = gitRemoteURLOrigin
         self.gitBranch = gitBranch
-        self.targetHashes = targetHashes
-        self.graphPath = graphPath
-        self.cacheableTargets = cacheableTargets
-        self.localCacheTargetHits = localCacheTargetHits
-        self.remoteCacheTargetHits = remoteCacheTargetHits
-        self.testTargets = testTargets
-        self.localTestTargetHits = localTestTargetHits
-        self.remoteTestTargetHits = remoteTestTargetHits
+        self.graph = graph
+        self.previewId = previewId
+        self.resultBundlePath = resultBundlePath
+        self.ranAt = ranAt
     }
 }
 
@@ -127,7 +109,6 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
             runId: String = "",
             name: String = "generate",
             subcommand: String? = nil,
-            params: [String: AnyCodable] = [:],
             commandArguments: [String] = [],
             durationInMs: Int = 20,
             clientId: String = "123",
@@ -140,20 +121,15 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
             gitRef: String? = "refs/heads/main",
             gitRemoteURLOrigin: String? = "https://github.com/tuist/tuist",
             gitBranch: String? = "main",
-            targetHashes: [CommandEventGraphTarget: String]? = nil,
-            graphPath: AbsolutePath? = nil,
-            cacheableTargets: [String] = [],
-            localCacheTargetHits: [String] = [],
-            remoteCacheTargetHits: [String] = [],
-            testTargets: [String] = [],
-            localTestTargetHits: [String] = [],
-            remoteTestTargetHits: [String] = []
+            graph: RunGraph = RunGraph(name: "Graph", projects: []),
+            previewId: String? = nil,
+            resultBundlePath: AbsolutePath? = nil,
+            ranAt: Date = Date()
         ) -> CommandEvent {
             CommandEvent(
                 runId: runId,
                 name: name,
                 subcommand: subcommand,
-                params: params,
                 commandArguments: commandArguments,
                 durationInMs: durationInMs,
                 clientId: clientId,
@@ -167,14 +143,10 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
                 gitRef: gitRef,
                 gitRemoteURLOrigin: gitRemoteURLOrigin,
                 gitBranch: gitBranch,
-                targetHashes: targetHashes,
-                graphPath: graphPath,
-                cacheableTargets: cacheableTargets,
-                localCacheTargetHits: localCacheTargetHits,
-                remoteCacheTargetHits: remoteCacheTargetHits,
-                testTargets: testTargets,
-                localTestTargetHits: localTestTargetHits,
-                remoteTestTargetHits: remoteTestTargetHits
+                graph: graph,
+                previewId: previewId,
+                resultBundlePath: resultBundlePath,
+                ranAt: ranAt
             )
         }
     }

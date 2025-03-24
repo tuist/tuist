@@ -1,5 +1,6 @@
 extension SynthesizedResourceInterfaceTemplates {
     static let filesTemplate = """
+    // swiftlint:disable:this file_name
     // swiftlint:disable all
     // swift-format-ignore-file
     // swiftformat:disable all

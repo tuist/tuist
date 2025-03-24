@@ -4,7 +4,7 @@ titleTemplate: :title · Contributors · Tuist
 description: 이 문서는 Tuist의 개발을 위한 원칙을 설명합니다.
 ---
 
-# Translate #{#translate}
+# Translate {#translate}
 
 언어는 이해의 장벽이 될 수 있습니다. 우리는 Tuist가 가능한 많은 사람들에게 접근 가능하도록 하려고 합니다. Tuist에서 지원하지 않는 언어를 사용한다면, Tuist를 번역하여 우리를 도울 수 있습니다.
 
@@ -23,6 +23,7 @@ description: 이 문서는 Tuist의 개발을 위한 원칙을 설명합니다.
 우리는 번역을 관리하기 위해 [Crowdin](https://crowdin.com/)을 사용합니다. 먼저, 기여하고 싶은 프로젝트로 이동합니다:
 
 - [Documentation](https://crowdin.com/project/tuist-documentation)
+- [Website](https://crowdin.com/project/tuist-documentation)
 
 번역을 시작하려면 계정이 필요합니다. GitHub으로 로그인 할 수 있습니다. 접근 권한이 생기면 번역을 시작할 수 있습니다. 번역 가능한 리소스 목록을 확인할 수 있습니다. 리소스를 클릭하면 편집창이 열리고, 기존 언어는 왼편에 번역한 언어는 오른편에 나타나는 화면을 볼 수 있습니다. 오른편에 번역 내용을 작성하고 변경 사항을 저장합니다.
 

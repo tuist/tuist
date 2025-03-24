@@ -1,4 +1,5 @@
 import Foundation
+import ServiceContextModule
 import TuistSupport
 import TuistSupportTesting
 import XCTest
@@ -17,7 +18,7 @@ open class ServerAcceptanceTestCase: TuistAcceptanceTestCase {
         fullHandle = "\(organizationHandle)/\(projectHandle)"
         let email = try XCTUnwrap(ProcessInfo.processInfo.environment[EnvKey.authEmail.rawValue])
         let password = try XCTUnwrap(ProcessInfo.processInfo.environment[EnvKey.authPassword.rawValue])
-        try await run(AuthCommand.self, "--email", email, "--password", password)
+        try await run(LoginCommand.self, "--email", email, "--password", password)
         try await run(OrganizationCreateCommand.self, organizationHandle)
         try await run(ProjectCreateCommand.self, fullHandle)
         try FileHandler.shared.write(
@@ -32,13 +33,13 @@ open class ServerAcceptanceTestCase: TuistAcceptanceTestCase {
             path: fixturePath.appending(components: Constants.tuistManifestFileName),
             atomically: true
         )
+        ServiceContext.current?.resetRecordedUI()
     }
 
     override open func tearDown() async throws {
         try await run(ProjectDeleteCommand.self, fullHandle)
         try await run(OrganizationDeleteCommand.self, organizationHandle)
         try await run(LogoutCommand.self)
-        TestingLogHandler.reset()
         try await super.tearDown()
     }
 }

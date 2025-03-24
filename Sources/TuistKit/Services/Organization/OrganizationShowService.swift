@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import ServiceContextModule
 import TuistLoader
 import TuistServer
 import TuistSupport
@@ -22,7 +23,7 @@ final class OrganizationShowService: OrganizationShowServicing {
         getOrganizationService: GetOrganizationServicing = GetOrganizationService(),
         getOrganizationUsageService: GetOrganizationUsageServicing = GetOrganizationUsageService(),
         serverURLService: ServerURLServicing = ServerURLService(),
-        configLoader: ConfigLoading = ConfigLoader(warningController: WarningController.shared)
+        configLoader: ConfigLoading = ConfigLoader()
     ) {
         self.getOrganizationService = getOrganizationService
         self.getOrganizationUsageService = getOrganizationUsageService
@@ -56,7 +57,7 @@ final class OrganizationShowService: OrganizationShowServicing {
 
         if json {
             let json = try organization.toJSON()
-            logger.info(.init(stringLiteral: json.toString(prettyPrint: true)), metadata: .json)
+            ServiceContext.current?.logger?.info(.init(stringLiteral: json.toString(prettyPrint: true)), metadata: .json)
             return
         }
 
@@ -94,7 +95,7 @@ final class OrganizationShowService: OrganizationShowServicing {
             }
         }
 
-        logger.info("""
+        ServiceContext.current?.logger?.info("""
         \(baseInfo.joined(separator: "\n"))
 
         \("Usage".bold()) (current calendar month)

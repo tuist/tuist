@@ -3,9 +3,9 @@ import Foundation
 import Mockable
 import Path
 import struct ProjectDescription.Config
+import ServiceContextModule
 import TuistCore
 import TuistSupport
-import XcodeGraph
 
 @Mockable
 public protocol ConfigLoading {
@@ -15,7 +15,7 @@ public protocol ConfigLoading {
     /// - Parameter path: Directory from which look up and load the Config.
     /// - Returns: Loaded Config object.
     /// - Throws: An error if the Tuist.swift can't be parsed.
-    func loadConfig(path: AbsolutePath) async throws -> TuistCore.Config
+    func loadConfig(path: AbsolutePath) async throws -> TuistCore.Tuist
 
     /// Locates the Tuist.swift manifest from the given directory.
     func locateConfig(at: AbsolutePath) async throws -> AbsolutePath?
@@ -25,40 +25,36 @@ public final class ConfigLoader: ConfigLoading {
     private let manifestLoader: ManifestLoading
     private let rootDirectoryLocator: RootDirectoryLocating
     private let fileSystem: FileSysteming
-    private var cachedConfigs: [AbsolutePath: TuistCore.Config] = [:]
-    private let warningController: WarningControlling
-
+    private var cachedConfigs: [AbsolutePath: TuistCore.Tuist] = [:]
     public init(
         manifestLoader: ManifestLoading = ManifestLoader(),
-        warningController: WarningControlling,
         rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator(),
         fileSystem: FileSysteming = FileSystem()
     ) {
         self.manifestLoader = manifestLoader
         self.rootDirectoryLocator = rootDirectoryLocator
         self.fileSystem = fileSystem
-        self.warningController = warningController
     }
 
-    public func loadConfig(path: AbsolutePath) async throws -> TuistCore.Config {
+    public func loadConfig(path: AbsolutePath) async throws -> TuistCore.Tuist {
         if let cached = cachedConfigs[path] {
             return cached
         }
 
         guard let configPath = try await locateConfig(at: path) else {
-            let config = TuistCore.Config.default
+            let config = try await defaultConfig(at: path)
             cachedConfigs[path] = config
             return config
         }
 
         if configPath.pathString.contains("Config.swift") {
-            warningController
-                .append(warning: "Tuist/Config.swift is deprecated. Rename Tuist/Config.swift to Tuist.swift at the root.")
+            ServiceContext.current?.alerts?
+                .warning(.alert("Tuist/Config.swift is deprecated. Rename Tuist/Config.swift to Tuist.swift at the root."))
         }
 
         let manifest = try await manifestLoader.loadConfig(at: configPath.parentDirectory)
         let rootDirectory: AbsolutePath = try await rootDirectoryLocator.locate(from: configPath)
-        let config = try await TuistCore.Config.from(
+        let config = try await TuistCore.Tuist.from(
             manifest: manifest,
             rootDirectory: rootDirectory,
             at: configPath
@@ -84,5 +80,26 @@ public final class ConfigLoader: ConfigLoading {
             }
         }
         return nil
+    }
+
+    private func defaultConfig(at path: AbsolutePath) async throws -> Tuist {
+        let anyXcodeProjectOrWorkspace = !(
+            try await fileSystem.glob(directory: path, include: ["*.xcodeproj", "*.xcworkspace"])
+                .collect().isEmpty
+        )
+        let anyWorkspaceOrProjectManifest = !(try await fileSystem.glob(
+            directory: path,
+            include: ["Project.swift", "Workspace.swift"]
+        ).collect().isEmpty)
+
+        if anyXcodeProjectOrWorkspace, !anyWorkspaceOrProjectManifest {
+            return Tuist(
+                project: .xcode(TuistXcodeProjectOptions()),
+                fullHandle: nil,
+                url: Constants.URLs.production
+            )
+        } else {
+            return TuistCore.Tuist.default
+        }
     }
 }

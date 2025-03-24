@@ -2,11 +2,19 @@
 import SwiftUI
 
 struct MenuHeader: View {
+    let accountHandle: String?
+
     var body: some View {
         HStack(alignment: .center) {
-            Text("Tuist")
-                .font(.headline)
-                .fontWeight(.medium)
+            VStack(alignment: .leading) {
+                Text("Tuist")
+                    .font(.headline)
+                    .fontWeight(.medium)
+                Text(accountHandle ?? "Logged out")
+                    .font(.caption)
+                    .fontWeight(.light)
+                    .foregroundColor(.gray)
+            }
 
             Spacer()
 

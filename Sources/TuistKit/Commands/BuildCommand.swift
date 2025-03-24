@@ -1,6 +1,7 @@
 import ArgumentParser
 import Foundation
 import Path
+import ServiceContextModule
 import TuistServer
 import TuistSupport
 import XcodeGraph
@@ -119,7 +120,7 @@ public struct BuildOptions: ParsableArguments {
 }
 
 /// Command that builds a target from the project in the current directory.
-public struct BuildCommand: AsyncParsableCommand {
+public struct BuildCommand: AsyncParsableCommand, LogConfigurableCommand, RecentPathRememberableCommand {
     public init() {}
     public static var generatorFactory: GeneratorFactorying = GeneratorFactory()
     public static var cacheStorageFactory: CacheStorageFactorying = EmptyCacheStorageFactory()
@@ -130,6 +131,8 @@ public struct BuildCommand: AsyncParsableCommand {
             abstract: "Builds a project"
         )
     }
+
+    var logFilePathDisplayStrategy: LogFilePathDisplayStrategy = .always
 
     @OptionGroup()
     var buildOptions: BuildOptions
@@ -156,7 +159,7 @@ public struct BuildCommand: AsyncParsableCommand {
 
         // Suggest the user to use passthrough arguments if already supported by xcodebuild
         if let derivedDataPath = buildOptions.derivedDataPath {
-            logger
+            ServiceContext.current?.logger?
                 .warning(
                     "--derivedDataPath is deprecated please use -derivedDataPath \(derivedDataPath) after the terminator (--) instead to passthrough parameters to xcodebuild"
                 )

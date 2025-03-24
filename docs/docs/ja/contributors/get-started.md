@@ -1,6 +1,6 @@
 ---
 title: はじめに
-titleTemplate: :title · Contributors · Tuist
+titleTemplate: :title · コントリビューター · Tuist
 description: このガイドに従って、Tuistへのコントリビューションを始めましょう。
 ---
 
@@ -10,7 +10,7 @@ iOS などの Apple プラットフォーム向けのアプリ開発経験があ
 
 - **CLIとのやり取りはターミナルを通じて行われます。** ユーザーはTuistを実行し、指定したタスクを実行した後、正常に終了するか、またはステータスコードを返します。 実行中は、標準出力や標準エラーに情報を出力することで、ユーザーに通知を行うことができます。 ジェスチャーやグラフィカルな操作はなく、あるのはユーザーの意図だけです。
 
-- **プロセスを保持して入力待ちをするランループはありません。** これはiOSアプリがシステムやユーザーのイベントを受け取るときの挙動とは異なります。  CLIはそのプロセス内で実行され、タスクが完了すると終了します。  非同期処理は、[DispatchQueue](https://developer.apple.com/documentation/dispatch/dispatchqueue) や [構造化並行処理](https://developer.apple.com/tutorials/app-dev-training/managing-structured-concurrency) などのシステムAPIを使用して実行できますが、非同期処理が実行されている間はプロセスが稼働していることを確認する必要があります。  さもなければ、プロセスが終了し、非同期処理も中断されてしまいます。 CLIはそのプロセス内で実行され、タスクが完了すると終了します。 **プロセスを保持して入力待ちをするランループはありません。** これはiOSアプリがシステムやユーザーのイベントを受け取るときの挙動とは異なります。  CLIはそのプロセス内で実行され、タスクが完了すると終了します。  非同期処理は、[DispatchQueue](https://developer.apple.com/documentation/dispatch/dispatchqueue) や [構造化並行処理](https://developer.apple.com/tutorials/app-dev-training/managing-structured-concurrency) などのシステムAPIを使用して実行できますが、非同期処理が実行されている間はプロセスが稼働していることを確認する必要があります。  さもなければ、プロセスが終了し、非同期処理も中断されてしまいます。 CLIはそのプロセス内で実行され、タスクが完了すると終了します。 **プロセスを保持して入力待ちをするランループはありません。** これはiOSアプリがシステムやユーザーのイベントを受け取るときの挙動とは異なります。  CLIはそのプロセス内で実行され、タスクが完了すると終了します。  非同期処理は、[DispatchQueue](https://developer.apple.com/documentation/dispatch/dispatchqueue) や [構造化並行処理](https://developer.apple.com/tutorials/app-dev-training/managing-structured-concurrency) などのシステムAPIを使用して実行できますが、非同期処理が実行されている間はプロセスが稼働していることを確認する必要があります。  さもなければ、プロセスが終了し、非同期処理も中断されてしまいます。 CLIはそのプロセス内で実行され、タスクが完了すると終了します。  非同期処理は、[DispatchQueue](https://developer.apple.com/documentation/dispatch/dispatchqueue) や [構造化並行処理](https://developer.apple.com/tutorials/app-dev-training/managing-structured-concurrency) などのシステムAPIを使用して実行できますが、非同期処理が実行されている間はプロセスが稼働していることを確認する必要があります。  さもなければ、プロセスが終了し、非同期処理も中断されてしまいます。 さもなければ、プロセスが終了し、非同期処理も中断されてしまいます。 さもなければ、プロセスが終了し、非同期処理も中断されてしまいます。
+- **プロセスを保持して入力待ちをするランループはありません。** これはiOSアプリがシステムやユーザーのイベントを受け取るときの挙動とは異なります。  CLIはそのプロセス内で実行され、タスクが完了すると終了します。  非同期処理は、[DispatchQueue](https://developer.apple.com/documentation/dispatch/dispatchqueue) や [構造化並行処理](https://developer.apple.com/tutorials/app-dev-training/managing-structured-concurrency) などのシステムAPIを使用して実行できますが、非同期処理が実行されている間はプロセスが稼働していることを確認する必要があります。  さもなければ、プロセスが終了し、非同期処理も中断されてしまいます。
 
 Swiftに関する経験がない場合は、言語と Foundation API の主要な要素に慣れるために、[Appleの公式ブック](https://docs.swift.org/swift-book/)をお勧めします。
 
@@ -29,17 +29,17 @@ Tuist に貢献するには、最低限の要件があります。
 - 開発環境を整えるため、Mise を [インストール](https://mise.jdx.dev/getting-started.html) します。
 - Tuist が必要とするシステム依存関係をインストールするため、 `mise install` を実行します。
 - Tuist が必要とする外部依存関係をインストールするため、 `tuist install` を実行します。
-- (任意) `tuist auth` を実行して、 <LocalizedLink href="/guides/develop/build/cache">Tuist Cache</LocalizedLink> へのアクセスを取得します
+- (任意) `tuist auth login` を実行して、 <LocalizedLink href="/guides/develop/build/cache">Tuist Cache</LocalizedLink> へのアクセスを取得します
 - `tuist generate` を実行して、Tuist の Xcode プロジェクトを生成します。
 
-**生成されたプロジェクトは自動的に開きます。** **生成されたプロジェクトは自動的に開きます。** **生成されたプロジェクトは自動的に開きます。** **生成されたプロジェクトは自動的に開きます。** **生成されたプロジェクトは自動的に開きます。** **生成されたプロジェクトは自動的に開きます。** 再生成せずにもう一度開くには、`open Tuist.xcworkspace` を実行するか、Finderを使ってください。 **生成されたプロジェクトは自動的に開きます。** **生成されたプロジェクトは自動的に開きます。** **生成されたプロジェクトは自動的に開きます。** **生成されたプロジェクトは自動的に開きます。** **生成されたプロジェクトは自動的に開きます。** 再生成せずにもう一度開くには、`open Tuist.xcworkspace` を実行するか、Finderを使ってください。 **生成されたプロジェクトは自動的に開きます。** **生成されたプロジェクトは自動的に開きます。** **生成されたプロジェクトは自動的に開きます。** **生成されたプロジェクトは自動的に開きます。** **生成されたプロジェクトは自動的に開きます。** 再生成せずにもう一度開くには、`open Tuist.xcworkspace` を実行するか、Finderを使ってください。
+**生成されたプロジェクトは自動的に開きます。** 再生成せずにもう一度開くには、`open Tuist.xcworkspace` を実行するか、Finderを使ってください。
 
 > [!NOTE] XED .
-> `xed .` を使ってプロジェクトを開いた場合、Tuist が生成したプロジェクトではなく、パッケージが開きます。  Tuist が生成したプロジェクトを使うことを推奨します。 Tuist が生成したプロジェクトを使うことを推奨します。 Tuist が生成したプロジェクトを使うことを推奨します。 Tuist が生成したプロジェクトを使うことを推奨します。 Tuist が生成したプロジェクトを使うことを推奨します。 Tuist が生成したプロジェクトを使うことを推奨します。 Tuist が生成したプロジェクトを使うことを推奨します。
+> `xed .` を使ってプロジェクトを開いた場合、Tuist が生成したプロジェクトではなく、パッケージが開きます。  Tuist で生成されたプロジェクトを使って、自分でツールを試すことを推奨します。
 
 ## プロジェクトの編集 {#edit-the-project}
 
-依存関係の追加やターゲットの調整など、プロジェクトを編集する必要がある場合は、<LocalizedLink href="/guides/develop/projects/editing">`tuist edit` コマンド</LocalizedLink>を使用できます。  あまり使われることはありませんが、知っておいて損はありません。 あまり使われることはありませんが、知っておいて損はありません。 あまり使われることはありませんが、知っておいて損はありません。 あまり使われることはありませんが、知っておいて損はありません。 あまり使われることはありませんが、知っておいて損はありません。 あまり使われることはありませんが、知っておいて損はありません。 あまり使われることはありませんが、知っておいて損はありません。
+依存関係の追加やターゲットの調整など、プロジェクトを編集する必要がある場合は、<LocalizedLink href="/guides/develop/projects/editing">`tuist edit` コマンド</LocalizedLink>を使用できます。  あまり使われることはありませんが、知っておいて損はありません。
 
 ## Tuist を実行する {#run-tuist}
 
@@ -54,12 +54,17 @@ Tuist に貢献するには、最低限の要件があります。
 ![Tuistを実行するための作業ディレクトリの設定例](/images/contributors/scheme-working-directory.png)
 
 > [!WARNING] PROJECTDESCRIPTION COMPILATION
-> `tuist` CLI は、ビルドされたプロダクトのディレクトリにある `ProjectDescription` フレームワークの存在に依存します。 [!WARNING] PROJECTDESCRIPTION COMPILATION
-> `tuist` CLI は、ビルドされたプロダクトのディレクトリにある `ProjectDescription` フレームワークの存在に依存します。 `ProjectDescription` フレームワークが見つからずに `tuist` の実行が失敗した場合は、まず `Tuist-Workspace` スキームをビルドしてください。 `ProjectDescription` フレームワークが見つからずに `tuist` の実行が失敗した場合は、まず `Tuist-Workspace` スキームをビルドしてください。
+> `tuist` CLI は、ビルドされたプロダクトのディレクトリにある `ProjectDescription` フレームワークの存在に依存します。 `ProjectDescription` フレームワークが見つからずに `tuist` の実行が失敗した場合は、まず `Tuist-Workspace` スキームをビルドしてください。
 
 ### ターミナル経由 {#from-the-terminal}
 
-`tuist` には `tuist run` コマンドがありますが、CLIにはまだ対応していません。 そのため、Swift Package Manager を使用してツールを実行する必要があります。 以下のコマンドを実行してください。
+Tuist 自体の `run` コマンドを使って `tuist` を実行できます。
+
+```bash
+tuist run tuist generate --path /path/to/project --no-open
+```
+
+または、Swift Package Manager で直接実行することもできます。
 
 ```bash
 swift build --product ProjectDescription

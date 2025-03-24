@@ -29,7 +29,15 @@ public final class MockEnvironment: Environmenting {
         directory.path.appending(components: ".cache")
     }
 
+    public var stateDirectory: AbsolutePath {
+        directory.path.appending(component: "state")
+    }
+
     public var queueDirectory: AbsolutePath {
         queueDirectoryStub ?? directory.path.appending(component: Constants.AsyncQueue.directoryName)
     }
+
+    public var workspacePath: AbsolutePath? { nil }
+
+    public var schemeName: String? { nil }
 }

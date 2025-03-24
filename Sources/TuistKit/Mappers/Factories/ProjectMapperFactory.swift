@@ -5,7 +5,6 @@ import TuistDependencies
 import TuistGenerator
 import TuistLoader
 import TuistSupport
-import XcodeGraph
 
 /// The protocol describes an interface for getting project mappers.
 protocol ProjectMapperFactorying {
@@ -31,11 +30,6 @@ public final class ProjectMapperFactory: ProjectMapperFactorying {
     public func automation(skipUITests: Bool) -> [ProjectMapping] {
         var mappers: [ProjectMapping] = []
         mappers += self.default()
-
-        mappers.append(
-            SourceRootPathProjectMapper()
-        )
-
         if skipUITests {
             mappers.append(
                 SkipUITestsProjectMapper()

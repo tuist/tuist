@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import ServiceContextModule
 import TuistLoader
 import TuistServer
 import TuistSupport
@@ -19,7 +20,7 @@ final class OrganizationRemoveSSOService: OrganizationRemoveSSOServicing {
     init(
         updateOrganizationService: UpdateOrganizationServicing = UpdateOrganizationService(),
         serverURLService: ServerURLServicing = ServerURLService(),
-        configLoader: ConfigLoading = ConfigLoader(warningController: WarningController.shared)
+        configLoader: ConfigLoading = ConfigLoader()
     ) {
         self.updateOrganizationService = updateOrganizationService
         self.serverURLService = serverURLService
@@ -45,6 +46,6 @@ final class OrganizationRemoveSSOService: OrganizationRemoveSSOServicing {
             ssoOrganization: nil
         )
 
-        logger.info("SSO for \(organizationName) was removed.")
+        ServiceContext.current?.logger?.info("SSO for \(organizationName) was removed.")
     }
 }

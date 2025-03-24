@@ -128,6 +128,21 @@ final class TargetLinterTests: TuistUnitTestCase {
         )
     }
 
+    func test_lint_when_target_no_source_files_but_remote() async throws {
+        let target = Target(
+            name: "Target",
+            destinations: .iOS,
+            product: .framework,
+            productName: nil,
+            bundleId: "bundle.id",
+            filesGroup: .group(name: "Project"),
+            type: .remote
+        )
+        let got = try await subject.lint(target: target, options: .test())
+
+        XCTAssertEmpty(got)
+    }
+
     func test_lint_when_target_no_source_files_but_has_dependency() async throws {
         let target = Target.test(sources: [], dependencies: [
             TargetDependency.sdk(name: "libc++.tbd", status: .optional),
@@ -332,10 +347,7 @@ final class TargetLinterTests: TuistUnitTestCase {
         )
         XCTContainsLintingIssue(
             staticFrameworkResult,
-            LintingIssue(
-                reason: "Target \(staticFramework.name) cannot contain resources. For \(staticFramework.product) targets to support resources, 'Bundle Accessors' feature should be enabled.",
-                severity: .error
-            )
+            LintingIssue(reason: "The target \(staticFramework.name) doesn't contain source files.", severity: .warning)
         )
 
         let dynamicFrameworkResult = try await subject.lint(

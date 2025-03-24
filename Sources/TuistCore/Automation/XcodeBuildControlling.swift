@@ -1,11 +1,28 @@
-import Foundation
 import Mockable
 import Path
-import TuistSupport
+import XcodeGraph
 
 public enum XcodeBuildDestination: Equatable {
     case device(String)
     case mac
+    case macCatalyst
+}
+
+public enum XcodeBuildTestAction: Equatable {
+    case test
+    case build
+    case testWithoutBuilding
+
+    public var description: String {
+        switch self {
+        case .test:
+            "Testing"
+        case .build:
+            "Building"
+        case .testWithoutBuilding:
+            "Testing without building"
+        }
+    }
 }
 
 @Mockable
@@ -48,6 +65,7 @@ public protocol XcodeBuildControlling {
         scheme: String,
         clean: Bool,
         destination: XcodeBuildDestination?,
+        action: XcodeBuildTestAction,
         rosetta: Bool,
         derivedDataPath: AbsolutePath?,
         resultBundlePath: AbsolutePath?,
@@ -97,4 +115,11 @@ public protocol XcodeBuildControlling {
         configuration: String,
         derivedDataPath: AbsolutePath?
     ) async throws -> [String: XcodeBuildSettings]
+
+    /// Runs `xcodebuild` with passed `arguments` and formats the output
+    /// - arguments: Arguments to pass to `xcodebuild`
+    func run(arguments: [String]) async throws
+
+    /// - Returns: `xcodebuild` version. This version is aligned with the Xcode version.
+    func version() async throws -> Version?
 }

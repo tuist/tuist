@@ -3,14 +3,16 @@ workflows:
     name: Lint
     max_build_duration: 60
     environment:
-      xcode: 16.0
+      xcode: 16.1
+      groups:
+        - github_credentials
     scripts:
       - name: Set environment variables
         script: |
           echo "MISE_EXPERIMENTAL=1" >> $CM_ENV
       - name: Install Mise
         script: |
-          curl https://mise.run | MISE_VERSION=v2024.11.8 sh
+          curl https://mise.run | MISE_VERSION=v2025.1.5 sh
           mise install
       - name: Install Tuist dependencies
         script: mise x -- tuist install
@@ -30,14 +32,16 @@ workflows:
     name: SPM Build
     max_build_duration: 60
     environment:
-      xcode: 16.0
+      xcode: 16.1
+      groups:
+        - github_credentials
     scripts:
       - name: Set environment variables
         script: |
           echo "MISE_EXPERIMENTAL=1" >> $CM_ENV
       - name: Install Mise
         script: |
-          curl https://mise.run | MISE_VERSION=v2024.11.8 sh
+          curl https://mise.run | MISE_VERSION=v2025.1.5 sh
           mise install
       - name: Build
         script: swift build --configuration debug
@@ -47,16 +51,17 @@ workflows:
     name: Build Documentation
     max_build_duration: 60
     environment:
-      xcode: 16.0
+      xcode: 16.1
       groups:
         - tuist
+        - github_credentials
     scripts:
       - name: Set environment variables
         script: |
           echo "MISE_EXPERIMENTAL=1" >> $CM_ENV
       - name: Install Mise
         script: |
-          curl https://mise.run | MISE_VERSION=v2024.11.8 sh
+          curl https://mise.run | MISE_VERSION=v2025.1.3 sh
           mise install
       - name: Install dependencies
         script: mise run install
@@ -70,9 +75,10 @@ workflows:
     name: Unit tests
     max_build_duration: 60
     environment:
-      xcode: 16.0
+      xcode: 16.1
       groups:
         - tuist
+        - github_credentials
     cache:
       cache_paths:
         - $CM_BUILD_DIR/.build
@@ -82,7 +88,7 @@ workflows:
           echo "MISE_EXPERIMENTAL=1" >> $CM_ENV
       - name: Install Mise
         script: |
-          curl https://mise.run | MISE_VERSION=v2024.11.8 sh
+          curl https://mise.run | MISE_VERSION=v2025.1.5 sh
           mise install
       - name: Install Tuist dependencies
         script: mise x -- tuist install
@@ -94,9 +100,10 @@ workflows:
     name: Cache
     max_build_duration: 60
     environment:
-      xcode: 16.0
+      xcode: 16.1
       groups:
         - tuist
+        - github_credentials
     cache:
       cache_paths:
         - $CM_BUILD_DIR/.build
@@ -106,7 +113,7 @@ workflows:
           echo "MISE_EXPERIMENTAL=1" >> $CM_ENV
       - name: Install Mise
         script: |
-          curl https://mise.run | MISE_VERSION=v2024.11.8 sh
+          curl https://mise.run | MISE_VERSION=v2025.1.5 sh
           mise install
       - name: Install Tuist dependencies
         script: mise x -- tuist install
@@ -121,14 +128,14 @@ workflows:
         - pattern: "main"
           include: true
       cancel_previous_builds: true
-
   deploy_docs:
     name: Deploy Documentation
     max_build_duration: 60
     environment:
-      xcode: 16.0
+      xcode: 16.1
       groups:
         - tuist
+        - github_credentials
     scripts:
       - name: Set environment variables
         script: |
@@ -136,7 +143,7 @@ workflows:
           echo "CLOUDFLARE_ACCOUNT_ID=cc0237353f2f825680b0463629cd4a86" >> $CM_ENV
       - name: Install Mise
         script: |
-          curl https://mise.run | MISE_VERSION=v2024.11.8 sh
+          curl https://mise.run | MISE_VERSION=v2025.1.5 sh
           mise install
       - name: Install dependencies
         script: mise run install
@@ -160,9 +167,10 @@ workflows:
     name: Tuist automation acceptance tests
     max_build_duration: 60
     environment:
-      xcode: 16.0
+      xcode: 16.1
       groups:
         - tuist
+        - github_credentials
     cache:
       cache_paths:
         - $CM_BUILD_DIR/.build
@@ -172,7 +180,7 @@ workflows:
           echo "MISE_EXPERIMENTAL=1" >> $CM_ENV
       - name: Install Mise
         script: |
-          curl https://mise.run | MISE_VERSION=v2024.11.8 sh
+          curl https://mise.run | MISE_VERSION=v2025.1.5 sh
           mise install
       - name: Skip Xcode Macro Fingerprint Validation
         script: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
@@ -189,9 +197,10 @@ workflows:
     name: Tuist dependencies acceptance tests
     max_build_duration: 60
     environment:
-      xcode: 16.0
+      xcode: 16.1
       groups:
         - tuist
+        - github_credentials
     cache:
       cache_paths:
         - $CM_BUILD_DIR/.build
@@ -201,12 +210,21 @@ workflows:
           echo "MISE_EXPERIMENTAL=1" >> $CM_ENV
       - name: Install Mise
         script: |
-          curl https://mise.run | MISE_VERSION=v2024.11.8 sh
+          curl https://mise.run | MISE_VERSION=v2025.1.5 sh
           mise install
       - name: Skip Xcode Macro Fingerprint Validation
         script: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
       - name: Skip Xcode Package Validation
         script: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidatation -bool YES
+      - name: Set up new keychain
+        script: |
+          TMP_DIRECTORY=$(mktemp -d)
+          KEYCHAIN_PATH=$TMP_DIRECTORY/keychain.keychain
+          KEYCHAIN_PASSWORD=$(uuidgen)
+          security create-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
+          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+          security default-keychain -s $KEYCHAIN_PATH
+          security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
       - name: Install Tuist dependencies
         script: mise x -- tuist install
       - name: Run tests
@@ -218,9 +236,10 @@ workflows:
     name: Tuist generator acceptance tests
     max_build_duration: 60
     environment:
-      xcode: 16.0
+      xcode: 16.1
       groups:
         - tuist
+        - github_credentials
     cache:
       cache_paths:
         - $CM_BUILD_DIR/.build
@@ -230,7 +249,7 @@ workflows:
           echo "MISE_EXPERIMENTAL=1" >> $CM_ENV
       - name: Install Mise
         script: |
-          curl https://mise.run | MISE_VERSION=v2024.11.8 sh
+          curl https://mise.run | MISE_VERSION=v2025.1.5 sh
           mise install
       - name: Skip Xcode Macro Fingerprint Validation
         script: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
@@ -247,9 +266,10 @@ workflows:
     name: TuistKit acceptance tests
     max_build_duration: 60
     environment:
-      xcode: 16.0
+      xcode: 16.1
       groups:
         - tuist
+        - github_credentials
     cache:
       cache_paths:
         - $CM_BUILD_DIR/.build
@@ -259,7 +279,7 @@ workflows:
           echo "MISE_EXPERIMENTAL=1" >> $CM_ENV
       - name: Install Mise
         script: |
-          curl https://mise.run | MISE_VERSION=v2024.11.8 sh
+          curl https://mise.run | MISE_VERSION=v2025.1.5 sh
           mise install
       - name: Skip Xcode Macro Fingerprint Validation
         script: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
@@ -275,9 +295,10 @@ workflows:
     name: Tuist App tests
     max_build_duration: 60
     environment:
-      xcode: 16.0
+      xcode: 16.1
       groups:
         - tuist
+        - github_credentials
     cache:
       cache_paths:
         - $CM_BUILD_DIR/.build
@@ -287,7 +308,7 @@ workflows:
           echo "MISE_EXPERIMENTAL=1" >> $CM_ENV
       - name: Install Mise
         script: |
-          curl https://mise.run | MISE_VERSION=v2024.11.8 sh
+          curl https://mise.run | MISE_VERSION=v2025.1.5 sh
           mise install
       - name: Skip Xcode Macro Fingerprint Validation
         script: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES

@@ -1,6 +1,6 @@
 import Foundation
 import Path
-import TuistAutomation
+import ServiceContextModule
 import TuistCache
 import TuistCore
 import TuistHasher
@@ -21,7 +21,7 @@ final class CachePrintHashesService {
             generatorFactory: generatorFactory,
             cacheGraphContentHasher: CacheGraphContentHasher(contentHasher: contentHasher),
             clock: WallClock(),
-            configLoader: ConfigLoader(manifestLoader: ManifestLoader(), warningController: WarningController.shared)
+            configLoader: ConfigLoader(manifestLoader: ManifestLoader())
         )
     }
 
@@ -57,19 +57,19 @@ final class CachePrintHashesService {
         let hashes = try await cacheGraphContentHasher.contentHashes(
             for: graph,
             configuration: configuration,
-            config: config,
+            defaultConfiguration: config.project.generatedProject?.generationOptions.defaultConfiguration,
             excludedTargets: []
         )
         let duration = timer.stop()
         let time = String(format: "%.3f", duration)
         guard hashes.count > 0 else {
-            logger.notice("No cacheable targets were found")
+            ServiceContext.current?.logger?.notice("No cacheable targets were found")
             return
         }
         let sortedHashes = hashes.sorted { $0.key.target.name < $1.key.target.name }
         for (target, hash) in sortedHashes {
-            logger.info("\(target.target.name) - \(hash)")
+            ServiceContext.current?.logger?.info("\(target.target.name) - \(hash)")
         }
-        logger.notice("Total time taken: \(time)s")
+        ServiceContext.current?.logger?.notice("Total time taken: \(time)s")
     }
 }

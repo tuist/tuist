@@ -1,0 +1,25 @@
+{
+  "configurations" : [
+    {
+      "id" : "B71F83E5-7053-4E26-8B91-EF505CEABD91",
+      "name" : "Configuration 1",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+
+  },
+  "testTargets" : [
+    {
+      "parallelizable" : true,
+      "target" : {
+        "containerPath" : "container:App.xcodeproj",
+        "identifier" : "F806E1092D54DD7B0058A673",
+        "name" : "AppFrameworkTests"
+      }
+    }
+  ],
+  "version" : 1
+}
