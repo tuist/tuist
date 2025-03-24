@@ -30,7 +30,7 @@ final class GenerateServiceTests: TuistUnitTestCase {
         given(generatorFactory)
             .generation(
                 config: .any,
-                sources: .any,
+                includedTargets: .any,
                 configuration: .any,
                 ignoreBinaryCache: .any,
                 cacheStorage: .any
@@ -69,7 +69,7 @@ final class GenerateServiceTests: TuistUnitTestCase {
             try await subject
                 .run(
                     path: nil,
-                    sources: [],
+                    includedTargets: [],
                     noOpen: true,
                     configuration: nil,
                     ignoreBinaryCache: false
@@ -101,7 +101,7 @@ final class GenerateServiceTests: TuistUnitTestCase {
         // When
         try await subject.run(
             path: nil,
-            sources: [],
+            includedTargets: [],
             noOpen: false,
             configuration: nil,
             ignoreBinaryCache: false
@@ -133,7 +133,7 @@ final class GenerateServiceTests: TuistUnitTestCase {
             // When
             try await subject.run(
                 path: nil,
-                sources: [],
+                includedTargets: [],
                 noOpen: false,
                 configuration: nil,
                 ignoreBinaryCache: false
