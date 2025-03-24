@@ -3883,62 +3883,13 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenRemoteSwiftPackageHasTestTargets() async throws {
-        // Given
-        let basePath = try temporaryPath()
-        try await fileSystem.makeDirectory(at: basePath.appending(components: ["Package", "Sources", "Target1"]))
-        try await fileSystem.makeDirectory(at: basePath.appending(components: ["Package", "Sources", "Target2"]))
-        try await fileSystem.makeDirectory(at: basePath.appending(components: ["Package", "Tests", "Target1Tests"]))
-        try await fileSystem.makeDirectory(at: basePath.appending(components: ["Package", "Tests", "Target2Tests"]))
-
-        // When
-        let project = try await subject.map(
-            package: "Package",
-            basePath: basePath,
-            packageType: .remote(artifactPaths: [:]),
-            packageInfos: [
-                "Package": .test(
-                    products: [
-                        .init(name: "Product", type: .library(.automatic), targets: ["Target1", "Target2"]),
-                    ],
-                    targets: [
-                        .test(name: "Target1"),
-                        .test(name: "Target2"),
-                        .test(
-                            name: "Target1Tests",
-                            type: .test,
-                            dependencies: [.target(name: "Target1", condition: nil)]
-                        ),
-                        .test(
-                            name: "Target2Tests",
-                            type: .test,
-                            dependencies: [.target(name: "Target2", condition: nil)]
-                        ),
-                    ]
-                ),
-            ]
-        )
-
-        // Then
-        XCTAssertBetterEqual(
-            project,
-            .testWithDefaultConfigs(
-                name: "Package",
-                targets: [
-                    .test("Target1", basePath: basePath),
-                    .test("Target2", basePath: basePath),
-                ]
-            )
-        )
-    }
-
-    func testMap_whenLocalSwiftPackageHasTestTargetWithNotIncludeLocalPackageTestTargets() async throws {
+    func testMap_whenSwiftPackageHasTestTarget() async throws {
         // Given
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(components: ["Package", "Sources", "Target"])
-        try await fileSystem.makeDirectory(at: sourcesPath)
+        try fileHandler.createFolder(sourcesPath)
         let testsPath = basePath.appending(components: ["Package", "Tests", "TargetTests"])
-        try await fileSystem.makeDirectory(at: testsPath)
+        try fileHandler.createFolder(testsPath)
 
         // When
         let project = try await subject.map(
@@ -3958,57 +3909,13 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                             type: .test,
                             dependencies: [.target(name: "Target", condition: nil)]
                         ),
-                    ]
-                ),
-            ],
-            packageSettings: .test(includeLocalPackageTestTargets: false)
-        )
-
-        // Then
-        XCTAssertBetterEqual(
-            project,
-            .testWithDefaultConfigs(
-                name: "Package",
-                options: .options(
-                    automaticSchemesOptions: .enabled(),
-                    disableSynthesizedResourceAccessors: true
-                ),
-                targets: [
-                    .test("Target", basePath: basePath),
-                ]
-            )
-        )
-    }
-
-    func testMap_whenLocalSwiftPackageHasTestTarget() async throws {
-        // Given
-        let basePath = try temporaryPath()
-        let sourcesPath = basePath.appending(components: ["Package", "Sources", "Target"])
-        try await fileSystem.makeDirectory(at: sourcesPath)
-        let testsPath = basePath.appending(components: ["Package", "Tests", "TargetTests"])
-        try await fileSystem.makeDirectory(at: testsPath)
-
-        // When
-        let project = try await subject.map(
-            package: "Package",
-            basePath: basePath,
-            packageType: .local,
-            packageInfos: [
-                "Package": .test(
-                    products: [
-                        .init(name: "Product", type: .library(.automatic), targets: ["Target"]),
                     ],
-                    targets: [
-                        .test(name: "Target"),
-                        .test(
-                            name: "TargetTests",
-                            type: .test,
-                            dependencies: [.target(name: "Target", condition: nil)]
-                        ),
-                    ]
+                    platforms: [.ios],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
                 ),
-            ],
-            packageSettings: .test()
+            ]
         )
 
         // Then
@@ -4063,7 +3970,11 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                             type: .test,
                             dependencies: [.target(name: "Target", condition: nil)]
                         ),
-                    ]
+                    ],
+                    platforms: [.ios, .macos],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
                 ),
             ],
             packageSettings: .test(
@@ -4155,7 +4066,11 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                                 .target(name: "CommonTarget", condition: nil),
                             ]
                         ),
-                    ]
+                    ],
+                    platforms: [.ios, .macos],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
                 ),
             ],
             packageSettings: .test(
@@ -4244,8 +4159,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         ),
                     ]
                 ),
-            ],
-            packageSettings: .test()
+            ]
         )
 
         // Then
@@ -4499,8 +4413,8 @@ extension PackageInfoMapping {
 
         return try await map(
             packageInfo: packageInfos[package]!,
-            packageFolder: basePath.appending(component: package),
-            packageType: packageType ?? .remote(artifactPaths: packageToTargetsToArtifactPaths[package]!),
+            path: basePath.appending(component: package),
+            packageType: packageType ?? .external(artifactPaths: packageToTargetsToArtifactPaths[package]!),
             packageSettings: packageSettings,
             packageModuleAliases: packageModuleAliases
         )
@@ -4538,7 +4452,7 @@ extension PackageInfo.Target {
 
 extension ProjectDescription.Project {
     fileprivate static func test(
-        name: String = "Package",
+        name: String,
         options: Options = .options(
             automaticSchemesOptions: .disabled,
             disableBundleAccessors: false,

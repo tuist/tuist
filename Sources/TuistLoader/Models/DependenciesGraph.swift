@@ -5,12 +5,10 @@ public struct DependenciesGraph: Equatable, Codable {
     public struct ExternalProject: Equatable, Codable {
         public var manifest: ProjectDescription.Project
         public var hash: String?
-        public let sourcePackageType: PackageType
 
-        public init(manifest: ProjectDescription.Project, hash: String?, sourcePackageType: PackageType) {
+        public init(manifest: ProjectDescription.Project, hash: String?) {
             self.manifest = manifest
             self.hash = hash
-            self.sourcePackageType = sourcePackageType
         }
     }
 
@@ -178,7 +176,7 @@ public struct DependenciesGraph: Equatable, Codable {
                         ),
                         targets: targets,
                         resourceSynthesizers: .default
-                    ), hash: nil, sourcePackageType: .local),
+                    ), hash: nil),
                 ]
             )
         }
@@ -259,7 +257,7 @@ public struct DependenciesGraph: Equatable, Codable {
                         ),
                         targets: targets,
                         resourceSynthesizers: .default
-                    ), hash: nil, sourcePackageType: .local),
+                    ), hash: nil),
                 ]
             )
         }
@@ -317,7 +315,7 @@ public struct DependenciesGraph: Equatable, Codable {
                         ),
                         targets: targets,
                         resourceSynthesizers: .default
-                    ), hash: nil, sourcePackageType: .local),
+                    ), hash: nil),
                 ]
             )
         }
@@ -378,7 +376,7 @@ public struct DependenciesGraph: Equatable, Codable {
                         ),
                         targets: targets,
                         resourceSynthesizers: .default
-                    ), hash: nil, sourcePackageType: .remote(artifactPaths: [:])),
+                    ), hash: nil),
                 ]
             )
         }
@@ -517,7 +515,7 @@ public struct DependenciesGraph: Equatable, Codable {
                         ),
                         targets: targets,
                         resourceSynthesizers: .default
-                    ), hash: nil, sourcePackageType: .local),
+                    ), hash: nil),
                 ]
             )
         }
@@ -635,7 +633,7 @@ public struct DependenciesGraph: Equatable, Codable {
                         ),
                         targets: targets,
                         resourceSynthesizers: .default
-                    ), hash: nil, sourcePackageType: .local),
+                    ), hash: nil),
                 ]
             )
         }
@@ -693,7 +691,7 @@ public struct DependenciesGraph: Equatable, Codable {
                         ),
                         targets: targets,
                         resourceSynthesizers: .default
-                    ), hash: nil, sourcePackageType: .local),
+                    ), hash: nil),
                 ]
             )
         }
