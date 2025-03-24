@@ -71,6 +71,7 @@
     cursor: pointer;
     justify-content: center;
     color: var(--noora-banner-label-secondary);
+
     & svg {
       width: var(--noora-icon-size-medium);
       height: var(--noora-icon-size-medium);

@@ -6,6 +6,7 @@
   border: 0;
   display: inline-flex;
   gap: var(--noora-spacing-1);
+  padding: 0;
 }
 
 .noora-button {

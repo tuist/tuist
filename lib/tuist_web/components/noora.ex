@@ -5,6 +5,7 @@ defmodule TuistWeb.Noora do
 
   defmacro __using__(_opts) do
     quote do
+      import TuistWeb.Noora.Alert
       import TuistWeb.Noora.Avatar
       import TuistWeb.Noora.Badge
       import TuistWeb.Noora.Banner
