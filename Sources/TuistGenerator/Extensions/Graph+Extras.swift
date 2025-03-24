@@ -52,7 +52,7 @@ extension XcodeGraph.Graph {
 
             result[target] = targetDependencies
                 .filter { dependency in
-                    if skipExternalDependencies, dependency.isRemote(projects) { return false }
+                    if skipExternalDependencies, dependency.isExternal(projects) { return false }
                     return true
                 }
         }
@@ -60,7 +60,7 @@ extension XcodeGraph.Graph {
 }
 
 extension GraphDependency {
-    fileprivate func isRemote(_ projects: [Path.AbsolutePath: XcodeGraph.Project]) -> Bool {
+    fileprivate func isExternal(_ projects: [Path.AbsolutePath: XcodeGraph.Project]) -> Bool {
         switch self {
         case let .target(_, path, _):
             if case .external = projects[path]?.type {

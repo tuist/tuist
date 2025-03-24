@@ -989,11 +989,6 @@ public class GraphTraverser: GraphTraversing {
         return allExternalTargets.subtracting(allTargetExternalDependendedUponTargets)
     }
 
-    public func allOrphanRemoteTargets() -> Set<GraphTarget> {
-        let allLocalPackageTargets = allLocalPackageTargets()
-        return allOrphanExternalTargets().subtracting(allLocalPackageTargets)
-    }
-
     // swiftlint:disable:next function_body_length
     public func allSwiftPluginExecutables(path: Path.AbsolutePath, name: String) -> Set<String> {
         if let cached = swiftPluginExecutablesCache[.target(name: name, path: path)] {
@@ -1248,21 +1243,6 @@ public class GraphTraverser: GraphTraversing {
                 parentPlatforms: targetsWithExternalDependency.target.supportedPlatforms
             )
         }
-        let allLocalPackageTestTargets = allLocalPackageTargets()
-            .filter { $0.target.product == .unitTests || $0.target.product == .uiTests }
-        for testTarget in allLocalPackageTestTargets {
-            var supportedPlatforms = testTarget.target.supportedPlatforms
-            let dependencies = directTargetDependencies(path: testTarget.path, name: testTarget.target.name)
-            for dependency in dependencies {
-                if let narrowedPlatforms = platforms[dependency.graphTarget] {
-                    supportedPlatforms = supportedPlatforms.intersection(narrowedPlatforms)
-                } else {
-                    supportedPlatforms = supportedPlatforms.intersection(dependency.target.supportedPlatforms)
-                }
-            }
-            platforms[testTarget] = supportedPlatforms
-        }
-
         return platforms
     }
 
@@ -1527,19 +1507,6 @@ public class GraphTraverser: GraphTraversing {
                 condition: condition
             )
         }
-    }
-
-    /// Returns all the targets of local packages which also contained test targets.
-    /// - Returns: A set containing all the targets of local packages.
-    private func allLocalPackageTargets() -> Set<GraphTarget> {
-        let localPackageProjects = graph.projects.filter { $0.value.type == .local }
-        return Set<GraphTarget>(
-            localPackageProjects.flatMap { path, project in
-                project.targets.values.map { target in
-                    GraphTarget(path: path, target: target, project: project)
-                }
-            }
-        )
     }
 
     private func isDependencyResourceBundle(dependency: GraphDependency) -> Bool {

@@ -41,7 +41,10 @@ extension Project {
     }
 
     public func derivedDirectoryPath(for target: Target) -> AbsolutePath {
-        if case .remote = target.type {
+        if case .external = type,
+           path.pathString
+           .contains("\(Constants.SwiftPackageManager.packageBuildDirectoryName)/checkouts")
+        {
             return path
                 // Leads to SPM's .build directory
                 .parentDirectory.parentDirectory

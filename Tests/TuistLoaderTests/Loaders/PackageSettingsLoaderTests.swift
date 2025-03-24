@@ -84,8 +84,7 @@ final class PackageSettingsLoaderTests: TuistUnitTestCase {
                 ],
                 defaultSettings: .recommended
             ),
-            targetSettings: [:],
-            includeLocalPackageTestTargets: true
+            targetSettings: [:]
         )
         verify(manifestLoader)
             .register(plugins: .any)

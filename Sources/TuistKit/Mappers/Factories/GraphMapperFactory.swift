@@ -52,7 +52,7 @@ public final class GraphMapperFactory: GraphMapperFactorying {
         mappers.append(ModuleMapMapper())
         mappers.append(UpdateWorkspaceProjectsGraphMapper())
         mappers.append(ExternalProjectsPlatformNarrowerGraphMapper())
-        mappers.append(PruneOrphanRemoteTargetsGraphMapper())
+        mappers.append(PruneOrphanExternalTargetsGraphMapper())
         if config.project.generatedProject?.generationOptions.enforceExplicitDependencies == true {
             mappers.append(ExplicitDependencyGraphMapper())
         }
