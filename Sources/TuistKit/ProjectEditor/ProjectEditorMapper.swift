@@ -522,7 +522,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             filesGroup: filesGroup,
             dependencies: dependencies,
             additionalFiles: additionalFilePaths.map { .file(path: $0) },
-            metadata: .init(tags: [])
+            metadata: .metadata()
         )
     }
 
