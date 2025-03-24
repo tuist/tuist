@@ -144,10 +144,6 @@ defmodule Tuist.Environment do
     end
   end
 
-  def attio_api_key(secrets \\ secrets()) do
-    get([:attio, :api_key], secrets)
-  end
-
   def posthog_api_key(secrets \\ secrets()) do
     get([:posthog, :api_key], secrets)
   end

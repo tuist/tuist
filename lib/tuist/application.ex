@@ -83,7 +83,7 @@ defmodule Tuist.Application do
 
     children =
       if Environment.analytics_enabled?() do
-        children ++ [Tuist.Analytics.Posthog, Tuist.Analytics.Attio]
+        children ++ [Tuist.Analytics.Posthog]
       else
         children
       end
