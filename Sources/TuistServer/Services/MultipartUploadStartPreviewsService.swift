@@ -11,6 +11,8 @@ public protocol MultipartUploadStartPreviewsServicing {
         version: String?,
         bundleIdentifier: String?,
         supportedPlatforms: [DestinationType],
+        gitBranch: String?,
+        gitCommitSHA: String?,
         fullHandle: String,
         serverURL: URL
     ) async throws -> PreviewUpload
@@ -62,6 +64,8 @@ public final class MultipartUploadStartPreviewsService: MultipartUploadStartPrev
         version: String?,
         bundleIdentifier: String?,
         supportedPlatforms: [DestinationType],
+        gitBranch: String?,
+        gitCommitSHA: String?,
         fullHandle: String,
         serverURL: URL
     ) async throws -> PreviewUpload {
@@ -85,6 +89,8 @@ public final class MultipartUploadStartPreviewsService: MultipartUploadStartPrev
                     .init(
                         bundle_identifier: bundleIdentifier,
                         display_name: displayName,
+                        git_branch: gitBranch,
+                        git_commit_sha: gitCommitSHA,
                         supported_platforms: supportedPlatforms.map(Components.Schemas.PreviewSupportedPlatform.init),
                         _type: type,
                         version: version

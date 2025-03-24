@@ -1644,6 +1644,16 @@ paths:
                   type: string
                   x-struct:
                   x-validate:
+                git_branch:
+                  description: The git branch associated with the preview.
+                  type: string
+                  x-struct:
+                  x-validate:
+                git_commit_sha:
+                  description: The git commit SHA associated with the preview.
+                  type: string
+                  x-struct:
+                  x-validate:
                 supported_platforms:
                   description: The supported platforms of the preview.
                   items:
@@ -3457,6 +3467,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Preview'
           description: The preview exists and can be downloaded
+        400:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The request is invalid
         401:
           content:
             application/json:
