@@ -42,7 +42,25 @@ defmodule TuistWeb.AuthenticationPlug do
   end
 
   defp get_authenticated_subject(conn, token) do
-    case Tuist.Authentication.authenticated_subject(token) do
+    cache_key = [__MODULE__, :authenticated_subject, token]
+
+    cache_opts = [
+      ttl: Map.get(conn.assigns, :cache_ttl, :timer.minutes(1)),
+      cache: Map.get(conn.assigns, :cache, :tuist)
+    ]
+
+    get_authenticated_subject = fn ->
+      Tuist.Authentication.authenticated_subject(token)
+    end
+
+    authenticated_subject =
+      if Map.get(conn.assigns, :caching, false) do
+        Tuist.Cache.get_value(cache_key, cache_opts, get_authenticated_subject)
+      else
+        get_authenticated_subject.()
+      end
+
+    case authenticated_subject do
       %Project{} = project ->
         %{account: account} = Projects.get_project_account_by_project_id(project.id)
 

@@ -267,7 +267,7 @@ defmodule TuistWeb.Router do
           delete "/:id", ProjectTokensController, :delete
         end
 
-        scope "/cache" do
+        scope "/cache", caching: true, cache_ttl: :timer.minutes(1) do
           put "/clean", CacheController, :clean
 
           scope "/ac" do
@@ -278,7 +278,7 @@ defmodule TuistWeb.Router do
       end
     end
 
-    scope "/cache" do
+    scope "/cache", caching: true, cache_ttl: :timer.minutes(1) do
       get "/", CacheController, :download
       get "/exists", CacheController, :exists
 

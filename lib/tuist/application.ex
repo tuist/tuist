@@ -75,8 +75,6 @@ defmodule Tuist.Application do
         },
         # Rate limit
         {TuistWeb.RateLimit, [clean_period: 60_000 * 10]},
-        # Cache
-        {Tuist.Cache.tuist(), []},
         # Start a worker by calling: Tuist.Worker.start_link(arg)
         # {Tuist.Worker, arg},
         # Start to serve requests, typically the last entry

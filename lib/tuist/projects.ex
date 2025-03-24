@@ -2,7 +2,6 @@ defmodule Tuist.Projects do
   @moduledoc ~S"""
   A module to deal with projects in the system.
   """
-  use Nebulex.Caching.Decorators
   alias Tuist.Base64
   alias Tuist.CommandEvents.Event
   alias Tuist.Repo

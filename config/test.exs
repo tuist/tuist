@@ -34,6 +34,3 @@ config :phoenix, :plug_init_mode, :runtime
 
 # Oban
 config :tuist, Oban, testing: :inline
-
-# Nebulex
-config :tuist, nebulex_cache: TuistTestSupport.Cache

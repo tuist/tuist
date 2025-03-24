@@ -5,9 +5,13 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistWeb.API.EnsureProjectPresencePlug
-  use TuistTestSupport.Cases.ConnCase
+  use TuistTestSupport.Cases.ConnCase, async: false
   alias Tuist.Repo
   use Mimic
+
+  # This is needed in combination with "async: false" to ensure
+  # that mocks are used within the cache process.
+  setup :set_mimic_from_context
 
   setup context do
     current_month_remote_cache_hits_count =
@@ -21,11 +25,37 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
       )
 
     project = ProjectsFixtures.project_fixture(account_id: account.id) |> Repo.preload(:account)
+    cache = UUIDv7.generate() |> String.to_atom()
+    {:ok, _} = Cachex.start_link(name: cache)
 
     %{
       project: project,
-      user: user
+      user: user,
+      cache: cache
     }
+  end
+
+  @tag current_month_remote_cache_hits_count: 50
+  test "caches the billing information across requests",
+       %{conn: conn, project: project} do
+    # Given
+    account = project.account
+
+    Billing
+    |> expect(:get_current_active_subscription, 1, fn ^account ->
+      %Subscription{plan: :enterprise, status: "active"}
+    end)
+
+    plug_opts = BillingPlug.init([])
+
+    conn =
+      %{conn | query_params: Map.put(conn.query_params, "cache_category", "builds")}
+      |> EnsureProjectPresencePlug.put_project(project)
+
+    # When
+    for _n <- 0..10 do
+      assert(conn |> BillingPlug.call(plug_opts) == conn)
+    end
   end
 
   @tag current_month_remote_cache_hits_count: 50
@@ -75,7 +105,7 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
     # Then
     assert json_response(got, :payment_required) == %{
              "message" => ~s"""
-             The 'Tuist Enterprise' plan of the account '#{account.name}' is not active. You can contact contact@tuist.io to renovate your plan.
+             The 'Tuist Enterprise' plan of the account '#{account.name}' is not active. You can contact contact@tuist.dev to renovate your plan.
              """
            }
   end

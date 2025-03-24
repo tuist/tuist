@@ -3,10 +3,45 @@ defmodule TuistWeb.API.EnsureProjectPresencePlugTest do
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias Tuist.Accounts
   alias TuistTestSupport.Fixtures.ProjectsFixtures
-  use TuistTestSupport.Cases.ConnCase
+  use TuistTestSupport.Cases.ConnCase, async: false
   use Plug.Test
   use Mimic
   alias TuistWeb.API.EnsureProjectPresencePlug
+
+  # This is needed in combination with "async: false" to ensure
+  # that mocks are used within the cache process.
+  setup :set_mimic_from_context
+
+  setup do
+    cache = UUIDv7.generate() |> String.to_atom()
+    {:ok, _} = Cachex.start_link(name: cache)
+    {:ok, cache: cache}
+  end
+
+  test "caches fetching the project when caching is enabled", %{cache: cache} do
+    # Given
+    project = ProjectsFixtures.project_fixture(preload: [:account])
+    account = Accounts.get_account_by_id(project.account_id)
+    opts = EnsureProjectPresencePlug.init([])
+    slug = account.name <> "/" <> project.name
+
+    Tuist.Projects
+    |> expect(:get_project_by_slug, 1, fn ^slug, _opts ->
+      {:ok, project}
+    end)
+
+    conn =
+      build_conn(:get, ~p"/api/cache", project_id: account.name <> "/" <> project.name)
+      |> assign(:caching, true)
+      |> assign(:cache, cache)
+      |> assign(:cache_ttl, :timer.minutes(1))
+
+    # When/Then
+    for _n <- 0..10 do
+      conn = conn |> EnsureProjectPresencePlug.call(opts)
+      assert EnsureProjectPresencePlug.get_project(conn) == project
+    end
+  end
 
   test "loads and assigns the project to the connection if it exists" do
     # Given

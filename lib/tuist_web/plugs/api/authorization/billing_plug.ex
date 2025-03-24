@@ -39,6 +39,80 @@ defmodule TuistWeb.API.Authorization.BillingPlug do
 
   # credo:disable-for-next-line
   def call_tuist_hosted(conn, _) do
+    subscription_data =
+      case Map.get(conn.assigns, :caching, false) do
+        true ->
+          Tuist.Cache.get_value(
+            [__MODULE__, :subscription_data, EnsureProjectPresencePlug.get_project(conn).id],
+            [
+              ttl: Map.get(conn.assigns, :cache_ttl, :timer.minutes(1)),
+              cache: Map.get(conn.assigns, :cache, :tuist)
+            ],
+            fn ->
+              get_subscription_data(conn)
+            end
+          )
+
+        false ->
+          get_subscription_data(conn)
+      end
+
+    case subscription_data do
+      {:enterprise, true, _, _} ->
+        conn
+
+      {:enterprise, false, _, account_handle} ->
+        conn
+        |> put_status(:payment_required)
+        |> json(%{
+          message: ~s"""
+          The 'Tuist Enterprise' plan of the account '#{account_handle}' is not active. You can contact contact@tuist.dev to renovate your plan.
+          """
+        })
+        |> halt()
+
+      {:air, _, false, _} ->
+        conn
+
+      {:air, _, true, account_handle} ->
+        conn
+        |> put_status(:payment_required)
+        |> json(%{
+          message: ~s"""
+          The account '#{account_handle}' has reached the limits of the plan 'Tuist Air' and requires upgrading to the plan 'Tuist Pro'. You can upgrade your plan at #{url(~p"/#{account_handle}/billing/upgrade")}.
+          """
+        })
+        |> halt()
+
+      {:pro, false, _, account_handle} ->
+        conn
+        |> put_status(:payment_required)
+        |> json(%{
+          message: ~s"""
+          The account '#{account_handle}' 'Tuist Pro' plan is not active. You can manage your billing at #{url(~p"/#{account_handle}/billing/manage")}.
+          """
+        })
+        |> halt()
+
+      {:pro, true, _, _} ->
+        conn
+
+      {:open_source, false, _, account_handle} ->
+        conn
+        |> put_status(:payment_required)
+        |> json(%{
+          message: ~s"""
+          The account '#{account_handle}' 'Tuist Open Source' plan is not active. You can contact Tuist at contact@tuist.io to renovate it, or upgrade to 'Tuist Pro' at #{url(~p"/#{account_handle}/billing/upgrade")}.
+          """
+        })
+        |> halt()
+
+      {:open_source, true, _, _} ->
+        conn
+    end
+  end
+
+  defp get_subscription_data(conn) do
     account =
       %{current_month_remote_cache_hits_count: current_month_remote_cache_hits_count} =
       Accounts.get_account_by_id(EnsureProjectPresencePlug.get_project(conn).account_id)
@@ -57,58 +131,6 @@ defmodule TuistWeb.API.Authorization.BillingPlug do
         else: subscription.status == "active"
       )
 
-    case {subscription_plan, subscription_active?, thresholds_surpassed} do
-      {:enterprise, true, _} ->
-        conn
-
-      {:enterprise, false, _} ->
-        conn
-        |> put_status(:payment_required)
-        |> json(%{
-          message: ~s"""
-          The 'Tuist Enterprise' plan of the account '#{account.name}' is not active. You can contact contact@tuist.io to renovate your plan.
-          """
-        })
-        |> halt()
-
-      {:air, _, false} ->
-        conn
-
-      {:air, _, true} ->
-        conn
-        |> put_status(:payment_required)
-        |> json(%{
-          message: ~s"""
-          The account '#{account.name}' has reached the limits of the plan 'Tuist Air' and requires upgrading to the plan 'Tuist Pro'. You can upgrade your plan at #{url(~p"/#{account.name}/billing/upgrade")}.
-          """
-        })
-        |> halt()
-
-      {:pro, false, _} ->
-        conn
-        |> put_status(:payment_required)
-        |> json(%{
-          message: ~s"""
-          The account '#{account.name}' 'Tuist Pro' plan is not active. You can manage your billing at #{url(~p"/#{account.name}/billing/manage")}.
-          """
-        })
-        |> halt()
-
-      {:pro, true, _} ->
-        conn
-
-      {:open_source, false, _} ->
-        conn
-        |> put_status(:payment_required)
-        |> json(%{
-          message: ~s"""
-          The account '#{account.name}' 'Tuist Open Source' plan is not active. You can contact Tuist at contact@tuist.io to renovate it, or upgrade to 'Tuist Pro' at #{url(~p"/#{account.name}/billing/upgrade")}.
-          """
-        })
-        |> halt()
-
-      {:open_source, true, _} ->
-        conn
-    end
+    {subscription_plan, subscription_active?, thresholds_surpassed, account.name}
   end
 end

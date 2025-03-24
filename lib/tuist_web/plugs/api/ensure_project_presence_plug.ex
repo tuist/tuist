@@ -76,7 +76,25 @@ defmodule TuistWeb.API.EnsureProjectPresencePlug do
   end
 
   defp assign_request_project_to_conn(project_slug, conn) do
-    case Projects.get_project_by_slug(project_slug, preload: [:account]) do
+    project =
+      case Map.get(conn.assigns, :caching, false) do
+        true ->
+          Tuist.Cache.get_value(
+            [__MODULE__, :project, project_slug],
+            [
+              ttl: Map.get(conn.assigns, :cache_ttl, :timer.minutes(1)),
+              cache: Map.get(conn.assigns, :cache, :tuist)
+            ],
+            fn ->
+              Projects.get_project_by_slug(project_slug, preload: [:account])
+            end
+          )
+
+        false ->
+          Projects.get_project_by_slug(project_slug, preload: [:account])
+      end
+
+    case project do
       {:ok, project} ->
         conn |> assign(@project_key, project)
 
