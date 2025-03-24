@@ -51,6 +51,8 @@ defmodule TuistWeb.Noora.TextInput do
   end
 
   def text_input(assigns) do
+    assigns = assigns |> assign_new(:value, fn -> "" end)
+
     ~H"""
     <div class="noora-text-input">
       <.label :if={@label} label={@label} sublabel={@sublabel} required={@required} data-part="label" />

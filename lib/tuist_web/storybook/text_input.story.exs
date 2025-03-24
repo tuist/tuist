@@ -13,6 +13,7 @@ defmodule TuistWeb.Storybook.TextInput do
           %Variation{
             id: :basic,
             attributes: %{
+              name: "basic",
               placeholder: "Placeholder text..."
             },
             slots: [
@@ -27,6 +28,7 @@ defmodule TuistWeb.Storybook.TextInput do
             id: :email,
             attributes: %{
               type: "email",
+              name: "email",
               placeholder: "hello@tuist.dev"
             }
           },
@@ -34,6 +36,7 @@ defmodule TuistWeb.Storybook.TextInput do
             id: :card_number,
             attributes: %{
               type: "card_number",
+              name: "card_number",
               placeholder: "0000 0000 0000 0000"
             }
           },
@@ -41,12 +44,14 @@ defmodule TuistWeb.Storybook.TextInput do
             id: :search,
             attributes: %{
               type: "search",
+              name: "search",
               placeholder: "Search..."
             }
           },
           %Variation{
             id: :password,
             attributes: %{
+              name: "card_number",
               type: "password"
             }
           }
@@ -55,6 +60,7 @@ defmodule TuistWeb.Storybook.TextInput do
       %Variation{
         id: :with_hint,
         attributes: %{
+          name: "with_hint",
           placeholder: "Placeholder text...",
           suffix_hint: "Suffix text..."
         }
@@ -62,6 +68,7 @@ defmodule TuistWeb.Storybook.TextInput do
       %Variation{
         id: :with_custom_suffix,
         attributes: %{
+          name: "with_custom_suffix",
           placeholder: "Placeholder text..."
         },
         slots: [
@@ -75,10 +82,18 @@ defmodule TuistWeb.Storybook.TextInput do
       %VariationGroup{
         id: :label,
         variations: [
-          %Variation{id: :email, attributes: %{type: "email", label: "Email", required: true}},
+          %Variation{
+            id: :email,
+            attributes: %{type: "email", name: "email", label: "Email", required: true}
+          },
           %Variation{
             id: :password,
-            attributes: %{type: "password", label: "Password", sublabel: "(Be safe!)"}
+            attributes: %{
+              type: "password",
+              name: "password",
+              label: "Password",
+              sublabel: "(Be safe!)"
+            }
           }
         ]
       },
@@ -89,6 +104,7 @@ defmodule TuistWeb.Storybook.TextInput do
             id: :unfilled,
             attributes: %{
               type: "email",
+              name: "email",
               placeholder: "hello@tuist.dev",
               suffix_hint: "This should be a valid email address ending in `@tuist.dev`.",
               disabled: true
@@ -98,6 +114,7 @@ defmodule TuistWeb.Storybook.TextInput do
             id: :filled,
             attributes: %{
               type: "email",
+              name: "email",
               value: "hello@tuist.dev",
               suffix_hint: "This should be a valid email address ending in `@tuist.dev`.",
               disabled: true
