@@ -39,13 +39,19 @@ extension Tuist {
         /// If present, the interaction with the Tuist server will be skipped (instead of failing) if a user is not authenticated.
         public var optionalAuthentication: Bool
 
+        /// When disabled, build insights are not collected. Build insights are never collected unless you are connected to a
+        /// remote Tuist project.
+        /// Default value is `true`.
+        public var buildInsightsDisabled: Bool
+
         public static func options(
             resolveDependenciesWithSystemScm: Bool = false,
             disablePackageVersionLocking: Bool = false,
             clonedSourcePackagesDirPath: Path? = nil,
             staticSideEffectsWarningTargets: StaticSideEffectsWarningTargets = .all,
             defaultConfiguration: String? = nil,
-            optionalAuthentication: Bool = false
+            optionalAuthentication: Bool = false,
+            buildInsightsDisabled: Bool = false
         ) -> Self {
             self.init(
                 resolveDependenciesWithSystemScm: resolveDependenciesWithSystemScm,
@@ -54,7 +60,8 @@ extension Tuist {
                 staticSideEffectsWarningTargets: staticSideEffectsWarningTargets,
                 enforceExplicitDependencies: false,
                 defaultConfiguration: defaultConfiguration,
-                optionalAuthentication: optionalAuthentication
+                optionalAuthentication: optionalAuthentication,
+                buildInsightsDisabled: buildInsightsDisabled
             )
         }
 
@@ -79,7 +86,8 @@ extension Tuist {
                 staticSideEffectsWarningTargets: staticSideEffectsWarningTargets,
                 enforceExplicitDependencies: enforceExplicitDependencies,
                 defaultConfiguration: defaultConfiguration,
-                optionalAuthentication: optionalAuthentication
+                optionalAuthentication: optionalAuthentication,
+                buildInsightsDisabled: false
             )
         }
     }

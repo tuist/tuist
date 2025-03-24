@@ -40,4 +40,6 @@ public final class MockEnvironment: Environmenting {
     public var workspacePath: AbsolutePath? { nil }
 
     public var schemeName: String? { nil }
+
+    public var tuistExecutablePath: AbsolutePath? { nil }
 }
