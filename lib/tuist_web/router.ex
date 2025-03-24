@@ -104,6 +104,28 @@ defmodule TuistWeb.Router do
     plug TuistWeb.AnalyticsPlug, :track_page_view
   end
 
+  pipeline :noora do
+    plug :check_noora_enabled
+  end
+
+  def check_noora_enabled(conn, _opts) do
+    if FunWithFlags.enabled?(:noora) do
+      conn
+    else
+      raise TuistWeb.Errors.NotFoundError,
+            "The page you are looking for doesn't exist or has been moved."
+    end
+  end
+
+  defp redirect_to_noora_when_enabled(conn, _opts) do
+    if FunWithFlags.enabled?(:noora) do
+      conn
+      |> redirect(to: "/noora#{current_path(conn)}")
+    else
+      conn
+    end
+  end
+
   scope "/" do
     storybook_assets()
   end
@@ -501,9 +523,34 @@ defmodule TuistWeb.Router do
     end
   end
 
+  # Project noora routes
+  scope "/noora/:account_handle/:project_handle", TuistWeb do
+    pipe_through [
+      :check_noora_enabled,
+      :open_api,
+      :browser_app,
+      :rate_limit,
+      :require_authenticated_user_for_private_projects,
+      :analytics,
+      :require_user_can_read_project,
+      TuistWeb.RedirectToRunsPlug
+    ]
+
+    live_session :noora_project,
+      layout: {TuistWeb.Layouts, :project},
+      on_mount: [
+        {TuistWeb.LayoutLive, :project},
+        {TuistWeb.Authentication, :mount_current_user}
+      ] do
+      live "/", ProjectDashboardLive
+      live "/analytics", ProjectDashboardLive
+    end
+  end
+
   # Project routes
   scope "/:account_handle/:project_handle", TuistWeb do
     pipe_through [
+      :redirect_to_noora_when_enabled,
       :open_api,
       :browser_app,
       :rate_limit,
