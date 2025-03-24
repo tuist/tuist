@@ -2,7 +2,7 @@ import FileSystem
 import Foundation
 import Mockable
 import Path
-import TuistCore
+import TuistSupport
 import XcodeGraph
 
 @Mockable
@@ -10,60 +10,35 @@ protocol BuildInsightsActionMapping {
     /// Maps a build action to track build insights.
     func map(
         _ buildAction: BuildAction,
-        buildInsightsDisabled: Bool,
-        path: AbsolutePath
+        buildInsightsDisabled: Bool
     ) async throws -> BuildAction
 }
 
 struct BuildInsightsActionMapper: BuildInsightsActionMapping {
-    private let rootDirectoryLocator: RootDirectoryLocating
-    private let fileSystem: FileSysteming
+    private let environment: Environmenting
 
     init(
-        rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator(),
-        fileSystem: FileSysteming = FileSystem()
+        environment: Environmenting = Environment.shared
     ) {
-        self.rootDirectoryLocator = rootDirectoryLocator
-        self.fileSystem = fileSystem
+        self.environment = environment
     }
 
     func map(
         _ buildAction: BuildAction,
-        buildInsightsDisabled: Bool,
-        path: AbsolutePath
+        buildInsightsDisabled: Bool
     ) async throws -> BuildAction {
         guard !buildInsightsDisabled else { return buildAction }
-        let scriptText = if let rootDirectory = try await rootDirectoryLocator.locate(from: path),
-                            !(try await miseConfigurationFileExists(at: rootDirectory))
-        {
-            """
-            eval "$($HOME/.local/bin/mise activate -C $SRCROOT bash --shims)"
-
-            tuist inspect build
-            """
-        } else {
-            """
-            tuist inspect build
-            """
-        }
 
         var buildAction = buildAction
         buildAction.postActions.append(
             ExecutionAction(
                 title: "Build insights",
-                scriptText: scriptText,
+                scriptText: "\(environment.tuistExecutablePath?.pathString ?? "tuist") inspect build",
                 target: nil,
                 shellPath: nil
             )
         )
         buildAction.runPostActionsOnFailure = true
         return buildAction
-    }
-
-    private func miseConfigurationFileExists(at path: AbsolutePath) async throws -> Bool {
-        try await fileSystem
-            .glob(directory: path, include: ["mise.toml", ".mise.toml"])
-            .collect()
-            .isEmpty
     }
 }

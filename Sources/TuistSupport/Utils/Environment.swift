@@ -46,6 +46,9 @@ public protocol Environmenting: AnyObject, Sendable {
     /// Represents scheme name stored in the `SCHEME_NAME` environment variable. This variable is defined in Xcode build actions
     /// and can be used for further processing.
     var schemeName: String? { get }
+
+    /// Returns path to the Tuist executable
+    var tuistExecutablePath: AbsolutePath? { get }
 }
 
 /// Local environment controller.
@@ -208,5 +211,9 @@ public final class Environment: Environmenting {
 
     public var schemeName: String? {
         ProcessInfo.processInfo.environment["SCHEME_NAME"]
+    }
+
+    public var tuistExecutablePath: AbsolutePath? {
+        try? AbsolutePath(validating: ProcessInfo.processInfo.arguments[0])
     }
 }

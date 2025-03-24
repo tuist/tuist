@@ -2,108 +2,62 @@ import FileSystem
 import Foundation
 import Mockable
 import Testing
-import TuistCore
+import TuistSupport
 import XcodeGraph
 
 @testable import TuistGenerator
 
 struct BuildInsightsActionMapperTests {
-    private let rootDirectoryLocator = MockRootDirectoryLocating()
-    private let fileSystem = FileSystem()
+    private let environment = MockEnvironmenting()
     private let subject: BuildInsightsActionMapper
 
     init() {
         subject = BuildInsightsActionMapper(
-            rootDirectoryLocator: rootDirectoryLocator,
-            fileSystem: fileSystem
+            environment: environment
         )
     }
 
     @Test func map_when_disabled() async throws {
-        try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
-            // Given
-            let buildAction: BuildAction = .test()
+        // Given
+        let buildAction: BuildAction = .test()
 
-            // When
-            let got = try await subject.map(
-                buildAction,
-                buildInsightsDisabled: true,
-                path: temporaryDirectory
-            )
+        // When
+        let got = try await subject.map(
+            buildAction,
+            buildInsightsDisabled: true
+        )
 
-            // Then
-            #expect(got == buildAction)
-        }
+        // Then
+        #expect(got == buildAction)
     }
 
-    @Test func map_when_without_mise() async throws {
-        try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
-            // Given
-            let buildAction: BuildAction = .test()
-            given(rootDirectoryLocator)
-                .locate(from: .any)
-                .willReturn(temporaryDirectory)
+    @Test func map() async throws {
+        // Given
+        let buildAction: BuildAction = .test()
+        given(environment)
+            .tuistExecutablePath
+            .willReturn("/mise/tuist")
 
-            // When
-            let got = try await subject.map(
-                buildAction,
-                buildInsightsDisabled: false,
-                path: temporaryDirectory
-            )
+        // When
+        let got = try await subject.map(
+            buildAction,
+            buildInsightsDisabled: false
+        )
 
-            // Then
-            var expectedBuildAction: BuildAction = .test(
-                postActions: [
-                    ExecutionAction(
-                        title: "Build insights",
-                        scriptText: "tuist inspect build",
-                        target: nil,
-                        shellPath: nil
-                    ),
-                ]
-            )
-            expectedBuildAction.runPostActionsOnFailure = true
-            #expect(
-                got == expectedBuildAction
-            )
-        }
-    }
-
-    @Test func map_when_with_mise() async throws {
-        try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
-            // Given
-            let buildAction: BuildAction = .test()
-            given(rootDirectoryLocator)
-                .locate(from: .any)
-                .willReturn(temporaryDirectory)
-            try await fileSystem.touch(temporaryDirectory.appending(component: "mise.toml"))
-
-            // When
-            let got = try await subject.map(
-                buildAction,
-                buildInsightsDisabled: false,
-                path: temporaryDirectory
-            )
-
-            // Then
-            var expectedBuildAction: BuildAction = .test(
-                postActions: [
-                    ExecutionAction(
-                        title: "Build insights",
-                        scriptText: """
-                        eval "$($HOME/.local/bin/mise activate -C $SRCROOT bash --shims)"
-
-                        tuist inspect build
-                        """,
-                        target: nil,
-                        shellPath: nil
-                    ),
-                ]
-            )
-            expectedBuildAction.runPostActionsOnFailure = true
-            #expect(
-                got == expectedBuildAction
-            )
-        }
+        // Then
+        var expectedBuildAction: BuildAction = .test(
+            postActions: [
+                ExecutionAction(
+                    title: "Push build insights",
+                    scriptText: "/mise/tuist inspect build",
+                    target: nil,
+                    shellPath: nil
+                ),
+            ]
+        )
+        expectedBuildAction.runPostActionsOnFailure = true
+        #expect(
+            got == expectedBuildAction
+        )
     }
 }
