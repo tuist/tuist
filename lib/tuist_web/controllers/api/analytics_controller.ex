@@ -657,22 +657,23 @@ defmodule TuistWeb.API.AnalyticsController do
     command_event =
       CommandEvents.get_command_event_by_id(run_id, preload: :project)
 
-    test_summary =
-      CommandEvents.get_test_summary(command_event)
-
     current_project = Authentication.current_project(conn)
 
-    if not is_nil(test_summary) and not is_nil(current_project) and
-         FunWithFlags.enabled?(:flaky_test_detection, for: current_project) do
-      CommandEvents.create_test_cases(%{
-        test_summary: test_summary,
-        command_event: command_event
-      })
+    if FunWithFlags.enabled?(:flaky_test_detection, for: current_project) do
+      # This is very slow. We should consider saving the necessary data in the db instead of fetching it on-demand from the S3 storage.
+      test_summary =
+        CommandEvents.get_test_summary(command_event)
+        if not is_nil(test_summary) and not is_nil(current_project) do
+          CommandEvents.create_test_cases(%{
+            test_summary: test_summary,
+            command_event: command_event
+          })
 
-      CommandEvents.create_test_case_runs(%{
-        test_summary: test_summary,
-        command_event: command_event
-      })
+          CommandEvents.create_test_case_runs(%{
+            test_summary: test_summary,
+            command_event: command_event
+          })
+        end
     end
 
     conn

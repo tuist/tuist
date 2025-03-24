@@ -96,9 +96,6 @@ defmodule TuistWeb.AnalyticsControllerTest do
 
       ran_at_string = "2025-02-28T15:51:12Z"
 
-      {:ok, ran_at, _} =
-        DateTime.from_iso8601(ran_at_string)
-
       # When
       conn =
         conn
