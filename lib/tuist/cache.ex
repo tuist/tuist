@@ -22,13 +22,7 @@ defmodule Tuist.Cache do
     cache = Keyword.get(opts, :cache, :tuist)
     cache_ttl = Keyword.get(opts, :ttl, :timer.minutes(1))
 
-    # Cachex.transaction! takes a list of keys, storing the same value under multiple keys.
-    # However, since Cachex is setup to be distributed, only one key is allowed, so we allow
-    # the caller of `get_value` to define the key as an array of keys (strings), which we then
-    # turn into a single key by joining them with a hyphen.
-    cache_key = [cache_key |> Enum.join("-")]
-
-    Cachex.transaction!(cache, cache_key, fn cache ->
+    Cachex.transaction!(:tuist, cache_key, fn cache ->
       {:ok, cached_value} = Cachex.get(cache, cache_key)
 
       case cached_value do

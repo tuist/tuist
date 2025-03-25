@@ -6,7 +6,6 @@ defmodule Tuist.Application do
   import Environment, only: [run_if_error_tracking_enabled: 1]
   require Logger
   use Boundary, top_level?: true, deps: [Tuist, TuistWeb]
-  import Cachex.Spec
 
   @impl true
   def start(_type, _args) do
@@ -62,19 +61,7 @@ defmodule Tuist.Application do
       [
         TuistWeb.Telemetry,
         Tuist.Repo,
-        {Cachex,
-         [
-           :tuist,
-           [
-             router:
-               router(
-                 module: Cachex.Router.Ring,
-                 options: [
-                   monitor: true
-                 ]
-               )
-           ]
-         ]},
+        {Cachex, name: :tuist},
         {Oban, Application.fetch_env!(:tuist, Oban)},
         {DNSCluster, query: Application.get_env(:tuist, :dns_cluster_query) || :ignore},
         {Phoenix.PubSub, name: Tuist.PubSub},
