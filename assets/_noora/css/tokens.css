@@ -144,6 +144,7 @@
   /* Label */
   --noora-surface-label-primary: light-dark(var(--noora-neutral-light-1200), var(--noora-neutral-light-50));
   --noora-surface-label-secondary: light-dark(var(--noora-neutral-light-800), var(--noora-neutral-light-500));
+  --noora-surface-label-tertiary: light-dark(var(--noora-neutral-light-700), var(--noora-neutral-dark-500));
   --noora-surface-label-destructive: light-dark(var(--noora-red-500), var(--noora-red-300));
   --noora-surface-label-disabled: light-dark(var(--noora-neutral-light-600), var(--noora-neutral-dark-300));
 
@@ -365,6 +366,11 @@
   --noora-border-light-focus: 0px 1px 1px 0px oklch(20.9% 0.009 264.4 / 0.05),
     0px 0px 0px 1px oklch(31.8% 0.011 248.2 / 0.08), 0px 1px 3px 0px oklch(31.8% 0.011 248.2 / 0.1),
     0px 0px 0px 3px oklch(31.8% 0.011 248.2 / 0.12);
+  --noora-border-light-error: 0px 1px 1px 0px oklch(20.9% 0.009 264.4 / 0.05), 0px 0px 0px 1px oklch(58.7% 0.23 30.7),
+    0px 1px 3px 0px oklch(31.8% 0.011 248.2 / 0.1);
+  --noora-border-light-error-focus: 0px 1px 1px 0px oklch(20.9% 0.009 264.4 / 0.05),
+    0px 0px 0px 1px oklch(58.7% 0.23 30.7), 0px 1px 3px 0px oklch(31.8% 0.011 248.2 / 0.1),
+    0px 0px 0px 3px oklch(58.7% 0.23 30.7 / 0.2);
   --noora-border-medium: 0px 0px 0px 1px oklch(31.8% 0.011 248.2 / 0.08) inset,
     0px -1px 0px 0px oklch(31.8% 0.011 248.2 / 0.16) inset, 0px 8px 6px 0px oklch(31.8% 0.011 248.2 / 0.02),
     0px 2px 4px 0px oklch(31.8% 0.011 248.2 / 0.04);
@@ -380,6 +386,11 @@
     --noora-border-light-focus: 0px 1px 1px 0px oklch(20.9% 0.009 264.4 / 0.2),
       0px 0px 0px 1px oklch(53.1% 0.01 264.5 / 0.3), 0px 2px 3px 0px oklch(0% 0 0 / 0.3),
       0px 0px 0px 3px oklch(53.1% 0.01 264.5 / 0.4);
+    --noora-border-light-error: 0px 1px 1px 0px oklch(20.9% 0.009 264.4 / 0.2), 0px 0px 0px 1px oklch(74% 0.159 30.9),
+      0px 2px 3px 0px oklch(0% 0 0 / 0.3);
+    --noora-border-light-error-focus: 0px 1px 1px 0px oklch(20.9% 0.009 264.4 / 0.2),
+      0px 0px 0px 1px oklch(74% 0.159 30.9), 0px 2px 3px 0px oklch(0% 0 0 / 0.3),
+      0px 0px 0px 3px oklch(74% 0.159 30.9 / 0.25);
     --noora-border-medium: 0px 1px 0px 0px oklch(53.1% 0.01 264.5 / 0.3) inset,
       0px 0px 0px 1px oklch(53.1% 0.01 264.5 / 0.2) inset, 0px 2px 4px 0px oklch(0% 0 0 / 0.12),
       0px 4px 8px 0px oklch(0% 0 0 / 0.24);

@@ -66,6 +66,15 @@ defmodule TuistWeb.Storybook.TextInput do
         }
       },
       %Variation{
+        id: :error,
+        attributes: %{
+          name: "error",
+          placeholder: "Placeholder text...",
+          suffix_hint: "Suffix text...",
+          error: true
+        }
+      },
+      %Variation{
         id: :with_custom_suffix,
         attributes: %{
           name: "with_custom_suffix",

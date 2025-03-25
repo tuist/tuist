@@ -26,7 +26,7 @@
       }
 
       &:not(:disabled)::placeholder {
-        color: var(--noora-surface-label-secondary);
+        color: var(--noora-surface-label-tertiary);
       }
     }
 
@@ -109,6 +109,14 @@
 
     &:has(> input:focus) {
       box-shadow: var(--noora-border-light-focus);
+    }
+
+    &[data-error] {
+      box-shadow: var(--noora-border-light-error);
+    }
+
+    &[data-error]:has(> input:focus) {
+      box-shadow: var(--noora-border-light-error-focus);
     }
 
     &[data-type="password"]:has(> input[type="text"]) {

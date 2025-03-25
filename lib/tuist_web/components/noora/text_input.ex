@@ -32,6 +32,8 @@ defmodule TuistWeb.Noora.TextInput do
   attr :placeholder, :string, default: nil, doc: "Placeholder text to be rendered in the input."
   attr :required, :boolean, default: false, doc: "Whether the input is required."
 
+  attr :error, :boolean, default: false
+
   attr :rest, :global
 
   slot :prefix,
@@ -56,7 +58,7 @@ defmodule TuistWeb.Noora.TextInput do
     ~H"""
     <div class="noora-text-input">
       <.label :if={@label} label={@label} sublabel={@sublabel} required={@required} data-part="label" />
-      <div data-part="wrapper" data-type={@type}>
+      <div data-part="wrapper" data-type={@type} data-error={@error}>
         <span :if={@type != "basic" or has_slot_content?(@prefix, assigns)} data-part="prefix">
           <.prefix type={@type} prefix={@prefix} />
         </span>
