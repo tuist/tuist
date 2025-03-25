@@ -114,7 +114,7 @@ function getTheme(option) {
       textStyle: {
         fontFamily: "Inter",
       },
-      formatter: tooltipFormatter,
+      formatter: tooltipFormatter({ valueFormat: option?.tooltip?.valueFormat }),
     },
     line: {
       emphasis: {
@@ -189,31 +189,37 @@ function transformColorProperty(colorProp) {
 }
 
 // Tooltip
-function tooltipFormatter(params) {
-  const content = Array.isArray(params) ? params.map(tooltipSeries).join("") : tooltipSeries(params);
-  return `<div class="noora-chart-tooltip">${content}</div>`;
+function tooltipFormatter(options = {}) {
+  return (params) => {
+    const content = Array.isArray(params)
+      ? params.map((param) => tooltipSeries(param, options)).join("")
+      : tooltipSeries(params, options);
+    return `<div class="noora-chart-tooltip">${content}</div>`;
+  };
 }
 
-function tooltipSeries({ color, name, value }) {
-  const displayValue = formatTooltipValue(value);
+function tooltipSeries({ color, name, value }, options = {}) {
+  if (!name && Array.isArray(value)) {
+    const date = new Date(value[0]);
+    if (date instanceof Date && !isNaN(date)) {
+      name = new Intl.DateTimeFormat(navigator.language).format(date);
+      value = value[1];
+    }
+  }
+  if (Array.isArray(value) && value.length > 0) {
+    value = value[value.length - 1];
+  }
+  if (value !== null && typeof value === "object" && "value" in value) {
+    value = value.value;
+  }
+
+  const formattedValue = options.valueFormat ? options.valueFormat.replace("{v}", value) : value;
 
   return `
   <div data-part="series-item">
     <span data-part="dot" style="--color: ${Array.isArray(color) ? color[0] : color}"></span>
     <span data-part="label">${name}</span>
-    <span data-part="value">${displayValue}</span>
+    <span data-part="value">${formattedValue}</span>
   </div>
   `;
-}
-
-function formatTooltipValue(value) {
-  if (Array.isArray(value) && value.length > 0) {
-    return value[value.length - 1];
-  }
-
-  if (value !== null && typeof value === "object" && "value" in value) {
-    return value.value;
-  }
-
-  return value;
 }

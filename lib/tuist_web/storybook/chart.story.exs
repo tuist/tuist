@@ -70,6 +70,9 @@ defmodule TuistWeb.Storybook.Chart do
                 showMaxLabel: true,
                 formatter: "fn:firstAndLastDate"
               }
+            },
+            tooltip: %{
+              valueFormat: "{v}%"
             }
           }
         }
