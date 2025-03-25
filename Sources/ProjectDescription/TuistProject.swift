@@ -14,5 +14,5 @@ public enum TuistProject: Codable, Equatable, Sendable {
         generationOptions: Tuist.GenerationOptions = .options(),
         installOptions: Tuist.InstallOptions = .options()
     )
-    case xcode
+    case xcode(TuistXcodeProjectOptions = TuistXcodeProjectOptions.options())
 }

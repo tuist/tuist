@@ -1753,6 +1753,42 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "connor-ricks",
+      "name": "Connor Ricks",
+      "avatar_url": "https://avatars.githubusercontent.com/u/13373737?v=4",
+      "profile": "http://connorricks.com",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "fdiaz",
+      "name": "Francisco Diaz",
+      "avatar_url": "https://avatars.githubusercontent.com/u/530662?v=4",
+      "profile": "https://franciscodiaz.cl",
+      "contributions": [
+        "doc"
+      ]
+    },
+    {
+      "login": "Ethan-IS",
+      "name": "Ethan Parker",
+      "avatar_url": "https://avatars.githubusercontent.com/u/140235921?v=4",
+      "profile": "https://github.com/Ethan-IS",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "lukevanin",
+      "name": "Luke Van In",
+      "avatar_url": "https://avatars.githubusercontent.com/u/550579?v=4",
+      "profile": "https://github.com/lukevanin",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,

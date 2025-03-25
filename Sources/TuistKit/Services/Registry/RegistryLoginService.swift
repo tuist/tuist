@@ -45,7 +45,7 @@ struct RegistryLoginService {
     init(
         createAccountTokenService: CreateAccountTokenServicing = CreateAccountTokenService(),
         serverURLService: ServerURLServicing = ServerURLService(),
-        configLoader: ConfigLoading = ConfigLoader(warningController: WarningController.shared),
+        configLoader: ConfigLoading = ConfigLoader(),
         fileSystem: FileSysteming = FileSystem(),
         fullHandleService: FullHandleServicing = FullHandleService(),
         swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(),

@@ -217,7 +217,7 @@ public enum Module: String, CaseIterable {
             default:
                 []
             }
-        return dependencies + sharedDependencies
+        return dependencies + [.external(name: "SnapshotTesting")] + sharedDependencies
     }
 
     public var strictConcurrencySetting: String? {
@@ -255,6 +255,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "GraphViz"),
                     .external(name: "ArgumentParser"),
                     .external(name: "SwiftToolsSupport"),
+                    .external(name: "Noora"),
                 ]
             case .tuistBenchmark:
                 [
@@ -284,6 +285,9 @@ public enum Module: String, CaseIterable {
                     .external(name: "Command"),
                     .external(name: "FileLogging"),
                     .external(name: "LoggingOSLog"),
+                    .external(name: "Noora"),
+                    .external(name: "XCLogParser"),
+                    .external(name: "OrderedSet"),
                 ]
             case .kit:
                 [
@@ -311,6 +315,8 @@ public enum Module: String, CaseIterable {
                     .external(name: "GraphViz"),
                     .external(name: "AnyCodable"),
                     .external(name: "OpenAPIRuntime"),
+                    .external(name: "XCResultKit"),
+                    .external(name: "Noora"),
                 ]
             case .core:
                 [
@@ -622,7 +628,7 @@ public enum Module: String, CaseIterable {
             }
         dependencies =
             dependencies + sharedDependencies + [
-                .target(name: targetName), .external(name: "Mockable"),
+                .target(name: targetName), .external(name: "Mockable"), .external(name: "SnapshotTesting"),
             ]
         if let testingTargetName {
             dependencies.append(.target(name: testingTargetName))

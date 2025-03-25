@@ -1,29 +1,29 @@
 ---
-title: Logging
+title: ロギング
 titleTemplate: :title · CLI · Tuist
-description: Learn how to enable and configure logging in Tuist.
+description: Tuist でログを有効にして設定する方法を学ぶ。
 ---
 
-# Logging {#logging}
+# ロギング {#logging}
 
-The CLI logs messages internally to help you diagnose issues.
+CLI は問題を診断するのに役立つメッセージを内部的に記録します。
 
-## Diagnose issues using logs {#diagnose-issues-using-logs}
+## ログを使用して問題を診断する {#diagnose-issues-using-logs}
 
-If a command invocation doesn't yield the intended results, you can diagnose the issue by inspecting the logs. The CLI forwards the logs to [OSLog](https://developer.apple.com/documentation/os/oslog) and the file-system.
+コマンド呼び出しが意図した結果をもたらさない場合は、ログを調べることで問題を診断できます。 CLI はログを [OSLog](https://developer.apple.com/documentation/os/oslog) とファイルシステムに転送します。
 
-In every run, it creates a log file at `$XDG_STATE_HOME/tuist/logs/{uuid}.log` where `$XDG_STATE_HOME` takes the value `~/.local/state` if the environment variable is not set.
+実行ごとに、`$XDG_STATE_HOME/tuist/logs/{uuid}.log` にログファイルが作成されます。環境変数が設定されていない場合、 `$XDG_STATE_HOME` は `~/.local/state` の値をとります。
 
-By default, the CLI outputs the logs path when the execution exits unexpectedly. If it doesn't, you can find the logs in the path mentioned above (i.e., the most recent log file).
+デフォルトでは、CLIは実行が予期せず終了した場合にログのパスを出力します。 出力されない場合は、上記のパス（つまり、最新のログファイル）にログを見つけることができます。
 
 > [!IMPORTANT]
-> Sensitive information is not redacted, so be cautious when sharing logs.
+> 機密情報はマスキングされていないので、ログを共有する際は注意してください。
 
-### Continuous integration {#diagnose-issues-using-logs-ci}
+### 継続的インテグレーション {#diagnose-issues-using-logs-ci}
 
-In CI, where environments are disposable, you might want to configure your CI pipeline to export Tuist logs.
-Exporting artifacts is a common capability across CI services, and the configuration depends on the service you use.
-For example, in GitHub Actions, you can use the `actions/upload-artifact` action to upload the logs as an artifact:
+CIでは、環境が使い捨てであるため、CIパイプラインを設定してTuistのログをエクスポートすることを検討する必要があるかもしれません。
+成果物のエクスポートはCIサービスに共通する機能であり、設定は利用するサービスによって異なります。
+たとえば、GitHub Actionsでは、`actions/upload-artifact` アクションを使用してログを成果物としてアップロードできます：
 
 ```yaml
 name: Node CI
@@ -31,7 +31,7 @@ name: Node CI
 on: [push]
 
 env:
-  $XDG_STATE_HOME: /tmp/tuist
+  XDG_STATE_HOME: /tmp
 
 jobs:
   build:

@@ -12,8 +12,26 @@ protocol LoginServicing: AnyObject {
     func run(
         email: String?,
         password: String?,
-        directory: String?
+        directory: String?,
+        onEvent: @escaping (LoginServiceEvent) async -> Void
     ) async throws
+}
+
+enum LoginServiceEvent: CustomStringConvertible {
+    case openingBrowser(URL)
+    case waitForAuthentication
+    case completed
+
+    var description: String {
+        switch self {
+        case let .openingBrowser(url):
+            "Opening \(url.absoluteString) to start the authentication flow"
+        case .waitForAuthentication:
+            "Press CTRL + C once to cancel the process."
+        case .completed:
+            "Successfully logged in."
+        }
+    }
 }
 
 final class LoginService: LoginServicing {
@@ -27,7 +45,7 @@ final class LoginService: LoginServicing {
     init(
         serverSessionController: ServerSessionControlling = ServerSessionController(),
         serverURLService: ServerURLServicing = ServerURLService(),
-        configLoader: ConfigLoading = ConfigLoader(warningController: WarningController.shared),
+        configLoader: ConfigLoading = ConfigLoader(),
         userInputReader: UserInputReading = UserInputReader(),
         authenticateService: AuthenticateServicing = AuthenticateService(),
         serverCredentialsStore: ServerCredentialsStoring = ServerCredentialsStore()
@@ -45,7 +63,8 @@ final class LoginService: LoginServicing {
     func run(
         email: String?,
         password: String?,
-        directory: String?
+        directory: String?,
+        onEvent: @escaping (LoginServiceEvent) async -> Void
     ) async throws {
         let directoryPath: AbsolutePath
         if let directory {
@@ -63,8 +82,9 @@ final class LoginService: LoginServicing {
                 serverURL: serverURL
             )
         } else {
-            try await authenticateWithBrowserLogin(serverURL: serverURL)
+            try await authenticateWithBrowserLogin(serverURL: serverURL, onEvent: onEvent)
         }
+        await onEvent(.completed)
     }
 
     private func authenticateWithEmailAndPassword(
@@ -89,29 +109,40 @@ final class LoginService: LoginServicing {
             ),
             serverURL: serverURL
         )
-        ServiceContext.current?.logger?.notice("Successfully logged in.", metadata: .success)
     }
 
     private func authenticateWithBrowserLogin(
-        serverURL: URL
+        serverURL: URL,
+        onEvent: @escaping (LoginServiceEvent) async -> Void
     ) async throws {
         try await serverSessionController.authenticate(
             serverURL: serverURL,
             deviceCodeType: .cli,
             onOpeningBrowser: { authURL in
-                ServiceContext.current?.logger?.notice("Opening \(authURL.absoluteString) to start the authentication flow")
+                await onEvent(.openingBrowser(authURL))
             },
             onAuthWaitBegin: {
-                if Environment.shared.shouldOutputBeColoured {
-                    ServiceContext.current?.logger?.notice(
-                        "Press \("CTRL + C".cyan()) once to cancel the process.",
-                        metadata: .pretty
-                    )
-                } else {
-                    ServiceContext.current?.logger?.notice("Press CTRL + C once to cancel the process.")
-                }
+                await onEvent(.waitForAuthentication)
             }
         )
-        ServiceContext.current?.logger?.notice("Successfully logged in.", metadata: .success)
+    }
+}
+
+extension LoginServicing {
+    func run(
+        email: String? = nil,
+        password: String? = nil,
+        directory: String? = nil
+    ) async throws {
+        try await run(email: email, password: password, directory: directory, onEvent: Self.defaultOnEvent(event:))
+    }
+
+    private static func defaultOnEvent(event: LoginServiceEvent) {
+        switch event {
+        case .completed:
+            ServiceContext.current?.alerts?.success(.alert("\(event.description)"))
+        default:
+            ServiceContext.current?.logger?.notice("\(event.description)")
+        }
     }
 }

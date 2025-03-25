@@ -8,6 +8,7 @@ struct InspectCommand: AsyncParsableCommand {
             subcommands: [
                 InspectImplicitImportsCommand.self,
                 InspectRedundantImportsCommand.self,
+                InspectBuildCommand.self,
             ]
         )
     }

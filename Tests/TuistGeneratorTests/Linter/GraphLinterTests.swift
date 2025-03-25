@@ -39,11 +39,10 @@ final class GraphLinterTests: TuistUnitTestCase {
             GraphDependency.testFramework(path: frameworkAPath): Set(),
             GraphDependency.testFramework(path: frameworkBPath): Set(),
         ])
-        let config = Config.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let result = try await subject.lint(graphTraverser: graphTraverser, config: config)
+        let result = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
         XCTAssertTrue(
@@ -61,11 +60,10 @@ final class GraphLinterTests: TuistUnitTestCase {
             .selectedVersion()
             .willReturn(versionStub)
         let graph = Graph.test(packages: [path: ["package": package]])
-        let config = Config.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let result = try await subject.lint(graphTraverser: graphTraverser, config: config)
+        let result = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
         let reason =
@@ -82,11 +80,10 @@ final class GraphLinterTests: TuistUnitTestCase {
             .selectedVersion()
             .willReturn(versionStub)
         let graph = Graph.test(packages: [path: ["package": package]])
-        let config = Config.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let result = try await subject.lint(graphTraverser: graphTraverser, config: config)
+        let result = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
         let reason =
@@ -129,11 +126,10 @@ final class GraphLinterTests: TuistUnitTestCase {
             projects: [path: project]
         )
 
-        let config = Config.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let result = try await subject.lint(graphTraverser: graphTraverser, config: config)
+        let result = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
         XCTAssertEqual(
@@ -180,11 +176,10 @@ final class GraphLinterTests: TuistUnitTestCase {
             projects: [path: project]
         )
 
-        let config = Config.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let result = try await subject.lint(graphTraverser: graphTraverser, config: config)
+        let result = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
         XCTAssertEqual(
@@ -202,11 +197,10 @@ final class GraphLinterTests: TuistUnitTestCase {
             .selectedVersion()
             .willThrow(error)
         let graph = Graph.test(packages: [path: ["package": package]])
-        let config = Config.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let result = try await subject.lint(graphTraverser: graphTraverser, config: config)
+        let result = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
         XCTAssertTrue(result.contains(LintingIssue(reason: "Could not determine Xcode version", severity: .error)))
@@ -243,11 +237,10 @@ final class GraphLinterTests: TuistUnitTestCase {
             projects: [path: project],
             dependencies: dependencies
         )
-        let config = Config.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let result = try await subject.lint(graphTraverser: graphTraverser, config: config)
+        let result = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
         XCTAssertTrue(result.isEmpty)
@@ -284,11 +277,10 @@ final class GraphLinterTests: TuistUnitTestCase {
             projects: [path: project],
             dependencies: dependencies
         )
-        let config = Config.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let result = try await subject.lint(graphTraverser: graphTraverser, config: config)
+        let result = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
         XCTAssertTrue(result.isEmpty)
@@ -328,11 +320,10 @@ final class GraphLinterTests: TuistUnitTestCase {
             projects: [path: project],
             dependencies: dependencies
         )
-        let config = Config.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let result = try await subject.lint(graphTraverser: graphTraverser, config: config)
+        let result = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
         XCTAssertTrue(result.isEmpty)
@@ -355,11 +346,10 @@ final class GraphLinterTests: TuistUnitTestCase {
             projects: [path: project],
             dependencies: dependencies
         )
-        let config = Config.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let result = try await subject.lint(graphTraverser: graphTraverser, config: config)
+        let result = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
         XCTAssertTrue(result.isEmpty)
@@ -382,11 +372,10 @@ final class GraphLinterTests: TuistUnitTestCase {
             projects: [path: project],
             dependencies: dependencies
         )
-        let config = Config.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let result = try await subject.lint(graphTraverser: graphTraverser, config: config)
+        let result = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
         XCTAssertTrue(result.isEmpty)
@@ -409,11 +398,10 @@ final class GraphLinterTests: TuistUnitTestCase {
             projects: [path: project],
             dependencies: dependencies
         )
-        let config = Config.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let result = try await subject.lint(graphTraverser: graphTraverser, config: config)
+        let result = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
         XCTAssertTrue(result.isEmpty)
@@ -448,11 +436,10 @@ final class GraphLinterTests: TuistUnitTestCase {
             projects: [path: project],
             dependencies: dependencies
         )
-        let config = Config.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let result = try await subject.lint(graphTraverser: graphTraverser, config: config)
+        let result = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
         XCTAssertEqual(result, [])
@@ -477,11 +464,10 @@ final class GraphLinterTests: TuistUnitTestCase {
             projects: [path: project],
             dependencies: dependencies
         )
-        let config = Config.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let result = try await subject.lint(graphTraverser: graphTraverser, config: config)
+        let result = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
         XCTAssertTrue(result.isEmpty)
@@ -506,11 +492,10 @@ final class GraphLinterTests: TuistUnitTestCase {
             projects: [path: project],
             dependencies: dependencies
         )
-        let config = Config.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let result = try await subject.lint(graphTraverser: graphTraverser, config: config)
+        let result = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
         XCTAssertTrue(result.isEmpty)
@@ -541,11 +526,10 @@ final class GraphLinterTests: TuistUnitTestCase {
             projects: [path: project],
             dependencies: dependencies
         )
-        let config = Config.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let result = try await subject.lint(graphTraverser: graphTraverser, config: config)
+        let result = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
         XCTAssertFalse(result.isEmpty)
@@ -568,11 +552,10 @@ final class GraphLinterTests: TuistUnitTestCase {
             projects: [path: project],
             dependencies: dependencies
         )
-        let config = Config.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let result = try await subject.lint(graphTraverser: graphTraverser, config: config)
+        let result = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
         XCTAssertTrue(result.isEmpty)
@@ -595,11 +578,10 @@ final class GraphLinterTests: TuistUnitTestCase {
             projects: [path: project],
             dependencies: dependencies
         )
-        let config = Config.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let result = try await subject.lint(graphTraverser: graphTraverser, config: config)
+        let result = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
         XCTAssertFalse(result.isEmpty)
@@ -632,11 +614,10 @@ final class GraphLinterTests: TuistUnitTestCase {
             projects: [path: project],
             dependencies: dependencies
         )
-        let config = Config.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let got = try await subject.lint(graphTraverser: graphTraverser, config: config)
+        let got = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
         XCTAssertTrue(got.isEmpty)
@@ -669,11 +650,10 @@ final class GraphLinterTests: TuistUnitTestCase {
             projects: [path: project],
             dependencies: dependencies
         )
-        let config = Config.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let got = try await subject.lint(graphTraverser: graphTraverser, config: config)
+        let got = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
         XCTAssertTrue(got.isEmpty)
@@ -706,11 +686,10 @@ final class GraphLinterTests: TuistUnitTestCase {
             projects: [path: project],
             dependencies: dependencies
         )
-        let config = Config.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let got = try await subject.lint(graphTraverser: graphTraverser, config: config)
+        let got = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
         XCTAssertTrue(got.isEmpty)
@@ -743,11 +722,10 @@ final class GraphLinterTests: TuistUnitTestCase {
             projects: [path: project],
             dependencies: dependencies
         )
-        let config = Config.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let got = try await subject.lint(graphTraverser: graphTraverser, config: config)
+        let got = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
         XCTAssertTrue(got.isEmpty)
@@ -795,11 +773,10 @@ final class GraphLinterTests: TuistUnitTestCase {
             projects: [path: project],
             dependencies: dependencies
         )
-        let config = Config.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let got = try await subject.lint(graphTraverser: graphTraverser, config: config)
+        let got = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
         XCTAssertTrue(got.isEmpty)
@@ -839,11 +816,10 @@ final class GraphLinterTests: TuistUnitTestCase {
             projects: [path: project],
             dependencies: dependencies
         )
-        let config = Config.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let got = try await subject.lint(graphTraverser: graphTraverser, config: config)
+        let got = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
         XCTAssertTrue(got.isEmpty)
@@ -880,11 +856,10 @@ final class GraphLinterTests: TuistUnitTestCase {
             projects: [path: project],
             dependencies: dependencies
         )
-        let config = Config.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let got = try await subject.lint(graphTraverser: graphTraverser, config: config)
+        let got = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
         XCTAssertTrue(got.isEmpty)
@@ -941,11 +916,10 @@ final class GraphLinterTests: TuistUnitTestCase {
             ],
             dependencies: dependencies
         )
-        let config = Config.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let result = try await subject.lint(graphTraverser: graphTraverser, config: config)
+        let result = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
         XCTAssertEqual(result, [
@@ -1014,11 +988,10 @@ final class GraphLinterTests: TuistUnitTestCase {
             ],
             dependencies: dependencies
         )
-        let config = Config.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let result = try await subject.lint(graphTraverser: graphTraverser, config: config)
+        let result = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
         XCTAssertEqual(result, [
@@ -1089,11 +1062,10 @@ final class GraphLinterTests: TuistUnitTestCase {
             ],
             dependencies: dependencies
         )
-        let config = Config.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let result = try await subject.lint(graphTraverser: graphTraverser, config: config)
+        let result = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
         XCTAssertEqual(result, [])
@@ -1160,11 +1132,10 @@ final class GraphLinterTests: TuistUnitTestCase {
             ],
             dependencies: dependencies
         )
-        let config = Config.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let result = try await subject.lint(graphTraverser: graphTraverser, config: config)
+        let result = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
         XCTAssertEqual(result, [])
@@ -1204,11 +1175,10 @@ final class GraphLinterTests: TuistUnitTestCase {
             projects: [path: project],
             dependencies: dependencies
         )
-        let config = Config.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let got = try await subject.lint(graphTraverser: graphTraverser, config: config)
+        let got = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
         XCTAssertTrue(got.isEmpty)
@@ -1248,11 +1218,10 @@ final class GraphLinterTests: TuistUnitTestCase {
             projects: [path: project],
             dependencies: dependencies
         )
-        let config = Config.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let got = try await subject.lint(graphTraverser: graphTraverser, config: config)
+        let got = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
         XCTAssertEqual(got, [
@@ -1301,11 +1270,10 @@ final class GraphLinterTests: TuistUnitTestCase {
             projects: [temporaryPath: project],
             dependencies: dependencies
         )
-        let config = Config.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let got = try await subject.lint(graphTraverser: graphTraverser, config: config)
+        let got = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
         XCTAssertTrue(got.isEmpty)
@@ -1346,11 +1314,10 @@ final class GraphLinterTests: TuistUnitTestCase {
             projects: [temporaryPath: project],
             dependencies: dependencies
         )
-        let config = Config.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let got = try await subject.lint(graphTraverser: graphTraverser, config: config)
+        let got = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
         XCTAssertEqual(got, [
@@ -1388,11 +1355,10 @@ final class GraphLinterTests: TuistUnitTestCase {
             projects: [path: project],
             dependencies: dependencies
         )
-        let config = Config.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let got = try await subject.lint(graphTraverser: graphTraverser, config: config)
+        let got = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
         XCTAssertEqual(got, [
@@ -1431,11 +1397,10 @@ final class GraphLinterTests: TuistUnitTestCase {
             projects: [path: project],
             dependencies: dependencies
         )
-        let config = Config.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let got = try await subject.lint(graphTraverser: graphTraverser, config: config)
+        let got = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
         XCTAssertEqual(got, [
@@ -1497,11 +1462,10 @@ final class GraphLinterTests: TuistUnitTestCase {
             projects: [temporaryPath: project],
             dependencies: dependencies
         )
-        let config = Config.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let got = try await subject.lint(graphTraverser: graphTraverser, config: config)
+        let got = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
         XCTAssertEqual(got, [
@@ -1550,11 +1514,10 @@ final class GraphLinterTests: TuistUnitTestCase {
             projects: [temporaryPath: project],
             dependencies: dependencies
         )
-        let config = Config.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let got = try await subject.lint(graphTraverser: graphTraverser, config: config)
+        let got = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
         XCTAssertEmpty(got)
@@ -1589,11 +1552,10 @@ final class GraphLinterTests: TuistUnitTestCase {
             projects: [path: project],
             dependencies: dependencies
         )
-        let config = Config.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let got = try await subject.lint(graphTraverser: graphTraverser, config: config)
+        let got = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
         XCTAssertEmpty(got)
@@ -1628,11 +1590,10 @@ final class GraphLinterTests: TuistUnitTestCase {
             projects: [path: project],
             dependencies: dependencies
         )
-        let config = Config.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let got = try await subject.lint(graphTraverser: graphTraverser, config: config)
+        let got = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
         XCTAssertEmpty(got)
@@ -1678,11 +1639,10 @@ final class GraphLinterTests: TuistUnitTestCase {
             projects: [path: project],
             dependencies: dependencies
         )
-        let config = Config.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let got = try await subject.lint(graphTraverser: graphTraverser, config: config)
+        let got = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
         XCTAssertEmpty(got)
@@ -1710,7 +1670,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         )
 
         // When
-        let got = try await subject.lint(graphTraverser: GraphTraverser(graph: graph), config: Config.test())
+        let got = try await subject.lint(graphTraverser: GraphTraverser(graph: graph), configGeneratedProjectOptions: .test())
 
         // Then
         XCTAssertEmpty(got)
@@ -1740,7 +1700,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         )
 
         // When
-        let got = try await subject.lint(graphTraverser: GraphTraverser(graph: graph), config: Config.test())
+        let got = try await subject.lint(graphTraverser: GraphTraverser(graph: graph), configGeneratedProjectOptions: .test())
 
         // Then
         XCTAssertEmpty(got)
@@ -1775,11 +1735,10 @@ final class GraphLinterTests: TuistUnitTestCase {
             projects: [path: project],
             dependencies: dependencies
         )
-        let config = Config.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let got = try await subject.lint(graphTraverser: graphTraverser, config: config)
+        let got = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
         XCTAssertEmpty(got)
@@ -1810,11 +1769,11 @@ final class GraphLinterTests: TuistUnitTestCase {
             ],
             dependencies: [:]
         )
-        let config = Config.test()
+        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let got = try await subject.lint(graphTraverser: graphTraverser, config: config)
+        let got = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
         XCTAssertEmpty(got)
@@ -1822,11 +1781,11 @@ final class GraphLinterTests: TuistUnitTestCase {
 
     func test_lintCodeCoverage_none() async throws {
         // Given
-        let config = Config.test()
+        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: .test())
 
         // When
-        let got = try await subject.lint(graphTraverser: graphTraverser, config: config)
+        let got = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
         XCTAssertEmpty(got)
@@ -1834,7 +1793,7 @@ final class GraphLinterTests: TuistUnitTestCase {
 
     func test_lintCodeCoverage_all() async throws {
         // Given
-        let config = Config.test()
+        let config = Tuist.test()
         let graphTraverser = GraphTraverser(
             graph: .test(
                 workspace: .test(
@@ -1846,7 +1805,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         )
 
         // When
-        let got = try await subject.lint(graphTraverser: graphTraverser, config: config)
+        let got = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
         XCTAssertEmpty(got)
@@ -1889,11 +1848,11 @@ final class GraphLinterTests: TuistUnitTestCase {
             ),
             projects: [temporaryPath: project]
         )
-        let config = Config.test()
+        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let got = try await subject.lint(graphTraverser: graphTraverser, config: config)
+        let got = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
         XCTAssertEmpty(got)
@@ -1901,7 +1860,7 @@ final class GraphLinterTests: TuistUnitTestCase {
 
     func test_lintCodeCoverage_relevant_notConfigured() async throws {
         // Given
-        let config = Config.test()
+        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: .test(
             workspace: .test(
                 generationOptions: .test(
@@ -1911,7 +1870,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         ))
 
         // When
-        let got = try await subject.lint(graphTraverser: graphTraverser, config: config)
+        let got = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
         XCTAssertEqual(
@@ -1946,11 +1905,11 @@ final class GraphLinterTests: TuistUnitTestCase {
             ),
             projects: [temporaryPath: project]
         )
-        let config = Config.test()
+        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let got = try await subject.lint(graphTraverser: graphTraverser, config: config)
+        let got = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
         XCTAssertEmpty(got)
@@ -1958,7 +1917,7 @@ final class GraphLinterTests: TuistUnitTestCase {
 
     func test_lintCodeCoverage_targets_empty() async throws {
         // Given
-        let config = Config.test()
+        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: .test(
             workspace: .test(
                 generationOptions: .test(
@@ -1968,7 +1927,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         ))
 
         // When
-        let got = try await subject.lint(graphTraverser: graphTraverser, config: config)
+        let got = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
         XCTAssertEqual(
@@ -2003,11 +1962,11 @@ final class GraphLinterTests: TuistUnitTestCase {
             ),
             projects: [temporaryPath: project]
         )
-        let config = Config.test()
+        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let got = try await subject.lint(graphTraverser: graphTraverser, config: config)
+        let got = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
         XCTAssertEqual(
@@ -2049,11 +2008,11 @@ final class GraphLinterTests: TuistUnitTestCase {
                 ): try XCTUnwrap(.test([.macos])),
             ]
         )
-        let config = Config.test()
+        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let results = try await subject.lint(graphTraverser: graphTraverser, config: config)
+        let results = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
         XCTAssertTrue(results.isEmpty)
@@ -2081,11 +2040,11 @@ final class GraphLinterTests: TuistUnitTestCase {
                 .target(name: watchOnlyTarget.name, path: path): [],
             ]
         )
-        let config = Config.test()
+        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let results = try await subject.lint(graphTraverser: graphTraverser, config: config)
+        let results = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
         XCTAssertFalse(results.isEmpty)
@@ -2127,11 +2086,11 @@ final class GraphLinterTests: TuistUnitTestCase {
                 .target(name: watchApp.name, path: path): [],
             ]
         )
-        let config = Config.test()
+        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let results = try await subject.lint(graphTraverser: graphTraverser, config: config)
+        let results = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
         XCTAssertEqual(
@@ -2173,11 +2132,11 @@ final class GraphLinterTests: TuistUnitTestCase {
                 ],
             ]
         )
-        let config = Config.test()
+        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let results = try await subject.lint(graphTraverser: graphTraverser, config: config)
+        let results = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
         XCTAssertEqual(
@@ -2212,11 +2171,11 @@ final class GraphLinterTests: TuistUnitTestCase {
                 ],
             ]
         )
-        let config = Config.test()
+        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let results = try await subject.lint(graphTraverser: graphTraverser, config: config)
+        let results = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
         XCTAssertEqual(
@@ -2276,11 +2235,11 @@ final class GraphLinterTests: TuistUnitTestCase {
                     ],
                 ]
             )
-            let config = Config.test()
+            let config = Tuist.test()
             let graphTraverser = GraphTraverser(graph: graph)
 
             // When
-            let results = try await subject.lint(graphTraverser: graphTraverser, config: config)
+            let results = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
             // Then
             XCTAssertTrue(results.isEmpty, "Expected to get no lint failures on \(platform), got \(results)")
@@ -2311,11 +2270,11 @@ final class GraphLinterTests: TuistUnitTestCase {
             ]
         )
 
-        let config = Config.test()
+        let config = Tuist.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let results = try await subject.lint(graphTraverser: graphTraverser, config: config)
+        let results = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
         XCTAssertTrue(results.isEmpty, "Expected to get no lint failures, got \(results)")

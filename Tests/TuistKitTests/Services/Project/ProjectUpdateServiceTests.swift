@@ -83,7 +83,6 @@ final class ProjectUpdateServiceTests: TuistUnitTestCase {
                     visibility: .value(.public)
                 )
                 .called(1)
-            XCTAssertStandardOutput(pattern: "The project tuist/tuist was successfully updated 🎉")
         }
     }
 
@@ -136,7 +135,6 @@ final class ProjectUpdateServiceTests: TuistUnitTestCase {
                     visibility: .value(nil)
                 )
                 .called(1)
-            XCTAssertStandardOutput(pattern: "The project tuist/tuist was successfully updated 🎉")
         }
     }
 }

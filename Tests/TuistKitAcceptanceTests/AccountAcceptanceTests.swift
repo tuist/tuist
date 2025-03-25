@@ -13,7 +13,14 @@ final class AccountAcceptanceTests: ServerAcceptanceTestCase {
         try await ServiceContext.withTestingDependencies {
             try await setUpFixture(.iosAppWithFrameworks)
             try await run(AccountUpdateCommand.self, "--handle", "tuistrocks")
-            XCTAssertStandardOutput(pattern: "The account tuistrocks was successfully updated.")
+
+            let got = ServiceContext.current?.recordedUI()
+            let expectedOutput = """
+            ▌ ✔ Success
+            ▌ The account tuistrocks was successfully updated.
+            """
+
+            XCTAssertEqual(got, expectedOutput)
         }
     }
 
@@ -23,7 +30,13 @@ final class AccountAcceptanceTests: ServerAcceptanceTestCase {
             let newHandle = String(UUID().uuidString.prefix(12).lowercased())
             try await run(AccountUpdateCommand.self, organizationHandle, "--handle", newHandle)
 
-            XCTAssertStandardOutput(pattern: "The account \(newHandle) was successfully updated.")
+            let got = ServiceContext.current?.recordedUI()
+            let expectedOutput = """
+            ▌ ✔ Success
+            ▌ The account \(newHandle) was successfully updated.
+            """
+
+            XCTAssertEqual(got, expectedOutput)
 
             // Update handles for teardown function.
             self.organizationHandle = newHandle

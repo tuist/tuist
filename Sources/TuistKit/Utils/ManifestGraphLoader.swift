@@ -47,7 +47,7 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
         graphMapper: GraphMapping
     ) {
         self.init(
-            configLoader: ConfigLoader(manifestLoader: manifestLoader, warningController: WarningController.shared),
+            configLoader: ConfigLoader(manifestLoader: manifestLoader),
             manifestLoader: manifestLoader,
             recursiveManifestLoader: RecursiveManifestLoader(manifestLoader: manifestLoader),
             converter: ManifestModelConverter(
@@ -212,8 +212,12 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
     @discardableResult
     func loadPlugins(at path: AbsolutePath) async throws -> Plugins {
         let config = try await configLoader.loadConfig(path: path)
-        let plugins = try await pluginsService.loadPlugins(using: config)
-        try manifestLoader.register(plugins: plugins)
-        return plugins
+        if let configGeneratedProjectOptions = config.project.generatedProject {
+            let plugins = try await pluginsService.loadPlugins(using: configGeneratedProjectOptions)
+            try manifestLoader.register(plugins: plugins)
+            return plugins
+        } else {
+            return Plugins(projectDescriptionHelpers: [], templatePaths: [], resourceSynthesizers: [])
+        }
     }
 }

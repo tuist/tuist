@@ -61,8 +61,7 @@ tuist run App@00dde7f56b1b8795a26b8085a781fb3715e834be # Runs latest App preview
 
 <div style="display: flex; flex-direction: column; align-items: center;">
     <img src="/logo.png" style="height: 100px;" />
-    <h1>Tuist</h1><a href="https://cloud.tuist.io/download" style="text-decoration: none;">Download</a>
-<img src="/images/guides/share/menu-bar-app.png" style="width: 300px;" /><img src="/images/guides/share/menu-bar-app.png" style="width: 300px;" />
+    <h1>Tuist</h1><a href="https://cloud.tuist.io/download" style="text-decoration: none;">Download</a><img src="/images/guides/share/menu-bar-app.png" style="width: 300px;" />
 </div>
 
 To make running Tuist Previews even easier, we developed a Tuist macOS menu bar app. Instead of running Previews via the Tuist CLI, you can [download](https://tuist.dev/download) the macOS app. You can also install the app by running `brew install --cask tuist/tuist/tuist`.
@@ -70,7 +69,7 @@ To make running Tuist Previews even easier, we developed a Tuist macOS menu bar 
 When you now click on "Run" in the Preview page, the macOS app will automatically launch it on your currently selected device.
 
 > [!IMPORTANT] REQUIREMENTS
-> To download Previews, you need to first authenticate with the `tuist auth` command.
+> To download Previews, you need to first authenticate with the `tuist auth login` command.
 > In the future, you will be able to authenticate directly in the app.
 >
 > Additionally, you need to have Xcode locally installed.

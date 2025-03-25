@@ -17,12 +17,12 @@ final class SettingsHelper {
     }
 
     func extend(
-        buildSettings: inout [String: Any],
+        buildSettings: inout BuildSettings,
         with other: SettingsDictionary
     ) throws {
-        var settings = try buildSettings.toSettings()
+        var settings = buildSettings.toSettings()
         extend(buildSettings: &settings, with: other)
-        buildSettings = settings.toAny()
+        buildSettings = settings.mapValues(\.buildSetting)
     }
 
     func settingsProviderPlatform(_ platform: Platform) -> BuildSettingsProvider.Platform? {
@@ -132,5 +132,23 @@ final class SettingsHelper {
                     return item
                 }
             }
+    }
+}
+
+extension BuildSetting {
+    var settingValue: SettingValue {
+        switch self {
+        case let .string(value): .string(value)
+        case let .array(value): .array(value)
+        }
+    }
+}
+
+extension SettingValue {
+    var buildSetting: BuildSetting {
+        switch self {
+        case let .string(value): .string(value)
+        case let .array(value): .array(value)
+        }
     }
 }

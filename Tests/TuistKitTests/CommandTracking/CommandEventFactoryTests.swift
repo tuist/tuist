@@ -43,6 +43,7 @@ final class CommandEventFactoryTests: TuistUnitTestCase {
         // Given
         let path = try temporaryPath()
         let projectPath = path.appending(component: "Project")
+        let ranAt = Date()
         let info = TrackableCommandInfo(
             runId: "run-id",
             name: "cache",
@@ -112,7 +113,8 @@ final class CommandEventFactoryTests: TuistUnitTestCase {
                 ],
             ],
             previewId: nil,
-            resultBundlePath: nil
+            resultBundlePath: nil,
+            ranAt: ranAt
         )
         let expectedEvent = CommandEvent(
             runId: "run-id",
@@ -191,7 +193,8 @@ final class CommandEventFactoryTests: TuistUnitTestCase {
                 ]
             ),
             previewId: nil,
-            resultBundlePath: nil
+            resultBundlePath: nil,
+            ranAt: ranAt
         )
 
         given(gitController)
@@ -261,7 +264,8 @@ final class CommandEventFactoryTests: TuistUnitTestCase {
             binaryCacheItems: [:],
             selectiveTestingCacheItems: [:],
             previewId: nil,
-            resultBundlePath: nil
+            resultBundlePath: nil,
+            ranAt: Date()
         )
 
         given(gitController)
@@ -298,7 +302,8 @@ final class CommandEventFactoryTests: TuistUnitTestCase {
             binaryCacheItems: [:],
             selectiveTestingCacheItems: [:],
             previewId: nil,
-            resultBundlePath: nil
+            resultBundlePath: nil,
+            ranAt: Date()
         )
 
         given(gitController)
@@ -351,7 +356,8 @@ final class CommandEventFactoryTests: TuistUnitTestCase {
             binaryCacheItems: [:],
             selectiveTestingCacheItems: [:],
             previewId: nil,
-            resultBundlePath: nil
+            resultBundlePath: nil,
+            ranAt: Date()
         )
 
         given(gitController)
@@ -393,4 +399,7 @@ private final class MockMachineEnvironment: MachineEnvironmentRetrieving {
     var swiftVersion: String { "5.1" }
     var hardwareName: String { "arm64" }
     var isCI: Bool { false }
+    func modelIdentifier() -> String? {
+        nil
+    }
 }

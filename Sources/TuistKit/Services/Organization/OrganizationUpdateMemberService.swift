@@ -22,7 +22,7 @@ final class OrganizationUpdateMemberService: OrganizationUpdateMemberServicing {
     init(
         updateOrganizationMemberService: UpdateOrganizationMemberServicing = UpdateOrganizationMemberService(),
         serverURLService: ServerURLServicing = ServerURLService(),
-        configLoader: ConfigLoading = ConfigLoader(warningController: WarningController.shared)
+        configLoader: ConfigLoading = ConfigLoader()
     ) {
         self.updateOrganizationMemberService = updateOrganizationMemberService
         self.serverURLService = serverURLService

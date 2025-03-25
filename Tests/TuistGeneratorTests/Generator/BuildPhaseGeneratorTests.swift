@@ -25,12 +25,10 @@ final class BuildPhaseGenerationErrorTests: TuistUnitTestCase {
 
 final class BuildPhaseGeneratorTests: TuistUnitTestCase {
     var subject: BuildPhaseGenerator!
-    var errorHandler: MockErrorHandler!
 
     override func setUp() {
         super.setUp()
         subject = BuildPhaseGenerator()
-        errorHandler = MockErrorHandler()
 
         given(xcodeController)
             .selectedVersion()
@@ -39,7 +37,6 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
 
     override func tearDown() {
         subject = nil
-        errorHandler = nil
         super.tearDown()
     }
 
@@ -88,20 +85,10 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
             "file6.swift",
         ])
 
-        let buildFilesSettings = buildFiles.map {
-            $0.settings as? [String: String]
-        }
+        let settings = buildFiles.map(\.settings)
 
-        XCTAssertEqual(buildFilesSettings, [
+        XCTAssertEqual(settings, [
             ["COMPILER_FLAGS": "flag"],
-            nil, nil, nil, nil, nil,
-        ])
-
-        let fileCodegenSettings = buildFiles.map {
-            $0.settings as? [String: [String]]
-        }
-        XCTAssertEqual(fileCodegenSettings, [
-            nil,
             nil,
             ["ATTRIBUTES": ["codegen"]],
             ["ATTRIBUTES": ["private_codegen"]],
@@ -362,7 +349,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let buildFilesWithSettings = buildFiles.map {
             FileWithSettings(
                 name: $0.file?.name,
-                attributes: $0.settings?["ATTRIBUTES"] as? [String]
+                attributes: $0.settings?["ATTRIBUTES"]?.arrayValue
             )
         }
 
@@ -701,7 +688,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         XCTAssertTrue(pbxBuildPhase is PBXResourcesBuildPhase)
 
         let resourceBuildPhase = try XCTUnwrap(nativeTarget.buildPhases.first as? PBXResourcesBuildPhase)
-        let allFileSettings = resourceBuildPhase.files?.map { $0.settings as? [String: AnyHashable] }
+        let allFileSettings = resourceBuildPhase.files?.map(\.settings)
         XCTAssertEqual(allFileSettings, [
             ["ASSET_TAGS": ["fileTag"]],
             ["ASSET_TAGS": ["folderTag"]],
@@ -912,7 +899,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
             nil,
         ])
 
-        XCTAssertEqual(firstBuildPhase.files?.map(\.settings) as? [[String: [String]]?], [
+        XCTAssertEqual(firstBuildPhase.files?.map(\.settings), [
             nil,
             nil,
             nil,
@@ -987,7 +974,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
             "ios",
         ])
         XCTAssertEqual(
-            pbxBuildPhase?.files?.compactMap { $0.settings as? [String: [String]] },
+            pbxBuildPhase?.files?.compactMap(\.settings),
             [
                 ["ATTRIBUTES": ["RemoveHeadersOnCopy"]],
                 ["ATTRIBUTES": ["RemoveHeadersOnCopy"]],
@@ -1067,7 +1054,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         ])
         XCTAssertEqual(pbxBuildPhase.files?.first?.platformFilter, "ios")
         XCTAssertEqual(
-            pbxBuildPhase.files?.compactMap { $0.settings as? [String: [String]] },
+            pbxBuildPhase.files?.compactMap(\.settings),
             [["ATTRIBUTES": ["RemoveHeadersOnCopy"]]]
         )
     }
@@ -1117,7 +1104,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         ])
         XCTAssertEqual(pbxBuildPhase.files?.first?.platformFilter, "ios")
         XCTAssertEqual(
-            pbxBuildPhase.files?.compactMap { $0.settings as? [String: [String]] },
+            pbxBuildPhase.files?.compactMap(\.settings),
             [["ATTRIBUTES": ["RemoveHeadersOnCopy"]]]
         )
     }
@@ -1157,7 +1144,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
             "XPCService",
         ])
         XCTAssertEqual(
-            pbxBuildPhase.files?.compactMap { $0.settings as? [String: [String]] },
+            pbxBuildPhase.files?.compactMap(\.settings),
             [["ATTRIBUTES": ["RemoveHeadersOnCopy"]]]
         )
     }
@@ -1197,7 +1184,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
             "EmbedPlugin",
         ])
         XCTAssertEqual(
-            pbxBuildPhase.files?.compactMap { $0.settings as? [String: [String]] },
+            pbxBuildPhase.files?.compactMap(\.settings),
             [["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]]]
         )
     }
@@ -1237,7 +1224,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
             "EmbedPlugin",
         ])
         XCTAssertEqual(
-            pbxBuildPhase.files?.compactMap { $0.settings as? [String: [String]] },
+            pbxBuildPhase.files?.compactMap(\.settings),
             [["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]]]
         )
         XCTAssertEqual(
@@ -1281,7 +1268,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
             "SystemExtension",
         ])
         XCTAssertEqual(
-            pbxBuildPhase.files?.compactMap { $0.settings as? [String: [String]] },
+            pbxBuildPhase.files?.compactMap(\.settings),
             [["ATTRIBUTES": ["RemoveHeadersOnCopy"]]]
         )
     }
@@ -1544,7 +1531,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         XCTAssertEqual(pbxBuildPhase?.files?.compactMap { $0.file?.nameOrPath }, ["AppClip"])
         XCTAssertEqual(pbxBuildPhase?.files?.first?.platformFilter, "ios")
         XCTAssertEqual(
-            pbxBuildPhase?.files?.compactMap { $0.settings as? [String: [String]] },
+            pbxBuildPhase?.files?.compactMap(\.settings),
             [["ATTRIBUTES": ["RemoveHeadersOnCopy"]]]
         )
     }

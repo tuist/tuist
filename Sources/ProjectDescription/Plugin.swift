@@ -6,7 +6,7 @@
 ///     - The source files for these helpers must live under a ProjectDescriptionHelpers directory in the location where `Plugin`
 /// manifest lives.
 ///
-public struct Plugin: Codable, Equatable {
+public struct Plugin: Codable, Equatable, Sendable {
     /// The name of the `Plugin`.
     public let name: String
 

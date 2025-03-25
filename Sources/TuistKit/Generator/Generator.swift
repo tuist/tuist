@@ -39,7 +39,6 @@ public class Generator: Generating {
         sideEffectDescriptorExecutor = SideEffectDescriptorExecutor()
         configLoader = ConfigLoader(
             manifestLoader: manifestLoader,
-            warningController: WarningController.shared,
             rootDirectoryLocator: RootDirectoryLocator(),
             fileSystem: FileSystem()
         )
@@ -98,24 +97,35 @@ public class Generator: Generating {
     }
 
     private func lint(graphTraverser: GraphTraversing) async throws {
-        let config = try await configLoader.loadConfig(path: graphTraverser.path)
+        guard let configGeneratedProjectOptions = (try await configLoader.loadConfig(path: graphTraverser.path)).project
+            .generatedProject
+        else {
+            return
+        }
 
-        let environmentIssues = try await environmentLinter.lint(config: config)
+        let environmentIssues = try await environmentLinter.lint(configGeneratedProjectOptions: configGeneratedProjectOptions)
         try environmentIssues.printAndThrowErrorsIfNeeded()
         lintingIssues.append(contentsOf: environmentIssues)
 
-        let graphIssues = try await graphLinter.lint(graphTraverser: graphTraverser, config: config)
+        let graphIssues = try await graphLinter.lint(
+            graphTraverser: graphTraverser,
+            configGeneratedProjectOptions: configGeneratedProjectOptions
+        )
         try graphIssues.printAndThrowErrorsIfNeeded()
         lintingIssues.append(contentsOf: graphIssues)
     }
 
     private func postGenerationActions(graphTraverser: GraphTraversing, workspaceName: String) async throws {
-        let config = try await configLoader.loadConfig(path: graphTraverser.path)
+        guard let configGeneratedProjectOptions = (try await configLoader.loadConfig(path: graphTraverser.path)).project
+            .generatedProject
+        else {
+            return
+        }
 
         try await swiftPackageManagerInteractor.install(
             graphTraverser: graphTraverser,
             workspaceName: workspaceName,
-            config: config
+            configGeneratedProjectOptions: configGeneratedProjectOptions
         )
     }
 

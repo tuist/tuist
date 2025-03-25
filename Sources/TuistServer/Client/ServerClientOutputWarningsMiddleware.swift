@@ -30,12 +30,6 @@ enum CloudClientOutputWarningsMiddlewareError: FatalError {
 /// A middleware that gets any warning returned in a "x-cloud-warning" header
 /// and outputs it to the user.
 struct ServerClientOutputWarningsMiddleware: ClientMiddleware {
-    let warningController: WarningControlling
-
-    init(warningController: WarningControlling = WarningController.shared) {
-        self.warningController = warningController
-    }
-
     func intercept(
         _ request: HTTPRequest,
         body: HTTPBody?,

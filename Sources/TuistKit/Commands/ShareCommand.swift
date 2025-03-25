@@ -3,7 +3,7 @@ import Foundation
 import XcodeGraph
 
 public struct ShareCommand: AsyncParsableCommand, TrackableParsableCommand {
-    public var analyticsRequired: Bool { true }
+    public var analyticsRequired: Bool { false }
 
     public init() {}
 
@@ -55,7 +55,7 @@ public struct ShareCommand: AsyncParsableCommand, TrackableParsableCommand {
     var json: Bool = false
 
     public func run() async throws {
-        try await ShareService().run(
+        try await ShareCommandService().run(
             path: path,
             apps: apps,
             configuration: configuration,

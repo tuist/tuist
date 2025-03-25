@@ -21,8 +21,8 @@
       },
       "modal": {
         "search-box": {
-          "reset-button-title": "검색어 초기화",
-          "reset-button-aria-label": "검색어 초기화",
+          "reset-button-title": "쿼리 초기화",
+          "reset-button-aria-label": "쿼리 초기화",
           "cancel-button-text": "취소",
           "cancel-button-aria-label": "취소"
         },
@@ -85,7 +85,10 @@
         "cli": {
           "items": {
             "logging": {
-              "text": "Logging"
+              "text": "로깅"
+            },
+            "shell-completions": {
+              "text": "Shell completions"
             }
           }
         },
@@ -132,7 +135,7 @@
           "text": "CLI",
           "items": {
             "logging": {
-              "text": "Logging"
+              "text": "로깅"
             }
           }
         }
@@ -196,11 +199,8 @@
             "install-tuist": {
               "text": "Install Tuist"
             },
-            "create-a-project": {
-              "text": "Create a project"
-            },
-            "optimize-workflows": {
-              "text": "Optimize workflows"
+            "get-started": {
+              "text": "Get started"
             }
           }
         },
@@ -314,7 +314,21 @@
               }
             },
             "selective-testing": {
-              "text": "Selective testing"
+              "text": "Selective testing",
+              "items": {
+                "selective-testing": {
+                  "text": "Selective testing"
+                },
+                "xcodebuild": {
+                  "text": "xcode 빌드"
+                },
+                "generated-project": {
+                  "text": "Generated project"
+                }
+              }
+            },
+            "insights": {
+              "text": "Insights"
             }
           }
         },

@@ -18,7 +18,7 @@ public protocol GeneratorFactorying {
     /// - Parameter cacheStorage: The cache storage instance.
     /// - Returns: A Generator instance.
     func testing(
-        config: Config,
+        config: Tuist,
         testPlan: String?,
         includedTargets: Set<String>,
         excludedTargets: Set<String>,
@@ -37,7 +37,7 @@ public protocol GeneratorFactorying {
     /// - Parameter cacheStorage: The cache storage instance.
     /// - Returns: The generator for focused projects.
     func generation(
-        config: Config,
+        config: Tuist,
         sources: Set<String>,
         configuration: String?,
         ignoreBinaryCache: Bool,
@@ -49,7 +49,7 @@ public protocol GeneratorFactorying {
     ///     - config: The project configuration
     /// - Returns: A Generator instance
     func building(
-        config: Config,
+        config: Tuist,
         configuration: String?,
         ignoreBinaryCache: Bool,
         cacheStorage: CacheStoring
@@ -60,7 +60,7 @@ public protocol GeneratorFactorying {
     /// - Parameter sources: The list of targets whose sources should be included.
     /// - Returns: A Generator instance.
     func defaultGenerator(
-        config: Config,
+        config: Tuist,
         sources: Set<String>
     ) -> Generating
 }
@@ -73,7 +73,7 @@ public class GeneratorFactory: GeneratorFactorying {
     }
 
     public func testing(
-        config: Config,
+        config: Tuist,
         testPlan: String?,
         includedTargets: Set<String>,
         excludedTargets: Set<String>,
@@ -85,7 +85,10 @@ public class GeneratorFactory: GeneratorFactorying {
     ) -> Generating {
         let contentHasher = ContentHasher()
         let projectMapperFactory = ProjectMapperFactory(contentHasher: contentHasher)
-        let projectMappers = projectMapperFactory.automation(skipUITests: skipUITests)
+        let projectMappers = projectMapperFactory.automation(
+            skipUITests: skipUITests,
+            tuist: config
+        )
         let workspaceMapperFactory = WorkspaceMapperFactory(projectMapper: SequentialProjectMapper(mappers: projectMappers))
         let graphMapperFactory = GraphMapperFactory()
 
@@ -95,7 +98,9 @@ public class GeneratorFactory: GeneratorFactorying {
             includedTargets: includedTargets,
             excludedTargets: excludedTargets
         )
-        let workspaceMappers = workspaceMapperFactory.automation()
+        let workspaceMappers = workspaceMapperFactory.automation(
+            tuist: config
+        )
         let manifestLoader = ManifestLoaderFactory().createManifestLoader()
         return Generator(
             manifestLoader: manifestLoader,
@@ -108,7 +113,7 @@ public class GeneratorFactory: GeneratorFactorying {
     }
 
     public func generation(
-        config: Config,
+        config: Tuist,
         sources: Set<String>,
         configuration _: String?,
         ignoreBinaryCache _: Bool,
@@ -118,7 +123,7 @@ public class GeneratorFactory: GeneratorFactorying {
     }
 
     public func building(
-        config: Config,
+        config: Tuist,
         configuration _: String?,
         ignoreBinaryCache _: Bool,
         cacheStorage _: CacheStoring
@@ -127,12 +132,14 @@ public class GeneratorFactory: GeneratorFactorying {
     }
 
     public func defaultGenerator(
-        config: Config,
+        config: Tuist,
         sources: Set<String>
     ) -> Generating {
         let contentHasher = ContentHasher()
         let projectMapperFactory = ProjectMapperFactory(contentHasher: contentHasher)
-        let projectMappers = projectMapperFactory.default()
+        let projectMappers = projectMapperFactory.default(
+            tuist: config
+        )
         let workspaceMapperFactory = WorkspaceMapperFactory(projectMapper: SequentialProjectMapper(mappers: projectMappers))
         let graphMapperFactory = GraphMapperFactory()
         let graphMappers = graphMapperFactory.automation(
@@ -141,7 +148,9 @@ public class GeneratorFactory: GeneratorFactorying {
             includedTargets: sources,
             excludedTargets: []
         )
-        let workspaceMappers = workspaceMapperFactory.default()
+        let workspaceMappers = workspaceMapperFactory.default(
+            tuist: config
+        )
         let manifestLoader = ManifestLoaderFactory().createManifestLoader()
         return Generator(
             manifestLoader: manifestLoader,

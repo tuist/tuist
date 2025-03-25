@@ -36,4 +36,10 @@ public final class MockEnvironment: Environmenting {
     public var queueDirectory: AbsolutePath {
         queueDirectoryStub ?? directory.path.appending(component: Constants.AsyncQueue.directoryName)
     }
+
+    public var workspacePath: AbsolutePath? { nil }
+
+    public var schemeName: String? { nil }
+
+    public var tuistExecutablePath: AbsolutePath? { nil }
 }

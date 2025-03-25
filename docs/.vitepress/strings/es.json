@@ -86,6 +86,9 @@
           "items": {
             "logging": {
               "text": "Logging"
+            },
+            "shell-completions": {
+              "text": "Shell completions"
             }
           }
         },
@@ -196,11 +199,8 @@
             "install-tuist": {
               "text": "Instala Tuist"
             },
-            "create-a-project": {
-              "text": "Crea un proyecto"
-            },
-            "optimize-workflows": {
-              "text": "Optimiza workflows"
+            "get-started": {
+              "text": "Get started"
             }
           }
         },
@@ -314,7 +314,21 @@
               }
             },
             "selective-testing": {
-              "text": "Selective testing"
+              "text": "Selective testing",
+              "items": {
+                "selective-testing": {
+                  "text": "Selective testing"
+                },
+                "xcodebuild": {
+                  "text": "xcodebuild"
+                },
+                "generated-project": {
+                  "text": "Generated project"
+                }
+              }
+            },
+            "insights": {
+              "text": "Insights"
             }
           }
         },

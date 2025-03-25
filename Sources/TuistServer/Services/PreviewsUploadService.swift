@@ -19,8 +19,10 @@ public protocol PreviewsUploadServicing {
         bundleIdentifier: String?,
         icon: AbsolutePath?,
         supportedPlatforms: [DestinationType],
+        path: AbsolutePath,
         fullHandle: String,
-        serverURL: URL
+        serverURL: URL,
+        updateProgress: @escaping (Double) -> Void
     ) async throws -> Preview
 }
 
@@ -33,6 +35,7 @@ public struct PreviewsUploadService: PreviewsUploadServicing {
     private let multipartUploadArtifactService: MultipartUploadArtifactServicing
     private let multipartUploadCompletePreviewsService: MultipartUploadCompletePreviewsServicing
     private let uploadPreviewIconService: UploadPreviewIconServicing
+    private let gitController: GitControlling
 
     public init() {
         self.init(
@@ -45,7 +48,8 @@ public struct PreviewsUploadService: PreviewsUploadServicing {
             multipartUploadArtifactService: MultipartUploadArtifactService(),
             multipartUploadCompletePreviewsService:
             MultipartUploadCompletePreviewsService(),
-            uploadPreviewIconService: UploadPreviewIconService()
+            uploadPreviewIconService: UploadPreviewIconService(),
+            gitController: GitController()
         )
     }
 
@@ -57,7 +61,8 @@ public struct PreviewsUploadService: PreviewsUploadServicing {
         multipartUploadGenerateURLPreviewsService: MultipartUploadGenerateURLPreviewsServicing,
         multipartUploadArtifactService: MultipartUploadArtifactServicing,
         multipartUploadCompletePreviewsService: MultipartUploadCompletePreviewsServicing,
-        uploadPreviewIconService: UploadPreviewIconServicing
+        uploadPreviewIconService: UploadPreviewIconServicing,
+        gitController: GitControlling
     ) {
         self.fileSystem = fileSystem
         self.fileArchiver = fileArchiver
@@ -67,6 +72,7 @@ public struct PreviewsUploadService: PreviewsUploadServicing {
         self.multipartUploadArtifactService = multipartUploadArtifactService
         self.multipartUploadCompletePreviewsService = multipartUploadCompletePreviewsService
         self.uploadPreviewIconService = uploadPreviewIconService
+        self.gitController = gitController
     }
 
     public func uploadPreviews(
@@ -76,8 +82,10 @@ public struct PreviewsUploadService: PreviewsUploadServicing {
         bundleIdentifier: String?,
         icon: AbsolutePath?,
         supportedPlatforms: [DestinationType],
+        path: AbsolutePath,
         fullHandle: String,
-        serverURL: URL
+        serverURL: URL,
+        updateProgress: @escaping (Double) -> Void
     ) async throws -> Preview {
         let previewType: PreviewType
         let buildPath: AbsolutePath
@@ -90,6 +98,22 @@ public struct PreviewsUploadService: PreviewsUploadServicing {
             previewType = .appBundle
         }
 
+        let gitCommitSHA: String?
+        let gitBranch: String?
+        if gitController.isInGitRepository(workingDirectory: path) {
+            if gitController.hasCurrentBranchCommits(workingDirectory: path) {
+                gitCommitSHA = try gitController.currentCommitSHA(workingDirectory: path)
+            } else {
+                gitCommitSHA = nil
+            }
+
+            gitBranch = try gitController.currentBranch(workingDirectory: path)
+        } else {
+            gitCommitSHA = nil
+            gitBranch = nil
+        }
+        updateProgress(0.1)
+
         let preview = try await retryProvider.runWithRetries {
             let previewUpload = try await multipartUploadStartPreviewsService.startPreviewsMultipartUpload(
                 type: previewType,
@@ -97,9 +121,13 @@ public struct PreviewsUploadService: PreviewsUploadServicing {
                 version: version,
                 bundleIdentifier: bundleIdentifier,
                 supportedPlatforms: supportedPlatforms,
+                gitBranch: gitBranch,
+                gitCommitSHA: gitCommitSHA,
                 fullHandle: fullHandle,
                 serverURL: serverURL
             )
+
+            updateProgress(0.2)
 
             let parts = try await multipartUploadArtifactService.multipartUploadArtifact(
                 artifactPath: buildPath,
@@ -112,6 +140,9 @@ public struct PreviewsUploadService: PreviewsUploadServicing {
                         serverURL: serverURL,
                         contentLength: part.contentLength
                     )
+                },
+                updateProgress: {
+                    updateProgress(0.2 + $0 * 0.7)
                 }
             )
 

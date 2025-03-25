@@ -35,7 +35,7 @@ final class EditService {
     init(
         projectEditor: ProjectEditing = ProjectEditor(),
         opener: Opening = Opener(),
-        configLoader: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader(), warningController: WarningController.shared),
+        configLoader: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader()),
         pluginService: PluginServicing = PluginService(),
         cacheDirectoriesProvider: CacheDirectoriesProviding = CacheDirectoriesProvider()
     ) {
@@ -75,7 +75,7 @@ final class EditService {
                 onlyCurrentDirectory: onlyCurrentDirectory,
                 plugins: plugins
             )
-            ServiceContext.current?.logger?.notice("Xcode project generated at \(workspacePath.pathString)", metadata: .success)
+            ServiceContext.current?.alerts?.success(.alert("Xcode project generated at \(workspacePath.pathString)"))
         }
     }
 
@@ -98,7 +98,11 @@ final class EditService {
             return .none
         }
 
-        guard let plugins = try? await pluginService.loadPlugins(using: config) else {
+        guard let generatedProjectOptions = config.project.generatedProject else {
+            return .none
+        }
+
+        guard let plugins = try? await pluginService.loadPlugins(using: generatedProjectOptions) else {
             ServiceContext.current?.logger?
                 .warning("Unable to load Plugin.swift manifest, fix and re-run in order to use plugin(s).")
             return .none

@@ -85,7 +85,10 @@
         "cli": {
           "items": {
             "logging": {
-              "text": "Logging"
+              "text": "ロギング"
+            },
+            "shell-completions": {
+              "text": "Shell completions"
             }
           }
         },
@@ -132,7 +135,7 @@
           "text": "CLI",
           "items": {
             "logging": {
-              "text": "Logging"
+              "text": "ロギング"
             }
           }
         }
@@ -196,11 +199,8 @@
             "install-tuist": {
               "text": "Tuistのインストール"
             },
-            "create-a-project": {
-              "text": "プロジェクトの作成"
-            },
-            "optimize-workflows": {
-              "text": "ワークフローの最適化"
+            "get-started": {
+              "text": "はじめに"
             }
           }
         },
@@ -314,7 +314,21 @@
               }
             },
             "selective-testing": {
-              "text": "選択的テスト"
+              "text": "選択的テスト",
+              "items": {
+                "selective-testing": {
+                  "text": "選択的テスト"
+                },
+                "xcodebuild": {
+                  "text": "xcodebuild"
+                },
+                "generated-project": {
+                  "text": "生成されたプロジェクト"
+                }
+              }
+            },
+            "insights": {
+              "text": "Insights"
             }
           }
         },

@@ -158,7 +158,8 @@ public final class AnalyticsArtifactUploadService: AnalyticsArtifactUploadServic
                         serverURL: serverURL,
                         contentLength: part.contentLength
                     )
-                }
+                },
+                updateProgress: { _ in }
             )
 
             try await multipartUploadCompleteAnalyticsService.uploadAnalyticsArtifact(

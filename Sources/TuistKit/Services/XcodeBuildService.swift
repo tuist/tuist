@@ -54,7 +54,7 @@ struct XcodeBuildService {
         fileSystem: FileSysteming = FileSystem(),
         xcodeGraphMapper: XcodeGraphMapping = XcodeGraphMapper(),
         xcodeBuildController: XcodeBuildControlling = XcodeBuildController(),
-        configLoader: ConfigLoading = ConfigLoader(warningController: WarningController.shared),
+        configLoader: ConfigLoading = ConfigLoader(),
         cacheDirectoriesProvider: CacheDirectoriesProviding = CacheDirectoriesProvider(),
         uniqueIDGenerator: UniqueIDGenerating = UniqueIDGenerator(),
         cacheStorageFactory: CacheStorageFactorying,
@@ -77,12 +77,19 @@ struct XcodeBuildService {
     ) async throws {
         let path = try await path(passthroughXcodebuildArguments: passthroughXcodebuildArguments)
         let config = try await configLoader.loadConfig(path: path)
+        let buildActions = ["build", "build-for-testing", "archive"]
         if passthroughXcodebuildArguments.contains("test") || passthroughXcodebuildArguments.contains("test-without-building") {
             try await runTests(
                 passthroughXcodebuildArguments: passthroughXcodebuildArguments,
                 path: path,
                 config: config
             )
+        } else if passthroughXcodebuildArguments.contains(where: { buildActions.contains($0) }) {
+            var passthroughXcodebuildArguments = passthroughXcodebuildArguments
+            try await passthroughXcodebuildArguments.append(
+                contentsOf: resultBundlePathArguments(passthroughXcodebuildArguments: passthroughXcodebuildArguments)
+            )
+            try await xcodeBuildController.run(arguments: passthroughXcodebuildArguments)
         } else {
             throw XcodeBuildServiceError.actionNotSupported
         }
@@ -91,7 +98,7 @@ struct XcodeBuildService {
     private func runTests(
         passthroughXcodebuildArguments: [String],
         path: AbsolutePath,
-        config: Config
+        config: Tuist
     ) async throws {
         let cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
         guard let schemeName = passedValue(for: "-scheme", arguments: passthroughXcodebuildArguments)
@@ -173,7 +180,7 @@ struct XcodeBuildService {
         if !skipTestTargets.isEmpty {
             ServiceContext.current?.logger?
                 .info(
-                    "The following targets have not changed since the last successful run and will be skipped: \(Set(skipTestTargets.compactMap(\.target)).joined(separator: ", "))"
+                    "The following targets have not changed since the last successful run and will be skipped: \(Set(skipTestTargets.compactMap(\.target)).sorted().joined(separator: ", "))"
                 )
         }
 

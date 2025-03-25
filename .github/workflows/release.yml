@@ -16,6 +16,9 @@ permissions:
   statuses: write
   packages: write
 
+env:
+  GITHUB_TOKEN: ${{ secrets.TUIST_GITHUB_TOKEN }}
+
 jobs:
   release:
     name: Release Tuist App
@@ -25,7 +28,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          token: ${{ secrets.TUIST_APP_RELEASE_TOKEN }}
           fetch-depth: 0
       - uses: jdx/mise-action@v2
         with:

@@ -3,6 +3,8 @@ import Path
 import TuistCore
 import TuistSupport
 import ServiceContextModule
+import Command
+import XcodeGraph
 
 public final class XcodeBuildController: XcodeBuildControlling {
     // MARK: - Attributes
@@ -20,19 +22,26 @@ public final class XcodeBuildController: XcodeBuildControlling {
     private let environment: Environmenting
     private let simulatorController: SimulatorController
     private let system: Systeming
+    private let commandRunner: CommandRunning
 
     public convenience init() {
-        self.init(formatter: Formatter(), environment: Environment.shared)
+        self.init(
+            formatter: Formatter(),
+            environment: Environment.shared,
+            commandRunner: CommandRunner()
+        )
     }
 
     init(
         formatter: Formatting,
-        environment: Environmenting
+        environment: Environmenting,
+        commandRunner: CommandRunning
     ) {
         self.formatter = formatter
         self.environment = environment
         self.simulatorController = SimulatorController()
         self.system = System.shared
+        self.commandRunner = commandRunner
     }
 
     public func build(
@@ -95,6 +104,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
         scheme: String,
         clean: Bool = false,
         destination: XcodeBuildDestination?,
+        action: XcodeBuildTestAction,
         rosetta: Bool,
         derivedDataPath: AbsolutePath?,
         resultBundlePath: AbsolutePath?,
@@ -112,7 +122,15 @@ public final class XcodeBuildController: XcodeBuildControlling {
         if clean {
             arguments.append("clean")
         }
-        arguments.append("test")
+        
+        switch action {
+        case .test:
+            arguments.append("test")
+        case .build:
+            arguments.append("build-for-testing")
+        case .testWithoutBuilding:
+            arguments.append("test-without-building")
+        }
 
         // Scheme
         arguments.append(contentsOf: ["-scheme", scheme])
@@ -336,6 +354,21 @@ public final class XcodeBuildController: XcodeBuildControlling {
             log(bytes, isError: true)
         }))
        
+    }
+    
+    public func version() async throws -> Version? {
+        let output = try await commandRunner
+            .run(arguments: ["xcodebuild", "-version"])
+            .concatenatedString()
+       let components = output
+            .components(separatedBy: .whitespacesAndNewlines)
+        
+        guard
+            let xcodeIndex = components.firstIndex(of: "Xcode"),
+            xcodeIndex + 1 < components.endIndex
+        else { return nil }
+        
+        return Version(string: components[xcodeIndex + 1])
     }
     
     private func loadBuildSettings(_ command: [String]) async throws -> String {

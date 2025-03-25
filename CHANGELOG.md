@@ -1,5 +1,103 @@
 # Changelog
 
+## 4.44.3 - 2025-03-17
+
+### CLI
+
+#### Changed
+
+- Install create-dmg using the asdf plugin [#7412](https://github.com/tuist/tuist/pull/7412) by [@pepicrft](https://github.com/pepicrft)
+
+#### Fixed
+
+- [Docs] fix link to registry [#7396](https://github.com/tuist/tuist/pull/7396) by [@muukii](https://github.com/muukii)
+- Show errors using the error alert [#7397](https://github.com/tuist/tuist/pull/7397) by [@pepicrft](https://github.com/pepicrft)
+- Fix the code snippet in the CI logging documentation page [#7400](https://github.com/tuist/tuist/pull/7400) by [@pepicrft](https://github.com/pepicrft)
+- Fix `--help` error not showing [#7399](https://github.com/tuist/tuist/pull/7399) by [@pepicrft](https://github.com/pepicrft)
+- Add `Sendable` conformance to `Plugin` type in ProjectDescription [#7410](https://github.com/tuist/tuist/pull/7410) by [@liamnichols](https://github.com/liamnichols)
+
+### CLI (Server features)
+
+- no changes
+
+## 4.44.2 - 2025-03-11
+
+### CLI
+
+#### Changed
+
+- Improve error handling [#7391](https://github.com/tuist/tuist/pull/7391) by [@pepicrft](https://github.com/pepicrft)
+
+#### Added
+
+- Add `build-for-testing` and `test-without-building` support to `tuist test` [#7388](https://github.com/tuist/tuist/pull/7388) by [@cooksimo](https://github.com/cooksimo)
+
+#### Fixed
+
+- Fix duplicated warning alerts [#7393](https://github.com/tuist/tuist/pull/7393) by [@pepicrft](https://github.com/pepicrft)
+
+### CLI (Server features)
+
+- no changes
+
+## 4.44.1 - 2025-03-10
+
+### CLI
+
+- no changes
+
+### CLI (Server features)
+
+- no changes
+
+## 4.44.0 - 2025-03-10
+
+### CLI
+
+#### Changed
+
+- Update XcodeGraph [#7376](https://github.com/tuist/tuist/pull/7376) by [@fortmarek](https://github.com/fortmarek)
+- Rename the internal `Config` model to `Tuist` and reconcile the changes in `ProjectDescription` that introduce Xcode projects [#7379](https://github.com/tuist/tuist/pull/7379) by [@pepicrft](https://github.com/pepicrft)
+
+#### Added
+
+- Make selective testing cache targets with passing tests, even if the test run ultimately failed [#7371](https://github.com/tuist/tuist/pull/7371) by [@cooksimo](https://github.com/cooksimo)
+- Add tuist inspect build command [#7340](https://github.com/tuist/tuist/pull/7340) by [@fortmarek](https://github.com/fortmarek)
+
+#### Fixed
+
+- Fix missing OTHER_SWIFT_FLAGS such as -Xfrontend when using binary cache [#7365](https://github.com/tuist/tuist/pull/7365) by [@fortmarek](https://github.com/fortmarek)
+- Fix reporting ran at date of runs [#7372](https://github.com/tuist/tuist/pull/7372) by [@fortmarek](https://github.com/fortmarek)
+- Update dependencies with known vulnerabilities [#7374](https://github.com/tuist/tuist/pull/7374) by [@pepicrft](https://github.com/pepicrft)
+- Fix ProjectAutomation.graph() method [#7383](https://github.com/tuist/tuist/pull/7383) by [@shahzadmajeed](https://github.com/shahzadmajeed)
+- Sort the targets before printing them [#7389](https://github.com/tuist/tuist/pull/7389) by [@pepicrft](https://github.com/pepicrft)
+
+### CLI (Server features)
+
+- no changes
+
+## 4.43.2 - 2025-02-25
+
+### CLI
+
+#### Changed
+
+- Improve error message on unhandled errors [#7344](https://github.com/tuist/tuist/pull/7344) by [@fortmarek](https://github.com/fortmarek)
+
+#### Added
+
+- #7345 Add command lint tool as valid target for unit tests on macOS. [#7347](https://github.com/tuist/tuist/pull/7347) by [@connor-ricks](https://github.com/connor-ricks)
+
+#### Fixed
+
+- Explicitly use `Foundation.FileManager` to negotiate conflicting `FileManager` symbol in module itself in synthesized resource accessors [#7338](https://github.com/tuist/tuist/pull/7338) by [@Scvairy](https://github.com/Scvairy)
+- Remove duplicates for some settings when using binary cache [#7346](https://github.com/tuist/tuist/pull/7346) by [@fortmarek](https://github.com/fortmarek)
+- Fix selective testing of projects with aggregate targets [#7352](https://github.com/tuist/tuist/pull/7352) by [@fortmarek](https://github.com/fortmarek)
+
+### CLI (Server features)
+
+- no changes
+
 ## 4.43.1 - 2025-02-21
 
 ### CLI

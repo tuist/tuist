@@ -60,6 +60,7 @@ public enum EnvKey: String, CaseIterable {
     case initName = "TUIST_INIT_NAME"
     case initTemplate = "TUIST_INIT_TEMPLATE"
     case initPath = "TUIST_INIT_PATH"
+    case initAnswers = "TUIST_INIT_ANSWERS"
 
     // MIGRATION
     case migrationSettingsToXcconfigXcodeprojPath = "TUIST_MIGRATION_SETTINGS_TO_XCCONFIG_XCODEPROJ_PATH"
@@ -91,6 +92,9 @@ public enum EnvKey: String, CaseIterable {
 
     // Redundant
     case lintRedundantDependenciesPath = "TUIST_LINT_REDUNDANT_DEPENDENCIES_PATH"
+
+    // BUILD
+    case inspectBuildPath = "TUIST_INSPECT_BUILD_PATH"
 
     // RUN
     case runBuildTests = "TUIST_RUN_BUILD_TESTS"
@@ -135,6 +139,8 @@ public enum EnvKey: String, CaseIterable {
     case testGenerateOnly = "TUIST_TEST_GENERATE_ONLY"
     case testBinaryCache = "TUIST_TEST_BINARY_CACHE"
     case testSelectiveTesting = "TUIST_TEST_SELECTIVE_TESTING"
+    case testWithoutBuilding = "TUIST_TEST_WITHOUT_BUILDING"
+    case testBuildOnly = "TUIST_TEST_BUILD_ONLY"
 
     // ORGANIZATION BILLING
     case organizationBillingOrganizationName = "TUIST_ORGANIZATION_BILLING_ORGANIZATION_NAME"

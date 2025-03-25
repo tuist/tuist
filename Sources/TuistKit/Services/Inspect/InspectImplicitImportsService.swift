@@ -39,7 +39,7 @@ final class InspectImplicitImportsService {
 
     init(
         generatorFactory: GeneratorFactorying = GeneratorFactory(),
-        configLoader: ConfigLoading = ConfigLoader(warningController: WarningController.shared),
+        configLoader: ConfigLoading = ConfigLoader(),
         graphImportsLinter: GraphImportsLinting = GraphImportsLinter()
     ) {
         self.configLoader = configLoader

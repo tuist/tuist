@@ -31,7 +31,7 @@ struct ProjectShowService {
 
     init(
         opener: Opening = Opener(),
-        configLoader: ConfigLoading = ConfigLoader(warningController: WarningController.shared),
+        configLoader: ConfigLoading = ConfigLoader(),
         serverURLService: ServerURLServicing = ServerURLService(),
         getProjectService: GetProjectServicing = GetProjectService()
     ) {

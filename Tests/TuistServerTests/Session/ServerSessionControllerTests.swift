@@ -192,9 +192,6 @@ final class ServerSessionControllerTests: TuistUnitTestCase {
 
             // When
             try await subject.logout(serverURL: serverURL)
-
-            // Then
-            XCTAssertPrinterOutputContains("Successfully logged out.")
         }
     }
 
@@ -217,9 +214,6 @@ final class ServerSessionControllerTests: TuistUnitTestCase {
 
             // When
             try await subject.logout(serverURL: serverURL)
-
-            // Then
-            XCTAssertPrinterOutputContains("Successfully logged out.")
         }
     }
 

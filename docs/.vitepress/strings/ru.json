@@ -85,7 +85,10 @@
         "cli": {
           "items": {
             "logging": {
-              "text": "Logging"
+              "text": "Логирование"
+            },
+            "shell-completions": {
+              "text": "Автозавершения командной оболочки"
             }
           }
         },
@@ -132,7 +135,7 @@
           "text": "CLI",
           "items": {
             "logging": {
-              "text": "Logging"
+              "text": "Логирование"
             }
           }
         }
@@ -196,11 +199,8 @@
             "install-tuist": {
               "text": "Установка Tuist"
             },
-            "create-a-project": {
-              "text": "Создание проекта"
-            },
-            "optimize-workflows": {
-              "text": "Optimize workflows"
+            "get-started": {
+              "text": "Начало работы"
             }
           }
         },
@@ -314,7 +314,21 @@
               }
             },
             "selective-testing": {
-              "text": "Selective testing"
+              "text": "Selective testing",
+              "items": {
+                "selective-testing": {
+                  "text": "Selective testing"
+                },
+                "xcodebuild": {
+                  "text": "xcodebuild"
+                },
+                "generated-project": {
+                  "text": "Generated project"
+                }
+              }
+            },
+            "insights": {
+              "text": "Insights"
             }
           }
         },

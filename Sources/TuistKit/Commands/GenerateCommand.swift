@@ -4,7 +4,7 @@ import TuistCore
 import TuistServer
 import TuistSupport
 
-public struct GenerateCommand: AsyncParsableCommand {
+public struct GenerateCommand: AsyncParsableCommand, RecentPathRememberableCommand {
     public init() {}
 
     public static var generatorFactory: GeneratorFactorying = GeneratorFactory()

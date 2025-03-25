@@ -1,5 +1,6 @@
 import FileSystem
 import Foundation
+import Noora
 import Path
 import ServiceContextModule
 import TSCBasic
@@ -32,6 +33,9 @@ private enum TuistCLI {
 
             var context = ServiceContext.topLevel
             context.logger = Logger(label: "dev.tuist.cli", factory: loggerHandler)
+            context.ui = Noora()
+            context.alerts = AlertController()
+            context.recentPaths = RecentPathsStore(storageDirectory: Environment.shared.stateDirectory)
 
             try await ServiceContext.withValue(context) {
                 try await TuistCommand.main(logFilePath: logFilePath)

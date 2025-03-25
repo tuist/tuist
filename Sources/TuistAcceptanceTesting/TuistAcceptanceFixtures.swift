@@ -38,6 +38,7 @@ public enum TuistAcceptanceFixtures {
     case frameworkWithNativeSwiftMacro
     case frameworkWithSwiftMacro
     case frameworkWithSPMBundle
+    case generatediOSAppWithoutConfigManifest
     case invalidManifest
     case invalidWorkspaceManifestName
     case iosAppLarge
@@ -100,6 +101,8 @@ public enum TuistAcceptanceFixtures {
     case workspaceWithFileHeaderTemplate
     case workspaceWithInlineFileHeaderTemplate
     case xcodeApp
+    case xcodeProjectWithInspectBuild
+    case xcodeProjectiOSApp
     case xcodeProjectWithRegistryAndAlamofire
     case xcodeProjectWithTests
     case xcodeProjectWithPackagesAndTests
@@ -181,6 +184,8 @@ public enum TuistAcceptanceFixtures {
             return "framework_with_swift_macro"
         case .frameworkWithSPMBundle:
             return "framework_with_spm_bundle"
+        case .generatediOSAppWithoutConfigManifest:
+            return "generated_ios_app_without_config_manifest"
         case .invalidManifest:
             return "invalid_manifest"
         case .invalidWorkspaceManifestName:
@@ -305,6 +310,10 @@ public enum TuistAcceptanceFixtures {
             return "workspace_with_inline_file_header_template"
         case .xcodeApp:
             return "xcode_app"
+        case .xcodeProjectWithInspectBuild:
+            return "xcode_project_with_inspect_build"
+        case .xcodeProjectiOSApp:
+            return "xcode_project_ios_app"
         case .xcodeProjectWithRegistryAndAlamofire:
             return "xcode_project_with_registry_and_alamofire"
         case .xcodeProjectWithTests:
