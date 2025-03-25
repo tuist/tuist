@@ -25,6 +25,11 @@ defmodule TuistWeb.Storybook.StatusBadge do
             attributes: %{status: "warning", label: "Warning"}
           },
           %Variation{
+            id: :attention,
+            description: "Attention",
+            attributes: %{status: "attention", label: "Attention"}
+          },
+          %Variation{
             id: :disabled,
             description: "Disabled",
             attributes: %{status: "disabled", label: "Disabled"}
@@ -48,6 +53,11 @@ defmodule TuistWeb.Storybook.StatusBadge do
             id: :warning,
             description: "Warning",
             attributes: %{type: "dot", status: "warning", label: "Warning"}
+          },
+          %Variation{
+            id: :attention,
+            description: "Attention",
+            attributes: %{type: "dot", status: "attention", label: "Attention"}
           },
           %Variation{
             id: :disabled,

@@ -64,7 +64,7 @@ defmodule TuistWeb.Noora.Badge do
     doc: "Whether to render the prefix as a dot, or a status-specific icon"
 
   attr :status, :string,
-    values: ~w(success error warning disabled),
+    values: ~w(success error warning attention disabled),
     required: true,
     doc: "The status of the badge"
 
@@ -96,6 +96,12 @@ defmodule TuistWeb.Noora.Badge do
   end
 
   def status_icon(%{status: "warning"} = assigns) do
+    ~H"""
+    <.alert_hexagon />
+    """
+  end
+
+  def status_icon(%{status: "attention"} = assigns) do
     ~H"""
     <.alert_triangle />
     """

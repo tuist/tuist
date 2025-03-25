@@ -4,7 +4,7 @@
   --noora-badge-fill-neutral: light-dark(var(--noora-neutral-light-800), var(--noora-neutral-dark-600));
   --noora-badge-fill-destructive: light-dark(var(--noora-red-500), var(--noora-red-700));
   --noora-badge-fill-warning: light-dark(var(--noora-orange-500), var(--noora-orange-600));
-  --noora-badge-fill-attention: light-dark(var(--noora-yellow-500), var(--noora-yellow-600));
+  --noora-badge-fill-attention: light-dark(var(--noora-yellow-600), var(--noora-yellow-600));
   --noora-badge-fill-success: light-dark(var(--noora-green-500), var(--noora-green-600));
   --noora-badge-fill-information: light-dark(var(--noora-azure-500), var(--noora-azure-700));
   --noora-badge-fill-focus: light-dark(var(--noora-blue-500), var(--noora-blue-700));
@@ -63,6 +63,7 @@
   --noora-badge-status-success: var(--noora-green-600);
   --noora-badge-status-warning: var(--noora-orange-600);
   --noora-badge-status-error: var(--noora-red-600);
+  --noora-badge-status-attention: light-dark(var(--noora-yellow-600), var(--noora-yellow-500));
 }
 
 .noora-badge {
@@ -250,5 +251,8 @@
   }
   &[data-status="warning"] [data-part="icon"] {
     color: var(--noora-badge-status-warning);
+  }
+  &[data-status="attention"] [data-part="icon"] {
+    color: var(--noora-badge-status-attention);
   }
 }
