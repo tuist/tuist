@@ -66,7 +66,7 @@ final class LintRedundantImportsServiceTests: TuistUnitTestCase {
             XCTAssertStandardError(pattern: "App redundantly depends on: Framework")
         }
     }
-    
+
     func test_run_when_external_package_target_is_recursively_imported() async throws {
         // Given
         let path = try AbsolutePath(validating: "/project")
@@ -102,7 +102,6 @@ final class LintRedundantImportsServiceTests: TuistUnitTestCase {
         // When / Then
         try await subject.run(path: path.pathString)
     }
-
 
     func test_run_doesntThrowAnyErrors_when_thereAreNoIssues() async throws {
         // Given
