@@ -3,7 +3,7 @@
     align-items: top;
     background: var(--noora-surface-background-primary);
     border-radius: var(--noora-radius-medium);
-    box-shadow: var(--noora-border-medium);
+    box-shadow: var(--noora-border-heavy);
     color: var(--noora-surface-label-primary);
     max-width: 250px;
     width: max-content;
