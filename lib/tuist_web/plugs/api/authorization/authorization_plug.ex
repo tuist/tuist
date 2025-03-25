@@ -84,10 +84,15 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
 
     authorized? =
       if caching do
-        cached(
+        Tuist.Cache.get_value(
           cache_key,
-          fn -> authorize(subject, action, project, category) end,
-          opts |> Keyword.put(:cache, Map.get(conn.assigns, :cache, :tuist))
+          [
+            cache: Map.get(conn.assigns, :cache, :tuist),
+            ttl: Keyword.get(opts, :cache_ttl, :timer.minutes(1))
+          ],
+          fn ->
+            authorize(subject, action, project, category)
+          end
         )
       else
         authorize(subject, action, project, category)
@@ -104,23 +109,6 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
       })
       |> halt()
     end
-  end
-
-  def cached(cache_key, func, opts) do
-    cache = Keyword.fetch!(opts, :cache)
-    cache_ttl = Keyword.get(opts, :cache_ttl, :timer.minutes(1))
-
-    Cachex.transaction!(cache, cache_key, fn cache ->
-      {:ok, cached_value} = Cachex.get(cache, cache_key)
-
-      if is_nil(cached_value) do
-        value = func.()
-        Cachex.put(cache, cache_key, value, ttl: cache_ttl)
-        value
-      else
-        cached_value
-      end
-    end)
   end
 
   def authorize(subject, :read, project, :cache) do
