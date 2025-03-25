@@ -70,7 +70,7 @@ final class LintRedundantImportsServiceTests: TuistUnitTestCase {
     func test_run_when_external_package_target_is_recursively_imported() async throws {
         // Given
         let path = try AbsolutePath(validating: "/project")
-        let config = Config.test()
+        let config = Tuist.test()
         let app = Target.test(name: "App", product: .app)
         let project = Project.test(path: path, targets: [app])
         let testTarget = Target.test(name: "PackageTarget", product: .app)
@@ -97,7 +97,7 @@ final class LintRedundantImportsServiceTests: TuistUnitTestCase {
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
         given(generatorFactory).defaultGenerator(config: .value(config), sources: .any).willReturn(generator)
         given(generator).load(path: .value(path)).willReturn(graph)
-        given(targetScanner).imports(for: .value(app)).willReturn(Set(["PackageTargetDependency"]))
+        given(targetScanner).imports(for: .value(app)).willReturn([])
 
         // When / Then
         try await subject.run(path: path.pathString)
