@@ -85,10 +85,11 @@ public final class CreateBundleService: CreateBundleServicing {
 extension Components.Schemas.BundleArtifact {
     init(_ report: RosalindReport) {
         let artifactType: Components.Schemas.BundleArtifact.artifact_typePayload = switch report.artifactType {
-        case .app: .app
+        case .app: fatalError()
         case .directory: .directory
         case .file: .file
         case .font: .font
+        case .binary: .binary
         }
         self.init(
             artifact_type: artifactType,

@@ -2009,10 +2009,10 @@ internal enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/BundleArtifact/artifact_type`.
             internal enum artifact_typePayload: String, Codable, Hashable, Sendable, CaseIterable {
-                case app = "app"
                 case directory = "directory"
                 case file = "file"
                 case font = "font"
+                case binary = "binary"
             }
             /// The type of artifact
             ///
@@ -2112,10 +2112,10 @@ internal enum Components {
                 ///
                 /// - Remark: Generated from `#/components/schemas/BundleArtifact/artifact_type`.
                 enum artifact_typePayload: String, Codable, Hashable, Sendable, CaseIterable {
-                    case app = "app"
                     case directory = "directory"
                     case file = "file"
                     case font = "font"
+                    case binary = "binary"
                 }
                 /// The type of artifact
                 ///
