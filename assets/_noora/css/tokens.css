@@ -358,6 +358,21 @@
   --noora-spacing-15: 5rem;
   --noora-spacing-16: 6rem;
 
+  /* Z-index */
+  --noora-z-index-0: auto;
+  --noora-z-index-1: 100;
+  --noora-z-index-2: 400;
+  --noora-z-index-3: 510;
+  --noora-z-index-4: 512;
+  --noora-z-index-5: 513;
+  --noora-z-index-6: 514;
+  --noora-z-index-7: 515;
+  --noora-z-index-8: 516;
+  --noora-z-index-9: 517;
+  --noora-z-index-10: 518;
+  --noora-z-index-11: 519;
+  --noora-z-index-12: 520;
+
   /* Borders */
   --noora-surface-border-primary: light-dark(var(--noora-neutral-light-500), var(--noora-neutral-dark-800));
 

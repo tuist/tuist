@@ -11,6 +11,10 @@ defmodule TuistWeb.Noora.Checkbox do
   attr :indeterminate, :boolean, default: false, doc: "Whether the checkbox is indeterminate."
   attr :disabled, :boolean, default: false, doc: "Whether the checkbox is disabled."
 
+  attr :multiple, :boolean,
+    default: false,
+    doc: "Whether the checkbox is part of a multiple checkbox group."
+
   def checkbox(%{field: %Phoenix.HTML.FormField{} = field} = assigns) do
     assigns
     |> assign(field: nil, id: assigns.id || field.id)

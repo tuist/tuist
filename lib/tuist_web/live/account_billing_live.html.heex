@@ -12,7 +12,7 @@
       </p>
     </.stack>
     <div class="billing__overview">
-      <.card class="billing__overview__plan-card">
+      <.legacy_card class="billing__overview__plan-card">
         <.stack gap="3xl" align="stretch">
           <.stack
             gap="lg"
@@ -125,8 +125,8 @@
             )}
           </p>
         </.stack>
-      </.card>
-      <.card :if={not (@plan == :air)} class="billing__overview__payment-card">
+      </.legacy_card>
+      <.legacy_card :if={not (@plan == :air)} class="billing__overview__payment-card">
         <.stack gap="2xl">
           <.stack gap="xs">
             <p class="text--large font--semibold color--text-primary">
@@ -136,7 +136,7 @@
               {gettext("Change how you pay for your plan")}
             </p>
           </.stack>
-          <.card class="billing__overview__payment-card__billing-details">
+          <.legacy_card class="billing__overview__payment-card__billing-details">
             <.featured_icon>
               <%= if is_nil(@payment_method) do %>
                 <.credit_card_missing_icon />
@@ -196,7 +196,7 @@
                 {gettext("Edit")}
               </.legacy_button>
             </.link>
-          </.card>
+          </.legacy_card>
           <p
             :if={[:enterprise, :pro] |> Enum.member?(@plan)}
             class="billing__overview__payment-card__manage-subscription"
@@ -209,7 +209,7 @@
             )}
           </p>
         </.stack>
-      </.card>
+      </.legacy_card>
     </div>
     <%= if Enum.member?([:air, :pro], @plan) do %>
       <.section_header

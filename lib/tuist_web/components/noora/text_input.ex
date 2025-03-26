@@ -22,6 +22,10 @@ defmodule TuistWeb.Noora.TextInput do
   attr :label, :string, default: nil, doc: "Label to be rendered in the input."
   attr :sublabel, :string, default: nil, doc: "Sublabel to be rendered in the input."
 
+  attr :show_prefix, :boolean,
+    default: true,
+    doc: "Whether to show the prefix."
+
   attr :suffix_hint, :string,
     default: nil,
     doc:
@@ -31,6 +35,7 @@ defmodule TuistWeb.Noora.TextInput do
   attr :value, :string, doc: "The value of the input"
   attr :placeholder, :string, default: nil, doc: "Placeholder text to be rendered in the input."
   attr :required, :boolean, default: false, doc: "Whether the input is required."
+  attr :show_required, :boolean, default: false, doc: "Whether the required indicator is shown."
 
   attr :error, :boolean, default: false
 
@@ -57,7 +62,13 @@ defmodule TuistWeb.Noora.TextInput do
 
     ~H"""
     <div class="noora-text-input">
-      <.label :if={@label} label={@label} sublabel={@sublabel} required={@required} data-part="label" />
+      <.label
+        :if={@label}
+        label={@label}
+        sublabel={@sublabel}
+        required={@required and @show_required}
+        data-part="label"
+      />
       <div data-part="wrapper" data-type={@type} data-error={@error}>
         <span :if={@type != "basic" or has_slot_content?(@prefix, assigns)} data-part="prefix">
           <.prefix type={@type} prefix={@prefix} />
@@ -147,7 +158,10 @@ defmodule TuistWeb.Noora.TextInput do
 
   defp type_suffix(%{type: "password"} = assigns) do
     ~H"""
-    <button phx-click={JS.toggle_attribute({"type", "password", "text"}, to: "##{@input_id}")}>
+    <button
+      phx-click={JS.toggle_attribute({"type", "password", "text"}, to: "##{@input_id}")}
+      type="button"
+    >
       <span class="noora-text-input__password-toggle-text"><.eye /></span>
       <span class="noora-text-input__password-toggle-password"><.eye_off /></span>
     </button>

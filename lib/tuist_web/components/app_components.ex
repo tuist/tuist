@@ -48,7 +48,7 @@ defmodule TuistWeb.AppComponents do
   attr(:class, :string, default: "")
   slot(:inner_block, required: true)
 
-  def card(assigns) do
+  def legacy_card(assigns) do
     ~H"""
     <div class={"card #{@class}"}>
       {render_slot(@inner_block)}

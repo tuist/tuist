@@ -367,44 +367,46 @@ svg {
 
 /* Input */
 
-input {
-  background-color: var(--bg-primary);
-  border: 1px solid var(--border-primary);
-  border-radius: var(--radius-sm);
-  padding: var(--spacing-md) var(--spacing-lg);
-  caret-color: var(--text-primary);
-  color: var(--text-primary);
-}
-
-input::placeholder {
-  color: var(--text-placeholder);
-}
-
-input:focus {
-  border-color: var(--border-brand);
-}
-
-input:focus {
-  outline: 4px solid rgba(158, 119, 237, 0.2);
-}
-
-input[type="radio"] {
-  appearance: none;
-  background-color: var(--bg-primary);
-  border: 1px solid var(--border-primary);
-  border-radius: var(--radius-full);
-  width: 16px;
-  height: 16px;
-  padding: 0;
-  margin: 0;
-
-  &:focus {
-    outline: 4px solid rgba(51, 55, 65, 0.2);
+html:not([data-noora]) {
+  input {
+    background-color: var(--bg-primary);
+    border: 1px solid var(--border-primary);
+    border-radius: var(--radius-sm);
+    padding: var(--spacing-md) var(--spacing-lg);
+    caret-color: var(--text-primary);
+    color: var(--text-primary);
   }
 
-  &:checked {
-    background-color: var(--fg-primary);
-    border: 5px solid var(--bg-brand-solid);
+  input::placeholder {
+    color: var(--text-placeholder);
+  }
+
+  input:focus {
+    border-color: var(--border-brand);
+  }
+
+  input:focus {
+    outline: 4px solid rgba(158, 119, 237, 0.2);
+  }
+
+  input[type="radio"] {
+    appearance: none;
+    background-color: var(--bg-primary);
+    border: 1px solid var(--border-primary);
+    border-radius: var(--radius-full);
+    width: 16px;
+    height: 16px;
+    padding: 0;
+    margin: 0;
+
+    &:focus {
+      outline: 4px solid rgba(51, 55, 65, 0.2);
+    }
+
+    &:checked {
+      background-color: var(--fg-primary);
+      border: 5px solid var(--bg-brand-solid);
+    }
   }
 }
 

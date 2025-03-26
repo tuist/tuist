@@ -101,4 +101,8 @@
     margin-left: var(--noora-spacing-5);
     margin-top: var(--noora-spacing-2);
   }
+
+  & [data-part="hidden-input"] {
+    display: none;
+  }
 }

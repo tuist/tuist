@@ -40,6 +40,7 @@ defmodule TuistWeb.UserSessionController do
       {:error, :invalid_email_or_password} ->
         # In order to prevent user enumeration attacks, don't disclose whether the email is registered.
         conn
+        |> put_flash(:email, email)
         |> put_flash(:error, "Invalid email or password")
         |> redirect(to: ~p"/users/log_in")
         |> halt()

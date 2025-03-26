@@ -24,6 +24,10 @@ defmodule TuistWeb.Noora.Button do
     doc:
       "Determines the overall size of the elements, including padding, font size, and other items"
 
+  attr :href, :any, default: nil, doc: "Uses traditional browser navigation to the new location"
+  attr :navigate, :string, default: nil, doc: "Navigates to a LiveView"
+  attr :patch, :string, default: nil, doc: "Patches the current LiveView"
+
   attr :icon_only, :boolean, default: false, doc: "Determines if the button is icon only"
 
   slot :icon_left, doc: "Icon displayed on the left of an item"
@@ -34,26 +38,52 @@ defmodule TuistWeb.Noora.Button do
 
   def button(assigns) do
     ~H"""
-    <button
-      class="noora-button"
-      data-variant={@variant}
-      data-size={@size}
-      data-icon-only={@icon_only}
-      {@rest}
-    >
-      <div data-part="spacer" />
-      <%= if @icon_left  && !@icon_only do %>
-        {render_slot(@icon_left)}
-      <% end %>
-      <span :if={!@icon_only}>{@label}</span>
-      <%= if @icon_only do %>
-        {render_slot(@inner_block)}
-      <% end %>
-      <%= if @icon_right && !@icon_only do %>
-        {render_slot(@icon_right)}
-      <% end %>
-      <div data-part="spacer" />
-    </button>
+    <%= if @href || @navigate || @patch do %>
+      <.link
+        class="noora-button"
+        href={@href}
+        navigate={@navigate}
+        patch={@patch}
+        data-variant={@variant}
+        data-size={@size}
+        data-icon-only={@icon_only}
+        {@rest}
+      >
+        <div data-part="spacer" />
+        <%= if @icon_left  && !@icon_only do %>
+          {render_slot(@icon_left)}
+        <% end %>
+        <span :if={!@icon_only}>{@label}</span>
+        <%= if @icon_only do %>
+          {render_slot(@inner_block)}
+        <% end %>
+        <%= if @icon_right && !@icon_only do %>
+          {render_slot(@icon_right)}
+        <% end %>
+        <div data-part="spacer" />
+      </.link>
+    <% else %>
+      <button
+        class="noora-button"
+        data-variant={@variant}
+        data-size={@size}
+        data-icon-only={@icon_only}
+        {@rest}
+      >
+        <div data-part="spacer" />
+        <%= if @icon_left  && !@icon_only do %>
+          {render_slot(@icon_left)}
+        <% end %>
+        <span :if={!@icon_only}>{@label}</span>
+        <%= if @icon_only do %>
+          {render_slot(@inner_block)}
+        <% end %>
+        <%= if @icon_right && !@icon_only do %>
+          {render_slot(@icon_right)}
+        <% end %>
+        <div data-part="spacer" />
+      </button>
+    <% end %>
     """
   end
 
@@ -70,6 +100,10 @@ defmodule TuistWeb.Noora.Button do
     doc:
       "Determines the overall size of the elements, including padding, font size, and other items"
 
+  attr :href, :any, default: nil, doc: "Uses traditional browser navigation to the new location"
+  attr :navigate, :string, default: nil, doc: "Navigates to a LiveView"
+  attr :patch, :string, default: nil, doc: "Patches the current LiveView"
+
   attr :underline, :boolean, default: false, doc: "Determines if the button is underlined"
 
   attr :rest, :global
@@ -79,7 +113,10 @@ defmodule TuistWeb.Noora.Button do
 
   def link_button(assigns) do
     ~H"""
-    <button
+    <.link
+      href={@href}
+      navigate={@navigate}
+      patch={@patch}
       class="noora-link-button"
       data-variant={@variant}
       data-size={@size}
@@ -93,7 +130,7 @@ defmodule TuistWeb.Noora.Button do
       <%= if @icon_right do %>
         {render_slot(@icon_right)}
       <% end %>
-    </button>
+    </.link>
     """
   end
 end

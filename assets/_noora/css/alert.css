@@ -21,7 +21,7 @@
     }
   }
 
-  & [data-part="title"] {
+  & > [data-part="title"] {
     color: var(--noora-surface-label-primary);
   }
 

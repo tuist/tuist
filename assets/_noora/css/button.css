@@ -6,6 +6,8 @@
   border: 0;
   display: inline-flex;
   gap: var(--noora-spacing-1);
+  text-decoration: none;
+  padding: 0;
   padding: 0;
 }
 
@@ -136,6 +138,7 @@
   --noora-link-button-destructive-label: light-dark(var(--noora-red-500), var(--noora-red-300));
   --noora-link-button-disabled-label: light-dark(var(--noora-neutral-light-600), var(--noora-neutral-light-300));
 
+  display: inline-flex;
   background: transparent;
 
   &:disabled {
@@ -168,7 +171,7 @@
   }
 
   &[data-size="small"] {
-    font: var(--noora-font-body-xsmall);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-xsmall);
 
     & svg {
       width: var(--noora-icon-size-small);
@@ -177,7 +180,7 @@
   }
 
   &[data-size="medium"] {
-    font: var(--noora-font-body-small);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-small);
 
     & svg {
       width: var(--noora-icon-size-medium);
@@ -186,7 +189,7 @@
   }
 
   &[data-size="large"] {
-    font: var(--noora-font-body-medium);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
 
     & svg {
       width: var(--noora-icon-size-large);

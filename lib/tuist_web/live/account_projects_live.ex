@@ -28,7 +28,7 @@ defmodule TuistWeb.AccountProjectsLive do
 
   def more_card(assigns) do
     ~H"""
-    <.card>
+    <.legacy_card>
       <div class="account__projects__get-started__more-card__icon">
         {render_slot(@icon)}
       </div>
@@ -44,7 +44,7 @@ defmodule TuistWeb.AccountProjectsLive do
         <span class="font--semibold">{@link_text}</span>
         <.arrow_right_icon />
       </a>
-    </.card>
+    </.legacy_card>
     """
   end
 end

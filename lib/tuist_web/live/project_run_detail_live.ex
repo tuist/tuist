@@ -250,7 +250,7 @@ defmodule TuistWeb.ProjectRunDetailLive do
 
   def target_breakdown_card(assigns) do
     ~H"""
-    <.card class="run-detail__target-breakdown">
+    <.legacy_card class="run-detail__target-breakdown">
       <.stack gap="2xl">
         <.section_header title={@title} />
         <.stack direction="horizontal" class="run-detail__target-breakdown__content">
@@ -294,7 +294,7 @@ defmodule TuistWeb.ProjectRunDetailLive do
           </.legacy_table>
         </.stack>
       </.stack>
-    </.card>
+    </.legacy_card>
     """
   end
 
