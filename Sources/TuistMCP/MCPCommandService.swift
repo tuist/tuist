@@ -1,59 +1,43 @@
 import Foundation
-import JSONSchemaBuilder
-import MCPServer
+import MCP
 import TuistSupport
-
-@Schemable
-struct RepeatToolInput {
-    let text: String
-}
 
 // Server references: https://github.com/modelcontextprotocol/servers/tree/main/src
 public struct MCPCommandService {
-    private let resourceFactory: MCPResourceFactorying
-
+    private let resourcesFactory: MCPResourcesFactorying
+    
     public init() {
-        self.init(resourceFactory: MCPResourceFactory())
+        self.init(resourcesFactory: MCPResourcesFactory())
     }
-
-    init(resourceFactory: MCPResourceFactorying) {
-        self.resourceFactory = resourceFactory
+    
+    init(resourcesFactory: MCPResourcesFactorying) {
+        self.resourcesFactory = resourcesFactory
     }
 
     public func run() async throws {
-        try await initServer().waitForDisconnection()
-    }
-
-    private func initServer() async throws -> MCPServer {
-        let implementation = Implementation(name: "tuist", version: Constants.version)
-        return try await MCPServer(
-            info: implementation,
-            capabilities: initCapabilities(),
-            transport: .stdio()
+        let server = Server(
+            name: "Tuist",
+            version: Constants.version,
+            capabilities: .init(
+                prompts: .init(),
+                resources: .init(
+                    subscribe: true
+                ),
+                tools: .init()
+            )
         )
-    }
+        
+        try await server.start(transport: StdioTransport())
 
-    private func initCapabilities() -> ServerCapabilityHandlers {
-        ServerCapabilityHandlers(tools: initTools(), resources: initResources())
-    }
-
-    private func initTools() -> [any CallableTool] {
-        [
-            //            Tool(name: "repeat") { (_: RepeatToolInput) in
-//                [.text(.init(text: "Repeat"))]
-//            },
-        ]
-    }
-
-    private func initResources() -> ResourcesCapabilityHandler {
-        ResourcesCapabilityHandler(readResource: { params -> ReadResourceRequest.Result in
-            return .init(contents: [
-                .text(.init(uri: params.uri, text: "graph")),
-            ])
-        }, listResource: { _ -> ListResourcesRequest.Result in
-            return .init(resources: try await resourceFactory.fetch())
-        }, listResourceTemplates: { _ -> ListResourceTemplatesRequest.Result in
-            return .init(resourceTemplates: [])
-        })
+        await server.withMethodHandler(ListResources.self) { params in
+            return try await resourcesFactory.list()
+        }
+        
+        await server.withMethodHandler(ReadResource.self) { resource in
+            
+            return .init(contents: [])
+        }
+        
+        try await Task.sleep(nanoseconds: 1_000_000_000_000_000)
     }
 }

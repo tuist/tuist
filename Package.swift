@@ -389,8 +389,7 @@ let targets: [Target] = [
             "FileSystem",
             "Command",
             "Path",
-            .product(name: "JSONSchemaBuilder", package: "swift-json-schema"),
-            .product(name: "MCPServer", package: "mcp-swift-sdk"),
+            .product(name: "MCP", package: "mcp-swift-sdk"),
         ],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
@@ -559,9 +558,7 @@ let package = Package(
             url: "https://github.com/pointfreeco/swift-snapshot-testing",
             .upToNextMajor(from: "1.18.1")
         ),
-        .package(url: "https://github.com/gsabran/mcp-swift-sdk", branch: "main"),
-        .package(url: "https://github.com/gsabran/mcp-swift-sdk", revision: "a436420c8807a54ef10c0e035bdfbcb2733996ec"),
-        .package(url: "https://github.com/ajevans99/swift-json-schema", exact: "0.3.1")
+        .package(url: "https://github.com/loopwork-ai/mcp-swift-sdk.git", .upToNextMajor(from: "0.5.1")),
     ],
     targets: targets
 )
