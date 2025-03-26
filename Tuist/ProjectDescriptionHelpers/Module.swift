@@ -317,6 +317,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "OpenAPIRuntime"),
                     .external(name: "XCResultKit"),
                     .external(name: "Noora"),
+                    .external(name: "Rosalind"),
                 ]
             case .core:
                 [
@@ -429,6 +430,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "HTTPTypes"),
                     .external(name: "SwiftToolsSupport"),
                     .external(name: "XcodeGraph"),
+                    .external(name: "Rosalind"),
                 ]
             case .hasher:
                 [
@@ -857,7 +859,7 @@ public enum Module: String, CaseIterable {
             destinations: [.mac],
             product: product,
             bundleId: "io.tuist.\(name)",
-            deploymentTargets: .macOS("13.0"),
+            deploymentTargets: .macOS("14.0"),
             infoPlist: .default,
             sources: ["\(rootFolder)/\(name)/**/*.swift"],
             dependencies: dependencies,

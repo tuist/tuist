@@ -89,6 +89,7 @@ let targets: [Target] = [
             .product(name: "XcodeGraphMapper", package: "XcodeGraph"),
             .byName(name: "AnyCodable"),
             .product(name: "XCResultKit", package: "XCResultKit"),
+            .product(name: "Rosalind", package: "Rosalind"),
         ],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
@@ -543,6 +544,10 @@ let package = Package(
         .package(
             url: "https://github.com/pointfreeco/swift-snapshot-testing",
             .upToNextMajor(from: "1.18.1")
+        ),
+        .package(
+            url: "https://github.com/tuist/Rosalind",
+            .upToNextMajor(from: "0.2.25")
         ),
     ],
     targets: targets
