@@ -31,6 +31,34 @@ components:
       type: object
       x-struct:
       x-validate:
+    BundleRequest:
+      description: Request schema for bundle creation
+      properties:
+        bundle:
+          properties:
+            artifacts:
+              description: The artifacts in this bundle
+              items:
+                $ref: '#/components/schemas/BundleArtifact'
+              type: array
+              x-struct:
+              x-validate:
+            name:
+              description: The name of the bundle
+              type: string
+              x-struct:
+              x-validate:
+          required:
+            - name
+          type: object
+          x-struct:
+          x-validate:
+      required:
+        - bundle
+      title: BundleRequest
+      type: object
+      x-struct: Elixir.TuistWeb.API.BundlesController.BundleRequest
+      x-validate:
     ArtifactUploadID:
       description: The upload has been initiated and a ID is returned to upload the various parts using multi-part uploads
       properties:
@@ -639,6 +667,50 @@ components:
       title: RunsIndexPageSize
       type: integer
       x-struct:
+      x-validate:
+    BundleArtifact:
+      description: A bundle artifact schema
+      properties:
+        artifact_type:
+          description: The type of artifact
+          enum:
+            - app
+            - directory
+            - file
+            - font
+          type: string
+          x-struct:
+          x-validate:
+        children:
+          description: Nested child artifacts
+          items:
+            $ref: '#/components/schemas/BundleArtifact'
+          type: array
+          x-struct:
+          x-validate:
+        path:
+          description: The path of the artifact
+          type: string
+          x-struct:
+          x-validate:
+        shasum:
+          description: The SHA checksum of the artifact
+          type: string
+          x-struct:
+          x-validate:
+        size:
+          description: The size of the artifact in bytes
+          type: integer
+          x-struct:
+          x-validate:
+      required:
+        - artifact_type
+        - path
+        - size
+        - shasum
+      title: BundleArtifact
+      type: object
+      x-struct: Elixir.TuistWeb.API.BundlesController.ArtifactSchema
       x-validate:
     RunsBuild:
       description: Represents a single build run.
@@ -1842,6 +1914,58 @@ paths:
       summary: Request new tokens.
       tags:
         - Authentication
+  /api/projects/{account_handle}/{project_handle}/bundles:
+    post:
+      callbacks: {}
+      operationId: createBundle
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BundleRequest'
+        description: Bundle params
+        required: false
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                x-struct:
+                x-validate:
+          description: The bundle was created
+        400:
+          content:
+            application/json:
+              schema:
+                x-struct:
+                x-validate:
+          description: Bad Request
+        422:
+          content:
+            application/json:
+              schema:
+                x-struct:
+                x-validate:
+          description: Unprocessable Entity
+      summary: Create a new bundle with artifacts
+      tags: []
   /api/auth/device_code/{device_code}:
     get:
       callbacks: {}

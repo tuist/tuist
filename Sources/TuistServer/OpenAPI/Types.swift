@@ -44,6 +44,11 @@ internal protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /api/auth/refresh_token`.
     /// - Remark: Generated from `#/paths//api/auth/refresh_token/post(refreshToken)`.
     func refreshToken(_ input: Operations.refreshToken.Input) async throws -> Operations.refreshToken.Output
+    /// Create a new bundle with artifacts
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/bundles`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bundles/post(createBundle)`.
+    func createBundle(_ input: Operations.createBundle.Input) async throws -> Operations.createBundle.Output
     /// Get a specific device code.
     ///
     /// This endpoint returns a token for a given device code if the device code is authenticated.
@@ -388,6 +393,21 @@ extension APIProtocol {
         body: Operations.refreshToken.Input.Body? = nil
     ) async throws -> Operations.refreshToken.Output {
         try await refreshToken(Operations.refreshToken.Input(
+            headers: headers,
+            body: body
+        ))
+    }
+    /// Create a new bundle with artifacts
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/bundles`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bundles/post(createBundle)`.
+    internal func createBundle(
+        path: Operations.createBundle.Input.Path,
+        headers: Operations.createBundle.Input.Headers = .init(),
+        body: Operations.createBundle.Input.Body? = nil
+    ) async throws -> Operations.createBundle.Output {
+        try await createBundle(Operations.createBundle.Input(
+            path: path,
             headers: headers,
             body: body
         ))
@@ -1051,6 +1071,50 @@ internal enum Components {
             }
             internal enum CodingKeys: String, CodingKey {
                 case organizations
+            }
+        }
+        /// Request schema for bundle creation
+        ///
+        /// - Remark: Generated from `#/components/schemas/BundleRequest`.
+        internal struct BundleRequest: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/BundleRequest/bundle`.
+            internal struct bundlePayload: Codable, Hashable, Sendable {
+                /// The artifacts in this bundle
+                ///
+                /// - Remark: Generated from `#/components/schemas/BundleRequest/bundle/artifacts`.
+                internal var artifacts: [Components.Schemas.BundleArtifact]?
+                /// The name of the bundle
+                ///
+                /// - Remark: Generated from `#/components/schemas/BundleRequest/bundle/name`.
+                internal var name: Swift.String
+                /// Creates a new `bundlePayload`.
+                ///
+                /// - Parameters:
+                ///   - artifacts: The artifacts in this bundle
+                ///   - name: The name of the bundle
+                internal init(
+                    artifacts: [Components.Schemas.BundleArtifact]? = nil,
+                    name: Swift.String
+                ) {
+                    self.artifacts = artifacts
+                    self.name = name
+                }
+                internal enum CodingKeys: String, CodingKey {
+                    case artifacts
+                    case name
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/BundleRequest/bundle`.
+            internal var bundle: Components.Schemas.BundleRequest.bundlePayload
+            /// Creates a new `BundleRequest`.
+            ///
+            /// - Parameters:
+            ///   - bundle:
+            internal init(bundle: Components.Schemas.BundleRequest.bundlePayload) {
+                self.bundle = bundle
+            }
+            internal enum CodingKeys: String, CodingKey {
+                case bundle
             }
         }
         /// The upload has been initiated and a ID is returned to upload the various parts using multi-part uploads
@@ -1952,6 +2016,158 @@ internal enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/RunsIndexPageSize`.
         internal typealias RunsIndexPageSize = Swift.Int
+        /// A bundle artifact schema
+        ///
+        /// - Remark: Generated from `#/components/schemas/BundleArtifact`.
+        internal struct BundleArtifact: Codable, Hashable, Sendable {
+            /// The type of artifact
+            ///
+            /// - Remark: Generated from `#/components/schemas/BundleArtifact/artifact_type`.
+            internal enum artifact_typePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case app = "app"
+                case directory = "directory"
+                case file = "file"
+                case font = "font"
+            }
+            /// The type of artifact
+            ///
+            /// - Remark: Generated from `#/components/schemas/BundleArtifact/artifact_type`.
+            internal var artifact_type: Components.Schemas.BundleArtifact.artifact_typePayload {
+                get  {
+                    storage.value.artifact_type
+                }
+                _modify {
+                    yield &storage.value.artifact_type
+                }
+            }
+            /// Nested child artifacts
+            ///
+            /// - Remark: Generated from `#/components/schemas/BundleArtifact/children`.
+            internal var children: [Components.Schemas.BundleArtifact]? {
+                get  {
+                    storage.value.children
+                }
+                _modify {
+                    yield &storage.value.children
+                }
+            }
+            /// The path of the artifact
+            ///
+            /// - Remark: Generated from `#/components/schemas/BundleArtifact/path`.
+            internal var path: Swift.String {
+                get  {
+                    storage.value.path
+                }
+                _modify {
+                    yield &storage.value.path
+                }
+            }
+            /// The SHA checksum of the artifact
+            ///
+            /// - Remark: Generated from `#/components/schemas/BundleArtifact/shasum`.
+            internal var shasum: Swift.String {
+                get  {
+                    storage.value.shasum
+                }
+                _modify {
+                    yield &storage.value.shasum
+                }
+            }
+            /// The size of the artifact in bytes
+            ///
+            /// - Remark: Generated from `#/components/schemas/BundleArtifact/size`.
+            internal var size: Swift.Int {
+                get  {
+                    storage.value.size
+                }
+                _modify {
+                    yield &storage.value.size
+                }
+            }
+            /// Creates a new `BundleArtifact`.
+            ///
+            /// - Parameters:
+            ///   - artifact_type: The type of artifact
+            ///   - children: Nested child artifacts
+            ///   - path: The path of the artifact
+            ///   - shasum: The SHA checksum of the artifact
+            ///   - size: The size of the artifact in bytes
+            internal init(
+                artifact_type: Components.Schemas.BundleArtifact.artifact_typePayload,
+                children: [Components.Schemas.BundleArtifact]? = nil,
+                path: Swift.String,
+                shasum: Swift.String,
+                size: Swift.Int
+            ) {
+                storage = .init(value: .init(
+                    artifact_type: artifact_type,
+                    children: children,
+                    path: path,
+                    shasum: shasum,
+                    size: size
+                ))
+            }
+            internal enum CodingKeys: String, CodingKey {
+                case artifact_type
+                case children
+                case path
+                case shasum
+                case size
+            }
+            internal init(from decoder: any Decoder) throws {
+                storage = try .init(from: decoder)
+            }
+            internal func encode(to encoder: any Encoder) throws {
+                try storage.encode(to: encoder)
+            }
+            /// Internal reference storage to allow type recursion.
+            private var storage: OpenAPIRuntime.CopyOnWriteBox<Storage>
+            private struct Storage: Codable, Hashable, Sendable {
+                /// The type of artifact
+                ///
+                /// - Remark: Generated from `#/components/schemas/BundleArtifact/artifact_type`.
+                enum artifact_typePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case app = "app"
+                    case directory = "directory"
+                    case file = "file"
+                    case font = "font"
+                }
+                /// The type of artifact
+                ///
+                /// - Remark: Generated from `#/components/schemas/BundleArtifact/artifact_type`.
+                var artifact_type: Components.Schemas.BundleArtifact.artifact_typePayload
+                /// Nested child artifacts
+                ///
+                /// - Remark: Generated from `#/components/schemas/BundleArtifact/children`.
+                var children: [Components.Schemas.BundleArtifact]?
+                /// The path of the artifact
+                ///
+                /// - Remark: Generated from `#/components/schemas/BundleArtifact/path`.
+                var path: Swift.String
+                /// The SHA checksum of the artifact
+                ///
+                /// - Remark: Generated from `#/components/schemas/BundleArtifact/shasum`.
+                var shasum: Swift.String
+                /// The size of the artifact in bytes
+                ///
+                /// - Remark: Generated from `#/components/schemas/BundleArtifact/size`.
+                var size: Swift.Int
+                init(
+                    artifact_type: Components.Schemas.BundleArtifact.artifact_typePayload,
+                    children: [Components.Schemas.BundleArtifact]? = nil,
+                    path: Swift.String,
+                    shasum: Swift.String,
+                    size: Swift.Int
+                ) {
+                    self.artifact_type = artifact_type
+                    self.children = children
+                    self.path = path
+                    self.shasum = shasum
+                    self.size = size
+                }
+                typealias CodingKeys = Components.Schemas.BundleArtifact.CodingKeys
+            }
+        }
         /// Represents a single build run.
         ///
         /// - Remark: Generated from `#/components/schemas/RunsBuild`.
@@ -4582,6 +4798,256 @@ internal enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        internal enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            internal init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            internal var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            internal static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Create a new bundle with artifacts
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/bundles`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bundles/post(createBundle)`.
+    internal enum createBundle {
+        internal static let id: Swift.String = "createBundle"
+        internal struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/path`.
+            internal struct Path: Sendable, Hashable {
+                /// The handle of the account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/path/account_handle`.
+                internal var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/path/project_handle`.
+                internal var project_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the account.
+                ///   - project_handle: The handle of the project.
+                internal init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                }
+            }
+            internal var path: Operations.createBundle.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/header`.
+            internal struct Headers: Sendable, Hashable {
+                internal var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createBundle.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                internal init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createBundle.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            internal var headers: Operations.createBundle.Input.Headers
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/requestBody`.
+            internal enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/requestBody/content/application\/json`.
+                case json(Components.Schemas.BundleRequest)
+            }
+            internal var body: Operations.createBundle.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            ///   - body:
+            internal init(
+                path: Operations.createBundle.Input.Path,
+                headers: Operations.createBundle.Input.Headers = .init(),
+                body: Operations.createBundle.Input.Body? = nil
+            ) {
+                self.path = path
+                self.headers = headers
+                self.body = body
+            }
+        }
+        internal enum Output: Sendable, Hashable {
+            internal struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/responses/200/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/responses/200/content/application\/json`.
+                    case json(OpenAPIRuntime.OpenAPIValueContainer)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: OpenAPIRuntime.OpenAPIValueContainer {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.createBundle.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.createBundle.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The bundle was created
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bundles/post(createBundle)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.createBundle.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            internal var ok: Operations.createBundle.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/responses/400/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/responses/400/content/application\/json`.
+                    case json(OpenAPIRuntime.OpenAPIValueContainer)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: OpenAPIRuntime.OpenAPIValueContainer {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.createBundle.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.createBundle.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// Bad Request
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bundles/post(createBundle)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.createBundle.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            internal var badRequest: Operations.createBundle.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            internal struct UnprocessableContent: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/responses/422/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/responses/422/content/application\/json`.
+                    case json(OpenAPIRuntime.OpenAPIValueContainer)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: OpenAPIRuntime.OpenAPIValueContainer {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.createBundle.Output.UnprocessableContent.Body
+                /// Creates a new `UnprocessableContent`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.createBundle.Output.UnprocessableContent.Body) {
+                    self.body = body
+                }
+            }
+            /// Unprocessable Entity
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bundles/post(createBundle)/responses/422`.
+            ///
+            /// HTTP response code: `422 unprocessableContent`.
+            case unprocessableContent(Operations.createBundle.Output.UnprocessableContent)
+            /// The associated value of the enum case if `self` is `.unprocessableContent`.
+            ///
+            /// - Throws: An error if `self` is not `.unprocessableContent`.
+            /// - SeeAlso: `.unprocessableContent`.
+            internal var unprocessableContent: Operations.createBundle.Output.UnprocessableContent {
+                get throws {
+                    switch self {
+                    case let .unprocessableContent(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unprocessableContent",
                             response: self
                         )
                     }
