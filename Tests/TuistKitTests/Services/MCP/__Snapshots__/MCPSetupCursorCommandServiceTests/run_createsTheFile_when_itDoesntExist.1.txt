@@ -1,0 +1,2 @@
+▌ ✔ Success
+▌ Cursor configuration at /private/var/folders/f_/c8lgm50920q1gx_bmk0s3gs80000gn/T/36984BC5-97A3-47FE-A75E-A2EC028D29D3-3EBB0EAD-0BA1-43A0-AAD2-6DEA60B78B89 connected to the Tuist MCP server.

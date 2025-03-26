@@ -23,7 +23,6 @@ public enum Module: String, CaseIterable {
     case server = "TuistServer"
     case hasher = "TuistHasher"
     case cache = "TuistCache"
-    case mcp = "TuistMCP"
 
     public var isRunnable: Bool {
         switch self {
@@ -132,8 +131,6 @@ public enum Module: String, CaseIterable {
 
     public var testingTargetName: String? {
         switch self {
-        case .mcp:
-            return nil
         case .tuist, .tuistBenchmark, .tuistFixtureGenerator, .kit, .projectAutomation,
              .projectDescription, .analytics,
              .dependencies, .acceptanceTesting, .server, .hasher, .cache, .scaffold:
@@ -156,8 +153,6 @@ public enum Module: String, CaseIterable {
 
     public var integrationTestsTargetName: String? {
         switch self {
-        case .mcp:
-            return nil
         case .tuist, .tuistBenchmark, .tuistFixtureGenerator, .projectAutomation,
              .projectDescription,
              .asyncQueue,
@@ -239,13 +234,6 @@ public enum Module: String, CaseIterable {
     public var dependencies: [TargetDependency] {
         var dependencies: [TargetDependency] =
             switch self {
-            case .mcp:
-                [
-                    .target(name: Module.support.targetName),
-                    .external(name: "MCP"),
-                    .external(name: "FileSystem"),
-                    .external(name: "Command"),
-                ]
             case .acceptanceTesting:
                 [
                     .target(name: Module.projectDescription.targetName),
@@ -319,7 +307,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.analytics.targetName),
                     .target(name: Module.plugin.targetName),
                     .target(name: Module.cache.targetName),
-                    .target(name: Module.mcp.targetName),
+                    .external(name: "MCP"),
                     .external(name: "FileSystem"),
                     .external(name: "SwiftToolsSupport"),
                     .external(name: "XcodeGraph"),
@@ -330,6 +318,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "OpenAPIRuntime"),
                     .external(name: "XCResultKit"),
                     .external(name: "Noora"),
+                    .external(name: "SwiftyJSON"),
                 ]
             case .core:
                 [
@@ -466,8 +455,6 @@ public enum Module: String, CaseIterable {
     public var unitTestDependencies: [TargetDependency] {
         var dependencies: [TargetDependency] =
             switch self {
-            case .mcp:
-                []
             case .tuist, .tuistBenchmark, .acceptanceTesting:
                 []
             case .tuistFixtureGenerator:
@@ -654,8 +641,6 @@ public enum Module: String, CaseIterable {
     public var testingDependencies: [TargetDependency] {
         let dependencies: [TargetDependency] =
             switch self {
-            case .mcp:
-                []
             case .tuist, .projectAutomation, .projectDescription, .acceptanceTesting, .hasher,
                  .analytics,
                  .migration, .tuistFixtureGenerator, .cache, .scaffold:
@@ -734,8 +719,6 @@ public enum Module: String, CaseIterable {
     public var integrationTestsDependencies: [TargetDependency] {
         var dependencies: [TargetDependency] =
             switch self {
-            case .mcp:
-                []
             case .tuistBenchmark, .tuistFixtureGenerator, .support, .projectAutomation,
                  .projectDescription, .acceptanceTesting,
                  .asyncQueue, .plugin, .analytics, .dependencies, .server, .hasher:

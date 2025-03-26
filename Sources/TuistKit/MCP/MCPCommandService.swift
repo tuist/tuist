@@ -4,14 +4,14 @@ import TuistSupport
 
 // Server references: https://github.com/modelcontextprotocol/servers/tree/main/src
 public struct MCPCommandService {
-    private let resourcesFactory: MCPResourcesFactorying
-    
+    private let resourcesRepository: MCPResourcesRepositorying
+
     public init() {
-        self.init(resourcesFactory: MCPResourcesFactory())
+        self.init(resourcesRepository: MCPResourcesRepository())
     }
-    
-    init(resourcesFactory: MCPResourcesFactorying) {
-        self.resourcesFactory = resourcesFactory
+
+    init(resourcesRepository: MCPResourcesRepositorying) {
+        self.resourcesRepository = resourcesRepository
     }
 
     public func run() async throws {
@@ -26,18 +26,21 @@ public struct MCPCommandService {
                 tools: .init()
             )
         )
-        
+
         try await server.start(transport: StdioTransport())
 
-        await server.withMethodHandler(ListResources.self) { params in
-            return try await resourcesFactory.list()
+        await server.withMethodHandler(ListResources.self) { _ in
+            return try await resourcesRepository.list()
         }
-        
+
+        await server.withMethodHandler(ListResourceTemplates.self) { _ in
+            return try await resourcesRepository.listTemplates()
+        }
+
         await server.withMethodHandler(ReadResource.self) { resource in
-            
-            return .init(contents: [])
+            return try await resourcesRepository.read(resource)
         }
-        
+
         try await Task.sleep(nanoseconds: 1_000_000_000_000_000)
     }
 }

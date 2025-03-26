@@ -24,7 +24,9 @@ In this page you'll learn about how to set it up and its capabilities.
 
 ### [Claude](https://claude.ai)
 
-If you are using [Claude desktop](https://claude.ai/download), edit the file at `~/Library/Application\ Support/Claude/claude_desktop_config.json`, and add the Tuist MCP server:
+If you are using [Claude desktop](https://claude.ai/download), you can run the <LocalizedLink href="/cli/mcp/setup/claude">tuist mcp setup claude</LocalizedLink> command to configure your Claude environment.
+
+Alternatively, can manually edit the file at `~/Library/Application\ Support/Claude/claude_desktop_config.json`, and add the Tuist MCP server:
 
 :::code-group
 
@@ -53,7 +55,9 @@ If you are using [Claude desktop](https://claude.ai/download), edit the file at 
 
 ## Cursor
 
-If you are using [Cursor](https://www.cursor.com), edit the file at `.cursor/mcp.json`, and add the Tuist MCP server:
+If you are using [Cursor](https://www.cursor.com), you can run the <LocalizedLink href="/cli/mcp/setup/cursor">tuist mcp setup cursor</LocalizedLink> command to configure your Claude environment.
+
+Alternatively, can manually edit the file at `.cursor/mcp.json`, and add the Tuist MCP server:
 
 :::code-group
 

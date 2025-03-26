@@ -83,13 +83,14 @@ let targets: [Target] = [
             "TuistServer",
             "FileSystem",
             "TuistCache",
-            "TuistMCP",
             .product(name: "Noora", package: "Noora"),
             .product(name: "Command", package: "Command"),
             .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
             .product(name: "XcodeGraphMapper", package: "XcodeGraph"),
             .byName(name: "AnyCodable"),
             .product(name: "XCResultKit", package: "XCResultKit"),
+            .product(name: "MCP", package: "mcp-swift-sdk"),
+            .product(name: "SwiftyJSON", package: "SwiftyJSON"),
         ],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
@@ -382,19 +383,6 @@ let targets: [Target] = [
             .define("MOCKING", .when(configuration: .debug)),
         ]
     ),
-    .target(
-        name: "TuistMCP",
-        dependencies: [
-            "TuistSupport",
-            "FileSystem",
-            "Command",
-            "Path",
-            .product(name: "MCP", package: "mcp-swift-sdk"),
-        ],
-        swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug)),
-        ]
-    ),
 ]
 
 #if TUIST
@@ -550,7 +538,7 @@ let package = Package(
         .package(url: "https://github.com/crspybits/swift-log-file", .upToNextMajor(from: "0.1.0")),
         .package(url: "https://github.com/tuist/XCLogParser", .upToNextMajor(from: "0.2.41")),
         .package(url: "https://github.com/davidahouse/XCResultKit", .upToNextMajor(from: "1.2.2")),
-        .package(url: "https://github.com/tuist/Noora", .upToNextMajor(from: "0.34.3")),
+        .package(url: "https://github.com/tuist/Noora", .upToNextMajor(from: "0.35.0")),
         .package(
             url: "https://github.com/frazer-rbsn/OrderedSet.git", .upToNextMajor(from: "2.0.0")
         ),
@@ -559,6 +547,7 @@ let package = Package(
             .upToNextMajor(from: "1.18.1")
         ),
         .package(url: "https://github.com/loopwork-ai/mcp-swift-sdk.git", .upToNextMajor(from: "0.5.1")),
+        .package(url: "https://github.com/SwiftyJSON/SwiftyJSON", .upToNextMajor(from: "5.0.2")),
     ],
     targets: targets
 )

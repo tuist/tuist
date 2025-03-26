@@ -1,0 +1,102 @@
+import FileSystem
+import Foundation
+import MCP
+import Path
+import ServiceContextModule
+import TuistCore
+import TuistGenerator
+import TuistLoader
+import TuistSupport
+import XcodeGraph
+import XcodeGraphMapper
+
+protocol MCPResourcesRepositorying {
+    func list() async throws -> ListResources.Result
+    func listTemplates() async throws -> ListResourceTemplates.Result
+    func read(_ resource: ReadResource.Parameters) async throws -> ReadResource.Result
+}
+
+struct MCPResourcesRepository: MCPResourcesRepositorying {
+    private let fileSystem: FileSysteming
+    private let manifestGraphLoader: ManifestGraphLoading
+    private let manifestLoader: ManifestLoading
+    private let xcodeGraphMapper: XcodeGraphMapping
+    private let jsonEncoder = JSONEncoder()
+
+    init() {
+        let manifestLoader = ManifestLoaderFactory()
+            .createManifestLoader()
+        let manifestGraphLoader = ManifestGraphLoader(
+            manifestLoader: manifestLoader,
+            workspaceMapper: SequentialWorkspaceMapper(mappers: []),
+            graphMapper: SequentialGraphMapper([])
+        )
+        self.init(
+            fileSystem: FileSystem(),
+            manifestGraphLoader: manifestGraphLoader,
+            manifestLoader: manifestLoader,
+            xcodeGraphMapper: XcodeGraphMapper()
+        )
+    }
+
+    init(
+        fileSystem: FileSysteming,
+        manifestGraphLoader: ManifestGraphLoading,
+        manifestLoader: ManifestLoading,
+        xcodeGraphMapper: XcodeGraphMapping
+    ) {
+        self.fileSystem = fileSystem
+        self.manifestGraphLoader = manifestGraphLoader
+        self.manifestLoader = manifestLoader
+        self.xcodeGraphMapper = xcodeGraphMapper
+    }
+
+    func list() async throws -> ListResources.Result {
+        let resources = try await (ServiceContext.current?.recentPaths?.read() ?? [:])
+            .keys
+            .concurrentCompactMap {
+                (try await fileSystem.exists($0)) ? $0 : nil
+            }
+            .concurrentMap {
+                Resource(
+                    name: "\($0.basename) graph",
+                    uri: "tuist://\($0.pathString)",
+                    description: "A graph representing the project \($0.basename)",
+                    mimeType: "application/json"
+                )
+            }
+        return ListResources.Result(resources: resources)
+    }
+
+    func listTemplates() async throws -> ListResourceTemplates.Result {
+        return ListResourceTemplates.Result(templates: [
+            Resource.Template(
+                uriTemplate: "file:///{path}",
+                name: "An Xcode project or workspace",
+                description: "Through this template users can read the graph of an Xcode project or workspace to ask questions about it. They need to pass the absolute path to the Xcode project or workspace."
+            ),
+        ])
+    }
+
+    func read(_ resource: ReadResource.Parameters) async throws -> ReadResource.Result {
+        let path: AbsolutePath
+        if resource.uri.starts(with: "tuist://") {
+            path = try AbsolutePath(validating: resource.uri.replacingOccurrences(of: "tuist://", with: ""))
+        } else if resource.uri.hasSuffix(".xcodeproj") || resource.uri.hasSuffix(".xcworkspace") {
+            path = try AbsolutePath(validating: resource.uri.replacingOccurrences(of: "file://", with: "")).parentDirectory
+        } else {
+            return ReadResource.Result(contents: [])
+        }
+
+        guard try await fileSystem.exists(path) else { return .init(contents: []) }
+
+        let graph: XcodeGraph.Graph
+        if try await manifestLoader.hasRootManifest(at: path) {
+            (graph, _, _, _) = try await manifestGraphLoader.load(path: path)
+        } else {
+            graph = try await xcodeGraphMapper.map(at: path)
+        }
+        let content = try String(data: jsonEncoder.encode(graph), encoding: .utf8)!
+        return .init(contents: [.text(content, uri: resource.uri, mimeType: "application/json")])
+    }
+}
