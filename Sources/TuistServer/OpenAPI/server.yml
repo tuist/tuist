@@ -674,10 +674,10 @@ components:
         artifact_type:
           description: The type of artifact
           enum:
-            - app
             - directory
             - file
             - font
+            - binary
           type: string
           x-struct:
           x-validate:
