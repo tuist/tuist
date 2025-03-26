@@ -1,5 +1,4 @@
 import ArgumentParser
-import TuistMCP
 
 public struct MCPCommand: AsyncParsableCommand, TrackableParsableCommand {
     public var analyticsRequired: Bool { false }
@@ -9,7 +8,10 @@ public struct MCPCommand: AsyncParsableCommand, TrackableParsableCommand {
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "mcp",
-            abstract: "Start an MCP server to interface LLMs with your local dev environment."
+            abstract: "Start an MCP server to interface LLMs with your local dev environment.",
+            subcommands: [
+                MCPSetupCommand.self,
+            ]
         )
     }
 
