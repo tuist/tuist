@@ -32,6 +32,7 @@ struct InitCommandServiceTests {
     private let createOrganizationService = MockCreateOrganizationServicing()
     private let getProjectService = MockGetProjectServicing()
     private let commandRunner = MockCommandRunning()
+    private let serverURLService = MockServerURLServicing()
     private let subject: InitCommandService
 
     init() {
@@ -45,8 +46,13 @@ struct InitCommandServiceTests {
             keystrokeListener: keystrokeListener,
             createOrganizationService: createOrganizationService,
             getProjectService: getProjectService,
-            commandRunner: commandRunner
+            commandRunner: commandRunner,
+            serverURLService: serverURLService
         )
+
+        given(serverURLService)
+            .url(configServerURL: .any)
+            .willReturn(Constants.URLs.production)
     }
 
     @Test func generatesTheRightConfiguration_when_generatedAndConnectedToServer() async throws {

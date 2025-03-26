@@ -29,6 +29,7 @@ public struct InitCommandService {
     private let keystrokeListener: KeyStrokeListening
     private let getProjectService: GetProjectServicing
     private let commandRunner: CommandRunning
+    private let serverURLService: ServerURLServicing
 
     enum XcodeProjectOrWorkspace: Hashable, Equatable {
         case workspace(AbsolutePath)
@@ -66,7 +67,8 @@ public struct InitCommandService {
         keystrokeListener: KeyStrokeListening = KeyStrokeListener(),
         createOrganizationService: CreateOrganizationServicing = CreateOrganizationService(),
         getProjectService: GetProjectServicing = GetProjectService(),
-        commandRunner: CommandRunning = CommandRunner()
+        commandRunner: CommandRunning = CommandRunner(),
+        serverURLService: ServerURLServicing = ServerURLService()
     ) {
         self.fileSystem = fileSystem
         self.prompter = prompter
@@ -78,6 +80,7 @@ public struct InitCommandService {
         self.createOrganizationService = createOrganizationService
         self.getProjectService = getProjectService
         self.commandRunner = commandRunner
+        self.serverURLService = serverURLService
     }
 
     func run(from directory: AbsolutePath, answers: InitPromptAnswers?) async throws {
@@ -186,7 +189,8 @@ public struct InitCommandService {
     ) async throws -> String? {
         let integrateWithServer = answers?.integrateWithServer ?? prompter.promptIntegrateWithServer()
         if integrateWithServer {
-            if try await serverSessionController.whoami(serverURL: Constants.URLs.production) == nil {
+            let serverURL = try serverURLService.url(configServerURL: Constants.URLs.production)
+            if try await serverSessionController.whoami(serverURL: serverURL) == nil {
                 try await ServiceContext.current?.ui?.collapsibleStep(
                     title: "Authentication",
                     successMessage: "Authenticated",
@@ -215,7 +219,7 @@ public struct InitCommandService {
                     }
                 )
             }
-            let fullHandle = "\(try await accountHandle(answers: answers))/\(projectHandle)"
+            let fullHandle = "\(try await accountHandle(answers: answers, serverURL: serverURL))/\(projectHandle)"
 
             if fullHandle == "" {
                 throw InitCommandServiceError.emptyProjectHandle
@@ -227,12 +231,12 @@ public struct InitCommandService {
                 errorMessage: "Project connection failed",
                 showSpinner: true,
                 task: { _ in
-                    if (try? await getProjectService.getProject(fullHandle: fullHandle, serverURL: Constants.URLs.production)) ==
+                    if (try? await getProjectService.getProject(fullHandle: fullHandle, serverURL: serverURL)) ==
                         nil
                     {
                         _ = try await createProjectService.createProject(
                             fullHandle: fullHandle,
-                            serverURL: Constants.URLs.production
+                            serverURL: serverURL
                         )
                     }
                 }
@@ -255,14 +259,17 @@ public struct InitCommandService {
         return nil
     }
 
-    private func accountHandle(answers: InitPromptAnswers?) async throws -> String {
-        let accountHandle = try await serverSessionController.whoami(serverURL: Constants.URLs.production)!
+    private func accountHandle(
+        answers: InitPromptAnswers?,
+        serverURL: URL
+    ) async throws -> String {
+        let accountHandle = try await serverSessionController.whoami(serverURL: serverURL)!
         switch answers?.accountType ?? prompter.promptAccountType(authenticatedUserHandle: accountHandle) {
         case .createOrganizationAccount:
             let organizationHandle = answers?.newOrganizationAccountHandle ?? prompter.promptNewOrganizationAccountHandle()
             _ = try await createOrganizationService.createOrganization(
                 name: organizationHandle,
-                serverURL: Constants.URLs.production
+                serverURL: serverURL
             )
             return organizationHandle
         case let .userAccount(handle):
@@ -284,13 +291,13 @@ public struct InitCommandService {
 
     private func findXcodeProjectsAndWorkspaces(in directory: AbsolutePath) async throws -> Set<XcodeProjectOrWorkspace> {
         var paths = Set(
-            try await fileSystem.glob(directory: directory, include: ["**/*.xcworkspace"]).collect()
+            try await fileSystem.glob(directory: directory, include: ["*.xcworkspace"]).collect()
                 .filter { $0.parentDirectory.extension != "xcodeproj" }
                 .map(XcodeProjectOrWorkspace.workspace)
         )
         paths
             .formUnion(
-                try await fileSystem.glob(directory: directory, include: ["**/*.xcodeproj"]).collect()
+                try await fileSystem.glob(directory: directory, include: ["*.xcodeproj"]).collect()
                     .map(XcodeProjectOrWorkspace.project)
             )
         return paths
