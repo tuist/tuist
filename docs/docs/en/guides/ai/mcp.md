@@ -53,7 +53,7 @@ Alternatively, can manually edit the file at `~/Library/Application\ Support/Cla
 ```
 :::
 
-## Cursor
+### Cursor
 
 If you are using [Cursor](https://www.cursor.com), you can run the <LocalizedLink href="/cli/mcp/setup/cursor">tuist mcp setup cursor</LocalizedLink> command to configure your Claude environment.
 
@@ -83,3 +83,30 @@ Alternatively, can manually edit the file at `.cursor/mcp.json`, and add the Tui
 }
 ```
 :::
+
+## Capabilities
+
+In the following sections you'll learn about the capabilities of the Tuist MCP server.
+
+### Resources
+
+#### Recent projects and workspaces
+
+Tuist keeps a record of the Xcode projects and workspaces you’ve recently worked with, giving your application access to their dependency graphs for powerful insights. You can query this data to uncover details about your project structure and relationships, such as:
+
+- What are the direct and transitive dependencies of a specific target?
+- Which target has the most source files, and how many does it include?
+- What are all the static products (e.g., static libraries or frameworks) in the graph?
+- Can you list all targets, sorted alphabetically, along with their names and product types (e.g., app, framework, unit test)?
+- Which targets depend on a particular framework or external dependency?
+- What’s the total number of source files across all targets in the project?
+- Are there any circular dependencies between targets, and if so, where?
+- Which targets use a specific resource (e.g., an image or plist file)?
+- What’s the deepest dependency chain in the graph, and which targets are involved?
+- Can you show me all the test targets and their associated app or framework targets?
+- Which targets have the longest build times based on recent interactions?
+- What are the differences in dependencies between two specific targets?
+- Are there any unused source files or resources in the project?
+- Which targets share common dependencies, and what are they?
+
+With Tuist, you can dig into your Xcode projects like never before, making it easier to understand, optimize, and manage even the most complex setups!
