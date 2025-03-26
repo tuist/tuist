@@ -31,6 +31,7 @@ defmodule TuistWeb.Noora.Table do
   import TuistWeb.Noora.Icon
   import TuistWeb.Noora.Badge
   import TuistWeb.Noora.Button
+  import TuistWeb.Noora.Time
   import TuistWeb.Noora.Utils
 
   attr :id, :string, required: true, doc: "A uniqie identifier for the table"
@@ -224,6 +225,21 @@ defmodule TuistWeb.Noora.Table do
           {render_slot(@icon_right)}
         </:icon_right>
       </.link_button>
+    </div>
+    """
+  end
+
+  attr :time, DateTime, required: true, doc: "The time to render."
+  attr :show_time, :boolean, default: false, doc: "Whether to show the time or date only."
+  attr :relative, :boolean, default: false, doc: "Whether to show the time relative to now."
+  attr :rest, :global
+
+  def time_cell(assigns) do
+    ~H"""
+    <div data-part="cell" data-type="text" {@rest}>
+      <span data-part="label">
+        <.time time={@time} show_time={@show_time} relative={@relative} />
+      </span>
     </div>
     """
   end

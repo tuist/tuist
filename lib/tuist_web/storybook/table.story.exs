@@ -13,7 +13,8 @@ defmodule TuistWeb.Storybook.Table do
        badge_cell: 1,
        status_badge_cell: 1,
        button_cell: 1,
-       link_button_cell: 1},
+       link_button_cell: 1,
+       time_cell: 1},
       {TuistWeb.Noora.Button, button: 1},
       {TuistWeb.Noora.Icon, chevron_left: 1, pencil: 1, trash: 1}
     ]
@@ -72,6 +73,9 @@ defmodule TuistWeb.Storybook.Table do
                 <.chevron_left />
               </:icon_left>
             </.link_button_cell>
+          </:col>
+          <:col :let={i} label="Time">
+            <.time_cell time={~U[2023-01-01 12:00:00Z]} />
           </:col>
           """
         ]
