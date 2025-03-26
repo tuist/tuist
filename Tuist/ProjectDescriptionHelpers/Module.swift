@@ -242,8 +242,7 @@ public enum Module: String, CaseIterable {
             case .mcp:
                 [
                     .target(name: Module.support.targetName),
-                    .external(name: "JSONSchemaBuilder"),
-                    .external(name: "MCPServer"),
+                    .external(name: "MCP"),
                     .external(name: "FileSystem"),
                     .external(name: "Command"),
                 ]
