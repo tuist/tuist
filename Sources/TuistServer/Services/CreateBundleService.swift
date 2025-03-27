@@ -103,6 +103,7 @@ extension Components.Schemas.BundleArtifact {
         case .file: .file
         case .font: .font
         case .binary: .binary
+        case .localization: .localization
         }
         self.init(
             artifact_type: artifactType,
