@@ -7,6 +7,7 @@ import {
   bookOpen01Icon,
   codeBrowserIcon,
   star06Icon,
+  playIcon,
 } from "./icons.mjs";
 import { loadData as loadExamplesData } from "./data/examples";
 import { loadData as loadProjectDescriptionData } from "./data/project-description";
@@ -578,6 +579,21 @@ export function guidesSidebar(locale) {
     {
       text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${localizedString(
         locale,
+        "sidebars.guides.items.ai.text",
+      )} ${star06Icon()}</span>`,
+      items: [
+        {
+          text: localizedString(
+            locale,
+            "sidebars.guides.items.ai.items.mcp.text",
+          ),
+          link: `/${locale}/guides/ai/mcp`,
+        },
+      ],
+    },
+    {
+      text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${localizedString(
+        locale,
         "sidebars.guides.items.share.text",
       )} ${cube01Icon()}</span>`,
       items: [
@@ -594,7 +610,7 @@ export function guidesSidebar(locale) {
       text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${localizedString(
         locale,
         "sidebars.guides.items.automate.text",
-      )} ${star06Icon()}</span>`,
+      )} ${playIcon()}</span>`,
       items: [
         {
           text: localizedString(

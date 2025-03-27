@@ -307,6 +307,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.analytics.targetName),
                     .target(name: Module.plugin.targetName),
                     .target(name: Module.cache.targetName),
+                    .external(name: "MCP"),
                     .external(name: "FileSystem"),
                     .external(name: "SwiftToolsSupport"),
                     .external(name: "XcodeGraph"),
@@ -317,6 +318,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "OpenAPIRuntime"),
                     .external(name: "XCResultKit"),
                     .external(name: "Noora"),
+                    .external(name: "SwiftyJSON"),
                 ]
             case .core:
                 [
@@ -837,8 +839,11 @@ public enum Module: String, CaseIterable {
             rootFolder = "Sources"
         }
 
+        var baseSettings = settings.base
+        baseSettings["MACOSX_DEPLOYMENT_TARGET"] = "14.0"
+
         let settings = Settings.settings(
-            base: settings.base,
+            base: baseSettings,
             configurations: [
                 .debug(
                     name: "Debug",
