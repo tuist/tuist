@@ -10,7 +10,7 @@ public protocol CreateBundleServicing {
     func createBundle(
         fullHandle: String,
         serverURL: URL,
-        artifact: RosalindReport
+        appReport: AppReport
     ) async throws -> ServerBundle
 }
 
@@ -43,7 +43,7 @@ public final class CreateBundleService: CreateBundleServicing {
     public func createBundle(
         fullHandle: String,
         serverURL: URL,
-        artifact: RosalindReport
+        appReport: AppReport
     ) async throws -> ServerBundle {
         let client = Client.authenticated(serverURL: serverURL)
         let handles = try fullHandleService.parse(fullHandle)
@@ -57,10 +57,10 @@ public final class CreateBundleService: CreateBundleServicing {
                 body: .json(
                     .init(
                         bundle: .init(
-                            artifacts: [
-                                .init(artifact),
-                            ],
-                            name: try RelativePath(validating: artifact.path).basenameWithoutExt
+                            app_version: appReport.appVersion,
+                            artifacts: appReport.artifacts.map { .init($0) },
+                            name: appReport.name,
+                            platform: appReport.platform
                         )
                     )
                 )
@@ -96,8 +96,8 @@ public struct ServerBundle {
 }
 
 extension Components.Schemas.BundleArtifact {
-    init(_ report: RosalindReport) {
-        let artifactType: Components.Schemas.BundleArtifact.artifact_typePayload = switch report.artifactType {
+    init(_ artifact: Artifact) {
+        let artifactType: Components.Schemas.BundleArtifact.artifact_typePayload = switch artifact.artifactType {
         case .app: fatalError()
         case .directory: .directory
         case .file: .file
@@ -106,12 +106,12 @@ extension Components.Schemas.BundleArtifact {
         }
         self.init(
             artifact_type: artifactType,
-            children: report.children.map {
+            children: artifact.children.map {
                 $0.map { Self($0) }
             },
-            path: report.path,
-            shasum: report.shasum,
-            size: report.size
+            path: artifact.path,
+            shasum: artifact.shasum,
+            size: artifact.size
         )
     }
 }

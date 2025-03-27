@@ -46,12 +46,12 @@ struct InspectBundleCommandService {
             errorMessage: nil,
             showSpinner: true
         ) { updateStep in
-            let artifact = try await rosalind.analyze(path: path)
+            let appReport = try await rosalind.analyze(path: path)
             updateStep("Pushing bundle to the server...")
             return try await createBundleService.createBundle(
                 fullHandle: fullHandle,
                 serverURL: serverURL,
-                artifact: artifact
+                appReport: appReport
             )
         }
         ServiceContext.current?.ui?.success(
