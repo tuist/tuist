@@ -1,4 +1,5 @@
 import Foundation
+import Logging
 import Path
 import ServiceContextModule
 import TuistCache
@@ -54,7 +55,41 @@ final class GenerateService {
             ignoreBinaryCache: ignoreBinaryCache,
             cacheStorage: cacheStorage
         )
-        let (workspacePath, _, environment) = try await generator.generateWithGraph(path: path)
+
+        // Load the graph first to get the total number of projects
+        let graph = try await generator.load(path: path)
+        let totalProjects = graph.projects.count
+
+        // Generate the project with progress bar
+        let (workspacePath, _, _) = try await ServiceContext.current!.ui!.progressBarStep(
+            message: "Generating projects",
+            successMessage: "Projects generated",
+            errorMessage: "Failed to generate projects"
+        ) { updateProgress in
+            var generatedProjects = 0
+
+            // Create a progress logger that wraps the current logger's handler
+            let progressLogger = ProgressLogger(
+                handler: ServiceContext.current!.logger!.handler,
+                onLog: { _ in
+                    generatedProjects += 1
+                    updateProgress(Double(generatedProjects) / Double(totalProjects))
+                }
+            )
+
+            // Create a new logger with our progress logger as the handler
+            let logger = Logger(label: ServiceContext.current!.logger!.label, factory: { _ in progressLogger })
+
+            // Create a new context with our logger
+            var context = ServiceContext.current!
+            context.logger = logger
+
+            // Run the generation in the new context
+            return try await ServiceContext.withValue(context) {
+                try await generator.generateWithGraph(path: path)
+            }
+        }
+
         if !noOpen {
             try await opener.open(path: workspacePath)
         }
@@ -70,5 +105,46 @@ final class GenerateService {
         } else {
             return FileHandler.shared.currentPath
         }
+    }
+}
+
+// MARK: - Progress Logger
+
+private class ProgressLogger: LogHandler {
+    private let onLog: (String) -> Void
+    private var _logLevel: Logger.Level
+    private var _metadata: Logger.Metadata
+
+    init(handler: LogHandler, onLog: @escaping (String) -> Void) {
+        self.onLog = onLog
+        _logLevel = handler.logLevel
+        _metadata = handler.metadata
+    }
+
+    var logLevel: Logger.Level {
+        get { _logLevel }
+        set { _logLevel = newValue }
+    }
+
+    var metadata: Logger.Metadata {
+        get { _metadata }
+        set { _metadata = newValue }
+    }
+
+    subscript(metadataKey key: String) -> Logger.Metadata.Value? {
+        get { _metadata[key] }
+        set { _metadata[key] = newValue }
+    }
+
+    func log(
+        level _: Logger.Level,
+        message: Logger.Message,
+        metadata _: Logger.Metadata?,
+        source _: String,
+        file _: String,
+        function _: String,
+        line _: UInt
+    ) {
+        onLog(message.description)
     }
 }
