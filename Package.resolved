@@ -1,5 +1,5 @@
 {
-  "originHash" : "0572f2c9589381cfb69713da59d0b0acd9d0af39e3c1b81e79a89be6fbceb5b1",
+  "originHash" : "4ff74e4e04831a783b4937027e9e619f983aa6dbe0ee8629b5bfaa62770daff2",
   "pins" : [
     {
       "identity" : "aexml",
@@ -119,6 +119,15 @@
       }
     },
     {
+      "identity" : "mcp-swift-sdk",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/loopwork-ai/mcp-swift-sdk.git",
+      "state" : {
+        "revision" : "ef647106b92098f0f15fdd38cc206b9f30c6d24a",
+        "version" : "0.5.1"
+      }
+    },
+    {
       "identity" : "mockable",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/Kolos65/Mockable.git",
@@ -132,8 +141,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/Noora",
       "state" : {
-        "revision" : "049039c385630f7c25f266969f58918e91f415ab",
-        "version" : "0.34.3"
+        "revision" : "395d1885fab76d3eb2d7922e34d46640416a5317",
+        "version" : "0.35.1"
       }
     },
     {
@@ -386,6 +395,15 @@
       "state" : {
         "revision" : "1cf6d7eebd70c2157f69d5a991bc57c1ef182ed1",
         "version" : "6.6.2"
+      }
+    },
+    {
+      "identity" : "swiftyjson",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/SwiftyJSON/SwiftyJSON",
+      "state" : {
+        "revision" : "af76cf3ef710b6ca5f8c05f3a31307d44a3c5828",
+        "version" : "5.0.2"
       }
     },
     {

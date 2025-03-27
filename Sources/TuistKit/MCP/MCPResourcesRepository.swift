@@ -3,6 +3,7 @@ import Foundation
 import MCP
 import Path
 import ServiceContextModule
+import SwiftyJSON
 import TuistCore
 import TuistGenerator
 import TuistLoader
@@ -96,7 +97,26 @@ struct MCPResourcesRepository: MCPResourcesRepositorying {
         } else {
             graph = try await xcodeGraphMapper.map(at: path)
         }
-        let content = try String(data: jsonEncoder.encode(graph), encoding: .utf8)!
-        return .init(contents: [.text(content, uri: resource.uri, mimeType: "application/json")])
+        let graphJSON = trim(graph: try JSON(data: jsonEncoder.encode(graph))).rawString() ?? ""
+        return .init(contents: [.text(graphJSON, uri: resource.uri, mimeType: "application/json")])
+    }
+
+    private func trim(graph: JSON) -> JSON {
+        var graph = graph
+        graph["projects"] = JSON(graph["projects"].dictionaryValue.mapValues { project in
+            var project = project
+            project["additionalFiles"] = .null
+            project["targets"] = JSON(project["targets"].dictionaryValue.mapValues { target in
+                var target = target
+                target["sourcesCount"] = JSON(target["sources"].arrayValue.count)
+                target["sources"] = .null
+                target["resourcesCount"] = JSON(target["resources"]["resources"].arrayValue.count)
+                target["resources"] = .null
+                target["headers"] = .null
+                return target
+            })
+            return project
+        })
+        return graph
     }
 }
