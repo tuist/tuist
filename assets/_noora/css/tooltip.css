@@ -6,6 +6,7 @@
     box-shadow: var(--noora-border-heavy);
     color: var(--noora-surface-label-primary);
     max-width: 250px;
+    position: absolute;
     width: max-content;
 
     & [data-part="icon"] {
