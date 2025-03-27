@@ -584,7 +584,7 @@ msgstr ""
 
 #: lib/tuist_web/components/app_layout_components.ex:117
 #: lib/tuist_web/live/accept_invitation_live.ex:53
-#: lib/tuist_web/live/device_codes_success_live.ex:37
+#: lib/tuist_web/live/device_codes_success_live.ex:42
 #: lib/tuist_web/live/project_dashboard_live.ex:21
 #: lib/tuist_web/live/project_dashboard_live.html.heex:4
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:95

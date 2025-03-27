@@ -33,7 +33,12 @@ defmodule TuistWeb.DeviceCodesSuccessLive do
       />
       <div>
         <.legacy_button>
-          <a href={~p"/"} class="color--text-primary">
+          <a
+            href={
+              TuistWeb.Authentication.signed_in_path(TuistWeb.Authentication.current_user(assigns))
+            }
+            class="color--text-primary"
+          >
             {gettext("Dashboard")}
           </a>
         </.legacy_button>
