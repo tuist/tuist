@@ -122,7 +122,7 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
             enforceExplicitDependencies: Bool = false,
             defaultConfiguration: String? = nil,
             optionalAuthentication: Bool = false,
-            buildInsightsDisabled: Bool = false
+            buildInsightsDisabled: Bool = true
         ) -> Self {
             .init(
                 resolveDependenciesWithSystemScm: resolveDependenciesWithSystemScm,

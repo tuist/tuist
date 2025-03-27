@@ -77,7 +77,7 @@ final class ConfigLoaderTests: TuistUnitTestCase {
 
         // Then
 
-        XCTAssertEqual(result, TuistCore.Tuist(
+        XCTAssertBetterEqual(result, TuistCore.Tuist(
             project: .generated(TuistGeneratedProjectOptions(
                 compatibleXcodeVersions: .all,
                 swiftVersion: nil,
@@ -189,7 +189,9 @@ final class ConfigLoaderTests: TuistUnitTestCase {
                 compatibleXcodeVersions: .all,
                 swiftVersion: nil,
                 plugins: [],
-                generationOptions: .test(),
+                generationOptions: .test(
+                    buildInsightsDisabled: false
+                ),
                 installOptions: .test()
             )),
             fullHandle: "tuist/tuist",
@@ -219,7 +221,9 @@ final class ConfigLoaderTests: TuistUnitTestCase {
                 compatibleXcodeVersions: .all,
                 swiftVersion: nil,
                 plugins: [],
-                generationOptions: .test(),
+                generationOptions: .test(
+                    buildInsightsDisabled: false
+                ),
                 installOptions: .test()
             )),
             fullHandle: "tuist/tuist",
