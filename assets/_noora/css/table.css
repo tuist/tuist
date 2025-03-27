@@ -1,6 +1,7 @@
 .noora-table {
   background: var(--noora-surface-table-header);
   border-radius: var(--noora-radius-2xlarge);
+  box-sizing: border-box;
   overflow-x: auto;
   overscroll-behavior: none;
   padding: var(--noora-spacing-2);
