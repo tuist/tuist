@@ -27,7 +27,7 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
         generatorFactory = MockGeneratorFactorying()
         generator = .init()
         given(generatorFactory)
-            .defaultGenerator(config: .any, sources: .any)
+            .defaultGenerator(config: .any, includedTargets: .any)
             .willReturn(generator)
 
         cacheGraphContentHasher = MockCacheGraphContentHashing()

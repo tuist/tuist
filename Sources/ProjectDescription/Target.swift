@@ -71,6 +71,9 @@ public struct Target: Codable, Equatable, Sendable {
     /// The target's tags associated with on demand resources
     public var onDemandResourcesTags: OnDemandResourcesTags?
 
+    /// The target's metadata.
+    public var metadata: TargetMetadata
+
     public static func target(
         name: String,
         destinations: Destinations,
@@ -94,7 +97,8 @@ public struct Target: Codable, Equatable, Sendable {
         buildRules: [BuildRule] = [],
         mergedBinaryType: MergedBinaryType = .disabled,
         mergeable: Bool = false,
-        onDemandResourcesTags: OnDemandResourcesTags? = nil
+        onDemandResourcesTags: OnDemandResourcesTags? = nil,
+        metadata: TargetMetadata = .default
     ) -> Self {
         self.init(
             name: name,
@@ -119,7 +123,8 @@ public struct Target: Codable, Equatable, Sendable {
             buildRules: buildRules,
             mergedBinaryType: mergedBinaryType,
             mergeable: mergeable,
-            onDemandResourcesTags: onDemandResourcesTags
+            onDemandResourcesTags: onDemandResourcesTags,
+            metadata: metadata
         )
     }
 }

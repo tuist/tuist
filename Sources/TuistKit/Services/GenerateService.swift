@@ -38,7 +38,7 @@ final class GenerateService {
 
     func run(
         path: String?,
-        sources: Set<String>,
+        includedTargets: Set<TargetQuery>,
         noOpen: Bool,
         configuration: String?,
         ignoreBinaryCache: Bool
@@ -49,7 +49,7 @@ final class GenerateService {
         let cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
         let generator = generatorFactory.generation(
             config: config,
-            sources: sources,
+            includedTargets: includedTargets,
             configuration: configuration,
             ignoreBinaryCache: ignoreBinaryCache,
             cacheStorage: cacheStorage

@@ -62,7 +62,7 @@ final class RunServiceTests: TuistUnitTestCase {
         generator = .init()
         generatorFactory = MockGeneratorFactorying()
         given(generatorFactory)
-            .defaultGenerator(config: .any, sources: .any)
+            .defaultGenerator(config: .any, includedTargets: .any)
             .willReturn(generator)
         buildGraphInspector = .init()
         targetBuilder = MockTargetBuilder()

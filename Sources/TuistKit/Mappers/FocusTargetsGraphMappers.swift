@@ -6,10 +6,11 @@ import XcodeGraph
 
 public enum FocusTargetsGraphMappersError: FatalError, Equatable {
     case targetsNotFound([String])
+    case noTargetsFound
 
     public var type: ErrorType {
         switch self {
-        case .targetsNotFound:
+        case .targetsNotFound, .noTargetsFound:
             return .abort
         }
     }
@@ -18,6 +19,8 @@ public enum FocusTargetsGraphMappersError: FatalError, Equatable {
         switch self {
         case let .targetsNotFound(targets):
             return "The following targets were not found: \(targets.joined(separator: ", ")). Please, make sure they exist."
+        case .noTargetsFound:
+            return "No targets were found. Ensure that the query is valid and matches targets in the graph."
         }
     }
 }
@@ -26,14 +29,14 @@ public enum FocusTargetsGraphMappersError: FatalError, Equatable {
 public final class FocusTargetsGraphMappers: GraphMapping {
     // When specified, if includedTargets is empty it will automatically include all targets in the test plan
     public let testPlan: String?
-    /// The targets name to be kept as non prunable with their respective dependencies and tests targets
-    public let includedTargets: Set<String>
-    public let excludedTargets: Set<String>
+    /// The targets to be kept as non prunable with their respective dependencies and tests targets
+    public let includedTargets: Set<TargetQuery>
+    public let excludedTargets: Set<TargetQuery>
 
     public init(
         testPlan: String? = nil,
-        includedTargets: Set<String>,
-        excludedTargets: Set<String> = []
+        includedTargets: Set<TargetQuery>,
+        excludedTargets: Set<TargetQuery> = []
     ) {
         self.testPlan = testPlan
         self.includedTargets = includedTargets
@@ -51,9 +54,17 @@ public final class FocusTargetsGraphMappers: GraphMapping {
             excludingExternalTargets: true
         )
 
-        let unavailableIncludedTargets = Set(includedTargets).subtracting(userSpecifiedSourceTargets.map(\.target.name))
+        let includedTargetNames: [String] = includedTargets.compactMap {
+            guard case let .named(name) = $0 else { return nil }
+            return name
+        }
+        let unavailableIncludedTargets = Set(includedTargetNames).subtracting(userSpecifiedSourceTargets.map(\.target.name))
         if !unavailableIncludedTargets.isEmpty {
             throw FocusTargetsGraphMappersError.targetsNotFound(Array(unavailableIncludedTargets))
+        }
+
+        if !includedTargets.isEmpty || !excludedTargets.isEmpty, userSpecifiedSourceTargets.isEmpty {
+            throw FocusTargetsGraphMappersError.noTargetsFound
         }
 
         let filteredTargets = Set(try topologicalSort(

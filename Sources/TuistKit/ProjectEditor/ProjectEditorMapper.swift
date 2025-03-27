@@ -521,7 +521,8 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             sources: sourcePaths.map { SourceFile(path: $0, compilerFlags: nil) },
             filesGroup: filesGroup,
             dependencies: dependencies,
-            additionalFiles: additionalFilePaths.map { .file(path: $0) }
+            additionalFiles: additionalFilePaths.map { .file(path: $0) },
+            metadata: .metadata()
         )
     }
 

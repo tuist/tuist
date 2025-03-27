@@ -64,7 +64,8 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
                 resources: target.resources,
                 copyFiles: target.copyFiles,
                 coreDataModels: target.coreDataModels,
-                filesGroup: target.filesGroup
+                filesGroup: target.filesGroup,
+                metadata: target.metadata
             )
             modifiedTarget.resources.resources = []
             modifiedTarget.copyFiles = []

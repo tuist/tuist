@@ -4,6 +4,12 @@ import TuistCore
 import TuistServer
 import TuistSupport
 
+extension TargetQuery: @retroactive ExpressibleByArgument {
+    public init?(argument: String) {
+        self.init(stringLiteral: argument)
+    }
+}
+
 public struct GenerateCommand: AsyncParsableCommand, RecentPathRememberableCommand {
     public init() {}
 
@@ -26,12 +32,17 @@ public struct GenerateCommand: AsyncParsableCommand, RecentPathRememberableComma
     )
     var path: String?
 
-    @Argument(help: """
-    A list of targets to focus on. \
-    Other targets will be linked as binaries if possible. \
-    If no target is specified, all the project targets will be generated (except external ones, such as Swift packages).
-    """)
-    var sources: [String] = []
+    @Argument(
+        help: ArgumentHelp(
+            """
+            Targets to focus on, specified by name or tag query (e.g. 'tag:feature'). \
+            Other targets will be linked as binaries if possible. \
+            If no target is specified, all the project targets will be generated (except external ones, such as Swift packages).
+            """,
+            valueName: "query"
+        )
+    )
+    var includedTargets: [TargetQuery] = []
 
     @Flag(
         name: .shortAndLong,
@@ -58,7 +69,7 @@ public struct GenerateCommand: AsyncParsableCommand, RecentPathRememberableComma
             generatorFactory: Self.generatorFactory
         ).run(
             path: path,
-            sources: Set(sources),
+            includedTargets: Set(includedTargets),
             noOpen: !open,
             configuration: configuration,
             ignoreBinaryCache: !binaryCache

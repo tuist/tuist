@@ -49,7 +49,7 @@ final class LintImplicitImportsServiceTests: TuistUnitTestCase {
         let graph = Graph.test(path: path, projects: [path: project])
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
-        given(generatorFactory).defaultGenerator(config: .value(config), sources: .any).willReturn(generator)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
         given(generator).load(path: .value(path)).willReturn(graph)
         given(targetScanner).imports(for: .value(app)).willReturn(Set(["Framework"]))
         given(targetScanner).imports(for: .value(framework)).willReturn(Set([]))
@@ -74,7 +74,7 @@ final class LintImplicitImportsServiceTests: TuistUnitTestCase {
         )
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
-        given(generatorFactory).defaultGenerator(config: .value(config), sources: .any).willReturn(generator)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
         given(generator).load(path: .value(path)).willReturn(graph)
         given(targetScanner).imports(for: .value(app)).willReturn(Set(["PackageTarget"]))
 
@@ -101,7 +101,7 @@ final class LintImplicitImportsServiceTests: TuistUnitTestCase {
         )
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
-        given(generatorFactory).defaultGenerator(config: .value(config), sources: .any).willReturn(generator)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
         given(generator).load(path: .value(path)).willReturn(graph)
         given(targetScanner).imports(for: .value(app)).willReturn(Set(["PackageTarget"]))
         given(targetScanner).imports(for: .value(testTarget)).willReturn(Set())
@@ -138,7 +138,7 @@ final class LintImplicitImportsServiceTests: TuistUnitTestCase {
         )
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
-        given(generatorFactory).defaultGenerator(config: .value(config), sources: .any).willReturn(generator)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
         given(generator).load(path: .value(path)).willReturn(graph)
         given(targetScanner).imports(for: .value(app)).willReturn(Set(["PackageTargetDependency"]))
 
@@ -164,7 +164,7 @@ final class LintImplicitImportsServiceTests: TuistUnitTestCase {
         )
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
-        given(generatorFactory).defaultGenerator(config: .value(config), sources: .any).willReturn(generator)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
         given(generator).load(path: .value(path)).willReturn(graph)
         given(targetScanner).imports(for: .value(app)).willReturn(Set(["Framework"]))
         given(targetScanner).imports(for: .value(framework)).willReturn(Set([]))
