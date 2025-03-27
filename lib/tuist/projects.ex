@@ -33,7 +33,8 @@ defmodule Tuist.Projects do
   end
 
   def get_project_by_id(project_id) do
-    Repo.get_by(Project, id: project_id)
+    from(p in Project, where: p.id == ^project_id, preload: [:account])
+    |> Repo.one()
   end
 
   def get_project_account_by_project_id(project_id) do
@@ -80,7 +81,7 @@ defmodule Tuist.Projects do
                 where: p.account_id == ^account_id
               )
             )} do
-      project |> Repo.preload(Keyword.get(opts, :preload, []))
+      project |> Repo.preload(Keyword.get(opts, :preload, [:account]))
     else
       {:account, nil} -> nil
       {:project, nil} -> nil
