@@ -145,6 +145,44 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         assert(config: releaseConfig, contains: expectedSettings)
     }
 
+    func test_generateTargetConfig_whenVariableInfoPlistPath() async throws {
+        // Given
+        let sourceRootPath = try temporaryPath()
+        let project = Project.test(
+            sourceRootPath: sourceRootPath,
+            xcodeProjPath: sourceRootPath.appending(component: "Project.xcodeproj")
+        )
+        let target = Target.test(
+            infoPlist: .variable("$(INFO_PLIST_FILE_VARIABLE)")
+        )
+        let graph = Graph.test(path: project.path)
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        try await subject.generateTargetConfig(
+            target,
+            project: project,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            projectSettings: .default,
+            fileElements: ProjectFileElements(),
+            graphTraverser: graphTraverser,
+            sourceRootPath: sourceRootPath
+        )
+
+        // Then
+        let configurationList = pbxTarget.buildConfigurationList
+        let debugConfig = configurationList?.configuration(name: "Debug")
+        let releaseConfig = configurationList?.configuration(name: "Release")
+
+        let expectedSettings: SettingsDictionary = [
+            "INFOPLIST_FILE": "$(INFO_PLIST_FILE_VARIABLE)",
+        ]
+
+        assert(config: debugConfig, contains: expectedSettings)
+        assert(config: releaseConfig, contains: expectedSettings)
+    }
+
     func test_generateTestTargetConfiguration_iOS() async throws {
         // Given / When
         try await generateTestTargetConfig(appName: "App")
