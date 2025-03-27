@@ -11,7 +11,7 @@ public protocol CreateBundleServicing {
         fullHandle: String,
         serverURL: URL,
         artifact: RosalindReport
-    ) async throws
+    ) async throws -> ServerBundle
 }
 
 enum CreateBundleServiceError: LocalizedError {
@@ -44,7 +44,7 @@ public final class CreateBundleService: CreateBundleServicing {
         fullHandle: String,
         serverURL: URL,
         artifact: RosalindReport
-    ) async throws {
+    ) async throws -> ServerBundle {
         let client = Client.authenticated(serverURL: serverURL)
         let handles = try fullHandleService.parse(fullHandle)
 
@@ -67,8 +67,11 @@ public final class CreateBundleService: CreateBundleServicing {
             )
         )
         switch response {
-        case .ok:
-            break
+        case let .ok(okResponse):
+            switch okResponse.body {
+            case let .json(bundle):
+                return ServerBundle(bundle)!
+            }
         case let .undocumented(statusCode: statusCode, _):
             throw CreateBundleServiceError.unknownError(statusCode)
         case let .badRequest(badRequestResponse):
@@ -79,6 +82,16 @@ public final class CreateBundleService: CreateBundleServicing {
         case .unprocessableContent:
             fatalError()
         }
+    }
+}
+
+public struct ServerBundle {
+    public let url: URL
+
+    init?(_ bundle: Components.Schemas.Bundle) {
+        guard let url = URL(string: bundle.url)
+        else { return nil }
+        self.url = url
     }
 }
 
