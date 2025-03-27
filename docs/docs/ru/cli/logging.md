@@ -6,9 +6,9 @@ description: Узнайте, как включить и настроить ло�
 
 # Логирование {#logging}
 
-CLI логирует сообщения внутри, чтобы помочь вам диагностировать проблемы.
+CLI, внутри, логирует сообщение, чтобы помочь вам диагностировать проблемы.
 
-## Diagnose issues using logs {#diagnose-issues-using-logs}
+## Поиск проблем с помощью логов {#diagnose-issues-using-logs}
 
 If a command invocation doesn't yield the intended results, you can diagnose the issue by inspecting the logs. The CLI forwards the logs to [OSLog](https://developer.apple.com/documentation/os/oslog) and the file-system.
 
