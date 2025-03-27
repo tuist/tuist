@@ -8,6 +8,7 @@
     max-width: 250px;
     position: absolute;
     width: max-content;
+    z-index: var(--noora-z-index-12);
 
     & [data-part="icon"] {
       display: inline-flex;
