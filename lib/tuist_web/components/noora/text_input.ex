@@ -161,6 +161,7 @@ defmodule TuistWeb.Noora.TextInput do
     <button
       phx-click={JS.toggle_attribute({"type", "password", "text"}, to: "##{@input_id}")}
       type="button"
+      tabindex="-1"
     >
       <span class="noora-text-input__password-toggle-text"><.eye /></span>
       <span class="noora-text-input__password-toggle-password"><.eye_off /></span>
