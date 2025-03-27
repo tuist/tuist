@@ -62,7 +62,7 @@ defmodule TuistWeb.AuthenticationPlug do
 
     case authenticated_subject do
       %Project{} = project ->
-        %{account: account} = Projects.get_project_account_by_project_id(project.id)
+        %{account: account} = project
 
         cli_version = Headers.get_cli_version(conn)
 

@@ -115,7 +115,11 @@ defmodule Tuist.Accounts do
   Given a token, it returns the user associated with it.
   """
   def get_user_by_token(token) do
-    Repo.get_by(User, token: token)
+    Repo.one(
+      from u in User,
+        where: u.token == ^token,
+        preload: [:account]
+    )
   end
 
   def get_device_code(code) do
@@ -1132,29 +1136,10 @@ defmodule Tuist.Accounts do
   # Bcrypt does CPU-intensive operations and it can easily slow-down requests when
   # there are bursts of requests coming through the API.
   defp verify_pass(token, token_hash) do
-    validate = fn ->
-      Bcrypt.verify_pass(
-        token_hash <> Tuist.Environment.secret_key_password(),
-        token.encrypted_token_hash
-      )
-    end
-
-    if Tuist.Environment.env() == :test do
-      validate.()
-    else
-      Cachex.transaction!(:tuist, [token, token_hash], fn cache ->
-        {:ok, cached_valid?} = Cachex.get(cache, [token, token_hash])
-
-        # credo:disable-for-next-line Credo.Check.Refactor.Nesting
-        if is_nil(cached_valid?) do
-          valid? = validate.()
-          Cachex.put(cache, [token, token_hash], valid?, ttl: :timer.minutes(2))
-          valid?
-        else
-          cached_valid?
-        end
-      end)
-    end
+    Bcrypt.verify_pass(
+      token_hash <> Tuist.Environment.secret_key_password(),
+      token.encrypted_token_hash
+    )
   end
 
   def avatar_color(%Account{name: name}) do

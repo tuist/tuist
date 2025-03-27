@@ -7,6 +7,7 @@ defmodule Tuist.AuthenticationTest do
   alias Tuist.Authentication
   alias Tuist.Accounts.User
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias Tuist.Repo
   use Mimic
 
   test "authenticated_subject returns nil if the token associated subject doesn't exist" do
@@ -54,7 +55,7 @@ defmodule Tuist.AuthenticationTest do
     token = Projects.create_project_token(project)
 
     # When/Then
-    assert Authentication.authenticated_subject(token) == project
+    assert Authentication.authenticated_subject(token) |> Repo.preload(:account) == project
   end
 
   test "authenticated_subject return the authenticated account associated to the token" do
@@ -74,7 +75,7 @@ defmodule Tuist.AuthenticationTest do
   test "refresh/2 refreshes the account handle" do
     # Given
     %User{id: id, account: %{name: name}} =
-      user = AccountsFixtures.user_fixture(preload: :account)
+      user = AccountsFixtures.user_fixture()
 
     {:ok, refresh_token, _opts} =
       Authentication.encode_and_sign(

@@ -16,7 +16,7 @@ defmodule TuistTestSupport.Fixtures.ProjectsFixtures do
 
     name = Keyword.get(opts, :name, "#{TuistTestSupport.Utilities.unique_integer()}")
     created_at = Keyword.get(opts, :created_at, DateTime.utc_now())
-    preload = Keyword.get(opts, :preload, [])
+    preload = Keyword.get(opts, :preload, [:account])
 
     Projects.create_project(
       %{

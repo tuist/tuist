@@ -9,7 +9,7 @@ defmodule Tuist.Authentication do
   def authenticated_subject(token) do
     case Tuist.Guardian.resource_from_token(token) do
       {:ok, resource, _opts} ->
-        resource
+        resource |> Tuist.Repo.preload(:account)
 
       _ ->
         user = Accounts.get_user_by_token(token)

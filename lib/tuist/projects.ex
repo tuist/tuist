@@ -22,7 +22,8 @@ defmodule Tuist.Projects do
 
   def get_project_by_full_token(full_token) do
     if full_token |> legacy_token?() do
-      Repo.get_by(Project, token: full_token)
+      from(p in Project, where: p.token == ^full_token, preload: [:account])
+      |> Repo.one()
     else
       case get_project_token(full_token) do
         {:error, _} -> nil
@@ -240,29 +241,10 @@ defmodule Tuist.Projects do
   # Bcrypt does CPU-intensive operations and it can easily slow-down requests when
   # there are bursts of requests coming through the API.
   def verify_pass(token, token_hash) do
-    validate = fn ->
-      Bcrypt.verify_pass(
-        token_hash <> Tuist.Environment.secret_key_password(),
-        token.encrypted_token_hash
-      )
-    end
-
-    if Tuist.Environment.env() == :test do
-      validate.()
-    else
-      Cachex.transaction!(:tuist, [token, token_hash], fn cache ->
-        {:ok, cached_valid?} = Cachex.get(cache, [token, token_hash])
-
-        # credo:disable-for-next-line Credo.Check.Refactor.Nesting
-        if is_nil(cached_valid?) do
-          valid? = validate.()
-          Cachex.put(cache, [token, token_hash], valid?, ttl: :timer.minutes(1))
-          valid?
-        else
-          cached_valid?
-        end
-      end)
-    end
+    Bcrypt.verify_pass(
+      token_hash <> Tuist.Environment.secret_key_password(),
+      token.encrypted_token_hash
+    )
   end
 
   def revoke_project_token(%ProjectToken{} = token) do

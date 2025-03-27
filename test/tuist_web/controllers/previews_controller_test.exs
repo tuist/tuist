@@ -12,8 +12,7 @@ defmodule TuistWeb.PreviewsControllerTest do
   use Mimic
 
   setup do
-    user = AccountsFixtures.user_fixture(email: "tuist@tuist.io")
-    account = Accounts.get_account_from_user(user)
+    user = %{account: account} = AccountsFixtures.user_fixture(email: "tuist@tuist.io")
     project = ProjectsFixtures.project_fixture(account_id: account.id)
     %{user: user, project: project, account: account}
   end

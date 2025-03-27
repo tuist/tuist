@@ -71,22 +71,22 @@ defmodule TuistWeb.Authentication do
   end
 
   def put_current_user(%Plug.Conn{} = conn, user) do
-    assign(conn, @current_user_key, user |> Repo.preload(:account))
+    assign(conn, @current_user_key, user)
   end
 
   def put_current_user(%Phoenix.LiveView.Socket{} = socket, user) do
-    Phoenix.Component.assign(socket, @current_user_key, user |> Repo.preload(:account))
+    Phoenix.Component.assign(socket, @current_user_key, user)
   end
 
   def put_current_user(assigns, user) when is_map(assigns) do
-    Map.put(assigns, @current_user_key, user |> Repo.preload(:account))
+    Map.put(assigns, @current_user_key, user)
   end
 
   def put_current_project(%Plug.Conn{} = conn, project) do
     assign(
       conn,
       @current_project_key,
-      project |> Repo.preload(:account)
+      project
     )
   end
 
@@ -94,7 +94,7 @@ defmodule TuistWeb.Authentication do
     Phoenix.Component.assign(
       socket,
       @current_project_key,
-      project |> Repo.preload(:account)
+      project
     )
   end
 
@@ -102,7 +102,7 @@ defmodule TuistWeb.Authentication do
     Map.put(
       assigns,
       @current_project_key,
-      project |> Repo.preload(:account)
+      project
     )
   end
 

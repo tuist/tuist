@@ -36,14 +36,14 @@ defmodule Tuist.ProjectsTest do
     {:ok, got} = Projects.get_project_by_slug("tuist/tuist-project")
 
     # Then
-    assert got == project
+    assert got |> Repo.preload(:account) == project
   end
 
   test "returns all projects associated with a user" do
     # Given
     organization = AccountsFixtures.organization_fixture()
     account = Accounts.get_account_from_organization(organization)
-    project = ProjectsFixtures.project_fixture(account_id: account.id)
+    project = ProjectsFixtures.project_fixture(account_id: account.id, preload: [])
     user = AccountsFixtures.user_fixture()
     Accounts.add_user_to_organization(user, organization, role: :user)
     organization_two = AccountsFixtures.organization_fixture()
@@ -166,7 +166,7 @@ defmodule Tuist.ProjectsTest do
       # Given
       organization = AccountsFixtures.organization_fixture()
       account = Accounts.get_account_from_organization(organization)
-      project = ProjectsFixtures.project_fixture(account_id: account.id)
+      project = ProjectsFixtures.project_fixture(account_id: account.id, preload: [])
 
       # When
       got = Projects.get_all_project_accounts(account)
@@ -185,13 +185,13 @@ defmodule Tuist.ProjectsTest do
       # Given
       organization = AccountsFixtures.organization_fixture()
       account = Accounts.get_account_from_organization(organization)
-      project_one = ProjectsFixtures.project_fixture(account_id: account.id)
+      project_one = ProjectsFixtures.project_fixture(account_id: account.id, preload: [])
       user = AccountsFixtures.user_fixture()
       user_account = Accounts.get_account_from_user(user)
       Accounts.add_user_to_organization(user, organization, role: :user)
 
       project_two =
-        ProjectsFixtures.project_fixture(account_id: user_account.id)
+        ProjectsFixtures.project_fixture(account_id: user_account.id, preload: [])
 
       # When
       got = Projects.get_all_project_accounts(user)
@@ -228,7 +228,7 @@ defmodule Tuist.ProjectsTest do
         )
 
       # Then
-      assert got == project
+      assert got |> Repo.preload(:account) == project
     end
   end
 
@@ -308,7 +308,7 @@ defmodule Tuist.ProjectsTest do
       got = Projects.get_project_by_full_token(token)
 
       # Then
-      assert got == project
+      assert got |> Repo.preload(:account) == project
     end
 
     test "returns project with a legacy token" do
