@@ -1079,29 +1079,53 @@ internal enum Components {
         internal struct BundleRequest: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/BundleRequest/bundle`.
             internal struct bundlePayload: Codable, Hashable, Sendable {
+                /// The app version of the bundle
+                ///
+                /// - Remark: Generated from `#/components/schemas/BundleRequest/bundle/app_version`.
+                internal var app_version: Swift.String?
                 /// The artifacts in this bundle
                 ///
                 /// - Remark: Generated from `#/components/schemas/BundleRequest/bundle/artifacts`.
                 internal var artifacts: [Components.Schemas.BundleArtifact]?
+                /// The ID of the bundle
+                ///
+                /// - Remark: Generated from `#/components/schemas/BundleRequest/bundle/id`.
+                internal var id: Swift.String?
                 /// The name of the bundle
                 ///
                 /// - Remark: Generated from `#/components/schemas/BundleRequest/bundle/name`.
                 internal var name: Swift.String
+                /// The platform of the bundle
+                ///
+                /// - Remark: Generated from `#/components/schemas/BundleRequest/bundle/platform`.
+                internal var platform: Swift.String?
                 /// Creates a new `bundlePayload`.
                 ///
                 /// - Parameters:
+                ///   - app_version: The app version of the bundle
                 ///   - artifacts: The artifacts in this bundle
+                ///   - id: The ID of the bundle
                 ///   - name: The name of the bundle
+                ///   - platform: The platform of the bundle
                 internal init(
+                    app_version: Swift.String? = nil,
                     artifacts: [Components.Schemas.BundleArtifact]? = nil,
-                    name: Swift.String
+                    id: Swift.String? = nil,
+                    name: Swift.String,
+                    platform: Swift.String? = nil
                 ) {
+                    self.app_version = app_version
                     self.artifacts = artifacts
+                    self.id = id
                     self.name = name
+                    self.platform = platform
                 }
                 internal enum CodingKeys: String, CodingKey {
+                    case app_version
                     case artifacts
+                    case id
                     case name
+                    case platform
                 }
             }
             /// - Remark: Generated from `#/components/schemas/BundleRequest/bundle`.
@@ -2016,6 +2040,25 @@ internal enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/RunsIndexPageSize`.
         internal typealias RunsIndexPageSize = Swift.Int
+        /// Response schema for bundle
+        ///
+        /// - Remark: Generated from `#/components/schemas/Bundle`.
+        internal struct Bundle: Codable, Hashable, Sendable {
+            /// The URL of the bundle
+            ///
+            /// - Remark: Generated from `#/components/schemas/Bundle/url`.
+            internal var url: Swift.String
+            /// Creates a new `Bundle`.
+            ///
+            /// - Parameters:
+            ///   - url: The URL of the bundle
+            internal init(url: Swift.String) {
+                self.url = url
+            }
+            internal enum CodingKeys: String, CodingKey {
+                case url
+            }
+        }
         /// A bundle artifact schema
         ///
         /// - Remark: Generated from `#/components/schemas/BundleArtifact`.
@@ -4904,12 +4947,12 @@ internal enum Operations {
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/responses/200/content`.
                 internal enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/responses/200/content/application\/json`.
-                    case json(OpenAPIRuntime.OpenAPIValueContainer)
+                    case json(Components.Schemas.Bundle)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    internal var json: OpenAPIRuntime.OpenAPIValueContainer {
+                    internal var json: Components.Schemas.Bundle {
                         get throws {
                             switch self {
                             case let .json(body):

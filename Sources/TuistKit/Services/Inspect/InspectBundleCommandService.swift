@@ -40,15 +40,23 @@ struct InspectBundleCommandService {
 
         guard let fullHandle = config.fullHandle else { fatalError() }
         let serverURL = try serverURLService.url(configServerURL: config.url)
-        let artifact = try await rosalind.analyze(path: path)
-        try await createBundleService.createBundle(
-            fullHandle: fullHandle,
-            serverURL: serverURL,
-            artifact: artifact
-        )
+        let serverBundle = try await ServiceContext.current!.ui!.progressStep(
+            message: "Analyzing bundle...",
+            successMessage: "Bundle analyzed",
+            errorMessage: nil,
+            showSpinner: true
+        ) { updateStep in
+            let artifact = try await rosalind.analyze(path: path)
+            updateStep("Pushing bundle to the server...")
+            return try await createBundleService.createBundle(
+                fullHandle: fullHandle,
+                serverURL: serverURL,
+                artifact: artifact
+            )
+        }
         ServiceContext.current?.ui?.success(
             .alert(
-                "Uploaded a bundle to the server."
+                "The bundle has been analyzed at \(serverBundle.url.absoluteString)"
             )
         )
     }

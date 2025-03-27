@@ -36,6 +36,11 @@ components:
       properties:
         bundle:
           properties:
+            app_version:
+              description: The app version of the bundle
+              type: string
+              x-struct:
+              x-validate:
             artifacts:
               description: The artifacts in this bundle
               items:
@@ -43,8 +48,18 @@ components:
               type: array
               x-struct:
               x-validate:
+            id:
+              description: The ID of the bundle
+              type: string
+              x-struct:
+              x-validate:
             name:
               description: The name of the bundle
+              type: string
+              x-struct:
+              x-validate:
+            platform:
+              description: The platform of the bundle
               type: string
               x-struct:
               x-validate:
@@ -667,6 +682,20 @@ components:
       title: RunsIndexPageSize
       type: integer
       x-struct:
+      x-validate:
+    Bundle:
+      description: Response schema for bundle
+      properties:
+        url:
+          description: The URL of the bundle
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - url
+      title: Bundle
+      type: object
+      x-struct: Elixir.TuistWeb.API.BundlesController.Schemas.Bundle
       x-validate:
     BundleArtifact:
       description: A bundle artifact schema
@@ -1947,8 +1976,7 @@ paths:
           content:
             application/json:
               schema:
-                x-struct:
-                x-validate:
+                $ref: '#/components/schemas/Bundle'
           description: The bundle was created
         400:
           content:
