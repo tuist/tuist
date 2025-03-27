@@ -154,6 +154,42 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         ])
     }
 
+    func test_generateSourcesBuildPhase_whenBundleWithMetalFiles() throws {
+        // Given
+        let pbxTarget = PBXNativeTarget(name: "Test")
+        let pbxproj = PBXProj()
+        pbxproj.add(object: pbxTarget)
+
+        let sourceFiles: [SourceFile] = [
+            SourceFile(path: "/test/resource.metal"),
+        ]
+
+        let target = Target.test(product: .bundle, sources: sourceFiles)
+
+        let fileElements = createFileElements(for: sourceFiles.map(\.path))
+
+        // When
+        try subject.generateSourcesBuildPhase(
+            files: sourceFiles,
+            coreDataModels: [],
+            target: target,
+            pbxTarget: pbxTarget,
+            fileElements: fileElements,
+            pbxproj: pbxproj
+        )
+
+        // Then
+        let buildPhase = try pbxTarget.sourcesBuildPhase()
+        let buildFiles = buildPhase?.files ?? []
+        let buildFilesNames = buildFiles.map {
+            $0.file?.name
+        }
+
+        XCTAssertEqual(buildFilesNames, [
+            "resource.metal",
+        ])
+    }
+
     func test_generateScripts() throws {
         // Given
         let target = PBXNativeTarget(name: "Test")

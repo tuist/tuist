@@ -721,6 +721,19 @@ final class GenerateAcceptanceTestCommandLineToolBase: TuistAcceptanceTestCase {
     }
 }
 
+final class GenerateAcceptanceTestGeneratedBundleWithMetalFiles: TuistAcceptanceTestCase {
+    func test_generated_bundle_with_metal_files() async throws {
+        try await setUpFixture(.generatedBunleWithMetalFiles)
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self, "Bundle")
+        try await XCTAssertProductWithDestinationContainsResource(
+            "Bundle.bundle",
+            destination: "Debug-iphonesimulator",
+            resource: "default.metallib"
+        )
+    }
+}
+
 final class GenerateAcceptanceTestCommandLineToolWithStaticLibrary: TuistAcceptanceTestCase {
     func test_command_line_tool_with_static_library() async throws {
         try await setUpFixture(.commandLineToolWithStaticLibrary)
