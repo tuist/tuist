@@ -5,11 +5,10 @@ struct InspectBundleCommand: AsyncParsableCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "bundle",
-            abstract: "Inspects an app bundle."
+            abstract: "Inspects an app bundle. The app bundle has to be either `.app`, `.xcarchive` or `.ipa`."
         )
     }
 
-    // TODO: We should also take out the bundle from the derived data if a path is not specified
     @Argument(
         help: "The path to the bundle.",
         completion: .directory,
@@ -17,10 +16,17 @@ struct InspectBundleCommand: AsyncParsableCommand {
     )
     var path: String
 
+    @Flag(
+        help: "The output in JSON format.",
+        envKey: .inspectBundleJSON
+    )
+    var json: Bool = false
+
     func run() async throws {
         try await InspectBundleCommandService()
             .run(
-                path: path
+                path: path,
+                json: json
             )
     }
 }

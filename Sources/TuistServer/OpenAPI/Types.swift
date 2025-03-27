@@ -1079,53 +1079,85 @@ internal enum Components {
         internal struct BundleRequest: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/BundleRequest/bundle`.
             internal struct bundlePayload: Codable, Hashable, Sendable {
-                /// The app version of the bundle
-                ///
-                /// - Remark: Generated from `#/components/schemas/BundleRequest/bundle/app_version`.
-                internal var app_version: Swift.String?
                 /// The artifacts in this bundle
                 ///
                 /// - Remark: Generated from `#/components/schemas/BundleRequest/bundle/artifacts`.
-                internal var artifacts: [Components.Schemas.BundleArtifact]?
-                /// The ID of the bundle
+                internal var artifacts: [Components.Schemas.BundleArtifact]
+                /// The bundle ID
                 ///
-                /// - Remark: Generated from `#/components/schemas/BundleRequest/bundle/id`.
-                internal var id: Swift.String?
+                /// - Remark: Generated from `#/components/schemas/BundleRequest/bundle/bundle_id`.
+                internal var bundle_id: Swift.String
+                /// The bundle download size in bytes
+                ///
+                /// - Remark: Generated from `#/components/schemas/BundleRequest/bundle/download_size`.
+                internal var download_size: Swift.Int?
+                /// The git branch associated with the bundle.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BundleRequest/bundle/git_branch`.
+                internal var git_branch: Swift.String?
+                /// The git commit SHA associated with the bundle.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BundleRequest/bundle/git_commit_sha`.
+                internal var git_commit_sha: Swift.String?
+                /// The bundle install size in bytes
+                ///
+                /// - Remark: Generated from `#/components/schemas/BundleRequest/bundle/install_size`.
+                internal var install_size: Swift.Int
                 /// The name of the bundle
                 ///
                 /// - Remark: Generated from `#/components/schemas/BundleRequest/bundle/name`.
                 internal var name: Swift.String
-                /// The platform of the bundle
+                /// List of supported platforms
                 ///
-                /// - Remark: Generated from `#/components/schemas/BundleRequest/bundle/platform`.
-                internal var platform: Swift.String?
+                /// - Remark: Generated from `#/components/schemas/BundleRequest/bundle/supported_platforms`.
+                internal var supported_platforms: [Components.Schemas.BundleSupportedPlatform]
+                /// The version of the bundle
+                ///
+                /// - Remark: Generated from `#/components/schemas/BundleRequest/bundle/version`.
+                internal var version: Swift.String
                 /// Creates a new `bundlePayload`.
                 ///
                 /// - Parameters:
-                ///   - app_version: The app version of the bundle
                 ///   - artifacts: The artifacts in this bundle
-                ///   - id: The ID of the bundle
+                ///   - bundle_id: The bundle ID
+                ///   - download_size: The bundle download size in bytes
+                ///   - git_branch: The git branch associated with the bundle.
+                ///   - git_commit_sha: The git commit SHA associated with the bundle.
+                ///   - install_size: The bundle install size in bytes
                 ///   - name: The name of the bundle
-                ///   - platform: The platform of the bundle
+                ///   - supported_platforms: List of supported platforms
+                ///   - version: The version of the bundle
                 internal init(
-                    app_version: Swift.String? = nil,
-                    artifacts: [Components.Schemas.BundleArtifact]? = nil,
-                    id: Swift.String? = nil,
+                    artifacts: [Components.Schemas.BundleArtifact],
+                    bundle_id: Swift.String,
+                    download_size: Swift.Int? = nil,
+                    git_branch: Swift.String? = nil,
+                    git_commit_sha: Swift.String? = nil,
+                    install_size: Swift.Int,
                     name: Swift.String,
-                    platform: Swift.String? = nil
+                    supported_platforms: [Components.Schemas.BundleSupportedPlatform],
+                    version: Swift.String
                 ) {
-                    self.app_version = app_version
                     self.artifacts = artifacts
-                    self.id = id
+                    self.bundle_id = bundle_id
+                    self.download_size = download_size
+                    self.git_branch = git_branch
+                    self.git_commit_sha = git_commit_sha
+                    self.install_size = install_size
                     self.name = name
-                    self.platform = platform
+                    self.supported_platforms = supported_platforms
+                    self.version = version
                 }
                 internal enum CodingKeys: String, CodingKey {
-                    case app_version
                     case artifacts
-                    case id
+                    case bundle_id
+                    case download_size
+                    case git_branch
+                    case git_commit_sha
+                    case install_size
                     case name
-                    case platform
+                    case supported_platforms
+                    case version
                 }
             }
             /// - Remark: Generated from `#/components/schemas/BundleRequest/bundle`.
@@ -2044,6 +2076,10 @@ internal enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/Bundle`.
         internal struct Bundle: Codable, Hashable, Sendable {
+            /// The ID of the bundle. This is no a bundle ID that you'd set in Xcode.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Bundle/id`.
+            internal var id: Swift.String
             /// The URL of the bundle
             ///
             /// - Remark: Generated from `#/components/schemas/Bundle/url`.
@@ -2051,11 +2087,17 @@ internal enum Components {
             /// Creates a new `Bundle`.
             ///
             /// - Parameters:
+            ///   - id: The ID of the bundle. This is no a bundle ID that you'd set in Xcode.
             ///   - url: The URL of the bundle
-            internal init(url: Swift.String) {
+            internal init(
+                id: Swift.String,
+                url: Swift.String
+            ) {
+                self.id = id
                 self.url = url
             }
             internal enum CodingKeys: String, CodingKey {
+                case id
                 case url
             }
         }
@@ -2072,6 +2114,7 @@ internal enum Components {
                 case font = "font"
                 case binary = "binary"
                 case localization = "localization"
+                case asset = "asset"
             }
             /// The type of artifact
             ///
@@ -2176,6 +2219,7 @@ internal enum Components {
                     case font = "font"
                     case binary = "binary"
                     case localization = "localization"
+                    case asset = "asset"
                 }
                 /// The type of artifact
                 ///
@@ -2634,6 +2678,18 @@ internal enum Components {
                 case tuist_version
                 case url
             }
+        }
+        /// - Remark: Generated from `#/components/schemas/BundleSupportedPlatform`.
+        internal enum BundleSupportedPlatform: String, Codable, Hashable, Sendable, CaseIterable {
+            case ios = "ios"
+            case ios_simulator = "ios_simulator"
+            case tvos = "tvos"
+            case tvos_simulator = "tvos_simulator"
+            case watchos = "watchos"
+            case watchos_simulator = "watchos_simulator"
+            case visionos = "visionos"
+            case visionos_simulator = "visionos_simulator"
+            case macos = "macos"
         }
         /// The artifact exists in the cache and can be downloaded
         ///
@@ -4657,6 +4713,57 @@ internal enum Operations {
                     }
                 }
             }
+            internal struct TooManyRequests: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/auth/POST/responses/429/content`.
+                internal enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/auth/POST/responses/429/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    internal var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                internal var body: Operations.authenticate.Output.TooManyRequests.Body
+                /// Creates a new `TooManyRequests`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                internal init(body: Operations.authenticate.Output.TooManyRequests.Body) {
+                    self.body = body
+                }
+            }
+            /// You've exceeded the rate limit.
+            ///
+            /// - Remark: Generated from `#/paths//api/auth/post(authenticate)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Operations.authenticate.Output.TooManyRequests)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            internal var tooManyRequests: Operations.authenticate.Output.TooManyRequests {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
             /// Undocumented response.
             ///
             /// A response with a code that is not documented in the OpenAPI document.
@@ -4924,8 +5031,108 @@ internal enum Operations {
             internal var headers: Operations.createBundle.Input.Headers
             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/requestBody`.
             internal enum Body: Sendable, Hashable {
+                /// Request schema for bundle creation
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/requestBody/json`.
+                internal struct jsonPayload: Codable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/requestBody/json/bundle`.
+                    internal struct bundlePayload: Codable, Hashable, Sendable {
+                        /// The artifacts in this bundle
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/requestBody/json/bundle/artifacts`.
+                        internal var artifacts: [Components.Schemas.BundleArtifact]
+                        /// The bundle ID
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/requestBody/json/bundle/bundle_id`.
+                        internal var bundle_id: Swift.String
+                        /// The bundle download size in bytes
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/requestBody/json/bundle/download_size`.
+                        internal var download_size: Swift.Int?
+                        /// The git branch associated with the bundle.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/requestBody/json/bundle/git_branch`.
+                        internal var git_branch: Swift.String?
+                        /// The git commit SHA associated with the bundle.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/requestBody/json/bundle/git_commit_sha`.
+                        internal var git_commit_sha: Swift.String?
+                        /// The bundle install size in bytes
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/requestBody/json/bundle/install_size`.
+                        internal var install_size: Swift.Int
+                        /// The name of the bundle
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/requestBody/json/bundle/name`.
+                        internal var name: Swift.String
+                        /// List of supported platforms
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/requestBody/json/bundle/supported_platforms`.
+                        internal var supported_platforms: [Components.Schemas.BundleSupportedPlatform]
+                        /// The version of the bundle
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/requestBody/json/bundle/version`.
+                        internal var version: Swift.String
+                        /// Creates a new `bundlePayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - artifacts: The artifacts in this bundle
+                        ///   - bundle_id: The bundle ID
+                        ///   - download_size: The bundle download size in bytes
+                        ///   - git_branch: The git branch associated with the bundle.
+                        ///   - git_commit_sha: The git commit SHA associated with the bundle.
+                        ///   - install_size: The bundle install size in bytes
+                        ///   - name: The name of the bundle
+                        ///   - supported_platforms: List of supported platforms
+                        ///   - version: The version of the bundle
+                        internal init(
+                            artifacts: [Components.Schemas.BundleArtifact],
+                            bundle_id: Swift.String,
+                            download_size: Swift.Int? = nil,
+                            git_branch: Swift.String? = nil,
+                            git_commit_sha: Swift.String? = nil,
+                            install_size: Swift.Int,
+                            name: Swift.String,
+                            supported_platforms: [Components.Schemas.BundleSupportedPlatform],
+                            version: Swift.String
+                        ) {
+                            self.artifacts = artifacts
+                            self.bundle_id = bundle_id
+                            self.download_size = download_size
+                            self.git_branch = git_branch
+                            self.git_commit_sha = git_commit_sha
+                            self.install_size = install_size
+                            self.name = name
+                            self.supported_platforms = supported_platforms
+                            self.version = version
+                        }
+                        internal enum CodingKeys: String, CodingKey {
+                            case artifacts
+                            case bundle_id
+                            case download_size
+                            case git_branch
+                            case git_commit_sha
+                            case install_size
+                            case name
+                            case supported_platforms
+                            case version
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/requestBody/json/bundle`.
+                    internal var bundle: Operations.createBundle.Input.Body.jsonPayload.bundlePayload
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - bundle:
+                    internal init(bundle: Operations.createBundle.Input.Body.jsonPayload.bundlePayload) {
+                        self.bundle = bundle
+                    }
+                    internal enum CodingKeys: String, CodingKey {
+                        case bundle
+                    }
+                }
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/requestBody/content/application\/json`.
-                case json(Components.Schemas.BundleRequest)
+                case json(Operations.createBundle.Input.Body.jsonPayload)
             }
             internal var body: Operations.createBundle.Input.Body?
             /// Creates a new `Input`.
@@ -5000,12 +5207,12 @@ internal enum Operations {
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/responses/400/content`.
                 internal enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/responses/400/content/application\/json`.
-                    case json(OpenAPIRuntime.OpenAPIValueContainer)
+                    case json(Components.Schemas._Error)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    internal var json: OpenAPIRuntime.OpenAPIValueContainer {
+                    internal var json: Components.Schemas._Error {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -5024,7 +5231,7 @@ internal enum Operations {
                     self.body = body
                 }
             }
-            /// Bad Request
+            /// An error occurred while updating the account.
             ///
             /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bundles/post(createBundle)/responses/400`.
             ///
@@ -5047,16 +5254,16 @@ internal enum Operations {
                     }
                 }
             }
-            internal struct UnprocessableContent: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/responses/422/content`.
+            internal struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/responses/401/content`.
                 internal enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/responses/422/content/application\/json`.
-                    case json(OpenAPIRuntime.OpenAPIValueContainer)
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/POST/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    internal var json: OpenAPIRuntime.OpenAPIValueContainer {
+                    internal var json: Components.Schemas._Error {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -5066,33 +5273,33 @@ internal enum Operations {
                     }
                 }
                 /// Received HTTP response body
-                internal var body: Operations.createBundle.Output.UnprocessableContent.Body
-                /// Creates a new `UnprocessableContent`.
+                internal var body: Operations.createBundle.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
                 ///
                 /// - Parameters:
                 ///   - body: Received HTTP response body
-                internal init(body: Operations.createBundle.Output.UnprocessableContent.Body) {
+                internal init(body: Operations.createBundle.Output.Unauthorized.Body) {
                     self.body = body
                 }
             }
-            /// Unprocessable Entity
+            /// You need to be authenticated to update your account.
             ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bundles/post(createBundle)/responses/422`.
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bundles/post(createBundle)/responses/401`.
             ///
-            /// HTTP response code: `422 unprocessableContent`.
-            case unprocessableContent(Operations.createBundle.Output.UnprocessableContent)
-            /// The associated value of the enum case if `self` is `.unprocessableContent`.
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.createBundle.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
             ///
-            /// - Throws: An error if `self` is not `.unprocessableContent`.
-            /// - SeeAlso: `.unprocessableContent`.
-            internal var unprocessableContent: Operations.createBundle.Output.UnprocessableContent {
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            internal var unauthorized: Operations.createBundle.Output.Unauthorized {
                 get throws {
                     switch self {
-                    case let .unprocessableContent(response):
+                    case let .unauthorized(response):
                         return response
                     default:
                         try throwUnexpectedResponseStatus(
-                            expectedStatus: "unprocessableContent",
+                            expectedStatus: "unauthorized",
                             response: self
                         )
                     }
