@@ -1,5 +1,23 @@
 # Changelog
 
+## 4.45.1 - 2025-03-27
+
+### CLI
+
+#### Changed
+
+- Extract the initialization logic of ServiceContext to make it reusable [#7435](https://github.com/tuist/tuist/pull/7435) by [@pepicrft](https://github.com/pepicrft)
+
+#### Fixed
+
+- Fix tuist init stuck on authentication [#7434](https://github.com/tuist/tuist/pull/7434) by [@fortmarek](https://github.com/fortmarek)
+- Make redundant dependencies check only for local [#7373](https://github.com/tuist/tuist/pull/7373) by [@rofle100lvl](https://github.com/rofle100lvl)
+- Disable build insights unless fullHandle is defined in Tuist.swift [#7438](https://github.com/tuist/tuist/pull/7438) by [@fortmarek](https://github.com/fortmarek)
+
+### CLI (Server features)
+
+- no changes
+
 ## 4.45.0 - 2025-03-25
 
 ### CLI
