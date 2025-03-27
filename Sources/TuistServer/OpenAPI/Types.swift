@@ -2071,6 +2071,7 @@ internal enum Components {
                 case file = "file"
                 case font = "font"
                 case binary = "binary"
+                case localization = "localization"
             }
             /// The type of artifact
             ///
@@ -2174,6 +2175,7 @@ internal enum Components {
                     case file = "file"
                     case font = "font"
                     case binary = "binary"
+                    case localization = "localization"
                 }
                 /// The type of artifact
                 ///
