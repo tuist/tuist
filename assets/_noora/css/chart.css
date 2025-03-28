@@ -10,7 +10,7 @@
 }
 
 .noora-chart-tooltip {
-  align-items: center;
+  align-items: stretch;
   background: var(--noora-surface-background-primary);
   border-radius: var(--noora-radius-medium);
   box-shadow: var(--noora-border-medium);
@@ -19,6 +19,11 @@
   gap: var(--noora-spacing-4);
   justify-content: center;
   padding: var(--noora-spacing-5);
+
+  & > [data-part="title"] {
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-xsmall);
+  }
 
   & [data-part="series-item"] {
     align-items: center;

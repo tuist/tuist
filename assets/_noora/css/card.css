@@ -1,5 +1,5 @@
 .noora-card {
-  align-items: flex-start;
+  align-items: stretch;
   background: var(--noora-surface-background-tertiary);
   border-radius: var(--noora-radius-2xlarge);
   box-shadow: var(--noora-border-section);
@@ -10,7 +10,7 @@
   padding: var(--noora-spacing-4);
   box-sizing: border-box;
 
-  & [data-part="header"] {
+  & > [data-part="header"] {
     align-items: center;
     box-sizing: border-box;
     display: flex;

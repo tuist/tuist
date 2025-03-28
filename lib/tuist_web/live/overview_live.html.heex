@@ -1,0 +1,173 @@
+<div class="overview">
+  <.card title={gettext("Analytics")} icon="chart_arcs">
+    <% binary_cache_hit_rate =
+      (@binary_cache_hit_rate_analytics.cache_hit_rate * 100)
+      |> Decimal.from_float()
+      |> Decimal.round(1) %>
+    <% selective_testing_hit_rate =
+      (@selective_testing_analytics.hit_rate * 100)
+      |> Decimal.from_float()
+      |> Decimal.round(1) %>
+    <div data-part="widgets">
+      <.widget
+        title={gettext("Binary cache effectiveness")}
+        description={
+          gettext(
+            "Binary cache effectiveness represents the ratio of binary cache hits compared to binary cache misses."
+          )
+        }
+        value={
+          gettext("%{binary_cache_effectiveness}%",
+            binary_cache_effectiveness: binary_cache_hit_rate
+          )
+        }
+        id="widget-binary-cache-effectiveness"
+        trend_value={@binary_cache_hit_rate_analytics.trend}
+        trend_label={gettext("since last week")}
+      />
+      <.widget
+        title={gettext("Selective test effectiveness")}
+        description={
+          gettext(
+            "Selective test effectiveness represents the ratio of selective test hits compared to selective test misses."
+          )
+        }
+        value={
+          gettext("%{selective_tests_effectiveness}%",
+            selective_tests_effectiveness: selective_testing_hit_rate
+          )
+        }
+        id="widget-selective-tests-effectiveness"
+        trend_value={@selective_testing_analytics.trend}
+        trend_label={gettext("since last week")}
+      />
+      <.widget
+        title={gettext("Average build time")}
+        description={
+          gettext("Average time it takes to build a project as reported from Xcode post actions.")
+        }
+        value={
+          gettext("%{duration}s",
+            duration: Float.round(@build_analytics.total_average_duration / 1000, 1)
+          )
+        }
+        id="widget-average-build-time"
+        trend_value={@build_analytics.trend}
+        trend_label={gettext("since last week")}
+      />
+      <.widget
+        title={gettext("Average test time")}
+        description={
+          gettext("Average time it takes to test a project when using the 'tuist test' command.")
+        }
+        value={
+          gettext("%{duration}s",
+            duration: Float.round(@test_analytics.total_average_duration / 1000, 1)
+          )
+        }
+        id="widget-average-test-time"
+        trend_value={@test_analytics.trend}
+        trend_label={gettext("since last week")}
+      />
+    </div>
+    <.card_section>
+      <div data-part="effectiveness-chart">
+        <div data-part="legends">
+          <.legend
+            title={gettext("Binary cache effectiveness")}
+            value={
+              gettext("%{binary_cache_effectiveness}%",
+                binary_cache_effectiveness: binary_cache_hit_rate
+              )
+            }
+            style="primary"
+          />
+          <.legend
+            title={gettext("Selective test effectiveness")}
+            value={
+              gettext("%{selective_test_effectiveness}%",
+                selective_test_effectiveness: selective_testing_hit_rate
+              )
+            }
+            style="secondary"
+          />
+        </div>
+        <.chart
+          id="chart-single-multi-series-line"
+          type="line"
+          extra_options={
+            %{
+              grid: %{
+                width: "93%",
+                left: "0%",
+                right: "7%",
+                height: "88%",
+                top: "5%"
+              },
+              xAxis: %{
+                boundaryGap: false,
+                type: "category",
+                axisLabel: %{
+                  formatter: "fn:toLocaleDate",
+                  customValues: [
+                    @binary_cache_hit_rate_analytics.dates |> hd(),
+                    @binary_cache_hit_rate_analytics.dates |> Enum.reverse() |> hd()
+                  ],
+                  padding: [10, 0, 0, 0]
+                }
+              },
+              yAxis: %{
+                splitLine: %{
+                  lineStyle: %{
+                    color: "var:noora-chart-lines"
+                  }
+                },
+                axisLabel: %{formatter: "{value}%"}
+              },
+              tooltip: %{
+                valueFormat: "{v}%"
+              },
+              legend: %{
+                show: false
+              }
+            }
+          }
+          series={[
+            %{
+              data:
+                Enum.zip(
+                  @binary_cache_hit_rate_analytics.dates,
+                  @binary_cache_hit_rate_analytics.values
+                  |> Enum.map(&(&1 * 100))
+                  |> Enum.map(&Decimal.from_float/1)
+                  |> Enum.map(&Decimal.round(&1, 1))
+                )
+                |> Enum.map(&Tuple.to_list/1),
+              name: gettext("Binary cache effectiveness"),
+              type: "line",
+              smooth: 0.2,
+              symbol: "none"
+            },
+            %{
+              data:
+                Enum.zip(
+                  @selective_testing_analytics.dates,
+                  @selective_testing_analytics.values
+                  |> Enum.map(&(&1 * 100))
+                  |> Enum.map(&Decimal.from_float/1)
+                  |> Enum.map(&Decimal.round(&1, 1))
+                )
+                |> Enum.map(&Tuple.to_list/1),
+              name: gettext("Selective test effectiveness"),
+              type: "line",
+              smooth: 0.2,
+              symbol: "none"
+            }
+          ]}
+          y_axis_min={0}
+          y_axis_max={100}
+        />
+      </div>
+    </.card_section>
+  </.card>
+</div>

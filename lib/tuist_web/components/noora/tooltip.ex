@@ -4,6 +4,8 @@ defmodule TuistWeb.Noora.Tooltip do
   """
   use Phoenix.Component
 
+  import TuistWeb.Noora.Utils
+
   attr :id, :string, required: true
   attr :disabled, :boolean, default: false
 
@@ -27,22 +29,25 @@ defmodule TuistWeb.Noora.Tooltip do
       data-open-delay="250"
       data-close-delay="150"
       data-interactive
+      data-positioning-placement="bottom-start"
     >
       {render_slot(@trigger, %{"data-part" => "trigger"})}
-      <%= if @size == "small" do %>
-        <div data-part="content" data-size="small">{@title}</div>
-      <% end %>
-      <%= if @size == "large" do %>
-        <div data-part="content" data-size="large">
-          <div data-part="icon">
-            {render_slot(@icon)}
+      <div data-part="positioner">
+        <%= if @size == "small" do %>
+          <div data-part="content" data-size="small">{@title}</div>
+        <% end %>
+        <%= if @size == "large" do %>
+          <div data-part="content" data-size="large">
+            <div :if={has_slot_content?(@icon, assigns)} data-part="icon">
+              {render_slot(@icon)}
+            </div>
+            <div data-part="body">
+              <span data-part="title">{@title}</span>
+              <span data-part="description">{@description}</span>
+            </div>
           </div>
-          <div data-part="body">
-            <span data-part="title">{@title}</span>
-            <span data-part="description">{@description}</span>
-          </div>
-        </div>
-      <% end %>
+        <% end %>
+      </div>
     </div>
     """
   end

@@ -37,6 +37,7 @@ defmodule TuistWeb.Noora.Card do
     """
   end
 
+  attr :class, :string, default: "", doc: "The class to apply to the card section."
   attr :rest, :global
   slot :inner_block, required: true
 
@@ -46,7 +47,7 @@ defmodule TuistWeb.Noora.Card do
   """
   def card_section(assigns) do
     ~H"""
-    <div class="noora-card__section" {@rest}>
+    <div class={"noora-card__section " <> @class} {@rest}>
       {render_slot(@inner_block)}
     </div>
     """

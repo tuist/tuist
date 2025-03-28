@@ -68,7 +68,7 @@ defmodule TuistWeb.Storybook.Chart do
               axisLabel: %{
                 margin: 16,
                 showMaxLabel: true,
-                formatter: "fn:firstAndLastDate"
+                formatter: "fn:toLocaleDate"
               }
             },
             tooltip: %{

@@ -19,6 +19,90 @@ defmodule TuistWeb.AppComponents do
   alias Phoenix.LiveView.JS
   use Gettext, backend: TuistWeb.Gettext
   import TuistWeb.Components.IconComponents
+  use TuistWeb.Noora
+
+  attr :id, :string, required: true, doc: "The id of the widget."
+  attr :title, :string, required: true, doc: "The title of the widget."
+
+  attr :description, :string,
+    required: false,
+    doc: "The description of the widget value.",
+    default: nil
+
+  attr :value, :string, required: true, doc: "The value of the widget."
+
+  attr :trend_value, :integer,
+    required: false,
+    default: nil,
+    doc: "The trend value of the widget."
+
+  attr :trend_label, :string, required: false, doc: "The trend label of the widget."
+
+  def widget(assigns) do
+    ~H"""
+    <.card_section class="tuist-widget" id={@id}>
+      <div data-part="header">
+        <span data-part="title">{@title}</span>
+        <.tooltip
+          :if={@description}
+          id={@id <> "-tooltip"}
+          title={@title}
+          description={@description}
+          size="large"
+        >
+          <:trigger :let={attrs}>
+            <span {attrs} data-part="tooltip-icon">
+              <.alert_circle />
+            </span>
+          </:trigger>
+        </.tooltip>
+      </div>
+      <span data-part="value">{@value}</span>
+      <div :if={@trend_value} data-part="trend">
+        <% trend_value =
+          @trend_value
+          |> Float.round(1)
+
+        trend_badge_label = if trend_value > 0, do: "+#{trend_value}%", else: "#{trend_value}%"
+
+        color =
+          cond do
+            trend_value < 0 -> "destructive"
+            trend_value > 0 -> "success"
+            true -> "neutral"
+          end %>
+        <.badge label={trend_badge_label} color={color} style="light-fill">
+          <:icon :if={trend_value != 0}>
+            <.trending_up :if={trend_value > 0} />
+            <.trending_down :if={trend_value < 0} />
+          </:icon>
+        </.badge>
+        <span data-part="label">{@trend_label}</span>
+      </div>
+    </.card_section>
+    """
+  end
+
+  attr :title, :string, required: true, doc: "The title of the legend."
+  attr :value, :string, required: true, doc: "The value associated with the legend type."
+
+  attr :style, :string,
+    required: false,
+    default: "primary",
+    values: ~w(primary secondary),
+    doc: "The style of the legend."
+
+  def legend(assigns) do
+    ~H"""
+    <div class="tuist-legend" data-style={@style}>
+      <div data-part="header">
+        <div data-part="indicator"></div>
+        <span data-part="title">{@title}</span>
+      </div>
+      <span data-part="value">{@value}</span>
+    </div>
+    """
+  end
 
   @doc """
   Renders a section header
@@ -526,7 +610,7 @@ defmodule TuistWeb.AppComponents do
   def input(%{type: "select"} = assigns) do
     ~H"""
     <div phx-feedback-for={@name}>
-      <.label for={@id}>{@label}</.label>
+      <.legacy_label for={@id}>{@label}</.legacy_label>
       <select
         id={@id}
         name={@name}
@@ -545,7 +629,7 @@ defmodule TuistWeb.AppComponents do
   def input(%{type: "textarea"} = assigns) do
     ~H"""
     <div phx-feedback-for={@name}>
-      <.label for={@id}>{@label}</.label>
+      <.legacy_label for={@id}>{@label}</.legacy_label>
       <textarea
         id={@id}
         name={@name}
@@ -566,7 +650,7 @@ defmodule TuistWeb.AppComponents do
   def input(assigns) do
     ~H"""
     <.stack gap="sm">
-      <.label for={@id}>{@label}</.label>
+      <.legacy_label for={@id}>{@label}</.legacy_label>
       <input
         type={@type}
         name={@name}
@@ -591,7 +675,7 @@ defmodule TuistWeb.AppComponents do
   attr :for, :string, default: nil
   slot :inner_block, required: true
 
-  def label(assigns) do
+  def legacy_label(assigns) do
     ~H"""
     <label for={@for} class="text--small font--medium color--text-secondary">
       {render_slot(@inner_block)}
@@ -607,7 +691,7 @@ defmodule TuistWeb.AppComponents do
   def error(assigns) do
     ~H"""
     <p class="mt-3 flex gap-3 text-sm leading-6 text-rose-600 phx-no-feedback:hidden">
-      <.icon name="hero-exclamation-circle-mini" class="mt-0.5 h-5 w-5 flex-none" />
+      <.legacy_icon name="hero-exclamation-circle-mini" class="mt-0.5 h-5 w-5 flex-none" />
       {render_slot(@inner_block)}
     </p>
     """
@@ -877,7 +961,7 @@ defmodule TuistWeb.AppComponents do
   attr :name, :string, required: true
   attr :class, :string, default: nil
 
-  def icon(%{name: "hero-" <> _} = assigns) do
+  def legacy_icon(%{name: "hero-" <> _} = assigns) do
     ~H"""
     <span class={[@name, @class]} />
     """

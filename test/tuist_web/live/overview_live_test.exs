@@ -1,0 +1,69 @@
+defmodule TuistWeb.OverviewLiveTest do
+  use TuistTestSupport.Cases.ConnCase, async: true
+  use TuistTestSupport.Cases.LiveCase
+  use Mimic
+
+  import Phoenix.LiveViewTest
+  alias TuistTestSupport.Fixtures.CommandEventsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistTestSupport.Fixtures.AccountsFixtures
+
+  setup %{conn: conn} do
+    FunWithFlags |> Mimic.stub(:enabled?, fn _ -> true end)
+
+    user = AccountsFixtures.user_fixture()
+
+    %{account: account} =
+      organization =
+      AccountsFixtures.organization_fixture(
+        name: "tuist-org",
+        creator: user,
+        preload: [:account]
+      )
+
+    selected_project = ProjectsFixtures.project_fixture(name: "tuist", account_id: account.id)
+
+    conn =
+      conn
+      |> assign(:selected_project, selected_project)
+      |> assign(:selected_account, account)
+      |> log_in_user(user)
+
+    %{conn: conn, user: user, project: selected_project, organization: organization}
+  end
+
+  test "sets the right title", %{conn: conn, organization: organization, project: project} do
+    # When
+    {:ok, _lv, html} =
+      conn
+      |> live(~p"/noora/#{organization.account.name}/#{project.name}")
+
+    assert html =~ "Overview · tuist-org/tuist · Tuist"
+  end
+
+  test "sets the right binary cache hit rate analytics", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    # Given
+    DateTime
+    |> stub(:utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+
+    CommandEventsFixtures.command_event_fixture(
+      project_id: project.id,
+      name: "generate",
+      cacheable_targets: ["A", "B", "C", "D"],
+      local_cache_target_hits: ["E", "F"],
+      remote_cache_target_hits: [],
+      created_at: ~N[2024-04-30 03:00:00]
+    )
+
+    # When
+    {:ok, lv, _html} =
+      conn
+      |> live(~p"/noora/#{organization.account.name}/#{project.name}")
+
+    assert has_element?(lv, ".tuist-widget span", "50.0%")
+  end
+end

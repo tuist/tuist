@@ -542,8 +542,8 @@ defmodule TuistWeb.Router do
         {TuistWeb.LayoutLive, :project},
         {TuistWeb.Authentication, :mount_current_user}
       ] do
-      live "/", ProjectDashboardLive
-      live "/analytics", ProjectDashboardLive
+      live "/", OverviewLive
+      live "/analytics", OverviewLive
     end
   end
 

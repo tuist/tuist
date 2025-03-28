@@ -8,7 +8,7 @@ defmodule Tuist.Runs.Analytics do
   import Ecto.Query
   import Timescale.Hyperfunctions
 
-  def builds_analytics(project_id, opts) do
+  def builds_analytics(project_id, opts \\ []) do
     start_date = Keyword.get(opts, :start_date, Date.add(DateTime.utc_now(), -30))
     end_date = Keyword.get(opts, :end_date, DateTime.utc_now() |> DateTime.to_date())
 
@@ -72,7 +72,7 @@ defmodule Tuist.Runs.Analytics do
         opts
       ) do
     project_id = Keyword.get(opts, :project_id)
-    start_date = Keyword.get(opts, :start_date)
+    start_date = Keyword.get(opts, :start_date, Date.add(DateTime.utc_now(), -30))
     end_date = Keyword.get(opts, :end_date, DateTime.to_date(DateTime.utc_now()))
 
     runs_duration_analytics(%{
@@ -317,7 +317,7 @@ defmodule Tuist.Runs.Analytics do
     cacheable_targets_count = result.cacheable_targets_count || 0
 
     if cacheable_targets_count == 0 do
-      0
+      0.0
     else
       (local_cache_target_hits_count + remote_cache_target_hits_count) / cacheable_targets_count
     end
@@ -363,7 +363,7 @@ defmodule Tuist.Runs.Analytics do
       if is_nil(cache_hit_rate_metadata) or (cache_hit_rate_metadata.cacheable_targets || 0) == 0 do
         %{
           date: date,
-          cache_hit_rate: 0
+          cache_hit_rate: 0.0
         }
       else
         cacheable_targets = cache_hit_rate_metadata.cacheable_targets
@@ -373,6 +373,150 @@ defmodule Tuist.Runs.Analytics do
         %{
           date: date,
           cache_hit_rate: (local_cache_target_hits + remote_cache_target_hits) / cacheable_targets
+        }
+      end
+    end)
+  end
+
+  def selective_testing_analytics(opts \\ []) do
+    project_id = Keyword.get(opts, :project_id)
+    start_date = Keyword.get(opts, :start_date, Date.add(DateTime.utc_now(), -30))
+    end_date = Keyword.get(opts, :end_date, DateTime.to_date(DateTime.utc_now()))
+    is_ci = Keyword.get(opts, :is_ci)
+
+    days_delta = Date.diff(end_date, start_date)
+
+    date_period = date_period(start_date: start_date, end_date: end_date)
+
+    current_selective_testing_hit_rate =
+      selective_testing_hit_rate(
+        project_id,
+        start_date: start_date,
+        end_date: end_date,
+        is_ci: is_ci
+      )
+
+    previous_selective_testing_hit_rate =
+      selective_testing_hit_rate(
+        project_id,
+        start_date: Date.add(start_date, -days_delta),
+        end_date: start_date,
+        is_ci: is_ci
+      )
+
+    selective_testing_hit_rates =
+      selective_testing_hit_rates(project_id,
+        start_date: start_date,
+        end_date: end_date,
+        date_period: date_period,
+        is_ci: is_ci
+      )
+
+    %{
+      trend:
+        trend(
+          previous_value: previous_selective_testing_hit_rate,
+          current_value: current_selective_testing_hit_rate
+        ),
+      hit_rate: current_selective_testing_hit_rate,
+      dates:
+        formatted_dates(
+          Enum.map(
+            selective_testing_hit_rates,
+            & &1.date
+          ),
+          date_period
+        ),
+      values:
+        Enum.map(
+          selective_testing_hit_rates,
+          & &1.hit_rate
+        )
+    }
+  end
+
+  defp selective_testing_hit_rate(project_id, opts) do
+    start_date = opts |> Keyword.get(:start_date, Date.add(DateTime.utc_now(), -30))
+    end_date = DateTime.to_date(DateTime.utc_now())
+
+    result =
+      from(e in Event,
+        where:
+          e.project_id == ^project_id and
+            e.created_at > ^NaiveDateTime.new!(start_date, ~T[00:00:00]) and
+            e.created_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59]),
+        select: %{
+          test_targets_count: sum(fragment("array_length(?, 1)", e.test_targets)),
+          local_test_target_hits_count:
+            sum(fragment("array_length(?, 1)", e.local_test_target_hits)),
+          remote_test_target_hits_count:
+            sum(fragment("array_length(?, 1)", e.remote_test_target_hits))
+        }
+      )
+      |> add_filters(opts)
+      |> Repo.one()
+
+    local_test_target_hits_count = result.local_test_target_hits_count || 0
+    remote_test_target_hits_count = result.remote_test_target_hits_count || 0
+    test_targets_count = result.test_targets_count || 0
+
+    if test_targets_count == 0 do
+      0.0
+    else
+      (local_test_target_hits_count + remote_test_target_hits_count) / test_targets_count
+    end
+  end
+
+  defp selective_testing_hit_rates(project_id, opts) do
+    start_date = opts |> Keyword.get(:start_date)
+    end_date = opts |> Keyword.get(:end_date)
+    date_period = opts |> Keyword.get(:date_period)
+
+    time_bucket = time_bucket_for_date_period(date_period)
+
+    selective_testing_hit_rate_metadata_map =
+      from(e in Event,
+        group_by: selected_as(^date_period),
+        where:
+          e.created_at > ^NaiveDateTime.new!(start_date, ~T[00:00:00]) and
+            e.created_at < ^NaiveDateTime.new!(end_date, ~T[23:59:59]) and
+            e.project_id == ^project_id,
+        select: %{
+          date: selected_as(time_bucket(e.created_at, ^time_bucket), ^date_period),
+          test_targets: sum(fragment("array_length(?, 1)", e.test_targets)),
+          local_test_target_hits: sum(fragment("array_length(?, 1)", e.local_test_target_hits)),
+          remote_test_target_hits: sum(fragment("array_length(?, 1)", e.remote_test_target_hits))
+        }
+      )
+      |> add_filters(opts)
+      |> Repo.all()
+      |> Map.new(
+        &{normalise_date(&1.date, date_period),
+         %{
+           test_targets: &1.test_targets,
+           local_test_target_hits: &1.local_test_target_hits,
+           remote_test_target_hits: &1.remote_test_target_hits
+         }}
+      )
+
+    date_range_for_date_period(date_period, start_date: start_date, end_date: end_date)
+    |> Enum.map(fn date ->
+      selective_testing_hit_rate_metadata = Map.get(selective_testing_hit_rate_metadata_map, date)
+
+      if is_nil(selective_testing_hit_rate_metadata) or
+           (selective_testing_hit_rate_metadata.test_targets || 0) == 0 do
+        %{
+          date: date,
+          hit_rate: 0.0
+        }
+      else
+        test_targets = selective_testing_hit_rate_metadata.test_targets
+        local_test_target_hits = selective_testing_hit_rate_metadata.local_test_target_hits || 0
+        remote_test_target_hits = selective_testing_hit_rate_metadata.remote_test_target_hits || 0
+
+        %{
+          date: date,
+          hit_rate: (local_test_target_hits + remote_test_target_hits) / test_targets
         }
       end
     end)
@@ -437,16 +581,20 @@ defmodule Tuist.Runs.Analytics do
   end
 
   defp formatted_dates(dates, date_period) do
-    Enum.map(
-      dates,
-      case date_period do
-        :month ->
-          &Calendar.strftime(&1, "%b %Y")
+    if FunWithFlags.enabled?(:noora) do
+      dates
+    else
+      Enum.map(
+        dates,
+        case date_period do
+          :month ->
+            &Calendar.strftime(&1, "%b %Y")
 
-        :day ->
-          &Calendar.strftime(&1, "%b %d")
-      end
-    )
+          :day ->
+            &Calendar.strftime(&1, "%b %d")
+        end
+      )
+    end
   end
 
   defp time_bucket_for_date_period(date_period) do

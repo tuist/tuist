@@ -2,25 +2,16 @@ import * as echarts from "echarts";
 import { parse, formatHex } from "culori";
 
 const formatters = {
-  firstAndLastDate: (el) => (value, index) => {
-    // When there's more than one label per ~65px, ECharts automatically omits labels in the center.
-    const maxLabelCount = Math.ceil(el.getBoundingClientRect().width / 65);
-    const largestSeriesCount = parseInt(el.dataset.largestSeriesCount);
-
-    // The number of labels ECharts will try to render is the smaller of the biggest number of elements in a series, or the number of labels
-    // which will fit in the chart.
-    const boundary = (largestSeriesCount < maxLabelCount ? largestSeriesCount : maxLabelCount) + 1;
-
-    // Render the second label as first one, so the label itself isn't weirdly positioned under the y-axis labels. Render the last label
-    // normally with `showMaxLabel` set since we have space to the right.
-    if (index === 1 || index === boundary) {
-      const date = new Date(value);
-      return date.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
-    }
-
-    return "";
+  toLocaleDate: (el) => (value, _) => {
+    const date = new Date(value);
+    return date.toLocaleDateString(locale(), { day: "numeric", month: "short" });
   },
 };
+
+function locale() {
+  const region = (navigator.language || navigator.userLanguage).split("-")[1];
+  return `en-${region}`;
+}
 
 export default {
   mounted() {
@@ -92,7 +83,9 @@ export default {
     } catch (err) {
       console.error("Failed to parse ECharts options:", err);
     }
-
+    if (option.yAxis.splitLine.lineStyle.color) {
+      option.yAxis.splitLine.lineStyle.color = processColor(option.yAxis.splitLine.lineStyle.color);
+    }
     return option;
   },
 };
@@ -194,15 +187,25 @@ function tooltipFormatter(options = {}) {
     const content = Array.isArray(params)
       ? params.map((param) => tooltipSeries(param, options)).join("")
       : tooltipSeries(params, options);
-    return `<div class="noora-chart-tooltip">${content}</div>`;
+    let title = params[0].name;
+    if (!Number.isNaN(Date.parse(title))) {
+      title = new Date(title).toLocaleDateString(locale(), { day: "numeric", month: "short", year: "numeric" });
+    }
+    return `<div class="noora-chart-tooltip">
+      <span data-part="title">${title}</span>
+      <div class="noora-line-divider">
+        <div data-part="line"></div>
+      </div>
+      ${content}
+    </div>`;
   };
 }
 
-function tooltipSeries({ color, name, value }, options = {}) {
-  if (!name && Array.isArray(value)) {
+function tooltipSeries({ color, seriesName, value }, options = {}) {
+  if (!seriesName && Array.isArray(value)) {
     const date = new Date(value[0]);
     if (date instanceof Date && !isNaN(date)) {
-      name = new Intl.DateTimeFormat(navigator.language).format(date);
+      seriesName = new Intl.DateTimeFormat(navigator.language).format(date);
       value = value[1];
     }
   }
@@ -218,7 +221,7 @@ function tooltipSeries({ color, name, value }, options = {}) {
   return `
   <div data-part="series-item">
     <span data-part="dot" style="--color: ${Array.isArray(color) ? color[0] : color}"></span>
-    <span data-part="label">${name}</span>
+    <span data-part="label">${seriesName}</span>
     <span data-part="value">${formattedValue}</span>
   </div>
   `;

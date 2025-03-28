@@ -338,6 +338,9 @@
   --noora-chart-flaky: light-dark(var(--noora-yellow-600), var(--noora-yellow-400));
   --noora-chart-p90: light-dark(var(--noora-pink-500), var(--noora-pink-400));
   --noora-chart-p50: light-dark(var(--noora-orange-600), var(--noora-orange-400));
+  --noora-chart-legend-primary: light-dark(var(--noora-purple-500), var(--noora-purple-400));
+  --noora-chart-legend-secondary: light-dark(var(--noora-blue-500), var(--noora-blue-400));
+  --noora-chart-lines: light-dark(var(--noora-neutral-light-300), var(--noora-neutral-gray-16));
 
   /* Spacing */
   --noora-spacing-0: 0rem;
@@ -445,6 +448,8 @@
   --noora-font-display-large: 2.375rem/2.875rem var(--noora-font-heading);
   --noora-font-display-medium: 2.25rem/2.625rem var(--noora-font-heading);
   --noora-font-display-small: 2.125rem/2.5rem var(--noora-font-heading);
+  --noora-font-heading-2xlarge: 2rem/2.375rem var(--noora-font-heading);
+  --noora-font-heading-xlarge: 1.5rem/2rem var(--noora-font-heading);
   --noora-font-heading-large: 1.25rem/1.625rem var(--noora-font-heading);
   --noora-font-heading-medium: 1.125rem/1.5rem var(--noora-font-heading);
   --noora-font-heading-small: 1rem/1.375rem var(--noora-font-heading);
@@ -452,11 +457,14 @@
   --noora-font-body-medium: 0.875rem/1.25rem var(--noora-font-body);
   --noora-font-body-small: 0.75rem/1rem var(--noora-font-body);
   --noora-font-body-xsmall: 0.625rem/0.75rem var(--noora-font-body);
+
   @media screen and (min-width: 768px) {
     --noora-font-display-xlarge: 4.5rem/4.875rem var(--noora-font-heading);
     --noora-font-display-large: 4rem/4.375rem var(--noora-font-heading);
     --noora-font-display-medium: 3.5rem/4rem var(--noora-font-heading);
     --noora-font-display-small: 3rem/3.5rem var(--noora-font-heading);
+    --noora-font-heading-2xlarge: 2.5rem/2.875rem var(--noora-font-heading);
+    --noora-font-heading-xlarge: 2rem/2.375rem var(--noora-font-heading);
     --noora-font-heading-large: 1.5rem/2rem var(--noora-font-heading);
     --noora-font-heading-medium: 1.25rem/1.625rem var(--noora-font-heading);
     --noora-font-heading-small: 1.125rem/1.5rem var(--noora-font-heading);

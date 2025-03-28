@@ -1,0 +1,33 @@
+.overview {
+  padding: var(--noora-spacing-7) var(--noora-spacing-5);
+  & [data-part="widgets"] {
+    display: flex;
+    flex-direction: row;
+    gap: var(--noora-spacing-4);
+
+    & > * {
+      flex-grow: 1;
+    }
+  }
+
+  & .noora-chart {
+    width: 105%;
+    height: 148px;
+  }
+
+  & [data-part="legends"] {
+    display: flex;
+    flex-direction: row;
+    gap: var(--noora-spacing-5);
+    & > * {
+      flex-grow: 1;
+    }
+  }
+
+  & [data-part="effectiveness-chart"] {
+    display: flex;
+    flex-direction: column;
+    padding: var(--noora-spacing-5);
+    gap: var(--noora-spacing-7);
+  }
+}

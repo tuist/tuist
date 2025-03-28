@@ -10,9 +10,6 @@ defmodule TuistWeb.AppLayoutComponents do
   import TuistWeb.Noora.Sidebar
   import TuistWeb.Noora.Icon
   import TuistWeb.Noora.LineDivider
-  import TuistWeb.Noora.Avatar
-  alias Tuist.Accounts
-  alias Tuist.Accounts.User
 
   defdelegate noora_button(assigns), to: TuistWeb.Noora.Button, as: :button
 
