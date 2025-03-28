@@ -10,9 +10,9 @@ CLI, внутри, логирует сообщение, чтобы помочь 
 
 ## Поиск проблем с помощью логов {#diagnose-issues-using-logs}
 
-If a command invocation doesn't yield the intended results, you can diagnose the issue by inspecting the logs. The CLI forwards the logs to [OSLog](https://developer.apple.com/documentation/os/oslog) and the file-system.
+Если вызов команды не дает желаемых результатов, вы можете диагностировать проблему, просмотрев логи. CLI направляет логи в [OSLog](https://developer.apple.com/documentation/os/oslog) и в файловую систему.
 
-In every run, it creates a log file at `$XDG_STATE_HOME/tuist/logs/{uuid}.log` where `$XDG_STATE_HOME` takes the value `~/.local/state` if the environment variable is not set.
+При каждом запуске он создает лог файл в `$XDG_STATE_HOME/tuist/logs/{uuid}. og`, где `$XDG_STATE_HOME` принимает значение `~/.local/state`, если переменная окружения не установлена.
 
 По умолчанию, CLI выводит путь логов когда исполнение неожиданно завершается. Если это не так, то логи могут быть найдены в указанном выше пути (то есть в самом последнем лог-файле).
 
