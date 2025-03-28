@@ -38,7 +38,19 @@ eval "$($HOME/.local/bin/mise activate -C $SRCROOT bash --shims)"
 tuist inspect build
 ```
 
-<details><summary>Setting up inspect build post-action in generated projects</summary>
+Your local builds are now tracked as long as you are logged in to your Tuist account. You can now access your build times in the Tuist dashboard and see how they evolve over time:
+
+> [!TIP]
+> To quickly access the dashboard, run `tuist project show --web` from the CLI.
+
+![Dashboard with build insights](/images/guides/develop/insights/builds-dashboard.png)
+
+## Projects {#projects}
+
+> [!NOTE]
+> Auto-generated schemes automatically include the `tuist inspect build` post-action.
+>
+> If you are not interested in tracking build insights in your auto-generated schemes, disable them using the <LocalizedLink href="references/project-description/structs/tuist.generationoptions#buildinsightsdisabled">buildInsightsDisabled</LocalizedLink> generation option.
 
 If you are using generated projects, you can set up a custom <LocalizedLink href="references/project-description/structs/buildaction#postactions">build post-action</LocalizedLink> using a custom scheme, such as:
 
@@ -79,16 +91,7 @@ If you're not using Mise, your script can be simplified to just:
 )
 ```
 
-</details>
-
-Your local builds are now tracked as long as you are logged in to your Tuist account. You can now access your build times in the Tuist dashboard and see how they evolve over time:
-
-> [!TIP]
-> To quickly access the dashboard, run `tuist project show --web` from the CLI.
-
-![Dashboard with build insights](/images/guides/develop/insights/builds-dashboard.png)
-
-### Continuous integration {#continuous-integration}
+## Continuous integration {#continuous-integration}
 
 To track build times also on the CI, you will need to ensure that your CI is <LocalizedLink href="/guides/automate/continuous-integration#authentication">authenticated</LocalizedLink>.
 

@@ -99,4 +99,4 @@ tuist test
 
 같은 환경과 프로젝트 실행에서 <LocalizedLink href="/guides/develop/projects/hashing#debugging">해시는 항상 동일해야</LocalizedLink> 합니다. 예를 들어, 절대 경로를 사용하는 것과 같이 프로젝트가 환경에 대한 참조를 포함하고 있을 때 발생할 수 있습니다. `diff` 명령어를 사용하여 두 번의 `tuist generate`를 통해 생성된 프로젝트나 환경 또는 프로젝트 실행 차이를 비교할 수 있습니다.
 
-Also make sure that the target doesn't depend either directly or indirectly on a <LocalizedLink href="/guides/develop/cache.html#supported-products">non-cacheable target</LocalizedLink>.
+또한 타겟이 직접적으로나 간접적으로 <LocalizedLink href="/guides/develop/cache.html#supported-products">캐시가 불가능한 타겟</LocalizedLink>에 의존하지 않도록 확인해야 합니다.
