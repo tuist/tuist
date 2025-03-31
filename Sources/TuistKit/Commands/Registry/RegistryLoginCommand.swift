@@ -19,7 +19,7 @@ struct RegistryLoginCommand: AsyncParsableCommand {
     var path: String?
 
     func run() async throws {
-        try await RegistryLoginService().run(
+        try await RegistryLoginCommandService().run(
             path: path
         )
     }

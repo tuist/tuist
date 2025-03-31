@@ -19,7 +19,7 @@ struct RegistrySetupCommand: AsyncParsableCommand {
     var path: String?
 
     func run() async throws {
-        try await RegistrySetupService().run(
+        try await RegistrySetupCommandService().run(
             path: path
         )
     }

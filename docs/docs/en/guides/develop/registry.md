@@ -13,11 +13,16 @@ As the number of dependencies grows, so does the time to resolve them. While oth
 
 ## Usage {#usage}
 
-To set up and log in to the registry, run the following commands in your project's directory:
+To set up and log in to the registry, run the following command in your project's directory:
 
 ```bash
-tuist registry setup # Creates a `registries.json` file with the default registry configuration.
-tuist registry login # Logs you into the registry.
+tuist registry setup
+```
+
+This command generates a registry configuration files and logs you in to the registry. To ensure the rest of your team can access the registry, ensure the generated files is committed and that your team members run the following command to log in:
+
+```bash
+tuist registry login
 ```
 
 Now you can access the registry! To resolve dependencies from the registry instead of from source control, continue reading based on your project setup:
