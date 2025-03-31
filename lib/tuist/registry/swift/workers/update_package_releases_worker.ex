@@ -24,7 +24,8 @@ defmodule Tuist.Registry.Swift.Workers.UpdatePackageReleasesWorker do
       Packages.paginated_packages(%{
         first: limit,
         order_by: [:last_updated_releases_at],
-        order_directions: [:asc_nulls_first]
+        order_directions: [:asc_nulls_first],
+        preload: [:package_releases]
       })
 
     for package <- packages do

@@ -44,11 +44,22 @@ defmodule Tuist.Registry.Swift.PackagesTest do
   describe "all_packages/1" do
     test "returns all packages" do
       # Given
-      package_one = PackagesFixtures.package_fixture(scope: "ScopeOne", name: "NameOne")
-      package_two = PackagesFixtures.package_fixture(scope: "ScopeTwo", name: "NameTwo")
+      package_one =
+        PackagesFixtures.package_fixture(
+          scope: "ScopeOne",
+          name: "NameOne",
+          preload: [:package_releases]
+        )
+
+      package_two =
+        PackagesFixtures.package_fixture(
+          scope: "ScopeTwo",
+          name: "NameTwo",
+          preload: [:package_releases]
+        )
 
       # When
-      got = Packages.all_packages()
+      got = Packages.all_packages(preload: [:package_releases])
 
       # Then
       assert got |> Enum.sort_by(& &1.scope) == [package_one, package_two]
@@ -150,7 +161,11 @@ defmodule Tuist.Registry.Swift.PackagesTest do
       |> stub(:decode, fn "content" -> "content" end)
 
       # When
-      got = Packages.create_missing_package_releases(%{package: package, token: "github_token"})
+      got =
+        Packages.create_missing_package_releases(%{
+          package: package |> Repo.preload(:package_releases),
+          token: "github_token"
+        })
 
       # Then
       assert got |> Enum.map(& &1.version) == [
@@ -186,7 +201,11 @@ defmodule Tuist.Registry.Swift.PackagesTest do
       end)
 
       # When
-      got = Packages.create_missing_package_releases(%{package: package, token: "github_token"})
+      got =
+        Packages.create_missing_package_releases(%{
+          package: package |> Repo.preload(:package_releases),
+          token: "github_token"
+        })
 
       # Then
       assert got == []
@@ -197,7 +216,8 @@ defmodule Tuist.Registry.Swift.PackagesTest do
       package =
         PackagesFixtures.package_fixture(
           scope: "Alamofire",
-          name: "Alamofire"
+          name: "Alamofire",
+          preload: [:package_releases]
         )
 
       Storage
@@ -257,7 +277,8 @@ defmodule Tuist.Registry.Swift.PackagesTest do
       package =
         PackagesFixtures.package_fixture(
           scope: "Alamofire",
-          name: "Alamofire"
+          name: "Alamofire",
+          preload: [:package_releases]
         )
 
       Storage
@@ -316,7 +337,8 @@ defmodule Tuist.Registry.Swift.PackagesTest do
       package =
         PackagesFixtures.package_fixture(
           scope: "Alamofire",
-          name: "Alamofire"
+          name: "Alamofire",
+          preload: [:package_releases]
         )
 
       Storage
@@ -392,7 +414,8 @@ defmodule Tuist.Registry.Swift.PackagesTest do
       package =
         PackagesFixtures.package_fixture(
           scope: "imgly",
-          name: "vesdk-ios-build"
+          name: "vesdk-ios-build",
+          preload: [:package_releases]
         )
 
       Storage
@@ -484,7 +507,8 @@ defmodule Tuist.Registry.Swift.PackagesTest do
       package =
         PackagesFixtures.package_fixture(
           scope: "catterwaul",
-          name: "tuplay"
+          name: "tuplay",
+          preload: [:package_releases]
         )
 
       Storage
@@ -590,7 +614,8 @@ defmodule Tuist.Registry.Swift.PackagesTest do
       package =
         PackagesFixtures.package_fixture(
           scope: "firebase",
-          name: "firebase-ios-sdk"
+          name: "firebase-ios-sdk",
+          preload: [:package_releases]
         )
 
       Storage
@@ -699,7 +724,8 @@ defmodule Tuist.Registry.Swift.PackagesTest do
       package =
         PackagesFixtures.package_fixture(
           scope: "Alamofire",
-          name: "Alamofire"
+          name: "Alamofire",
+          preload: [:package_releases]
         )
 
       VCS
@@ -915,7 +941,8 @@ defmodule Tuist.Registry.Swift.PackagesTest do
       package =
         PackagesFixtures.package_fixture(
           scope: "pinterest",
-          name: "PINRemoteImage"
+          name: "PINRemoteImage",
+          preload: [:package_releases]
         )
 
       VCS
@@ -1036,7 +1063,8 @@ defmodule Tuist.Registry.Swift.PackagesTest do
       package =
         PackagesFixtures.package_fixture(
           scope: "pinterest",
-          name: "PINRemoteImage"
+          name: "PINRemoteImage",
+          preload: [:package_releases]
         )
 
       VCS
@@ -1151,7 +1179,8 @@ defmodule Tuist.Registry.Swift.PackagesTest do
       package =
         PackagesFixtures.package_fixture(
           scope: "Alamofire",
-          name: "Alamofire"
+          name: "Alamofire",
+          preload: [:package_releases]
         )
 
       Storage
@@ -1264,7 +1293,8 @@ defmodule Tuist.Registry.Swift.PackagesTest do
       package =
         PackagesFixtures.package_fixture(
           scope: "My",
-          name: "Package"
+          name: "Package",
+          preload: [:package_releases]
         )
 
       Storage

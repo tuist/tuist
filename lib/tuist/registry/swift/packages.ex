@@ -13,6 +13,7 @@ defmodule Tuist.Registry.Swift.Packages do
   alias Tuist.Repo
   alias Tuist.Storage
   alias Tuist.Accounts.Account
+  import Ecto.Query, only: [from: 2]
 
   @alternate_package_manifest_regex ~r/\APackage@swift-(\d+)(?:\.(\d+))?(?:\.(\d+))?.swift\z/
 
@@ -39,14 +40,16 @@ defmodule Tuist.Registry.Swift.Packages do
       last_updated_releases_at: Keyword.get(opts, :last_updated_releases_at)
     })
     |> Repo.insert!()
+    |> Repo.preload(Keyword.get(opts, :preload, []))
   end
 
   def delete_package(%Package{} = package) do
     Repo.delete!(package)
   end
 
-  def all_packages() do
-    Repo.all(Package)
+  def all_packages(opts \\ []) do
+    preload = opts |> Keyword.get(:preload, [])
+    Repo.all(from p in Package, preload: ^preload)
   end
 
   def get_package_by_scope_and_name(%{scope: scope, name: name}, opts \\ []) do
@@ -73,8 +76,6 @@ defmodule Tuist.Registry.Swift.Packages do
             package,
         token: token
       }) do
-    package = package |> Repo.preload(:package_releases)
-
     VCS.get_tags(%{
       repository_full_handle: repository_full_handle,
       provider: :github,

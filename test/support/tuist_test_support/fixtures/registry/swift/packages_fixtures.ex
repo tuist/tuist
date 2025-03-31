@@ -13,6 +13,7 @@ defmodule TuistTestSupport.Fixtures.Registry.Swift.PackagesFixtures do
     inserted_at = Keyword.get(opts, :inserted_at, DateTime.utc_now())
     updated_at = Keyword.get(opts, :updated_at, DateTime.utc_now())
     last_updated_releases_at = Keyword.get(opts, :last_updated_releases_at, DateTime.utc_now())
+    preload = Keyword.get(opts, :preload, [])
 
     Packages.create_package(
       %{
@@ -22,7 +23,8 @@ defmodule TuistTestSupport.Fixtures.Registry.Swift.PackagesFixtures do
       },
       inserted_at: inserted_at,
       updated_at: updated_at,
-      last_updated_releases_at: last_updated_releases_at
+      last_updated_releases_at: last_updated_releases_at,
+      preload: preload
     )
   end
 
