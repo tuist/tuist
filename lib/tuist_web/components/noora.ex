@@ -11,6 +11,7 @@ defmodule TuistWeb.Noora do
       import TuistWeb.Noora.Banner
       import TuistWeb.Noora.Breadcrumbs
       import TuistWeb.Noora.Button
+      import TuistWeb.Noora.ButtonGroup
       import TuistWeb.Noora.Card
       import TuistWeb.Noora.Chart
       import TuistWeb.Noora.Checkbox

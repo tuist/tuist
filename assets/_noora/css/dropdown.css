@@ -28,10 +28,12 @@
     border: 0;
     box-shadow: var(--border);
     color: var(--noora-surface-label-primary);
+    cursor: pointer;
     display: flex;
     font: var(--noora-font-body-medium);
     gap: var(--noora-spacing-4);
     padding: var(--noora-spacing-3) var(--noora-spacing-4);
+    outline: unset;
 
     & [data-part="icon"] {
       color: var(--noora-surface-label-secondary);
@@ -95,6 +97,14 @@
       --background-gradient-start: light-dark(oklch(78.6% 0.013 248 / 0), oklch(100% 0 0 / 0.04));
       --background-gradient-end: light-dark(oklch(78.6% 0.013 248 / 0.26), oklch(100% 0 0 / 0));
     }
+  }
+
+  & [data-part="positioner"] {
+    display: none;
+  }
+
+  & > [data-state="open"] + [data-part="positioner"] {
+    display: flex;
   }
 
   & [data-part="indicator"] {

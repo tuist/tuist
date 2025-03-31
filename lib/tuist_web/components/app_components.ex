@@ -278,10 +278,10 @@ defmodule TuistWeb.AppComponents do
 
   ## Examples
 
-  <.button_group selected_key="button_1">
+  <.legacy_button_group selected_key="button_1">
     <:button key="button_1">Button 1</:button>
     <:button key="button_2">Button 2</:button>
-  </.button_group>
+  </.legacy_button_group>
   """
   slot(:button, required: false) do
     attr(:key, :string, required: true)
@@ -289,7 +289,7 @@ defmodule TuistWeb.AppComponents do
 
   attr(:selected_key, :string, required: true)
 
-  def button_group(assigns) do
+  def legacy_button_group(assigns) do
     ~H"""
     <div class="button-group">
       <%= for button <- @button do %>

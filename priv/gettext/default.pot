@@ -101,6 +101,7 @@ msgstr ""
 msgid "%{runs_count} runs"
 msgstr ""
 
+#: lib/tuist_web/live/overview_live.html.heex:61
 #: lib/tuist_web/live/project_dashboard_live.html.heex:15
 #, elixir-autogen, elixir-format
 msgid "12 months"
@@ -116,6 +117,7 @@ msgstr ""
 msgid "200"
 msgstr ""
 
+#: lib/tuist_web/live/overview_live.html.heex:56
 #: lib/tuist_web/live/project_dashboard_live.html.heex:12
 #, elixir-autogen, elixir-format
 msgid "30 days"
@@ -141,6 +143,7 @@ msgstr ""
 msgid "500 error"
 msgstr ""
 
+#: lib/tuist_web/live/overview_live.html.heex:51
 #: lib/tuist_web/live/project_dashboard_live.html.heex:9
 #, elixir-autogen, elixir-format
 msgid "7 days"
@@ -356,6 +359,7 @@ msgstr ""
 
 #: lib/tuist_web/components/app_command_event_components.ex:21
 #: lib/tuist_web/components/app_command_event_components.ex:40
+#: lib/tuist_web/live/overview_live.html.heex:16
 #: lib/tuist_web/live/project_dashboard_live.html.heex:48
 #, elixir-autogen, elixir-format
 msgid "CI"
@@ -2529,24 +2533,24 @@ msgstr ""
 msgid "Switch to your preferred theme"
 msgstr ""
 
-#: lib/tuist_web/live/overview_live.html.heex:20
-#: lib/tuist_web/live/overview_live.html.heex:79
+#: lib/tuist_web/live/overview_live.html.heex:81
+#: lib/tuist_web/live/overview_live.html.heex:140
 #, elixir-autogen, elixir-format
 msgid "%{binary_cache_effectiveness}%"
 msgstr ""
 
-#: lib/tuist_web/live/overview_live.html.heex:50
-#: lib/tuist_web/live/overview_live.html.heex:64
+#: lib/tuist_web/live/overview_live.html.heex:111
+#: lib/tuist_web/live/overview_live.html.heex:125
 #, elixir-autogen, elixir-format
 msgid "%{duration}s"
 msgstr ""
 
-#: lib/tuist_web/live/overview_live.html.heex:88
+#: lib/tuist_web/live/overview_live.html.heex:149
 #, elixir-autogen, elixir-format
 msgid "%{selective_test_effectiveness}%"
 msgstr ""
 
-#: lib/tuist_web/live/overview_live.html.heex:36
+#: lib/tuist_web/live/overview_live.html.heex:97
 #, elixir-autogen, elixir-format
 msgid "%{selective_tests_effectiveness}%"
 msgstr ""
@@ -2556,34 +2560,34 @@ msgstr ""
 msgid "Analytics"
 msgstr ""
 
-#: lib/tuist_web/live/overview_live.html.heex:45
+#: lib/tuist_web/live/overview_live.html.heex:106
 #, elixir-autogen, elixir-format
 msgid "Average build time"
 msgstr ""
 
-#: lib/tuist_web/live/overview_live.html.heex:59
+#: lib/tuist_web/live/overview_live.html.heex:120
 #, elixir-autogen, elixir-format
 msgid "Average test time"
 msgstr ""
 
-#: lib/tuist_web/live/overview_live.html.heex:47
+#: lib/tuist_web/live/overview_live.html.heex:108
 #, elixir-autogen, elixir-format
 msgid "Average time it takes to build a project as reported from Xcode post actions."
 msgstr ""
 
-#: lib/tuist_web/live/overview_live.html.heex:61
+#: lib/tuist_web/live/overview_live.html.heex:122
 #, elixir-autogen, elixir-format
 msgid "Average time it takes to test a project when using the 'tuist test' command."
 msgstr ""
 
-#: lib/tuist_web/live/overview_live.html.heex:13
-#: lib/tuist_web/live/overview_live.html.heex:77
-#: lib/tuist_web/live/overview_live.html.heex:146
+#: lib/tuist_web/live/overview_live.html.heex:74
+#: lib/tuist_web/live/overview_live.html.heex:138
+#: lib/tuist_web/live/overview_live.html.heex:207
 #, elixir-autogen, elixir-format
 msgid "Binary cache effectiveness"
 msgstr ""
 
-#: lib/tuist_web/live/overview_live.html.heex:15
+#: lib/tuist_web/live/overview_live.html.heex:76
 #, elixir-autogen, elixir-format
 msgid "Binary cache effectiveness represents the ratio of binary cache hits compared to binary cache misses."
 msgstr ""
@@ -2593,22 +2597,19 @@ msgstr ""
 msgid "Overview"
 msgstr ""
 
-#: lib/tuist_web/live/overview_live.html.heex:29
-#: lib/tuist_web/live/overview_live.html.heex:86
-#: lib/tuist_web/live/overview_live.html.heex:161
+#: lib/tuist_web/live/overview_live.html.heex:90
+#: lib/tuist_web/live/overview_live.html.heex:147
+#: lib/tuist_web/live/overview_live.html.heex:222
 #, elixir-autogen, elixir-format
 msgid "Selective test effectiveness"
 msgstr ""
 
-#: lib/tuist_web/live/overview_live.html.heex:31
+#: lib/tuist_web/live/overview_live.html.heex:92
 #, elixir-autogen, elixir-format
 msgid "Selective test effectiveness represents the ratio of selective test hits compared to selective test misses."
 msgstr ""
 
-#: lib/tuist_web/live/overview_live.html.heex:26
-#: lib/tuist_web/live/overview_live.html.heex:42
-#: lib/tuist_web/live/overview_live.html.heex:56
-#: lib/tuist_web/live/overview_live.html.heex:70
+#: lib/tuist_web/live/overview_live.html.heex:69
 #, elixir-autogen, elixir-format
 msgid "since last week"
 msgstr ""
@@ -2636,4 +2637,29 @@ msgstr ""
 #: lib/tuist_web/live/user_login_live.ex:45
 #, elixir-autogen, elixir-format
 msgid "Welcome back! Please log in to continue"
+msgstr ""
+
+#: lib/tuist_web/live/overview_live.html.heex:14
+#, elixir-autogen, elixir-format
+msgid "Any"
+msgstr ""
+
+#: lib/tuist_web/live/overview_live.html.heex:21
+#, elixir-autogen, elixir-format
+msgid "Environment:"
+msgstr ""
+
+#: lib/tuist_web/live/overview_live.html.heex:15
+#, elixir-autogen, elixir-format
+msgid "Local"
+msgstr ""
+
+#: lib/tuist_web/live/overview_live.html.heex:71
+#, elixir-autogen, elixir-format
+msgid "since last month"
+msgstr ""
+
+#: lib/tuist_web/live/overview_live.html.heex:70
+#, elixir-autogen, elixir-format
+msgid "since last year"
 msgstr ""

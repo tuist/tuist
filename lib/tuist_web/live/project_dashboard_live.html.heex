@@ -4,7 +4,7 @@
       {gettext("Dashboard")}
     </h5>
     <.stack class="analytics__header-section__controls" direction="horizontal">
-      <.button_group selected_key={@date_range}>
+      <.legacy_button_group selected_key={@date_range}>
         <:button key="last_7_days">
           <.link patch="?date_range=last_7_days">{gettext("7 days")}</.link>
         </:button>
@@ -14,7 +14,7 @@
         <:button key="last_12_months">
           <.link patch="?date_range=last_12_months">{gettext("12 months")}</.link>
         </:button>
-      </.button_group>
+      </.legacy_button_group>
       <.dropdown_picker class="home-filter-dropdown" menu_id="home-filter">
         {gettext("Filter")}
         <:content>

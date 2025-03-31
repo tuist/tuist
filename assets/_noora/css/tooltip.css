@@ -6,7 +6,6 @@
     box-shadow: var(--noora-border-heavy);
     color: var(--noora-surface-label-primary);
     max-width: 250px;
-    position: absolute;
     width: max-content;
     z-index: var(--noora-z-index-12);
 

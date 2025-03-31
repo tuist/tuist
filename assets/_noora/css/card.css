@@ -45,6 +45,7 @@
     & [data-part="actions"] {
       align-items: center;
       display: flex;
+      gap: var(--noora-spacing-4);
     }
   }
 }

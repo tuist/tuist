@@ -6,7 +6,7 @@
     gap: var(--noora-spacing-4);
 
     & > * {
-      flex-grow: 1;
+      flex: 1;
     }
   }
 
@@ -29,5 +29,11 @@
     flex-direction: column;
     padding: var(--noora-spacing-5);
     gap: var(--noora-spacing-7);
+  }
+
+  & > [data-part="analytics"] {
+    & .noora-dropdown-item:not([data-selected]) svg {
+      visibility: hidden;
+    }
   }
 }
