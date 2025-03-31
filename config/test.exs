@@ -34,3 +34,7 @@ config :phoenix, :plug_init_mode, :runtime
 
 # Oban
 config :tuist, Oban, testing: :inline
+
+config :tuist,
+  api_pipeline_producer_module: Broadway.DummyProducer,
+  api_pipeline_producer_options: []

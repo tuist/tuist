@@ -86,6 +86,7 @@ defmodule Tuist.Application do
           Horde.DynamicSupervisor,
           name: Tuist.DistributedSupervisor, strategy: :one_for_one, children: []
         },
+        {Tuist.API.Pipeline, []},
         # Rate limit
         {TuistWeb.RateLimit, [clean_period: 60_000 * 10]},
         # Start a worker by calling: Tuist.Worker.start_link(arg)

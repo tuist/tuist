@@ -7,7 +7,6 @@ defmodule TuistWeb.API.CacheController do
   alias TuistWeb.API.Schemas.ArtifactUploadId
   alias TuistWeb.API.EnsureProjectPresencePlug
   alias Tuist.Storage
-  alias Tuist.CommandEvents
   alias OpenApiSpex.Schema
   alias TuistWeb.API.Schemas.{Error, CacheArtifactDownloadURL, CacheCategory}
 
@@ -153,19 +152,27 @@ defmodule TuistWeb.API.CacheController do
         expires_in: expires_in
       )
 
-    upload_event = CommandEvents.get_cache_event(%{hash: hash, event_type: :upload})
+    object_key = get_object_key(item)
 
-    unless is_nil(upload_event) do
-      CommandEvents.create_cache_event(%{
-        name: name,
-        event_type: :download,
-        size: upload_event.size,
-        project_id: EnsureProjectPresencePlug.get_project(conn).id,
-        hash: hash
-      })
+    if Storage.object_exists?(object_key) do
+      size = Storage.get_object_size(object_key)
+
+      :ok =
+        Tuist.API.Pipeline.async_push(
+          {:cache_event,
+           %{
+             event_type: :download,
+             hash: hash,
+             name: name,
+             project_id: EnsureProjectPresencePlug.get_project(conn).id,
+             size: size,
+             created_at: NaiveDateTime.utc_now(:second),
+             updated_at: NaiveDateTime.utc_now(:second)
+           }}
+        )
 
       Tuist.Analytics.cache_artifact_download(
-        %{size: upload_event.size, category: cache_category},
+        %{size: size, category: cache_category},
         TuistWeb.Authentication.authenticated_subject(conn)
       )
     end
@@ -648,13 +655,19 @@ defmodule TuistWeb.API.CacheController do
 
     size = Storage.get_object_size(get_object_key(item))
 
-    CommandEvents.create_cache_event(%{
-      name: name,
-      event_type: :upload,
-      size: size,
-      project_id: EnsureProjectPresencePlug.get_project(conn).id,
-      hash: hash
-    })
+    :ok =
+      Tuist.API.Pipeline.async_push(
+        {:cache_event,
+         %{
+           event_type: :upload,
+           hash: hash,
+           name: name,
+           project_id: EnsureProjectPresencePlug.get_project(conn).id,
+           size: size,
+           created_at: NaiveDateTime.utc_now(:second),
+           updated_at: NaiveDateTime.utc_now(:second)
+         }}
+      )
 
     Tuist.Analytics.cache_artifact_upload(
       %{size: size, category: cache_category},

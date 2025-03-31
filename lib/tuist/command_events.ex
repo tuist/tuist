@@ -58,6 +58,10 @@ defmodule Tuist.CommandEvents do
     cache_event
   end
 
+  def create_cache_events(cache_events) do
+    Repo.insert_all(CacheEvent, cache_events)
+  end
+
   def get_cache_event(%{hash: hash, event_type: event_type}) do
     # Note
     # We should have added a unique index on the hash and event_type columns.

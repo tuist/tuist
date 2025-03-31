@@ -20,26 +20,39 @@ defmodule TuistWeb.API.CacheControllerTest do
   describe "GET /api/cache" do
     test "returns download url", %{conn: conn, cache: cache} do
       # Given
-      project = ProjectsFixtures.project_fixture()
+      project = %{id: project_id} = ProjectsFixtures.project_fixture()
       account = Accounts.get_account_by_id(project.account_id)
       hash = "hash"
       name = "name"
-      project_id = "#{account.name}/#{project.name}"
+      size = 1024
+      project_slug = "#{account.name}/#{project.name}"
       cache_category = "builds"
       download_url = "https://tuist.dev/download/1234"
-      object_key = "#{project_id}/#{cache_category}/#{hash}/#{name}"
+      object_key = "#{project_slug}/#{cache_category}/#{hash}/#{name}"
+      date = ~N[2024-04-30 10:20:30Z]
 
-      CommandEvents.create_cache_event(%{
-        project_id: project.id,
-        name: name,
-        event_type: :upload,
-        size: 1024,
-        hash: hash
-      })
+      NaiveDateTime |> stub(:utc_now, fn :second -> date end)
 
       Storage
       |> expect(:generate_download_url, fn ^object_key, _ ->
         download_url
+      end)
+
+      Storage |> expect(:object_exists?, fn ^object_key -> true end)
+      Storage |> expect(:get_object_size, fn ^object_key -> size end)
+
+      Tuist.API.Pipeline
+      |> expect(:async_push, fn {:cache_event,
+                                 %{
+                                   event_type: :download,
+                                   hash: ^hash,
+                                   name: ^name,
+                                   project_id: ^project_id,
+                                   size: ^size,
+                                   created_at: ^date,
+                                   updated_at: ^date
+                                 }} ->
+        :ok
       end)
 
       conn =
@@ -53,7 +66,7 @@ defmodule TuistWeb.API.CacheControllerTest do
         |> get(~p"/api/cache",
           hash: hash,
           name: name,
-          project_id: project_id,
+          project_id: project_slug,
           cache_category: cache_category
         )
 
@@ -63,9 +76,6 @@ defmodule TuistWeb.API.CacheControllerTest do
       response_data = response["data"]
       assert response_data["url"] == download_url
       assert response_data["expires_at"] != nil
-
-      cache_event = CommandEvents.get_cache_event(%{hash: hash, event_type: :download})
-      assert cache_event.size == 1024
     end
 
     test "returns download url with downcased full handle", %{conn: conn, cache: cache} do
@@ -73,6 +83,7 @@ defmodule TuistWeb.API.CacheControllerTest do
       organization = AccountsFixtures.organization_fixture(name: "MyAccount", preload: [:account])
 
       project =
+        %{id: project_id} =
         ProjectsFixtures.project_fixture(
           name: "MyProject",
           account_id: organization.account.id
@@ -84,18 +95,31 @@ defmodule TuistWeb.API.CacheControllerTest do
       cache_category = "builds"
       download_url = "https://tuist.dev/download/1234"
       object_key = "myaccount/myproject/#{cache_category}/#{hash}/#{name}"
+      size = 1024
+      date = ~N[2024-04-30 10:20:30Z]
 
-      CommandEvents.create_cache_event(%{
-        project_id: project.id,
-        name: name,
-        event_type: :upload,
-        size: 1024,
-        hash: hash
-      })
+      NaiveDateTime |> stub(:utc_now, fn :second -> date end)
 
       Storage
       |> expect(:generate_download_url, fn ^object_key, _ ->
         download_url
+      end)
+
+      Storage |> expect(:object_exists?, fn ^object_key -> true end)
+      Storage |> expect(:get_object_size, fn ^object_key -> size end)
+
+      Tuist.API.Pipeline
+      |> expect(:async_push, fn {:cache_event,
+                                 %{
+                                   event_type: :download,
+                                   hash: ^hash,
+                                   name: ^name,
+                                   project_id: ^project_id,
+                                   size: ^size,
+                                   created_at: ^date,
+                                   updated_at: ^date
+                                 }} ->
+        :ok
       end)
 
       conn =
@@ -116,9 +140,6 @@ defmodule TuistWeb.API.CacheControllerTest do
       # Then
       response = json_response(conn, 200)
       assert response["data"]["url"] == download_url
-
-      cache_event = CommandEvents.get_cache_event(%{hash: hash, event_type: :download})
-      assert cache_event.size == 1024
     end
   end
 
@@ -374,20 +395,24 @@ defmodule TuistWeb.API.CacheControllerTest do
   describe "POST /api/cache/multipart/complete" do
     test "completes a multipart upload", %{conn: conn, cache: cache} do
       # Given
-      project = ProjectsFixtures.project_fixture()
+      project = %{id: project_id} = ProjectsFixtures.project_fixture()
       account = Accounts.get_account_by_id(project.account_id)
       hash = "hash"
       name = "name"
-      project_id = "#{account.name}/#{project.name}"
+      project_slug = "#{account.name}/#{project.name}"
       cache_category = "builds"
       upload_id = "1234"
-      object_key = "#{project_id}/#{cache_category}/#{hash}/#{name}"
+      object_key = "#{project_slug}/#{cache_category}/#{hash}/#{name}"
+      size = 1024
+      date = ~N[2024-04-30 10:20:30Z]
 
       parts = [
         %{part_number: 1, etag: "etag1"},
         %{part_number: 2, etag: "etag2"},
         %{part_number: 3, etag: "etag3"}
       ]
+
+      NaiveDateTime |> stub(:utc_now, fn :second -> date end)
 
       Storage
       |> expect(:multipart_complete_upload, fn ^object_key,
@@ -398,7 +423,21 @@ defmodule TuistWeb.API.CacheControllerTest do
 
       Storage
       |> expect(:get_object_size, fn ^object_key ->
-        1024
+        size
+      end)
+
+      Tuist.API.Pipeline
+      |> expect(:async_push, fn {:cache_event,
+                                 %{
+                                   name: ^name,
+                                   size: ^size,
+                                   hash: ^hash,
+                                   created_at: ^date,
+                                   updated_at: ^date,
+                                   project_id: ^project_id,
+                                   event_type: :upload
+                                 }} ->
+        :ok
       end)
 
       conn =
@@ -411,7 +450,7 @@ defmodule TuistWeb.API.CacheControllerTest do
         |> put_req_header("content-type", "application/json")
         |> assign(:cache, cache)
         |> post(
-          ~p"/api/cache/multipart/complete?hash=#{hash}&name=#{name}&project_id=#{project_id}&cache_category=#{cache_category}&upload_id=#{upload_id}",
+          ~p"/api/cache/multipart/complete?hash=#{hash}&name=#{name}&project_id=#{project_slug}&cache_category=#{cache_category}&upload_id=#{upload_id}",
           parts: parts
         )
 
@@ -419,9 +458,6 @@ defmodule TuistWeb.API.CacheControllerTest do
       response = json_response(conn, 200)
       assert response["status"] == "success"
       assert response["data"] == %{}
-
-      cache_event = CommandEvents.get_cache_event(%{hash: hash, event_type: :upload})
-      assert cache_event.size == 1024
     end
 
     test "completes a multipart upload when an item was uploaded before", %{

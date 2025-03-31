@@ -72,7 +72,7 @@ defmodule Tuist.Environment do
 
   def get_license_key(secrets \\ secrets()) do
     System.get_env("TUIST_LICENSE_KEY") ||
-      get([:license], secrets())
+      get([:license], secrets)
   end
 
   def use_ipv6?(secrets \\ secrets()) do

@@ -387,7 +387,8 @@ defmodule TuistWeb.Router do
         {TuistWeb.Authorization, [:current_user, :read, :ops]}
       ],
       additional_pages: [
-        route_name: TuistWeb.OpsConfigurationLive
+        route_name: TuistWeb.OpsConfigurationLive,
+        broadway: {BroadwayDashboard, pipelines: [Tuist.API.Pipeline]}
       ]
 
     error_tracker_dashboard("/errors",
