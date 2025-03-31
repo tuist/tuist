@@ -26,11 +26,13 @@ import "./js/Stack.js";
 import * as NooraComponents from "../_noora/noora.js";
 import "./app.css";
 import ThemeSwitcher, { observeThemeChanges } from "./js/ThemeSwitcher.js";
+import ImageFallback from "./js/ImageFallback.js";
 
 let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content");
 let cspNonce = document.querySelector("meta[name='csp-nonce']").getAttribute("content");
 
 let Hooks = {};
+Hooks.ImageFallback = ImageFallback;
 Hooks.Chart = {
   mounted() {
     this.render();

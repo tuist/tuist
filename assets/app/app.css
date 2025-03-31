@@ -2,6 +2,7 @@
 @import "./css/utilities.css";
 @import "./css/layouts.css";
 @import "./css/components.css";
+@import "./css/components/app_preview.css";
 @import "./css/pages.css";
 
 body {
@@ -972,5 +973,9 @@ input:checked + .slider:before {
 
   &[data-style="secondary"] {
     --indicator-color: var(--noora-chart-legend-secondary);
+  }
+
+  &[data-style="destructive"] {
+    --indicator-color: var(--noora-chart-destructive);
   }
 }

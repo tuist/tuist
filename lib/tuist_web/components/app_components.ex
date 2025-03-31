@@ -89,7 +89,7 @@ defmodule TuistWeb.AppComponents do
   attr :style, :string,
     required: false,
     default: "primary",
-    values: ~w(primary secondary),
+    values: ~w(primary secondary destructive),
     doc: "The style of the legend."
 
   def legend(assigns) do

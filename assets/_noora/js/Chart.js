@@ -86,6 +86,12 @@ export default {
     if (option.yAxis.splitLine.lineStyle.color) {
       option.yAxis.splitLine.lineStyle.color = processColor(option.yAxis.splitLine.lineStyle.color);
     }
+    if (option.yAxis.axisLabel.color) {
+      option.yAxis.axisLabel.color = processColor(option.yAxis.axisLabel.color);
+    }
+    if (option.xAxis.axisLabel.color) {
+      option.xAxis.axisLabel.color = processColor(option.xAxis.axisLabel.color);
+    }
     return option;
   },
 };
@@ -107,7 +113,10 @@ function getTheme(option) {
       textStyle: {
         fontFamily: "Inter",
       },
-      formatter: tooltipFormatter({ valueFormat: option?.tooltip?.valueFormat }),
+      formatter: tooltipFormatter({
+        valueFormat: option?.tooltip?.valueFormat,
+        dateFormat: option?.tooltip?.dateFormat,
+      }),
     },
     line: {
       emphasis: {
@@ -189,7 +198,22 @@ function tooltipFormatter(options = {}) {
       : tooltipSeries(params, options);
     let title = params[0].name;
     if (!Number.isNaN(Date.parse(title))) {
-      title = new Date(title).toLocaleDateString(locale(), { day: "numeric", month: "short", year: "numeric" });
+      const date = new Date(title);
+      if (options.dateFormat == "minute") {
+        title = date.toLocaleDateString(locale(), {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+          hour: "numeric",
+          minute: "numeric",
+        });
+      } else {
+        title = date.toLocaleDateString(locale(), {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+        });
+      }
     }
     return `<div class="noora-chart-tooltip">
       <span data-part="title">${title}</span>

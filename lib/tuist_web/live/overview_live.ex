@@ -1,6 +1,9 @@
 defmodule TuistWeb.OverviewLive do
   use TuistWeb, :live_view
   use TuistWeb.Noora
+  import TuistWeb.AppPreview
+  alias Tuist.Previews
+  alias Tuist.CommandEvents
   alias Tuist.Runs.Analytics
   alias Tuist.Projects
 
@@ -19,6 +22,51 @@ defmodule TuistWeb.OverviewLive do
       socket
       |> assign_analytics(params)
     }
+  end
+
+  defp assign_test_runs_analytics(%{assigns: %{selected_project: project}} = socket, params) do
+    {recent_test_runs, _meta} =
+      CommandEvents.list_command_events(%{
+        last: 40,
+        filters: [
+          %{field: :project_id, op: :==, value: project.id},
+          %{field: :name, op: :==, value: "test"}
+        ],
+        order_by: [:created_at],
+        order_directions: [:asc]
+      })
+
+    recent_test_runs_chart_data =
+      Enum.map(recent_test_runs, fn run ->
+        color =
+          case run.status do
+            :success -> "var:noora-chart-primary"
+            :failure -> "var:noora-chart-destructive"
+          end
+
+        value = Decimal.from_float(run.duration / 1000) |> Decimal.round(0)
+
+        %{value: value, itemStyle: %{color: color}, date: run.created_at}
+      end)
+
+    failed_test_runs_count = Enum.count(recent_test_runs, fn run -> run.status == :failure end)
+
+    passed_test_runs_count =
+      Enum.count(recent_test_runs, fn run -> run.status == :success end)
+
+    socket
+    |> assign(
+      :recent_test_runs,
+      recent_test_runs_chart_data
+    )
+    |> assign(
+      :failed_test_runs_count,
+      failed_test_runs_count
+    )
+    |> assign(
+      :passed_test_runs_count,
+      passed_test_runs_count
+    )
   end
 
   defp assign_analytics(%{assigns: %{selected_project: project}} = socket, params) do
@@ -77,6 +125,11 @@ defmodule TuistWeb.OverviewLive do
     |> assign(
       :test_analytics,
       Analytics.runs_duration_analytics("test", project_id: project.id)
+    )
+    |> assign_test_runs_analytics(params)
+    |> assign(
+      :latest_app_previews,
+      Previews.latest_previews_with_distinct_bundle_ids(project)
     )
   end
 

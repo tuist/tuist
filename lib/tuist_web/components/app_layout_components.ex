@@ -68,26 +68,49 @@ defmodule TuistWeb.AppLayoutComponents do
   def project_sidebar(assigns) do
     ~H"""
     <%= if FunWithFlags.enabled?(:noora) do %>
-      <.noora_project_sidebar />
+      <.noora_project_sidebar {assigns} />
     <% else %>
       <.legacy_project_sidebar {assigns} />
     <% end %>
     """
   end
 
+  attr :selected_project, :map, required: true
+  attr :selected_account, :map, required: true
+  attr :current_path, :string, required: true
+
   defp noora_project_sidebar(assigns) do
     ~H"""
     <.sidebar>
-      <.sidebar_item label="Overview" icon="smart_home" selected={true} />
-      <.sidebar_group id="tests" label="Tests" icon="subtask">
-        <.sidebar_item label="Test runs" icon="dashboard" />
+      <% overview_path = ~p"/noora/#{@selected_account.name}/#{@selected_project.name}" %>
+      <.sidebar_item
+        label="Overview"
+        icon="smart_home"
+        navigate={overview_path}
+        selected={overview_path == @current_path}
+      />
+      <% test_runs_path = ~p"/#{@selected_account.name}/#{@selected_project.name}/test_runs"
+      tests_default_open = @current_path in [test_runs_path] %>
+      <.sidebar_group id="tests" label="Tests" icon="subtask" default_open={tests_default_open}>
+        <.sidebar_item
+          label="Test runs"
+          icon="dashboard"
+          navigate={test_runs_path}
+          selected={test_runs_path == @current_path}
+        />
         <.sidebar_item label="Test cases" icon="exchange" />
         <.sidebar_item label="Flaky tests" icon="progress_x" />
       </.sidebar_group>
       <.sidebar_group id="binary_cache" label="Binary cache" icon="database">
         <.sidebar_item label="Cache runs" icon="schema" />
       </.sidebar_group>
-      <.sidebar_item label="Previews" icon="devices" />
+      <% previews_path = ~p"/noora/#{@selected_account.name}/#{@selected_project.name}/previews" %>
+      <.sidebar_item
+        label="Previews"
+        icon="devices"
+        navigate={previews_path}
+        selected={previews_path == @current_path}
+      />
     </.sidebar>
     """
   end

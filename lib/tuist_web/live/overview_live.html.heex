@@ -157,6 +157,7 @@
                 boundaryGap: false,
                 type: "category",
                 axisLabel: %{
+                  color: "var:noora-surface-label-secondary",
                   formatter: "fn:toLocaleDate",
                   customValues: [
                     @binary_cache_hit_rate_analytics.dates |> hd(),
@@ -171,7 +172,7 @@
                     color: "var:noora-chart-lines"
                   }
                 },
-                axisLabel: %{formatter: "{value}%"}
+                axisLabel: %{color: "var:noora-surface-label-secondary", formatter: "{value}%"}
               },
               tooltip: %{
                 valueFormat: "{v}%"
@@ -216,6 +217,92 @@
           y_axis_min={0}
           y_axis_max={100}
         />
+      </div>
+    </.card_section>
+  </.card>
+  <.card title={gettext("Tests")} icon="subtask">
+    <:actions>
+      <.button
+        variant="secondary"
+        label="View more"
+        size="medium"
+        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/test_runs"}
+      />
+    </:actions>
+    <.card_section>
+      <div data-part="test-runs-chart">
+        <div data-part="legends">
+          <.legend title={gettext("Passed runs")} value={@passed_test_runs_count} style="primary" />
+          <.legend
+            title={gettext("Failed runs")}
+            value={@failed_test_runs_count}
+            style="destructive"
+          />
+        </div>
+        <.chart
+          id="chart-single-test-run-duration"
+          type="bar"
+          extra_options={
+            %{
+              grid: %{
+                width: "93%",
+                left: "0.2%",
+                right: "7%",
+                height: "88%",
+                top: "5%"
+              },
+              tooltip: %{
+                valueFormat: "{v}s",
+                dateFormat: "minute"
+              },
+              xAxis: %{
+                axisLabel: %{show: false},
+                data: @recent_test_runs |> Enum.map(& &1.date)
+              },
+              yAxis: %{
+                splitLine: %{
+                  lineStyle: %{
+                    color: "var:noora-chart-lines"
+                  }
+                },
+                axisLabel: %{color: "var:noora-surface-label-secondary", formatter: "{value}s"}
+              },
+              legend: %{
+                show: false
+              }
+            }
+          }
+          series={[
+            %{
+              data: @recent_test_runs,
+              name: "Test Run",
+              type: "bar"
+            }
+          ]}
+          y_axis_min={0}
+          grid_lines
+          bar_width={8}
+          bar_radius={2}
+        />
+        <span data-part="label">{gettext("Last 40 runs")}</span>
+      </div>
+    </.card_section>
+  </.card>
+  <.card title={gettext("Previews")} icon="devices" data-part="previews">
+    <:actions>
+      <.button
+        variant="secondary"
+        label="View more"
+        size="medium"
+        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/previews"}
+      />
+    </:actions>
+    <.card_section data-part="latest-app-previews">
+      <span data-part="title">{gettext("Latest app previews")}</span>
+      <div data-part="apps">
+        <%= for preview <- @latest_app_previews do %>
+          <.app_preview preview={preview} />
+        <% end %>
       </div>
     </.card_section>
   </.card>

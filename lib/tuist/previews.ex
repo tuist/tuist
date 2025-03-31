@@ -41,19 +41,46 @@ defmodule Tuist.Previews do
     Preview
     |> preload(^Keyword.get(opts, :preload, []))
     |> query_with_supported_platforms_when_needed(opts)
-    |> query_with_distinct_bundle_identifier_when_needed(opts)
+    |> query_with_distinct_bundle_identifier_when_needed(attrs, opts)
     |> Flop.validate_and_run!(attrs, for: Preview)
   end
 
-  defp query_with_distinct_bundle_identifier_when_needed(query, opts) do
+  @doc """
+  Gets the latest previews with distinct bundle identifiers for a given project.
+  """
+  def latest_previews_with_distinct_bundle_ids(%Project{} = project) do
+    {previews, _meta} =
+      list_previews(
+        %{
+          first: 20,
+          filters: [
+            %{field: :project_id, op: :==, value: project.id}
+          ],
+          order_by: [:inserted_at],
+          order_directions: [:desc]
+        },
+        distinct: [:bundle_identifier],
+        preload: [:command_event, [project: :account]]
+      )
+
+    previews
+  end
+
+  defp query_with_distinct_bundle_identifier_when_needed(query, attrs, opts) do
     distinct_bundle_identifier =
       Keyword.get(opts, :distinct, [])
       |> Enum.member?(:bundle_identifier)
+
+    order_by =
+      Map.get(attrs, :order_by, [:inserted_at]) |> hd()
+
+    order_direction = Map.get(attrs, :order_directions, [:desc]) |> hd()
 
     if distinct_bundle_identifier do
       preview_ids =
         from(p in Preview)
         |> Flop.query(%Flop{}, for: Preview)
+        |> order_by({^order_direction, ^order_by})
         |> distinct([p], p.bundle_identifier)
         |> select([p], p.id)
 

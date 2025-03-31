@@ -2,7 +2,7 @@
   display: flex;
   flex-direction: column;
   padding: unset;
-  z-index: 100;
+  z-index: var(--noora-z-index-10);
 
   & [data-part="trigger"] {
     align-items: center;

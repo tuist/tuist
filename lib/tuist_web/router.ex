@@ -524,8 +524,33 @@ defmodule TuistWeb.Router do
     end
   end
 
-  # Project noora routes
+  # Old project noora routes
   scope "/noora/:account_handle/:project_handle", TuistWeb do
+    pipe_through [
+      :check_noora_enabled,
+      :open_api,
+      :browser_app,
+      :rate_limit,
+      :require_authenticated_user_for_private_projects,
+      :analytics,
+      :require_user_can_read_project,
+      TuistWeb.RedirectToRunsPlug
+    ]
+
+    live_session :override_noora_project,
+      layout: {TuistWeb.Layouts, :project},
+      on_mount: [
+        {TuistWeb.LayoutLive, :project},
+        {TuistWeb.Authentication, :mount_current_user}
+      ] do
+      live "/", OverviewLive
+      live "/analytics", OverviewLive
+      live "/previews", NooraPreviewsLive
+    end
+  end
+
+  # New project noora routes
+  scope "/:account_handle/:project_handle", TuistWeb do
     pipe_through [
       :check_noora_enabled,
       :open_api,
@@ -543,8 +568,7 @@ defmodule TuistWeb.Router do
         {TuistWeb.LayoutLive, :project},
         {TuistWeb.Authentication, :mount_current_user}
       ] do
-      live "/", OverviewLive
-      live "/analytics", OverviewLive
+      live "/test_runs", TestRunsLive
     end
   end
 

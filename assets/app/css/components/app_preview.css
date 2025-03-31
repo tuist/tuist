@@ -1,0 +1,57 @@
+.tuist-app-preview {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding: var(--noora-spacing-5);
+  box-shadow: var(--noora-light-border-default);
+  border-radius: var(--noora-radius-xlarge);
+  gap: var(--noora-spacing-6);
+
+  & > [data-part="icon"] {
+    width: 48px;
+    height: 48px;
+    border-radius: var(--noora-radius-large);
+  }
+
+  & > [data-part="metadata"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-5);
+
+    & > [data-part="title"] {
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+    }
+
+    & > [data-part="extra-metadata"] {
+      align-items: center;
+      display: flex;
+      flex-direction: row;
+      gap: var(--noora-spacing-4);
+
+      & > [data-part="time"] {
+        align-items: center;
+        display: flex;
+        flex-direction: row;
+        gap: var(--noora-spacing-1);
+
+        & > [data-part="icon"] {
+          display: flex;
+          color: var(--noora-surface-label-secondary);
+          height: var(--noora-icon-size-small);
+          width: var(--noora-icon-size-small);
+
+          & svg {
+            height: 100%;
+            width: 100%;
+          }
+        }
+
+        & > [data-part="label"] {
+          color: var(--noora-surface-label-secondary);
+          font: var(--noora-font-weight-regular) var(--noora-font-body-xsmall);
+        }
+      }
+    }
+  }
+}

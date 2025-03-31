@@ -14,8 +14,10 @@
   flex-direction: row;
   overflow: hidden;
 
-  html[data-noora] & {
-    padding: var(--noora-spacing-5);
+  & .noora-sidebar {
+    html[data-noora] & {
+      margin-top: var(--noora-spacing-5);
+    }
   }
 }
 
@@ -30,6 +32,10 @@
 .layout__content {
   flex: 1;
   overflow-y: scroll;
+
+  html[data-noora] & {
+    padding: var(--noora-spacing-5);
+  }
 }
 
 .page {

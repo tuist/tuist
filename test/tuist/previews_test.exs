@@ -376,14 +376,14 @@ defmodule Tuist.PreviewsTest do
       # Given
       project = ProjectsFixtures.project_fixture()
 
-      preview_one =
+      _preview_one =
         PreviewsFixtures.preview_fixture(
           project: project,
           bundle_identifier: "com.example.app-one",
           inserted_at: ~U[2021-01-01 01:00:00Z]
         )
 
-      _preview_two =
+      preview_two =
         PreviewsFixtures.preview_fixture(
           project: project,
           bundle_identifier: "com.example.app-one",
@@ -398,7 +398,7 @@ defmodule Tuist.PreviewsTest do
         )
 
       # When
-      {got_previews_page, got_meta_page} =
+      {got_previews_page, _got_meta_page} =
         Previews.list_previews(
           %{
             first: 20,
@@ -412,13 +412,71 @@ defmodule Tuist.PreviewsTest do
       # Then
       assert got_previews_page |> Enum.map(& &1.id) == [
                preview_three.id,
-               preview_one.id
+               preview_two.id
              ]
 
       assert got_previews_page |> Enum.map(& &1.bundle_identifier) == [
                "com.example.app-two",
                "com.example.app-one"
              ]
+    end
+  end
+
+  describe "latest_previews/1" do
+    test "returns latest previews with distinct bundle identifiers" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      _preview_one =
+        PreviewsFixtures.preview_fixture(
+          project: project,
+          bundle_identifier: "com.example.app-one",
+          display_name: "App One",
+          inserted_at: ~U[2021-01-01 01:00:00Z]
+        )
+
+      preview_two =
+        PreviewsFixtures.preview_fixture(
+          project: project,
+          bundle_identifier: "com.example.app-one",
+          display_name: "App One",
+          inserted_at: ~U[2021-01-01 02:00:00Z]
+        )
+
+      preview_three =
+        PreviewsFixtures.preview_fixture(
+          project: project,
+          bundle_identifier: "com.example.app-two",
+          display_name: "App Two",
+          inserted_at: ~U[2021-01-01 03:00:00Z]
+        )
+
+      different_project = ProjectsFixtures.project_fixture()
+
+      _preview_different_project =
+        PreviewsFixtures.preview_fixture(
+          project: different_project,
+          bundle_identifier: "com.example.other-app",
+          display_name: "Other App",
+          inserted_at: ~U[2021-01-01 04:00:00Z]
+        )
+
+      # When
+      previews = Previews.latest_previews_with_distinct_bundle_ids(project)
+
+      # Then
+      assert previews |> Enum.map(& &1.id) == [preview_three.id, preview_two.id]
+    end
+
+    test "returns empty list when project has no previews" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # When
+      previews = Previews.latest_previews_with_distinct_bundle_ids(project)
+
+      # Then
+      assert previews == []
     end
   end
 end

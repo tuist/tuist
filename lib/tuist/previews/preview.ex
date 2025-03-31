@@ -16,7 +16,7 @@ defmodule Tuist.Previews.Preview do
       :git_commit_sha,
       :bundle_identifier
     ],
-    sortable: [:inserted_at]
+    sortable: [:inserted_at, :bundle_identifier]
   }
 
   @primary_key {:id, UUIDv7, autogenerate: true}

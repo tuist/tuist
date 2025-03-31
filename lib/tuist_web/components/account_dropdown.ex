@@ -50,19 +50,21 @@ defmodule TuistWeb.AccountDropdown do
           <div data-part="account_content">
             <.line_divider />
             <div data-part="actions">
-              <.link navigate={~p"/#{@current_user.account.name}/billing"}>
-                <.button label={gettext("Account settings")} variant="secondary">
-                  <:icon_left><.settings /></:icon_left>
-                </.button>
-              </.link>
-              <.link
+              <.button
+                navigate={~p"/#{@current_user.account.name}/billing"}
+                label={gettext("Account settings")}
+                variant="secondary"
+              >
+                <:icon_left><.settings /></:icon_left>
+              </.button>
+              <.button
                 :if={latest_app_release = @latest_app_release.ok? && @latest_app_release.result}
+                label={gettext("Download macOS app")}
+                variant="secondary"
                 href={latest_app_release}
               >
-                <.button label={gettext("Download macOS app")} variant="secondary">
-                  <:icon_left><.download /></:icon_left>
-                </.button>
-              </.link>
+                <:icon_left><.download /></:icon_left>
+              </.button>
             </div>
             <div data-part="theme-switcher-section">
               <p data-part="theme-switcher-title">{gettext("Switch to your preferred theme")}</p>

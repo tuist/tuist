@@ -5,9 +5,12 @@
   border-radius: var(--noora-radius-medium);
   border: 0;
   display: inline-flex;
-  gap: var(--noora-spacing-1);
   text-decoration: none;
   padding: 0;
+
+  & > :not([data-part="spacer"]):not(:nth-last-child(2)) {
+    margin-right: var(--noora-spacing-1);
+  }
 }
 
 .noora-button {
@@ -108,7 +111,7 @@
   &[data-size="medium"],
   &[data-size="large"] {
     &:not([data-icon-only]) {
-      padding: var(--noora-spacing-3) var(--noora-spacing-4);
+      padding: var(--noora-spacing-3);
     }
   }
 
