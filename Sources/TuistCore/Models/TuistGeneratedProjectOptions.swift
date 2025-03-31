@@ -86,7 +86,7 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
                 resolveDependenciesWithSystemScm: false,
                 disablePackageVersionLocking: false,
                 staticSideEffectsWarningTargets: .all,
-                buildInsightsDisabled: false
+                buildInsightsDisabled: true
             ),
             installOptions: .init(passthroughSwiftPackageManagerArguments: [])
         )
