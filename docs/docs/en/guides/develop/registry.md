@@ -31,7 +31,7 @@ Now you can access the registry! To resolve dependencies from the registry inste
 - <LocalizedLink href="/guides/develop/registry/xcodeproj-integration">Generated project with the XcodeProj-based package integration</LocalizedLink>
 - <LocalizedLink href="/guides/develop/registry/swift-package">Swift package</LocalizedLink>
 
-To set up the registry on the CI, follow this guide: <LocalizedLink href="/guides/develop/registry/ci">Continuous integration</LocalizedLink>.
+To set up the registry on the CI, follow this guide: <LocalizedLink href="/guides/develop/registry/continuous-integration">Continuous integration</LocalizedLink>.
 
 ### Package registry identifiers {#package-registry-identifiers}
 
