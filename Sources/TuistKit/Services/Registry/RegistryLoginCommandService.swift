@@ -6,18 +6,12 @@ import TuistLoader
 import TuistServer
 import TuistSupport
 
-enum RegistryLoginServiceError: Equatable, FatalError {
+enum RegistryLoginCommandServiceError: Equatable, LocalizedError {
     case missingFullHandle
     case missingProjectToken
     case missingHost(URL)
 
-    var type: TuistSupport.ErrorType {
-        switch self {
-        case .missingFullHandle, .missingProjectToken, .missingHost: .abort
-        }
-    }
-
-    var description: String {
+    var errorDescription: String? {
         switch self {
         case .missingFullHandle:
             return "Login to the registry failed because the project is missing the 'fullHandle' in the 'Tuist.swift' file."
@@ -29,7 +23,7 @@ enum RegistryLoginServiceError: Equatable, FatalError {
     }
 }
 
-struct RegistryLoginService {
+struct RegistryLoginCommandService {
     private let createAccountTokenService: CreateAccountTokenServicing
     private let serverURLService: ServerURLServicing
     private let configLoader: ConfigLoading
@@ -41,6 +35,7 @@ struct RegistryLoginService {
     private let securityController: SecurityControlling
     private let manifestFilesLocator: ManifestFilesLocating
     private let xcodeController: XcodeControlling
+    private let defaultsController: DefaultsControlling
 
     init(
         createAccountTokenService: CreateAccountTokenServicing = CreateAccountTokenService(),
@@ -53,7 +48,8 @@ struct RegistryLoginService {
         serverAuthenticationController: ServerAuthenticationControlling = ServerAuthenticationController(),
         securityController: SecurityControlling = SecurityController(),
         manifestFilesLocator: ManifestFilesLocating = ManifestFilesLocator(),
-        xcodeController: XcodeControlling = XcodeController()
+        xcodeController: XcodeControlling = XcodeController(),
+        defaultsController: DefaultsControlling = DefaultsController()
     ) {
         self.createAccountTokenService = createAccountTokenService
         self.serverURLService = serverURLService
@@ -66,6 +62,7 @@ struct RegistryLoginService {
         self.securityController = securityController
         self.manifestFilesLocator = manifestFilesLocator
         self.xcodeController = xcodeController
+        self.defaultsController = defaultsController
     }
 
     func run(
@@ -74,28 +71,34 @@ struct RegistryLoginService {
         let path = try await self.path(path)
         let config = try await configLoader.loadConfig(path: path)
 
-        guard let fullHandle = config.fullHandle else { throw RegistryLoginServiceError.missingFullHandle }
+        guard let fullHandle = config.fullHandle else { throw RegistryLoginCommandServiceError.missingFullHandle }
         let accountHandle = try fullHandleService.parse(fullHandle).accountHandle
 
-        ServiceContext.current?.logger?.info("Logging into the registry...")
-        let serverURL = try serverURLService.url(configServerURL: config.url)
-        let registryURL = serverURL.appending(path: "api/accounts/\(accountHandle)/registry/swift")
+        try await ServiceContext.current?.ui?.progressStep(
+            message: "Logging into the registry...",
+            successMessage: "Logged in to the \(accountHandle) registry",
+            errorMessage: nil,
+            showSpinner: true
+        ) { _ in
+            let serverURL = try serverURLService.url(configServerURL: config.url)
+            let registryURL = serverURL.appending(path: "api/accounts/\(accountHandle)/registry/swift")
 
-        if ciChecker.isCI() {
-            try await registryCILogin(
-                registryURL: registryURL,
-                serverURL: serverURL,
-                path: path
-            )
-        } else {
-            try await registryUserLogin(
-                accountHandle: accountHandle,
-                registryURL: registryURL,
-                serverURL: serverURL
-            )
+            if ciChecker.isCI() {
+                try await registryCILogin(
+                    registryURL: registryURL,
+                    serverURL: serverURL,
+                    path: path
+                )
+            } else {
+                try await registryUserLogin(
+                    accountHandle: accountHandle,
+                    registryURL: registryURL,
+                    serverURL: serverURL
+                )
+            }
+
+            try await defaultsController.setPackageDendencySCMToRegistryTransformation(.useRegistryIdentityAndSources)
         }
-
-        ServiceContext.current?.logger?.info("Successfully logged in to the \(accountHandle) registry 🎉")
     }
 
     private func registryCILogin(
@@ -110,7 +113,7 @@ struct RegistryLoginService {
                 // This is because when we run `swift package-registry login`, the `swift` CLI gets automatically access to the
                 // new entry in the keychain.
                 // However, this is _not_ the case for the `xcodebuild` CLI that's used to resolve the packages via Xcode.
-                guard let host = serverURL.host else { throw RegistryLoginServiceError.missingHost(serverURL) }
+                guard let host = serverURL.host else { throw RegistryLoginCommandServiceError.missingHost(serverURL) }
                 let xcode = try await xcodeController.selected()
                 try await securityController.addInternetPassword(
                     accountName: "token",
@@ -133,7 +136,7 @@ struct RegistryLoginService {
                 )
             }
         case .user, .none:
-            throw RegistryLoginServiceError.missingProjectToken
+            throw RegistryLoginCommandServiceError.missingProjectToken
         }
     }
 
