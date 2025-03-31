@@ -234,7 +234,9 @@ defmodule TuistWeb.Router do
     get "/api/docs", TuistWeb.APIController, :docs
   end
 
-  scope "/api", TuistWeb.API do
+  scope path: "/api",
+        alias: TuistWeb.API,
+        assigns: %{caching: not Tuist.Environment.test?(), cache_ttl: :timer.minutes(1)} do
     pipe_through [:open_api, :authenticated_api, :on_premise_api]
 
     scope "/accounts/:account_handle" do
@@ -289,7 +291,7 @@ defmodule TuistWeb.Router do
           delete "/:id", ProjectTokensController, :delete
         end
 
-        scope "/cache", assigns: %{caching: true, cache_ttl: :timer.minutes(1)} do
+        scope "/cache" do
           put "/clean", CacheController, :clean
 
           scope "/ac" do
@@ -300,7 +302,7 @@ defmodule TuistWeb.Router do
       end
     end
 
-    scope "/cache", assigns: %{caching: true, cache_ttl: :timer.minutes(1)} do
+    scope "/cache" do
       get "/", CacheController, :download
       get "/exists", CacheController, :exists
 

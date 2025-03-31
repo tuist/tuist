@@ -344,10 +344,24 @@ defmodule TuistWeb.API.CacheController do
     project = EnsureProjectPresencePlug.get_project(conn)
 
     existing_cache_action_item =
-      CacheActionItems.get_cache_action_item(%{
-        project: project,
-        hash: hash
-      })
+      Tuist.Cache.get_value(
+        [
+          Atom.to_string(__MODULE__),
+          "upload_cache_action_item",
+          project.id,
+          hash
+        ],
+        [
+          ttl: Map.get(conn.assigns, :cache_ttl, :timer.minutes(1)),
+          cache: Map.get(conn.assigns, :cache, :tuist)
+        ],
+        fn ->
+          CacheActionItems.get_cache_action_item(%{
+            project: project,
+            hash: hash
+          })
+        end
+      )
 
     cond do
       is_nil(existing_cache_action_item) ->

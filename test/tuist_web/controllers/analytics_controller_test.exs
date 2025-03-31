@@ -13,7 +13,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
   alias Tuist.Accounts
   alias TuistWeb.Authentication
   import Ecto.Query, only: [from: 2]
-  use TuistTestSupport.Cases.ConnCase, async: true
+  use TuistTestSupport.Cases.ConnCase, async: false
   use Mimic
 
   setup do
