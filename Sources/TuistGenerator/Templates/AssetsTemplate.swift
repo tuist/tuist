@@ -30,15 +30,12 @@ extension SynthesizedResourceInterfaceTemplates {
       import SwiftUI
     #endif
 
-    // swiftlint:disable superfluous_disable_command file_length implicit_return
-
     // MARK: - Asset Catalogs
 
     {% macro enumBlock assets %}
       {% call casesBlock assets %}
       {% if param.allValues %}
 
-      // swiftlint:disable trailing_comma
       {% if resourceCount.arresourcegroup > 0 %}
       {{accessModifier}} static let allResourceGroups: [{{arResourceGroupType}}] = [
         {% filter indent:2 %}{% call allValuesBlock assets "arresourcegroup" "" %}{% endfilter %}
@@ -59,7 +56,6 @@ extension SynthesizedResourceInterfaceTemplates {
         {% filter indent:2 %}{% call allValuesBlock assets "image" "" %}{% endfilter %}
       ]
       {% endif %}
-      // swiftlint:enable trailing_comma
       {% endif %}
     {% endmacro %}
     {% macro casesBlock assets %}
@@ -95,7 +91,6 @@ extension SynthesizedResourceInterfaceTemplates {
       {% endif %}
       {% endfor %}
     {% endmacro %}
-    // swiftlint:disable identifier_name line_length nesting type_body_length type_name
     {{accessModifier}} enum {{enumName}}: Sendable {
       {% if catalogs.count > 1 or param.forceFileNameEnum %}
       {% for catalog in catalogs %}
@@ -107,7 +102,6 @@ extension SynthesizedResourceInterfaceTemplates {
       {% call enumBlock catalogs.first.assets %}
       {% endif %}
     }
-    // swiftlint:enable identifier_name line_length nesting type_body_length type_name
 
     // MARK: - Implementation Details
 
