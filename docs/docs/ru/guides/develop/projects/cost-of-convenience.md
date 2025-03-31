@@ -4,7 +4,7 @@ titleTemplate: :title · Projects · Develop · Guides · Tuist
 description: Learn about the cost of convenience in Xcode and how Tuist helps you prevent the issues that come with it.
 ---
 
-# The cost of convenience {#the-cost-of-convenience}
+# Цена удобства {#the-cost-of-convenience}
 
 Designing a code editor that the spectrum **from small to large-scale projects can use** is a challenging task.
 Many tools approach the problem by layering their solution and providing extensibility. The bottom-most layer is very low-level and close to the underlying build system, and the top-most layer is a high-level abstraction that's convenient to use but less flexible.
