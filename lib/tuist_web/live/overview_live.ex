@@ -51,8 +51,16 @@ defmodule TuistWeb.OverviewLive do
       date_range
     )
     |> assign(
+      :analytics_trend_label,
+      analytics_trend_label(date_range)
+    )
+    |> assign(
       :analytics_environment,
       analytics_environment
+    )
+    |> assign(
+      :analytics_environment_label,
+      analytics_environment_label(analytics_environment)
     )
     |> assign(
       :binary_cache_hit_rate_analytics,
@@ -70,6 +78,22 @@ defmodule TuistWeb.OverviewLive do
       :test_analytics,
       Analytics.runs_duration_analytics("test", project_id: project.id)
     )
+  end
+
+  defp analytics_trend_label("last_7_days"), do: gettext("since last week")
+  defp analytics_trend_label("last_12_months"), do: gettext("since last year")
+  defp analytics_trend_label(_), do: gettext("since last month")
+
+  defp analytics_environment_label("any") do
+    gettext("Any")
+  end
+
+  defp analytics_environment_label("local") do
+    gettext("Local")
+  end
+
+  defp analytics_environment_label("ci") do
+    gettext("CI")
   end
 
   defp date_range(params) do

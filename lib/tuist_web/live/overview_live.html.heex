@@ -9,21 +9,15 @@
       |> Decimal.from_float()
       |> Decimal.round(1) %>
     <:actions>
-      <% label =
-        case @analytics_environment do
-          "any" -> gettext("Any")
-          "local" -> gettext("Local")
-          "ci" -> gettext("CI")
-        end %>
       <.dropdown
-        id="dropdown-single-default"
-        label={label}
+        id="overview-analytics-environment-dropdown"
+        label={@analytics_environment_label}
         secondary_text={gettext("Environment:")}
       >
         <.dropdown_item
           value="any"
           label="Any"
-          patch="?analytics_environment=any"
+          patch={"?analytics_date_range=#{@analytics_date_range}&analytics_environment=any"}
           data-selected={@analytics_environment == "any"}
         >
           <:right_icon><.check /></:right_icon>
@@ -31,7 +25,7 @@
         <.dropdown_item
           value="local"
           label="Local"
-          patch="?analytics_environment=local"
+          patch={"?analytics_date_range=#{@analytics_date_range}&analytics_environment=local"}
           data-selected={@analytics_environment == "local"}
         >
           <:right_icon><.check /></:right_icon>
@@ -39,7 +33,7 @@
         <.dropdown_item
           value="ci"
           label="CI"
-          patch="?analytics_environment=ci"
+          patch={"?analytics_date_range=#{@analytics_date_range}&analytics_environment=ci"}
           data-selected={@analytics_environment == "ci"}
         >
           <:right_icon><.check /></:right_icon>
@@ -47,29 +41,23 @@
       </.dropdown>
       <.button_group size="large">
         <.button_group_item
-          patch="?analytics_date_range=last_7_days"
+          patch={"?analytics_date_range=last_7_days&analytics_environment=#{@analytics_environment}"}
           label={gettext("7 days")}
           data-selected={@analytics_date_range == "last_7_days"}
         />
         <.button_group_item
-          patch="?analytics_date_range=last_30_days"
+          patch={"?analytics_date_range=last_30_days&analytics_environment=#{@analytics_environment}"}
           label={gettext("30 days")}
           data-selected={@analytics_date_range == "last_30_days"}
         />
         <.button_group_item
-          patch="?analytics_date_range=last_12_months"
+          patch={"?analytics_date_range=last_12_months&analytics_environment=#{@analytics_environment}"}
           label={gettext("12 months")}
           data-selected={@analytics_date_range == "last_12_months"}
         />
       </.button_group>
     </:actions>
     <div data-part="widgets">
-      <% trend_label =
-        case @analytics_date_range do
-          "last_7_days" -> gettext("since last week")
-          "last_12_months" -> gettext("since last year")
-          _ -> gettext("since last month")
-        end %>
       <.widget
         title={gettext("Binary cache effectiveness")}
         description={
@@ -84,7 +72,7 @@
         }
         id="widget-binary-cache-effectiveness"
         trend_value={@binary_cache_hit_rate_analytics.trend}
-        trend_label={trend_label}
+        trend_label={@analytics_trend_label}
       />
       <.widget
         title={gettext("Selective test effectiveness")}
@@ -100,7 +88,7 @@
         }
         id="widget-selective-tests-effectiveness"
         trend_value={@selective_testing_analytics.trend}
-        trend_label={trend_label}
+        trend_label={@analytics_trend_label}
       />
       <.widget
         title={gettext("Average build time")}
@@ -114,7 +102,7 @@
         }
         id="widget-average-build-time"
         trend_value={@build_analytics.trend}
-        trend_label={trend_label}
+        trend_label={@analytics_trend_label}
       />
       <.widget
         title={gettext("Average test time")}
@@ -128,7 +116,7 @@
         }
         id="widget-average-test-time"
         trend_value={@test_analytics.trend}
-        trend_label={trend_label}
+        trend_label={@analytics_trend_label}
       />
     </div>
     <.card_section>
