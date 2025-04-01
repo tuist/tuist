@@ -41,7 +41,8 @@ html:not([data-noora]) {
 
 html[data-noora] {
   #login,
-  #signup {
+  #signup,
+  #signup-success {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -51,10 +52,6 @@ html[data-noora] {
 
     & * {
       box-sizing: border-box;
-    }
-
-    & .noora-alert {
-      width: 100%;
     }
 
     & [data-part="frame"] {
@@ -96,6 +93,7 @@ html[data-noora] {
         }
 
         & > [data-part="subtitle"] {
+          text-align: center;
           font: var(--noora-font-body-small);
           color: var(--noora-surface-label-secondary);
         }
@@ -144,13 +142,75 @@ html[data-noora] {
       gap: var(--noora-spacing-8);
     }
 
-    & [data-part="remember-me"] {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
+    & [data-part="background"] {
+      position: absolute;
+      top: 0px;
+      left: 0px;
+      width: 100dvw;
+      height: 100dvh;
+      z-index: var(--noora-z-index-0);
+      overflow: hidden;
+
+      & [data-part="shell"] {
+        display: flex;
+        height: 80%;
+        align-items: flex-end;
+        bottom: 0px;
+        overflow: hidden;
+        position: absolute;
+        right: 0px;
+        z-index: var(--noora-z-index-1);
+
+        & svg {
+          height: 100%;
+        }
+
+        & svg path {
+          html[data-theme="light"] & {
+            stroke: url(#light);
+          }
+          html[data-theme="dark"] & {
+            stroke: url(#dark);
+          }
+        }
+      }
+
+      & [data-part="top-right-gradient"] {
+        z-index: var(--noora-z-index-2);
+        width: 80%;
+        height: 50%;
+        position: absolute;
+        right: 0px;
+        top: 0px;
+        border-radius: 1000px;
+        translate: 50% -50%;
+        background: light-dark(oklch(53.2% 0.276 286.9 / 0.15), oklch(53.2% 0.276 286.9 / 0.3));
+        filter: blur(150px);
+      }
+
+      & [data-part="bottom-left-gradient"] {
+        width: 90%;
+        height: 40%;
+        border-radius: 1000px;
+        background: light-dark(oklch(54.2% 0.27 286.9 / 0.1), oklch(54.2% 0.27 286.9 / 0.15));
+        position: absolute;
+        filter: blur(150px);
+        translate: -50% 20%;
+        position: absolute;
+        left: 0px;
+        z-index: var(--noora-z-index-2);
+        bottom: 0px;
+      }
+    }
+  }
+
+  #login,
+  #signup {
+    & .noora-alert {
+      width: 100%;
     }
 
-    & [data-part="signup-link"] {
+    & [data-part="bottom-link"] {
       align-items: center;
       background: var(--noora-surface-background-tertiary);
       border-radius: var(--noora-radius-large);
@@ -166,60 +226,13 @@ html[data-noora] {
         color: var(--noora-surface-label-secondary);
       }
     }
+  }
 
-    & [data-part="background"] {
-      position: absolute;
-      top: 0px;
-      left: 0px;
-      width: 100%;
-      height: 100%;
-      z-index: var(--noora-z-index-0);
-      overflow: hidden;
-
-      & [data-part="shell"] {
-        position: absolute;
-        right: 0px;
-        height: 100%;
-        bottom: 0px;
-        z-index: var(--noora-z-index-1);
-        overflow: hidden;
-
-        & svg path {
-          html[data-theme="light"] & {
-            stroke: url(#light);
-          }
-          html[data-theme="dark"] & {
-            stroke: url(#dark);
-          }
-        }
-      }
-
-      & [data-part="top-right-gradient"] {
-        z-index: var(--noora-z-index-2);
-        width: 961px;
-        height: 470px;
-        position: absolute;
-        right: 0px;
-        top: 0px;
-        border-radius: 1000px;
-        translate: 50% -50%;
-        background: light-dark(oklch(53.2% 0.276 286.9 / 0.15), oklch(53.2% 0.276 286.9 / 0.3));
-        filter: blur(230px);
-      }
-
-      & [data-part="bottom-left-gradient"] {
-        width: 1000px;
-        height: 350px;
-        border-radius: 1000px;
-        background: light-dark(oklch(54.2% 0.27 286.9 / 0.1), oklch(54.2% 0.27 286.9 / 0.15));
-        position: absolute;
-        filter: blur(150px);
-        translate: -50% 20%;
-        position: absolute;
-        left: 0px;
-        z-index: var(--noora-z-index-2);
-        bottom: 0px;
-      }
+  #login {
+    & [data-part="remember-me"] {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
     }
   }
 
@@ -241,7 +254,11 @@ html[data-noora] {
       align-items: flex-start;
       padding: 0;
       justify-content: space-between;
-      background: radial-gradient(131.61% 140.32% at 0% 100%, oklch(53.2% 0.276 286.9 / 0.04) 0%, oklch(100% 0 0 / 0) 100%),
+      background: radial-gradient(
+          131.61% 140.32% at 0% 100%,
+          oklch(53.2% 0.276 286.9 / 0.04) 0%,
+          oklch(100% 0 0 / 0) 100%
+        ),
         var(--noora-surface-background-primary);
     }
 
@@ -325,6 +342,13 @@ html[data-noora] {
         object-fit: cover;
         object-position: top;
       }
+    }
+  }
+
+  #signup-success {
+    & [data-part="content"] {
+      max-width: 412px;
+      padding: var(--noora-spacing-10) var(--noora-spacing-11);
     }
   }
 }

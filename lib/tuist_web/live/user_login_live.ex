@@ -132,7 +132,7 @@ defmodule TuistWeb.UserLoginLive do
             <.button variant="primary" size="large" label={gettext("Log in")} />
           </.form>
         </div>
-        <div :if={@mail_configured?} data-part="signup-link">
+        <div :if={@mail_configured?} data-part="bottom-link">
           <span>{gettext("Don’t have an account?")}</span>
           <.link_button
             navigate={~p"/users/register"}

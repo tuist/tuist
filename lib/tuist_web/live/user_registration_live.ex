@@ -18,7 +18,7 @@ defmodule TuistWeb.UserRegistrationLive do
 
   def noora_registration(assigns) do
     ~H"""
-    <div id="signup">
+    <div :if={!@success} id="signup">
       <div data-part="wrapper">
         <div data-part="frame">
           <div data-part="features">
@@ -140,7 +140,7 @@ defmodule TuistWeb.UserRegistrationLive do
               <.button variant="primary" size="large" label={gettext("Sign up")} />
             </.form>
           </div>
-          <div data-part="signup-link">
+          <div data-part="bottom-link">
             <span>{gettext("Already have an account?")}</span>
             <.link_button
               navigate={~p"/users/log_in"}
@@ -151,6 +151,31 @@ defmodule TuistWeb.UserRegistrationLive do
           </div>
         </div>
       </div>
+      <div data-part="background">
+        <div data-part="top-right-gradient"></div>
+        <div data-part="bottom-left-gradient"></div>
+        <div data-part="shell"><.shell /></div>
+      </div>
+    </div>
+    <div :if={@success} id="signup-success">
+      <div data-part="wrapper">
+        <div data-part="frame">
+          <div data-part="content">
+            <img src="/images/tuist_logo_32x32@2x.png" alt={gettext("Tuist Logo")} data-part="logo" />
+            <div data-part="dots">
+              <.dots_light />
+              <.dots_dark />
+            </div>
+            <div data-part="header">
+              <h1 data-part="title">{gettext("Confirm your account")}</h1>
+              <span data-part="subtitle">
+                {gettext("Check your inbox for a confirmation email and click the link to continue.")}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div data-part="background">
         <div data-part="top-right-gradient"></div>
         <div data-part="bottom-left-gradient"></div>
@@ -266,6 +291,7 @@ defmodule TuistWeb.UserRegistrationLive do
       socket
       |> assign(:head_title, "#{gettext("Sign up")} · Tuist")
       |> assign(:form, form)
+      |> assign(:success, false)
       |> assign(:errors, %{})
       |> assign(:github_auth_configured, Environment.github_auth_configured?())
       |> assign(:google_configured, Environment.google_oauth_configured?())
@@ -286,14 +312,18 @@ defmodule TuistWeb.UserRegistrationLive do
           confirmation_url: &url(~p"/users/confirm/#{&1}")
         })
 
-        {:noreply,
-         socket
-         |> assign(trigger_submit: true)
-         |> put_flash(
-           :info,
-           gettext("A confirmation email has been sent to you, check your inbox")
-         )
-         |> redirect(to: ~p"/")}
+        if FunWithFlags.enabled?(:noora) do
+          {:noreply, assign(socket, :success, true)}
+        else
+          {:noreply,
+           socket
+           |> assign(trigger_submit: true)
+           |> put_flash(
+             :info,
+             gettext("A confirmation email has been sent to you, check your inbox")
+           )
+           |> redirect(to: ~p"/")}
+        end
 
       {:error, :account_handle_taken} ->
         {:noreply,
