@@ -550,7 +550,7 @@ defmodule TuistWeb.API.PreviewsController do
           page: page,
           page_size: page_size,
           filters: filters,
-          order_by: [:inserted_at],
+          order_by: [:inserted_at_naive],
           order_directions: [:desc]
         },
         distinct: distinct,

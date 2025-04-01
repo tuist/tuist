@@ -11,7 +11,7 @@ defmodule TuistWeb.Noora.Button do
   def button_variants, do: @button_variants
   def button_sizes, do: @button_sizes
 
-  attr :label, :string, required: true, doc: "The label of the button"
+  attr :label, :string, required: false, doc: "The label of the button"
 
   attr :variant, :string,
     values: @button_variants,
@@ -34,7 +34,7 @@ defmodule TuistWeb.Noora.Button do
   slot :icon_right, doc: "Icon displayed on the right of an item"
   slot :inner_block, required: false, doc: "Inner block that renders HEEx content"
 
-  attr :rest, :global, include: ~w(phx-click)
+  attr :rest, :global, include: ~w(phx-click disabled)
 
   def button(assigns) do
     ~H"""
@@ -49,7 +49,6 @@ defmodule TuistWeb.Noora.Button do
         data-icon-only={@icon_only}
         {@rest}
       >
-        <div data-part="spacer" />
         <%= if @icon_left  && !@icon_only do %>
           {render_slot(@icon_left)}
         <% end %>
@@ -60,7 +59,6 @@ defmodule TuistWeb.Noora.Button do
         <%= if @icon_right && !@icon_only do %>
           {render_slot(@icon_right)}
         <% end %>
-        <div data-part="spacer" />
       </.link>
     <% else %>
       <button
@@ -70,7 +68,6 @@ defmodule TuistWeb.Noora.Button do
         data-icon-only={@icon_only}
         {@rest}
       >
-        <div data-part="spacer" />
         <%= if @icon_left  && !@icon_only do %>
           {render_slot(@icon_left)}
         <% end %>
@@ -81,7 +78,48 @@ defmodule TuistWeb.Noora.Button do
         <%= if @icon_right && !@icon_only do %>
           {render_slot(@icon_right)}
         <% end %>
-        <div data-part="spacer" />
+      </button>
+    <% end %>
+    """
+  end
+
+  attr :variant, :string,
+    values: @button_variants,
+    default: "primary",
+    doc: "Determines the style"
+
+  attr :size, :string,
+    values: @button_sizes,
+    default: "large",
+    doc:
+      "Determines the overall size of the elements, including padding, font size, and other items"
+
+  attr :href, :any, default: nil, doc: "Uses traditional browser navigation to the new location"
+  attr :navigate, :string, default: nil, doc: "Navigates to a LiveView"
+  attr :patch, :string, default: nil, doc: "Patches the current LiveView"
+
+  slot :inner_block, required: true, doc: "Inner block that renders HEEx content"
+
+  attr :rest, :global, include: ~w(phx-click disabled)
+
+  def neutral_button(assigns) do
+    ~H"""
+    <%= if @href || @navigate || @patch do %>
+      <.link
+        class="noora-neutral-button"
+        href={@href}
+        navigate={@navigate}
+        patch={@patch}
+        data-variant={@variant}
+        data-size={@size}
+        data-icon-only={@icon_only}
+        {@rest}
+      >
+        {render_slot(@inner_block)}
+      </.link>
+    <% else %>
+      <button class="noora-neutral-button" data-variant={@variant} data-size={@size} {@rest}>
+        {render_slot(@inner_block)}
       </button>
     <% end %>
     """

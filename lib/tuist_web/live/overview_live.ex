@@ -1,13 +1,13 @@
 defmodule TuistWeb.OverviewLive do
   use TuistWeb, :live_view
   use TuistWeb.Noora
-  import TuistWeb.AppPreview
+  import TuistWeb.Previews.AppPreview
   alias Tuist.Previews
   alias Tuist.CommandEvents
   alias Tuist.Runs.Analytics
   alias Tuist.Projects
 
-  def mount(params, _session, %{assigns: %{selected_project: project}} = socket) do
+  def mount(_params, _session, %{assigns: %{selected_project: project}} = socket) do
     {:ok,
      socket
      |> assign(
@@ -16,7 +16,7 @@ defmodule TuistWeb.OverviewLive do
      )}
   end
 
-  def handle_params(params, _uri, %{assigns: %{selected_project: project}} = socket) do
+  def handle_params(params, _uri, %{assigns: %{selected_project: _project}} = socket) do
     {
       :noreply,
       socket
@@ -24,7 +24,7 @@ defmodule TuistWeb.OverviewLive do
     }
   end
 
-  defp assign_test_runs_analytics(%{assigns: %{selected_project: project}} = socket, params) do
+  defp assign_test_runs_analytics(%{assigns: %{selected_project: project}} = socket) do
     {recent_test_runs, _meta} =
       CommandEvents.list_command_events(%{
         last: 40,
@@ -126,10 +126,14 @@ defmodule TuistWeb.OverviewLive do
       :test_analytics,
       Analytics.runs_duration_analytics("test", project_id: project.id)
     )
-    |> assign_test_runs_analytics(params)
+    |> assign_test_runs_analytics()
     |> assign(
       :latest_app_previews,
       Previews.latest_previews_with_distinct_bundle_ids(project)
+    )
+    |> assign(
+      :user_agent,
+      UAParser.parse(get_connect_info(socket, :user_agent))
     )
   end
 

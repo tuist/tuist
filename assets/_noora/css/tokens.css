@@ -155,12 +155,19 @@
   --noora-button-primary-disabled-label: var(--noora-neutral-light-200);
   --noora-button-secondary-background: light-dark(var(--noora-neutral-light-50), var(--noora-neutral-dark-1100));
   --noora-button-secondary-label: light-dark(var(--noora-neutral-light-1200), var(--noora-neutral-light-50));
-  --noora-button-secondary-disabled-background: var(--noora-neutral-light-100);
+  --noora-button-secondary-disabled-background: light-dark(
+    var(--noora-neutral-light-100),
+    var(--noora-neutral-dark-1000)
+  );
+  --noora-button-neutral-background-hover: light-dark(var(--noora-neutral-light-200), var(--noora-neutral-dark-1000));
+  --noora-button-neutral-background-active: light-dark(var(--noora-neutral-light-300), var(--noora-neutral-dark-900));
   --noora-button-secondary-disabled-label: var(--noora-neutral-light-600);
   --noora-button-destructive-background: var(--noora-red-500);
   --noora-button-destructive-label: var(--noora-neutral-light-50);
   --noora-button-destructive-disabled-background: var(--noora-red-300);
   --noora-button-destructive-disabled-label: var(--noora-neutral-light-200);
+  --noora-button-neutral-label: light-dark(var(--noora-neutral-light-1200), var(--noora-neutral-light-50));
+  --noora-button-neutral-disabled-label: light-dark(var(--noora-neutral-light-600), var(--noora-neutral-dark-600));
 
   --noora-button-background-primary: linear-gradient(180deg, oklch(100% 0 0 / 0.16) 0%, oklch(100% 0 0 / 0) 100%),
     var(--noora-button-primary-background);

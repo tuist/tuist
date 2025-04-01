@@ -228,7 +228,7 @@ defmodule Tuist.PreviewsTest do
           project: project,
           display_name: "App",
           git_branch: "main",
-          inserted_at: ~N[2021-01-01 00:00:00]
+          inserted_at: ~U[2021-01-01 00:00:00Z]
         )
 
       preview_two =
@@ -236,7 +236,7 @@ defmodule Tuist.PreviewsTest do
           project: project,
           display_name: "App",
           git_branch: "main",
-          inserted_at: ~N[2021-01-01 01:00:00]
+          inserted_at: ~U[2021-01-01 01:00:00Z]
         )
 
       # When
@@ -281,7 +281,7 @@ defmodule Tuist.PreviewsTest do
       PreviewsFixtures.preview_fixture(
         project: project_two,
         display_name: "App Two",
-        inserted_at: ~N[2024-03-05 02:00:00]
+        inserted_at: ~U[2024-03-05 02:00:00Z]
       )
 
       preview_two =
@@ -315,18 +315,17 @@ defmodule Tuist.PreviewsTest do
       # When
       {got_previews_first_page, got_meta_first_page} =
         Previews.list_previews(%{
-          page: 1,
-          page_size: 2,
+          first: 2,
           filters: [%{field: :project_id, op: :==, value: project.id}],
-          order_by: [:inserted_at],
+          order_by: [:inserted_at_naive],
           order_directions: [:desc]
         })
 
       {got_previews_second_page, got_meta_second_page} =
-        Previews.list_previews(Flop.to_next_page(got_meta_first_page.flop))
+        Previews.list_previews(Flop.to_next_cursor(got_meta_first_page))
 
       {got_previews_third_page, _meta} =
-        Previews.list_previews(Flop.to_next_page(got_meta_second_page.flop))
+        Previews.list_previews(Flop.to_next_cursor(got_meta_second_page))
 
       # Then
       assert got_previews_first_page == [preview_five, preview_four]
@@ -343,7 +342,7 @@ defmodule Tuist.PreviewsTest do
           project: project,
           display_name: "App",
           supported_platforms: [:ios, :watchos],
-          inserted_at: ~N[2021-01-01 00:00:00]
+          inserted_at: ~U[2021-01-01 00:00:00Z]
         )
 
       _preview_two =
@@ -351,7 +350,7 @@ defmodule Tuist.PreviewsTest do
           project: project,
           display_name: "App",
           supported_platforms: [:macos, :watchos],
-          inserted_at: ~N[2021-01-01 01:00:00]
+          inserted_at: ~U[2021-01-01 01:00:00Z]
         )
 
       # When
@@ -360,7 +359,7 @@ defmodule Tuist.PreviewsTest do
           %{
             first: 20,
             filters: [%{field: :project_id, op: :==, value: project.id}],
-            order_by: [:inserted_at],
+            order_by: [:inserted_at_naive],
             order_directions: [:desc]
           },
           supported_platforms: [:ios, :visionos]
@@ -403,7 +402,7 @@ defmodule Tuist.PreviewsTest do
           %{
             first: 20,
             filters: [%{field: :project_id, op: :==, value: project.id}],
-            order_by: [:inserted_at],
+            order_by: [:inserted_at_naive],
             order_directions: [:desc]
           },
           distinct: [:bundle_identifier]

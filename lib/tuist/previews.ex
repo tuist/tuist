@@ -30,6 +30,10 @@ defmodule Tuist.Previews do
       version: version,
       supported_platforms: supported_platforms,
       inserted_at: Keyword.get(opts, :inserted_at),
+      inserted_at_naive:
+        Keyword.get(opts, :inserted_at, DateTime.utc_now())
+        |> DateTime.shift_zone!("Etc/UTC")
+        |> DateTime.to_naive(),
       git_branch: git_branch,
       git_commit_sha: git_commit_sha,
       ran_by_account_id: ran_by_account_id
@@ -58,7 +62,7 @@ defmodule Tuist.Previews do
           filters: [
             %{field: :project_id, op: :==, value: project.id}
           ],
-          order_by: [:inserted_at],
+          order_by: [:inserted_at_naive],
           order_directions: [:desc]
         },
         distinct: [:bundle_identifier],
@@ -74,7 +78,7 @@ defmodule Tuist.Previews do
       |> Enum.member?(:bundle_identifier)
 
     order_by =
-      Map.get(attrs, :order_by, [:inserted_at]) |> hd()
+      Map.get(attrs, :order_by, [:inserted_at_naive]) |> hd()
 
     order_direction = Map.get(attrs, :order_directions, [:desc]) |> hd()
 
@@ -127,7 +131,7 @@ defmodule Tuist.Previews do
       p.project_id == ^project.id and
         (p.git_branch == ^project.default_branch or e.git_branch == ^project.default_branch)
     )
-    |> order_by(desc: :inserted_at)
+    |> order_by(desc: :inserted_at_naive)
     |> limit(1)
     |> preload(:command_event)
     |> Repo.one()
@@ -167,12 +171,12 @@ defmodule Tuist.Previews do
     if is_nil(supported_platforms) do
       []
     else
-      supported_platforms |> Enum.map(&supported_platform_strings/1)
+      supported_platforms |> Enum.map(&platform_string/1)
     end
   end
 
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
-  defp supported_platform_strings(supported_platform) do
+  def platform_string(supported_platform) do
     case supported_platform do
       :ios -> "iOS"
       :ios_simulator -> "iOS Simulator"

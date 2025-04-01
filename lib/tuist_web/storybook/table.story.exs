@@ -14,6 +14,7 @@ defmodule TuistWeb.Storybook.Table do
        status_badge_cell: 1,
        button_cell: 1,
        link_button_cell: 1,
+       tag_cell: 1,
        time_cell: 1},
       {TuistWeb.Noora.Button, button: 1},
       {TuistWeb.Noora.Icon, chevron_left: 1, pencil: 1, trash: 1}
@@ -43,6 +44,9 @@ defmodule TuistWeb.Storybook.Table do
                 <img src="/images/tuist_social.jpeg" />
               </:image>
             </.text_and_description_cell>
+          </:col>
+          <:col :let={i} label="Tag">
+            <.tag_cell label={i.label} icon="category" />
           </:col>
           <:col :let={i} label="Badge">
             <.badge_cell label={i.label} color="warning" style="light-fill" />

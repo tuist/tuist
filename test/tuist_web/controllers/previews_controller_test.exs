@@ -682,7 +682,7 @@ defmodule TuistWeb.PreviewsControllerTest do
         PreviewsFixtures.preview_fixture(
           project: project,
           display_name: "App",
-          inserted_at: ~N[2021-01-01 00:00:00]
+          inserted_at: ~U[2021-01-01 00:00:00Z]
         )
 
       preview_two =
@@ -692,7 +692,7 @@ defmodule TuistWeb.PreviewsControllerTest do
           bundle_identifier: "com.tuist.app",
           git_branch: "main",
           git_commit_sha: "commit-sha-two",
-          inserted_at: ~N[2021-01-01 01:00:00]
+          inserted_at: ~U[2021-01-01 01:00:00Z]
         )
 
       _preview_three =
@@ -700,7 +700,7 @@ defmodule TuistWeb.PreviewsControllerTest do
           project: project,
           display_name: "App",
           git_branch: "feature-branch",
-          inserted_at: ~N[2021-01-01 02:00:00]
+          inserted_at: ~U[2021-01-01 02:00:00Z]
         )
 
       _preview_four =
@@ -708,7 +708,7 @@ defmodule TuistWeb.PreviewsControllerTest do
           project: project,
           display_name: "AppTwo",
           git_branch: "main",
-          inserted_at: ~N[2021-01-01 03:00:00]
+          inserted_at: ~U[2021-01-01 03:00:00Z]
         )
 
       conn =
@@ -813,7 +813,7 @@ defmodule TuistWeb.PreviewsControllerTest do
         PreviewsFixtures.preview_fixture(
           project: project,
           display_name: "preview-one",
-          inserted_at: ~N[2021-01-01 00:00:00],
+          inserted_at: ~U[2021-01-01 00:00:00Z],
           git_branch: "feature"
         )
 
@@ -1052,7 +1052,7 @@ defmodule TuistWeb.PreviewsControllerTest do
           project: project,
           display_name: "preview-one",
           git_commit_sha: "36fa9d5c3cb9f1dd45f194035a665444ea2d316f",
-          inserted_at: ~N[2021-01-01 00:00:00]
+          inserted_at: ~U[2021-01-01 00:00:00Z]
         )
 
       _preview_two =
@@ -1060,7 +1060,7 @@ defmodule TuistWeb.PreviewsControllerTest do
           project: project,
           display_name: "preview-one",
           git_commit_sha: "a8169b2276adc2a4fb8c41030e5c640541b46ef9",
-          inserted_at: ~N[2021-01-01 01:00:00]
+          inserted_at: ~U[2021-01-01 01:00:00Z]
         )
 
       conn =
@@ -1094,21 +1094,21 @@ defmodule TuistWeb.PreviewsControllerTest do
         PreviewsFixtures.preview_fixture(
           project: project,
           display_name: "preview-one",
-          inserted_at: ~N[2021-01-01 00:00:00]
+          inserted_at: ~U[2021-01-01 00:00:00Z]
         )
 
       preview_two =
         PreviewsFixtures.preview_fixture(
           project: project,
           display_name: "preview-one",
-          inserted_at: ~N[2021-01-01 01:00:00]
+          inserted_at: ~U[2021-01-01 01:00:00Z]
         )
 
       preview_three =
         PreviewsFixtures.preview_fixture(
           project: project,
           display_name: "preview-one",
-          inserted_at: ~N[2021-01-01 02:00:00]
+          inserted_at: ~U[2021-01-01 02:00:00Z]
         )
 
       conn =

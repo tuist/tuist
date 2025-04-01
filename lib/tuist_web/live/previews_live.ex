@@ -69,7 +69,7 @@ defmodule TuistWeb.PreviewsLive do
       filters: [
         %{field: :project_id, op: :==, value: project_id}
       ],
-      order_by: [:inserted_at],
+      order_by: [:inserted_at_naive],
       order_directions: [:desc]
     }
 

@@ -301,7 +301,7 @@
       <span data-part="title">{gettext("Latest app previews")}</span>
       <div data-part="apps">
         <%= for preview <- @latest_app_previews do %>
-          <.app_preview preview={preview} />
+          <.app_preview preview={preview} user_agent={@user_agent} />
         <% end %>
       </div>
     </.card_section>

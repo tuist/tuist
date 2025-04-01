@@ -1,5 +1,6 @@
 .noora-button,
-.noora-link-button {
+.noora-link-button,
+.noora-neutral-button {
   -webkit-appearance: button;
   align-items: center;
   border-radius: var(--noora-radius-medium);
@@ -7,18 +8,15 @@
   display: inline-flex;
   text-decoration: none;
   padding: 0;
-
-  & > :not([data-part="spacer"]):not(:nth-last-child(2)) {
-    margin-right: var(--noora-spacing-1);
-  }
+  justify-content: center;
 }
 
 .noora-button {
   cursor: pointer;
   outline: unset;
 
-  & [data-part="spacer"] {
-    flex-grow: 1;
+  &[disabled] {
+    cursor: not-allowed;
   }
 
   & > span {
@@ -35,7 +33,7 @@
       box-shadow: var(--noora-button-border-primary-hover);
     }
 
-    &:disabled {
+    &[disabled] {
       background: var(--noora-button-background-primary-disabled);
       box-shadow: var(--noora-button-border-primary-disabled);
       color: var(--noora-button-primary-disabled-label);
@@ -56,7 +54,7 @@
       background: var(--noora-button-background-secondary-hover);
     }
 
-    &:disabled {
+    &[disabled] {
       background: var(--noora-button-background-secondary-disabled);
       box-shadow: var(--noora-button-border-secondary-disabled);
       color: var(--noora-button-secondary-disabled-label);
@@ -79,7 +77,7 @@
       box-shadow: var(--noora-button-border-destructive-hover);
     }
 
-    &:disabled {
+    &[disabled] {
       background: var(--noora-button-background-destructive-disabled);
       box-shadow: var(--noora-button-border-destructive-disabled);
       color: var(--noora-button-destructive-disabled-label);
@@ -196,6 +194,48 @@
     & svg {
       width: var(--noora-icon-size-large);
       height: var(--noora-icon-size-large);
+    }
+  }
+}
+
+.noora-neutral-button {
+  background: unset;
+  cursor: pointer;
+  padding: var(--noora-spacing-3);
+  color: var(--noora-button-neutral-label);
+  border-radius: var(--noora-radius-medium);
+
+  &:not(:disabled):hover {
+    background: var(--noora-button-neutral-background-hover);
+  }
+
+  &:not(:disabled):active {
+    background: var(--noora-button-neutral-background-active);
+  }
+
+  &[disabled] {
+    cursor: not-allowed;
+    color: var(--noora-button-neutral-disabled-label);
+  }
+
+  &[data-size="large"] {
+    & > svg {
+      height: var(--noora-icon-size-large);
+      width: var(--noora-icon-size-large);
+    }
+  }
+
+  &[data-size="medium"] {
+    & > svg {
+      height: var(--noora-icon-size-medium);
+      width: var(--noora-icon-size-medium);
+    }
+  }
+
+  &[data-size="small"] {
+    & > svg {
+      height: var(--noora-icon-size-small);
+      width: var(--noora-icon-size-small);
     }
   }
 }

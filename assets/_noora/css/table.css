@@ -26,7 +26,7 @@
       pointer-events: none;
       position: absolute;
       right: 0;
-      top: 36px;
+      top: 40px;
       z-index: 1;
     }
 
@@ -79,7 +79,7 @@
     background: var(--noora-surface-table-header);
     color: var(--noora-surface-label-primary);
     font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
-    padding: var(--noora-spacing-4) var(--noora-spacing-7);
+    padding: var(--noora-spacing-4) var(--noora-spacing-7) var(--noora-spacing-5) var(--noora-spacing-7);
     position: sticky;
     text-align: left;
     top: 0;
@@ -186,7 +186,8 @@
     &[data-type="badge"],
     &[data-type="status_badge"],
     &[data-type="button"],
-    &[data-type="link_button"] {
+    &[data-type="link_button"],
+    &[data-type="tag"] {
       padding: var(--noora-spacing-7);
     }
 

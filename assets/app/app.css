@@ -2,7 +2,7 @@
 @import "./css/utilities.css";
 @import "./css/layouts.css";
 @import "./css/components.css";
-@import "./css/components/app_preview.css";
+@import "./css/components/previews/app_preview.css";
 @import "./css/pages.css";
 
 body {
@@ -682,7 +682,7 @@ input[type="checkbox"] {
   align-items: center;
 }
 
-table {
+table:not(html[data-noora] table) {
   width: 100%;
   border-spacing: 0;
 
@@ -714,6 +714,14 @@ table {
 }
 
 /* Pagination */
+
+.tuist-pagination {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--noora-spacing-4);
+  justify-content: center;
+}
 
 .pagination {
   display: flex;

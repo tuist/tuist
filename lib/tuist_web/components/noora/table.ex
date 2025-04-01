@@ -31,6 +31,7 @@ defmodule TuistWeb.Noora.Table do
   import TuistWeb.Noora.Icon
   import TuistWeb.Noora.Badge
   import TuistWeb.Noora.Button
+  import TuistWeb.Noora.Tag
   import TuistWeb.Noora.Time
   import TuistWeb.Noora.Utils
 
@@ -44,7 +45,7 @@ defmodule TuistWeb.Noora.Table do
       "A function to generate the row key. Required when using a LiveView stream. If using streams and not provided, defaults to the `id` key of the stream."
 
   slot :col, required: true do
-    attr :label, :string, required: true, doc: "The label of the column"
+    attr :label, :string, required: false, doc: "The label of the column"
     attr :icon, :string, doc: "An icon to render next to the label"
   end
 
@@ -151,6 +152,10 @@ defmodule TuistWeb.Noora.Table do
 
   attr :label, :string, default: nil, doc: "The label of the badge"
 
+  attr :icon, :string,
+    default: nil,
+    doc: "An optional icon to render next to the label."
+
   attr :style, :string,
     values: ~w(fill light-fill),
     default: "fill",
@@ -166,7 +171,27 @@ defmodule TuistWeb.Noora.Table do
   def badge_cell(assigns) do
     ~H"""
     <div data-part="cell" data-type="badge" {@rest}>
-      <.badge style={@style} color={@color} size="large" label={@label} />
+      <.badge style={@style} color={@color} size="large" label={@label}>
+        <:icon>
+          <.icon :if={@icon} name={@icon} />
+        </:icon>
+      </.badge>
+    </div>
+    """
+  end
+
+  attr :label, :string, default: nil, doc: "The label of the badge"
+
+  attr :icon, :string,
+    default: nil,
+    doc: "An optional icon to render next to the label."
+
+  attr :rest, :global
+
+  def tag_cell(assigns) do
+    ~H"""
+    <div data-part="cell" data-type="tag" {@rest}>
+      <.tag label={@label} icon={@icon} />
     </div>
     """
   end

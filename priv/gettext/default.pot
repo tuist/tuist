@@ -346,6 +346,7 @@ msgstr ""
 msgid "Blog posts by the Tuist team."
 msgstr ""
 
+#: lib/tuist_web/live/noora_previews_live.html.heex:40
 #: lib/tuist_web/live/preview_live.html.heex:74
 #: lib/tuist_web/live/previews_live.html.heex:22
 #, elixir-autogen, elixir-format
@@ -359,7 +360,7 @@ msgstr ""
 
 #: lib/tuist_web/components/app_command_event_components.ex:21
 #: lib/tuist_web/components/app_command_event_components.ex:40
-#: lib/tuist_web/live/overview_live.ex:149
+#: lib/tuist_web/live/overview_live.ex:153
 #: lib/tuist_web/live/project_dashboard_live.html.heex:48
 #, elixir-autogen, elixir-format
 msgid "CI"
@@ -453,6 +454,7 @@ msgstr ""
 msgid "Command"
 msgstr ""
 
+#: lib/tuist_web/live/noora_previews_live.html.heex:46
 #: lib/tuist_web/live/preview_live.html.heex:78
 #: lib/tuist_web/live/previews_live.html.heex:25
 #, elixir-autogen, elixir-format
@@ -997,6 +999,7 @@ msgstr ""
 msgid "Last flaky run"
 msgstr ""
 
+#: lib/tuist_web/components/empty_state.ex:39
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:460
 #, elixir-autogen, elixir-format
 msgid "Learn more"
@@ -1094,6 +1097,7 @@ msgstr ""
 msgid "Most popular"
 msgstr ""
 
+#: lib/tuist_web/live/noora_previews_live.html.heex:31
 #: lib/tuist_web/live/previews_live.html.heex:13
 #: lib/tuist_web/live/project_run_detail_live.ex:279
 #, elixir-autogen, elixir-format
@@ -1110,7 +1114,8 @@ msgstr ""
 msgid "New release:"
 msgstr ""
 
-#: lib/tuist_web/components/app_components.ex:783
+#: lib/tuist_web/components/app_components.ex:740
+#: lib/tuist_web/components/app_components.ex:806
 #, elixir-autogen, elixir-format
 msgid "Next"
 msgstr ""
@@ -1272,6 +1277,9 @@ msgid "Preview your project apps in simulator or devices with one click/command.
 msgstr ""
 
 #: lib/tuist_web/components/app_layout_components.ex:174
+#: lib/tuist_web/live/noora_previews_live.ex:25
+#: lib/tuist_web/live/noora_previews_live.html.heex:18
+#: lib/tuist_web/live/noora_previews_live.html.heex:28
 #: lib/tuist_web/live/overview_live.html.heex:291
 #: lib/tuist_web/live/previews_live.ex:22
 #: lib/tuist_web/live/previews_live.html.heex:2
@@ -1280,7 +1288,7 @@ msgstr ""
 msgid "Previews"
 msgstr ""
 
-#: lib/tuist_web/components/app_components.ex:776
+#: lib/tuist_web/components/app_components.ex:799
 #, elixir-autogen, elixir-format
 msgid "Previous"
 msgstr ""
@@ -1347,6 +1355,7 @@ msgstr ""
 msgid "Ran at"
 msgstr ""
 
+#: lib/tuist_web/live/noora_previews_live.html.heex:52
 #: lib/tuist_web/live/previews_live.html.heex:19
 #: lib/tuist_web/live/project_dashboard_live.html.heex:32
 #: lib/tuist_web/live/project_run_detail_live.html.heex:92
@@ -2616,7 +2625,7 @@ msgstr ""
 msgid "Selective test effectiveness represents the ratio of selective test hits compared to selective test misses."
 msgstr ""
 
-#: lib/tuist_web/live/overview_live.ex:136
+#: lib/tuist_web/live/overview_live.ex:140
 #, elixir-autogen, elixir-format
 msgid "since last week"
 msgstr ""
@@ -2647,7 +2656,7 @@ msgstr ""
 msgid "Welcome back! Please log in to continue"
 msgstr ""
 
-#: lib/tuist_web/live/overview_live.ex:141
+#: lib/tuist_web/live/overview_live.ex:145
 #, elixir-autogen, elixir-format
 msgid "Any"
 msgstr ""
@@ -2657,22 +2666,22 @@ msgstr ""
 msgid "Environment:"
 msgstr ""
 
-#: lib/tuist_web/live/overview_live.ex:145
+#: lib/tuist_web/live/overview_live.ex:149
 #, elixir-autogen, elixir-format
 msgid "Local"
 msgstr ""
 
-#: lib/tuist_web/live/overview_live.ex:138
+#: lib/tuist_web/live/overview_live.ex:142
 #, elixir-autogen, elixir-format
 msgid "since last month"
 msgstr ""
 
-#: lib/tuist_web/live/overview_live.ex:137
+#: lib/tuist_web/live/overview_live.ex:141
 #, elixir-autogen, elixir-format
 msgid "since last year"
 msgstr ""
 
-#: lib/tuist_web/components/app_preview.ex:20
+#: lib/tuist_web/components/previews/app_preview.ex:22
 #, elixir-autogen, elixir-format
 msgid "%{app_name} icon"
 msgstr ""
@@ -2687,6 +2696,7 @@ msgstr ""
 msgid "Last 40 runs"
 msgstr ""
 
+#: lib/tuist_web/live/noora_previews_live.html.heex:20
 #: lib/tuist_web/live/overview_live.html.heex:301
 #, elixir-autogen, elixir-format
 msgid "Latest app previews"
@@ -2762,4 +2772,34 @@ msgstr ""
 #: lib/tuist_web/live/user_registration_live.ex:170
 #, elixir-autogen, elixir-format
 msgid "Confirm your account"
+msgstr ""
+
+#: lib/tuist_web/live/noora_previews_live.html.heex:55
+#, elixir-autogen, elixir-format
+msgid "Built at"
+msgstr ""
+
+#: lib/tuist_web/live/noora_previews_live.html.heex:34
+#, elixir-autogen, elixir-format
+msgid "Platform"
+msgstr ""
+
+#: lib/tuist_web/components/app_components.ex:731
+#, elixir-autogen, elixir-format
+msgid "Prev"
+msgstr ""
+
+#: lib/tuist_web/live/noora_previews_live.html.heex:6
+#, elixir-autogen, elixir-format
+msgid "Run the following command to share app preview."
+msgstr ""
+
+#: lib/tuist_web/live/noora_previews_live.html.heex:5
+#, elixir-autogen, elixir-format
+msgid "Share app previews in one click"
+msgstr ""
+
+#: lib/tuist_web/components/empty_state.ex:50
+#, elixir-autogen, elixir-format
+msgid "bash"
 msgstr ""
