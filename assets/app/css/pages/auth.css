@@ -42,7 +42,8 @@ html:not([data-noora]) {
 html[data-noora] {
   #login,
   #signup,
-  #signup-success {
+  #signup-success,
+  #confirmation {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -345,7 +346,8 @@ html[data-noora] {
     }
   }
 
-  #signup-success {
+  #signup-success,
+  #confirmation {
     & [data-part="content"] {
       max-width: 412px;
       padding: var(--noora-spacing-10) var(--noora-spacing-11);

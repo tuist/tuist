@@ -283,7 +283,7 @@ msgstr ""
 msgid "Average test"
 msgstr ""
 
-#: lib/tuist_web/live/user_confirmation_live.ex:28
+#: lib/tuist_web/live/user_confirmation_live.ex:94
 #: lib/tuist_web/live/user_forgot_password_live.ex:38
 #: lib/tuist_web/live/user_reset_password_live.ex:38
 #, elixir-autogen, elixir-format
@@ -482,7 +482,7 @@ msgstr ""
 msgid "Confirm"
 msgstr ""
 
-#: lib/tuist_web/live/user_confirmation_live.ex:10
+#: lib/tuist_web/live/user_confirmation_live.ex:76
 #, elixir-autogen, elixir-format
 msgid "Confirm account"
 msgstr ""
@@ -492,7 +492,7 @@ msgstr ""
 msgid "Confirm downgrade to the Air plan"
 msgstr ""
 
-#: lib/tuist_web/live/user_confirmation_live.ex:23
+#: lib/tuist_web/live/user_confirmation_live.ex:89
 #, elixir-autogen, elixir-format
 msgid "Confirm my account"
 msgstr ""
@@ -507,7 +507,7 @@ msgstr ""
 msgid "Confirm upgrade to the Pro plan"
 msgstr ""
 
-#: lib/tuist_web/live/user_confirmation_live.ex:11
+#: lib/tuist_web/live/user_confirmation_live.ex:77
 #, elixir-autogen, elixir-format
 msgid "Confirm your account to access Tuist."
 msgstr ""
@@ -2742,6 +2742,7 @@ msgstr ""
 msgid "Sign up for Tuist"
 msgstr ""
 
+#: lib/tuist_web/live/user_confirmation_live.ex:23
 #: lib/tuist_web/live/user_login_live.ex:39
 #: lib/tuist_web/live/user_registration_live.ex:58
 #: lib/tuist_web/live/user_registration_live.ex:164
@@ -2774,6 +2775,31 @@ msgstr ""
 msgid "Confirm your account"
 msgstr ""
 
+#: lib/tuist_web/live/user_confirmation_live.ex:30
+#, elixir-autogen, elixir-format
+msgid "Account confirmed!"
+msgstr ""
+
+#: lib/tuist_web/live/user_confirmation_live.ex:46
+#, elixir-autogen, elixir-format
+msgid "Confirmation failed"
+msgstr ""
+
+#: lib/tuist_web/live/user_confirmation_live.ex:56
+#, elixir-autogen, elixir-format
+msgid "User confirmation link is invalid or it has expired."
+msgstr ""
+
+#: lib/tuist_web/live/user_confirmation_live.ex:32
+#, elixir-autogen, elixir-format
+msgid "Your account has been confirmed."
+msgstr ""
+
+#: lib/tuist_web/live/user_confirmation_live.ex:48
+#, elixir-autogen, elixir-format
+msgid "Your account could not be confirmed."
+msgstr ""
+
 #: lib/tuist_web/live/noora_previews_live.html.heex:55
 #, elixir-autogen, elixir-format
 msgid "Built at"
@@ -2802,4 +2828,9 @@ msgstr ""
 #: lib/tuist_web/components/empty_state.ex:50
 #, elixir-autogen, elixir-format
 msgid "bash"
+msgstr ""
+
+#: lib/tuist_web/live/user_confirmation_live.ex:41
+#, elixir-autogen, elixir-format
+msgid "Your account has been confirmed. You will be redirected shortly..."
 msgstr ""
