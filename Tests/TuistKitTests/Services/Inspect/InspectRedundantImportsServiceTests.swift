@@ -95,7 +95,7 @@ final class LintRedundantImportsServiceTests: TuistUnitTestCase {
         )
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
-        given(generatorFactory).defaultGenerator(config: .value(config), sources: .any).willReturn(generator)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
         given(generator).load(path: .value(path)).willReturn(graph)
         given(targetScanner).imports(for: .value(app)).willReturn([])
 
