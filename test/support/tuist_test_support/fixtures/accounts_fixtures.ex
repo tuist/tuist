@@ -18,15 +18,22 @@ defmodule TuistTestSupport.Fixtures.AccountsFixtures do
     current_month_remote_cache_hits_count =
       Keyword.get(opts, :current_month_remote_cache_hits_count, 0)
 
+    create_opts = [
+      password: password,
+      confirmed_at: confirmed_at,
+      created_at: created_at,
+      customer_id: customer_id,
+      setup_billing: setup_billing,
+      current_month_remote_cache_hits_count: current_month_remote_cache_hits_count
+    ]
+
+    create_opts =
+      if Keyword.has_key?(opts, :name),
+        do: Keyword.put(create_opts, :name, Keyword.get(opts, :name)),
+        else: create_opts
+
     {:ok, user} =
-      Accounts.create_user(email,
-        password: password,
-        confirmed_at: confirmed_at,
-        created_at: created_at,
-        customer_id: customer_id,
-        setup_billing: setup_billing,
-        current_month_remote_cache_hits_count: current_month_remote_cache_hits_count
-      )
+      Accounts.create_user(email, create_opts)
 
     user |> Tuist.Repo.preload(preload)
   end

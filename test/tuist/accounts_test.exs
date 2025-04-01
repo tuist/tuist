@@ -1072,7 +1072,7 @@ defmodule Tuist.AccountsTest do
   describe "change_user_password/2" do
     test "returns a user changeset" do
       assert %Ecto.Changeset{} = changeset = Accounts.change_user_password(%User{})
-      assert changeset.required == [:encrypted_password]
+      assert changeset.required == [:password]
     end
 
     test "allows fields to be set" do

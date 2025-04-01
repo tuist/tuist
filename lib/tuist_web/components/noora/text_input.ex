@@ -7,6 +7,7 @@ defmodule TuistWeb.Noora.TextInput do
   import TuistWeb.Noora.Icon
   import TuistWeb.Noora.ShortcutKey
   import TuistWeb.Noora.Tooltip
+  import TuistWeb.Noora.HintText
   import TuistWeb.Noora.Label
   alias Phoenix.LiveView.JS
 
@@ -21,6 +22,12 @@ defmodule TuistWeb.Noora.TextInput do
 
   attr :label, :string, default: nil, doc: "Label to be rendered in the input."
   attr :sublabel, :string, default: nil, doc: "Sublabel to be rendered in the input."
+  attr :hint, :string, default: nil, doc: "Hint text to be rendered below the input."
+  attr :hint_variant, :string, default: "default", doc: "Hint text variant."
+
+  attr :error, :string,
+    default: nil,
+    doc: "Errors to be rendered below the input. Takes precedence over `hint`."
 
   attr :show_prefix, :boolean,
     default: true,
@@ -36,8 +43,6 @@ defmodule TuistWeb.Noora.TextInput do
   attr :placeholder, :string, default: nil, doc: "Placeholder text to be rendered in the input."
   attr :required, :boolean, default: false, doc: "Whether the input is required."
   attr :show_required, :boolean, default: false, doc: "Whether the required indicator is shown."
-
-  attr :error, :boolean, default: false
 
   attr :rest, :global
 
@@ -70,7 +75,10 @@ defmodule TuistWeb.Noora.TextInput do
         data-part="label"
       />
       <div data-part="wrapper" data-type={@type} data-error={@error}>
-        <span :if={@type != "basic" or has_slot_content?(@prefix, assigns)} data-part="prefix">
+        <span
+          :if={(@show_prefix and @type != "basic") or has_slot_content?(@prefix, assigns)}
+          data-part="prefix"
+        >
           <.prefix type={@type} prefix={@prefix} />
         </span>
         <input
@@ -109,6 +117,8 @@ defmodule TuistWeb.Noora.TextInput do
           {render_slot(@suffix)}
         </span>
       </div>
+      <.hint_text :if={!is_nil(@error)} label={@error} variant="destructive" />
+      <.hint_text :if={is_nil(@error) and @hint} label={@hint} variant={@hint_variant} />
     </div>
     """
   end

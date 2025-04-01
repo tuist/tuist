@@ -16,6 +16,7 @@ defmodule Tuist.Accounts.User do
   schema "users" do
     field :token, :string
     field :email, :string
+    field :password, :string, virtual: true
     field :encrypted_password, :string, default: ""
     field :confirmed_at, :naive_datetime
     belongs_to :last_visited_project, Project, foreign_key: :last_visited_project_id
@@ -29,17 +30,29 @@ defmodule Tuist.Accounts.User do
   end
 
   def create_user_changeset(user, attrs) do
-    password_to_hash =
-      "#{attrs |> Map.get(:password, "")}#{Tuist.Environment.secret_key_password()}"
-
-    attrs = Map.put(attrs, :encrypted_password, Bcrypt.hash_pwd_salt(password_to_hash))
-
     user
-    |> cast(attrs, [:token, :email, :encrypted_password, :confirmed_at, :created_at])
+    |> cast(attrs, [:token, :email, :password, :encrypted_password, :confirmed_at, :created_at])
     |> update_change(:email, &String.downcase/1)
     |> validate_required([:token, :email])
+    |> validate_length(:password, min: 6)
+    |> encrypt_password()
     |> unique_constraint(:token, name: "index_users_on_token")
     |> unique_constraint(:email, name: "index_users_on_email")
+  end
+
+  defp encrypt_password(changeset) do
+    case changeset do
+      %Ecto.Changeset{valid?: true, changes: %{password: password}} ->
+        password_to_hash =
+          "#{get_change(changeset, :password)}#{Tuist.Environment.secret_key_password()}"
+
+        changeset
+        |> put_change(:encrypted_password, Bcrypt.hash_pwd_salt(password_to_hash))
+        |> delete_change(:password)
+
+      _ ->
+        changeset
+    end
   end
 
   @doc """
@@ -65,15 +78,11 @@ defmodule Tuist.Accounts.User do
   A user changeset for changing the password.
   """
   def password_changeset(user, attrs) do
-    password_to_hash =
-      "#{attrs |> Map.get("password", "")}#{Tuist.Environment.secret_key_password()}"
-
-    attrs = Map.put(attrs, "encrypted_password", Bcrypt.hash_pwd_salt(password_to_hash))
-
     user
-    |> cast(attrs, [:encrypted_password])
-    |> validate_required([:encrypted_password])
+    |> cast(attrs, [:password])
+    |> validate_required([:password])
     |> validate_confirmation(:password, message: gettext("Passwords don't match"))
+    |> encrypt_password()
   end
 
   @doc """

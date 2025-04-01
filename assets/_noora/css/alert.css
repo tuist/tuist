@@ -13,7 +13,8 @@
 
   & [data-part="icon"] {
     display: flex;
-    flex-shrink: 0;
+    width: var(--noora-icon-size-medium);
+    height: var(--noora-icon-size-medium);
 
     & svg {
       height: 100%;

@@ -71,10 +71,21 @@ defmodule Tuist.Accounts.Account do
   end
 
   defp validate_handle(changeset) do
-    changeset
-    |> validate_format(:name, ~r/^[^.]+$/, message: "can't contain a dot")
-    |> validate_exclusion(:name, Application.get_env(:tuist, :blocked_handles))
-    |> update_change(:name, &String.downcase/1)
-    |> unique_constraint(:name, name: "index_accounts_on_name")
+    # TODO: Noora: Remove old validation logic
+    if FunWithFlags.enabled?(:noora) do
+      changeset
+      |> validate_format(:name, ~r/^[a-zA-Z0-9-]+$/,
+        message: "must contain only alphanumeric characters"
+      )
+      |> validate_length(:name, min: 6, max: 32)
+      |> validate_exclusion(:name, Application.get_env(:tuist, :blocked_handles))
+      |> unique_constraint(:name, name: "index_accounts_on_name")
+    else
+      changeset
+      |> validate_format(:name, ~r/^[^.]+$/, message: "can't contain a dot")
+      |> validate_exclusion(:name, Application.get_env(:tuist, :blocked_handles))
+      |> update_change(:name, &String.downcase/1)
+      |> unique_constraint(:name, name: "index_accounts_on_name")
+    end
   end
 end

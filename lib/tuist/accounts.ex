@@ -46,7 +46,7 @@ defmodule Tuist.Accounts do
   end
 
   def get_account_by_handle(handle) do
-    Repo.one(from a in Account, where: a.name == ^handle)
+    Repo.one(from a in Account, where: ilike(a.name, ^handle))
   end
 
   @doc ~S"""
@@ -332,22 +332,28 @@ defmodule Tuist.Accounts do
   """
   def create_user(email, opts \\ []) do
     token = Tuist.Tokens.generate_token()
-    password = opts |> Keyword.get(:password, "")
-    confirmed_at = opts |> Keyword.get(:confirmed_at, nil)
-    oauth2_identity = opts |> Keyword.get(:oauth2_identity, nil)
-    suffix = opts |> Keyword.get(:suffix, "")
-    created_at = opts |> Keyword.get(:created_at, DateTime.utc_now())
-    setup_billing = opts |> Keyword.get(:setup_billing, not Tuist.Environment.on_premise?())
+
+    suffix = Keyword.get(opts, :suffix, "")
+
+    name =
+      Keyword.get(
+        opts,
+        :name,
+        (email
+         |> String.split("@")
+         |> List.first()
+         |> String.replace(".", "-")
+         |> String.downcase()) <> suffix
+      )
+
+    password = Keyword.get(opts, :password, "")
+    confirmed_at = Keyword.get(opts, :confirmed_at, nil)
+    oauth2_identity = Keyword.get(opts, :oauth2_identity, nil)
+    created_at = Keyword.get(opts, :created_at, DateTime.utc_now())
+    setup_billing = Keyword.get(opts, :setup_billing, not Tuist.Environment.on_premise?())
 
     current_month_remote_cache_hits_count =
       opts |> Keyword.get(:current_month_remote_cache_hits_count, 0)
-
-    name =
-      (email
-       |> String.split("@")
-       |> List.first()
-       |> String.replace(".", "-")
-       |> String.downcase()) <> suffix
 
     multi =
       Ecto.Multi.new()

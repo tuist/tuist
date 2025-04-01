@@ -9,7 +9,7 @@ defmodule TuistWeb.Noora.HintText do
   attr :label, :string, required: true, doc: "The hint text"
 
   attr :variant, :string,
-    values: ~w(default error disabled),
+    values: ~w(default destructive disabled),
     default: "default",
     doc: "The variant of the hint text"
 

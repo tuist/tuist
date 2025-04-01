@@ -37,8 +37,7 @@
   border-radius: var(--radius-full);
 
   &:hover {
-    background: linear-gradient(rgba(44, 34, 80, 0.4), rgba(44, 34, 80, 0.4)),
-      var(--violet);
+    background: linear-gradient(rgba(44, 34, 80, 0.4), rgba(44, 34, 80, 0.4)), var(--violet);
   }
 }
 
@@ -60,8 +59,7 @@
   cursor: pointer;
 
   &:hover {
-    background: linear-gradient(rgba(44, 34, 80, 0.4), rgba(44, 34, 80, 0.4)),
-      var(--violet);
+    background: linear-gradient(rgba(44, 34, 80, 0.4), rgba(44, 34, 80, 0.4)), var(--violet);
   }
 
   &[data-size="small"] {
@@ -202,8 +200,7 @@
   text-transform: uppercase;
   background: var(--gray-violet);
   border-radius: var(--spacing-32) var(--spacing-32) 0 0;
-  padding: var(--spacing-32) var(--spacing-32) var(--spacing-8)
-    var(--spacing-32);
+  padding: var(--spacing-32) var(--spacing-32) var(--spacing-8) var(--spacing-32);
 }
 
 .marketing__component__more_card__content__title {
@@ -220,8 +217,7 @@
 
 .marketing__component__more_card__content__description {
   background: var(--gray-violet);
-  padding: var(--spacing-8) var(--spacing-32) var(--spacing-32)
-    var(--spacing-32);
+  padding: var(--spacing-8) var(--spacing-32) var(--spacing-32) var(--spacing-32);
 }
 
 .marketing__component__more_card__content__image {

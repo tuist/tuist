@@ -82,4 +82,47 @@ defmodule Tuist.AccountTest do
       refute Account.update_changeset(%Account{}, %{name: "my.name"}).valid?
     end
   end
+
+  describe "noora changes: create_changeset/2" do
+    setup do
+      FunWithFlags |> Mimic.stub(:enabled?, fn _ -> true end)
+      :ok
+    end
+
+    test "valid name passes all validations" do
+      changeset = Account.create_changeset(%Account{}, %{name: "valid-name123", user_id: 1})
+      assert changeset.valid?
+    end
+
+    test "rejects names with invalid characters" do
+      invalid_names = [
+        # underscore not allowed
+        "invalid_name",
+        # space not allowed
+        "invalid name",
+        # special character not allowed
+        "invalid!name",
+        # special character not allowed
+        "invalid@name",
+        # period not allowed
+        "invalid.name"
+      ]
+
+      for name <- invalid_names do
+        changeset = Account.create_changeset(%Account{}, %{name: name, user_id: 1})
+        assert "must contain only alphanumeric characters" in errors_on(changeset).name
+      end
+    end
+
+    test "rejects names that are too short" do
+      changeset = Account.create_changeset(%Account{}, %{name: "short", user_id: 1})
+      assert "should be at least 6 character(s)" in errors_on(changeset).name
+    end
+
+    test "rejects names that are too long" do
+      long_name = String.duplicate("a", 33)
+      changeset = Account.create_changeset(%Account{}, %{name: long_name, user_id: 1})
+      assert "should be at most 32 character(s)" in errors_on(changeset).name
+    end
+  end
 end
