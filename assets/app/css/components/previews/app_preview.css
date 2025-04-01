@@ -10,7 +10,7 @@
   & > [data-part="icon"] {
     width: 48px;
     height: 48px;
-    border-radius: var(--noora-radius-large);
+    border-radius: 8.42px;
   }
 
   & > [data-part="metadata"] {
