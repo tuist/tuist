@@ -20,7 +20,7 @@ Tuist is comprised of a [CLI](https://github.com/tuist/tuist), which is the main
 
 ## Why {#why}
 
-Why choose Tuist? Here are compelling reasons:
+Why choose Tuist? 설득력 있는 이유는 다음과 같습니다.
 
 ### Simplify 🌱 {#simplify}
 
