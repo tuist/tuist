@@ -13,7 +13,7 @@ extension XcodeGraph.Project {
     ///   - plugins: Configured plugins.
     ///   - externalDependencies: External dependencies graph.
     ///   - resourceSynthesizerPathLocator: Resource synthesizer locator.
-    ///   - type: A type that indicates where the project is coming from.
+    ///   - isExternal: Indicates whether the project is imported through `Dependencies.swift`.
     static func from(
         manifest: ProjectDescription.Project,
         generatorPaths: GeneratorPaths,

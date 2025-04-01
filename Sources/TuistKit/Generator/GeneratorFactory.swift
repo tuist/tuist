@@ -85,7 +85,10 @@ public class GeneratorFactory: GeneratorFactorying {
     ) -> Generating {
         let contentHasher = ContentHasher()
         let projectMapperFactory = ProjectMapperFactory(contentHasher: contentHasher)
-        let projectMappers = projectMapperFactory.automation(skipUITests: skipUITests)
+        let projectMappers = projectMapperFactory.automation(
+            skipUITests: skipUITests,
+            tuist: config
+        )
         let workspaceMapperFactory = WorkspaceMapperFactory(projectMapper: SequentialProjectMapper(mappers: projectMappers))
         let graphMapperFactory = GraphMapperFactory()
 
@@ -95,7 +98,9 @@ public class GeneratorFactory: GeneratorFactorying {
             includedTargets: Set(includedTargets.map(TargetQuery.init(stringLiteral:))),
             excludedTargets: Set(excludedTargets.map(TargetQuery.init(stringLiteral:)))
         )
-        let workspaceMappers = workspaceMapperFactory.automation()
+        let workspaceMappers = workspaceMapperFactory.automation(
+            tuist: config
+        )
         let manifestLoader = ManifestLoaderFactory().createManifestLoader()
         return Generator(
             manifestLoader: manifestLoader,
@@ -132,7 +137,9 @@ public class GeneratorFactory: GeneratorFactorying {
     ) -> Generating {
         let contentHasher = ContentHasher()
         let projectMapperFactory = ProjectMapperFactory(contentHasher: contentHasher)
-        let projectMappers = projectMapperFactory.default()
+        let projectMappers = projectMapperFactory.default(
+            tuist: config
+        )
         let workspaceMapperFactory = WorkspaceMapperFactory(projectMapper: SequentialProjectMapper(mappers: projectMappers))
         let graphMapperFactory = GraphMapperFactory()
         let graphMappers = graphMapperFactory.automation(
@@ -141,7 +148,9 @@ public class GeneratorFactory: GeneratorFactorying {
             includedTargets: includedTargets,
             excludedTargets: []
         )
-        let workspaceMappers = workspaceMapperFactory.default()
+        let workspaceMappers = workspaceMapperFactory.default(
+            tuist: config
+        )
         let manifestLoader = ManifestLoaderFactory().createManifestLoader()
         return Generator(
             manifestLoader: manifestLoader,

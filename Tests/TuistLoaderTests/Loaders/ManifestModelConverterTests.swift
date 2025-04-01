@@ -8,7 +8,6 @@ import XcodeGraph
 import XCTest
 
 @testable import ProjectDescription
-@testable import TuistCoreTesting
 @testable import TuistLoader
 @testable import TuistLoaderTesting
 @testable import TuistSupportTesting
@@ -16,7 +15,6 @@ import XCTest
 final class ManifestModelConverterTests: TuistUnitTestCase {
     typealias WorkspaceManifest = ProjectDescription.Workspace
     typealias ProjectManifest = ProjectDescription.Project
-    typealias DependenciesGraphManifest = TuistLoader.DependenciesGraph
     typealias TargetManifest = ProjectDescription.Target
     typealias SettingsManifest = ProjectDescription.Settings
     typealias ConfigurationManifest = ProjectDescription.Configuration
@@ -334,49 +332,8 @@ final class ManifestModelConverterTests: TuistUnitTestCase {
         }
     }
 
-    func test_loadDependenciesGraph_withExternalSPM() async throws {
-        // Given
-        let temporaryPath = try temporaryPath()
-        try await fileSystem.makeDirectory(at: temporaryPath.appending(components: ["checkouts", "Alamofire", "Source"]))
-        let manifest = DependenciesGraphManifest.alamofire(spmFolder: .path(temporaryPath.pathString))
-        let subject = makeSubject(with: makeManifestLoader())
+    // MARK: - Helpers
 
-        // When
-        let model = try await subject.convert(dependenciesGraph: manifest, path: temporaryPath)
-
-        // Then
-        XCTAssertEqual(model.externalProjects.values.first?.type, .external(hash: nil))
-    }
-
-    func test_loadDependenciesGraph_withLocalSPM() async throws {
-        // Given
-        let temporaryPath = try temporaryPath()
-        try await fileSystem.makeDirectory(at: temporaryPath.appending(components: [
-            "checkouts",
-            "ADependency",
-            "Sources",
-            "ALibrary",
-        ]))
-        try await fileSystem.makeDirectory(at: temporaryPath.appending(components: [
-            "checkouts",
-            "ADependency",
-            "Sources",
-            "ALibraryUtils",
-        ]))
-        let manifest = DependenciesGraphManifest.aDependency(spmFolder: .path(temporaryPath.pathString))
-        let subject = makeSubject(with: makeManifestLoader())
-
-        // When
-        let model = try await subject.convert(dependenciesGraph: manifest, path: temporaryPath)
-
-        // Then
-        XCTAssertEqual(model.externalProjects.values.first?.type, .external(hash: nil))
-    }
-}
-
-// MARK: - Helpers
-
-extension ManifestModelConverterTests {
     func makeSubject(with manifestLoader: ManifestLoading) -> ManifestModelConverter {
         ManifestModelConverter(
             manifestLoader: manifestLoader,
@@ -385,7 +342,7 @@ extension ManifestModelConverterTests {
     }
 
     func makeManifestLoader(
-        with projects: [AbsolutePath: ProjectDescription.Project] = [:],
+        with projects: [AbsolutePath: ProjectDescription.Project],
         configs: [AbsolutePath: ProjectDescription.Config] = [:]
     ) -> ManifestLoading {
         let manifestLoader = MockManifestLoading()

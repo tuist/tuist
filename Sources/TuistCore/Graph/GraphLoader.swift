@@ -190,9 +190,9 @@ public final class GraphLoader: GraphLoading {
             }
 
         case .xctest:
-            return try platforms.map { platform in
+            return try platforms.sorted().first.map { platform in
                 try loadXCTestSDK(platform: platform)
-            }.first
+            }
         }
     }
 

@@ -1,5 +1,55 @@
 # Changelog
 
+## 4.45.1 - 2025-03-27
+
+### CLI
+
+#### Changed
+
+- Extract the initialization logic of ServiceContext to make it reusable [#7435](https://github.com/tuist/tuist/pull/7435) by [@pepicrft](https://github.com/pepicrft)
+
+#### Fixed
+
+- Fix tuist init stuck on authentication [#7434](https://github.com/tuist/tuist/pull/7434) by [@fortmarek](https://github.com/fortmarek)
+- Make redundant dependencies check only for local [#7373](https://github.com/tuist/tuist/pull/7373) by [@rofle100lvl](https://github.com/rofle100lvl)
+- Disable build insights unless fullHandle is defined in Tuist.swift [#7438](https://github.com/tuist/tuist/pull/7438) by [@fortmarek](https://github.com/fortmarek)
+
+### CLI (Server features)
+
+- no changes
+
+## 4.45.0 - 2025-03-25
+
+### CLI
+
+#### Changed
+
+- Improve tuist share CLI output [#7418](https://github.com/tuist/tuist/pull/7418) by [@fortmarek](https://github.com/fortmarek)
+- Migration to XcodeProj 9 [#7375](https://github.com/tuist/tuist/pull/7375) by [@waltflanagan](https://github.com/waltflanagan)
+- Update previews to the latest API [#7420](https://github.com/tuist/tuist/pull/7420) by [@fortmarek](https://github.com/fortmarek)
+- Track build insights for auto-generated schemes by default [#7424](https://github.com/tuist/tuist/pull/7424) by [@fortmarek](https://github.com/fortmarek)
+- GraphLoader: ensure deterministic loading of XCTest. [#7429](https://github.com/tuist/tuist/pull/7429) by [@TamarMilchtaich](https://github.com/TamarMilchtaich)
+
+#### Added
+
+- Create test targets for local SPM packages [#7380](https://github.com/tuist/tuist/pull/7380) by [@mikeger](https://github.com/mikeger)
+- Record recent paths [#7402](https://github.com/tuist/tuist/pull/7402) by [@pepicrft](https://github.com/pepicrft)
+- Track build insights for auto-generated schemes by default [#7424](https://github.com/tuist/tuist/pull/7424) by [@fortmarek](https://github.com/fortmarek)
+- Add support for macOS UI test target with bundle dependency [#7426](https://github.com/tuist/tuist/pull/7426) by [@ianhlavats](https://github.com/ianhlavats)
+
+#### Fixed
+
+- Fix inspecting workspace builds [#7408](https://github.com/tuist/tuist/pull/7408) by [@fortmarek](https://github.com/fortmarek)
+- Fix issues where attempting to build-for-testing schemes with no test targets didn't do anything [#7394](https://github.com/tuist/tuist/pull/7394) by [@cooksimo](https://github.com/cooksimo)
+- Fix the releasing of the app [#7413](https://github.com/tuist/tuist/pull/7413) by [@pepicrft](https://github.com/pepicrft)
+- fix: absolute paths in the SRCROOT build setting [#7398](https://github.com/tuist/tuist/pull/7398) by [@pepicrft](https://github.com/pepicrft)
+- Fix duplicate SwiftPM resources due to different path casing [#7415](https://github.com/tuist/tuist/pull/7415) by [@fortmarek](https://github.com/fortmarek)
+- Fix generated project without `Tuist.swift` detected as an Xcode project [#7421](https://github.com/tuist/tuist/pull/7421) by [@pepicrft](https://github.com/pepicrft)
+
+### CLI (Server features)
+
+- no changes
+
 ## 4.44.3 - 2025-03-17
 
 ### CLI

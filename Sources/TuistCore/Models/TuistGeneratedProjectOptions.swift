@@ -26,6 +26,7 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
         public let enforceExplicitDependencies: Bool
         public let defaultConfiguration: String?
         public var optionalAuthentication: Bool
+        public let buildInsightsDisabled: Bool
 
         public init(
             resolveDependenciesWithSystemScm: Bool,
@@ -34,7 +35,8 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
             staticSideEffectsWarningTargets: StaticSideEffectsWarningTargets = .all,
             enforceExplicitDependencies: Bool = false,
             defaultConfiguration: String? = nil,
-            optionalAuthentication: Bool = false
+            optionalAuthentication: Bool = false,
+            buildInsightsDisabled: Bool
         ) {
             self.resolveDependenciesWithSystemScm = resolveDependenciesWithSystemScm
             self.disablePackageVersionLocking = disablePackageVersionLocking
@@ -43,6 +45,7 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
             self.enforceExplicitDependencies = enforceExplicitDependencies
             self.defaultConfiguration = defaultConfiguration
             self.optionalAuthentication = optionalAuthentication
+            self.buildInsightsDisabled = buildInsightsDisabled
         }
     }
 
@@ -82,7 +85,8 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
             generationOptions: .init(
                 resolveDependenciesWithSystemScm: false,
                 disablePackageVersionLocking: false,
-                staticSideEffectsWarningTargets: .all
+                staticSideEffectsWarningTargets: .all,
+                buildInsightsDisabled: true
             ),
             installOptions: .init(passthroughSwiftPackageManagerArguments: [])
         )
@@ -117,7 +121,8 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
                 .StaticSideEffectsWarningTargets = .all,
             enforceExplicitDependencies: Bool = false,
             defaultConfiguration: String? = nil,
-            optionalAuthentication: Bool = false
+            optionalAuthentication: Bool = false,
+            buildInsightsDisabled: Bool = true
         ) -> Self {
             .init(
                 resolveDependenciesWithSystemScm: resolveDependenciesWithSystemScm,
@@ -126,7 +131,8 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
                 staticSideEffectsWarningTargets: staticSideEffectsWarningTargets,
                 enforceExplicitDependencies: enforceExplicitDependencies,
                 defaultConfiguration: defaultConfiguration,
-                optionalAuthentication: optionalAuthentication
+                optionalAuthentication: optionalAuthentication,
+                buildInsightsDisabled: buildInsightsDisabled
             )
         }
     }

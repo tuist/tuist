@@ -5,7 +5,8 @@ import TuistCore
 extension TuistCore.TuistGeneratedProjectOptions.GenerationOptions {
     static func from(
         manifest: ProjectDescription.Config.GenerationOptions,
-        generatorPaths: GeneratorPaths
+        generatorPaths: GeneratorPaths,
+        fullHandle: String?
     ) throws -> Self {
         let clonedSourcePackagesDirPath: AbsolutePath? = try {
             if let path = manifest.clonedSourcePackagesDirPath {
@@ -23,7 +24,8 @@ extension TuistCore.TuistGeneratedProjectOptions.GenerationOptions {
                 .from(manifest: manifest.staticSideEffectsWarningTargets),
             enforceExplicitDependencies: manifest.enforceExplicitDependencies,
             defaultConfiguration: manifest.defaultConfiguration,
-            optionalAuthentication: manifest.optionalAuthentication
+            optionalAuthentication: manifest.optionalAuthentication,
+            buildInsightsDisabled: fullHandle == nil || manifest.buildInsightsDisabled
         )
     }
 }

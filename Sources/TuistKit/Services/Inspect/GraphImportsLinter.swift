@@ -64,7 +64,8 @@ final class GraphImportsLinter: GraphImportsLinting {
 
             let explicitTargetDependencies = explicitTargetDependencies(
                 graphTraverser: graphTraverser,
-                target: target
+                target: target,
+                includeExternalDependencies: inspectType == .implicit
             )
 
             let observedImports = switch inspectType {
@@ -83,10 +84,16 @@ final class GraphImportsLinter: GraphImportsLinting {
 
     private func explicitTargetDependencies(
         graphTraverser: GraphTraverser,
-        target: GraphTarget
+        target: GraphTarget,
+        includeExternalDependencies: Bool
     ) -> Set<String> {
-        let targetDependencies = graphTraverser
-            .directTargetDependencies(path: target.project.path, name: target.target.name)
+        let targetDependencies = if includeExternalDependencies {
+            graphTraverser
+                .directTargetDependencies(path: target.project.path, name: target.target.name)
+        } else {
+            graphTraverser
+                .directLocalTargetDependencies(path: target.project.path, name: target.target.name)
+        }
 
         let explicitTargetDependencies = targetDependencies.map { targetDependency in
             if case .external = targetDependency.graphTarget.project.type { return graphTraverser

@@ -16,7 +16,6 @@ final class DependenciesAcceptanceTestAppWithSPMDependencies: TuistAcceptanceTes
         try await run(BuildCommand.self, "App", "--platform", "ios")
         try await run(BuildCommand.self, "VisionOSApp")
         try await run(TestCommand.self, "AppKit")
-        try await run(TestCommand.self, "Styles", "--platform", "ios")
     }
 }
 
@@ -56,25 +55,29 @@ final class DependenciesAcceptanceTestAppPocketSVG: TuistAcceptanceTestCase {
 
 final class DependenciesAcceptanceTestAppRegistryAndAlamofire: ServerAcceptanceTestCase {
     func test_app_with_registry_and_alamofire() async throws {
-        try await setUpFixture(.appWithRegistryAndAlamofire)
-        try await run(RegistrySetupCommand.self)
-        try await run(RegistryLoginCommand.self)
-        try await run(InstallCommand.self)
-        try await run(GenerateCommand.self)
-        try await run(BuildCommand.self, "App")
-        try await run(RegistryLogoutCommand.self)
-        try await run(CleanCommand.self, "dependencies")
-        await XCTAssertThrows(try await run(InstallCommand.self))
+        try await ServiceContext.withTestingDependencies {
+            try await setUpFixture(.appWithRegistryAndAlamofire)
+            try await run(RegistrySetupCommand.self)
+            try await run(RegistryLoginCommand.self)
+            try await run(InstallCommand.self)
+            try await run(GenerateCommand.self)
+            try await run(BuildCommand.self, "App")
+            try await run(RegistryLogoutCommand.self)
+            try await run(CleanCommand.self, "dependencies")
+            await XCTAssertThrows(try await run(InstallCommand.self))
+        }
     }
 }
 
 final class DependenciesAcceptanceTestAppRegistryAndAlamofireAsXcodePackage: ServerAcceptanceTestCase {
     func test_app_with_registry_and_alamofire() async throws {
-        try await setUpFixture(.appWithRegistryAndAlamofireAsXcodePackage)
-        try await run(RegistrySetupCommand.self)
-        try await run(RegistryLoginCommand.self)
-        try await run(GenerateCommand.self)
-        try await run(BuildCommand.self, "App")
+        try await ServiceContext.withTestingDependencies {
+            try await setUpFixture(.appWithRegistryAndAlamofireAsXcodePackage)
+            try await run(RegistrySetupCommand.self)
+            try await run(RegistryLoginCommand.self)
+            try await run(GenerateCommand.self)
+            try await run(BuildCommand.self, "App")
+        }
     }
 }
 
@@ -169,52 +172,56 @@ final class DependenciesAcceptanceTestAppWithAirshipSDK: TuistAcceptanceTestCase
 
 final class DependenciesAcceptanceTestPackageWithRegistryAndAlamofire: ServerAcceptanceTestCase {
     func test_app_with_registry_and_alamofire() async throws {
-        try await setUpFixture(.packageWithRegistryAndAlamofire)
-        try await run(RegistrySetupCommand.self)
-        try await run(RegistryLoginCommand.self)
-        let commandRunner = CommandRunner()
-        _ = try await commandRunner.run(
-            arguments: [
-                "/usr/bin/swift",
-                "package",
-                "reset",
-            ],
-            workingDirectory: fixturePath
-        ).concatenatedString()
-        _ = try await commandRunner.run(
-            arguments: [
-                "/usr/bin/swift",
-                "build",
-                "--only-use-versions-from-resolved-file",
-            ],
-            workingDirectory: fixturePath
-        ).concatenatedString()
+        try await ServiceContext.withTestingDependencies {
+            try await setUpFixture(.packageWithRegistryAndAlamofire)
+            try await run(RegistrySetupCommand.self)
+            try await run(RegistryLoginCommand.self)
+            let commandRunner = CommandRunner()
+            _ = try await commandRunner.run(
+                arguments: [
+                    "/usr/bin/swift",
+                    "package",
+                    "reset",
+                ],
+                workingDirectory: fixturePath
+            ).concatenatedString()
+            _ = try await commandRunner.run(
+                arguments: [
+                    "/usr/bin/swift",
+                    "build",
+                    "--only-use-versions-from-resolved-file",
+                ],
+                workingDirectory: fixturePath
+            ).concatenatedString()
+        }
     }
 }
 
 final class DependenciesAcceptanceTestXcodeProjectWithRegistryAndAlamofire: ServerAcceptanceTestCase {
     func test_xcode_project_with_registry_and_alamofire() async throws {
-        try await setUpFixture(.xcodeProjectWithRegistryAndAlamofire)
-        try await run(RegistrySetupCommand.self)
-        try await run(RegistryLoginCommand.self)
-        let commandRunner = CommandRunner()
-        _ = try await commandRunner.run(
-            arguments: [
-                "/usr/bin/xcrun",
-                "xcodebuild",
-                "clean",
-                "build",
-                "-project",
-                fixturePath.appending(component: "App.xcodeproj").pathString,
-                "-scheme",
-                "App",
-                "-sdk",
-                "iphonesimulator",
-                "-derivedDataPath",
-                derivedDataPath.pathString,
-                "-onlyUsePackageVersionsFromResolvedFile",
-            ]
-        )
-        .concatenatedString()
+        try await ServiceContext.withTestingDependencies {
+            try await setUpFixture(.xcodeProjectWithRegistryAndAlamofire)
+            try await run(RegistrySetupCommand.self)
+            try await run(RegistryLoginCommand.self)
+            let commandRunner = CommandRunner()
+            _ = try await commandRunner.run(
+                arguments: [
+                    "/usr/bin/xcrun",
+                    "xcodebuild",
+                    "clean",
+                    "build",
+                    "-project",
+                    fixturePath.appending(component: "App.xcodeproj").pathString,
+                    "-scheme",
+                    "App",
+                    "-sdk",
+                    "iphonesimulator",
+                    "-derivedDataPath",
+                    derivedDataPath.pathString,
+                    "-onlyUsePackageVersionsFromResolvedFile",
+                ]
+            )
+            .concatenatedString()
+        }
     }
 }

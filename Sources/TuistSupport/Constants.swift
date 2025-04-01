@@ -40,7 +40,6 @@ public enum Constants {
         public static let packageSwiftName = "Package.swift"
         public static let packageResolvedName = "Package.resolved"
         public static let packageBuildDirectoryName = ".build"
-        public static let packageCheckoutDirectoryName = "checkouts"
     }
 
     public enum DerivedDirectory {
