@@ -88,7 +88,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         )
 
         try generateSourcesBuildPhase(
-            files: target.validatedSources.valid,
+            files: target.sources,
             coreDataModels: target.coreDataModels,
             target: target,
             pbxTarget: pbxTarget,

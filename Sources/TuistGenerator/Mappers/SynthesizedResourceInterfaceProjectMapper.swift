@@ -74,7 +74,7 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
     private func mapTarget(_ target: Target, project: Project) throws -> (Target, [SideEffectDescriptor]) {
         let resourcesForSynthesizersPaths = target.resources.resources
             .map(\.path) + target.coreDataModels.map(\.path)
-        guard !resourcesForSynthesizersPaths.isEmpty, target.supportsSources else { return (target, []) }
+        guard !resourcesForSynthesizersPaths.isEmpty else { return (target, []) }
 
         var target = target
 

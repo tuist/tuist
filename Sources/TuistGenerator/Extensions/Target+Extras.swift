@@ -1,27 +1,6 @@
 import XcodeGraph
 
 extension Target {
-    /// This function validates the sources against other target metadata returning which sources from the list
-    /// are valid and invalid.
-    /// - Returns: A list of valid and invalid sources.
-    var validatedSources: (valid: [SourceFile], invalid: [SourceFile]) {
-        switch product {
-        case .stickerPackExtension, .watch2App:
-            return (valid: [], invalid: sources)
-        case .bundle:
-            if isExclusiveTo(.macOS) {
-                return (valid: sources, invalid: [])
-            } else {
-                return (
-                    valid: sources.filter { $0.path.extension == "metal" },
-                    invalid: sources.filter { $0.path.extension != "metal" }
-                )
-            }
-        default:
-            return (valid: sources, invalid: [])
-        }
-    }
-
     // CoreData models are typically added to the sources build phase
     // and Xcode automatically bundles the models.
     // For static libraries / frameworks however, they don't support resources,
