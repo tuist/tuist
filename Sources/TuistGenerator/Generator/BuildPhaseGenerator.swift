@@ -300,7 +300,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
             }
         }
 
-        if target.shouldCoredataModelsBeSources {
+        if target.shouldCoreDataModelsBeSources {
             pbxBuildFiles.append(contentsOf: generateCoreDataModels(
                 coreDataModels: coreDataModels,
                 fileElements: fileElements,
@@ -366,7 +366,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
             fileElements: fileElements
         ))
 
-        if !target.shouldCoredataModelsBeSources {
+        if !target.shouldCoreDataModelsBeSources {
             pbxBuildFiles.append(contentsOf: generateCoreDataModels(
                 coreDataModels: target.coreDataModels,
                 fileElements: fileElements,

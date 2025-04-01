@@ -34,7 +34,7 @@ extension Target {
     //
     // - Note: Technically, CoreData models can be added a sources build phase in a `.bundle`
     // but that will result in the `.bundle` having an executable, which is not valid on iOS.
-    var shouldCoredataModelsBeSources: Bool {
+    var shouldCoreDataModelsBeSources: Bool {
         switch product {
         case .stickerPackExtension, .watch2App:
             return false
