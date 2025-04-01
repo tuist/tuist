@@ -68,7 +68,7 @@ mise x tuist@latest -- tuist init
 
 :::
 
-더 자세한 내용은 <0>설치 가이드</0>를 확인하세요.
+더 자세한 내용은 <LocalizedLink href="/guides/quick-start/install-tuist">설치 가이드</LocalizedLink> 를 확인하세요.
 
 ## 더 알아보기
 
