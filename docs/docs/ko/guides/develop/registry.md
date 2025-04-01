@@ -14,13 +14,13 @@ description: Tuist Registry를 사용하여 Swift 패키지 해석시간을 최�
 
 ## Usage {#usage}
 
-To set up and log in to the registry, run the following command in your project's directory:
+레지스트리를 설정하고 로그인하기 위해서는, 프로젝트 경로에서 다음의 명령을 실행해줍니다:
 
 ```bash
 tuist registry setup
 ```
 
-This command generates a registry configuration files and logs you in to the registry. To ensure the rest of your team can access the registry, ensure the generated files is committed and that your team members run the following command to log in:
+위 명령은 레지스트리에 레지스트리 설정용 파일과 로그를 생성합니다. 다른 작업자들도 레지스트리에 접근하도록 하기 위해서, 생성된 파일들을 커밋하고 작업자들이 아래의 명령을 통해 로그인 할 수 있도록 합니다:
 
 ```bash
 tuist registry login
