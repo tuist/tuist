@@ -131,8 +131,6 @@ defmodule Tuist.Accounts.UserNotifier do
         user: user,
         reset_password_url: reset_password_url
       }) do
-    user = user |> Repo.preload(:account)
-
     deliver(
       user.email,
       gettext("Reset password instructions"),

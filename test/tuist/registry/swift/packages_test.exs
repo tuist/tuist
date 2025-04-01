@@ -1353,17 +1353,30 @@ defmodule Tuist.Registry.Swift.PackagesTest do
   describe "paginated_packages/1" do
     test "lists first page of packages" do
       # Givne
-      package_one = PackagesFixtures.package_fixture(updated_at: ~U[2024-07-31 00:00:00Z])
-      package_two = PackagesFixtures.package_fixture(updated_at: ~U[2024-07-31 00:01:00Z])
+      package_one =
+        PackagesFixtures.package_fixture(
+          updated_at: ~U[2024-07-31 00:00:00Z],
+          preload: [:package_releases]
+        )
+
+      package_two =
+        PackagesFixtures.package_fixture(
+          updated_at: ~U[2024-07-31 00:01:00Z],
+          preload: [:package_releases]
+        )
+
       _package_three = PackagesFixtures.package_fixture(updated_at: ~U[2024-07-31 00:02:00Z])
 
       # When
       {got_first_page, _got_meta_first_page} =
-        Packages.paginated_packages(%{
-          first: 2,
-          order_by: [:last_updated_releases_at],
-          order_direction: :asc
-        })
+        Packages.paginated_packages(
+          %{
+            first: 2,
+            order_by: [:last_updated_releases_at],
+            order_direction: :asc
+          },
+          preload: [:package_releases]
+        )
 
       # Then
       assert got_first_page == [package_one, package_two]

@@ -18,16 +18,25 @@ defmodule Tuist.Registry.Swift.Workers.UpdatePackageReleasesWorkerTest do
   test "updates two packages that have not been updated for the longest time" do
     # Given
     package_one =
-      PackagesFixtures.package_fixture(last_updated_releases_at: ~U[2024-07-31 00:00:00Z])
+      PackagesFixtures.package_fixture(
+        last_updated_releases_at: ~U[2024-07-31 00:00:00Z],
+        preload: [:package_releases]
+      )
 
     package_two =
-      PackagesFixtures.package_fixture(last_updated_releases_at: ~U[2024-07-31 00:01:00Z])
+      PackagesFixtures.package_fixture(
+        last_updated_releases_at: ~U[2024-07-31 00:01:00Z],
+        preload: [:package_releases]
+      )
 
     _package_three =
       PackagesFixtures.package_fixture(last_updated_releases_at: ~U[2024-07-31 00:02:00Z])
 
     package_four =
-      PackagesFixtures.package_fixture(last_updated_releases_at: nil)
+      PackagesFixtures.package_fixture(
+        last_updated_releases_at: nil,
+        preload: [:package_releases]
+      )
 
     Time
     |> stub(:utc_now, fn -> ~U[2024-07-31 00:03:00Z] end)

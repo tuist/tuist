@@ -1,6 +1,6 @@
 defmodule TuistWeb.WarningsHeaderPlugTest do
   use TuistTestSupport.Cases.ConnCase, async: true
-  use Plug.Test
+  import Plug.Test
   alias TuistWeb.WarningsHeaderPlug
   alias TuistWeb.Headers
 

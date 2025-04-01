@@ -722,7 +722,7 @@ defmodule Tuist.AccountsTest do
       organization = Accounts.create_organization(%{name: "tuist", creator: user})
 
       # Then
-      assert organization == Accounts.get_organization_by_id(organization.id)
+      assert organization == Accounts.get_organization_by_id(organization.id, preload: [:account])
       assert Accounts.get_account_from_organization(organization).customer_id != ""
       assert Accounts.organization_admin?(user, organization) == true
     end
@@ -931,22 +931,20 @@ defmodule Tuist.AccountsTest do
     end
   end
 
-  describe "get_organization_account_by_name/1" do
+  describe "get_organization_by_handle/1" do
     test "gets a given organization account doing a case-insensitive search" do
       # Given
       Environment |> stub(:on_premise?, fn -> false end)
       user = AccountsFixtures.user_fixture()
-      organization = Accounts.create_organization(%{name: "tuist", creator: user})
-      account = Accounts.get_account_from_organization(organization)
+
+      organization =
+        Accounts.create_organization(%{name: "tuist", creator: user}, preload: [:account])
 
       # When
-      got = Accounts.get_organization_account_by_name("TUIST")
+      got = Accounts.get_organization_by_handle("TUIST")
 
       # Then
-      assert %{
-               account: account,
-               organization: organization
-             } == got
+      assert organization == got
     end
   end
 

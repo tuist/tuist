@@ -105,7 +105,7 @@ defmodule Tuist.Projects do
   end
 
   def get_project_slug_from_id(id) do
-    if project = Repo.get(Project, id) |> Repo.preload(:account) do
+    if project = Repo.one(from p in Project, where: p.id == ^id, preload: [:account]) do
       "#{project.account.name}/#{project.name}"
     else
       nil

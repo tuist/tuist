@@ -1,5 +1,4 @@
 defmodule Tuist.CommandEventsTest do
-  alias TuistTestSupport.Fixtures.PreviewsFixtures
   alias Tuist.CommandEvents.TestCaseRun
   alias Tuist.CommandEvents.TestCase
   alias Tuist.CommandEvents.TargetTestSummary

@@ -68,10 +68,24 @@ defmodule TuistWeb.API.CacheController do
     project = EnsureProjectPresencePlug.get_project(conn)
 
     cache_action_item =
-      CacheActionItems.get_cache_action_item(%{
-        project: project,
-        hash: hash
-      })
+      Tuist.Cache.get_value(
+        [
+          Atom.to_string(__MODULE__),
+          "get_cache_action_item",
+          project.id,
+          hash
+        ],
+        [
+          ttl: Map.get(conn.assigns, :cache_ttl, :timer.minutes(1)),
+          cache: Map.get(conn.assigns, :cache, :tuist)
+        ],
+        fn ->
+          CacheActionItems.get_cache_action_item(%{
+            project: project,
+            hash: hash
+          })
+        end
+      )
 
     if is_nil(cache_action_item) do
       conn
@@ -159,7 +173,7 @@ defmodule TuistWeb.API.CacheController do
 
       :ok =
         Tuist.API.Pipeline.async_push(
-          {:cache_event,
+          {:create_cache_event,
            %{
              event_type: :download,
              hash: hash,
@@ -343,7 +357,7 @@ defmodule TuistWeb.API.CacheController do
       ) do
     project = EnsureProjectPresencePlug.get_project(conn)
 
-    existing_cache_action_item =
+    cache_action_item =
       Tuist.Cache.get_value(
         [
           Atom.to_string(__MODULE__),
@@ -364,30 +378,35 @@ defmodule TuistWeb.API.CacheController do
       )
 
     cond do
-      is_nil(existing_cache_action_item) ->
-        cache_action_item =
-          CacheActionItems.create_cache_action_item(%{
-            project: project,
-            hash: hash
-          })
+      is_nil(cache_action_item) ->
+        :ok =
+          Tuist.API.Pipeline.async_push(
+            {:create_cache_action_item,
+             %{
+               project_id: project.id,
+               hash: hash,
+               inserted_at: DateTime.utc_now(:second),
+               updated_at: DateTime.utc_now(:second)
+             }}
+          )
 
         conn
         |> put_status(:created)
         |> json(%{
-          hash: cache_action_item.hash
+          hash: hash
         })
 
       conn |> get_req_header("x-tuist-cli-version") |> List.first() == "4.28.0" ->
         conn
         |> put_status(:created)
         |> json(%{
-          hash: existing_cache_action_item.hash
+          hash: hash
         })
 
       true ->
         conn
         |> put_status(:ok)
-        |> json(%{hash: existing_cache_action_item.hash})
+        |> json(%{hash: cache_action_item.hash})
     end
   end
 
@@ -671,7 +690,7 @@ defmodule TuistWeb.API.CacheController do
 
     :ok =
       Tuist.API.Pipeline.async_push(
-        {:cache_event,
+        {:create_cache_event,
          %{
            event_type: :upload,
            hash: hash,

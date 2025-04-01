@@ -38,8 +38,10 @@ defmodule Tuist.Previews do
   end
 
   def list_previews(attrs, opts \\ []) do
+    preload = Keyword.get(opts, :preload, [])
+
     Preview
-    |> preload(^Keyword.get(opts, :preload, []))
+    |> preload(^preload)
     |> query_with_supported_platforms_when_needed(opts)
     |> query_with_distinct_bundle_identifier_when_needed(attrs, opts)
     |> Flop.validate_and_run!(attrs, for: Preview)

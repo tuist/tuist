@@ -42,7 +42,7 @@ defmodule TuistWeb.API.CacheControllerTest do
       Storage |> expect(:get_object_size, fn ^object_key -> size end)
 
       Tuist.API.Pipeline
-      |> expect(:async_push, fn {:cache_event,
+      |> expect(:async_push, fn {:create_cache_event,
                                  %{
                                    event_type: :download,
                                    hash: ^hash,
@@ -109,7 +109,7 @@ defmodule TuistWeb.API.CacheControllerTest do
       Storage |> expect(:get_object_size, fn ^object_key -> size end)
 
       Tuist.API.Pipeline
-      |> expect(:async_push, fn {:cache_event,
+      |> expect(:async_push, fn {:create_cache_event,
                                  %{
                                    event_type: :download,
                                    hash: ^hash,
@@ -204,10 +204,25 @@ defmodule TuistWeb.API.CacheControllerTest do
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
       project = ProjectsFixtures.project_fixture(account_id: account.id)
+      project_id = project.id
+      date = DateTime.utc_now(:second)
+      DateTime |> stub(:utc_now, fn :second -> date end)
+      hash = UUIDv7.generate()
 
       conn =
         conn
         |> Authentication.put_current_user(user)
+
+      Tuist.API.Pipeline
+      |> expect(:async_push, 1, fn {:create_cache_action_item,
+                                    %{
+                                      project_id: ^project_id,
+                                      hash: ^hash,
+                                      inserted_at: ^date,
+                                      updated_at: ^date
+                                    }} ->
+        :ok
+      end)
 
       # When
       conn =
@@ -217,19 +232,16 @@ defmodule TuistWeb.API.CacheControllerTest do
         |> post(
           ~p"/api/projects/#{account.name}/#{project.name}/cache/ac",
           %{
-            hash: "hash"
+            hash: hash
           }
         )
 
       # Then
-      cache_action_item = Repo.one(CacheActionItem)
       response = json_response(conn, :created)
 
       assert response == %{
-               "hash" => "hash"
+               "hash" => hash
              }
-
-      assert cache_action_item.hash == response["hash"]
     end
 
     test "returns created with the cache action item when the CLI version is 4.28.0", %{
@@ -427,7 +439,7 @@ defmodule TuistWeb.API.CacheControllerTest do
       end)
 
       Tuist.API.Pipeline
-      |> expect(:async_push, fn {:cache_event,
+      |> expect(:async_push, fn {:create_cache_event,
                                  %{
                                    name: ^name,
                                    size: ^size,

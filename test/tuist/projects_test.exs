@@ -36,7 +36,7 @@ defmodule Tuist.ProjectsTest do
     {:ok, got} = Projects.get_project_by_slug("tuist/tuist-project")
 
     # Then
-    assert got |> Repo.preload(:account) == project
+    assert got == project
   end
 
   test "returns all projects associated with a user" do
@@ -228,7 +228,7 @@ defmodule Tuist.ProjectsTest do
         )
 
       # Then
-      assert got |> Repo.preload(:account) == project
+      assert got == project
     end
   end
 
@@ -308,7 +308,7 @@ defmodule Tuist.ProjectsTest do
       got = Projects.get_project_by_full_token(token)
 
       # Then
-      assert got |> Repo.preload(:account) == project
+      assert got == project
     end
 
     test "returns project with a legacy token" do

@@ -13,13 +13,18 @@ defmodule Tuist.Registry.Swift.Packages do
   alias Tuist.Repo
   alias Tuist.Storage
   alias Tuist.Accounts.Account
-  import Ecto.Query, only: [from: 2]
+  import Ecto.Query
 
   @alternate_package_manifest_regex ~r/\APackage@swift-(\d+)(?:\.(\d+))?(?:\.(\d+))?.swift\z/
 
-  def paginated_packages(attrs) do
-    Package
-    |> Flop.validate_and_run!(attrs, for: Package)
+  def paginated_packages(attrs, opts \\ []) do
+    preload = Keyword.get(opts, :preload, [])
+
+    query =
+      from p in Package,
+        preload: ^preload
+
+    query |> Flop.validate_and_run!(attrs, for: Package)
   end
 
   def create_package(
@@ -58,6 +63,29 @@ defmodule Tuist.Registry.Swift.Packages do
     Package
     |> Repo.get_by(scope: scope, name: name)
     |> Repo.preload(preload)
+  end
+
+  def get_packages_by_scope_and_name_pairs(packages, opts \\ []) do
+    scope_name_pairs =
+      packages
+      |> Enum.map(&{&1.scope, &1.name})
+
+    preload = Keyword.get(opts, :preload, [])
+
+    if Enum.empty?(scope_name_pairs) do
+      []
+    else
+      base_query = from(p in Package)
+
+      query =
+        Enum.reduce(scope_name_pairs, base_query, fn {scope, name}, query ->
+          or_where(query, [p], p.scope == ^scope and p.name == ^name)
+        end)
+
+      query
+      |> preload(^preload)
+      |> Repo.all()
+    end
   end
 
   def get_package_scope_and_name_from_repository_full_handle(repository_full_handle) do

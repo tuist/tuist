@@ -64,8 +64,17 @@ defmodule Tuist.Registry.Swift.Workers.UpdatePackagesWorker do
   end
 
   defp create_missing_packages(%{packages: packages, token: token}) do
-    packages
-    |> Enum.filter(&is_nil(Packages.get_package_by_scope_and_name(&1)))
+    existing_packages =
+      Packages.get_packages_by_scope_and_name_pairs(packages, preload: [:package_releases])
+      |> MapSet.new(&{&1.scope, &1.name})
+
+    missing_packages =
+      packages
+      |> Enum.filter(fn package ->
+        not MapSet.member?(existing_packages, {package.scope, package.name})
+      end)
+
+    missing_packages
     # We don't want to exhaust the API limit of the token.
     |> Enum.take(100)
     |> Enum.map(&Packages.create_package/1)

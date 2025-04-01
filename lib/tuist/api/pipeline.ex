@@ -15,7 +15,7 @@ defmodule Tuist.API.Pipeline do
       ],
       processors: [default: [concurrency: 1]],
       batchers: [
-        db: [concurrency: 1, batch_size: 100]
+        db: [concurrency: 1, batch_size: 100, batch_timeout: :timer.seconds(5)]
       ]
     )
   end
@@ -33,21 +33,28 @@ defmodule Tuist.API.Pipeline do
       :ok
     else
       buffer = producer_options() |> Keyword.fetch!(:buffer)
-      OffBroadwayMemory.Buffer.push(buffer, message)
+      OffBroadwayMemory.Buffer.async_push(buffer, message)
     end
   end
 
   @impl true
-  def handle_message(_, %{data: {:cache_event, _}} = message, _) do
-    message |> Message.put_batch_key(:cache_event) |> Message.put_batcher(:db)
+  def handle_message(_, %{data: {batch_key, _}} = message, _) do
+    message
+    |> Message.put_batch_key(batch_key)
+    |> Message.put_batcher(:db)
   end
 
   @impl true
-  def handle_batch(:db, cache_events, %{batch_key: :cache_event}, _) do
+  def handle_batch(
+        :db,
+        cache_events,
+        %{batch_key: :create_cache_event},
+        _
+      ) do
     events_count = length(cache_events)
 
     cache_events
-    |> Enum.map(fn %{data: {:cache_event, cache_event}} ->
+    |> Enum.map(fn %{data: {:create_cache_event, cache_event}} ->
       cache_event
     end)
     |> Tuist.CommandEvents.create_cache_events()
@@ -55,5 +62,26 @@ defmodule Tuist.API.Pipeline do
       {^events_count, nil} -> cache_events
       _ -> Enum.map(cache_events, &Broadway.Message.failed(&1, :insert_all_error))
     end
+  end
+
+  @impl true
+  def handle_batch(
+        :db,
+        cache_action_items,
+        %{batch_key: :create_cache_action_item},
+        _
+      ) do
+    # If we don't match against the inserted cache action items because in cases
+    # where there's conflict, the cache action item is not inserted and therefore
+    # not counted.
+    {_, _} =
+      cache_action_items
+      |> Enum.map(fn %{data: {:create_cache_action_item, cache_action_item}} ->
+        # Since we don't go through the changeset, the ID needs to be generated manually.
+        cache_action_item |> Map.merge(%{id: UUIDv7.generate()})
+      end)
+      |> Tuist.CacheActionItems.create_cache_action_items()
+
+    cache_action_items
   end
 end

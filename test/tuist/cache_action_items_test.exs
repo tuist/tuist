@@ -12,6 +12,81 @@ defmodule Tuist.CacheActionItemsTest do
 
   describe "create_cache_action_item/1" do
     test "creates a cache action item with valid attributes", %{project: project} do
+      # Given
+      first_cache_action_item = %{
+        id: UUIDv7.generate(),
+        hash: UUIDv7.generate(),
+        project_id: project.id,
+        inserted_at: DateTime.utc_now(:second),
+        updated_at: DateTime.utc_now(:second)
+      }
+
+      second_cache_action_item = %{
+        id: UUIDv7.generate(),
+        hash: UUIDv7.generate(),
+        project_id: project.id,
+        inserted_at: DateTime.utc_now(:second),
+        updated_at: DateTime.utc_now(:second)
+      }
+
+      # When
+      {2, _} =
+        CacheActionItems.create_cache_action_items([
+          first_cache_action_item,
+          second_cache_action_item
+        ])
+
+      # Then
+      refute is_nil(
+               CacheActionItems.get_cache_action_item(%{
+                 project: project,
+                 hash: first_cache_action_item.hash
+               })
+             )
+
+      refute is_nil(
+               CacheActionItems.get_cache_action_item(%{
+                 project: project,
+                 hash: second_cache_action_item.hash
+               })
+             )
+    end
+
+    test "handles the creation when a cache_action_item with the same hash exists", %{
+      project: project
+    } do
+      # Given
+      cache_action_item = %{
+        id: UUIDv7.generate(),
+        hash: UUIDv7.generate(),
+        project_id: project.id,
+        inserted_at: DateTime.utc_now(:second),
+        updated_at: DateTime.utc_now(:second)
+      }
+
+      # When
+      {1, _} =
+        CacheActionItems.create_cache_action_items([
+          cache_action_item
+        ])
+
+      {0, _} =
+        CacheActionItems.create_cache_action_items([
+          cache_action_item
+        ])
+
+      # Then
+      refute is_nil(
+               CacheActionItems.get_cache_action_item(%{
+                 project: project,
+                 hash: cache_action_item.hash
+               })
+             )
+    end
+  end
+
+  describe "create_cache_action_items/1" do
+    test "creates a cache action item with valid attributes", %{project: project} do
       # When
       cache_action_item =
         CacheActionItems.create_cache_action_item(%{

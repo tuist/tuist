@@ -276,9 +276,7 @@ defmodule TuistWeb.API.AnalyticsController do
         current_user.id
       end
 
-    project =
-      EnsureProjectPresencePlug.get_project(conn)
-      |> Repo.preload(:account)
+    project = EnsureProjectPresencePlug.get_project(conn)
 
     git_commit_sha = Map.get(body_params, :git_commit_sha)
     git_ref = Map.get(body_params, :git_ref)

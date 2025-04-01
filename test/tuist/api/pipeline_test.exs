@@ -3,13 +3,14 @@ defmodule Tuist.API.PipelineTest do
   use TuistTestSupport.Cases.DataCase, async: false
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias Tuist.CommandEvents
+  alias Tuist.CacheActionItems
 
   setup do
     project = ProjectsFixtures.project_fixture()
     %{project: project}
   end
 
-  test "cache events", %{project: project} do
+  test "create cache events", %{project: project} do
     # Given
     first_event = %{
       project_id: project.id,
@@ -33,15 +34,18 @@ defmodule Tuist.API.PipelineTest do
 
     # When
     first_ref =
-      Broadway.test_message(Pipeline, {:cache_event, first_event},
+      Broadway.test_message(Pipeline, {:create_cache_event, first_event},
         metadata: %{ecto_sandbox: self()}
       )
 
     second_ref =
-      Broadway.test_message(Pipeline, {:cache_event, second_event})
+      Broadway.test_message(Pipeline, {:create_cache_event, second_event},
+        metadata: %{ecto_sandbox: self()}
+      )
 
     # Then
-    assert_receive {:ack, ^first_ref, [%Broadway.Message{data: {:cache_event, ^first_event}}], []}
+    assert_receive {:ack, ^first_ref,
+                    [%Broadway.Message{data: {:create_cache_event, ^first_event}}], []}
 
     got_first_cache_event =
       CommandEvents.get_cache_event(%{
@@ -51,8 +55,8 @@ defmodule Tuist.API.PipelineTest do
 
     assert got_first_cache_event.size == 1024
 
-    assert_receive {:ack, ^second_ref, [%Broadway.Message{data: {:cache_event, ^second_event}}],
-                    []}
+    assert_receive {:ack, ^second_ref,
+                    [%Broadway.Message{data: {:create_cache_event, ^second_event}}], []}
 
     got_second_event =
       CommandEvents.get_cache_event(%{
@@ -61,5 +65,62 @@ defmodule Tuist.API.PipelineTest do
       })
 
     assert got_second_event.size == 1024
+  end
+
+  test "create cache action item", %{project: project} do
+    # Given
+    first_cache_action_item = %{
+      project_id: project.id,
+      hash: UUIDv7.generate(),
+      inserted_at: DateTime.utc_now(:second),
+      updated_at: DateTime.utc_now(:second)
+    }
+
+    second_cache_action_item = %{
+      project_id: project.id,
+      hash: UUIDv7.generate(),
+      inserted_at: DateTime.utc_now(:second),
+      updated_at: DateTime.utc_now(:second)
+    }
+
+    # When
+    first_ref =
+      Broadway.test_message(Pipeline, {:create_cache_action_item, first_cache_action_item},
+        metadata: %{ecto_sandbox: self()}
+      )
+
+    second_ref =
+      Broadway.test_message(Pipeline, {:create_cache_action_item, second_cache_action_item},
+        metadata: %{ecto_sandbox: self()}
+      )
+
+    # Then
+    assert_receive {:ack, ^first_ref,
+                    [
+                      %Broadway.Message{
+                        data: {:create_cache_action_item, ^first_cache_action_item}
+                      }
+                    ], []}
+
+    assert_receive {:ack, ^second_ref,
+                    [
+                      %Broadway.Message{
+                        data: {:create_cache_action_item, ^second_cache_action_item}
+                      }
+                    ], []}
+
+    refute is_nil(
+             CacheActionItems.get_cache_action_item(%{
+               project: project,
+               hash: first_cache_action_item.hash
+             })
+           )
+
+    refute is_nil(
+             CacheActionItems.get_cache_action_item(%{
+               project: project,
+               hash: second_cache_action_item.hash
+             })
+           )
   end
 end

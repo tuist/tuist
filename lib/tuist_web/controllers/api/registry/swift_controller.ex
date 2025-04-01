@@ -250,7 +250,7 @@ defmodule TuistWeb.API.Registry.SwiftController do
       ) do
     account =
       case conn |> Authentication.authenticated_subject() do
-        %Project{} = project -> project |> Tuist.Repo.preload(:account) |> Map.get(:account)
+        %Project{} = project -> project |> Map.get(:account)
         %AuthenticatedAccount{account: account} -> account
       end
 

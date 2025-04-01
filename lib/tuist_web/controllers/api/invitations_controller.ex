@@ -65,18 +65,18 @@ defmodule TuistWeb.API.InvitationsController do
     user = Authentication.current_user(conn)
     user_account = Accounts.get_account_from_user(user)
 
-    organization_account = Accounts.get_organization_account_by_name(organization_name)
+    organization = Accounts.get_organization_by_handle(organization_name)
 
     invitee_email_valid? = Tuist.Accounts.User.email_valid?(invitee_email)
     invitee = Accounts.get_user_by_email(invitee_email)
 
     cond do
-      is_nil(organization_account) ->
+      is_nil(organization) ->
         conn
         |> put_status(:not_found)
         |> json(%{message: "Organization #{organization_name} was not found."})
 
-      !Authorization.can(user, :create, organization_account.account, :invitation) ->
+      !Authorization.can(user, :create, organization.account, :invitation) ->
         conn
         |> put_status(:forbidden)
         |> json(%{message: "The authenticated subject is not authorized to perform this action"})
@@ -84,7 +84,7 @@ defmodule TuistWeb.API.InvitationsController do
       !is_nil(
         Accounts.get_invitation_by_invitee_email_and_organization(
           invitee_email,
-          organization_account.organization
+          organization
         )
       ) ->
         conn
@@ -92,8 +92,8 @@ defmodule TuistWeb.API.InvitationsController do
         |> json(%{message: "The user is already invited to the organization."})
 
       !is_nil(invitee) and
-          (Accounts.organization_admin?(invitee, organization_account.organization) or
-             Accounts.organization_user?(invitee, organization_account.organization)) ->
+          (Accounts.organization_admin?(invitee, organization) or
+             Accounts.organization_user?(invitee, organization)) ->
         conn
         |> put_status(:bad_request)
         |> json(%{message: "The user is already a member of the organization."})
@@ -103,11 +103,11 @@ defmodule TuistWeb.API.InvitationsController do
         |> put_status(:bad_request)
         |> json(%{message: "The invitee email address is not a valid email address."})
 
-      !is_nil(organization_account) ->
+      !is_nil(organization) ->
         invitation =
           Accounts.invite_user_to_organization(invitee_email, %{
             inviter: user,
-            to: organization_account.organization,
+            to: organization,
             url: &url(~p"/auth/invitations/#{&1}")
           })
 
@@ -177,15 +177,15 @@ defmodule TuistWeb.API.InvitationsController do
       ) do
     user = Authentication.current_user(conn)
 
-    organization_account = Accounts.get_organization_account_by_name(organization_name)
+    organization = Accounts.get_organization_by_handle(organization_name)
 
     invitation =
-      if is_nil(organization_account) do
+      if is_nil(organization) do
         nil
       else
         Accounts.get_invitation_by_invitee_email_and_organization(
           invitee_email,
-          organization_account.organization
+          organization
         )
       end
 
@@ -198,7 +198,7 @@ defmodule TuistWeb.API.InvitationsController do
             "The invitation with the given invitee email and organization name was not found"
         })
 
-      !Authorization.can(user, :delete, organization_account.account, :invitation) ->
+      !Authorization.can(user, :delete, organization.account, :invitation) ->
         conn
         |> put_status(:forbidden)
         |> json(%{message: "The authenticated subject is not authorized to perform this action"})

@@ -53,21 +53,18 @@ defmodule Tuist.Accounts do
   Given an id, it returns the organization associated with it.
   """
   def get_organization_by_id(id, attrs \\ []) do
-    preload = attrs |> Keyword.get(:preload, [])
-
-    Repo.get(Organization, id) |> Repo.preload(preload)
+    preload = attrs |> Keyword.get(:preload, [:account])
+    Repo.one(from o in Organization, where: o.id == ^id, preload: ^preload)
   end
 
-  def get_organization_account_by_name(name) do
+  def get_organization_by_handle(handle) do
     query =
-      from a in Account,
-        join: o in Organization,
-        on: a.organization_id == o.id,
-        where: a.name == ^name,
-        select: %{
-          organization: o,
-          account: a
-        }
+      from(o in Organization,
+        join: a in assoc(o, :account),
+        where: a.name == ^handle,
+        select: o,
+        preload: [:account]
+      )
 
     Repo.one(query)
   end
@@ -154,11 +151,11 @@ defmodule Tuist.Accounts do
     - `email` - The email address of the user.
   """
   def get_user_by_email(email) do
-    Repo.one(from u in User, where: u.email == ^email)
+    Repo.one(from u in User, where: u.email == ^email, preload: [:account])
   end
 
   def get_user_by_id(id) do
-    Repo.get(User, id)
+    Repo.one(from u in User, where: u.id == ^id, preload: [:account])
   end
 
   def get_oauth2_identity_by_provider_and_id(provider, id_in_provider) do
@@ -236,7 +233,7 @@ defmodule Tuist.Accounts do
       end)
       |> Repo.transaction()
 
-    organization
+    organization |> Repo.preload(:account)
   end
 
   def delete_user(%User{} = user) do
@@ -872,7 +869,7 @@ defmodule Tuist.Accounts do
   def get_user_by_email_and_password(email, password)
       when is_binary(email) and is_binary(password) do
     user =
-      Repo.one(from u in User, where: u.email == ^email) |> Repo.preload([:account])
+      Repo.one(from u in User, where: u.email == ^email, preload: [:account])
 
     if User.valid_password?(user, password) do
       if is_nil(user.confirmed_at) do

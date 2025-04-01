@@ -4,7 +4,7 @@ defmodule TuistWeb.API.EnsureProjectPresencePlugTest do
   alias Tuist.Accounts
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   use TuistTestSupport.Cases.ConnCase, async: false
-  use Plug.Test
+  import Plug.Test
   use Mimic
   alias TuistWeb.API.EnsureProjectPresencePlug
 

@@ -1,6 +1,6 @@
 defmodule TuistWeb.AuthenticationPlugTest do
   use TuistTestSupport.Cases.ConnCase, async: false
-  use Plug.Test
+  import Plug.Test
   use Mimic
   alias Tuist.Accounts
   alias Tuist.Accounts.AuthenticatedAccount

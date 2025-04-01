@@ -20,6 +20,13 @@ defmodule Tuist.CacheActionItems do
     Repo.insert!(changeset, on_conflict: :nothing, conflict_target: [:project_id, :hash])
   end
 
+  def create_cache_action_items(cache_action_items) do
+    Repo.insert_all(CacheActionItem, cache_action_items,
+      on_conflict: :nothing,
+      conflict_target: [:project_id, :hash]
+    )
+  end
+
   def get_cache_action_item(%{project: %Project{id: project_id}, hash: hash}) do
     CacheActionItem |> Repo.get_by(project_id: project_id, hash: hash)
   end

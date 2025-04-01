@@ -21,12 +21,14 @@ defmodule Tuist.Registry.Swift.Workers.UpdatePackageReleasesWorker do
     limit = Map.get(args, :limit, 350)
 
     {packages, _meta} =
-      Packages.paginated_packages(%{
-        first: limit,
-        order_by: [:last_updated_releases_at],
-        order_directions: [:asc_nulls_first],
+      Packages.paginated_packages(
+        %{
+          first: limit,
+          order_by: [:last_updated_releases_at],
+          order_directions: [:asc_nulls_first]
+        },
         preload: [:package_releases]
-      })
+      )
 
     for package <- packages do
       Logger.info("Updating package releases for #{package.scope}/#{package.name}")

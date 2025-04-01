@@ -195,7 +195,7 @@ msgstr ""
 msgid "About us"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:180
+#: lib/tuist/accounts/user_notifier.ex:178
 #, elixir-autogen, elixir-format
 msgid "Accept invitation"
 msgstr ""
@@ -619,7 +619,7 @@ msgstr ""
 msgid "Developers"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:142
+#: lib/tuist/accounts/user_notifier.ex:140
 #, elixir-autogen, elixir-format
 msgid "Did you request to reset your password?"
 msgstr ""
@@ -877,12 +877,12 @@ msgstr ""
 msgid "Happiness"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:177
+#: lib/tuist/accounts/user_notifier.ex:175
 #, elixir-autogen, elixir-format
 msgid "Hola %{invitee_email}, you can join the organization by clicking the button below:"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:144
+#: lib/tuist/accounts/user_notifier.ex:142
 #, elixir-autogen, elixir-format
 msgid "Hola %{name}, you can reset your password by clicking the button below:"
 msgstr ""
@@ -900,7 +900,7 @@ msgid "INFO:"
 msgstr ""
 
 #: lib/tuist/accounts/user_notifier.ex:118
-#: lib/tuist/accounts/user_notifier.ex:152
+#: lib/tuist/accounts/user_notifier.ex:150
 #, elixir-autogen, elixir-format
 msgid "If you didn't make this request, feel free to ignore this email."
 msgstr ""
@@ -956,7 +956,7 @@ msgstr ""
 msgid "Invitation not found or expired"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:171
+#: lib/tuist/accounts/user_notifier.ex:169
 #, elixir-autogen, elixir-format
 msgid "Invitation to %{organization_name}"
 msgstr ""
@@ -1394,12 +1394,12 @@ msgstr ""
 msgid "Reset password"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:138
+#: lib/tuist/accounts/user_notifier.ex:136
 #, elixir-autogen, elixir-format
 msgid "Reset password instructions"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:147
+#: lib/tuist/accounts/user_notifier.ex:145
 #, elixir-autogen, elixir-format
 msgid "Reset your password"
 msgstr ""
@@ -2166,12 +2166,12 @@ msgstr ""
 msgid "You received this email because you recently signed up for a Tuist account."
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:150
+#: lib/tuist/accounts/user_notifier.ex:148
 #, elixir-autogen, elixir-format
 msgid "You received this email because you requested a password reset for your Tuist account."
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:175
+#: lib/tuist/accounts/user_notifier.ex:173
 #, elixir-autogen, elixir-format
 msgid "You were invited to join the %{organization_name} Tuist organization by %{inviter_email}"
 msgstr ""

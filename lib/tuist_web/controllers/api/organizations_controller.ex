@@ -173,23 +173,22 @@ defmodule TuistWeb.API.OrganizationsController do
         } = conn,
         _params
       ) do
-    organization_account = Accounts.get_organization_account_by_name(organization_name)
+    organization = Accounts.get_organization_by_handle(organization_name)
 
     user = Authentication.current_user(conn)
 
     cond do
-      is_nil(organization_account) ->
+      is_nil(organization) ->
         conn
         |> put_status(:not_found)
         |> json(%{message: "Organization #{organization_name} not found."})
 
-      !Authorization.can(user, :delete, organization_account.account, :organization) ->
+      !Authorization.can(user, :delete, organization.account, :organization) ->
         conn
         |> put_status(:forbidden)
         |> json(%{message: "The authenticated subject is not authorized to perform this action"})
 
-      !is_nil(organization_account) ->
-        organization = organization_account.organization
+      !is_nil(organization) ->
         Accounts.delete_organization(organization)
 
         conn
@@ -230,25 +229,25 @@ defmodule TuistWeb.API.OrganizationsController do
         } = conn,
         _params
       ) do
-    organization_account =
-      Accounts.get_organization_account_by_name(organization_name)
+    organization =
+      Accounts.get_organization_by_handle(organization_name)
 
     user = Authentication.current_user(conn)
 
     cond do
-      is_nil(organization_account) ->
+      is_nil(organization) ->
         conn
         |> put_status(:not_found)
         |> json(%{message: "Organization not found"})
 
-      !Authorization.can(user, :read, organization_account.account, :organization) ->
+      !Authorization.can(user, :read, organization.account, :organization) ->
         conn
         |> put_status(:forbidden)
         |> json(%{message: "The authenticated subject is not authorized to perform this action"})
 
-      !is_nil(organization_account) ->
+      !is_nil(organization) ->
         admins =
-          Accounts.get_organization_members(organization_account.organization, :admin)
+          Accounts.get_organization_members(organization, :admin)
           |> Enum.map(
             &%{
               id: &1.id,
@@ -261,7 +260,7 @@ defmodule TuistWeb.API.OrganizationsController do
         admin_ids = Enum.map(admins, & &1.id)
 
         users =
-          Accounts.get_organization_members(organization_account.organization, :user)
+          Accounts.get_organization_members(organization, :user)
           |> Enum.filter(fn member ->
             member.id not in admin_ids
           end)
@@ -276,14 +275,14 @@ defmodule TuistWeb.API.OrganizationsController do
 
         conn
         |> json(%{
-          id: organization_account.organization.id,
+          id: organization.id,
           name: organization_name,
-          plan: get_plan(organization_account.account),
+          plan: get_plan(organization.account),
           members: admins ++ users,
-          sso_provider: organization_account.organization.sso_provider,
-          sso_organization_id: organization_account.organization.sso_organization_id,
+          sso_provider: organization.sso_provider,
+          sso_organization_id: organization.sso_organization_id,
           invitations:
-            Tuist.Repo.preload(organization_account.organization,
+            Tuist.Repo.preload(organization,
               invitations: [inviter: :account]
             ).invitations
             |> Enum.map(
@@ -336,27 +335,27 @@ defmodule TuistWeb.API.OrganizationsController do
         } = conn,
         _params
       ) do
-    organization_account =
-      Accounts.get_organization_account_by_name(organization_name)
+    organization =
+      Accounts.get_organization_by_handle(organization_name)
 
     user = Authentication.current_user(conn)
 
     cond do
-      is_nil(organization_account) ->
+      is_nil(organization) ->
         conn
         |> put_status(:not_found)
         |> json(%{message: "Organization not found"})
 
-      !Authorization.can(user, :read, organization_account.account, :organization_usage) ->
+      !Authorization.can(user, :read, organization.account, :organization_usage) ->
         conn
         |> put_status(:forbidden)
         |> json(%{message: "The authenticated subject is not authorized to perform this action"})
 
-      !is_nil(organization_account) ->
+      !is_nil(organization) ->
         conn
         |> json(%{
           current_month_remote_cache_hits:
-            organization_account.account.current_month_remote_cache_hits_count
+            organization.account.current_month_remote_cache_hits_count
         })
     end
   end
@@ -417,25 +416,25 @@ defmodule TuistWeb.API.OrganizationsController do
         } = conn,
         _params
       ) do
-    organization_account =
-      Accounts.get_organization_account_by_name(organization_name)
+    organization =
+      Accounts.get_organization_by_handle(organization_name)
 
     user = Authentication.current_user(conn)
 
     cond do
-      is_nil(organization_account) ->
+      is_nil(organization) ->
         conn
         |> put_status(:not_found)
         |> json(%{message: "Organization #{organization_name} was not found."})
 
-      !Authorization.can(user, :update, organization_account.account, :organization) ->
+      !Authorization.can(user, :update, organization.account, :organization) ->
         conn
         |> put_status(:forbidden)
         |> json(%{message: "The authenticated subject is not authorized to perform this action."})
 
       sso_provider == "none" ->
         {:ok, organization} =
-          Accounts.update_organization(organization_account.organization, %{
+          Accounts.update_organization(organization, %{
             sso_provider: nil,
             sso_organization_id: nil
           })
@@ -444,7 +443,7 @@ defmodule TuistWeb.API.OrganizationsController do
         |> json(%{
           id: organization.id,
           name: organization_name,
-          plan: get_plan(organization_account.account),
+          plan: get_plan(organization.account),
           sso_provider: organization.sso_provider,
           sso_organization_id: organization.sso_organization_id,
           members: [],
@@ -463,9 +462,9 @@ defmodule TuistWeb.API.OrganizationsController do
             "Your SSO organization must be the same as the one you are trying to update your organization to."
         })
 
-      !is_nil(organization_account) ->
+      !is_nil(organization) ->
         update_organization(%{
-          organization_account: organization_account,
+          organization: organization,
           sso_provider: sso_provider,
           sso_organization_id: body_params.sso_organization_id,
           conn: conn
@@ -474,13 +473,11 @@ defmodule TuistWeb.API.OrganizationsController do
   end
 
   defp update_organization(%{
-         organization_account: organization_account,
+         organization: organization,
          sso_provider: sso_provider,
          sso_organization_id: sso_organization_id,
          conn: %Plug.Conn{} = conn
        }) do
-    organization = organization_account.organization
-
     case Accounts.update_organization(organization, %{
            sso_provider: String.to_atom(sso_provider),
            sso_organization_id: sso_organization_id
@@ -489,8 +486,8 @@ defmodule TuistWeb.API.OrganizationsController do
         conn
         |> json(%{
           id: organization.id,
-          name: organization_account.account.name,
-          plan: get_plan(organization_account.account),
+          name: organization.account.name,
+          plan: get_plan(organization.account),
           sso_provider: organization.sso_provider,
           sso_organization_id: organization.sso_organization_id,
           members: [],
@@ -551,12 +548,12 @@ defmodule TuistWeb.API.OrganizationsController do
         } = conn,
         _params
       ) do
-    organization_account = Accounts.get_organization_account_by_name(organization_name)
+    organization = Accounts.get_organization_by_handle(organization_name)
     user = Authentication.current_user(conn)
     member_account = Accounts.get_account_by_handle(user_name)
 
     cond do
-      is_nil(organization_account) ->
+      is_nil(organization) ->
         conn
         |> put_status(:not_found)
         |> json(%{message: "Organization #{organization_name} not found."})
@@ -566,14 +563,13 @@ defmodule TuistWeb.API.OrganizationsController do
         |> put_status(:not_found)
         |> json(%{message: "User #{user_name} not found."})
 
-      !Authorization.can(user, :delete, organization_account.account, :member) ->
+      !Authorization.can(user, :delete, organization.account, :member) ->
         conn
         |> put_status(:forbidden)
         |> json(%{message: "The authenticated subject is not authorized to perform this action"})
 
       true ->
         member = Accounts.get_user_by_id(member_account.user_id)
-        organization = organization_account.organization
 
         cond do
           Accounts.belongs_to_sso_organization?(member, organization) ->
@@ -583,7 +579,7 @@ defmodule TuistWeb.API.OrganizationsController do
             |> put_status(:no_content)
             |> json(%{})
 
-          Accounts.belongs_to_organization?(member, organization_account.organization) ->
+          Accounts.belongs_to_organization?(member, organization) ->
             Accounts.remove_user_from_organization(member, organization)
 
             conn
@@ -659,12 +655,12 @@ defmodule TuistWeb.API.OrganizationsController do
         } = conn,
         _params
       ) do
-    organization_account = Accounts.get_organization_account_by_name(organization_name)
+    organization = Accounts.get_organization_by_handle(organization_name)
     user = Authentication.current_user(conn)
     member_account = Accounts.get_account_by_handle(user_name)
 
     cond do
-      is_nil(organization_account) ->
+      is_nil(organization) ->
         conn
         |> put_status(:not_found)
         |> json(%{message: "Organization #{organization_name} not found."})
@@ -674,7 +670,7 @@ defmodule TuistWeb.API.OrganizationsController do
         |> put_status(:not_found)
         |> json(%{message: "User #{user_name} not found."})
 
-      !Authorization.can(user, :update, organization_account.account, :member) ->
+      !Authorization.can(user, :update, organization.account, :member) ->
         conn
         |> put_status(:forbidden)
         |> json(%{message: "The authenticated subject is not authorized to perform this action"})
@@ -682,15 +678,12 @@ defmodule TuistWeb.API.OrganizationsController do
       true ->
         member = Accounts.get_user_by_id(member_account.user_id)
         member_account = Accounts.get_account_from_user(member)
-        organization = organization_account.organization
 
         current_user_role = Accounts.get_user_role_in_organization(member, organization)
 
         if is_nil(current_user_role) and
-             Accounts.belongs_to_sso_organization?(member, organization_account.organization) do
-          Accounts.add_user_to_organization(member, organization_account.organization,
-            role: String.to_atom(role)
-          )
+             Accounts.belongs_to_sso_organization?(member, organization) do
+          Accounts.add_user_to_organization(member, organization, role: String.to_atom(role))
         end
 
         if Accounts.belongs_to_organization?(member, organization) do

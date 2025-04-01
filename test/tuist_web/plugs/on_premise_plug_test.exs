@@ -2,7 +2,7 @@ defmodule TuistWeb.OnPremisePlugTest do
   alias TuistWeb.OnPremisePlug
   use TuistTestSupport.Cases.ConnCase
   alias TuistTestSupport.Fixtures.AccountsFixtures
-  use Plug.Test
+  import Plug.Test
   use Mimic
   alias TuistWeb.Authentication
 
