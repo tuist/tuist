@@ -10,9 +10,9 @@ msgstr ""
 "Project-Id-Version: tuist-website\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Language-Team: Korean\n"
-"PO-Revision-Date: 2025-03-29 11:22\n"
+"PO-Revision-Date: 2025-04-02 08:55\n"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:389
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:418
 #, elixir-autogen, elixir-format
 msgid " of minutes saved"
 msgstr ""
@@ -101,6 +101,7 @@ msgstr "무료 리모트 캐시 (%{remote_cache_hit_threshold})를 %{remote_cach
 msgid "%{runs_count} runs"
 msgstr "%{runs_count}회 수행"
 
+#: lib/tuist_web/live/overview_live.html.heex:55
 #: lib/tuist_web/live/project_dashboard_live.html.heex:15
 #, elixir-autogen, elixir-format
 msgid "12 months"
@@ -116,6 +117,7 @@ msgstr "1250개의 테스트가 성공적으로 수행되었습니다"
 msgid "200"
 msgstr "200"
 
+#: lib/tuist_web/live/overview_live.html.heex:50
 #: lib/tuist_web/live/project_dashboard_live.html.heex:12
 #, elixir-autogen, elixir-format
 msgid "30 days"
@@ -141,6 +143,7 @@ msgstr "429 오류"
 msgid "500 error"
 msgstr "500 오류"
 
+#: lib/tuist_web/live/overview_live.html.heex:45
 #: lib/tuist_web/live/project_dashboard_live.html.heex:9
 #, elixir-autogen, elixir-format
 msgid "7 days"
@@ -165,7 +168,7 @@ msgstr "<p>Tuist는 DraftKings 사의 iOS 개발 워크플로우에 혁신을 �
 msgid "<p>With macros, external SDKs, and many SPM modules (fully modularized app) Xcode was constantly slow or stuck on my M1 device. SPM kept resolving, code completion didn’t work, and <a href=\"https://github.com/swiftlang/swift-syntax\" target=\"_blank\">swift-syntax</a> compiled forever. All this changed with Tuist. It’s not just for big teams with big apps. Tuist gave me back my productivity as indie developer for my side projects.</p>\n"
 msgstr "<p> 매크로, 외부 SDK 및 많은 SPM 모듈(완전히 모듈화된 앱)을 사용할 때면, 제 M1 기기에서 Xcode가 계속 느려지거나 멈췄습니다. SPM은 계속 resolve되지 않았고, 코드 완성 기능은 동작하지 않았으며, <a href=\"https://github.com/swiftlang/swift-syntax\" target=\"_blank\">swift-syntax</a>는 컴파일 되는데 너무 오래 걸렸습니다. 이 모든 문제는 Tuist를 사용함으로써 해결되었습니다. Tuist는 인디 개발자인 제게 사이드 프로젝트의 생산성을 되찾아 주었습니다.</p>\n"
 
-#: lib/tuist_web/live/user_registration_live.ex:129
+#: lib/tuist_web/live/user_registration_live.ex:323
 #, elixir-autogen, elixir-format
 msgid "A confirmation email has been sent to you, check your inbox"
 msgstr ""
@@ -196,12 +199,12 @@ msgstr "Tuist 소개"
 msgid "About us"
 msgstr "회사 소개"
 
-#: lib/tuist/accounts/user_notifier.ex:180
+#: lib/tuist/accounts/user_notifier.ex:178
 #, elixir-autogen, elixir-format
 msgid "Accept invitation"
 msgstr "초대 수락하기"
 
-#: lib/tuist_web/live/user_registration_live.ex:138
+#: lib/tuist_web/live/user_registration_live.ex:333
 #, elixir-autogen, elixir-format
 msgid "Account name is already taken"
 msgstr "이미 사용 중인 계정 이름 입니다"
@@ -237,7 +240,7 @@ msgstr "결제 없이 모든 기능 이용 가능"
 msgid "All systems are normal"
 msgstr "모든 시스템이 정상입니다"
 
-#: lib/tuist_web/live/user_registration_live.ex:88
+#: lib/tuist_web/live/user_registration_live.ex:273
 #, elixir-autogen, elixir-format
 msgid "Already an account?"
 msgstr "이미 계정이 있으신가요?"
@@ -291,8 +294,8 @@ msgstr "평균 테스트"
 msgid "Back to log in"
 msgstr "로그인으로 돌아가기"
 
-#: lib/tuist_web/components/app_layout_components.ex:50
-#: lib/tuist_web/live/account_billing_live.ex:64
+#: lib/tuist_web/components/app_layout_components.ex:59
+#: lib/tuist_web/live/account_billing_live.ex:62
 #: lib/tuist_web/live/account_billing_live.html.heex:9
 #, elixir-autogen, elixir-format
 msgid "Billing"
@@ -347,7 +350,7 @@ msgstr "블로그 게시물"
 msgid "Blog posts by the Tuist team."
 msgstr "Tuist의 블로그 게시물"
 
-#: lib/tuist_web/live/preview_live.html.heex:71
+#: lib/tuist_web/live/preview_live.html.heex:74
 #: lib/tuist_web/live/previews_live.html.heex:22
 #, elixir-autogen, elixir-format
 msgid "Branch"
@@ -359,6 +362,8 @@ msgid "Bundle identifier"
 msgstr "번들 아이디"
 
 #: lib/tuist_web/components/app_command_event_components.ex:21
+#: lib/tuist_web/components/app_command_event_components.ex:40
+#: lib/tuist_web/live/overview_live.ex:149
 #: lib/tuist_web/live/project_dashboard_live.html.heex:48
 #, elixir-autogen, elixir-format
 msgid "CI"
@@ -385,7 +390,7 @@ msgstr ""
 msgid "Cacheable targets"
 msgstr ""
 
-#: lib/tuist_web/live/account_billing_live.ex:194
+#: lib/tuist_web/live/account_billing_live.ex:192
 #: lib/tuist_web/live/project_dashboard_live.html.heex:65
 #, elixir-autogen, elixir-format
 msgid "Cancel"
@@ -452,7 +457,7 @@ msgstr "메뉴 닫기"
 msgid "Command"
 msgstr "명령어"
 
-#: lib/tuist_web/live/preview_live.html.heex:77
+#: lib/tuist_web/live/preview_live.html.heex:78
 #: lib/tuist_web/live/previews_live.html.heex:25
 #, elixir-autogen, elixir-format
 msgid "Commit SHA"
@@ -474,7 +479,7 @@ msgstr "커뮤니티 지원"
 msgid "Company"
 msgstr "회사"
 
-#: lib/tuist_web/live/account_billing_live.ex:205
+#: lib/tuist_web/live/account_billing_live.ex:203
 #, elixir-autogen, elixir-format
 msgid "Confirm"
 msgstr "확인"
@@ -484,7 +489,7 @@ msgstr "확인"
 msgid "Confirm account"
 msgstr "계정 확인"
 
-#: lib/tuist_web/live/account_billing_live.ex:176
+#: lib/tuist_web/live/account_billing_live.ex:174
 #, elixir-autogen, elixir-format
 msgid "Confirm downgrade to the Air plan"
 msgstr "에어 플랜으로 다운그래이드 확인"
@@ -499,7 +504,7 @@ msgstr "계정 확인"
 msgid "Confirm new password"
 msgstr "새로운 비밀번호 확인"
 
-#: lib/tuist_web/live/account_billing_live.ex:178
+#: lib/tuist_web/live/account_billing_live.ex:176
 #, elixir-autogen, elixir-format
 msgid "Confirm upgrade to the Pro plan"
 msgstr "프로 플랜으로 업그레이드 확인"
@@ -530,7 +535,7 @@ msgstr "연락처"
 msgid "Contact sales"
 msgstr "영업팀에 문의"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:413
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:442
 #, elixir-autogen, elixir-format
 msgid "Contributors"
 msgstr "기여한 분들"
@@ -545,7 +550,7 @@ msgstr "쿠키 정책"
 msgid "Create a project"
 msgstr "프로젝트 생성"
 
-#: lib/tuist_web/live/user_registration_live.ex:19
+#: lib/tuist_web/live/user_registration_live.ex:205
 #, elixir-autogen, elixir-format
 msgid "Create an account"
 msgstr "계정 생성"
@@ -556,7 +561,7 @@ msgid "Create your plan or self-host your instance."
 msgstr "맞춤형 플랜을 구성하거나 인스턴스를 직접 호스팅하세요."
 
 #: lib/tuist_web/live/preview_live.html.heex:65
-#: lib/tuist_web/live/previews_live.html.heex:28
+#: lib/tuist_web/live/previews_live.html.heex:29
 #, elixir-autogen, elixir-format
 msgid "Created at"
 msgstr "생성일"
@@ -574,7 +579,7 @@ msgid "Current plan"
 msgstr "현재 플랜"
 
 #: lib/tuist/billing.ex:70
-#: lib/tuist_web/live/account_billing_live.ex:244
+#: lib/tuist_web/live/account_billing_live.ex:242
 #: lib/tuist_web/live/account_billing_live.html.heex:56
 #, elixir-autogen, elixir-format
 msgid "Custom"
@@ -585,9 +590,9 @@ msgstr "사용자 지정"
 msgid "Custom terms"
 msgstr "사용자 지정 용어"
 
-#: lib/tuist_web/components/app_layout_components.ex:78
+#: lib/tuist_web/components/app_layout_components.ex:137
 #: lib/tuist_web/live/accept_invitation_live.ex:53
-#: lib/tuist_web/live/device_codes_success_live.ex:37
+#: lib/tuist_web/live/device_codes_success_live.ex:42
 #: lib/tuist_web/live/project_dashboard_live.ex:21
 #: lib/tuist_web/live/project_dashboard_live.html.heex:4
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:95
@@ -618,7 +623,7 @@ msgstr ""
 msgid "Developers"
 msgstr "개발자들"
 
-#: lib/tuist/accounts/user_notifier.ex:142
+#: lib/tuist/accounts/user_notifier.ex:140
 #, elixir-autogen, elixir-format
 msgid "Did you request to reset your password?"
 msgstr "비밀번호 초기화 요청을 하셨습니까?"
@@ -645,13 +650,13 @@ msgstr "비영리 단체와 오픈소스 프로젝트를 위한 할인 혜택이
 msgid "Docs"
 msgstr "문서"
 
-#: lib/tuist_web/components/app_layout_components.ex:161
+#: lib/tuist_web/components/app_layout_components.ex:244
 #: lib/tuist_web/live/account_projects_live.html.heex:55
 #, elixir-autogen, elixir-format
 msgid "Documentation"
 msgstr "문서"
 
-#: lib/tuist_web/live/user_login_live.ex:115
+#: lib/tuist_web/live/user_login_live.ex:253
 #, elixir-autogen, elixir-format
 msgid "Don't have an account?"
 msgstr "계정이 없으신가요?"
@@ -700,13 +705,13 @@ msgid "Effortlessly share your app with a single URL."
 msgstr "단 하나의 URL로 앱을 손쉽게 공유하세요."
 
 #: lib/tuist_web/live/user_forgot_password_live.ex:25
-#: lib/tuist_web/live/user_login_live.ex:54
-#: lib/tuist_web/live/user_registration_live.ex:41
+#: lib/tuist_web/live/user_login_live.ex:192
+#: lib/tuist_web/live/user_registration_live.ex:226
 #, elixir-autogen, elixir-format
 msgid "Email"
 msgstr "이메일"
 
-#: lib/tuist_web/live/user_registration_live.ex:146
+#: lib/tuist_web/live/user_registration_live.ex:341
 #, elixir-autogen, elixir-format
 msgid "Email is already taken"
 msgstr "이미 사용 중인 이메일입니다"
@@ -722,14 +727,14 @@ msgid "Enhance your product and development with actionable insights."
 msgstr "실천 가능한 유용한 통찰로 여러분의 제품과 개발을 더욱 발전시키세요."
 
 #: lib/tuist_web/live/user_forgot_password_live.ex:26
-#: lib/tuist_web/live/user_login_live.ex:55
-#: lib/tuist_web/live/user_registration_live.ex:42
+#: lib/tuist_web/live/user_login_live.ex:193
+#: lib/tuist_web/live/user_registration_live.ex:227
 #, elixir-autogen, elixir-format
 msgid "Enter your email"
 msgstr "이메일을 입력하세요"
 
-#: lib/tuist_web/live/user_login_live.ex:62
-#: lib/tuist_web/live/user_registration_live.ex:49
+#: lib/tuist_web/live/user_login_live.ex:200
+#: lib/tuist_web/live/user_registration_live.ex:234
 #, elixir-autogen, elixir-format
 msgid "Enter your password"
 msgstr "비밀번호를 입력해주세요"
@@ -739,7 +744,7 @@ msgstr "비밀번호를 입력해주세요"
 msgid "Enterprise"
 msgstr "기업"
 
-#: lib/tuist_web/components/app_components.ex:368
+#: lib/tuist_web/components/app_components.ex:452
 #: lib/tuist_web/controllers/error_html.ex:102
 #, elixir-autogen, elixir-format
 msgid "Error"
@@ -770,7 +775,7 @@ msgstr "자주하는 질문"
 msgid "Failed"
 msgstr "실패"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:397
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:426
 #, elixir-autogen, elixir-format
 msgid "Faster builds"
 msgstr "더 빠른 빌드"
@@ -796,7 +801,7 @@ msgid "Flaky tests"
 msgstr "불안정 테스트"
 
 #: lib/tuist_web/live/user_forgot_password_live.ex:10
-#: lib/tuist_web/live/user_login_live.ex:73
+#: lib/tuist_web/live/user_login_live.ex:211
 #, elixir-autogen, elixir-format
 msgid "Forgot your password?"
 msgstr "비밀번호를 잊으셨나요?"
@@ -866,7 +871,7 @@ msgstr "아이디어나 질문이 있으신가요? 커뮤니티 포럼에 참여
 msgid "Grafana dashboard"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:404
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:433
 #, elixir-autogen, elixir-format
 msgid "Happier devs"
 msgstr ""
@@ -876,12 +881,12 @@ msgstr ""
 msgid "Happiness"
 msgstr "행복도"
 
-#: lib/tuist/accounts/user_notifier.ex:177
+#: lib/tuist/accounts/user_notifier.ex:175
 #, elixir-autogen, elixir-format
 msgid "Hola %{invitee_email}, you can join the organization by clicking the button below:"
 msgstr "안녕 %{invitee_email}, 아래의 버튼을 클릭하면 조직에 가입할 수 있습니다:"
 
-#: lib/tuist/accounts/user_notifier.ex:144
+#: lib/tuist/accounts/user_notifier.ex:142
 #, elixir-autogen, elixir-format
 msgid "Hola %{name}, you can reset your password by clicking the button below:"
 msgstr "안녕 %{name}, 아래의 버튼을 클릭하면 비밀번호를 재설정할 수 있습니다:"
@@ -899,7 +904,7 @@ msgid "INFO:"
 msgstr "정보:"
 
 #: lib/tuist/accounts/user_notifier.ex:118
-#: lib/tuist/accounts/user_notifier.ex:152
+#: lib/tuist/accounts/user_notifier.ex:150
 #, elixir-autogen, elixir-format
 msgid "If you didn't make this request, feel free to ignore this email."
 msgstr "이 요청을 본인이 한 것이 아니라면, 해당 이메일을 무시하셔도 됩니다."
@@ -914,7 +919,7 @@ msgstr ""
 msgid "Included for free"
 msgstr "무료로 포함된"
 
-#: lib/tuist_web/components/app_components.ex:367
+#: lib/tuist_web/components/app_components.ex:451
 #, elixir-autogen, elixir-format
 msgid "Info"
 msgstr "정보"
@@ -934,7 +939,7 @@ msgstr ""
 msgid "Interviewee or author's avatar"
 msgstr ""
 
-#: lib/tuist_web/live/account_billing_live.ex:95
+#: lib/tuist_web/live/account_billing_live.ex:93
 #, elixir-autogen, elixir-format
 msgid "Invalid plan"
 msgstr "유효하지 않은 플랜"
@@ -955,7 +960,7 @@ msgstr "초대가 수락되었습니다 🎉"
 msgid "Invitation not found or expired"
 msgstr "초대를 찾을 수 없거나 만료되었습니다."
 
-#: lib/tuist/accounts/user_notifier.ex:171
+#: lib/tuist/accounts/user_notifier.ex:169
 #, elixir-autogen, elixir-format
 msgid "Invitation to %{organization_name}"
 msgstr "%{organization_name}로의 초대"
@@ -980,7 +985,8 @@ msgstr "Slack에 참여하기"
 msgid "Join our Slack group for real-time conversations and to connect with the Tuist community"
 msgstr "Tuist 커뮤니티에서 실시간으로 소통하기 위해 Slack에 참여하세요"
 
-#: lib/tuist_web/live/user_login_live.ex:70
+#: lib/tuist_web/live/user_login_live.ex:123
+#: lib/tuist_web/live/user_login_live.ex:208
 #, elixir-autogen, elixir-format
 msgid "Keep me logged in"
 msgstr "로그인 상태 유지"
@@ -995,7 +1001,7 @@ msgstr "Tuist의 최신 업데이트와 주요 변경 사항을 확인합니다.
 msgid "Last flaky run"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:431
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:460
 #, elixir-autogen, elixir-format
 msgid "Learn more"
 msgstr "더 알아보기"
@@ -1016,12 +1022,15 @@ msgstr ""
 msgid "Local hits"
 msgstr ""
 
+#: lib/tuist_web/live/user_login_live.ex:14
+#: lib/tuist_web/live/user_login_live.ex:132
+#: lib/tuist_web/live/user_registration_live.ex:149
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:93
 #, elixir-autogen, elixir-format
 msgid "Log in"
 msgstr "로그인"
 
-#: lib/tuist_web/live/user_login_live.ex:33
+#: lib/tuist_web/live/user_login_live.ex:171
 #, elixir-autogen, elixir-format
 msgid "Log in to your account"
 msgstr "계정에 로그인"
@@ -1053,7 +1062,7 @@ msgstr "마케팅 웹사이트"
 msgid "Measure"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:389
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:418
 #, elixir-autogen, elixir-format
 msgid "Millions"
 msgstr ""
@@ -1100,12 +1109,12 @@ msgstr "이름"
 msgid "New password"
 msgstr "새 암호"
 
-#: lib/tuist_web/components/app_layout_components.ex:157
+#: lib/tuist_web/components/app_layout_components.ex:238
 #, elixir-autogen, elixir-format
 msgid "New release:"
 msgstr "신규 출시"
 
-#: lib/tuist_web/components/app_components.ex:699
+#: lib/tuist_web/components/app_components.ex:783
 #, elixir-autogen, elixir-format
 msgid "Next"
 msgstr "다음"
@@ -1198,8 +1207,10 @@ msgstr "우리의 원칙"
 msgid "Passed"
 msgstr ""
 
-#: lib/tuist_web/live/user_login_live.ex:61
-#: lib/tuist_web/live/user_registration_live.ex:48
+#: lib/tuist_web/live/user_login_live.ex:112
+#: lib/tuist_web/live/user_login_live.ex:199
+#: lib/tuist_web/live/user_registration_live.ex:123
+#: lib/tuist_web/live/user_registration_live.ex:233
 #, elixir-autogen, elixir-format
 msgid "Password"
 msgstr "비밀번호"
@@ -1209,7 +1220,7 @@ msgstr "비밀번호"
 msgid "Password reset successfully."
 msgstr "비밀번호가 재설정되었습니다."
 
-#: lib/tuist/accounts/user.ex:76
+#: lib/tuist/accounts/user.ex:84
 #, elixir-autogen, elixir-format
 msgid "Passwords don't match"
 msgstr "비밀번호가 일치하지 않습니다"
@@ -1264,14 +1275,16 @@ msgstr ""
 msgid "Preview your project apps in simulator or devices with one click/command."
 msgstr "프로젝트 앱을 시뮬레이터나 실제 기기에서 클릭 한 번 또는 간단한 명령어로 바로 확인할 수 있어요."
 
-#: lib/tuist_web/components/app_layout_components.ex:115
+#: lib/tuist_web/components/app_layout_components.ex:174
+#: lib/tuist_web/live/overview_live.html.heex:291
 #: lib/tuist_web/live/previews_live.ex:22
 #: lib/tuist_web/live/previews_live.html.heex:2
+#: lib/tuist_web/live/user_registration_live.ex:46
 #, elixir-autogen, elixir-format
 msgid "Previews"
 msgstr ""
 
-#: lib/tuist_web/components/app_components.ex:692
+#: lib/tuist_web/components/app_components.ex:776
 #, elixir-autogen, elixir-format
 msgid "Previous"
 msgstr "이전"
@@ -1314,7 +1327,7 @@ msgstr "프로젝트"
 msgid "Project: %{project_name}"
 msgstr "프로젝트 %{project_name}"
 
-#: lib/tuist_web/components/app_layout_components.ex:38
+#: lib/tuist_web/components/app_layout_components.ex:47
 #: lib/tuist_web/live/account_projects_live.ex:20
 #: lib/tuist_web/live/account_projects_live.html.heex:4
 #, elixir-autogen, elixir-format
@@ -1326,7 +1339,7 @@ msgstr "프로젝트"
 msgid "Pulling cache binaries..."
 msgstr ""
 
-#: lib/tuist_web/live/preview_live.html.heex:88
+#: lib/tuist_web/live/preview_live.html.heex:91
 #, elixir-autogen, elixir-format
 msgid "QR code"
 msgstr "QR 코드"
@@ -1347,7 +1360,7 @@ msgstr ""
 msgid "Ran by"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:407
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:436
 #, elixir-autogen, elixir-format
 msgid "Read Bumble's story"
 msgstr ""
@@ -1385,12 +1398,12 @@ msgstr ""
 msgid "Reset password"
 msgstr "비밀번호 재설정"
 
-#: lib/tuist/accounts/user_notifier.ex:138
+#: lib/tuist/accounts/user_notifier.ex:136
 #, elixir-autogen, elixir-format
 msgid "Reset password instructions"
 msgstr "비밀번호 재설정 안내"
 
-#: lib/tuist/accounts/user_notifier.ex:147
+#: lib/tuist/accounts/user_notifier.ex:145
 #, elixir-autogen, elixir-format
 msgid "Reset your password"
 msgstr "비밀번호를 재설정하세요"
@@ -1416,7 +1429,7 @@ msgstr ""
 msgid "Running tests - 4.200 tests skipped (already run)"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:90
+#: lib/tuist_web/components/app_layout_components.ex:149
 #: lib/tuist_web/live/project_runs_live.ex:21
 #: lib/tuist_web/live/project_runs_live.html.heex:2
 #, elixir-autogen, elixir-format
@@ -1433,7 +1446,7 @@ msgstr "성공:"
 msgid "Scale your Swift App development"
 msgstr "Swift 앱 개발 확장"
 
-#: lib/tuist_web/live/preview_live.html.heex:91
+#: lib/tuist_web/live/preview_live.html.heex:94
 #, elixir-autogen, elixir-format
 msgid "Scan QR code to install the app on your device"
 msgstr "QR 코드 스캔으로 디바이스에 앱을 설치합니다."
@@ -1470,45 +1483,48 @@ msgstr "공유"
 msgid "Shop"
 msgstr "스토어"
 
-#: lib/tuist_web/components/app_layout_components.ex:122
-#: lib/tuist_web/live/user_login_live.ex:80
-#: lib/tuist_web/live/user_registration_live.ex:91
+#: lib/tuist_web/components/app_layout_components.ex:181
+#: lib/tuist_web/live/user_login_live.ex:218
+#: lib/tuist_web/live/user_registration_live.ex:276
 #, elixir-autogen, elixir-format
 msgid "Sign in"
 msgstr "로그인"
 
-#: lib/tuist_web/live/user_login_live.ex:89
+#: lib/tuist_web/live/user_login_live.ex:227
 #, elixir-autogen, elixir-format
 msgid "Sign in with GitHub"
 msgstr "GitHub로 로그인"
 
-#: lib/tuist_web/live/user_login_live.ex:97
+#: lib/tuist_web/live/user_login_live.ex:235
 #, elixir-autogen, elixir-format
 msgid "Sign in with Google"
 msgstr "Google로 로그인"
 
-#: lib/tuist_web/live/user_login_live.ex:105
+#: lib/tuist_web/live/user_login_live.ex:243
 #, elixir-autogen, elixir-format
 msgid "Sign in with Okta"
 msgstr "Okta로 로그인"
 
-#: lib/tuist_web/live/user_login_live.ex:118
-#: lib/tuist_web/live/user_registration_live.ex:55
+#: lib/tuist_web/live/user_login_live.ex:141
+#: lib/tuist_web/live/user_login_live.ex:256
+#: lib/tuist_web/live/user_registration_live.ex:140
+#: lib/tuist_web/live/user_registration_live.ex:240
+#: lib/tuist_web/live/user_registration_live.ex:292
 #, elixir-autogen, elixir-format
 msgid "Sign up"
 msgstr "가입하기"
 
-#: lib/tuist_web/live/user_registration_live.ex:64
+#: lib/tuist_web/live/user_registration_live.ex:249
 #, elixir-autogen, elixir-format
 msgid "Sign up with GitHub"
 msgstr "GitHub로 가입"
 
-#: lib/tuist_web/live/user_registration_live.ex:72
+#: lib/tuist_web/live/user_registration_live.ex:257
 #, elixir-autogen, elixir-format
 msgid "Sign up with Google"
 msgstr "Google로 가입"
 
-#: lib/tuist_web/live/user_registration_live.ex:80
+#: lib/tuist_web/live/user_registration_live.ex:265
 #, elixir-autogen, elixir-format
 msgid "Sign up with Okta"
 msgstr "Okta로 가입"
@@ -1591,7 +1607,7 @@ msgstr ""
 msgid "Start learning"
 msgstr "학습 시작"
 
-#: lib/tuist_web/live/user_registration_live.ex:22
+#: lib/tuist_web/live/user_registration_live.ex:208
 #, elixir-autogen, elixir-format
 msgid "Start your Tuist journey."
 msgstr "Tuist 여정을 시작합니다."
@@ -1658,7 +1674,7 @@ msgstr "Swift 버전"
 msgid "Tailored agreements to meet your specific needs"
 msgstr ""
 
-#: lib/tuist_web/controllers/error_html.ex:112
+#: lib/tuist_web/controllers/error_html.ex:111
 #, elixir-autogen, elixir-format
 msgid "Take me home"
 msgstr "홈으로 이동"
@@ -1668,7 +1684,7 @@ msgstr "홈으로 이동"
 msgid "Tax certificates"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:412
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:441
 #, elixir-autogen, elixir-format
 msgid "Teams using Tuist"
 msgstr "Tuist를 사용하는 팀"
@@ -1704,6 +1720,7 @@ msgstr "테스트 상태"
 msgid "Tested targets"
 msgstr ""
 
+#: lib/tuist_web/live/overview_live.html.heex:223
 #: lib/tuist_web/live/project_run_detail_live.html.heex:23
 #: lib/tuist_web/live/project_run_detail_live.html.heex:32
 #: lib/tuist_web/live/project_tests_live.ex:20
@@ -1711,7 +1728,7 @@ msgstr ""
 msgid "Tests"
 msgstr "테스트"
 
-#: lib/tuist_web/live/layout_live.ex:92
+#: lib/tuist_web/live/layout_live.ex:122
 #, elixir-autogen, elixir-format
 msgid "The account you are looking for doesn't exist or has been moved."
 msgstr "죄송합니다, 찾으시는 계정이 존재하지 않거나 이동되었습니다."
@@ -1812,10 +1829,11 @@ msgstr ""
 msgid "Tuist Changelog"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:143
+#: lib/tuist_web/components/app_layout_components.ex:202
+#: lib/tuist_web/components/app_layout_components.ex:225
 #: lib/tuist_web/live/account_projects_live.html.heex:28
-#: lib/tuist_web/live/user_login_live.ex:29
-#: lib/tuist_web/live/user_registration_live.ex:15
+#: lib/tuist_web/live/user_login_live.ex:167
+#: lib/tuist_web/live/user_registration_live.ex:201
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:7
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:52
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:119
@@ -1894,7 +1912,7 @@ msgstr ""
 
 #: lib/tuist_web/components/app_command_event_components.ex:25
 #: lib/tuist_web/live/preview_live.ex:66
-#: lib/tuist_web/live/previews_live.ex:106
+#: lib/tuist_web/live/previews_live.ex:102
 #: lib/tuist_web/live/project_run_detail_live.ex:289
 #: lib/tuist_web/live/project_test_case_detail_live.html.heex:40
 #, elixir-autogen, elixir-format
@@ -1923,7 +1941,7 @@ msgstr ""
 msgid "Upgrade"
 msgstr "개선"
 
-#: lib/tuist_web/live/account_billing_live.ex:182
+#: lib/tuist_web/live/account_billing_live.ex:180
 #, elixir-autogen, elixir-format
 msgid "Upon clicking confirm, your monthly invoice will be adjusted and your credit card will be charged immediately. Changing the plan resets your billing cycle and may result in a prorated charge for previous usage."
 msgstr ""
@@ -1958,7 +1976,7 @@ msgstr "유용한 리소스"
 msgid "User"
 msgstr "사용자"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:348
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:377
 #, elixir-autogen, elixir-format
 msgid "Users 💜 Tuist"
 msgstr "사용자 💜 Tuist"
@@ -1978,8 +1996,8 @@ msgstr ""
 msgid "Via shared Slack channel"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:434
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:451
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:463
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:480
 #, elixir-autogen, elixir-format
 msgid "View all"
 msgstr "모두 보기"
@@ -1999,12 +2017,12 @@ msgstr "%{pricing_page}를 방문하여 사용량 및 가격 책정 방식에 �
 msgid "W-8BEN-E certificate"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:399
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:428
+#, elixir-autogen, elixir-format
 msgid "Read Trendyol's story"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:405
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:434
 #, elixir-autogen, elixir-format
 msgid "We aim to empower developers to create great products."
 msgstr "우리는 개발자가 뛰어난 제품을 만들도록 돕는 것을 목표로 합니다."
@@ -2074,7 +2092,7 @@ msgstr ""
 msgid "We'll send a password reset link to your inbox"
 msgstr ""
 
-#: lib/tuist_web/live/user_login_live.ex:36
+#: lib/tuist_web/live/user_login_live.ex:174
 #, elixir-autogen, elixir-format
 msgid "Welcome back! Please enter your details."
 msgstr ""
@@ -2089,7 +2107,7 @@ msgstr "왜 귀사의 가격 모델이 전통적인 기업용 모델에 비해 �
 msgid "Written by"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:411
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:440
 #, elixir-autogen, elixir-format
 msgid "Years building an OSS foundation"
 msgstr ""
@@ -2152,12 +2170,12 @@ msgstr ""
 msgid "You received this email because you recently signed up for a Tuist account."
 msgstr "본 메일은 최근 Tuist 계정에 가입으로 발송되는 메일입니다."
 
-#: lib/tuist/accounts/user_notifier.ex:150
+#: lib/tuist/accounts/user_notifier.ex:148
 #, elixir-autogen, elixir-format
 msgid "You received this email because you requested a password reset for your Tuist account."
 msgstr "본 메일은 Tuist 계정의 비밀번호 재설정 요청으로 발송되었습니다."
 
-#: lib/tuist/accounts/user_notifier.ex:175
+#: lib/tuist/accounts/user_notifier.ex:173
 #, elixir-autogen, elixir-format
 msgid "You were invited to join the %{organization_name} Tuist organization by %{inviter_email}"
 msgstr ""
@@ -2222,7 +2240,7 @@ msgstr ""
 msgid "cache runs"
 msgstr ""
 
-#: lib/tuist_web/components/app_components.ex:277
+#: lib/tuist_web/components/app_components.ex:361
 #, elixir-autogen, elixir-format
 msgid "close"
 msgstr "닫기"
@@ -2289,14 +2307,14 @@ msgid "Mobile-first CI/CD with first class support for iOS team. Supporting the 
 msgstr ""
 
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:253
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "<p>Our commitment to open-source and our core values shape our unique approach to pricing. Unlike many models that try to extract every dollar from you with \"contact sales\" calls, limited demos, and other sales tactics, we believe in fairness and transparency. We treat everyone equally and set prices that are fair for all. By choosing our services, you are not only getting a great product but also supporting the development of more open-source projects. We see building a thriving business as a long-term journey, not a short-term sprint filled with shady practices. You can %{read_more}  about our philosophy.</p>\n"
 "<p>By supporting Tuist, you are also supporting the development of more open-source software for the Swift ecosystem.</p>\n"
 msgstr "<p>오픈소스에 대한 우리의 헌신과 핵심 가치는 우리만의 독특한 가격 책정 접근 방식을 구성합니다. '영업 팀에 문의하세요' 전화나, 제한된 데모 사용, 그리고 다른 영업 전략들과는 달리, 우리는 공정성과 투명성을 믿습니다. 우리는 모든 사람을 동등하게 대우하고 모두에게 공정한 가격을 설정합니다. 우리의 서비스를 선택함으로써, 여러분은 훌륭한 제품을 얻을 뿐만 아니라 더 많은 오픈소스 프로젝트 개발을 지원하게 됩니다. 우리는 번창하는 비즈니스를 구축하는 것을 의심스러운 관행으로 가득 찬 단기적인 질주가 아닌 장기적인 여정으로 봅니다. 우리의 철학에 대해 %{read_more}에서 더 읽어보실 수 있습니다.</p>\n"
 "<p>Tuist를 지원함으로써, 여러분은 또한 Swift 생태계를 위한 더 많은 오픈소스 소프트웨어 개발을 지원하게 됩니다.</p>\n"
 
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:259
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "read more"
 msgstr ""
 
@@ -2316,7 +2334,7 @@ msgid "Newsletter issues are sent bi-weekly and you can unsubscribe at any time.
 msgstr ""
 
 #: lib/tuist_web/marketing/controllers/marketing_html/newsletter.html.heex:5
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Swift Stories"
 msgstr ""
 
@@ -2328,7 +2346,7 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:54
 #: lib/tuist_web/marketing/layouts/marketing.html.heex:61
 #: lib/tuist_web/marketing/layouts/marketing.html.heex:67
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Swift Stories Newsletter"
 msgstr ""
 
@@ -2363,7 +2381,7 @@ msgid "Share: https://tuist.dev/tuist/app/previews/12"
 msgstr ""
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:314
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Shareable"
 msgstr ""
 
@@ -2433,12 +2451,12 @@ msgid "Security"
 msgstr "보안"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:134
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Newsletter Atom"
 msgstr ""
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:135
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Newsletter RSS"
 msgstr ""
 
@@ -2464,7 +2482,7 @@ msgstr "해시"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:220
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:38
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Generated Projects"
 msgstr "생성된 프로젝트"
 
@@ -2485,7 +2503,271 @@ msgid "%{builds_count} builds"
 msgstr ""
 
 #: lib/tuist_web/live/project_dashboard_live.html.heex:197
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Builds"
 msgstr "빌드"
+
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:354
+#, elixir-autogen, elixir-format
+msgid "All open source Swift packages"
+msgstr ""
+
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:348
+#, elixir-autogen, elixir-format
+msgid "Optimizes the resolution of Swift packages in your projects. Download only source archives of the package versions you need – saving both time and disk space, locally or on the CI."
+msgstr ""
+
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:353
+#, elixir-autogen, elixir-format
+msgid "SwiftPM standard"
+msgstr ""
+
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:345
+#, elixir-autogen, elixir-format
+msgid "Tuist Registry"
+msgstr ""
+
+#: lib/tuist_web/components/account_dropdown.ex:55
+#, elixir-autogen, elixir-format
+msgid "Account settings"
+msgstr ""
+
+#: lib/tuist_web/components/account_dropdown.ex:62
+#, elixir-autogen, elixir-format
+msgid "Download macOS app"
+msgstr ""
+
+#: lib/tuist_web/components/account_dropdown.ex:78
+#, elixir-autogen, elixir-format
+msgid "Log out"
+msgstr ""
+
+#: lib/tuist_web/components/account_dropdown.ex:70
+#, elixir-autogen, elixir-format
+msgid "Switch to your preferred theme"
+msgstr ""
+
+#: lib/tuist_web/live/overview_live.html.heex:69
+#: lib/tuist_web/live/overview_live.html.heex:128
+#, elixir-autogen, elixir-format
+msgid "%{binary_cache_effectiveness}%"
+msgstr ""
+
+#: lib/tuist_web/live/overview_live.html.heex:99
+#: lib/tuist_web/live/overview_live.html.heex:113
+#, elixir-autogen, elixir-format
+msgid "%{duration}s"
+msgstr ""
+
+#: lib/tuist_web/live/overview_live.html.heex:137
+#, elixir-autogen, elixir-format
+msgid "%{selective_test_effectiveness}%"
+msgstr ""
+
+#: lib/tuist_web/live/overview_live.html.heex:85
+#, elixir-autogen, elixir-format
+msgid "%{selective_tests_effectiveness}%"
+msgstr ""
+
+#: lib/tuist_web/live/overview_live.html.heex:2
+#, elixir-autogen, elixir-format
+msgid "Analytics"
+msgstr ""
+
+#: lib/tuist_web/live/overview_live.html.heex:94
+#, elixir-autogen, elixir-format
+msgid "Average build time"
+msgstr ""
+
+#: lib/tuist_web/live/overview_live.html.heex:108
+#, elixir-autogen, elixir-format
+msgid "Average test time"
+msgstr ""
+
+#: lib/tuist_web/live/overview_live.html.heex:96
+#, elixir-autogen, elixir-format
+msgid "Average time it takes to build a project as reported from Xcode post actions."
+msgstr ""
+
+#: lib/tuist_web/live/overview_live.html.heex:110
+#, elixir-autogen, elixir-format
+msgid "Average time it takes to test a project when using the 'tuist test' command."
+msgstr ""
+
+#: lib/tuist_web/live/overview_live.html.heex:62
+#: lib/tuist_web/live/overview_live.html.heex:126
+#: lib/tuist_web/live/overview_live.html.heex:196
+#, elixir-autogen, elixir-format
+msgid "Binary cache effectiveness"
+msgstr ""
+
+#: lib/tuist_web/live/overview_live.html.heex:64
+#, elixir-autogen, elixir-format
+msgid "Binary cache effectiveness represents the ratio of binary cache hits compared to binary cache misses."
+msgstr ""
+
+#: lib/tuist_web/live/overview_live.ex:15
+#, elixir-autogen, elixir-format
+msgid "Overview"
+msgstr ""
+
+#: lib/tuist_web/live/overview_live.html.heex:78
+#: lib/tuist_web/live/overview_live.html.heex:135
+#: lib/tuist_web/live/overview_live.html.heex:211
+#, elixir-autogen, elixir-format
+msgid "Selective test effectiveness"
+msgstr ""
+
+#: lib/tuist_web/live/overview_live.html.heex:80
+#, elixir-autogen, elixir-format
+msgid "Selective test effectiveness represents the ratio of selective test hits compared to selective test misses."
+msgstr ""
+
+#: lib/tuist_web/live/overview_live.ex:136
+#, elixir-autogen, elixir-format
+msgid "since last week"
+msgstr ""
+
+#: lib/tuist_web/live/user_login_live.ex:136
+#, elixir-autogen, elixir-format
+msgid "Don’t have an account?"
+msgstr ""
+
+#: lib/tuist_web/live/user_login_live.ex:103
+#: lib/tuist_web/live/user_registration_live.ex:115
+#, elixir-autogen, elixir-format
+msgid "Email address"
+msgstr ""
+
+#: lib/tuist_web/live/user_login_live.ex:129
+#, elixir-autogen, elixir-format
+msgid "Forgot password?"
+msgstr ""
+
+#: lib/tuist_web/live/user_login_live.ex:45
+#, elixir-autogen, elixir-format
+msgid "Log in to Tuist"
+msgstr ""
+
+#: lib/tuist_web/live/user_login_live.ex:46
+#, elixir-autogen, elixir-format
+msgid "Welcome back! Please log in to continue"
+msgstr ""
+
+#: lib/tuist_web/live/overview_live.ex:141
+#, elixir-autogen, elixir-format
+msgid "Any"
+msgstr ""
+
+#: lib/tuist_web/live/overview_live.html.heex:15
+#, elixir-autogen, elixir-format
+msgid "Environment:"
+msgstr ""
+
+#: lib/tuist_web/live/overview_live.ex:145
+#, elixir-autogen, elixir-format
+msgid "Local"
+msgstr ""
+
+#: lib/tuist_web/live/overview_live.ex:138
+#, elixir-autogen, elixir-format
+msgid "since last month"
+msgstr ""
+
+#: lib/tuist_web/live/overview_live.ex:137
+#, elixir-autogen, elixir-format
+msgid "since last year"
+msgstr ""
+
+#: lib/tuist_web/components/app_preview.ex:20
+#, elixir-autogen, elixir-format
+msgid "%{app_name} icon"
+msgstr ""
+
+#: lib/tuist_web/live/overview_live.html.heex:237
+#, elixir-autogen, elixir-format
+msgid "Failed runs"
+msgstr ""
+
+#: lib/tuist_web/live/overview_live.html.heex:287
+#, elixir-autogen, elixir-format
+msgid "Last 40 runs"
+msgstr ""
+
+#: lib/tuist_web/live/overview_live.html.heex:301
+#, elixir-autogen, elixir-format
+msgid "Latest app previews"
+msgstr ""
+
+#: lib/tuist_web/live/overview_live.html.heex:235
+#, elixir-autogen, elixir-format
+msgid "Passed runs"
+msgstr ""
+
+#: lib/tuist_web/live/user_registration_live.ex:144
+#, elixir-autogen, elixir-format
+msgid "Already have an account?"
+msgstr ""
+
+#: lib/tuist_web/live/user_registration_live.ex:37
+#, elixir-autogen, elixir-format
+msgid "Binary caching"
+msgstr ""
+
+#: lib/tuist_web/live/user_registration_live.ex:31
+#, elixir-autogen, elixir-format
+msgid "Discover how selective testing is reducing your test time."
+msgstr ""
+
+#: lib/tuist_web/live/user_registration_live.ex:40
+#, elixir-autogen, elixir-format
+msgid "Explore how binary caching is enhancing your build times."
+msgstr ""
+
+#: lib/tuist_web/live/user_registration_live.ex:48
+#, elixir-autogen, elixir-format
+msgid "Instantly share your app using a URL."
+msgstr ""
+
+#: lib/tuist_web/live/user_registration_live.ex:28
+#, elixir-autogen, elixir-format
+msgid "Selective testing"
+msgstr ""
+
+#: lib/tuist_web/live/user_registration_live.ex:64
+#, elixir-autogen, elixir-format
+msgid "Sign up for Tuist"
+msgstr ""
+
+#: lib/tuist_web/live/user_login_live.ex:39
+#: lib/tuist_web/live/user_registration_live.ex:58
+#: lib/tuist_web/live/user_registration_live.ex:164
+#, elixir-autogen, elixir-format
+msgid "Tuist Logo"
+msgstr ""
+
+#: lib/tuist_web/live/user_registration_live.ex:132
+#, elixir-autogen, elixir-format
+msgid "Username"
+msgstr ""
+
+#: lib/tuist_web/live/user_registration_live.ex:135
+#, elixir-autogen, elixir-format
+msgid "Username may only contain alphanumeric characters"
+msgstr ""
+
+#: lib/tuist_web/live/user_registration_live.ex:65
+#, elixir-autogen, elixir-format
+msgid "Welcome! Create an account to continue"
+msgstr ""
+
+#: lib/tuist_web/live/user_registration_live.ex:172
+#, elixir-autogen, elixir-format
+msgid "Check your inbox for a confirmation email and click the link to continue."
+msgstr ""
+
+#: lib/tuist_web/live/user_registration_live.ex:170
+#, elixir-autogen, elixir-format
+msgid "Confirm your account"
+msgstr ""
 
