@@ -42,7 +42,7 @@ We provide insights into your project's dynamics and expert guidance for informe
 
 ### Break down silos 💜 {#break-down-silos}
 
-Unlike platform-specific ecosystems (e.g., Xcode's contained environment), Tuist offers web-centric experiences and integrates seamlessly with popular tools like Slack, Prometheus, and GitHub, enhancing cross-tool collaboration.
+플랫폼별 생태계(예: Xcode의 폐쇄적인 환경 등)과 달리, Tuist는 웹 중심 경험을 제공하며 Slack, Prometheus, Github과 같은 인기 있는 도구와 원활하게 통합되어 도구 간 협업을 강화합니다.
 
 **Further reading:** <LocalizedLink href="/guides/develop/projects">Projects</LocalizedLink>
 
