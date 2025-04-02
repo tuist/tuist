@@ -46,8 +46,21 @@
         width: var(--noora-spacing-2);
       }
 
-      & td {
-        background: var(--noora-surface-background-primary);
+      & tr {
+        &:hover {
+          & td([data-selectable]) {
+            background: var(--noora-surface-background-secondary);
+          }
+          & td:not([data-selectable]) {
+            background: var(--noora-surface-background-primary);
+          }
+        }
+
+        &:not(:hover) {
+          & td {
+            background: var(--noora-surface-background-primary);
+          }
+        }
       }
 
       & tr:not(:first-child) {
@@ -104,6 +117,10 @@
         color: var(--noora-surface-label-primary);
       }
     }
+  }
+
+  & [data-part="link"] {
+    text-decoration: none;
   }
 
   & [data-part="cell"] {

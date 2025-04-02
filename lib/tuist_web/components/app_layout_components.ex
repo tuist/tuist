@@ -91,16 +91,12 @@ defmodule TuistWeb.AppLayoutComponents do
       />
       <% test_runs_path = ~p"/#{@selected_account.name}/#{@selected_project.name}/test_runs"
       tests_default_open = @current_path in [test_runs_path] %>
-      <.sidebar_group id="tests" label="Tests" icon="subtask" default_open={tests_default_open}>
-        <.sidebar_item
-          label="Test runs"
-          icon="dashboard"
-          navigate={test_runs_path}
-          selected={test_runs_path == @current_path}
-        />
-        <.sidebar_item label="Test cases" icon="exchange" />
-        <.sidebar_item label="Flaky tests" icon="progress_x" />
-      </.sidebar_group>
+      <.sidebar_item
+        label="Test runs"
+        icon="dashboard"
+        navigate={test_runs_path}
+        selected={test_runs_path == @current_path}
+      />
       <.sidebar_group id="binary_cache" label="Binary cache" icon="database">
         <.sidebar_item label="Cache runs" icon="schema" />
       </.sidebar_group>

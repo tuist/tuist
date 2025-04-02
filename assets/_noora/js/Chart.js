@@ -240,7 +240,7 @@ function tooltipSeries({ color, seriesName, value }, options = {}) {
     value = value.value;
   }
 
-  const formattedValue = options.valueFormat ? options.valueFormat.replace("{v}", value) : value;
+  const formattedValue = options.valueFormat ? options.valueFormat.replace("{value}", value) : value;
 
   return `
   <div data-part="series-item">

@@ -39,7 +39,7 @@ defmodule TuistTestSupport.Fixtures.AccountsFixtures do
   end
 
   def organization_fixture(opts \\ []) do
-    name = Keyword.get(opts, :name, "#{TuistTestSupport.Utilities.unique_integer()}")
+    name = Keyword.get(opts, :name, "#{TuistTestSupport.Utilities.unique_integer(6)}")
     creator = Keyword.get_lazy(opts, :creator, fn -> user_fixture() end)
     sso_provider = Keyword.get(opts, :sso_provider)
     sso_organization_id = Keyword.get(opts, :sso_organization_id)
@@ -65,7 +65,7 @@ defmodule TuistTestSupport.Fixtures.AccountsFixtures do
     |> Tuist.Repo.preload(preload)
   end
 
-  def unique_user_email, do: "#{TuistTestSupport.Utilities.unique_integer()}@tuist.io"
+  def unique_user_email, do: "#{TuistTestSupport.Utilities.unique_integer(6)}@tuist.io"
   def valid_user_password, do: "hello world!"
 
   def valid_user_attributes(attrs \\ %{}) do

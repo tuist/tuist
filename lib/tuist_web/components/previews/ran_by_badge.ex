@@ -7,7 +7,7 @@ defmodule TuistWeb.Previews.RanByBadge do
 
   attr :preview, :map, required: true
 
-  def ran_by_badge_cell(assigns) do
+  def preview_ran_by_badge_cell(assigns) do
     ~H"""
     <%= if (@preview.command_event && @preview.command_event.is_ci) || is_nil(@preview.ran_by_account) || is_nil(@preview.ran_by_account.user_id) do %>
       <.badge_cell label="CI" icon="settings" color="information" style="light-fill" />

@@ -27,7 +27,7 @@
     </.card>
     <.card title={gettext("Previews")} icon="screen_share" data-part="previews">
       <.card_section data-part="previews-table-section">
-        <.table id="table-single-example" rows={@previews}>
+        <.table id="previews-table" rows={@previews}>
           <:col :let={preview} label={gettext("Name")}>
             <.text_and_description_cell label={preview.display_name} />
           </:col>
@@ -50,7 +50,7 @@
             } />
           </:col>
           <:col :let={preview} label={gettext("Ran by")}>
-            <.ran_by_badge_cell preview={preview} />
+            <.preview_ran_by_badge_cell preview={preview} />
           </:col>
           <:col :let={preview} label={gettext("Built at")}>
             <% relative_date =

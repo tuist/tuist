@@ -38,7 +38,29 @@ defmodule TuistWeb.AppComponents do
 
   attr :trend_label, :string, required: false, doc: "The trend label of the widget."
 
+  attr :trend_inverse, :boolean,
+    default: false,
+    doc: "Set this to true when smaller number means the trend is positive."
+
+  attr :patch, :string, default: nil, doc: "Patches the current LiveView"
+
+  attr :selected, :boolean,
+    default: false,
+    doc: "Whether the widget is selected. Only applicable when patch is not nil."
+
   def widget(assigns) do
+    ~H"""
+    <%= if @patch do %>
+      <.link href={@patch} data-selected={@selected} class="tuist-widget-link">
+        <.static_widget {assigns} />
+      </.link>
+    <% else %>
+      <.static_widget {assigns} />
+    <% end %>
+    """
+  end
+
+  defp static_widget(assigns) do
     ~H"""
     <.card_section class="tuist-widget" id={@id}>
       <div data-part="header">
@@ -67,8 +89,10 @@ defmodule TuistWeb.AppComponents do
 
         color =
           cond do
-            trend_value < 0 -> "destructive"
-            trend_value > 0 -> "success"
+            trend_value < 0 and not @trend_inverse -> "destructive"
+            trend_value < 0 and @trend_inverse -> "success"
+            trend_value > 0 and not @trend_inverse -> "success"
+            trend_value > 0 and @trend_inverse -> "destructive"
             true -> "neutral"
           end %>
         <.badge label={trend_badge_label} color={color} style="light-fill">

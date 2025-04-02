@@ -548,6 +548,7 @@ defmodule TuistWeb.Router do
       live "/", OverviewLive
       live "/analytics", OverviewLive
       live "/previews", NooraPreviewsLive
+      live "/runs/:id", RunDetailLive
     end
   end
 

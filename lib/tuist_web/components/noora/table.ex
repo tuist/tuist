@@ -44,6 +44,10 @@ defmodule TuistWeb.Noora.Table do
     doc:
       "A function to generate the row key. Required when using a LiveView stream. If using streams and not provided, defaults to the `id` key of the stream."
 
+  attr :row_navigate, :fun,
+    default: nil,
+    doc: "A function to generate the link to navigate to when clicking on a row."
+
   slot :col, required: true do
     attr :label, :string, required: false, doc: "The label of the column"
     attr :icon, :string, doc: "An icon to render next to the label"
@@ -73,8 +77,14 @@ defmodule TuistWeb.Noora.Table do
           phx-update={match?(%Phoenix.LiveView.LiveStream{}, @rows) && "stream"}
         >
           <tr :for={row <- @rows} id={@row_key && @row_key.(row)}>
-            <td :for={col <- @col}>
-              {render_slot(col, row)}
+            <td :for={col <- @col} data-selectable={not is_nil(@row_navigate)}>
+              <%= if @row_navigate do %>
+                <.link navigate={@row_navigate.(row)} data-part="link">
+                  {render_slot(col, row)}
+                </.link>
+              <% else %>
+                {render_slot(col, row)}
+              <% end %>
             </td>
           </tr>
         </tbody>

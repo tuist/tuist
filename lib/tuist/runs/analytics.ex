@@ -230,6 +230,7 @@ defmodule Tuist.Runs.Analytics do
             count: count(e)
           }
         )
+        |> add_filters(opts)
       end
     })
   end
@@ -635,11 +636,22 @@ defmodule Tuist.Runs.Analytics do
   defp add_filters(query, opts) do
     is_ci = Keyword.get(opts, :is_ci)
 
-    case is_ci do
-      nil -> query
-      true -> where(query, [e], e.is_ci == true)
-      false -> where(query, [e], e.is_ci == false)
-    end
+    query =
+      case is_ci do
+        nil -> query
+        true -> where(query, [e], e.is_ci == true)
+        false -> where(query, [e], e.is_ci == false)
+      end
+
+    status = Keyword.get(opts, :status)
+
+    query =
+      case status do
+        nil -> query
+        _ -> where(query, [e], e.status == ^status)
+      end
+
+    query
   end
 
   defp date_range_for_date_period(date_period, opts) do

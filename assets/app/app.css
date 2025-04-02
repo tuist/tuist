@@ -906,6 +906,18 @@ input:checked + .slider:before {
 
 /* Noora components */
 
+.tuist-widget-link {
+  text-decoration: unset;
+
+  & .tuist-widget:hover {
+    background-color: var(--noora-surface-background-secondary);
+  }
+
+  &[data-selected] .tuist-widget {
+    box-shadow: var(--noora-border-light-focus);
+  }
+}
+
 .tuist-widget {
   gap: var(--noora-spacing-5);
 

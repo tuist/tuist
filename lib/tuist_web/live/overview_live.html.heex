@@ -175,7 +175,7 @@
                 axisLabel: %{color: "var:noora-surface-label-secondary", formatter: "{value}%"}
               },
               tooltip: %{
-                valueFormat: "{v}%"
+                valueFormat: "{value}%"
               },
               legend: %{
                 show: false
@@ -195,7 +195,7 @@
                 |> Enum.map(&Tuple.to_list/1),
               name: gettext("Binary cache effectiveness"),
               type: "line",
-              smooth: 0.2,
+              smooth: 0.1,
               symbol: "none"
             },
             %{
@@ -210,7 +210,7 @@
                 |> Enum.map(&Tuple.to_list/1),
               name: gettext("Selective test effectiveness"),
               type: "line",
-              smooth: 0.2,
+              smooth: 0.1,
               symbol: "none"
             }
           ]}
@@ -252,7 +252,7 @@
                 top: "5%"
               },
               tooltip: %{
-                valueFormat: "{v}s",
+                valueFormat: "{value}s",
                 dateFormat: "minute"
               },
               xAxis: %{

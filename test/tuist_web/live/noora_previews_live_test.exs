@@ -1,4 +1,4 @@
-defmodule TuistWeb.PreviewsLiveTest do
+defmodule TuistWeb.NooraPreviewsLiveTest do
   alias TuistTestSupport.Fixtures.PreviewsFixtures
 
   use TuistTestSupport.Cases.ConnCase, async: false

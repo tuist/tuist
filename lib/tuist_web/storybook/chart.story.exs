@@ -72,7 +72,7 @@ defmodule TuistWeb.Storybook.Chart do
               }
             },
             tooltip: %{
-              valueFormat: "{v}%"
+              valueFormat: "{value}%"
             }
           }
         }

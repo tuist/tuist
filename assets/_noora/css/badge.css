@@ -62,7 +62,7 @@
 
   --noora-badge-status-success: var(--noora-green-600);
   --noora-badge-status-warning: var(--noora-orange-600);
-  --noora-badge-status-error: var(--noora-red-600);
+  --noora-badge-status-error: light-dark(var(--noora-red-500), var(--noora-red-600));
   --noora-badge-status-attention: light-dark(var(--noora-yellow-600), var(--noora-yellow-500));
 }
 

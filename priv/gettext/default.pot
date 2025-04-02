@@ -103,6 +103,7 @@ msgstr ""
 
 #: lib/tuist_web/live/overview_live.html.heex:55
 #: lib/tuist_web/live/project_dashboard_live.html.heex:15
+#: lib/tuist_web/live/test_runs_live.html.heex:47
 #, elixir-autogen, elixir-format
 msgid "12 months"
 msgstr ""
@@ -119,6 +120,7 @@ msgstr ""
 
 #: lib/tuist_web/live/overview_live.html.heex:50
 #: lib/tuist_web/live/project_dashboard_live.html.heex:12
+#: lib/tuist_web/live/test_runs_live.html.heex:42
 #, elixir-autogen, elixir-format
 msgid "30 days"
 msgstr ""
@@ -145,6 +147,7 @@ msgstr ""
 
 #: lib/tuist_web/live/overview_live.html.heex:45
 #: lib/tuist_web/live/project_dashboard_live.html.heex:9
+#: lib/tuist_web/live/test_runs_live.html.heex:37
 #, elixir-autogen, elixir-format
 msgid "7 days"
 msgstr ""
@@ -349,6 +352,7 @@ msgstr ""
 #: lib/tuist_web/live/noora_previews_live.html.heex:40
 #: lib/tuist_web/live/preview_live.html.heex:74
 #: lib/tuist_web/live/previews_live.html.heex:22
+#: lib/tuist_web/live/test_runs_live.html.heex:193
 #, elixir-autogen, elixir-format
 msgid "Branch"
 msgstr ""
@@ -362,6 +366,7 @@ msgstr ""
 #: lib/tuist_web/components/app_command_event_components.ex:40
 #: lib/tuist_web/live/overview_live.ex:153
 #: lib/tuist_web/live/project_dashboard_live.html.heex:48
+#: lib/tuist_web/live/test_runs_live.ex:153
 #, elixir-autogen, elixir-format
 msgid "CI"
 msgstr ""
@@ -450,6 +455,7 @@ msgstr ""
 
 #: lib/tuist_web/live/project_runs_live.html.heex:13
 #: lib/tuist_web/live/project_test_case_detail_live.html.heex:24
+#: lib/tuist_web/live/test_runs_live.html.heex:183
 #, elixir-autogen, elixir-format
 msgid "Command"
 msgstr ""
@@ -457,6 +463,7 @@ msgstr ""
 #: lib/tuist_web/live/noora_previews_live.html.heex:46
 #: lib/tuist_web/live/preview_live.html.heex:78
 #: lib/tuist_web/live/previews_live.html.heex:25
+#: lib/tuist_web/live/test_runs_live.html.heex:196
 #, elixir-autogen, elixir-format
 msgid "Commit SHA"
 msgstr ""
@@ -588,7 +595,7 @@ msgstr ""
 msgid "Custom terms"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:137
+#: lib/tuist_web/components/app_layout_components.ex:133
 #: lib/tuist_web/live/accept_invitation_live.ex:53
 #: lib/tuist_web/live/device_codes_success_live.ex:42
 #: lib/tuist_web/live/project_dashboard_live.ex:21
@@ -648,7 +655,7 @@ msgstr ""
 msgid "Docs"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:244
+#: lib/tuist_web/components/app_layout_components.ex:240
 #: lib/tuist_web/live/account_projects_live.html.heex:55
 #, elixir-autogen, elixir-format
 msgid "Documentation"
@@ -742,7 +749,7 @@ msgstr ""
 msgid "Enterprise"
 msgstr ""
 
-#: lib/tuist_web/components/app_components.ex:452
+#: lib/tuist_web/components/app_components.ex:476
 #: lib/tuist_web/controllers/error_html.ex:102
 #, elixir-autogen, elixir-format
 msgid "Error"
@@ -769,6 +776,7 @@ msgid "FAQ"
 msgstr ""
 
 #: lib/tuist_web/live/project_run_detail_live.html.heex:31
+#: lib/tuist_web/live/test_runs_live.html.heex:190
 #, elixir-autogen, elixir-format
 msgid "Failed"
 msgstr ""
@@ -917,7 +925,7 @@ msgstr ""
 msgid "Included for free"
 msgstr ""
 
-#: lib/tuist_web/components/app_components.ex:451
+#: lib/tuist_web/components/app_components.ex:475
 #, elixir-autogen, elixir-format
 msgid "Info"
 msgstr ""
@@ -1109,13 +1117,13 @@ msgstr ""
 msgid "New password"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:238
+#: lib/tuist_web/components/app_layout_components.ex:234
 #, elixir-autogen, elixir-format
 msgid "New release:"
 msgstr ""
 
-#: lib/tuist_web/components/app_components.ex:740
-#: lib/tuist_web/components/app_components.ex:806
+#: lib/tuist_web/components/app_components.ex:764
+#: lib/tuist_web/components/app_components.ex:830
 #, elixir-autogen, elixir-format
 msgid "Next"
 msgstr ""
@@ -1204,6 +1212,7 @@ msgid "Our principles"
 msgstr ""
 
 #: lib/tuist_web/live/project_run_detail_live.html.heex:31
+#: lib/tuist_web/live/test_runs_live.html.heex:188
 #, elixir-autogen, elixir-format
 msgid "Passed"
 msgstr ""
@@ -1276,7 +1285,7 @@ msgstr ""
 msgid "Preview your project apps in simulator or devices with one click/command."
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:174
+#: lib/tuist_web/components/app_layout_components.ex:170
 #: lib/tuist_web/live/noora_previews_live.ex:25
 #: lib/tuist_web/live/noora_previews_live.html.heex:18
 #: lib/tuist_web/live/noora_previews_live.html.heex:28
@@ -1288,7 +1297,7 @@ msgstr ""
 msgid "Previews"
 msgstr ""
 
-#: lib/tuist_web/components/app_components.ex:799
+#: lib/tuist_web/components/app_components.ex:823
 #, elixir-autogen, elixir-format
 msgid "Previous"
 msgstr ""
@@ -1351,6 +1360,7 @@ msgstr ""
 #: lib/tuist_web/live/project_run_detail_live.html.heex:101
 #: lib/tuist_web/live/project_runs_live.html.heex:25
 #: lib/tuist_web/live/project_test_case_detail_live.html.heex:43
+#: lib/tuist_web/live/test_runs_live.html.heex:205
 #, elixir-autogen, elixir-format
 msgid "Ran at"
 msgstr ""
@@ -1361,6 +1371,7 @@ msgstr ""
 #: lib/tuist_web/live/project_run_detail_live.html.heex:92
 #: lib/tuist_web/live/project_runs_live.html.heex:19
 #: lib/tuist_web/live/project_test_case_detail_live.html.heex:35
+#: lib/tuist_web/live/test_runs_live.html.heex:202
 #, elixir-autogen, elixir-format
 msgid "Ran by"
 msgstr ""
@@ -1434,7 +1445,7 @@ msgstr ""
 msgid "Running tests - 4.200 tests skipped (already run)"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:149
+#: lib/tuist_web/components/app_layout_components.ex:145
 #: lib/tuist_web/live/project_runs_live.ex:21
 #: lib/tuist_web/live/project_runs_live.html.heex:2
 #, elixir-autogen, elixir-format
@@ -1488,7 +1499,7 @@ msgstr ""
 msgid "Shop"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:181
+#: lib/tuist_web/components/app_layout_components.ex:177
 #: lib/tuist_web/live/user_login_live.ex:218
 #: lib/tuist_web/live/user_registration_live.ex:276
 #, elixir-autogen, elixir-format
@@ -1834,8 +1845,8 @@ msgstr ""
 msgid "Tuist Changelog"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:202
-#: lib/tuist_web/components/app_layout_components.ex:225
+#: lib/tuist_web/components/app_layout_components.ex:198
+#: lib/tuist_web/components/app_layout_components.ex:221
 #: lib/tuist_web/live/account_projects_live.html.heex:28
 #: lib/tuist_web/live/user_login_live.ex:167
 #: lib/tuist_web/live/user_registration_live.ex:201
@@ -2245,7 +2256,7 @@ msgstr ""
 msgid "cache runs"
 msgstr ""
 
-#: lib/tuist_web/components/app_components.ex:361
+#: lib/tuist_web/components/app_components.ex:385
 #, elixir-autogen, elixir-format
 msgid "close"
 msgstr ""
@@ -2572,6 +2583,7 @@ msgid "%{selective_tests_effectiveness}%"
 msgstr ""
 
 #: lib/tuist_web/live/overview_live.html.heex:2
+#: lib/tuist_web/live/test_runs_live.html.heex:2
 #, elixir-autogen, elixir-format
 msgid "Analytics"
 msgstr ""
@@ -2626,6 +2638,7 @@ msgid "Selective test effectiveness represents the ratio of selective test hits 
 msgstr ""
 
 #: lib/tuist_web/live/overview_live.ex:140
+#: lib/tuist_web/live/test_runs_live.ex:140
 #, elixir-autogen, elixir-format
 msgid "since last week"
 msgstr ""
@@ -2657,26 +2670,31 @@ msgid "Welcome back! Please log in to continue"
 msgstr ""
 
 #: lib/tuist_web/live/overview_live.ex:145
+#: lib/tuist_web/live/test_runs_live.ex:145
 #, elixir-autogen, elixir-format
 msgid "Any"
 msgstr ""
 
 #: lib/tuist_web/live/overview_live.html.heex:15
+#: lib/tuist_web/live/test_runs_live.html.heex:7
 #, elixir-autogen, elixir-format
 msgid "Environment:"
 msgstr ""
 
 #: lib/tuist_web/live/overview_live.ex:149
+#: lib/tuist_web/live/test_runs_live.ex:149
 #, elixir-autogen, elixir-format
 msgid "Local"
 msgstr ""
 
 #: lib/tuist_web/live/overview_live.ex:142
+#: lib/tuist_web/live/test_runs_live.ex:142
 #, elixir-autogen, elixir-format
 msgid "since last month"
 msgstr ""
 
 #: lib/tuist_web/live/overview_live.ex:141
+#: lib/tuist_web/live/test_runs_live.ex:141
 #, elixir-autogen, elixir-format
 msgid "since last year"
 msgstr ""
@@ -2810,7 +2828,7 @@ msgstr ""
 msgid "Platform"
 msgstr ""
 
-#: lib/tuist_web/components/app_components.ex:731
+#: lib/tuist_web/components/app_components.ex:755
 #, elixir-autogen, elixir-format
 msgid "Prev"
 msgstr ""
@@ -2833,4 +2851,47 @@ msgstr ""
 #: lib/tuist_web/live/user_confirmation_live.ex:41
 #, elixir-autogen, elixir-format
 msgid "Your account has been confirmed. You will be redirected shortly..."
+msgstr ""
+
+#: lib/tuist_web/live/test_runs_live.html.heex:90
+#, elixir-autogen, elixir-format
+msgid "%{test_runs_average_duration}s"
+msgstr ""
+
+#: lib/tuist_web/live/test_runs_live.html.heex:85
+#, elixir-autogen, elixir-format
+msgid "Average test run duration represents the average time it took to run a test during a given period. A test run is executed by either running 'tuist test' or 'tuist xcodebuild test'."
+msgstr ""
+
+#: lib/tuist_web/live/test_runs_live.ex:84
+#: lib/tuist_web/live/test_runs_live.html.heex:83
+#, elixir-autogen, elixir-format
+msgid "Avg. test run duration"
+msgstr ""
+
+#: lib/tuist_web/live/test_runs_live.ex:74
+#: lib/tuist_web/live/test_runs_live.html.heex:68
+#, elixir-autogen, elixir-format
+msgid "Failed run count"
+msgstr ""
+
+#: lib/tuist_web/live/test_runs_live.html.heex:70
+#, elixir-autogen, elixir-format
+msgid "Failed run count represents a number of how many test runs failed during a given period. A test run is executed by either running 'tuist test' or 'tuist xcodebuild test'."
+msgstr ""
+
+#: lib/tuist_web/live/test_runs_live.html.heex:170
+#, elixir-autogen, elixir-format
+msgid "Test Runs"
+msgstr ""
+
+#: lib/tuist_web/live/test_runs_live.ex:66
+#: lib/tuist_web/live/test_runs_live.html.heex:54
+#, elixir-autogen, elixir-format
+msgid "Test run count"
+msgstr ""
+
+#: lib/tuist_web/live/test_runs_live.html.heex:56
+#, elixir-autogen, elixir-format
+msgid "Test run count represents a number of how many test runs were run during a given period. A test run is executed by either running 'tuist test' or 'tuist xcodebuild test'."
 msgstr ""
