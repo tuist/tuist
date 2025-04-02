@@ -9,7 +9,8 @@ defmodule Tuist.AccountTest do
       Account.create_changeset(%Account{}, %{
         name: "Test",
         user_id: 1,
-        customer_id: "cus_123"
+        customer_id: "cus_123",
+        billing_email: "#{UUIDv7.generate()}@tuist.dev"
       })
 
     assert changeset.valid? == true
@@ -38,7 +39,12 @@ defmodule Tuist.AccountTest do
   describe "user_id and organization_id validity" do
     test "changeset is valid when user_id is present" do
       changeset =
-        Account.create_changeset(%Account{}, %{name: "Test", user_id: 1, customer_id: "cus_123"})
+        Account.create_changeset(%Account{}, %{
+          name: "Test",
+          user_id: 1,
+          customer_id: "cus_123",
+          billing_email: "#{UUIDv7.generate()}@tuist.dev"
+        })
 
       assert changeset.valid? == true
     end
@@ -48,7 +54,8 @@ defmodule Tuist.AccountTest do
         Account.create_changeset(%Account{}, %{
           name: "Test",
           organization_id: 1,
-          customer_id: "cus_123"
+          customer_id: "cus_123",
+          billing_email: "#{UUIDv7.generate()}@tuist.dev"
         })
 
       assert changeset.valid? == true
@@ -90,7 +97,13 @@ defmodule Tuist.AccountTest do
     end
 
     test "valid name passes all validations" do
-      changeset = Account.create_changeset(%Account{}, %{name: "valid-name123", user_id: 1})
+      changeset =
+        Account.create_changeset(%Account{}, %{
+          name: "valid-name123",
+          user_id: 1,
+          billing_email: "#{UUIDv7.generate()}@tuist.dev"
+        })
+
       assert changeset.valid?
     end
 

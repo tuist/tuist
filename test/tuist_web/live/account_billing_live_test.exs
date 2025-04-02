@@ -8,25 +8,28 @@ defmodule TuistWeb.AccountBillingLiveTest do
   alias Tuist.Accounts
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
-  setup %{conn: conn} do
+  setup %{conn: conn} = context do
     user = AccountsFixtures.user_fixture()
+    account_without_customer = Map.get(context, :account_without_customer, true)
 
     %{account: account} =
       AccountsFixtures.organization_fixture(
         name: "tuist-org",
-        customer_id: "customer_id",
+        customer_id: if(account_without_customer, do: "customer_id", else: nil),
         creator: user,
         preload: [:account],
         current_month_remote_cache_hits_count: 167
       )
 
-    Billing
-    |> stub(:get_customer_by_id, fn _ ->
-      %{
-        id: "customer_id",
-        email: "customer_email"
-      }
-    end)
+    if account_without_customer do
+      Billing
+      |> stub(:get_customer_by_id, fn _ ->
+        %{
+          id: UUIDv7.generate(),
+          email: account.billing_email
+        }
+      end)
+    end
 
     Billing
     |> stub(:get_subscription_current_period_end, fn _ ->
@@ -51,7 +54,7 @@ defmodule TuistWeb.AccountBillingLiveTest do
       |> assign(:selected_account, account)
       |> log_in_user(user)
 
-    %{conn: conn, user: user}
+    %{conn: conn, user: user, account: account}
   end
 
   test "sets the right title", %{conn: conn} do
@@ -135,7 +138,11 @@ defmodule TuistWeb.AccountBillingLiveTest do
   end
 
   describe "when pro plan" do
-    test "renders the correct information", %{conn: conn} do
+    @tag account_without_customer: true
+    test "renders the correct information when the customer id is present", %{
+      conn: conn,
+      account: account
+    } do
       # Given
       Billing
       |> stub(:get_current_active_subscription, fn _ ->
@@ -159,6 +166,38 @@ defmodule TuistWeb.AccountBillingLiveTest do
       refute has_element?(lv, "button", "Upgrade")
       assert has_element?(lv, "button", "Current plan")
       assert has_element?(lv, "p", "167 of 200 free remote cache hits")
+      assert has_element?(lv, "p", account.billing_email)
+    end
+
+    @tag account_without_customer: false
+    test "renders the correct information when the customer id is not present", %{
+      conn: conn,
+      account: account
+    } do
+      # Given
+      Billing
+      |> stub(:get_current_active_subscription, fn _ ->
+        %{
+          plan: :pro,
+          status: "active",
+          default_payment_method: "payment_method_id",
+          trial_end: nil,
+          subscription_id: "subscription_id"
+        }
+      end)
+
+      # When
+      {:ok, lv, _html} =
+        conn
+        |> live(~p"/tuist-org/billing")
+
+      # Then
+      assert has_element?(lv, ".billing__overview__plan-card__plan-summary__info", "Pro plan")
+      assert has_element?(lv, "button", "Downgrade")
+      refute has_element?(lv, "button", "Upgrade")
+      assert has_element?(lv, "button", "Current plan")
+      assert has_element?(lv, "p", "167 of 200 free remote cache hits")
+      assert has_element?(lv, "p", account.billing_email)
     end
   end
 

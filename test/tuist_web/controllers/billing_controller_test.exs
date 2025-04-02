@@ -7,6 +7,41 @@ defmodule TuistWeb.BillingControllerTest do
   use Mimic
 
   describe "upgrade" do
+    test "creates the customer and redirects to Stripe when user has permission and billing returns an external redirect request",
+         %{conn: conn} do
+      %{account: account} =
+        user =
+        AccountsFixtures.user_fixture(
+          email: "tuist@tuist.io",
+          customer_id: nil,
+          preload: [:account]
+        )
+
+      success_url = url(~p"/#{account.name}/billing") <> "?new_plan=pro"
+      account_with_customer_id = %Accounts.Account{account | customer_id: UUIDv7.generate()}
+
+      Accounts
+      |> stub(:create_customer_when_absent, fn _ ->
+        account_with_customer_id
+      end)
+
+      Billing
+      |> expect(:update_plan, fn %{
+                                   plan: :pro,
+                                   account: ^account_with_customer_id,
+                                   success_url: ^success_url
+                                 } ->
+        {:ok, {:external_redirect, "https://stripe.com"}}
+      end)
+
+      conn =
+        conn
+        |> log_in_user(user)
+        |> get("/#{account.name}/billing/upgrade")
+
+      assert redirected_to(conn) == "https://stripe.com"
+    end
+
     test "redirects to Stripe when user has permission and billing returns an external redirect request",
          %{conn: conn} do
       %{account: account} =
@@ -70,12 +105,49 @@ defmodule TuistWeb.BillingControllerTest do
   end
 
   describe "manage" do
+    test "creates the customer and redirects to Stripe when user has permission", %{conn: conn} do
+      %{account: account} =
+        user =
+        AccountsFixtures.user_fixture(
+          email: "tuist@tuist.io",
+          customer_id: nil,
+          preload: [:account]
+        )
+
+      Billing
+      |> expect(:create_session, fn _ -> %{url: "https://stripe.com"} end)
+
+      Accounts
+      |> expect(:create_customer_when_absent, fn ^account ->
+        %Accounts.Account{account | customer_id: UUIDv7.generate()}
+      end)
+
+      account_with_customer_id = %Accounts.Account{account | customer_id: UUIDv7.generate()}
+
+      Accounts
+      |> stub(:create_customer_when_absent, fn _ ->
+        account_with_customer_id
+      end)
+
+      conn =
+        conn
+        |> log_in_user(user)
+        |> get("/#{account.name}/billing/manage")
+
+      assert redirected_to(conn) == "https://stripe.com"
+    end
+
     test "redirects to Stripe when user has permission", %{conn: conn} do
       %{account: account} =
         user = AccountsFixtures.user_fixture(email: "tuist@tuist.io", preload: [:account])
 
       Billing
       |> expect(:create_session, fn _ -> %{url: "https://stripe.com"} end)
+
+      Accounts
+      |> expect(:create_customer_when_absent, fn ^account ->
+        %Accounts.Account{account | customer_id: UUIDv7.generate()}
+      end)
 
       conn =
         conn

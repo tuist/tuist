@@ -25,6 +25,22 @@ defmodule Tuist.Accounts do
   alias Tuist.Billing
   import Ecto.Query, only: [from: 2]
 
+  def create_customer_when_absent(%Account{} = account) do
+    if is_nil(account.customer_id) do
+      customer_id =
+        Billing.create_customer(%{
+          name: account.name,
+          email: account.billing_email
+        })
+
+      account
+      |> Account.update_customer_id_changeset(%{customer_id: customer_id})
+      |> Repo.update!()
+    else
+      account
+    end
+  end
+
   def update_account_cache_upload_event_count(%Account{} = account, count) do
     {:ok, _} = Repo.update(account |> Ecto.Changeset.change(cache_upload_event_count: count))
     Repo.reload(account)
@@ -178,7 +194,6 @@ defmodule Tuist.Accounts do
     sso_provider = opts |> Keyword.get(:sso_provider)
     sso_organization_id = opts |> Keyword.get(:sso_organization_id)
     created_at = opts |> Keyword.get(:created_at, DateTime.utc_now())
-    setup_billing = opts |> Keyword.get(:setup_billing, not Tuist.Environment.on_premise?())
 
     current_month_remote_cache_hits_count =
       opts |> Keyword.get(:current_month_remote_cache_hits_count, 0)
@@ -199,14 +214,11 @@ defmodule Tuist.Accounts do
             organization_id: organization_id,
             name: name,
             current_month_remote_cache_hits_count: current_month_remote_cache_hits_count,
+            billing_email: user_email,
             customer_id:
               Keyword.get(
                 opts,
-                :customer_id,
-                if(setup_billing,
-                  do: Billing.create_customer(%{name: name, email: user_email}),
-                  else: nil
-                )
+                :customer_id
               )
           })
         )
@@ -347,7 +359,6 @@ defmodule Tuist.Accounts do
     confirmed_at = Keyword.get(opts, :confirmed_at, nil)
     oauth2_identity = Keyword.get(opts, :oauth2_identity, nil)
     created_at = Keyword.get(opts, :created_at, DateTime.utc_now())
-    setup_billing = Keyword.get(opts, :setup_billing, not Tuist.Environment.on_premise?())
 
     current_month_remote_cache_hits_count =
       opts |> Keyword.get(:current_month_remote_cache_hits_count, 0)
@@ -368,11 +379,7 @@ defmodule Tuist.Accounts do
         customer_id =
           Keyword.get(
             opts,
-            :customer_id,
-            if(setup_billing,
-              do: Billing.create_customer(%{name: name, email: email}),
-              else: nil
-            )
+            :customer_id
           )
 
         repo.insert(
@@ -380,7 +387,8 @@ defmodule Tuist.Accounts do
             user_id: user_id,
             name: name,
             current_month_remote_cache_hits_count: current_month_remote_cache_hits_count,
-            customer_id: customer_id
+            customer_id: customer_id,
+            billing_email: email
           })
         )
       end)

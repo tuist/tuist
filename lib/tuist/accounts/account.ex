@@ -8,6 +8,7 @@ defmodule Tuist.Accounts.Account do
 
   schema "accounts" do
     field :name, :string
+    field :billing_email, :string
     field :user_id, :integer
     field :organization_id, :integer
     field :cache_upload_event_count, :integer
@@ -22,11 +23,20 @@ defmodule Tuist.Accounts.Account do
     timestamps(inserted_at: :created_at)
   end
 
+  def update_customer_id_changeset(account, attrs) do
+    account
+    |> cast(attrs, [
+      :customer_id
+    ])
+    |> validate_required([:customer_id])
+  end
+
   def create_changeset(account, attrs) do
     changeset =
       account
       |> cast(attrs, [
         :name,
+        :billing_email,
         :user_id,
         :organization_id,
         :customer_id,
@@ -37,7 +47,7 @@ defmodule Tuist.Accounts.Account do
 
     changeset
     |> validate_required(
-      [:name] ++
+      [:name, :billing_email] ++
         if(is_nil(user_id), do: [:organization_id], else: [:user_id])
     )
     |> validate_change(:organization_id, fn :organization_id, organization_id ->

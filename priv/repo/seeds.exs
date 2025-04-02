@@ -254,7 +254,7 @@ test_cases =
       graph
       |> Repo.preload(xcode_projects: [:xcode_targets])
 
-    for test_case_run_index <- 1..100 do
+    for _ <- 1..100 do
       CommandEvents.create_test_case_run(
         %{
           status: Enum.random([:success, :failure]),

@@ -291,7 +291,7 @@ msgid "Back to log in"
 msgstr ""
 
 #: lib/tuist_web/components/app_layout_components.ex:59
-#: lib/tuist_web/live/account_billing_live.ex:64
+#: lib/tuist_web/live/account_billing_live.ex:62
 #: lib/tuist_web/live/account_billing_live.html.heex:9
 #, elixir-autogen, elixir-format
 msgid "Billing"
@@ -387,7 +387,7 @@ msgstr ""
 msgid "Cacheable targets"
 msgstr ""
 
-#: lib/tuist_web/live/account_billing_live.ex:194
+#: lib/tuist_web/live/account_billing_live.ex:192
 #: lib/tuist_web/live/project_dashboard_live.html.heex:65
 #, elixir-autogen, elixir-format
 msgid "Cancel"
@@ -477,7 +477,7 @@ msgstr ""
 msgid "Company"
 msgstr ""
 
-#: lib/tuist_web/live/account_billing_live.ex:205
+#: lib/tuist_web/live/account_billing_live.ex:203
 #, elixir-autogen, elixir-format
 msgid "Confirm"
 msgstr ""
@@ -487,7 +487,7 @@ msgstr ""
 msgid "Confirm account"
 msgstr ""
 
-#: lib/tuist_web/live/account_billing_live.ex:176
+#: lib/tuist_web/live/account_billing_live.ex:174
 #, elixir-autogen, elixir-format
 msgid "Confirm downgrade to the Air plan"
 msgstr ""
@@ -502,7 +502,7 @@ msgstr ""
 msgid "Confirm new password"
 msgstr ""
 
-#: lib/tuist_web/live/account_billing_live.ex:178
+#: lib/tuist_web/live/account_billing_live.ex:176
 #, elixir-autogen, elixir-format
 msgid "Confirm upgrade to the Pro plan"
 msgstr ""
@@ -577,7 +577,7 @@ msgid "Current plan"
 msgstr ""
 
 #: lib/tuist/billing.ex:70
-#: lib/tuist_web/live/account_billing_live.ex:244
+#: lib/tuist_web/live/account_billing_live.ex:242
 #: lib/tuist_web/live/account_billing_live.html.heex:56
 #, elixir-autogen, elixir-format
 msgid "Custom"
@@ -937,7 +937,7 @@ msgstr ""
 msgid "Interviewee or author's avatar"
 msgstr ""
 
-#: lib/tuist_web/live/account_billing_live.ex:95
+#: lib/tuist_web/live/account_billing_live.ex:93
 #, elixir-autogen, elixir-format
 msgid "Invalid plan"
 msgstr ""
@@ -1946,7 +1946,7 @@ msgstr ""
 msgid "Upgrade"
 msgstr ""
 
-#: lib/tuist_web/live/account_billing_live.ex:182
+#: lib/tuist_web/live/account_billing_live.ex:180
 #, elixir-autogen, elixir-format
 msgid "Upon clicking confirm, your monthly invoice will be adjusted and your credit card will be charged immediately. Changing the plan resets your billing cycle and may result in a prorated charge for previous usage."
 msgstr ""

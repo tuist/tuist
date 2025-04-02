@@ -11,6 +11,7 @@ defmodule Tuist.AccountsTest do
   alias Tuist.Accounts
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias Tuist.Environment
+  alias Tuist.Billing
 
   use Mimic
 
@@ -25,6 +26,39 @@ defmodule Tuist.AccountsTest do
     end)
 
     :ok
+  end
+
+  describe "create_customer_when_absent/1" do
+    test "doesn't create the customer if it's already present" do
+      # Given
+      %{account: account} = AccountsFixtures.user_fixture()
+      Mimic.reject(Billing, :create_customer, 1)
+
+      # When
+      got = Accounts.create_customer_when_absent(account)
+
+      # Then
+      assert got == account
+    end
+
+    test "creates the customer when it's absent" do
+      # Given
+      %{account: account} = AccountsFixtures.user_fixture(customer_id: nil)
+      customer_id = UUIDv7.generate()
+      billing_email = account.billing_email
+      customer_name = account.name
+
+      Billing
+      |> expect(:create_customer, 1, fn %{name: ^customer_name, email: ^billing_email} ->
+        customer_id
+      end)
+
+      # When
+      got = Accounts.create_customer_when_absent(account)
+
+      # Then
+      assert got == %Accounts.Account{account | customer_id: customer_id}
+    end
   end
 
   describe "get_users_count/0" do

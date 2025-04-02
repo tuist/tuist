@@ -24,8 +24,6 @@ defmodule TuistWeb.AccountBillingLive do
 
     plan = get_plan(%{params: params, subscription: subscription})
 
-    customer = Billing.get_customer_by_id(owner.customer_id)
-
     payment_method =
       with {:subscription, subscription} when not is_nil(subscription) <-
              {:subscription, subscription},
@@ -65,7 +63,7 @@ defmodule TuistWeb.AccountBillingLive do
       |> assign(:selected_account, owner)
       |> assign(:plan, plan)
       |> assign(:new_plan, nil)
-      |> assign(:customer, customer)
+      |> assign(:billing_email, owner.billing_email)
       |> assign(:payment_method, payment_method)
       |> assign(:subscription_current_period_end, subscription_current_period_end)
       |> assign(
@@ -129,7 +127,7 @@ defmodule TuistWeb.AccountBillingLive do
       case Billing.update_plan(%{
              plan: new_plan,
              period: new_plan_period,
-             account: selected_account,
+             account: Accounts.create_customer_when_absent(selected_account),
              success_url: uri <> "?new_plan=#{new_plan}"
            }) do
         {:ok, {:external_redirect, session_url}} ->

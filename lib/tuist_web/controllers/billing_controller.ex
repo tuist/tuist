@@ -13,11 +13,14 @@ defmodule TuistWeb.BillingController do
   plug :authorize
 
   def manage(%{assigns: %{billing_account: billing_account}} = conn, _params) do
+    billing_account = billing_account |> Accounts.create_customer_when_absent()
     session = Billing.create_session(billing_account.customer_id)
     redirect(conn, external: session.url) |> halt()
   end
 
   def upgrade(%{assigns: %{billing_account: billing_account}} = conn, _params) do
+    billing_account = billing_account |> Accounts.create_customer_when_absent()
+
     case Billing.update_plan(%{
            plan: :pro,
            account: billing_account,
