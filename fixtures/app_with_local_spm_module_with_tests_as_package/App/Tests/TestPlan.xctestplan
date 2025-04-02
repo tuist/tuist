@@ -1,0 +1,31 @@
+{
+  "configurations" : [
+    {
+      "id" : "2E5BC5CD-985F-4CC4-8BDA-5A84EF8AEBF8",
+      "name" : "Configuration 1",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "testTimeoutsEnabled" : true
+  },
+  "testTargets" : [
+    {
+      "target" : {
+        "containerPath" : "container:LocalSwiftPackage",
+        "identifier" : "LocalSwiftPackageTests",
+        "name" : "LocalSwiftPackageTests"
+      }
+    },
+    {
+      "target" : {
+        "containerPath" : "container:App.xcodeproj",
+        "identifier" : "6378BC3D214F4FB38A2D1C5B",
+        "name" : "UnitTests"
+      }
+    }
+  ],
+  "version" : 1
+}
