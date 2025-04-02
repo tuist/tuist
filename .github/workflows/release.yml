@@ -35,12 +35,9 @@ jobs:
           experimental: true
         env:
           MISE_HTTP_TIMEOUT: 300
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Check if there are releasable changes
         id: is-releasable
         working-directory: app
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # Run git cliff and save the output
           bumped_output=$(git cliff --include-path "app/**/*" --repository "../" --bump)
@@ -62,8 +59,6 @@ jobs:
         working-directory: app
         id: next-version
         if: env.should-release == 'true'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           NEXT_VERSION=$(git cliff --include-path "app/**/*" --repository "../" --bumped-version)
 
@@ -77,8 +72,6 @@ jobs:
         id: release-notes
         if: env.should-release == 'true'
         working-directory: app
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "RELEASE_NOTES<<EOF" >> "$GITHUB_OUTPUT"
           git cliff --include-path "app/**/*" --repository "../" --unreleased >> "$GITHUB_OUTPUT"
@@ -92,8 +85,6 @@ jobs:
       - name: Update CHANGELOG.md
         working-directory: app
         if: env.should-release == 'true'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: git cliff --include-path "app/**/*" --repository "../" --bump -o CHANGELOG.md
       - name: Select Xcode
         if: env.should-release == 'true'

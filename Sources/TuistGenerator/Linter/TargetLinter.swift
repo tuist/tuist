@@ -35,7 +35,6 @@ class TargetLinter: TargetLinting {
         issues.append(contentsOf: lintProductNameBuildSettings(target: target))
         issues.append(contentsOf: lintValidPlatformProductCombinations(target: target))
         issues.append(contentsOf: lintBundleIdentifier(target: target))
-        issues.append(contentsOf: lintHasSourceFiles(target: target))
         try await issues.append(contentsOf: lintCopiedFiles(target: target))
         issues.append(contentsOf: lintLibraryHasNoResources(target: target, options: options))
         issues.append(contentsOf: lintDeploymentTarget(target: target))
@@ -123,34 +122,6 @@ class TargetLinter: TargetLinting {
         }
 
         return issues
-    }
-
-    private func lintHasSourceFiles(target: Target) -> [LintingIssue] {
-        // Skip linting presence of source files except for local targets.
-        // Some remote targets, such as a `systemLibrary` type, are expected to have no source files.
-        guard target.type == .local else { return [] }
-        let supportsSources = target.supportsSources
-        let sources = target.sources
-
-        let hasNoSources = supportsSources && sources.isEmpty
-        let hasNoDependencies = target.dependencies.isEmpty
-        let hasNoScripts = target.scripts.isEmpty
-
-        // macOS bundle targets can have source code, but it's optional
-        if target.isExclusiveTo(.macOS), target.product == .bundle, hasNoSources {
-            return []
-        }
-
-        if hasNoSources, hasNoDependencies, hasNoScripts {
-            return [LintingIssue(reason: "The target \(target.name) doesn't contain source files.", severity: .warning)]
-        } else if !supportsSources, !sources.isEmpty {
-            return [LintingIssue(
-                reason: "Target \(target.name) cannot contain sources. \(target.product) targets in one of these destinations doesn't support source files: \(target.destinations.map(\.rawValue).sorted().joined(separator: ", "))",
-                severity: .error
-            )]
-        }
-
-        return []
     }
 
     private func lintCopiedFiles(target: Target) async throws -> [LintingIssue] {

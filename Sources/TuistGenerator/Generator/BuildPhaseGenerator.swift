@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import ServiceContextModule
 import TuistCore
 import TuistSupport
 import XcodeGraph
@@ -86,16 +87,14 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
             pbxproj: pbxproj
         )
 
-        if target.supportsSources {
-            try generateSourcesBuildPhase(
-                files: target.sources,
-                coreDataModels: target.coreDataModels,
-                target: target,
-                pbxTarget: pbxTarget,
-                fileElements: fileElements,
-                pbxproj: pbxproj
-            )
-        }
+        try generateSourcesBuildPhase(
+            files: target.sources,
+            coreDataModels: target.coreDataModels,
+            target: target,
+            pbxTarget: pbxTarget,
+            fileElements: fileElements,
+            pbxproj: pbxproj
+        )
 
         try generateResourcesBuildPhase(
             path: path,
@@ -301,11 +300,14 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
             }
         }
 
-        pbxBuildFiles.append(contentsOf: generateCoreDataModels(
-            coreDataModels: coreDataModels,
-            fileElements: fileElements,
-            pbxproj: pbxproj
-        ))
+        if target.shouldCoreDataModelsBeSources {
+            pbxBuildFiles.append(contentsOf: generateCoreDataModels(
+                coreDataModels: coreDataModels,
+                fileElements: fileElements,
+                pbxproj: pbxproj
+            ))
+        }
+
         pbxBuildFiles.forEach { pbxproj.add(object: $0) }
         sourcesBuildPhase.files = pbxBuildFiles
     }
@@ -364,19 +366,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
             fileElements: fileElements
         ))
 
-        if !target.supportsSources {
-            // CoreData models are typically added to the sources build phase
-            // and Xcode automatically bundles the models.
-            // For static libraries / frameworks however, they don't support resources,
-            // the models could be bundled in a stand alone `.bundle`
-            // as resources.
-            //
-            // e.g.
-            // MyStaticFramework (.staticFramework) -> Includes CoreData models as sources
-            // MyStaticFrameworkResources (.bundle) -> Includes CoreData models as resources
-            //
-            // - Note: Technically, CoreData models can be added a sources build phase in a `.bundle`
-            // but that will result in the `.bundle` having an executable, which is not valid on iOS.
+        if !target.shouldCoreDataModelsBeSources {
             pbxBuildFiles.append(contentsOf: generateCoreDataModels(
                 coreDataModels: target.coreDataModels,
                 fileElements: fileElements,

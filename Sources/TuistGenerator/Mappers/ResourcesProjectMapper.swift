@@ -76,9 +76,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
             additionalTargets.append(resourcesTarget)
         }
 
-        if target.supportsSources,
-           target.sources.containsSwiftFiles
-        {
+        if target.sources.containsSwiftFiles {
             let (filePath, data) = synthesizedSwiftFile(bundleName: bundleName, target: target, project: project)
 
             let hash = try data.map(contentHasher.hash)
@@ -89,7 +87,6 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         }
 
         if case .external = project.type,
-           target.supportsSources,
            target.sources.containsObjcFiles,
            target.resources.containsBundleAccessedResources,
            !target.supportsResources
