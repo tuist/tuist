@@ -20,6 +20,9 @@ extension ServiceContext {
 
 public struct RecentPathMetadata: Hashable, Equatable, Codable {
     let lastUpdated: Date
+    public init(lastUpdated: Date) {
+        self.lastUpdated = lastUpdated
+    }
 }
 
 /// This is a utility to record the paths the user interacts with.
