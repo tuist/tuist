@@ -343,6 +343,14 @@
             }
           }
         },
+        "ai": {
+          "text": "AI",
+          "items": {
+            "mcp": {
+              "text": "Model Context Protocol (MCP)"
+            }
+          }
+        },
         "share": {
           "text": "共有",
           "items": {
