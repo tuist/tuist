@@ -98,7 +98,7 @@ defmodule Tuist.MixProject do
       {:ecto_psql_extras, "~> 0.8.1"},
       {:cachex, "~> 4.0.2"},
       {:horde, "~> 0.8.0"},
-      {:error_tracker, "~> 0.5.0"},
+      {:error_tracker, "~> 0.6.0"},
       {:excellent_migrations, "~> 0.1.8"},
       {:ex_aws_sts, "~> 2.2"},
       {:qr_code, "~> 3.2.0"},
