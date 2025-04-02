@@ -7,7 +7,6 @@ struct MCPSetupCommand: ParsableCommand {
             commandName: "setup",
             abstract: "Commands to automate integrating clients with Tuist's MCP server",
             subcommands: [
-                MCPSetupCursorCommand.self,
                 MCPSetupClaudeCommand.self,
             ]
         )

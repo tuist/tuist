@@ -23,6 +23,7 @@ struct MCPResourcesRepository: MCPResourcesRepositorying {
     private let manifestLoader: ManifestLoading
     private let xcodeGraphMapper: XcodeGraphMapping
     private let jsonEncoder = JSONEncoder()
+    private let configLoader: ConfigLoading
 
     init() {
         let manifestLoader = ManifestLoaderFactory()
@@ -36,7 +37,8 @@ struct MCPResourcesRepository: MCPResourcesRepositorying {
             fileSystem: FileSystem(),
             manifestGraphLoader: manifestGraphLoader,
             manifestLoader: manifestLoader,
-            xcodeGraphMapper: XcodeGraphMapper()
+            xcodeGraphMapper: XcodeGraphMapper(),
+            configLoader: ConfigLoader()
         )
     }
 
@@ -44,28 +46,32 @@ struct MCPResourcesRepository: MCPResourcesRepositorying {
         fileSystem: FileSysteming,
         manifestGraphLoader: ManifestGraphLoading,
         manifestLoader: ManifestLoading,
-        xcodeGraphMapper: XcodeGraphMapping
+        xcodeGraphMapper: XcodeGraphMapping,
+        configLoader: ConfigLoading
     ) {
         self.fileSystem = fileSystem
         self.manifestGraphLoader = manifestGraphLoader
         self.manifestLoader = manifestLoader
         self.xcodeGraphMapper = xcodeGraphMapper
+        self.configLoader = configLoader
     }
 
     func list() async throws -> ListResources.Result {
-        let resources = try await (ServiceContext.current?.recentPaths?.read() ?? [:])
-            .keys
-            .concurrentCompactMap {
-                (try await fileSystem.exists($0)) ? $0 : nil
-            }
-            .concurrentMap {
-                Resource(
-                    name: "\($0.basename) graph",
-                    uri: "tuist://\($0.pathString)",
-                    description: "A graph representing the project \($0.basename)",
-                    mimeType: "application/json"
-                )
-            }
+        let resources = try await Array(
+            (ServiceContext.current?.recentPaths?.read() ?? [:])
+                .keys
+        )
+        .concurrentFilter {
+            try await fileSystem.exists($0)
+        }
+        .concurrentMap {
+            Resource(
+                name: "\($0.basename) graph",
+                uri: "tuist://\($0.pathString)",
+                description: "A graph representing the project \($0.basename)",
+                mimeType: "application/json"
+            )
+        }
         return ListResources.Result(resources: resources)
     }
 
@@ -92,7 +98,7 @@ struct MCPResourcesRepository: MCPResourcesRepositorying {
         guard try await fileSystem.exists(path) else { return .init(contents: []) }
 
         let graph: XcodeGraph.Graph
-        if try await manifestLoader.hasRootManifest(at: path) {
+        if try await configLoader.loadConfig(path: path).project.isGenerated {
             (graph, _, _, _) = try await manifestGraphLoader.load(path: path)
         } else {
             graph = try await xcodeGraphMapper.map(at: path)
@@ -101,6 +107,9 @@ struct MCPResourcesRepository: MCPResourcesRepositorying {
         return .init(contents: [.text(graphJSON, uri: resource.uri, mimeType: "application/json")])
     }
 
+    /// Some LLMs have strict limits over the size of the resource, so this function eliminates some of the attributes of the
+    /// graph
+    /// that increase the size significantly without adding a lot of value to the overall context.
     private func trim(graph: JSON) -> JSON {
         var graph = graph
         graph["projects"] = JSON(graph["projects"].dictionaryValue.mapValues { project in

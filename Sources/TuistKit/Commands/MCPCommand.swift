@@ -1,21 +1,18 @@
 import ArgumentParser
 
-public struct MCPCommand: AsyncParsableCommand, TrackableParsableCommand {
-    public var analyticsRequired: Bool { false }
+struct MCPCommand: AsyncParsableCommand, TrackableParsableCommand {
+    var analyticsRequired: Bool { false }
 
-    public init() {}
+    init() {}
 
-    public static var configuration: CommandConfiguration {
+    static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "mcp",
-            abstract: "Start an MCP server to interface LLMs with your local dev environment.",
+            abstract: "Commands for interfacing with Tuist's MCP server",
             subcommands: [
+                MCPStartCommand.self,
                 MCPSetupCommand.self,
             ]
         )
-    }
-
-    public func run() async throws {
-        try await MCPCommandService().run()
     }
 }

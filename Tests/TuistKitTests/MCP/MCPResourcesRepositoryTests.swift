@@ -19,13 +19,15 @@ struct MCPResourcesRepositoryTests {
     private let manifestLoader = MockManifestLoading()
     private let xcodeGraphMapper = MockXcodeGraphMapping()
     private let subject: MCPResourcesRepository
+    private let configLoader = MockConfigLoading()
 
     init() {
         subject = MCPResourcesRepository(
             fileSystem: fileSystem,
             manifestGraphLoader: manifestGraphLoader,
             manifestLoader: manifestLoader,
-            xcodeGraphMapper: xcodeGraphMapper
+            xcodeGraphMapper: xcodeGraphMapper,
+            configLoader: configLoader
         )
     }
 
@@ -75,6 +77,8 @@ struct MCPResourcesRepositoryTests {
                 let graph = XcodeGraph.Graph.test(projects: [temporaryDirectory: .test(targets: [
                     .test(name: "Test"),
                 ])])
+                given(configLoader).loadConfig(path: .value(temporaryDirectory))
+                    .willReturn(Tuist.test(project: .testGeneratedProject()))
                 given(manifestLoader).hasRootManifest(at: .value(temporaryDirectory)).willReturn(true)
                 given(manifestGraphLoader).load(path: .value(temporaryDirectory)).willReturn((graph, [], .init(), []))
 
