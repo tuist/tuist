@@ -37,9 +37,7 @@ defmodule TuistWeb.UserConfirmationLive do
                 type="secondary"
                 status="success"
                 size="small"
-                title={
-                  gettext("Your account has been confirmed. You will be redirected shortly...")
-                }
+                title={gettext("Your account has been confirmed. You will be redirected shortly...")}
               />
             <% else %>
               <div data-part="header">

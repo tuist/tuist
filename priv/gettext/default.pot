@@ -286,7 +286,7 @@ msgstr ""
 msgid "Average test"
 msgstr ""
 
-#: lib/tuist_web/live/user_confirmation_live.ex:94
+#: lib/tuist_web/live/user_confirmation_live.ex:92
 #: lib/tuist_web/live/user_forgot_password_live.ex:38
 #: lib/tuist_web/live/user_reset_password_live.ex:38
 #, elixir-autogen, elixir-format
@@ -489,7 +489,7 @@ msgstr ""
 msgid "Confirm"
 msgstr ""
 
-#: lib/tuist_web/live/user_confirmation_live.ex:76
+#: lib/tuist_web/live/user_confirmation_live.ex:74
 #, elixir-autogen, elixir-format
 msgid "Confirm account"
 msgstr ""
@@ -499,7 +499,7 @@ msgstr ""
 msgid "Confirm downgrade to the Air plan"
 msgstr ""
 
-#: lib/tuist_web/live/user_confirmation_live.ex:89
+#: lib/tuist_web/live/user_confirmation_live.ex:87
 #, elixir-autogen, elixir-format
 msgid "Confirm my account"
 msgstr ""
@@ -514,7 +514,7 @@ msgstr ""
 msgid "Confirm upgrade to the Pro plan"
 msgstr ""
 
-#: lib/tuist_web/live/user_confirmation_live.ex:77
+#: lib/tuist_web/live/user_confirmation_live.ex:75
 #, elixir-autogen, elixir-format
 msgid "Confirm your account to access Tuist."
 msgstr ""
@@ -2798,12 +2798,12 @@ msgstr ""
 msgid "Account confirmed!"
 msgstr ""
 
-#: lib/tuist_web/live/user_confirmation_live.ex:46
+#: lib/tuist_web/live/user_confirmation_live.ex:44
 #, elixir-autogen, elixir-format
 msgid "Confirmation failed"
 msgstr ""
 
-#: lib/tuist_web/live/user_confirmation_live.ex:56
+#: lib/tuist_web/live/user_confirmation_live.ex:54
 #, elixir-autogen, elixir-format
 msgid "User confirmation link is invalid or it has expired."
 msgstr ""
@@ -2813,7 +2813,7 @@ msgstr ""
 msgid "Your account has been confirmed."
 msgstr ""
 
-#: lib/tuist_web/live/user_confirmation_live.ex:48
+#: lib/tuist_web/live/user_confirmation_live.ex:46
 #, elixir-autogen, elixir-format
 msgid "Your account could not be confirmed."
 msgstr ""
@@ -2848,7 +2848,7 @@ msgstr ""
 msgid "bash"
 msgstr ""
 
-#: lib/tuist_web/live/user_confirmation_live.ex:41
+#: lib/tuist_web/live/user_confirmation_live.ex:40
 #, elixir-autogen, elixir-format
 msgid "Your account has been confirmed. You will be redirected shortly..."
 msgstr ""
