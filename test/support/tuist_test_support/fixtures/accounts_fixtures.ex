@@ -28,8 +28,8 @@ defmodule TuistTestSupport.Fixtures.AccountsFixtures do
     ]
 
     create_opts =
-      if Keyword.has_key?(opts, :name),
-        do: Keyword.put(create_opts, :name, Keyword.get(opts, :name)),
+      if Keyword.has_key?(opts, :handle),
+        do: Keyword.put(create_opts, :handle, Keyword.get(opts, :handle)),
         else: create_opts
 
     {:ok, user} =

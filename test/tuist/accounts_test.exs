@@ -1024,6 +1024,19 @@ defmodule Tuist.AccountsTest do
       assert is_nil(user.confirmed_at)
     end
 
+    test "creates the user infering the handle from the email when no handle is provided" do
+      # Given
+      email = unique_user_email()
+
+      # When
+      {:ok, user} = Accounts.create_user(email, password: valid_user_password())
+
+      # Then
+      assert user.account.name == String.split(email, "@") |> List.first()
+      assert is_binary(user.encrypted_password)
+      assert is_nil(user.confirmed_at)
+    end
+
     test "create a user with a password when new pricing model is enabled" do
       # Given
       email = unique_user_email()

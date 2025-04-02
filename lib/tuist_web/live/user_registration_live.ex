@@ -304,7 +304,7 @@ defmodule TuistWeb.UserRegistrationLive do
     case Accounts.create_user(
            Map.get(user_params, "email"),
            password: Map.get(user_params, "password"),
-           name: Map.get(user_params, "username")
+           handle: Map.get(user_params, "username")
          ) do
       {:ok, user} ->
         Accounts.deliver_user_confirmation_instructions(%{

@@ -344,16 +344,16 @@ defmodule Tuist.Accounts do
 
     suffix = Keyword.get(opts, :suffix, "")
 
-    name =
+    handle =
       Keyword.get(
         opts,
-        :name,
+        :handle
+      ) ||
         (email
          |> String.split("@")
          |> List.first()
          |> String.replace(".", "-")
          |> String.downcase()) <> suffix
-      )
 
     password = Keyword.get(opts, :password, "")
     confirmed_at = Keyword.get(opts, :confirmed_at, nil)
@@ -385,7 +385,7 @@ defmodule Tuist.Accounts do
         repo.insert(
           Account.create_changeset(%Account{}, %{
             user_id: user_id,
-            name: name,
+            name: handle,
             current_month_remote_cache_hits_count: current_month_remote_cache_hits_count,
             customer_id: customer_id,
             billing_email: email
@@ -415,7 +415,7 @@ defmodule Tuist.Accounts do
       {:ok, %{user: user}} ->
         Tuist.Analytics.user_create(user)
 
-        {:ok, user}
+        {:ok, user |> Repo.preload(:account)}
 
       {:error, :account, %Changeset{} = changeset, _} ->
         parse_account_changeset_error(changeset, email, opts)
