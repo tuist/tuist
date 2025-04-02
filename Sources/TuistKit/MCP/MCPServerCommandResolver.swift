@@ -14,10 +14,6 @@ struct MCPServerCommandResolver: MCPServerCommandResolving {
     }
 
     func resolve() -> (String, [String]) {
-        if executablePath.contains("mise") {
-            return ("mise", ["x", "tuist@latest", "--", "tuist", "mcp"])
-        } else {
-            return (executablePath, ["mcp"])
-        }
+        return (executablePath, ["mcp", "start"])
     }
 }

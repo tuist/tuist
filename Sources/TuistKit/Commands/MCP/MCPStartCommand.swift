@@ -9,9 +9,7 @@ struct MCPStartCommand: AsyncParsableCommand, TrackableParsableCommand {
         CommandConfiguration(
             commandName: "start",
             abstract: "Start an MCP server to interface LLMs with your local dev environment.",
-            subcommands: [
-                MCPSetupCommand.self,
-            ]
+            shouldDisplay: false
         )
     }
 
