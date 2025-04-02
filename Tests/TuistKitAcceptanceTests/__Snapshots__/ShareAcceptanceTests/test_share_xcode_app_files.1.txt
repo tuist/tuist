@@ -1,4 +1,2 @@
 ▌ ✔ Success
-▌ Product shared successfully
-▌ ✔ Success
 ▌ App was successfully launched 📲

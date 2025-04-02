@@ -1780,6 +1780,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "lukevanin",
+      "name": "Luke Van In",
+      "avatar_url": "https://avatars.githubusercontent.com/u/550579?v=4",
+      "profile": "https://github.com/lukevanin",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,

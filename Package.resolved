@@ -1,13 +1,13 @@
 {
-  "originHash" : "3f2b53e458a1e10ae916438f4c68bb81c658ab2c9bc496742c139637c83e119f",
+  "originHash" : "0572f2c9589381cfb69713da59d0b0acd9d0af39e3c1b81e79a89be6fbceb5b1",
   "pins" : [
     {
       "identity" : "aexml",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tadija/AEXML.git",
       "state" : {
-        "revision" : "38f7d00b23ecd891e1ee656fa6aeebd6ba04ecc3",
-        "version" : "4.6.1"
+        "revision" : "db806756c989760b35108146381535aec231092b",
+        "version" : "4.7.0"
       }
     },
     {
@@ -60,8 +60,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/FileSystem.git",
       "state" : {
-        "revision" : "1bff6d54e90a79706a4a9d77cd081104de430361",
-        "version" : "0.7.7"
+        "revision" : "9e9f692c608f48082ed32ed3d2393ac050cd451a",
+        "version" : "0.7.8"
       }
     },
     {
@@ -114,8 +114,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/p-x9/MachOKit",
       "state" : {
-        "revision" : "7ea55264554310709a4669091be21e5b5423aa44",
-        "version" : "0.29.1"
+        "revision" : "62d22e1ecef3dda702c039f03dd83f674ad59bfc",
+        "version" : "0.30.0"
       }
     },
     {
@@ -132,8 +132,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/Noora",
       "state" : {
-        "revision" : "ab6adb693d7f980a132ca9e7bda32ebf449a729a",
-        "version" : "0.32.0"
+        "revision" : "049039c385630f7c25f266969f58918e91f415ab",
+        "version" : "0.34.3"
       }
     },
     {
@@ -420,8 +420,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/XcodeGraph.git",
       "state" : {
-        "revision" : "40a1d9a5dc7c610ec1d433a40e36abbb01d751d8",
-        "version" : "1.8.8"
+        "revision" : "1c7ef35380a4c5d316f3fda68b6dd8140ab0f287",
+        "version" : "1.9.1"
       }
     },
     {
@@ -429,8 +429,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/XcodeProj",
       "state" : {
-        "revision" : "02bc2dd6224aa59147941d85fdc45a7677af62f6",
-        "version" : "8.27.3"
+        "revision" : "128d90e4633a8e6941586dea75426e177dfb92e6",
+        "version" : "9.0.0"
       }
     },
     {

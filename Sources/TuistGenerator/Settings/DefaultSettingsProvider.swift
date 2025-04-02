@@ -339,15 +339,26 @@ enum BuildSettingsError: FatalError {
 }
 
 extension BuildSettings {
-    func toSettings() throws -> SettingsDictionary {
-        try mapValues { value in
+    func toSettings() -> SettingsDictionary {
+        mapValues { value in
             switch value {
-            case let value as String:
+            case let .string(value):
                 return .string(value)
-            case let value as [String]:
+            case let .array(value):
                 return .array(value)
-            default:
-                throw BuildSettingsError.invalidValue(value)
+            }
+        }
+    }
+}
+
+extension SettingsDictionary {
+    func toBuildSettings() -> BuildSettings {
+        mapValues { value in
+            switch value {
+            case let .string(value):
+                return .string(value)
+            case let .array(value):
+                return .array(value)
             }
         }
     }

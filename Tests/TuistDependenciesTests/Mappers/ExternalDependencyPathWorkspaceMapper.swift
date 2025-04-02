@@ -62,6 +62,13 @@ final class ExternalDependencyPathWorkspaceMapperTests: TuistUnitTestCase {
         )
 
         // Then
+        let expectedXcodeprojPath = externalProjectBasePath.appending(
+            components: [
+                Constants.DerivedDirectory.dependenciesDerivedDirectory,
+                "ExternalDependency",
+                "ExternalDependency.xcodeproj",
+            ]
+        )
         XCTAssertBetterEqual(
             gotWorkspaceWithProjects.projects,
             [
@@ -74,17 +81,12 @@ final class ExternalDependencyPathWorkspaceMapperTests: TuistUnitTestCase {
                 Project.test(
                     path: externalProjectPath,
                     sourceRootPath: externalProject.sourceRootPath,
-                    xcodeProjPath: externalProjectBasePath.appending(
-                        components: [
-                            Constants.DerivedDirectory.dependenciesDerivedDirectory,
-                            "ExternalDependency",
-                            "ExternalDependency.xcodeproj",
-                        ]
-                    ),
+                    xcodeProjPath: expectedXcodeprojPath,
                     name: "ExternalDependency",
                     settings: Settings.test(
                         base: [
-                            "SRCROOT": .string(externalProjectPath.pathString),
+                            "SRCROOT": .string(externalProject.sourceRootPath.relative(to: expectedXcodeprojPath.parentDirectory)
+                                .pathString),
                         ]
                     ),
                     type: .external(hash: nil)

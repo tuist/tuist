@@ -11,27 +11,19 @@ public protocol GetPreviewServicing {
     ) async throws -> Preview
 }
 
-public enum GetPreviewServiceError: FatalError, Equatable {
+public enum GetPreviewServiceError: LocalizedError, Equatable {
     case unknownError(Int)
     case notFound(String)
     case forbidden(String)
     case unauthorized(String)
     case invalidPreview(String)
+    case badRequest(String)
 
-    public var type: ErrorType {
-        switch self {
-        case .unknownError, .invalidPreview:
-            return .bug
-        case .notFound, .forbidden, .unauthorized:
-            return .abort
-        }
-    }
-
-    public var description: String {
+    public var description: String? {
         switch self {
         case let .unknownError(statusCode):
             return "The preview could not be downloaded due to an unknown Tuist server response of \(statusCode)."
-        case let .notFound(message), let .forbidden(message), let .unauthorized(message):
+        case let .notFound(message), let .forbidden(message), let .unauthorized(message), let .badRequest(message):
             return message
         case let .invalidPreview(id):
             return "The preview \(id) is invalid."
@@ -95,6 +87,11 @@ public final class GetPreviewService: GetPreviewServicing {
             switch unauthorized.body {
             case let .json(error):
                 throw GetPreviewServiceError.unauthorized(error.message)
+            }
+        case let .badRequest(badRequest):
+            switch badRequest.body {
+            case let .json(error):
+                throw GetPreviewServiceError.badRequest(error.message)
             }
         }
     }

@@ -196,7 +196,7 @@ final class GenerateAcceptanceTestiOSAppWithOnDemandResources: TuistAcceptanceTe
         let data = try Data(contentsOf: pbxprojPath.url)
         let pbxProj = try PBXProj(data: data)
         let attributes = try XCTUnwrap(pbxProj.projects.first?.attributes)
-        let knownAssetTags = try XCTUnwrap(attributes["KnownAssetTags"] as? [String])
+        let knownAssetTags = try XCTUnwrap(attributes["KnownAssetTags"]?.arrayValue)
         let givenTags = [
             "ar-resource-group",
             "cube-texture",
@@ -721,6 +721,19 @@ final class GenerateAcceptanceTestCommandLineToolBase: TuistAcceptanceTestCase {
     }
 }
 
+final class GenerateAcceptanceTestGeneratedBundleWithMetalFiles: TuistAcceptanceTestCase {
+    func test_generated_bundle_with_metal_files() async throws {
+        try await setUpFixture(.generatedBunleWithMetalFiles)
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self, "Bundle")
+        try await XCTAssertProductWithDestinationContainsResource(
+            "Bundle.bundle",
+            destination: "Debug-iphonesimulator",
+            resource: "default.metallib"
+        )
+    }
+}
+
 final class GenerateAcceptanceTestCommandLineToolWithStaticLibrary: TuistAcceptanceTestCase {
     func test_command_line_tool_with_static_library() async throws {
         try await setUpFixture(.commandLineToolWithStaticLibrary)
@@ -783,7 +796,7 @@ final class GenerateAcceptanceTestsProjectWithClassPrefix: TuistAcceptanceTestCa
         )
         let attributes = try xcodeproj.pbxproj.rootProject()?.attributes
 
-        XCTAssertEqual(attributes?["CLASSPREFIX"] as? String, "TUIST")
+        XCTAssertEqual(attributes?["CLASSPREFIX"]?.stringValue, "TUIST")
     }
 }
 
@@ -956,7 +969,8 @@ final class GenerateAcceptanceTestiOSAppWithWeaklyLinkedFramework: TuistAcceptan
             XCTFail("App target should have a linked framework with settings")
             return
         }
-        XCTAssertEqualDictionaries(settings, ["ATTRIBUTES": ["Weak"]])
+        let expected = ["ATTRIBUTES": BuildFileSetting.array(["Weak"])]
+        XCTAssertEqualDictionaries(settings, expected)
     }
 }
 
@@ -1012,6 +1026,14 @@ final class GenerateAcceptanceTestAppWithCustomScheme: TuistAcceptanceTestCase {
         let buildAction = try XCTUnwrap(scheme.buildAction)
         XCTAssertFalse(buildAction.buildImplicitDependencies)
 
+        try await run(BuildCommand.self)
+    }
+}
+
+final class GenerateAcceptanceTestGeneratediOSAppWithoutConfigManifest: TuistAcceptanceTestCase {
+    func test_generated_ios_app_without_config_manifest() async throws {
+        try await setUpFixture(.generatediOSAppWithoutConfigManifest)
+        try await run(InstallCommand.self)
         try await run(BuildCommand.self)
     }
 }

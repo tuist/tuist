@@ -1243,19 +1243,16 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
 
     func testMap_whenHasAlreadyIncludedDefaultResources() async throws {
         let basePath = try temporaryPath()
-        let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
-        let resourcesPath = sourcesPath.appending(try RelativePath(validating: "Resources"))
-        let defaultResourcePath = resourcesPath.appending(try RelativePath(validating: "file.xib"))
-        try fileHandler.createFolder(sourcesPath)
-        fileHandler.stubFiles = { _, excludedPaths, _, _ in
-            if excludedPaths == nil {
-                [defaultResourcePath]
-            } else {
-                []
-            }
-        }
+        let sourcesPath = basePath.appending(components: "Package", "Sources", "Target1")
+        let resourcesPath = sourcesPath.appending(component: "Resources")
+        let defaultResourcePath = resourcesPath.appending(component: "file.xib")
         try await fileSystem.makeDirectory(at: resourcesPath)
         try await fileSystem.touch(defaultResourcePath)
+        let targetTwoSourcesPath = basePath.appending(components: "Package", "Sources", "Target2")
+        let targetTwoResourcesPath = targetTwoSourcesPath.appending(component: "Resources")
+        let targetTwoFileXib = targetTwoResourcesPath.appending(component: "file.xib")
+        try await fileSystem.makeDirectory(at: targetTwoResourcesPath)
+        try await fileSystem.touch(targetTwoFileXib)
 
         let project = try await subject.map(
             package: "Package",
@@ -1264,13 +1261,19 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 "Package": .test(
                     name: "Package",
                     products: [
-                        .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target1", "Target2"]),
                     ],
                     targets: [
                         .test(
                             name: "Target1",
                             resources: [
                                 .init(rule: .process, path: "Resources"),
+                            ]
+                        ),
+                        .test(
+                            name: "Target2",
+                            resources: [
+                                .init(rule: .process, path: "resources/file.xib"),
                             ]
                         ),
                     ],
@@ -1297,6 +1300,17 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                             ),
                         ]
                     ),
+                    .test(
+                        "Target2",
+                        basePath: basePath,
+                        resources: [
+                            .glob(
+                                pattern: .path(targetTwoSourcesPath.appending(components: "resources", "file.xib").pathString),
+                                excluding: [],
+                                tags: []
+                            ),
+                        ]
+                    ),
                 ]
             )
         )
@@ -1305,18 +1319,21 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
     func testMap_whenHasDefaultResources() async throws {
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
-        let defaultResourcePaths = try Set([
-            "xib",
+        let defaultResourcePaths = try [
+            "metal",
             "storyboard",
+            "strings",
+            "xcassets",
             "xcdatamodeld",
             "xcmappingmodel",
-            "xcassets",
-            "strings",
-            "metal",
-        ].map { sourcesPath.appending(try RelativePath(validating: "Resouces/file.\($0)")) })
-        try fileHandler.createFolder(sourcesPath)
-        fileHandler.stubFiles = { _, _, _, _ in
-            return defaultResourcePaths
+            "xib",
+        ]
+        .map { sourcesPath.appending(try RelativePath(validating: "Resources/file.\($0)")) }
+
+        try await fileSystem.makeDirectory(at: sourcesPath)
+        try await fileSystem.makeDirectory(at: sourcesPath.appending(component: "Resources"))
+        for resourcePath in defaultResourcePaths {
+            try await fileSystem.touch(resourcePath)
         }
 
         let project = try await subject.map(

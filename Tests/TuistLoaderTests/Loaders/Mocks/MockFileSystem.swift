@@ -122,6 +122,15 @@ public class MockFileSystem: FileSysteming {
         try await writeTextOverride(text, at, encoding)
     }
 
+    public func writeText(
+        _ text: String,
+        at: Path.AbsolutePath,
+        encoding: String.Encoding,
+        options _: Set<WriteTextOptions>
+    ) async throws {
+        try await writeTextOverride(text, at, encoding)
+    }
+
     public func readPlistFile<T>(at: Path.AbsolutePath) async throws -> T where T: Decodable {
         try await readPlistFile(at: at, decoder: .init())
     }
@@ -138,6 +147,15 @@ public class MockFileSystem: FileSysteming {
         try await writeAsPlistOverride(item, at, encoder)
     }
 
+    public func writeAsPlist(
+        _ item: some Encodable,
+        at: Path.AbsolutePath,
+        encoder: PropertyListEncoder,
+        options _: Set<WritePlistOptions>
+    ) async throws {
+        try await writeAsPlistOverride(item, at, encoder)
+    }
+
     public func readJSONFile<T>(at: Path.AbsolutePath) async throws -> T where T: Decodable {
         try await readJSONFile(at: at, decoder: .init())
     }
@@ -151,6 +169,15 @@ public class MockFileSystem: FileSysteming {
     }
 
     public func writeAsJSON(_ item: some Encodable, at: Path.AbsolutePath, encoder: JSONEncoder) async throws {
+        try await writeAsJSONOverride(item, at, encoder)
+    }
+
+    public func writeAsJSON(
+        _ item: some Encodable,
+        at: Path.AbsolutePath,
+        encoder: JSONEncoder,
+        options _: Set<WriteJSONOptions>
+    ) async throws {
         try await writeAsJSONOverride(item, at, encoder)
     }
 

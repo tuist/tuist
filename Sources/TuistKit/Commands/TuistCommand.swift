@@ -104,6 +104,11 @@ public struct TuistCommand: AsyncParsableCommand {
                 try await ScaffoldCommand.preprocess(processedArguments)
             }
             let command = try parseAsRoot(processedArguments)
+
+            if command is RecentPathRememberableCommand {
+                try await ServiceContext.current?.recentPaths?.remember(path: path)
+            }
+
             executeCommand = {
                 logFilePathDisplayStrategy = (command as? LogConfigurableCommand)?
                     .logFilePathDisplayStrategy ?? logFilePathDisplayStrategy
@@ -208,7 +213,6 @@ public struct TuistCommand: AsyncParsableCommand {
             }
             ServiceContext.current?.ui?.error(.alert(errorAlert.message, nextSteps: errorAlertNextSteps))
         } else if let successAlert = successAlerts.last {
-            print("\n")
             var successAlertNextSteps = successAlert.nextSteps
             if shouldOutputLogFilePath {
                 successAlertNextSteps.append(logsNextStep)
