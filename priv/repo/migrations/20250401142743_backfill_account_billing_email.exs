@@ -17,41 +17,38 @@ defmodule Tuist.Repo.Migrations.BackfillAccountBillingEmail do
   def down, do: :ok
 
   def do_change(batch_of_ids) do
-    # For the accounts identified by the ids in batch_of_ids with get the email address:
-    # - User accounts: The email of the user associated with the account
-    # - Organization accounts: The email of the first admin user associated with the organization
-    email_mappings =
-      from(a in "accounts",
-        where: a.id in ^batch_of_ids,
-        left_join: direct_usr in "users",
-        on: a.user_id == direct_usr.id,
-        left_join: u in "users_roles",
-        left_join: r in "roles",
-        on:
-          u.role_id == r.id and
-            r.name == "admin" and
-            r.resource_type == "Organization" and
-            r.resource_id == a.organization_id,
-        left_join: admin_usr in "users",
-        on: u.user_id == admin_usr.id,
-        order_by: [asc: u.created_at],
-        select: {a.id, fragment("COALESCE(?, ?)", direct_usr.email, admin_usr.email)}
-      )
-      |> repo().all()
-      |> Enum.reject(fn {_, email} -> is_nil(email) end)
-      |> Map.new()
-
     results =
       Enum.map(batch_of_ids, fn account_id ->
-        # We update accounts one by one because we can't use "update_all" with a dynamic
-        # value.
+        # Fetch the email for this specific account:
+        # - User accounts: Email of the user associated with the account (via user_id)
+        # - Organization accounts: Email of the first admin user associated with the organization
+        email =
+          from(a in "accounts",
+            where: a.id == ^account_id,
+            left_join: direct_usr in "users",
+            on: a.user_id == direct_usr.id,
+            left_join: u in "users_roles",
+            left_join: r in "roles",
+            on:
+              u.role_id == r.id and
+                r.name == "admin" and
+                r.resource_type == "Organization" and
+                r.resource_id == a.organization_id,
+            left_join: admin_usr in "users",
+            on: u.user_id == admin_usr.id,
+            order_by: [asc: u.created_at],
+            limit: 1,
+            select: fragment("COALESCE(?, ?)", direct_usr.email, admin_usr.email)
+          )
+          |> repo().one()
+
         {_count, [updated_id]} =
           repo().update_all(
             from(a in "accounts",
               where: a.id == ^account_id,
               select: a.id
             ),
-            [set: [billing_email: Map.fetch!(email_mappings, account_id)]],
+            [set: [billing_email: email]],
             log: :info
           )
 
