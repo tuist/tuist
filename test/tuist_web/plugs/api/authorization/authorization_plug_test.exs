@@ -27,7 +27,7 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlugTest do
     conn =
       build_conn(:get, ~p"/api/accounts/#{account.name}/registry/swift/availability")
       |> assign(:url_account, account)
-      |> TuistWeb.Authentication.put_current_authenticated_account(%AuthenticatedAccount{
+      |> assign(:current_subject, %AuthenticatedAccount{
         account: account,
         scopes: [:account_registry_read]
       })

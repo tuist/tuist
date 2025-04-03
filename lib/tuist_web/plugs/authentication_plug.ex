@@ -83,7 +83,7 @@ defmodule TuistWeb.AuthenticationPlug do
         conn |> TuistWeb.Authentication.put_current_user(user)
 
       %AuthenticatedAccount{} = authenticated_account ->
-        conn |> TuistWeb.Authentication.put_current_authenticated_account(authenticated_account)
+        conn |> assign(:current_subject, authenticated_account)
 
       nil ->
         conn

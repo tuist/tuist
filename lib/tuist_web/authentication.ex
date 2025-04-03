@@ -15,7 +15,6 @@ defmodule TuistWeb.Authentication do
 
   @current_user_key :current_user
   @current_project_key :current_project
-  @current_authenticated_account_key :current_authenticated_account
   # Make the remember me cookie valid for 60 days.
   # If you want bump or reduce this value, also change
   # the token expiry itself in UserToken.
@@ -29,7 +28,7 @@ defmodule TuistWeb.Authentication do
   def authenticated?(assigns) when is_map(assigns),
     do:
       current_user(assigns) != nil or current_project(assigns) != nil or
-        current_authenticated_account(assigns) != nil
+        assigns[:current_subject] != nil
 
   def current_user(%Plug.Conn{} = conn) do
     current_user(conn.assigns)
@@ -47,16 +46,10 @@ defmodule TuistWeb.Authentication do
 
   def current_project(assigns) when is_map(assigns), do: assigns[@current_project_key]
 
-  def current_authenticated_account(%Plug.Conn{} = conn),
-    do: current_authenticated_account(conn.assigns)
-
-  def current_authenticated_account(assigns) when is_map(assigns),
-    do: assigns[@current_authenticated_account_key]
-
   def authenticated_subject(conn) do
     user = current_user(conn)
     project = current_project(conn)
-    authenticated_account = current_authenticated_account(conn)
+    authenticated_account = conn.assigns[:current_subject]
 
     cond do
       user -> user
@@ -64,10 +57,6 @@ defmodule TuistWeb.Authentication do
       authenticated_account -> authenticated_account
       true -> nil
     end
-  end
-
-  def put_current_authenticated_account(%Plug.Conn{} = conn, authenticated_account) do
-    assign(conn, @current_authenticated_account_key, authenticated_account)
   end
 
   def put_current_user(%Plug.Conn{} = conn, user) do

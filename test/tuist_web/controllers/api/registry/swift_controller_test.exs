@@ -19,7 +19,7 @@ defmodule TuistWeb.API.Registry.SwiftControllerTest do
 
     conn =
       conn
-      |> Authentication.put_current_authenticated_account(%AuthenticatedAccount{
+      |> assign(:current_subject, %AuthenticatedAccount{
         account: account,
         scopes: [:account_registry_read]
       })
@@ -521,7 +521,7 @@ defmodule TuistWeb.API.Registry.SwiftControllerTest do
 
       conn =
         conn
-        |> Authentication.put_current_authenticated_account(nil)
+        |> assign(:current_subject, nil)
         |> Authentication.put_current_project(project)
 
       package = PackagesFixtures.package_fixture(scope: "Alamofire", name: "Alamofire")

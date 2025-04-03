@@ -56,7 +56,7 @@ defmodule TuistWeb.AuthenticationPlugTest do
       # When/Then
       for _n <- 1..10 do
         got = conn |> AuthenticationPlug.call(opts)
-        assert TuistWeb.Authentication.current_authenticated_account(got) == authenticated_account
+        assert got.assigns[:current_subject] == authenticated_account
         assert(TuistWeb.Authentication.authenticated?(got) == true)
       end
     end
@@ -80,7 +80,7 @@ defmodule TuistWeb.AuthenticationPlugTest do
       got = conn |> AuthenticationPlug.call(opts)
 
       # Then
-      assert TuistWeb.Authentication.current_authenticated_account(got) == %AuthenticatedAccount{
+      assert got.assigns[:current_subject] == %AuthenticatedAccount{
                account: account_token.account,
                scopes: [:account_registry_read]
              }
